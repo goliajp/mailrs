@@ -44,6 +44,15 @@ bun run lint                             # eslint
 
 This runs SMTP on 2525, submission on 2587, IMAP on 1143, web API on 3200, and Vite on 5173.
 
+### Cross-compilation & deployment
+
+```bash
+./scripts/dist.sh [target]               # build + package (default: aarch64-unknown-linux-gnu)
+./scripts/deploy.sh                      # cross-compile, upload, restart on remote host
+```
+
+Both use `cargo zigbuild` for cross-compilation. Deploy expects `SSH_KEY` and `SSH_HOST` env vars.
+
 ## Architecture
 
 ### Crate dependency graph
@@ -64,10 +73,11 @@ The server binary wires everything together via Axum (web), Tokio (async), and d
 
 - **smtp_session** / **imap_session** — Protocol handlers that drive the proto crates
 - **inbound/pipeline** — Multi-stage email acceptance: rate limiting → PTR check → DNSBL → greylisting → SPF/DKIM/DMARC → content scan → sieve filtering → delivery
-- **web/** — REST API + WebSocket endpoints (Axum routes, auth middleware, admin APIs)
+- **web** — REST API + WebSocket endpoints (Axum routes, auth middleware, admin APIs)
 - **config** — All configuration via `MAILRS_*` environment variables
-- **domain_store** — Domain/account/alias resolution from PostgreSQL
-- **users** — File-based user auth (users.toml) with Argon2 password hashing
+- **domain_store** — Domain/account/alias resolution from PostgreSQL (with Valkey + in-process DashMap cache)
+- **event_bus** — Tokio broadcast channel (`SmtpEvent` enum) connecting SMTP/IMAP/web in real-time. SMTP sessions emit events, WebSocket handlers and IMAP IDLE forward them to clients
+- **users** — File-based user auth (`users.toml`) with Argon2 password hashing
 - **acme** — Let's Encrypt certificate automation
 - **tls** — TLS/STARTTLS setup with hot-reloadable certs (arc-swap)
 
@@ -85,7 +95,7 @@ React 19 + TypeScript + Vite + Tailwind CSS 4 + Jotai state management.
 
 PostgreSQL with pgvector extension. Schema in `scripts/init-schema.sql`. Key tables: `domains`, `accounts`, `aliases`, `mailboxes`, `messages`, `outbound_queue`, `greylist_triplets`, `dmarc_results`, `sieve_scripts`.
 
-sqlx is used with compile-time query checking macros.
+sqlx is used with **runtime queries** (`sqlx::query` / `sqlx::query_as`), not compile-time checked macros — no `DATABASE_URL` needed at build time.
 
 ### Docker
 
@@ -98,3 +108,5 @@ Multi-stage Dockerfile: Rust builder → Bun web builder → Debian slim runtime
 - Environment variables are the sole configuration mechanism — no config files except `users.toml` for credentials
 - The inbound pipeline is ordered: each stage can reject early, reducing unnecessary processing
 - Protocol crates (smtp-proto, imap-proto) are pure parsing/formatting with no I/O — session handlers in the server crate own the async I/O
+- PG and Valkey are optional — the server starts in degraded mode if either is unavailable
+- `users.toml` format: `[users.<name>]` sections with `password = "..."` fields (plaintext or Argon2 hashes)
