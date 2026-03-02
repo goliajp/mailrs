@@ -1,0 +1,43 @@
+[package]
+name = "mailrs-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mailrs-smtp-proto = { path = "../smtp-proto" }
+mailrs-storage-maildir = { path = "../storage-maildir" }
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+tokio-rustls = "0.26"
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "tls12", "std"] }
+rustls-pemfile = "2"
+bytes = "1"
+futures-util = { version = "0.3", features = ["sink"] }
+chrono = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+axum = { version = "0.8", features = ["ws", "multipart"] }
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+dashmap = "6"
+mailrs-smtp-client = { path = "../smtp-client" }
+mailrs-outbound-queue = { path = "../outbound-queue" }
+mailrs-imap-proto = { path = "../imap-proto" }
+mailrs-mailbox = { path = "../mailbox" }
+sqlx = { workspace = true }
+redis = { workspace = true }
+hickory-resolver = "0.25"
+tracing = "0.1"
+mail-auth = "0.7"
+argon2 = "0.5"
+password-hash = "0.5"
+rand_core = { version = "0.6", features = ["getrandom"] }
+mail-parser = "0.10"
+urlencoding = "2"
+base64 = "0.22"
+instant-acme = { version = "0.8", features = ["rcgen"] }
+arc-swap = "1"
+x509-parser = "0.16"
+sieve-rs = "0.7"
+flate2 = "1"
+reqwest = { version = "0.12", features = ["json"] }

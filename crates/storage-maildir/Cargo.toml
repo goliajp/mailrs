@@ -1,0 +1,11 @@
+[package]
+name = "mailrs-storage-maildir"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hostname = "0.4"
+
+[dev-dependencies]
+filetime = "0.2"
+tempfile = "3"
