@@ -1,0 +1,11 @@
+[package]
+name = "mailrs-smtp-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["net", "io-util", "time"] }
+tokio-rustls = "0.26"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+webpki-roots = "1"
+hickory-resolver = "0.25"

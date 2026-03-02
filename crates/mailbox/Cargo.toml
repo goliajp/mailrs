@@ -1,0 +1,8 @@
+[package]
+name = "mailrs-mailbox"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sqlx = { workspace = true }
+mailrs-storage-maildir = { path = "../storage-maildir" }
