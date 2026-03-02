@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:pg18
     environment:
       POSTGRES_DB: mailrs
       POSTGRES_USER: mailrs
@@ -8,7 +8,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pg-data:/var/lib/postgresql/data
+      - pg-data:/var/lib/postgresql
       - ./scripts/init-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     restart: unless-stopped
 
