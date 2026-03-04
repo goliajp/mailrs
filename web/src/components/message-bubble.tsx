@@ -1,5 +1,5 @@
 import DOMPurify from 'dompurify'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
@@ -8,74 +8,100 @@ import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
 import type { AttachmentInfo } from '@/lib/types'
 
-// only render as markdown if the text contains markdown-specific syntax
-// plain email replies should not be interpreted as markdown
 function looksLikeMarkdown(text: string): boolean {
   return /```|^#{1,6}\s|\*\*|__|\[.+\]\(.+\)/m.test(text)
 }
 
-// sanitize HTML email body while preserving safe inline styles
-function sanitizeEmail(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOW_UNKNOWN_PROTOCOLS: false,
-    ADD_ATTR: ['style', 'align', 'dir', 'bgcolor', 'color', 'face', 'size'],
-    ADD_TAGS: ['style'],
-    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
-  })
-}
+const CJK_FONTS = "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji'"
 
-function SignatureCard({
-  signature,
-  isHtml,
-}: {
-  signature: string
-  isHtml: boolean
-}) {
-  return (
-    <div className="mt-1.5 rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-500 dark:bg-zinc-800/50 dark:text-zinc-400">
-      {isHtml ? (
-        <div dangerouslySetInnerHTML={{ __html: sanitizeEmail(signature) }} />
-      ) : (
-        <pre className="whitespace-pre-wrap break-words font-sans">
-          {signature}
-        </pre>
-      )}
-    </div>
+// inject CJK fallback fonts into all font-family declarations so kana
+// renders correctly on non-Japanese locale systems
+function injectCjkFonts(html: string): string {
+  return html.replace(
+    /font-family\s*:\s*([^;}"]+)/gi,
+    (match, fonts: string) => {
+      if (fonts.includes('Hiragino')) return match
+      const trimmed = fonts.trimEnd()
+      const endsWithSemiLike = trimmed.endsWith(',')
+      const base = endsWithSemiLike ? trimmed.slice(0, -1) : trimmed
+      return `font-family: ${base}, ${CJK_FONTS}`
+    },
   )
 }
 
-function QuotedText({
-  quoted,
-  isHtml,
-}: {
-  quoted: string
-  isHtml: boolean
-}) {
-  const [expanded, setExpanded] = useState(false)
+function sanitizeEmail(html: string): string {
+  // force all links to open in a new tab
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.tagName === 'A') {
+      node.setAttribute('target', '_blank')
+      node.setAttribute('rel', 'noopener noreferrer')
+    }
+  })
+
+  const clean = DOMPurify.sanitize(html, {
+    ALLOW_UNKNOWN_PROTOCOLS: false,
+    ADD_ATTR: ['style', 'align', 'dir', 'bgcolor', 'color', 'face', 'size', 'target', 'rel'],
+    ADD_TAGS: ['style'],
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
+  })
+
+  DOMPurify.removeHook('afterSanitizeAttributes')
+  return injectCjkFonts(clean)
+}
+
+// render html email inside a sandboxed iframe for full css isolation
+function HtmlFrame({ html }: { html: string }) {
+  const ref = useRef<HTMLIFrameElement>(null)
+  const [height, setHeight] = useState(200)
+
+  const srcdoc = useMemo(() => {
+    const sanitized = sanitizeEmail(html)
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body { margin: 0; padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Segoe UI', Roboto, 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-size: 14px; line-height: 1.6; color: #1a1a1a; background: #fff; word-wrap: break-word; overflow-wrap: break-word; }
+  img { max-width: 100%; height: auto; }
+  table { max-width: 100% !important; }
+  a { color: #2563eb; }
+  pre { overflow-x: auto; }
+  blockquote { border-left: 3px solid #d4d4d8; padding-left: 12px; margin: 8px 0; color: #71717a; }
+</style>
+</head><body>${sanitized}</body></html>`
+  }, [html])
+
+  const resize = useCallback(() => {
+    const doc = ref.current?.contentDocument
+    if (doc?.body) {
+      const h = doc.body.scrollHeight
+      if (h > 0) setHeight(h + 24)
+    }
+  }, [])
+
+  useEffect(() => {
+    const iframe = ref.current
+    if (!iframe) return
+    const onLoad = () => {
+      resize()
+      // observe content size changes (lazy-loaded images etc)
+      const doc = iframe.contentDocument
+      if (doc?.body) {
+        const observer = new ResizeObserver(resize)
+        observer.observe(doc.body)
+        return () => observer.disconnect()
+      }
+    }
+    iframe.addEventListener('load', onLoad)
+    return () => iframe.removeEventListener('load', onLoad)
+  }, [resize])
 
   return (
-    <div className="mt-1.5">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="rounded px-2 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
-      >
-        {expanded ? '▲' : '···'}
-      </button>
-      {expanded && (
-        <div className="mt-1 border-l-2 border-zinc-300 pl-3 text-sm text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
-          {isHtml ? (
-            <div
-              className="prose prose-sm max-w-none prose-p:my-1 dark:prose-invert [&_*]:text-zinc-500 dark:[&_*]:text-zinc-400"
-              dangerouslySetInnerHTML={{ __html: sanitizeEmail(quoted) }}
-            />
-          ) : (
-            <pre className="whitespace-pre-wrap break-words font-sans">
-              {quoted}
-            </pre>
-          )}
-        </div>
-      )}
-    </div>
+    <iframe
+      ref={ref}
+      srcDoc={srcdoc}
+      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+      style={{ width: '100%', height, border: 'none', display: 'block' }}
+      title="email content"
+    />
   )
 }
 
@@ -129,30 +155,7 @@ function AttachmentItem({
   )
 }
 
-function BodyContent({
-  body,
-  isHtml,
-  isOwn,
-}: {
-  body: string
-  isHtml: boolean
-  isOwn: boolean
-}) {
-  if (isHtml) {
-    return (
-      <div
-        className={`prose prose-sm max-w-none ${
-          isOwn
-            ? '[&_*]:text-white [&_a]:text-blue-200'
-            : 'dark:prose-invert'
-        }`}
-        dangerouslySetInnerHTML={{
-          __html: sanitizeEmail(body),
-        }}
-      />
-    )
-  }
-
+function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
   if (looksLikeMarkdown(body)) {
     return (
       <div
@@ -196,26 +199,26 @@ export function MessageBubble({
   const hasAttachments = attachments.length > 0
   const { parts, isHtml } = useMemo(
     () => splitEmail(textBody, htmlBody),
-    [textBody, htmlBody]
+    [textBody, htmlBody],
   )
 
   return (
     <div>
-      <div
-        className={`rounded-2xl px-4 py-2.5 ${
-          isOwn
-            ? 'bg-blue-500 text-white'
-            : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
-        }`}
-      >
-        <BodyContent body={parts.body} isHtml={isHtml} isOwn={isOwn} />
-      </div>
-
-      {parts.signature && (
-        <SignatureCard signature={parts.signature} isHtml={isHtml} />
+      {isHtml ? (
+        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700">
+          <HtmlFrame html={parts.body} />
+        </div>
+      ) : (
+        <div
+          className={`rounded-2xl px-4 py-2.5 ${
+            isOwn
+              ? 'bg-blue-500 text-white'
+              : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
+          }`}
+        >
+          <TextContent body={parts.body} isOwn={isOwn} />
+        </div>
       )}
-
-      {parts.quoted && <QuotedText quoted={parts.quoted} isHtml={isHtml} />}
 
       {hasAttachments && (
         <div className="mt-2 flex flex-col gap-1">

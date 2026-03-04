@@ -8,4 +8,4 @@ users.toml
 .env
 
 .idea/
-
+.env.local

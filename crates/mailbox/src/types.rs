@@ -40,6 +40,23 @@ pub struct ConversationSummary {
     pub message_count: u32,
     pub unread_count: u32,
     pub last_date: i64,
+    pub category: String,
+}
+
+/// AI analysis result stored in email_analysis table
+#[derive(Debug, Clone)]
+pub struct EmailAnalysisRow {
+    pub message_id: i64,
+    pub category: String,
+    pub risk_score: i16,
+    pub risk_reason: String,
+    pub summary: String,
+    pub people: serde_json::Value,
+    pub dates: serde_json::Value,
+    pub amounts: serde_json::Value,
+    pub action_items: serde_json::Value,
+    pub model_version: String,
+    pub clean_text: String,
 }
 
 /// flag update action for CONDSTORE UNCHANGEDSINCE

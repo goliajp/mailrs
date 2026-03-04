@@ -23,6 +23,7 @@ use crate::domain_store::DomainStore;
 use crate::event_bus::EventBus;
 use crate::health::HealthState;
 use crate::inbound::auth_guard::{AuthCheck, AuthGuard};
+use crate::message_util::{self, AttachmentInfo};
 use mailrs_mailbox::MailboxStore;
 
 pub(crate) struct SessionInfo {
@@ -50,6 +51,9 @@ pub struct WebState {
     pub health: Option<HealthState>,
     pub pg_pool: Option<sqlx::PgPool>,
     pub valkey: Option<redis::aio::ConnectionManager>,
+    pub gemini_config: Option<crate::ai_email::GeminiConfig>,
+    pub resolver: Option<Arc<hickory_resolver::TokioResolver>>,
+    pub dkim_selector: Option<String>,
 }
 
 impl WebState {
@@ -74,7 +78,25 @@ impl WebState {
             health: None,
             pg_pool: None,
             valkey: None,
+            gemini_config: None,
+            resolver: None,
+            dkim_selector: None,
         }
+    }
+
+    pub fn with_gemini(mut self, config: crate::ai_email::GeminiConfig) -> Self {
+        self.gemini_config = Some(config);
+        self
+    }
+
+    pub fn with_resolver(mut self, resolver: Arc<hickory_resolver::TokioResolver>) -> Self {
+        self.resolver = Some(resolver);
+        self
+    }
+
+    pub fn with_dkim_selector(mut self, selector: String) -> Self {
+        self.dkim_selector = Some(selector);
+        self
     }
 
     pub fn with_queue(mut self, pool: sqlx::PgPool) -> Self {
@@ -214,13 +236,16 @@ struct MessageDetail {
     text_body: Option<String>,
     html_body: Option<String>,
     attachments: Vec<AttachmentInfo>,
-}
-
-#[derive(Serialize)]
-struct AttachmentInfo {
-    filename: String,
-    content_type: String,
-    size: u32,
+    category: String,
+    risk_score: u8,
+    risk_reason: String,
+    summary: String,
+    people: serde_json::Value,
+    dates: serde_json::Value,
+    amounts: serde_json::Value,
+    action_items: serde_json::Value,
+    ai_analyzed: bool,
+    clean_text: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -318,6 +343,7 @@ struct ConversationResponse {
     message_count: u32,
     unread_count: u32,
     last_date: i64,
+    category: String,
 }
 
 #[derive(Serialize)]
@@ -333,6 +359,110 @@ struct ThreadMessageResponse {
     text_body: Option<String>,
     html_body: Option<String>,
     attachments: Vec<AttachmentInfo>,
+    category: String,
+    risk_score: u8,
+    risk_reason: String,
+    summary: String,
+    people: serde_json::Value,
+    dates: serde_json::Value,
+    amounts: serde_json::Value,
+    action_items: serde_json::Value,
+    ai_analyzed: bool,
+    clean_text: Option<String>,
+}
+
+/// classify an email: category + risk score (0=safe .. 100=dangerous)
+fn classify_email(sender: &str, subject: &str, text: Option<&str>, html: Option<&str>) -> (String, u8) {
+    let sender_lc = sender.to_lowercase();
+    let subject_lc = subject.to_lowercase();
+    let text_lc = text.unwrap_or("").to_lowercase();
+    let html_lc = html.unwrap_or("").to_lowercase();
+    let all = format!("{sender_lc} {subject_lc} {text_lc}");
+
+    let mut score: i32 = 0;
+
+    // known safe senders (personal, business, dev)
+    let safe_domains = [
+        "github.com", "noreply.github.com", "gitlab.com",
+        "freee.co.jp", "atcoder.jp", "apple.com",
+        "google.com", "golia.jp", "golia.ai",
+    ];
+    let is_safe_domain = safe_domains.iter().any(|d| sender_lc.contains(d));
+    if is_safe_domain { score -= 30; }
+
+    // advertising signals
+    let ad_signals = [
+        "unsubscribe", "配信停止", "メール配信", "opt-out", "list-unsubscribe",
+        "配信解除", "退订", "取消订阅", "email preferences",
+    ];
+    let ad_count = ad_signals.iter().filter(|s| all.contains(*s) || html_lc.contains(*s)).count();
+
+    // newsletter / marketing patterns
+    let marketing_signals = [
+        "newsletter", "ニュースレター", "pr】", "＜pr＞", "お知らせ",
+        "セール", "キャンペーン", "クーポン", "ポイント", "おすすめ",
+        "sale", "discount", "promotion", "deal", "offer",
+        "特価", "限定", "タイムセール", "お得",
+    ];
+    let marketing_count = marketing_signals.iter().filter(|s| all.contains(*s)).count();
+
+    // spam signals
+    let spam_signals = [
+        "click here", "act now", "limited time", "winner",
+        "congratulations", "lottery", "prize", "urgent",
+        "verify your account", "suspended", "locked",
+        "当選", "至急", "緊急",
+        "中奖", "恭喜", "紧急",
+    ];
+    let spam_count = spam_signals.iter().filter(|s| all.contains(*s)).count();
+
+    // phishing signals
+    let phish_signals = [
+        "password", "パスワード", "密码",
+        "login immediately", "confirm your identity",
+        "アカウントが制限", "アカウントを確認",
+        "账户异常", "账号被锁",
+    ];
+    let phish_count = phish_signals.iter().filter(|s| all.contains(*s)).count();
+
+    // technical signals (tracking pixels, many links, hidden text)
+    let has_tracking = html_lc.contains("width=\"1\"") || html_lc.contains("width:1px")
+        || html_lc.contains("height=\"1\"") || html_lc.contains("height:1px");
+    let link_count = html_lc.matches("<a ").count();
+
+    score += ad_count as i32 * 5;
+    score += marketing_count as i32 * 8;
+    score += spam_count as i32 * 20;
+    score += phish_count as i32 * 25;
+    if has_tracking { score += 5; }
+    if link_count > 20 { score += 5; }
+
+    // known notification senders (low risk)
+    let notification_domains = [
+        "facebookmail.com", "linkedin.com", "substack.com",
+        "steampowered.com", "quora.com", "tripadvisor.com",
+        "noreply@", "no-reply@", "notification",
+    ];
+    let is_notification = notification_domains.iter().any(|d| sender_lc.contains(d));
+    if is_notification && score < 30 { score = score.min(15); }
+
+    let score = score.clamp(0, 100) as u8;
+
+    let category = if score >= 60 {
+        "scam"
+    } else if score >= 40 {
+        "spam"
+    } else if ad_count > 0 || marketing_count >= 2 || has_tracking {
+        "promotion"
+    } else if is_notification {
+        "notification"
+    } else if is_safe_domain || score == 0 {
+        "personal"
+    } else {
+        "general"
+    };
+
+    (category.to_string(), score)
 }
 
 #[derive(Deserialize)]
@@ -341,6 +471,8 @@ struct ConversationsQuery {
     limit: u32,
     #[serde(default)]
     before: Option<i64>,
+    #[serde(default)]
+    category: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -348,6 +480,8 @@ struct SearchQuery {
     q: String,
     #[serde(default = "default_limit")]
     limit: u32,
+    #[serde(default)]
+    category: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -398,7 +532,9 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/api/mail/messages/{uid}/attachments/{index}", get(get_attachment))
         // conversations API
         .route("/api/conversations", get(get_conversations))
+        .route("/api/conversations/categories", get(get_conversation_categories))
         .route("/api/conversations/search", get(search_conversations))
+        .route("/api/conversations/semantic-search", get(semantic_search))
         .route("/api/conversations/{thread_id}", get(get_thread_messages))
         .route("/api/conversations/{thread_id}/read", post(mark_thread_read))
         .route("/api/contacts", get(get_contacts))
@@ -409,6 +545,7 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         // admin API
         .route("/api/admin/domains", get(list_domains).post(add_domain))
         .route("/api/admin/domains/{name}", delete(remove_domain))
+        .route("/api/admin/domains/{name}/check", post(check_domain_handler))
         .route("/api/admin/accounts", get(list_accounts).post(add_account))
         .route("/api/admin/accounts/{address}", delete(remove_account))
         .route("/api/admin/aliases", get(list_aliases).post(add_alias))
@@ -418,6 +555,11 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/api/admin/accounts/{address}/sieve", get(get_sieve).post(set_sieve).delete(delete_sieve))
         // MTA-STS policy
         .route("/.well-known/mta-sts.txt", get(mta_sts_policy))
+        // mail client autodiscover
+        .route("/autodiscover/autodiscover.xml", post(autodiscover_outlook))
+        .route("/Autodiscover/Autodiscover.xml", post(autodiscover_outlook))
+        .route("/.well-known/autoconfig/mail/config-v1.1.xml", get(autoconfig_mozilla))
+        .route("/mail/config-v1.1.xml", get(autoconfig_mozilla))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -719,9 +861,9 @@ async fn get_folder_messages(
         .iter()
         .map(|msg| MessageSummary {
             uid: msg.uid,
-            sender: decode_header(&msg.sender),
+            sender: message_util::decode_header(&msg.sender),
             recipients: msg.recipients.clone(),
-            subject: decode_header(&msg.subject),
+            subject: message_util::decode_header(&msg.subject),
             size: msg.size,
             flags: msg.flags,
             internal_date: msg.internal_date,
@@ -744,19 +886,54 @@ async fn get_message(
     let mailboxes = mb_store.list_mailboxes(&user).await.unwrap_or_default();
     for mb in &mailboxes {
         if let Ok(Some(msg)) = mb_store.get_message(mb.id, uid).await {
-            let raw = read_message_raw(&state.maildir_root, &user, &msg.maildir_id);
-            let parsed = raw.as_deref().map(parse_message).unwrap_or_default();
+            let raw = message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id);
+            let parsed = raw.as_deref().map(message_util::parse_message).unwrap_or_default();
+            let sender = message_util::decode_header(&msg.sender);
+            let subject = message_util::decode_header(&msg.subject);
+
+            // try AI analysis first, fall back to rule-based
+            let ai = mb_store.get_email_analysis(msg.id).await.ok().flatten();
+            let (category, risk_score, risk_reason, summary, people, dates, amounts, action_items, ai_analyzed, clean_text) =
+                if let Some(ref a) = ai {
+                    let ct = if a.clean_text.is_empty() { None } else { Some(a.clean_text.clone()) };
+                    (
+                        a.category.clone(),
+                        a.risk_score as u8,
+                        a.risk_reason.clone(),
+                        a.summary.clone(),
+                        a.people.clone(),
+                        a.dates.clone(),
+                        a.amounts.clone(),
+                        a.action_items.clone(),
+                        true,
+                        ct,
+                    )
+                } else {
+                    let (cat, score) = classify_email(&sender, &subject, parsed.0.as_deref(), parsed.1.as_deref());
+                    (cat, score, String::new(), String::new(), serde_json::json!([]), serde_json::json!([]), serde_json::json!([]), serde_json::json!([]), false, None)
+                };
+
             return Json(Some(MessageDetail {
                 uid: msg.uid,
-                sender: decode_header(&msg.sender),
+                sender,
                 recipients: msg.recipients,
-                subject: decode_header(&msg.subject),
+                subject,
                 size: msg.size,
                 flags: msg.flags,
                 internal_date: msg.internal_date,
                 text_body: parsed.0,
                 html_body: parsed.1,
                 attachments: parsed.2,
+                category,
+                risk_score,
+                risk_reason,
+                summary,
+                people,
+                dates,
+                amounts,
+                action_items,
+                ai_analyzed,
+                clean_text,
             }));
         }
     }
@@ -871,10 +1048,10 @@ async fn send_message(
     let body_with_quote = match (req.in_reply_to.as_deref(), state.mailbox_store.as_ref()) {
         (Some(reply_to), Some(mb_store)) if !reply_to.is_empty() => {
             if let Some(orig) = mb_store.find_message_by_message_id(from, reply_to).await.ok().flatten() {
-                if let Some(raw_orig) = read_message_raw(&state.maildir_root, from, &orig.maildir_id) {
-                    let (text_body, _, _) = parse_message(&raw_orig);
+                if let Some(raw_orig) = message_util::read_message_raw(&state.maildir_root, from, &orig.maildir_id) {
+                    let (text_body, _, _) = message_util::parse_message(&raw_orig);
                     if let Some(text) = text_body {
-                        let sender = decode_header(&orig.sender);
+                        let sender = message_util::decode_header(&orig.sender);
                         let date = chrono::DateTime::from_timestamp(orig.internal_date, 0)
                             .map(|dt| dt.format("%a, %d %b %Y %H:%M").to_string())
                             .unwrap_or_default();
@@ -1169,10 +1346,10 @@ async fn send_message_multipart(
     let body_with_quote = match (in_reply_to.as_deref(), state.mailbox_store.as_ref()) {
         (Some(reply_to), Some(mb_store)) if !reply_to.is_empty() => {
             if let Some(orig) = mb_store.find_message_by_message_id(&from, reply_to).await.ok().flatten() {
-                if let Some(raw_orig) = read_message_raw(&state.maildir_root, &from, &orig.maildir_id) {
-                    let (text_body, _, _) = parse_message(&raw_orig);
+                if let Some(raw_orig) = message_util::read_message_raw(&state.maildir_root, &from, &orig.maildir_id) {
+                    let (text_body, _, _) = message_util::parse_message(&raw_orig);
                     if let Some(text) = text_body {
-                        let sender = decode_header(&orig.sender);
+                        let sender = message_util::decode_header(&orig.sender);
                         let date = chrono::DateTime::from_timestamp(orig.internal_date, 0)
                             .map(|dt| dt.format("%a, %d %b %Y %H:%M").to_string())
                             .unwrap_or_default();
@@ -1208,94 +1385,6 @@ async fn send_message_multipart(
     deliver_message(&state, &from, &to, &cc, &[], &raw, &message_id, now.timestamp()).await
 }
 
-fn read_message_raw(maildir_root: &str, user: &str, maildir_id: &str) -> Option<Vec<u8>> {
-    let (local, domain) = user.split_once('@')?;
-    let path = format!("{maildir_root}/{domain}/{local}");
-    let md = mailrs_storage_maildir::Maildir::open(&path);
-
-    let find_in = |entries: Vec<mailrs_storage_maildir::Entry>| -> Option<Vec<u8>> {
-        entries
-            .into_iter()
-            .find(|e| e.id.to_string() == maildir_id)
-            .and_then(|e| std::fs::read(&e.path).ok())
-    };
-
-    find_in(md.scan_cur().unwrap_or_default())
-        .or_else(|| find_in(md.scan_new().unwrap_or_default()))
-}
-
-/// extract a header value from raw RFC 5322 bytes
-fn extract_header_from_raw(data: &[u8], name: &str) -> String {
-    let text = String::from_utf8_lossy(data);
-    let prefix = format!("{name}:");
-    for line in text.lines() {
-        if line.len() > prefix.len() && line[..prefix.len()].eq_ignore_ascii_case(&prefix) {
-            return line[prefix.len()..].trim().to_string();
-        }
-        if line.is_empty() {
-            break;
-        }
-    }
-    String::new()
-}
-
-/// parse raw message bytes into text body, html body, and attachment list
-fn parse_message(data: &[u8]) -> (Option<String>, Option<String>, Vec<AttachmentInfo>) {
-    let msg = match mail_parser::MessageParser::default().parse(data) {
-        Some(m) => m,
-        None => {
-            // fallback: treat entire message as plain text
-            return (
-                Some(String::from_utf8_lossy(data).into_owned()),
-                None,
-                vec![],
-            );
-        }
-    };
-
-    let text_body = msg.body_text(0).map(|s| s.into_owned());
-    let html_body = msg.body_html(0).map(|s| s.into_owned());
-
-    let attachments = msg
-        .attachments()
-        .map(|att| {
-            let filename = att
-                .attachment_name()
-                .unwrap_or("unnamed")
-                .to_string();
-            let content_type = att
-                .content_type()
-                .map(|ct: &mail_parser::ContentType| {
-                    if let Some(sub) = ct.subtype() {
-                        format!("{}/{}", ct.ctype(), sub)
-                    } else {
-                        ct.ctype().to_string()
-                    }
-                })
-                .unwrap_or_else(|| "application/octet-stream".into());
-            AttachmentInfo {
-                filename,
-                content_type,
-                size: att.len() as u32,
-            }
-        })
-        .collect();
-
-    (text_body, html_body, attachments)
-}
-
-/// decode RFC 2047 encoded-word in header values stored in the database
-fn decode_header(value: &str) -> String {
-    if !value.contains("=?") {
-        return value.to_string();
-    }
-    let fake = format!("Subject: {value}\r\n\r\n");
-    mail_parser::MessageParser::default()
-        .parse(fake.as_bytes())
-        .and_then(|m| m.subject().map(|s| s.to_string()))
-        .unwrap_or_else(|| value.to_string())
-}
-
 // ---------- conversation API endpoints ----------
 
 async fn get_conversations(
@@ -1310,27 +1399,30 @@ async fn get_conversations(
     let _ = mb_store.ensure_default_mailboxes(&user).await;
 
     let convos = mb_store
-        .list_conversations(&user, q.limit, q.before)
+        .list_conversations(&user, q.limit, q.before, q.category.as_deref())
         .await
         .unwrap_or_default();
 
-    let result: Vec<ConversationResponse> = convos
+    Json(convos_to_response(convos))
+}
+
+fn convos_to_response(convos: Vec<mailrs_mailbox::ConversationSummary>) -> Vec<ConversationResponse> {
+    convos
         .into_iter()
         .map(|c| ConversationResponse {
             thread_id: c.thread_id,
-            subject: decode_header(&c.subject),
+            subject: message_util::decode_header(&c.subject),
             participants: c
                 .participants
                 .split(',')
-                .map(|s| decode_header(s.trim()))
+                .map(|s| message_util::decode_header(s.trim()))
                 .collect(),
             message_count: c.message_count,
             unread_count: c.unread_count,
             last_date: c.last_date,
+            category: c.category,
         })
-        .collect();
-
-    Json(result)
+        .collect()
 }
 
 async fn get_thread_messages(
@@ -1347,45 +1439,75 @@ async fn get_thread_messages(
         .await
         .unwrap_or_default();
 
-    let result: Vec<ThreadMessageResponse> = messages
-        .iter()
-        .map(|msg| {
-            let raw = read_message_raw(&state.maildir_root, &user, &msg.maildir_id);
-            let parsed = raw.as_deref().map(parse_message).unwrap_or_default();
+    let mut result = Vec::with_capacity(messages.len());
+    for msg in &messages {
+        let raw = message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id);
+        let parsed = raw.as_deref().map(message_util::parse_message).unwrap_or_default();
 
-            // fallback: extract sender/subject from raw email if DB values are empty
-            let (sender, subject) = if msg.sender.is_empty() || msg.subject.is_empty() {
-                let raw_sender = raw
-                    .as_deref()
-                    .map(|d| extract_header_from_raw(d, "From"))
-                    .unwrap_or_default();
-                let raw_subject = raw
-                    .as_deref()
-                    .map(|d| extract_header_from_raw(d, "Subject"))
-                    .unwrap_or_default();
+        // fallback: extract sender/subject from raw email if DB values are empty
+        let (sender, subject) = if msg.sender.is_empty() || msg.subject.is_empty() {
+            let raw_sender = raw
+                .as_deref()
+                .map(|d| message_util::extract_header_from_raw(d, "From"))
+                .unwrap_or_default();
+            let raw_subject = raw
+                .as_deref()
+                .map(|d| message_util::extract_header_from_raw(d, "Subject"))
+                .unwrap_or_default();
+            (
+                if msg.sender.is_empty() { message_util::decode_header(&raw_sender) } else { message_util::decode_header(&msg.sender) },
+                if msg.subject.is_empty() { message_util::decode_header(&raw_subject) } else { message_util::decode_header(&msg.subject) },
+            )
+        } else {
+            (message_util::decode_header(&msg.sender), message_util::decode_header(&msg.subject))
+        };
+
+        // try AI analysis first, fall back to rule-based
+        let ai = mb_store.get_email_analysis(msg.id).await.ok().flatten();
+        let (category, risk_score, risk_reason, summary, people, dates, amounts, action_items, ai_analyzed, clean_text) =
+            if let Some(ref a) = ai {
+                let ct = if a.clean_text.is_empty() { None } else { Some(a.clean_text.clone()) };
                 (
-                    if msg.sender.is_empty() { decode_header(&raw_sender) } else { decode_header(&msg.sender) },
-                    if msg.subject.is_empty() { decode_header(&raw_subject) } else { decode_header(&msg.subject) },
+                    a.category.clone(),
+                    a.risk_score as u8,
+                    a.risk_reason.clone(),
+                    a.summary.clone(),
+                    a.people.clone(),
+                    a.dates.clone(),
+                    a.amounts.clone(),
+                    a.action_items.clone(),
+                    true,
+                    ct,
                 )
             } else {
-                (decode_header(&msg.sender), decode_header(&msg.subject))
+                let (cat, score) = classify_email(&sender, &subject, parsed.0.as_deref(), parsed.1.as_deref());
+                (cat, score, String::new(), String::new(), serde_json::json!([]), serde_json::json!([]), serde_json::json!([]), serde_json::json!([]), false, None)
             };
 
-            ThreadMessageResponse {
-                id: msg.id,
-                uid: msg.uid,
-                sender,
-                recipients: msg.recipients.clone(),
-                subject,
-                flags: msg.flags,
-                internal_date: msg.internal_date,
-                message_id: msg.message_id.clone(),
-                text_body: parsed.0,
-                html_body: parsed.1,
-                attachments: parsed.2,
-            }
-        })
-        .collect();
+        result.push(ThreadMessageResponse {
+            id: msg.id,
+            uid: msg.uid,
+            sender,
+            recipients: msg.recipients.clone(),
+            subject,
+            flags: msg.flags,
+            internal_date: msg.internal_date,
+            message_id: msg.message_id.clone(),
+            text_body: parsed.0,
+            html_body: parsed.1,
+            attachments: parsed.2,
+            category,
+            risk_score,
+            risk_reason,
+            summary,
+            people,
+            dates,
+            amounts,
+            action_items,
+            ai_analyzed,
+            clean_text,
+        });
+    }
 
     Json(result)
 }
@@ -1414,6 +1536,33 @@ async fn mark_thread_read(
     }
 }
 
+#[derive(Serialize)]
+struct CategoryCount {
+    category: String,
+    count: i64,
+}
+
+async fn get_conversation_categories(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    let Some(ref mb_store) = state.mailbox_store else {
+        return Json(Vec::<CategoryCount>::new());
+    };
+
+    let cats = mb_store
+        .list_conversation_categories(&user)
+        .await
+        .unwrap_or_default();
+
+    let result: Vec<CategoryCount> = cats
+        .into_iter()
+        .map(|(category, count)| CategoryCount { category, count })
+        .collect();
+
+    Json(result)
+}
+
 async fn search_conversations(
     AuthUser(user): AuthUser,
     Query(q): Query<SearchQuery>,
@@ -1423,25 +1572,116 @@ async fn search_conversations(
         return Json(Vec::<ConversationResponse>::new());
     };
 
-    let convos = mb_store
-        .search_conversations(&user, &q.q, q.limit)
+    let mut convos = mb_store
+        .search_conversations(&user, &q.q, q.limit, q.category.as_deref())
         .await
         .unwrap_or_default();
 
-    let result: Vec<ConversationResponse> = convos
+    // supplement with semantic search when text search returns few results
+    if convos.len() < q.limit as usize {
+        if let Some(extra) = semantic_search_threads(&state, &user, &q.q, q.limit as usize - convos.len(), q.category.as_deref()).await {
+            let existing: std::collections::HashSet<String> =
+                convos.iter().map(|c| c.thread_id.clone()).collect();
+            for c in extra {
+                if !existing.contains(&c.thread_id) {
+                    convos.push(c);
+                }
+            }
+        }
+    }
+
+    Json(convos_to_response(convos))
+}
+
+/// run semantic search and build ConversationSummary for each matching thread
+async fn semantic_search_threads(
+    state: &WebState,
+    user: &str,
+    query: &str,
+    max: usize,
+    category: Option<&str>,
+) -> Option<Vec<mailrs_mailbox::ConversationSummary>> {
+    let gemini = state.gemini_config.as_ref()?;
+    let mb = state.mailbox_store.as_ref()?;
+
+    let embedding = crate::ai_email::generate_embedding(gemini, query).await?;
+    let results = mb.semantic_search(user, &embedding, max.min(20) as i64).await.ok()?;
+
+    let mut out = Vec::new();
+    for (_, thread_id, _) in &results {
+        let msgs = mb.list_thread_messages(user, thread_id).await.ok()?;
+        let first = msgs.first()?;
+        let last = msgs.last().unwrap();
+
+        let cat = mb.get_email_analysis(last.id).await.ok().flatten()
+            .map(|a| a.category)
+            .unwrap_or_else(|| "general".to_string());
+
+        if let Some(filter) = category {
+            if cat != filter { continue; }
+        }
+
+        let participants: Vec<String> = msgs.iter()
+            .map(|m| m.sender.clone())
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        out.push(mailrs_mailbox::ConversationSummary {
+            thread_id: thread_id.clone(),
+            subject: first.subject.clone(),
+            participants: participants.join(","),
+            message_count: msgs.len() as u32,
+            unread_count: msgs.iter().filter(|m| m.flags & 1 == 0).count() as u32,
+            last_date: last.internal_date,
+            category: cat,
+        });
+    }
+
+    Some(out)
+}
+
+#[derive(Serialize)]
+struct SemanticSearchResult {
+    thread_id: String,
+    similarity: f64,
+}
+
+async fn semantic_search(
+    AuthUser(user): AuthUser,
+    Query(q): Query<SearchQuery>,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    let Some(ref mb_store) = state.mailbox_store else {
+        return Json(Vec::<SemanticSearchResult>::new());
+    };
+    let Some(ref gemini_config) = state.gemini_config else {
+        return Json(Vec::<SemanticSearchResult>::new());
+    };
+
+    // generate embedding for the query
+    let embedding = match crate::ai_email::generate_embedding(gemini_config, &q.q).await {
+        Some(e) => e,
+        None => return Json(Vec::<SemanticSearchResult>::new()),
+    };
+
+    let results = mb_store
+        .semantic_search(&user, &embedding, q.limit as i64)
+        .await
+        .unwrap_or_default();
+
+    // deduplicate by thread_id, keep highest similarity
+    let mut seen = std::collections::HashMap::new();
+    for (_, thread_id, similarity) in &results {
+        let entry = seen.entry(thread_id.clone()).or_insert(*similarity);
+        if *similarity > *entry {
+            *entry = *similarity;
+        }
+    }
+
+    let result: Vec<SemanticSearchResult> = seen
         .into_iter()
-        .map(|c| ConversationResponse {
-            thread_id: c.thread_id,
-            subject: decode_header(&c.subject),
-            participants: c
-                .participants
-                .split(',')
-                .map(|s| decode_header(s.trim()))
-                .collect(),
-            message_count: c.message_count,
-            unread_count: c.unread_count,
-            last_date: c.last_date,
-        })
+        .map(|(thread_id, similarity)| SemanticSearchResult { thread_id, similarity })
         .collect();
 
     Json(result)
@@ -1480,7 +1720,7 @@ async fn get_attachment(
     let mailboxes = mb_store.list_mailboxes(&user).await.unwrap_or_default();
     for mb in &mailboxes {
         if let Ok(Some(msg)) = mb_store.get_message(mb.id, uid).await {
-            let raw = read_message_raw(&state.maildir_root, &user, &msg.maildir_id);
+            let raw = message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id);
             if let Some(data) = raw {
                 if let Some(parsed) = mail_parser::MessageParser::default().parse(&data) {
                     let attachments: Vec<_> = parsed.attachments().collect();
@@ -1578,6 +1818,26 @@ async fn remove_domain(
             message: Some(e.to_string()),
         }),
     }
+}
+
+async fn check_domain_handler(
+    Path(name): Path<String>,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    let Some(ref resolver) = state.resolver else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error": "DNS resolver not available"})),
+        );
+    };
+    let report = crate::domain_check::check_domain(
+        resolver,
+        &name,
+        state.dkim_selector.as_deref(),
+        &state.hostname,
+    )
+    .await;
+    (StatusCode::OK, Json(serde_json::to_value(report).unwrap()))
 }
 
 async fn list_accounts(State(state): State<Arc<WebState>>) -> impl IntoResponse {
@@ -1833,6 +2093,79 @@ async fn mta_sts_policy(State(state): State<Arc<WebState>>) -> impl IntoResponse
     );
 
     (StatusCode::OK, body)
+}
+
+// ---------- mail client autodiscover ----------
+
+async fn autodiscover_outlook(
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    let hostname = &state.hostname;
+    let xml = format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<Autodiscover xmlns="http://schemas.microsoft.com/exchange/autodiscover/responseschema/2006">
+  <Response xmlns="http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a">
+    <Account>
+      <AccountType>email</AccountType>
+      <Action>settings</Action>
+      <Protocol>
+        <Type>IMAP</Type>
+        <Server>{hostname}</Server>
+        <Port>993</Port>
+        <SSL>on</SSL>
+        <SPA>off</SPA>
+        <LoginName>%EMAILADDRESS%</LoginName>
+      </Protocol>
+      <Protocol>
+        <Type>SMTP</Type>
+        <Server>{hostname}</Server>
+        <Port>465</Port>
+        <SSL>on</SSL>
+        <SPA>off</SPA>
+        <LoginName>%EMAILADDRESS%</LoginName>
+      </Protocol>
+    </Account>
+  </Response>
+</Autodiscover>"#
+    );
+    (
+        StatusCode::OK,
+        [("content-type", "application/xml; charset=utf-8")],
+        xml,
+    )
+}
+
+async fn autoconfig_mozilla(
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    let hostname = &state.hostname;
+    let xml = format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<clientConfig version="1.1">
+  <emailProvider id="{hostname}">
+    <domain>%EMAILDOMAIN%</domain>
+    <incomingServer type="imap">
+      <hostname>{hostname}</hostname>
+      <port>993</port>
+      <socketType>SSL</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </incomingServer>
+    <outgoingServer type="smtp">
+      <hostname>{hostname}</hostname>
+      <port>465</port>
+      <socketType>SSL</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </outgoingServer>
+  </emailProvider>
+</clientConfig>"#
+    );
+    (
+        StatusCode::OK,
+        [("content-type", "application/xml; charset=utf-8")],
+        xml,
+    )
 }
 
 // ---------- WebSocket ----------

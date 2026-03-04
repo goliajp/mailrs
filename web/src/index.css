@@ -1,6 +1,14 @@
 @import 'tailwindcss';
 @import 'highlight.js/styles/github-dark.min.css';
 
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic',
+    'Meiryo', 'Noto Sans CJK JP', 'Noto Sans JP',
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+}
+
 html {
   color-scheme: light dark;
 }
@@ -8,7 +16,9 @@ html {
 body {
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, sans-serif;
+    Arial, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic',
+    'Meiryo', 'Noto Sans CJK JP', 'Noto Sans JP',
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
