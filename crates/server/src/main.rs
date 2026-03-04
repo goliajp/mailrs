@@ -1,14 +1,18 @@
 mod acme;
+mod ai_analyzer;
+mod ai_email;
 mod ai_spam;
 mod codec;
 mod config;
 mod dmarc_report;
+mod domain_check;
 mod domain_store;
 mod event_bus;
 mod health;
 mod imap_codec;
 mod imap_session;
 pub mod inbound;
+mod message_util;
 mod pg;
 mod ptr_check;
 mod sieve;
@@ -226,6 +230,23 @@ async fn main() {
         }
     }
 
+    // AI email analyzer (background)
+    if cfg.ai_analysis_enabled {
+        if let (Some(api_key), Some(ref mb)) = (&cfg.gemini_api_key, &mailbox_store) {
+            let gemini_config = ai_email::GeminiConfig::new(api_key.clone());
+            ai_analyzer::spawn_analyzer(
+                gemini_config,
+                mb.clone(),
+                event_bus.clone(),
+                cfg.maildir_root.clone(),
+            );
+        } else {
+            if cfg.gemini_api_key.is_none() {
+                eprintln!("warning: AI analysis enabled but MAILRS_GEMINI_API_KEY not set");
+            }
+        }
+    }
+
     let mut ws = WebState::new(event_bus.clone())
         .with_maildir_root(cfg.maildir_root.clone())
         .with_hostname(cfg.hostname.clone())
@@ -248,6 +269,15 @@ async fn main() {
     }
     if let Some(ref mode) = cfg.mta_sts_mode {
         ws = ws.with_mta_sts(mode.clone(), cfg.mta_sts_mx.clone(), cfg.mta_sts_max_age, cfg.mta_sts_id.clone());
+    }
+    if let Some(ref api_key) = cfg.gemini_api_key {
+        ws = ws.with_gemini(ai_email::GeminiConfig::new(api_key.clone()));
+    }
+    if let Some(ref r) = resolver {
+        ws = ws.with_resolver(r.clone());
+    }
+    if let Some(ref sel) = cfg.dkim_selector {
+        ws = ws.with_dkim_selector(sel.clone());
     }
     let web_state = Arc::new(ws);
 
@@ -415,6 +445,53 @@ async fn main() {
         });
     }
 
+    // IMAPS listener (implicit TLS, port 993)
+    if tls_state.is_some() {
+        if let Some(ref mb_store) = mailbox_store {
+            let imaps_addr = format!("0.0.0.0:{}", cfg.imaps_port);
+            let imaps_listener = TcpListener::bind(&imaps_addr)
+                .await
+                .expect("failed to bind IMAPS port");
+            eprintln!("mailrs IMAPS on {imaps_addr}");
+
+            let imaps_tls = tls_state.clone().unwrap();
+            let imaps_mb_store = mb_store.clone();
+            let imaps_users = users.clone();
+            let imaps_hostname = cfg.hostname.clone();
+            let imaps_maildir_root = cfg.maildir_root.clone();
+            let imaps_auth_guard = auth_guard.clone();
+            let imaps_domain_store = domain_store.clone();
+            let imaps_event_bus = event_bus.clone();
+            tokio::spawn(async move {
+                loop {
+                    match imaps_listener.accept().await {
+                        Ok((stream, addr)) => {
+                            let tls = imaps_tls.clone();
+                            let mb = imaps_mb_store.clone();
+                            let u = imaps_users.clone();
+                            let h = imaps_hostname.clone();
+                            let mr = imaps_maildir_root.clone();
+                            let ag = imaps_auth_guard.clone();
+                            let ds = imaps_domain_store.clone();
+                            let eb = imaps_event_bus.clone();
+                            tokio::spawn(async move {
+                                match tls.acceptor().accept(stream).await {
+                                    Ok(tls_stream) => {
+                                        handle_imap_connection(tls_stream, addr, mb, u, ag, ds, eb, &h, &mr).await;
+                                    }
+                                    Err(e) => {
+                                        eprintln!("imaps tls handshake error from {addr}: {e}");
+                                    }
+                                }
+                            });
+                        }
+                        Err(e) => eprintln!("imaps accept error: {e}"),
+                    }
+                }
+            });
+        }
+    }
+
     // delivery worker (outbound queue)
     if let Some(ref pool) = outbound_queue {
         if let Some(ref resolver) = ctx.resolver {
@@ -496,8 +573,8 @@ async fn main() {
     let _ = shutdown_tx.send(true);
 }
 
-async fn handle_imap_connection(
-    stream: tokio::net::TcpStream,
+async fn handle_imap_connection<S>(
+    stream: S,
     addr: std::net::SocketAddr,
     mailbox_store: Arc<MailboxStore>,
     users: Arc<crate::users::UserStore>,
@@ -506,7 +583,10 @@ async fn handle_imap_connection(
     event_bus: EventBus,
     hostname: &str,
     maildir_root: &str,
-) {
+)
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     use futures_util::{SinkExt, StreamExt};
     use tokio_util::codec::Framed;
 

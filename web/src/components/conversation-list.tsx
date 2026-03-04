@@ -1,11 +1,17 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { CategoryBadge } from '@/components/category-badge'
+import { fetchJson } from '@/lib/api'
 import { avatarColor, avatarInitial, extractName } from '@/lib/avatar'
 import { formatDate } from '@/lib/format'
-import type { ConversationSummary } from '@/lib/types'
+import type { CategoryCount, ConversationSummary } from '@/lib/types'
 import {
+  categoryFilterAtom,
   composingNewAtom,
   conversationsAtom,
+  hasMoreAtom,
+  loadingMoreAtom,
   searchQueryAtom,
   selectedThreadIdAtom,
 } from '@/store/chat'
@@ -56,12 +62,15 @@ function ConversationItem({
             {formatDate(convo.last_date)}
           </span>
         </div>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
           <p
-            className={`truncate text-sm ${hasUnread ? 'font-medium text-zinc-800 dark:text-zinc-200' : 'text-zinc-500 dark:text-zinc-400'}`}
+            className={`min-w-0 flex-1 truncate text-sm ${hasUnread ? 'font-medium text-zinc-800 dark:text-zinc-200' : 'text-zinc-500 dark:text-zinc-400'}`}
           >
             {convo.subject || '(no subject)'}
           </p>
+          {convo.category && convo.category !== 'general' && (
+            <CategoryBadge category={convo.category} />
+          )}
           {hasUnread && (
             <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-medium text-white">
               {convo.unread_count}
@@ -73,11 +82,101 @@ function ConversationItem({
   )
 }
 
-export function ConversationList() {
+function CategoryChips() {
+  const [categories, setCategories] = useState<CategoryCount[]>([])
+  const [activeCategory, setActiveCategory] = useAtom(categoryFilterAtom)
+
+  useEffect(() => {
+    fetchJson<CategoryCount[]>('/conversations/categories').then(
+      (data) => setCategories(data),
+      () => {}
+    )
+  }, [])
+
+  if (categories.length === 0) return null
+
+  return (
+    <div className="flex gap-1.5 overflow-x-auto border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+      <button
+        onClick={() => setActiveCategory(null)}
+        className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+          activeCategory === null
+            ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
+            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+        }`}
+      >
+        All
+      </button>
+      {categories.map((cat) => (
+        <button
+          key={cat.category}
+          onClick={() =>
+            setActiveCategory(
+              activeCategory === cat.category ? null : cat.category
+            )
+          }
+          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-colors ${
+            activeCategory === cat.category
+              ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
+              : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+          }`}
+        >
+          {cat.category} ({cat.count})
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function ConversationList({ onLoadMore }: { onLoadMore: () => void }) {
   const conversations = useAtomValue(conversationsAtom)
   const [selectedId, setSelectedId] = useAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
+  const hasMore = useAtomValue(hasMoreAtom)
+  const loadingMore = useAtomValue(loadingMoreAtom)
+
+  // refs to avoid stale closures in observer callback
+  const onLoadMoreRef = useRef(onLoadMore)
+  onLoadMoreRef.current = onLoadMore
+  const loadingRef = useRef(loadingMore)
+  loadingRef.current = loadingMore
+
+  // observer ref to clean up when sentinel unmounts
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // callback ref: called when sentinel mounts/unmounts
+  const sentinelCallback = useCallback((node: HTMLDivElement | null) => {
+    // disconnect old observer
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+      observerRef.current = null
+    }
+
+    if (!node) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !loadingRef.current) {
+          onLoadMoreRef.current()
+        }
+      },
+      {
+        root: scrollContainerRef.current,
+        rootMargin: '300px',
+      }
+    )
+    observer.observe(node)
+    observerRef.current = observer
+  }, [])
+
+  // cleanup on unmount
+  useEffect(() => {
+    return () => {
+      observerRef.current?.disconnect()
+    }
+  }, [])
 
   return (
     <div className="flex h-full flex-col">
@@ -125,7 +224,9 @@ export function ConversationList() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <CategoryChips />
+
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
           <div className="p-6 text-center text-sm text-zinc-400">
             No conversations
@@ -142,6 +243,21 @@ export function ConversationList() {
               }}
             />
           ))
+        )}
+
+        {/* infinite scroll sentinel */}
+        {hasMore && conversations.length > 0 && (
+          <div ref={sentinelCallback} className="flex justify-center py-4">
+            {loadingMore && (
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600 dark:border-zinc-600 dark:border-t-zinc-300" />
+            )}
+          </div>
+        )}
+
+        {!hasMore && conversations.length > 0 && (
+          <div className="py-3 text-center text-xs text-zinc-400">
+            No more conversations
+          </div>
         )}
       </div>
     </div>

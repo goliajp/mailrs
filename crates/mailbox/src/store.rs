@@ -566,38 +566,53 @@ impl MailboxStore {
         user: &str,
         limit: u32,
         before_ts: Option<i64>,
+        category: Option<&str>,
     ) -> Result<Vec<ConversationSummary>, sqlx::Error> {
         let count_expr = "COUNT(DISTINCT CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END)";
         let unread_expr = "COUNT(DISTINCT CASE WHEN (m.flags & 1) = 0 THEN CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END END)";
 
-        let rows = if let Some(ts) = before_ts {
-            let sql = format!(
-                "SELECT thread_id, MAX(subject), string_agg(DISTINCT sender, ','),
-                        {count_expr}, {unread_expr}, MAX(internal_date)
-                 FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
-                 WHERE mb.user_address = $1 AND thread_id != '' AND internal_date < $3
-                 GROUP BY thread_id ORDER BY MAX(internal_date) DESC LIMIT $2"
-            );
-            sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64)>(&sql)
-                .bind(user)
-                .bind(limit as i64)
-                .bind(ts)
-                .fetch_all(&self.pool)
-                .await?
-        } else {
-            let sql = format!(
-                "SELECT thread_id, MAX(subject), string_agg(DISTINCT sender, ','),
-                        {count_expr}, {unread_expr}, MAX(internal_date)
-                 FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
-                 WHERE mb.user_address = $1 AND thread_id != ''
-                 GROUP BY thread_id ORDER BY MAX(internal_date) DESC LIMIT $2"
-            );
-            sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64)>(&sql)
-                .bind(user)
-                .bind(limit as i64)
-                .fetch_all(&self.pool)
-                .await?
-        };
+        // build dynamic WHERE clauses
+        let mut conditions = vec![
+            "mb.user_address = $1".to_string(),
+            "thread_id != ''".to_string(),
+        ];
+        let mut param_idx = 3u32; // $1=user, $2=limit
+
+        if before_ts.is_some() {
+            conditions.push(format!("internal_date < ${param_idx}"));
+            param_idx += 1;
+        }
+        if category.is_some() {
+            conditions.push(format!(
+                "m.id IN (SELECT ea_inner.message_id FROM email_analysis ea_inner WHERE ea_inner.category = ${param_idx})"
+            ));
+        }
+
+        let where_clause = conditions.join(" AND ");
+        let sql = format!(
+            "SELECT m.thread_id, MAX(m.subject), string_agg(DISTINCT m.sender, ','),
+                    {count_expr}, {unread_expr}, MAX(m.internal_date),
+                    COALESCE((SELECT ea.category FROM email_analysis ea
+                              JOIN messages m2 ON ea.message_id = m2.id
+                              WHERE m2.thread_id = m.thread_id
+                              ORDER BY m2.internal_date DESC LIMIT 1), 'general')
+             FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE {where_clause}
+             GROUP BY m.thread_id ORDER BY MAX(m.internal_date) DESC LIMIT $2"
+        );
+
+        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String)>(&sql)
+            .bind(user)
+            .bind(limit as i64);
+
+        if let Some(ts) = before_ts {
+            query = query.bind(ts);
+        }
+        if let Some(cat) = category {
+            query = query.bind(cat);
+        }
+
+        let rows = query.fetch_all(&self.pool).await?;
 
         Ok(rows
             .into_iter()
@@ -608,6 +623,7 @@ impl MailboxStore {
                 message_count: r.3 as u32,
                 unread_count: r.4 as u32,
                 last_date: r.5,
+                category: r.6,
             })
             .collect())
     }
@@ -831,26 +847,42 @@ impl MailboxStore {
         user: &str,
         query: &str,
         limit: u32,
+        category: Option<&str>,
     ) -> Result<Vec<ConversationSummary>, sqlx::Error> {
         let pattern = format!("%{query}%");
         let count_expr = "COUNT(DISTINCT CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END)";
         let unread_expr = "COUNT(DISTINCT CASE WHEN (m.flags & 1) = 0 THEN CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END END)";
+
+        let category_filter = if category.is_some() {
+            "AND m.id IN (SELECT ea_inner.message_id FROM email_analysis ea_inner WHERE ea_inner.category = $4)"
+        } else {
+            ""
+        };
+
         let sql = format!(
-            "SELECT thread_id, MAX(subject), string_agg(DISTINCT sender, ','),
-                    {count_expr}, {unread_expr}, MAX(internal_date)
+            "SELECT m.thread_id, MAX(m.subject), string_agg(DISTINCT m.sender, ','),
+                    {count_expr}, {unread_expr}, MAX(m.internal_date),
+                    COALESCE((SELECT ea.category FROM email_analysis ea
+                              JOIN messages m2 ON ea.message_id = m2.id
+                              WHERE m2.thread_id = m.thread_id
+                              ORDER BY m2.internal_date DESC LIMIT 1), 'general')
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE mb.user_address = $1 AND thread_id != ''
-               AND (subject ILIKE $2 OR sender ILIKE $2)
-             GROUP BY thread_id ORDER BY MAX(internal_date) DESC LIMIT $3"
+               AND (m.subject ILIKE $2 OR m.sender ILIKE $2)
+               {category_filter}
+             GROUP BY m.thread_id ORDER BY MAX(m.internal_date) DESC LIMIT $3"
         );
 
-        let rows =
-            sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64)>(&sql)
-                .bind(user)
-                .bind(&pattern)
-                .bind(limit as i64)
-                .fetch_all(&self.pool)
-                .await?;
+        let mut q = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String)>(&sql)
+            .bind(user)
+            .bind(&pattern)
+            .bind(limit as i64);
+
+        if let Some(cat) = category {
+            q = q.bind(cat);
+        }
+
+        let rows = q.fetch_all(&self.pool).await?;
 
         Ok(rows
             .into_iter()
@@ -861,8 +893,30 @@ impl MailboxStore {
                 message_count: r.3 as u32,
                 unread_count: r.4 as u32,
                 last_date: r.5,
+                category: r.6,
             })
             .collect())
+    }
+
+    /// list distinct categories with conversation counts
+    pub async fn list_conversation_categories(
+        &self,
+        user: &str,
+    ) -> Result<Vec<(String, i64)>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, (String, i64)>(
+            "SELECT ea.category, COUNT(DISTINCT m.thread_id)
+             FROM email_analysis ea
+             JOIN messages m ON ea.message_id = m.id
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE mb.user_address = $1 AND m.thread_id != ''
+             GROUP BY ea.category
+             ORDER BY COUNT(DISTINCT m.thread_id) DESC",
+        )
+        .bind(user)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows)
     }
 
     /// get distinct senders (contacts) matching a query
@@ -887,6 +941,158 @@ impl MailboxStore {
         .await?;
 
         Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
+    // ---- email analysis methods ----
+
+    /// get analysis result for a message
+    pub async fn get_email_analysis(&self, message_id: i64) -> Result<Option<crate::types::EmailAnalysisRow>, sqlx::Error> {
+        let row = sqlx::query_as::<_, (i64, String, i16, String, String, serde_json::Value, serde_json::Value, serde_json::Value, serde_json::Value, String, String)>(
+            "SELECT message_id, category, risk_score, risk_reason, summary, people, dates, amounts, action_items, model_version, clean_text
+             FROM email_analysis WHERE message_id = $1",
+        )
+        .bind(message_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|r| crate::types::EmailAnalysisRow {
+            message_id: r.0,
+            category: r.1,
+            risk_score: r.2,
+            risk_reason: r.3,
+            summary: r.4,
+            people: r.5,
+            dates: r.6,
+            amounts: r.7,
+            action_items: r.8,
+            model_version: r.9,
+            clean_text: r.10,
+        }))
+    }
+
+    /// upsert analysis result
+    pub async fn upsert_email_analysis(
+        &self,
+        message_id: i64,
+        category: &str,
+        risk_score: i16,
+        risk_reason: &str,
+        summary: &str,
+        people: &serde_json::Value,
+        dates: &serde_json::Value,
+        amounts: &serde_json::Value,
+        action_items: &serde_json::Value,
+        embedding: Option<&[f32]>,
+        model_version: &str,
+        clean_text: &str,
+    ) -> Result<(), sqlx::Error> {
+        // format embedding as pgvector text literal
+        let embedding_str = embedding.map(|v| {
+            let nums: Vec<String> = v.iter().map(|f| f.to_string()).collect();
+            format!("[{}]", nums.join(","))
+        });
+
+        sqlx::query(
+            "INSERT INTO email_analysis (message_id, category, risk_score, risk_reason, summary, people, dates, amounts, action_items, embedding, model_version, clean_text, analyzed_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector, $11, $12, now())
+             ON CONFLICT (message_id) DO UPDATE SET
+               category = EXCLUDED.category,
+               risk_score = EXCLUDED.risk_score,
+               risk_reason = EXCLUDED.risk_reason,
+               summary = EXCLUDED.summary,
+               people = EXCLUDED.people,
+               dates = EXCLUDED.dates,
+               amounts = EXCLUDED.amounts,
+               action_items = EXCLUDED.action_items,
+               embedding = EXCLUDED.embedding,
+               model_version = EXCLUDED.model_version,
+               clean_text = EXCLUDED.clean_text,
+               analyzed_at = now()",
+        )
+        .bind(message_id)
+        .bind(category)
+        .bind(risk_score)
+        .bind(risk_reason)
+        .bind(summary)
+        .bind(people)
+        .bind(dates)
+        .bind(amounts)
+        .bind(action_items)
+        .bind(embedding_str.as_deref())
+        .bind(model_version)
+        .bind(clean_text)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// list message IDs that haven't been analyzed yet or need reanalysis (outdated model_version)
+    pub async fn list_unanalyzed_message_ids(&self, limit: i64, current_version: &str) -> Result<Vec<(i64, String, String, String, String)>, sqlx::Error> {
+        // returns (message_id, user_address, maildir_id, sender, subject)
+        let rows = sqlx::query_as::<_, (i64, String, String, String, String)>(
+            "SELECT m.id, mb.user_address, m.maildir_id, m.sender, m.subject
+             FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             LEFT JOIN email_analysis ea ON m.id = ea.message_id
+             WHERE ea.message_id IS NULL OR ea.model_version != $2
+             ORDER BY m.id DESC
+             LIMIT $1",
+        )
+        .bind(limit)
+        .bind(current_version)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows)
+    }
+
+    /// count total messages needing analysis (unanalyzed + outdated version)
+    pub async fn count_unanalyzed_messages(&self, current_version: &str) -> Result<i64, sqlx::Error> {
+        let row = sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*)
+             FROM messages m
+             LEFT JOIN email_analysis ea ON m.id = ea.message_id
+             WHERE ea.message_id IS NULL OR ea.model_version != $1",
+        )
+        .bind(current_version)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(row.0)
+    }
+
+    /// semantic search using pgvector cosine similarity
+    pub async fn semantic_search(
+        &self,
+        user: &str,
+        query_embedding: &[f32],
+        limit: i64,
+    ) -> Result<Vec<(i64, String, f64)>, sqlx::Error> {
+        // returns (message_id, thread_id, similarity_score)
+        let embedding_str = {
+            let nums: Vec<String> = query_embedding.iter().map(|f| f.to_string()).collect();
+            format!("[{}]", nums.join(","))
+        };
+
+        let rows = sqlx::query_as::<_, (i64, String, f64)>(
+            "SELECT m.id, m.thread_id,
+                    1 - (ea.embedding <=> $1::vector) AS similarity
+             FROM email_analysis ea
+             JOIN messages m ON ea.message_id = m.id
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE mb.user_address = $2
+               AND ea.embedding IS NOT NULL
+             ORDER BY ea.embedding <=> $1::vector
+             LIMIT $3",
+        )
+        .bind(&embedding_str)
+        .bind(user)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows)
     }
 }
 

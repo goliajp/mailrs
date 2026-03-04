@@ -40,4 +40,5 @@ arc-swap = "1"
 x509-parser = "0.16"
 sieve-rs = "0.7"
 flate2 = "1"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+html2text = "0.14"

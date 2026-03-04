@@ -1,4 +1,4 @@
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { ConversationList } from '@/components/conversation-list'
@@ -8,18 +8,34 @@ import { fetchJson, postJson } from '@/lib/api'
 import type { ConversationSummary } from '@/lib/types'
 import { authAtom } from '@/store/auth'
 import {
+  categoryFilterAtom,
   composingNewAtom,
   conversationsAtom,
+  hasMoreAtom,
+  loadingMoreAtom,
   searchQueryAtom,
 } from '@/store/chat'
 import { useMailEvents } from '@/hooks/use-mail-events'
 
+const PAGE_SIZE = 50
+
 export function Chat() {
   const auth = useAtomValue(authAtom)
   const composingNew = useAtomValue(composingNewAtom)
-  const setConversations = useSetAtom(conversationsAtom)
+  const [conversations, setConversations] = useAtom(conversationsAtom)
   const searchQuery = useAtomValue(searchQueryAtom)
+  const categoryFilter = useAtomValue(categoryFilterAtom)
+  const setHasMore = useSetAtom(hasMoreAtom)
+  const setLoadingMore = useSetAtom(loadingMoreAtom)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  // keep a ref so loadMore always sees latest
+  const conversationsRef = useRef(conversations)
+  conversationsRef.current = conversations
+  const searchRef = useRef(searchQuery)
+  searchRef.current = searchQuery
+  const categoryRef = useRef(categoryFilter)
+  categoryRef.current = categoryFilter
 
   // request notification permission
   useEffect(() => {
@@ -31,37 +47,82 @@ export function Chat() {
   // websocket events
   useMailEvents(auth?.address ?? '')
 
-  // load conversations
+  // build API path helper
+  const buildPath = useCallback(
+    (opts?: { query?: string; before?: number; category?: string | null }) => {
+      const { query, before, category } = opts ?? {}
+      if (query) {
+        let path = `/conversations/search?q=${encodeURIComponent(query)}&limit=${PAGE_SIZE}`
+        if (category) path += `&category=${encodeURIComponent(category)}`
+        return path
+      }
+      let path = `/conversations?limit=${PAGE_SIZE}`
+      if (before) path += `&before=${before}`
+      if (category) path += `&category=${encodeURIComponent(category)}`
+      return path
+    },
+    []
+  )
+
+  // load conversations with optional append mode
   const loadConversations = useCallback(
-    async (query?: string) => {
+    async (opts?: { query?: string; before?: number; category?: string | null; append?: boolean }) => {
+      const { append } = opts ?? {}
       try {
-        const path = query
-          ? `/conversations/search?q=${encodeURIComponent(query)}&limit=50`
-          : '/conversations?limit=50'
+        const path = buildPath(opts)
         const data = await fetchJson<ConversationSummary[]>(path)
-        setConversations(data)
+
+        if (append) {
+          setConversations((prev) => [...prev, ...data])
+        } else {
+          setConversations(data)
+        }
+
+        setHasMore(data.length >= PAGE_SIZE)
       } catch {
         // keep current
       }
     },
-    [setConversations]
+    [setConversations, setHasMore, buildPath]
   )
 
-  // initial load
-  useEffect(() => {
-    loadConversations()
-  }, [loadConversations])
+  // load more (infinite scroll callback) with reentry guard
+  const loadingRef = useRef(false)
+  const loadMore = useCallback(async () => {
+    if (loadingRef.current) return
+    const current = conversationsRef.current
+    const last = current[current.length - 1]
+    if (!last) return
 
-  // debounced search
+    loadingRef.current = true
+    setLoadingMore(true)
+    try {
+      await loadConversations({
+        query: searchRef.current || undefined,
+        before: last.last_date,
+        category: categoryRef.current,
+        append: true,
+      })
+    } finally {
+      loadingRef.current = false
+      setLoadingMore(false)
+    }
+  }, [setLoadingMore, loadConversations])
+
+  // initial load + react to filter/search changes
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      loadConversations(searchQuery || undefined)
+      setHasMore(true)
+      loadConversations({
+        query: searchQuery || undefined,
+        category: categoryFilter,
+      })
     }, 300)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [searchQuery, loadConversations])
+  }, [searchQuery, categoryFilter, loadConversations, setHasMore])
 
   return (
     <div className="flex h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
@@ -70,7 +131,7 @@ export function Chat() {
 
       {/* conversation list */}
       <div className="flex w-80 shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
-        <ConversationList />
+        <ConversationList onLoadMore={loadMore} />
       </div>
 
       {/* main content */}

@@ -26,6 +26,7 @@ pub struct ServerConfig {
     pub web_port: u16,
     // IMAP
     pub imap_port: u16,
+    pub imaps_port: u16,
     // anti-spam
     pub local_domains: Vec<String>,
     pub dnsbl_zones: Vec<String>,
@@ -61,6 +62,9 @@ pub struct ServerConfig {
     pub ai_model: String,
     // ClamAV
     pub clamav_addr: Option<String>,
+    // AI email analysis (Gemini)
+    pub gemini_api_key: Option<String>,
+    pub ai_analysis_enabled: bool,
     // storage backends
     pub pg_url: Option<String>,
     pub valkey_url: Option<String>,
@@ -79,6 +83,7 @@ impl Default for ServerConfig {
             users_file: None,
             web_port: 3100,
             imap_port: 1143,
+            imaps_port: 1993,
             local_domains: vec![],
             dnsbl_zones: vec![],
             rate_limit_capacity: 10,
@@ -105,6 +110,8 @@ impl Default for ServerConfig {
             ai_api_key: None,
             ai_model: "claude-haiku-4-5-20251001".into(),
             clamav_addr: None,
+            gemini_api_key: None,
+            ai_analysis_enabled: false,
             pg_url: None,
             valkey_url: None,
         }
@@ -155,6 +162,11 @@ impl ServerConfig {
                 cfg.imap_port = p;
             }
         }
+        if let Ok(v) = std::env::var("MAILRS_IMAPS_PORT") {
+            if let Ok(p) = v.parse() {
+                cfg.imaps_port = p;
+            }
+        }
         if let Ok(v) = std::env::var("MAILRS_LOCAL_DOMAINS") {
             cfg.local_domains = v.split(',').map(|s| s.trim().to_lowercase()).collect();
         }
@@ -193,19 +205,27 @@ impl ServerConfig {
             };
         }
         if let Ok(v) = std::env::var("MAILRS_DKIM_SELECTOR") {
-            cfg.dkim_selector = Some(v);
+            if !v.is_empty() {
+                cfg.dkim_selector = Some(v);
+            }
         }
         if let Ok(v) = std::env::var("MAILRS_DKIM_DOMAIN") {
-            cfg.dkim_domain = Some(v);
+            if !v.is_empty() {
+                cfg.dkim_domain = Some(v);
+            }
         }
         if let Ok(v) = std::env::var("MAILRS_DKIM_PRIVATE_KEY") {
-            cfg.dkim_private_key_path = Some(PathBuf::from(v));
+            if !v.is_empty() {
+                cfg.dkim_private_key_path = Some(PathBuf::from(v));
+            }
         }
         if let Ok(v) = std::env::var("MAILRS_WEB_STATIC_DIR") {
             cfg.web_static_dir = Some(PathBuf::from(v));
         }
         if let Ok(v) = std::env::var("MAILRS_ACME_EMAIL") {
-            cfg.acme_email = Some(v);
+            if !v.is_empty() {
+                cfg.acme_email = Some(v);
+            }
         }
         if let Ok(v) = std::env::var("MAILRS_ACME_DOMAINS") {
             cfg.acme_domains = v.split(',').map(|s| s.trim().to_string()).collect();
@@ -249,6 +269,12 @@ impl ServerConfig {
         }
         if let Ok(v) = std::env::var("MAILRS_CLAMAV_ADDR") {
             cfg.clamav_addr = Some(v);
+        }
+        if let Ok(v) = std::env::var("MAILRS_GEMINI_API_KEY") {
+            cfg.gemini_api_key = Some(v);
+        }
+        if std::env::var("MAILRS_AI_ANALYSIS_ENABLED").map(|v| v == "true" || v == "1").unwrap_or(false) {
+            cfg.ai_analysis_enabled = true;
         }
         if let Ok(v) = std::env::var("MAILRS_PG_URL") {
             cfg.pg_url = Some(v);

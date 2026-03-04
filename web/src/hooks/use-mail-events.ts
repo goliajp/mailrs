@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef } from 'react'
 
 import { fetchJson } from '@/lib/api'
 import type { ConversationSummary, NewMessageEvent, SmtpEvent, ThreadMessage } from '@/lib/types'
-import { conversationsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
+import { categoryFilterAtom, conversationsAtom, searchQueryAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
 
 const POLL_INTERVAL = 15_000
 const WS_PING_INTERVAL = 30_000
@@ -12,8 +12,14 @@ export function useMailEvents(user: string) {
   const setConversations = useSetAtom(conversationsAtom)
   const setThreadMessages = useSetAtom(threadMessagesAtom)
   const selectedThreadId = useAtomValue(selectedThreadIdAtom)
+  const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedRef = useRef(selectedThreadId)
   selectedRef.current = selectedThreadId
+  const categoryRef = useRef(categoryFilter)
+  categoryRef.current = categoryFilter
+  const searchQuery = useAtomValue(searchQueryAtom)
+  const searchRef = useRef(searchQuery)
+  searchRef.current = searchQuery
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(null)
@@ -21,7 +27,14 @@ export function useMailEvents(user: string) {
   const pollTimer = useRef<ReturnType<typeof setInterval>>(null)
 
   const refreshConversations = useCallback(() => {
-    fetchJson<ConversationSummary[]>('/conversations?limit=50').then(
+    const sq = searchRef.current
+    let path = sq
+      ? `/conversations/search?q=${encodeURIComponent(sq)}&limit=50`
+      : '/conversations?limit=50'
+    if (categoryRef.current) {
+      path += `&category=${encodeURIComponent(categoryRef.current)}`
+    }
+    fetchJson<ConversationSummary[]>(path).then(
       (data) => setConversations(data),
       () => {}
     )

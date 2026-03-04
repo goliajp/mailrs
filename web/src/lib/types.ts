@@ -87,10 +87,39 @@ export type AttachmentInfo = {
   size: number
 }
 
+export type PersonMention = {
+  name: string
+  email?: string
+  role?: string
+}
+
+export type DateMention = {
+  text: string
+  iso_date?: string
+  context: string
+}
+
+export type AmountMention = {
+  text: string
+  value?: number
+  currency?: string
+  context: string
+}
+
 export type MessageDetail = MessageSummary & {
   text_body: string | null
   html_body: string | null
   attachments: AttachmentInfo[]
+  category: string
+  risk_score: number
+  risk_reason: string
+  summary: string
+  people: PersonMention[]
+  dates: DateMention[]
+  amounts: AmountMention[]
+  action_items: string[]
+  ai_analyzed: boolean
+  clean_text: string | null
 }
 
 // admin API types
@@ -107,6 +136,16 @@ export type AccountInfo = {
   created_at: number
 }
 
+export type AliasInfo = {
+  id: number
+  source_address: string
+  target_address: string
+  domain: string
+  alias_type: string
+  active: boolean
+  created_at: number
+}
+
 // conversation API types
 export type ConversationSummary = {
   thread_id: string
@@ -115,6 +154,12 @@ export type ConversationSummary = {
   message_count: number
   unread_count: number
   last_date: number
+  category: string
+}
+
+export type CategoryCount = {
+  category: string
+  count: number
 }
 
 export type ThreadMessage = {
@@ -129,6 +174,16 @@ export type ThreadMessage = {
   text_body: string | null
   html_body: string | null
   attachments: AttachmentInfo[]
+  category: string
+  risk_score: number
+  risk_reason: string
+  summary: string
+  people: PersonMention[]
+  dates: DateMention[]
+  amounts: AmountMention[]
+  action_items: string[]
+  ai_analyzed: boolean
+  clean_text: string | null
 }
 
 export type NewMessageEvent = {
@@ -138,6 +193,22 @@ export type NewMessageEvent = {
   sender: string
   subject: string
   snippet: string
+}
+
+// domain health check types
+export type CheckStatus = 'pass' | 'warn' | 'fail' | 'skip'
+
+export type CheckResult = {
+  name: string
+  status: CheckStatus
+  message: string
+  details: string[]
+}
+
+export type DomainCheckReport = {
+  domain: string
+  checks: CheckResult[]
+  checked_at: number
 }
 
 // flag constants
