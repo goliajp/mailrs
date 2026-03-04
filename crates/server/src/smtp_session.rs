@@ -56,6 +56,23 @@ pub struct ConnectionContext {
     pub ai_config: Option<crate::ai_spam::AiSpamConfig>,
 }
 
+/// verify credentials against users.toml first, then PG accounts table
+async fn verify_credentials(ctx: &ConnectionContext, username: &str, password: &str) -> bool {
+    if ctx.users.verify(username, password) {
+        return true;
+    }
+    if let Some(ref ds) = ctx.domain_store {
+        if let Ok(Some((_account, hash))) = ds.get_account_with_hash(username).await {
+            return if hash.starts_with("$argon2") {
+                UserStore::verify_hash(password, &hash)
+            } else {
+                hash == password
+            };
+        }
+    }
+    false
+}
+
 /// handle a plain-text SMTP connection (port 25/587), may upgrade via STARTTLS
 pub async fn handle_plain_connection(
     stream: TcpStream,
@@ -605,13 +622,7 @@ where
                                     if quota > 0 {
                                         let usage = mb_store.user_storage_usage(rcpt).await;
                                         if usage + msg_size as u64 > quota as u64 {
-                                            tracing::warn!(
-                                                event = "quota_exceeded",
-                                                user = rcpt,
-                                                usage = usage,
-                                                quota = quota,
-                                                "delivery rejected: quota exceeded"
-                                            );
+                                            eprintln!("quota exceeded: user={rcpt} usage={usage} quota={quota}");
                                             ok = false;
                                             continue;
                                         }
@@ -681,9 +692,15 @@ where
                                             });
                                         }
                                     }
-                                    Err(_) => ok = false,
+                                    Err(e) => {
+                                        eprintln!("maildir deliver failed: path={path} error={e}");
+                                        ok = false;
+                                    }
                                 },
-                                Err(_) => ok = false,
+                                Err(e) => {
+                                    eprintln!("maildir create failed: path={path} error={e}");
+                                    ok = false;
+                                }
                             }
                         }
                     }
@@ -823,7 +840,7 @@ where
                 }
                 return SessionAction::Continue;
             }
-            let ok = ctx.users.verify(&username, &password);
+            let ok = verify_credentials(&ctx, &username, &password).await;
             let resp = if ok {
                 ctx.auth_guard.record_success(addr.ip(), &username);
                 session.set_authenticated(username.clone());
@@ -885,7 +902,7 @@ where
                         }
                         return SessionAction::Continue;
                     }
-                    let ok = ctx.users.verify(&username, &password);
+                    let ok = verify_credentials(&ctx, &username, &password).await;
                     let resp = if ok {
                         ctx.auth_guard.record_success(addr.ip(), &username);
                         session.set_authenticated(username.clone());

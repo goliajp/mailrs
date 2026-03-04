@@ -79,6 +79,21 @@ impl ImapSession {
 
     /// process a raw command line, return result
     pub async fn handle_line(&mut self, line: &str) -> HandleResult {
+        // log all commands for debugging
+        {
+            let username = match &self.state {
+                ImapState::Selected { username, .. } | ImapState::Authenticated { username } => username.as_str(),
+                _ => "?",
+            };
+            // hide passwords in LOGIN commands
+            let display = if line.to_uppercase().contains("LOGIN") {
+                let parts: Vec<&str> = line.splitn(4, ' ').collect();
+                if parts.len() >= 4 { format!("{} {} {} ***", parts[0], parts[1], parts[2]) } else { line.trim().to_string() }
+            } else {
+                line.trim().to_string()
+            };
+            eprintln!("IMAP [{username}] << {display}");
+        }
         match parse_command(line) {
             Ok(cmd) => self.handle_command(&cmd).await,
             Err(e) => {
@@ -152,7 +167,25 @@ impl ImapSession {
             }
         }
 
-        if self.users.verify(username, password) {
+        // try users.toml first, then PG accounts table
+        let ok = if self.users.verify(username, password) {
+            true
+        } else if let Some(ref ds) = self.domain_store {
+            match ds.get_account_with_hash(username).await {
+                Ok(Some((_account, hash))) => {
+                    if hash.starts_with("$argon2") {
+                        crate::users::UserStore::verify_hash(password, &hash)
+                    } else {
+                        hash == password
+                    }
+                }
+                _ => false,
+            }
+        } else {
+            false
+        };
+
+        if ok {
             if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
                 guard.record_success(ip, username);
             }
@@ -354,12 +387,23 @@ impl ImapSession {
         let want_internaldate = attrs_upper.contains("INTERNALDATE");
         let want_envelope = attrs_upper.contains("ENVELOPE");
         let want_body_peek = attrs_upper.contains("BODY.PEEK[]");
-        let want_body_full = !want_body_peek && (attrs_upper.contains("BODY[]") || attrs_upper == "RFC822" || attrs_upper.contains(" RFC822"));
+        // check for standalone RFC822 (not RFC822.SIZE, RFC822.HEADER, RFC822.TEXT)
+        let has_standalone_rfc822 = attrs_upper.split_whitespace()
+            .any(|w| w == "RFC822" || w == "(RFC822" || w == "RFC822)");
+        let want_body_full = !want_body_peek && (attrs_upper.contains("BODY[]") || has_standalone_rfc822);
         let want_body_header = attrs_upper.contains("BODY[HEADER]") || attrs_upper.contains("BODY.PEEK[HEADER]") || attrs_upper.contains("RFC822.HEADER");
         let want_body_text = attrs_upper.contains("BODY[TEXT]") || attrs_upper.contains("BODY.PEEK[TEXT]") || attrs_upper.contains("RFC822.TEXT");
         let want_bodystructure = attrs_upper.contains("BODYSTRUCTURE");
         let want_modseq = attrs_upper.contains("MODSEQ");
-        let want_any_body = want_body_peek || want_body_full || want_body_header || want_body_text;
+
+        // BODY[HEADER.FIELDS (field-list)] / BODY.PEEK[HEADER.FIELDS (field-list)]
+        let header_fields_request = parse_header_fields_request(attributes);
+
+        // generic BODY[section] requests (e.g. BODY[1], BODY[1.1], BODY[1.MIME])
+        let generic_body_sections = parse_generic_body_sections(attributes);
+
+        let want_any_body = want_body_peek || want_body_full || want_body_header || want_body_text
+            || header_fields_request.is_some() || !generic_body_sections.is_empty();
 
         // CHANGEDSINCE modifier (RFC 7162)
         let changedsince = if let Some(pos) = attrs_upper.find("CHANGEDSINCE") {
@@ -447,26 +491,37 @@ impl ImapSession {
 
             if want_any_body || want_bodystructure {
                 if let Some(data) = self.read_message_file(msg) {
+                    // BODYSTRUCTURE first (non-literal, before any literals)
+                    if want_bodystructure {
+                        items.push(format!("BODYSTRUCTURE {}", build_bodystructure(&data)));
+                    }
+                    // then literal items
                     if want_body_header {
                         let header = extract_header_section(&data);
-                        let label = if attrs_upper.contains("PEEK") { "BODY[HEADER]" } else { "BODY[HEADER]" };
-                        items.push(format!("{label} {{{}}}\r\n{}", header.len(), String::from_utf8_lossy(&header)));
+                        items.push(format!("BODY[HEADER] {{{}}}\r\n{}", header.len(), String::from_utf8_lossy(&header)));
                     }
                     if want_body_text {
                         let body = extract_body_section(&data);
-                        let label = if attrs_upper.contains("PEEK") { "BODY[TEXT]" } else { "BODY[TEXT]" };
-                        items.push(format!("{label} {{{}}}\r\n{}", body.len(), String::from_utf8_lossy(&body)));
+                        items.push(format!("BODY[TEXT] {{{}}}\r\n{}", body.len(), String::from_utf8_lossy(&body)));
                     }
                     if want_body_peek || want_body_full {
-                        let label = if want_body_peek { "BODY[]" } else { "BODY[]" };
-                        items.push(format!("{label} {{{}}}\r\n{}", data.len(), String::from_utf8_lossy(&data)));
-                        // BODY[] (not PEEK) sets \Seen flag
+                        items.push(format!("BODY[] {{{}}}\r\n{}", data.len(), String::from_utf8_lossy(&data)));
                         if want_body_full {
                             let _ = self.mailbox_store.add_flags(mailbox.id, msg.uid, FLAG_SEEN).await;
                         }
                     }
-                    if want_bodystructure {
-                        items.push(format!("BODYSTRUCTURE {}", build_bodystructure(&data)));
+                    if let Some((ref fields, ref raw_section)) = header_fields_request {
+                        let filtered = extract_header_fields(&data, fields);
+                        items.push(format!("BODY[{raw_section}] {{{}}}\r\n{}", filtered.len(), String::from_utf8_lossy(&filtered)));
+                    }
+                    for section in &generic_body_sections {
+                        let part_data = extract_mime_part(&data, section)
+                            .unwrap_or_else(|| extract_body_section(&data));
+                        let is_peek = attrs_upper.contains("PEEK");
+                        items.push(format!("BODY[{section}] {{{}}}\r\n{}", part_data.len(), String::from_utf8_lossy(&part_data)));
+                        if !is_peek {
+                            let _ = self.mailbox_store.add_flags(mailbox.id, msg.uid, FLAG_SEEN).await;
+                        }
                     }
                 }
             }
@@ -912,16 +967,30 @@ impl ImapSession {
             _ => return None,
         };
         let (local, domain) = username.split_once('@')?;
-        let path = format!("{}/{domain}/{local}", self.maildir_root);
-        let md = mailrs_storage_maildir::Maildir::open(&path);
+        let base = format!("{}/{domain}/{local}", self.maildir_root);
 
+        // fast path: try direct file lookup by maildir_id
+        // check new/ (no flags suffix)
+        let new_path = format!("{base}/new/{}", msg.maildir_id);
+        if let Ok(data) = std::fs::read(&new_path) {
+            return Some(data);
+        }
+        // check cur/ with common flag suffixes
+        for suffix in &[":2,S", ":2,", ":2,RS", ":2,FS", ":2,FRS"] {
+            let cur_path = format!("{base}/cur/{}{suffix}", msg.maildir_id);
+            if let Ok(data) = std::fs::read(&cur_path) {
+                return Some(data);
+            }
+        }
+
+        // slow fallback: scan directories
+        let md = mailrs_storage_maildir::Maildir::open(&base);
         let find_in = |entries: Vec<mailrs_storage_maildir::Entry>| -> Option<Vec<u8>> {
             entries
                 .into_iter()
                 .find(|e| e.id.to_string() == msg.maildir_id)
                 .and_then(|e| std::fs::read(&e.path).ok())
         };
-
         find_in(md.scan_cur().unwrap_or_default())
             .or_else(|| find_in(md.scan_new().unwrap_or_default()))
     }
@@ -1169,6 +1238,94 @@ fn format_imap_address(addr: &str) -> String {
     }
 }
 
+/// parse BODY[HEADER.FIELDS (field-list)] or BODY.PEEK[HEADER.FIELDS (field-list)]
+/// returns (field_names, raw_section_text) e.g. (["FROM","TO","SUBJECT"], "HEADER.FIELDS (FROM TO SUBJECT)")
+fn parse_header_fields_request(attributes: &str) -> Option<(Vec<String>, String)> {
+    let upper = attributes.to_uppercase();
+    let marker = "HEADER.FIELDS";
+    let pos = upper.find(marker)?;
+    // find the opening paren after HEADER.FIELDS
+    let after = &attributes[pos + marker.len()..];
+    let paren_start = after.find('(')?;
+    let paren_end = after.find(')')?;
+    let fields_str = &after[paren_start + 1..paren_end];
+    let fields: Vec<String> = fields_str
+        .split_whitespace()
+        .map(|s| s.to_uppercase())
+        .collect();
+    let raw_section = format!("HEADER.FIELDS ({})", fields_str.trim());
+    Some((fields, raw_section))
+}
+
+/// parse all generic BODY[section] requests like BODY[1], BODY[1.1], BODY[1.MIME], BODY.PEEK[1]
+/// returns all section specifiers (e.g. ["1", "1.1", "1.MIME"])
+fn parse_generic_body_sections(attributes: &str) -> Vec<String> {
+    let upper = attributes.to_uppercase();
+    let mut sections = Vec::new();
+
+    for prefix in &["BODY.PEEK[", "BODY["] {
+        let mut search_from = 0;
+        while let Some(rel_pos) = upper[search_from..].find(prefix) {
+            let abs_start = search_from + rel_pos + prefix.len();
+            if let Some(end_rel) = upper[abs_start..].find(']') {
+                let section = attributes[abs_start..abs_start + end_rel].trim();
+                // skip empty, HEADER, TEXT, HEADER.FIELDS — handled by other code paths
+                let sec_upper = section.to_uppercase();
+                if !section.is_empty()
+                    && sec_upper != "HEADER"
+                    && sec_upper != "TEXT"
+                    && !sec_upper.contains("HEADER.FIELDS")
+                    && section.as_bytes().first().map_or(false, |b| b.is_ascii_digit())
+                {
+                    let s = section.to_string();
+                    if !sections.contains(&s) {
+                        sections.push(s);
+                    }
+                }
+                search_from = abs_start + end_rel + 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    sections
+}
+
+/// extract only the specified header fields from raw message
+fn extract_header_fields(data: &[u8], fields: &[String]) -> Vec<u8> {
+    let header = extract_header_section(data);
+    let header_str = String::from_utf8_lossy(&header);
+    let mut result = Vec::new();
+    let mut lines = header_str.lines().peekable();
+    let mut include = false;
+    while let Some(line) = lines.next() {
+        if line.is_empty() {
+            break;
+        }
+        if line.starts_with(' ') || line.starts_with('\t') {
+            // continuation line — include if previous header was included
+            if include {
+                result.extend_from_slice(line.as_bytes());
+                result.extend_from_slice(b"\r\n");
+            }
+        } else {
+            // new header line
+            include = false;
+            if let Some(colon) = line.find(':') {
+                let name = line[..colon].trim().to_uppercase();
+                if fields.contains(&name) {
+                    include = true;
+                    result.extend_from_slice(line.as_bytes());
+                    result.extend_from_slice(b"\r\n");
+                }
+            }
+        }
+    }
+    result.extend_from_slice(b"\r\n");
+    result
+}
+
 /// extract header section from raw message (up to \r\n\r\n)
 fn extract_header_section(data: &[u8]) -> Vec<u8> {
     if let Some(pos) = data.windows(4).position(|w| w == b"\r\n\r\n") {
@@ -1191,58 +1348,351 @@ fn extract_body_section(data: &[u8]) -> Vec<u8> {
     }
 }
 
-/// build simple BODYSTRUCTURE for single-part messages
-fn build_bodystructure(data: &[u8]) -> String {
-    let header_bytes = extract_header_section(data);
-    let header = String::from_utf8_lossy(&header_bytes);
-    let body = extract_body_section(data);
-    let body_lines = body.split(|&b| b == b'\n').count();
+/// parsed MIME content-type info
+struct MimeInfo {
+    media_type: String,
+    subtype: String,
+    charset: String,
+    encoding: String,
+    boundary: Option<String>,
+}
 
-    // parse content-type from headers
-    let mut media_type = "TEXT";
-    let mut subtype = "PLAIN";
-    let mut charset = "UTF-8";
-    let mut encoding = "7BIT";
+/// parse content-type and transfer-encoding from header text
+fn parse_mime_headers(header: &str) -> MimeInfo {
+    let mut media_type = "TEXT".to_string();
+    let mut subtype = "PLAIN".to_string();
+    let mut charset = "UTF-8".to_string();
+    let mut encoding = "7BIT".to_string();
+    let mut boundary = None;
 
+    // unfold headers (join continuation lines)
+    let mut unfolded = String::new();
     for line in header.lines() {
+        if line.starts_with(' ') || line.starts_with('\t') {
+            unfolded.push(' ');
+            unfolded.push_str(line.trim());
+        } else {
+            if !unfolded.is_empty() {
+                unfolded.push('\n');
+            }
+            unfolded.push_str(line);
+        }
+    }
+
+    for line in unfolded.lines() {
         let lower = line.to_lowercase();
         if lower.starts_with("content-type:") {
-            let val = &line["content-type:".len()..].trim();
-            if val.to_lowercase().contains("text/html") {
-                subtype = "HTML";
-            } else if val.to_lowercase().contains("multipart/") {
-                // simplified multipart: just report the top level
-                media_type = "MULTIPART";
-                if val.to_lowercase().contains("multipart/mixed") {
-                    subtype = "MIXED";
-                } else if val.to_lowercase().contains("multipart/alternative") {
-                    subtype = "ALTERNATIVE";
+            let val = line["content-type:".len()..].trim();
+            let val_lower = val.to_lowercase();
+            if val_lower.starts_with("text/html") || val_lower.contains("text/html") {
+                media_type = "TEXT".to_string();
+                subtype = "HTML".to_string();
+            } else if val_lower.starts_with("text/plain") || val_lower.contains("text/plain") {
+                media_type = "TEXT".to_string();
+                subtype = "PLAIN".to_string();
+            } else if val_lower.contains("multipart/") {
+                media_type = "MULTIPART".to_string();
+                if val_lower.contains("multipart/mixed") {
+                    subtype = "MIXED".to_string();
+                } else if val_lower.contains("multipart/alternative") {
+                    subtype = "ALTERNATIVE".to_string();
+                } else if val_lower.contains("multipart/related") {
+                    subtype = "RELATED".to_string();
+                } else {
+                    subtype = "MIXED".to_string();
+                }
+            } else if val_lower.contains("application/") {
+                media_type = "APPLICATION".to_string();
+                if let Some(s) = val_lower.split('/').nth(1) {
+                    subtype = s.split(';').next().unwrap_or("OCTET-STREAM").trim().to_uppercase();
+                }
+            } else if val_lower.contains("image/") {
+                media_type = "IMAGE".to_string();
+                if let Some(s) = val_lower.split('/').nth(1) {
+                    subtype = s.split(';').next().unwrap_or("JPEG").trim().to_uppercase();
                 }
             }
-            if val.to_lowercase().contains("charset=") {
-                if let Some(pos) = val.to_lowercase().find("charset=") {
-                    let rest = &val[pos + 8..];
-                    let cs = rest.trim_start_matches('"').split(|c: char| c == '"' || c == ';' || c.is_whitespace()).next().unwrap_or("UTF-8");
-                    charset = if cs.eq_ignore_ascii_case("utf-8") { "UTF-8" } else { "US-ASCII" };
-                }
+            // extract charset
+            if let Some(pos) = val_lower.find("charset=") {
+                let rest = &val[pos + 8..];
+                let cs = rest.trim_start_matches('"')
+                    .split(|c: char| c == '"' || c == ';' || c.is_whitespace())
+                    .next().unwrap_or("UTF-8");
+                charset = cs.to_uppercase();
+            }
+            // extract boundary
+            if let Some(pos) = val_lower.find("boundary=") {
+                let rest = &val[pos + 9..];
+                let b = if rest.starts_with('"') {
+                    rest[1..].split('"').next().unwrap_or("")
+                } else {
+                    rest.split(|c: char| c == ';' || c.is_whitespace()).next().unwrap_or("")
+                };
+                boundary = Some(b.to_string());
             }
         }
         if lower.starts_with("content-transfer-encoding:") {
             let val = line["content-transfer-encoding:".len()..].trim();
             encoding = match val.to_uppercase().as_str() {
-                "BASE64" => "BASE64",
-                "QUOTED-PRINTABLE" => "QUOTED-PRINTABLE",
-                "8BIT" => "8BIT",
-                _ => "7BIT",
+                "BASE64" => "BASE64".to_string(),
+                "QUOTED-PRINTABLE" => "QUOTED-PRINTABLE".to_string(),
+                "8BIT" => "8BIT".to_string(),
+                _ => "7BIT".to_string(),
             };
         }
     }
 
-    format!(
-        "(\"{media_type}\" \"{subtype}\" (\"CHARSET\" \"{charset}\") NIL NIL \"{encoding}\" {} {})",
-        body.len(),
-        body_lines
-    )
+    MimeInfo { media_type, subtype, charset, encoding, boundary }
+}
+
+/// split multipart body by boundary, returning each part as raw bytes (including part headers)
+fn split_mime_parts<'a>(body: &'a [u8], boundary: &str) -> Vec<&'a [u8]> {
+    let delim = format!("--{boundary}");
+    let body_str = String::from_utf8_lossy(body);
+    let mut parts = Vec::new();
+
+    let mut in_parts = false;
+    let mut part_start = 0;
+
+    for (i, line) in body_str.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.starts_with(&delim) {
+            if trimmed == format!("--{boundary}--") || trimmed.starts_with(&format!("--{boundary}--")) {
+                // closing boundary
+                if in_parts {
+                    // find byte offset of this line
+                    if let Some(pos) = find_line_offset(body, &body_str, i) {
+                        if pos > part_start {
+                            parts.push(&body[part_start..pos]);
+                        }
+                    }
+                }
+                break;
+            }
+            if in_parts {
+                // end of previous part
+                if let Some(pos) = find_line_offset(body, &body_str, i) {
+                    if pos > part_start {
+                        parts.push(&body[part_start..pos]);
+                    }
+                }
+            }
+            // start of next part (after the boundary line + CRLF/LF)
+            if let Some(pos) = find_line_offset(body, &body_str, i) {
+                let after = pos + line.len();
+                // skip CRLF or LF after boundary
+                part_start = if body.get(after) == Some(&b'\r') && body.get(after + 1) == Some(&b'\n') {
+                    after + 2
+                } else if body.get(after) == Some(&b'\n') {
+                    after + 1
+                } else {
+                    after
+                };
+            }
+            in_parts = true;
+        }
+    }
+
+    parts
+}
+
+/// find byte offset of line number in body (helper for split_mime_parts)
+fn find_line_offset(body: &[u8], _body_str: &str, target_line: usize) -> Option<usize> {
+    let mut line_num = 0;
+    let mut pos = 0;
+    while pos < body.len() {
+        if line_num == target_line {
+            return Some(pos);
+        }
+        // find next newline
+        if let Some(nl) = body[pos..].iter().position(|&b| b == b'\n') {
+            pos = pos + nl + 1;
+        } else {
+            pos = body.len();
+        }
+        line_num += 1;
+    }
+    if line_num == target_line { Some(pos) } else { None }
+}
+
+/// trim trailing CRLF/LF from part body (boundary transport padding per RFC 2046)
+fn trim_part_trailing_newline(data: &[u8]) -> &[u8] {
+    let mut end = data.len();
+    if end >= 2 && data[end - 2] == b'\r' && data[end - 1] == b'\n' {
+        end -= 2;
+    } else if end >= 1 && data[end - 1] == b'\n' {
+        end -= 1;
+    }
+    &data[..end]
+}
+
+/// build a single part's BODYSTRUCTURE string (with extension data)
+fn build_part_bodystructure(part_data: &[u8]) -> String {
+    let header = extract_header_section(part_data);
+    let header_str = String::from_utf8_lossy(&header);
+    let body = extract_body_section(part_data);
+    let info = parse_mime_headers(&header_str);
+
+    if info.media_type == "MULTIPART" {
+        if let Some(ref boundary) = info.boundary {
+            let parts = split_mime_parts(&body, boundary);
+            // RFC 3501: 1*body SP media-subtype — parts concatenated directly, no space
+            let parts_str: String = parts.iter()
+                .map(|p| build_part_bodystructure(p))
+                .collect();
+            return format!(
+                "({} \"{}\" (\"boundary\" \"{}\") NIL NIL)",
+                parts_str, info.subtype.to_lowercase(), boundary,
+            );
+        }
+        let body_trimmed = trim_part_trailing_newline(&body);
+        let body_lines = body_trimmed.split(|&b| b == b'\n').count();
+        return format!(
+            "(\"text\" \"plain\" (\"charset\" \"UTF-8\") NIL NIL \"7bit\" {} {} NIL NIL NIL)",
+            body_trimmed.len(), body_lines,
+        );
+    }
+
+    // trim trailing CRLF — belongs to boundary delimiter, not content
+    let body_trimmed = trim_part_trailing_newline(&body);
+
+    if info.media_type == "TEXT" {
+        let body_lines = body_trimmed.split(|&b| b == b'\n').count();
+        format!(
+            "(\"text\" \"{}\" (\"charset\" \"{}\") NIL NIL \"{}\" {} {} NIL NIL NIL)",
+            info.subtype.to_lowercase(), info.charset,
+            info.encoding.to_lowercase(), body_trimmed.len(), body_lines,
+        )
+    } else {
+        format!(
+            "(\"{}\" \"{}\" NIL NIL NIL \"{}\" {} NIL NIL NIL)",
+            info.media_type.to_lowercase(), info.subtype.to_lowercase(),
+            info.encoding.to_lowercase(), body_trimmed.len(),
+        )
+    }
+}
+
+/// build BODYSTRUCTURE for a message (handles multipart, with extension data)
+fn build_bodystructure(data: &[u8]) -> String {
+    let header_bytes = extract_header_section(data);
+    let header = String::from_utf8_lossy(&header_bytes);
+    let body = extract_body_section(data);
+    let info = parse_mime_headers(&header);
+
+    if info.media_type == "MULTIPART" {
+        if let Some(ref boundary) = info.boundary {
+            let parts = split_mime_parts(&body, boundary);
+            if !parts.is_empty() {
+                // RFC 3501: 1*body SP media-subtype — parts concatenated directly
+                let parts_str: String = parts.iter()
+                    .map(|p| build_part_bodystructure(p))
+                    .collect();
+                return format!(
+                    "({} \"{}\" (\"boundary\" \"{}\") NIL NIL)",
+                    parts_str, info.subtype.to_lowercase(), boundary,
+                );
+            }
+        }
+    }
+
+    // single-part message
+    if info.media_type == "TEXT" {
+        let body_lines = body.split(|&b| b == b'\n').count();
+        format!(
+            "(\"text\" \"{}\" (\"charset\" \"{}\") NIL NIL \"{}\" {} {} NIL NIL NIL)",
+            info.subtype.to_lowercase(), info.charset,
+            info.encoding.to_lowercase(), body.len(), body_lines,
+        )
+    } else {
+        format!(
+            "(\"{}\" \"{}\" NIL NIL NIL \"{}\" {} NIL NIL NIL)",
+            info.media_type.to_lowercase(), info.subtype.to_lowercase(),
+            info.encoding.to_lowercase(), body.len(),
+        )
+    }
+}
+
+/// extract a specific MIME part by number (e.g. "1", "2", "1.1", "1.MIME")
+fn extract_mime_part(data: &[u8], section: &str) -> Option<Vec<u8>> {
+    // handle .MIME suffix — return MIME headers of the part
+    let upper = section.to_uppercase();
+    if upper.ends_with(".MIME") {
+        let base = &section[..section.len() - 5];
+        let part_raw = find_mime_part_raw(data, base)?;
+        return Some(extract_header_section(&part_raw));
+    }
+
+    find_mime_part_body(data, section)
+}
+
+/// find a MIME part's raw data (headers + body) by section number
+fn find_mime_part_raw(data: &[u8], section: &str) -> Option<Vec<u8>> {
+    let header_bytes = extract_header_section(data);
+    let header = String::from_utf8_lossy(&header_bytes);
+    let body = extract_body_section(data);
+    let info = parse_mime_headers(&header);
+
+    if info.media_type != "MULTIPART" || info.boundary.is_none() {
+        if section == "1" {
+            return Some(data.to_vec());
+        }
+        return None;
+    }
+
+    let boundary = info.boundary.as_ref()?;
+    let parts = split_mime_parts(&body, boundary);
+
+    let mut parts_iter = section.split('.');
+    let first: usize = parts_iter.next()?.parse().ok()?;
+    let rest: String = parts_iter.collect::<Vec<_>>().join(".");
+
+    if first == 0 || first > parts.len() {
+        return None;
+    }
+
+    let part = parts[first - 1];
+    if rest.is_empty() {
+        Some(part.to_vec())
+    } else {
+        find_mime_part_raw(part, &rest)
+    }
+}
+
+/// extract a specific MIME part's body by section number (e.g. "1", "2", "1.1")
+fn find_mime_part_body(data: &[u8], section: &str) -> Option<Vec<u8>> {
+    let header_bytes = extract_header_section(data);
+    let header = String::from_utf8_lossy(&header_bytes);
+    let body = extract_body_section(data);
+    let info = parse_mime_headers(&header);
+
+    if info.media_type != "MULTIPART" || info.boundary.is_none() {
+        // single-part: section "1" means the body itself
+        if section == "1" {
+            return Some(body);
+        }
+        return None;
+    }
+
+    let boundary = info.boundary.as_ref()?;
+    let parts = split_mime_parts(&body, boundary);
+
+    // parse section like "1" or "1.2"
+    let mut parts_iter = section.split('.');
+    let first: usize = parts_iter.next()?.parse().ok()?;
+    let rest: String = parts_iter.collect::<Vec<_>>().join(".");
+
+    if first == 0 || first > parts.len() {
+        return None;
+    }
+
+    let part = parts[first - 1];
+    if rest.is_empty() {
+        // return body of this part (after its headers)
+        Some(extract_body_section(part))
+    } else {
+        // recurse into nested multipart
+        find_mime_part_body(part, &rest)
+    }
 }
 
 /// format a comma-separated list of addresses into IMAP address list
