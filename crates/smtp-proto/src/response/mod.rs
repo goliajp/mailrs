@@ -177,6 +177,14 @@ impl Response {
             "Message size exceeds fixed maximum message size",
         )
     }
+
+    pub fn too_many_recipients() -> Self {
+        Self::new(
+            452,
+            Some(EnhancedCode { class: 4, subject: 5, detail: 3 }),
+            "Too many recipients",
+        )
+    }
 }
 
 #[cfg(test)]

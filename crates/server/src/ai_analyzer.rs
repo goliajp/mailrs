@@ -36,20 +36,22 @@ pub fn spawn_analyzer(
     eprintln!("AI email analyzer started");
 }
 
-async fn backfill_loop(
-    config: Arc<GeminiConfig>,
-    store: Arc<MailboxStore>,
-    maildir_root: String,
-) {
+async fn backfill_loop(config: Arc<GeminiConfig>, store: Arc<MailboxStore>, maildir_root: String) {
     let semaphore = Arc::new(Semaphore::new(2));
     let model_version = config.model_version();
     let analyzed_count = Arc::new(AtomicU64::new(0));
     let failed_count = Arc::new(AtomicU64::new(0));
 
     // get total count for progress logging
-    let total = store.count_unanalyzed_messages(&model_version).await.unwrap_or(0);
+    let total = store
+        .count_unanalyzed_messages(&model_version)
+        .await
+        .unwrap_or(0);
     if total == 0 {
-        eprintln!("AI backfill: all messages up to date (version {})", model_version);
+        eprintln!(
+            "AI backfill: all messages up to date (version {})",
+            model_version
+        );
         return;
     }
     eprintln!("AI backfill: {total} messages to analyze (version {model_version})");
@@ -73,7 +75,13 @@ async fn backfill_loop(
 
         let mut handles = Vec::new();
         for (msg_id, user, maildir_id, sender, subject) in batch {
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            let permit = match semaphore.clone().acquire_owned().await {
+                Ok(p) => p,
+                Err(_) => {
+                    eprintln!("ai_analyzer: semaphore closed, stopping batch");
+                    break;
+                }
+            };
             let cfg = config.clone();
             let store = store.clone();
             let mr = maildir_root.clone();
@@ -82,7 +90,18 @@ async fn backfill_loop(
             let fail_counter = failed_count.clone();
 
             handles.push(tokio::spawn(async move {
-                let success = analyze_with_retry(&cfg, &store, &mr, msg_id, &user, &maildir_id, &sender, &subject, &mv).await;
+                let success = analyze_with_retry(
+                    &cfg,
+                    &store,
+                    &mr,
+                    msg_id,
+                    &user,
+                    &maildir_id,
+                    &sender,
+                    &subject,
+                    &mv,
+                )
+                .await;
                 if success {
                     let done = counter.fetch_add(1, Ordering::Relaxed) + 1;
                     if done % 20 == 0 {
@@ -132,7 +151,18 @@ async fn listen_new_messages(
                             let mr = maildir_root.clone();
                             let mv = model_version.clone();
                             tokio::spawn(async move {
-                                analyze_with_retry(&cfg, &store, &mr, msg_id, &msg_user, &maildir_id, &sender, &subject, &mv).await;
+                                analyze_with_retry(
+                                    &cfg,
+                                    &store,
+                                    &mr,
+                                    msg_id,
+                                    &msg_user,
+                                    &maildir_id,
+                                    &sender,
+                                    &subject,
+                                    &mv,
+                                )
+                                .await;
                             });
                         }
                     }
@@ -161,11 +191,27 @@ async fn analyze_with_retry(
     for attempt in 0..5u32 {
         if attempt > 0 {
             let delay = std::time::Duration::from_secs(BACKOFF_SECS[attempt as usize - 1]);
-            eprintln!("AI retry msg={message_id} attempt={} backoff={}s", attempt + 1, delay.as_secs());
+            eprintln!(
+                "AI retry msg={message_id} attempt={} backoff={}s",
+                attempt + 1,
+                delay.as_secs()
+            );
             tokio::time::sleep(delay).await;
         }
 
-        if analyze_single_message(config, store, maildir_root, message_id, user, maildir_id, sender_raw, subject_raw, model_version).await {
+        if analyze_single_message(
+            config,
+            store,
+            maildir_root,
+            message_id,
+            user,
+            maildir_id,
+            sender_raw,
+            subject_raw,
+            model_version,
+        )
+        .await
+        {
             return true;
         }
     }
@@ -189,7 +235,11 @@ async fn analyze_single_message(
     let raw = match message_util::read_message_raw(maildir_root, user, maildir_id) {
         Some(r) => r,
         None => {
-            tracing::debug!(event = "analyzer_no_raw", message_id, "raw message not found");
+            tracing::debug!(
+                event = "analyzer_no_raw",
+                message_id,
+                "raw message not found"
+            );
             return false;
         }
     };
@@ -198,10 +248,7 @@ async fn analyze_single_message(
     let sender = message_util::decode_header(sender_raw);
     let subject = message_util::decode_header(subject_raw);
 
-    let body_for_analysis = text_body
-        .as_deref()
-        .or(html_body.as_deref())
-        .unwrap_or("");
+    let body_for_analysis = text_body.as_deref().or(html_body.as_deref()).unwrap_or("");
 
     // prepare text for embedding: combine subject + body
     let embedding_text = format!("{subject}\n\n{body_for_analysis}");
@@ -248,7 +295,10 @@ async fn analyze_single_message(
 
     eprintln!(
         "AI analyzed msg={} cat={} risk={} embed={}",
-        message_id, analysis.category, analysis.risk_score, embedding_result.is_some()
+        message_id,
+        analysis.category,
+        analysis.risk_score,
+        embedding_result.is_some()
     );
 
     true

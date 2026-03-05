@@ -8,16 +8,28 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pg-data:/var/lib/postgresql
+      - pg-data:/var/lib/postgresql/data
       - ./scripts/init-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailrs -d mailrs"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
     restart: unless-stopped
 
   valkey:
-    image: valkey/valkey:latest
+    image: valkey/valkey:8
     ports:
       - "6379:6379"
     volumes:
       - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
     restart: unless-stopped
 
   mailrs:
@@ -30,8 +42,10 @@ services:
       - "143:143"
       - "3100:3100"
     depends_on:
-      - postgres
-      - valkey
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
     environment:
       MAILRS_HOSTNAME: ${MAILRS_HOSTNAME:-mx.example.com}
       MAILRS_MAILDIR: /data/maildir

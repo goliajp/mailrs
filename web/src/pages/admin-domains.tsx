@@ -1,52 +1,11 @@
 import { useAtom } from 'jotai'
 import { Fragment, useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
+import { DomainHealthCard } from '@/components/domain-health-card'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
-import type { CheckResult, CheckStatus, DomainCheckReport, DomainInfo } from '@/lib/types'
+import type { DomainCheckReport, DomainInfo } from '@/lib/types'
 import { domainsAtom } from '@/store/admin'
-
-const statusIcon: Record<CheckStatus, string> = {
-  pass: '\u2705',
-  warn: '\u26A0\uFE0F',
-  fail: '\u274C',
-  skip: '\u23ED\uFE0F',
-}
-
-const statusColor: Record<CheckStatus, string> = {
-  pass: 'text-green-600 dark:text-green-400',
-  warn: 'text-yellow-600 dark:text-yellow-400',
-  fail: 'text-red-600 dark:text-red-400',
-  skip: 'text-zinc-400 dark:text-zinc-500',
-}
-
-function CheckResultRow({ check }: { check: CheckResult }) {
-  const [expanded, setExpanded] = useState(false)
-
-  return (
-    <div className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/50">
-      <button
-        onClick={() => check.details.length > 0 && setExpanded(!expanded)}
-        className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-      >
-        <span className="w-5 text-center">{statusIcon[check.status]}</span>
-        <span className="w-36 shrink-0 font-medium">{check.name}</span>
-        <span className={`flex-1 ${statusColor[check.status]}`}>{check.message}</span>
-        {check.details.length > 0 && (
-          <span className="text-xs text-zinc-400">{expanded ? '\u25B2' : '\u25BC'}</span>
-        )}
-      </button>
-      {expanded && check.details.length > 0 && (
-        <div className="bg-zinc-50 px-4 py-2 dark:bg-zinc-900">
-          {check.details.map((detail, i) => (
-            <pre key={i} className="whitespace-pre-wrap break-all font-mono text-xs text-zinc-600 dark:text-zinc-400">
-              {detail}
-            </pre>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 export function AdminDomains() {
   const [domains, setDomains] = useAtom(domainsAtom)
@@ -70,15 +29,25 @@ export function AdminDomains() {
 
   const handleAdd = async () => {
     if (!newDomain.trim()) return
-    await postJson('/admin/domains', { name: newDomain.trim() })
-    setNewDomain('')
-    setAdding(false)
-    loadDomains()
+    try {
+      await postJson('/admin/domains', { name: newDomain.trim() })
+      toast.success(`Domain "${newDomain.trim()}" added`)
+      setNewDomain('')
+      setAdding(false)
+      loadDomains()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to add domain')
+    }
   }
 
   const handleDelete = async (name: string) => {
-    await deleteJson(`/admin/domains/${encodeURIComponent(name)}`)
-    loadDomains()
+    try {
+      await deleteJson(`/admin/domains/${encodeURIComponent(name)}`)
+      toast.success(`Domain "${name}" removed`)
+      loadDomains()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to remove domain')
+    }
   }
 
   const handleCheck = async (name: string) => {
@@ -183,24 +152,12 @@ export function AdminDomains() {
                 </tr>
                 {reports[domain.name] && (
                   <tr>
-                    <td colSpan={3} className="px-4 pb-4">
-                      <div className="mt-1 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
-                        <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800">
-                          <span className="text-xs font-medium text-zinc-500">
-                            Health Check: {domain.name}
-                          </span>
-                          <button
-                            onClick={() => handleCheck(domain.name)}
-                            disabled={checking === domain.name}
-                            className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50 dark:text-blue-400"
-                          >
-                            {checking === domain.name ? 'Running...' : 'Re-check'}
-                          </button>
-                        </div>
-                        {reports[domain.name].checks.map((check) => (
-                          <CheckResultRow key={check.name} check={check} />
-                        ))}
-                      </div>
+                    <td colSpan={3} className="px-4 pb-4 pt-1">
+                      <DomainHealthCard
+                        report={reports[domain.name]}
+                        checking={checking === domain.name}
+                        onRecheck={() => handleCheck(domain.name)}
+                      />
                     </td>
                   </tr>
                 )}

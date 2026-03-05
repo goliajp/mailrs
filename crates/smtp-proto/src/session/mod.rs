@@ -2,6 +2,12 @@ use crate::auth::{decode_login_response, decode_plain};
 use crate::command::{AuthMechanism, Command, ForwardPath};
 use crate::response::Response;
 
+/// maximum message size in bytes (50 MB)
+pub const MAX_MESSAGE_SIZE: u64 = 52_428_800;
+
+/// maximum number of recipients per message (RFC 5321 minimum is 100)
+pub const MAX_RECIPIENTS: usize = 100;
+
 fn forward_path_to_string(path: &ForwardPath) -> String {
     match path {
         ForwardPath::Postmaster => "Postmaster".to_string(),
@@ -15,6 +21,7 @@ pub struct SessionConfig {
     pub tls_active: bool,
     pub require_tls_for_auth: bool,
     pub max_size: u64,
+    pub max_recipients: usize,
 }
 
 impl Default for SessionConfig {
@@ -23,7 +30,8 @@ impl Default for SessionConfig {
             tls_available: false,
             tls_active: false,
             require_tls_for_auth: true,
-            max_size: 52428800,
+            max_size: MAX_MESSAGE_SIZE,
+            max_recipients: MAX_RECIPIENTS,
         }
     }
 }
@@ -96,7 +104,12 @@ impl Session {
 
     /// build EHLO capability list based on current config state
     pub fn capabilities(&self) -> Vec<String> {
-        let mut caps = vec!["PIPELINING".to_string()];
+        let mut caps = vec![
+            "PIPELINING".to_string(),
+            "8BITMIME".to_string(),
+            "ENHANCEDSTATUSCODES".to_string(),
+            "SMTPUTF8".to_string(),
+        ];
 
         if self.config.tls_available && !self.config.tls_active {
             caps.push("STARTTLS".to_string());
@@ -213,6 +226,11 @@ impl Session {
             }
 
             (State::RcptTo { .. }, Command::RcptTo { path, .. }) => {
+                if let State::RcptTo { forward_paths, .. } = &self.state {
+                    if forward_paths.len() >= self.config.max_recipients {
+                        return Event::Reply(Response::too_many_recipients());
+                    }
+                }
                 let forward = forward_path_to_string(path);
                 if let State::RcptTo { forward_paths, .. } = &mut self.state {
                     forward_paths.push(forward);

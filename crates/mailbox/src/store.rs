@@ -1,7 +1,25 @@
 use sqlx::PgPool;
 
 use crate::threading;
-use crate::types::{ConversationSummary, FlagAction, Mailbox, MessageMeta, FLAG_DELETED, FLAG_SEEN};
+use crate::types::{ConversationSummary, FlagAction, Mailbox, MessageMeta, FLAG_DELETED, FLAG_FLAGGED, FLAG_SEEN};
+
+/// build a user_address filter clause and collect bind values
+/// returns (sql_fragment, bind_values) where bind values start at `start_idx`
+fn build_user_filter(user: &str, domains: Option<&[String]>, start_idx: u32) -> (String, Vec<String>) {
+    if let Some(doms) = domains {
+        if !doms.is_empty() {
+            let placeholders: Vec<String> = doms.iter().enumerate()
+                .map(|(i, _)| format!("${}", start_idx + i as u32))
+                .collect();
+            let sql = format!(
+                "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
+                placeholders.join(",")
+            );
+            return (sql, doms.to_vec());
+        }
+    }
+    (format!("mb.user_address = ${start_idx}"), vec![user.to_string()])
+}
 
 /// mailbox storage backed by PG for metadata and maildir for message bodies
 pub struct MailboxStore {
@@ -503,6 +521,31 @@ impl MailboxStore {
     }
 
     /// total storage used by a user across all mailboxes (in bytes)
+    pub async fn count_messages(&self, user: &str) -> i64 {
+        let row: Result<(i64,), _> = sqlx::query_as(
+            "SELECT COUNT(*) FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id WHERE mb.user_address = $1",
+        )
+        .bind(user)
+        .fetch_one(&self.pool)
+        .await;
+
+        row.map(|r| r.0).unwrap_or(0)
+    }
+
+    pub async fn count_unseen(&self, user: &str) -> i64 {
+        let row: Result<(i64,), _> = sqlx::query_as(
+            "SELECT COUNT(*) FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE mb.user_address = $1 AND m.flags & 1 = 0",
+        )
+        .bind(user)
+        .fetch_one(&self.pool)
+        .await;
+
+        row.map(|r| r.0).unwrap_or(0)
+    }
+
     pub async fn user_storage_usage(&self, user: &str) -> u64 {
         let row: Result<(i64,), _> = sqlx::query_as(
             "SELECT COALESCE(SUM(m.size), 0) FROM messages m
@@ -561,22 +604,46 @@ impl MailboxStore {
     }
 
     /// list conversations grouped by thread_id, ordered by most recent
+    /// when `domains` is Some, query across all accounts in those domains instead of single user
     pub async fn list_conversations(
         &self,
         user: &str,
         limit: u32,
         before_ts: Option<i64>,
         category: Option<&str>,
+        domains: Option<&[String]>,
+        archived: bool,
     ) -> Result<Vec<ConversationSummary>, sqlx::Error> {
         let count_expr = "COUNT(DISTINCT CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END)";
         let unread_expr = "COUNT(DISTINCT CASE WHEN (m.flags & 1) = 0 THEN CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END END)";
 
         // build dynamic WHERE clauses
-        let mut conditions = vec![
-            "mb.user_address = $1".to_string(),
-            "thread_id != ''".to_string(),
-        ];
-        let mut param_idx = 3u32; // $1=user, $2=limit
+        let archived_filter = if archived {
+            "BOOL_OR(m.archived) = true"
+        } else {
+            "BOOL_OR(m.archived) = false"
+        };
+        let mut conditions = vec!["thread_id != ''".to_string()];
+        let mut param_idx = 1u32;
+
+        // user filter: either single user or multi-domain
+        let user_condition = if let Some(doms) = domains {
+            if doms.is_empty() {
+                param_idx += 1;
+                format!("mb.user_address = ${}", param_idx - 1)
+            } else {
+                let placeholders: Vec<String> = doms.iter().enumerate().map(|(i, _)| format!("${}", param_idx + i as u32)).collect();
+                param_idx += doms.len() as u32;
+                format!("mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))", placeholders.join(","))
+            }
+        } else {
+            param_idx += 1;
+            format!("mb.user_address = ${}", param_idx - 1)
+        };
+        conditions.insert(0, user_condition);
+
+        let limit_idx = param_idx;
+        param_idx += 1;
 
         if before_ts.is_some() {
             conditions.push(format!("internal_date < ${param_idx}"));
@@ -595,15 +662,35 @@ impl MailboxStore {
                     COALESCE((SELECT ea.category FROM email_analysis ea
                               JOIN messages m2 ON ea.message_id = m2.id
                               WHERE m2.thread_id = m.thread_id
-                              ORDER BY m2.internal_date DESC LIMIT 1), 'general')
+                              ORDER BY m2.internal_date DESC LIMIT 1), 'general'),
+                    BOOL_OR((m.flags & 4) != 0),
+                    COALESCE((SELECT LEFT(m3.text_body, 120) FROM messages m3
+                              WHERE m3.thread_id = m.thread_id AND m3.text_body IS NOT NULL AND m3.text_body != ''
+                              ORDER BY m3.internal_date DESC LIMIT 1), ''),
+                    BOOL_OR(m.pinned),
+                    BOOL_OR(m.archived)
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {where_clause}
-             GROUP BY m.thread_id ORDER BY MAX(m.internal_date) DESC LIMIT $2"
+             GROUP BY m.thread_id HAVING {archived_filter}
+             ORDER BY BOOL_OR(m.pinned) DESC, MAX(m.internal_date) DESC LIMIT ${limit_idx}"
         );
 
-        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String)>(&sql)
-            .bind(user)
-            .bind(limit as i64);
+        // bind parameters in order
+        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool)>(&sql);
+
+        if let Some(doms) = domains {
+            if doms.is_empty() {
+                query = query.bind(user);
+            } else {
+                for d in doms {
+                    query = query.bind(d);
+                }
+            }
+        } else {
+            query = query.bind(user);
+        }
+
+        query = query.bind(limit as i64);
 
         if let Some(ts) = before_ts {
             query = query.bind(ts);
@@ -624,37 +711,67 @@ impl MailboxStore {
                 unread_count: r.4 as u32,
                 last_date: r.5,
                 category: r.6,
+                flagged: r.7,
+                snippet: r.8,
+                pinned: r.9,
+                archived: r.10,
             })
             .collect())
     }
 
     /// list all messages in a thread (deduplicated by message_id)
+    /// when `domains` is Some, query across all accounts in those domains
     pub async fn list_thread_messages(
         &self,
         user: &str,
         thread_id: &str,
+        domains: Option<&[String]>,
     ) -> Result<Vec<MessageMeta>, sqlx::Error> {
         // deduplicate: same email may exist in both INBOX and Sent
-        let rows = sqlx::query_as::<_, (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64)>(
+        let (user_filter, user_filter_inner) = if let Some(doms) = domains {
+            if !doms.is_empty() {
+                let placeholders: Vec<String> = doms.iter().enumerate().map(|(i, _)| format!("${}", i + 3)).collect();
+                let f = format!("mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))", placeholders.join(","));
+                let f2 = format!("mb2.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))", placeholders.join(","));
+                (f, f2)
+            } else {
+                ("mb.user_address = $1".to_string(), "mb2.user_address = $1".to_string())
+            }
+        } else {
+            ("mb.user_address = $1".to_string(), "mb2.user_address = $1".to_string())
+        };
+
+        let sql = format!(
             "SELECT m.id, m.mailbox_id, m.uid, m.maildir_id, m.sender, m.recipients, m.subject,
-                    m.date_epoch, m.size, m.flags, m.internal_date, m.message_id, m.in_reply_to, m.thread_id, m.modseq
+                    m.date_epoch, m.size, m.flags, m.internal_date, m.message_id, m.in_reply_to, m.thread_id, m.modseq,
+                    mb.user_address
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE mb.user_address = $1 AND m.thread_id = $2
+             WHERE {user_filter} AND m.thread_id = $2
                AND m.id = (
                  SELECT MIN(m2.id) FROM messages m2
                  JOIN mailboxes mb2 ON m2.mailbox_id = mb2.id
-                 WHERE mb2.user_address = $1
+                 WHERE {user_filter_inner}
                    AND CASE WHEN m.message_id != '' THEN m2.message_id = m.message_id
                             ELSE m2.id = m.id END
                )
-             ORDER BY m.internal_date ASC",
-        )
-        .bind(user)
-        .bind(thread_id)
-        .fetch_all(&self.pool)
-        .await?;
+             ORDER BY m.internal_date ASC"
+        );
 
-        Ok(rows.into_iter().map(row_to_message_meta).collect())
+        let mut query = sqlx::query_as::<_, (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64, String)>(&sql)
+            .bind(user)
+            .bind(thread_id);
+
+        if let Some(doms) = domains {
+            if !doms.is_empty() {
+                for d in doms {
+                    query = query.bind(d);
+                }
+            }
+        }
+
+        let rows = query.fetch_all(&self.pool).await?;
+
+        Ok(rows.into_iter().map(row_to_message_meta_with_user).collect())
     }
 
     /// get all message-ids in the thread that contains the given message_id,
@@ -743,6 +860,180 @@ impl MailboxStore {
         .await?;
 
         Ok(result.rows_affected() as u32)
+    }
+
+    /// mark only the latest message in a thread as unread for a user
+    pub async fn mark_thread_unread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> Result<u32, sqlx::Error> {
+        // bump modseq on affected mailboxes
+        sqlx::query(
+            "UPDATE mailboxes SET highest_modseq = highest_modseq + 1
+             WHERE id IN (
+                SELECT DISTINCT mailbox_id FROM messages
+                WHERE thread_id = $1 AND (flags & $2) != 0
+                  AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $3)
+             )",
+        )
+        .bind(thread_id)
+        .bind(FLAG_SEEN as i32)
+        .bind(user)
+        .execute(&self.pool)
+        .await?;
+
+        let new_modseq: (i64,) = sqlx::query_as(
+            "SELECT COALESCE(MAX(highest_modseq), 0) FROM mailboxes WHERE user_address = $1",
+        )
+        .bind(user)
+        .fetch_one(&self.pool)
+        .await?;
+
+        // clear seen flag only on the most recent message in the thread
+        let result = sqlx::query(
+            "UPDATE messages SET flags = flags & ~$1, modseq = $4
+             WHERE id = (
+                SELECT m.id FROM messages m
+                JOIN mailboxes mb ON m.mailbox_id = mb.id
+                WHERE m.thread_id = $2 AND mb.user_address = $3
+                ORDER BY m.internal_date DESC
+                LIMIT 1
+             )",
+        )
+        .bind(FLAG_SEEN as i32)
+        .bind(thread_id)
+        .bind(user)
+        .bind(new_modseq.0)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() as u32)
+    }
+
+    /// set FLAG_FLAGGED on all messages in a thread for the user
+    pub async fn star_thread(&self, user: &str, thread_id: &str) -> Result<u32, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE messages SET flags = flags | $1
+             WHERE thread_id = $2
+               AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $3)",
+        )
+        .bind(FLAG_FLAGGED as i32)
+        .bind(thread_id)
+        .bind(user)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() as u32)
+    }
+
+    /// clear FLAG_FLAGGED on all messages in a thread for the user
+    pub async fn unstar_thread(&self, user: &str, thread_id: &str) -> Result<u32, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE messages SET flags = flags & ~$1
+             WHERE thread_id = $2
+               AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $3)",
+        )
+        .bind(FLAG_FLAGGED as i32)
+        .bind(thread_id)
+        .bind(user)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() as u32)
+    }
+
+    /// set pinned=true on all messages in a thread for the user
+    pub async fn pin_thread(&self, user: &str, thread_id: &str) -> Result<u32, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE messages SET pinned = true
+             WHERE thread_id = $1
+               AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $2)",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() as u32)
+    }
+
+    /// set pinned=false on all messages in a thread for the user
+    pub async fn unpin_thread(&self, user: &str, thread_id: &str) -> Result<u32, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE messages SET pinned = false
+             WHERE thread_id = $1
+               AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $2)",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() as u32)
+    }
+
+    /// set archived=true on all messages in a thread for the user
+    pub async fn archive_thread(&self, user: &str, thread_id: &str) -> Result<u32, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE messages SET archived = true
+             WHERE thread_id = $1
+               AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $2)",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() as u32)
+    }
+
+    /// set archived=false on all messages in a thread for the user
+    pub async fn unarchive_thread(&self, user: &str, thread_id: &str) -> Result<u32, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE messages SET archived = false
+             WHERE thread_id = $1
+               AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $2)",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() as u32)
+    }
+
+    /// delete all mailbox entries for a thread belonging to a user
+    /// messages table rows are left intact (other users may share them)
+    /// returns list of (user_address, maildir_id) for physical file cleanup
+    pub async fn delete_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        // collect maildir_ids to delete from disk
+        let maildir_ids: Vec<(String,)> = sqlx::query_as(
+            "SELECT m.maildir_id FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE m.thread_id = $1 AND mb.user_address = $2",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .fetch_all(&self.pool)
+        .await?;
+
+        // remove from messages table for this user's mailboxes
+        sqlx::query(
+            "DELETE FROM messages
+             WHERE thread_id = $1
+               AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $2)",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(maildir_ids.into_iter().map(|(id,)| id).collect())
     }
 
     /// backfill threading data for messages that have empty thread_id
@@ -848,15 +1139,40 @@ impl MailboxStore {
         query: &str,
         limit: u32,
         category: Option<&str>,
+        domains: Option<&[String]>,
     ) -> Result<Vec<ConversationSummary>, sqlx::Error> {
         let pattern = format!("%{query}%");
         let count_expr = "COUNT(DISTINCT CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END)";
         let unread_expr = "COUNT(DISTINCT CASE WHEN (m.flags & 1) = 0 THEN CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END END)";
 
-        let category_filter = if category.is_some() {
-            "AND m.id IN (SELECT ea_inner.message_id FROM email_analysis ea_inner WHERE ea_inner.category = $4)"
+        // build param indices dynamically
+        let mut param_idx = 1u32;
+
+        let user_filter = if let Some(doms) = domains {
+            if !doms.is_empty() {
+                let placeholders: Vec<String> = doms.iter().enumerate().map(|(i, _)| format!("${}", param_idx + i as u32)).collect();
+                param_idx += doms.len() as u32;
+                format!("mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))", placeholders.join(","))
+            } else {
+                let f = format!("mb.user_address = ${param_idx}");
+                param_idx += 1;
+                f
+            }
         } else {
-            ""
+            let f = format!("mb.user_address = ${param_idx}");
+            param_idx += 1;
+            f
+        };
+
+        let pattern_idx = param_idx;
+        param_idx += 1;
+        let limit_idx = param_idx;
+        param_idx += 1;
+
+        let category_filter = if category.is_some() {
+            format!("AND m.id IN (SELECT ea_inner.message_id FROM email_analysis ea_inner WHERE ea_inner.category = ${param_idx})")
+        } else {
+            String::new()
         };
 
         let sql = format!(
@@ -865,18 +1181,36 @@ impl MailboxStore {
                     COALESCE((SELECT ea.category FROM email_analysis ea
                               JOIN messages m2 ON ea.message_id = m2.id
                               WHERE m2.thread_id = m.thread_id
-                              ORDER BY m2.internal_date DESC LIMIT 1), 'general')
+                              ORDER BY m2.internal_date DESC LIMIT 1), 'general'),
+                    BOOL_OR((m.flags & 4) != 0),
+                    COALESCE((SELECT LEFT(m3.text_body, 120) FROM messages m3
+                              WHERE m3.thread_id = m.thread_id AND m3.text_body IS NOT NULL AND m3.text_body != ''
+                              ORDER BY m3.internal_date DESC LIMIT 1), ''),
+                    BOOL_OR(m.pinned),
+                    BOOL_OR(m.archived)
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE mb.user_address = $1 AND thread_id != ''
-               AND (m.subject ILIKE $2 OR m.sender ILIKE $2)
+             WHERE {user_filter} AND thread_id != ''
+               AND (m.subject ILIKE ${pattern_idx} OR m.sender ILIKE ${pattern_idx})
                {category_filter}
-             GROUP BY m.thread_id ORDER BY MAX(m.internal_date) DESC LIMIT $3"
+             GROUP BY m.thread_id HAVING BOOL_OR(m.archived) = false
+             ORDER BY MAX(m.internal_date) DESC LIMIT ${limit_idx}"
         );
 
-        let mut q = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String)>(&sql)
-            .bind(user)
-            .bind(&pattern)
-            .bind(limit as i64);
+        let mut q = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool)>(&sql);
+
+        if let Some(doms) = domains {
+            if !doms.is_empty() {
+                for d in doms {
+                    q = q.bind(d);
+                }
+            } else {
+                q = q.bind(user);
+            }
+        } else {
+            q = q.bind(user);
+        }
+
+        q = q.bind(&pattern).bind(limit as i64);
 
         if let Some(cat) = category {
             q = q.bind(cat);
@@ -894,6 +1228,10 @@ impl MailboxStore {
                 unread_count: r.4 as u32,
                 last_date: r.5,
                 category: r.6,
+                flagged: r.7,
+                snippet: r.8,
+                pinned: r.9,
+                archived: r.10,
             })
             .collect())
     }
@@ -902,20 +1240,26 @@ impl MailboxStore {
     pub async fn list_conversation_categories(
         &self,
         user: &str,
+        domains: Option<&[String]>,
     ) -> Result<Vec<(String, i64)>, sqlx::Error> {
-        let rows = sqlx::query_as::<_, (String, i64)>(
+        let (user_filter, binds_domains) = build_user_filter(user, domains, 1);
+
+        let sql = format!(
             "SELECT ea.category, COUNT(DISTINCT m.thread_id)
              FROM email_analysis ea
              JOIN messages m ON ea.message_id = m.id
              JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE mb.user_address = $1 AND m.thread_id != ''
+             WHERE {user_filter} AND m.thread_id != ''
              GROUP BY ea.category
-             ORDER BY COUNT(DISTINCT m.thread_id) DESC",
-        )
-        .bind(user)
-        .fetch_all(&self.pool)
-        .await?;
+             ORDER BY COUNT(DISTINCT m.thread_id) DESC"
+        );
 
+        let mut query = sqlx::query_as::<_, (String, i64)>(&sql);
+        for b in &binds_domains {
+            query = query.bind(b);
+        }
+
+        let rows = query.fetch_all(&self.pool).await?;
         Ok(rows)
     }
 
@@ -1068,6 +1412,7 @@ impl MailboxStore {
         user: &str,
         query_embedding: &[f32],
         limit: i64,
+        domains: Option<&[String]>,
     ) -> Result<Vec<(i64, String, f64)>, sqlx::Error> {
         // returns (message_id, thread_id, similarity_score)
         let embedding_str = {
@@ -1075,22 +1420,30 @@ impl MailboxStore {
             format!("[{}]", nums.join(","))
         };
 
-        let rows = sqlx::query_as::<_, (i64, String, f64)>(
+        // $1 = embedding, user_filter starts at $2, limit is after
+        let (user_filter, binds) = build_user_filter(user, domains, 2);
+        let limit_idx = 2 + binds.len() as u32;
+
+        let sql = format!(
             "SELECT m.id, m.thread_id,
                     1 - (ea.embedding <=> $1::vector) AS similarity
              FROM email_analysis ea
              JOIN messages m ON ea.message_id = m.id
              JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE mb.user_address = $2
+             WHERE {user_filter}
                AND ea.embedding IS NOT NULL
              ORDER BY ea.embedding <=> $1::vector
-             LIMIT $3",
-        )
-        .bind(&embedding_str)
-        .bind(user)
-        .bind(limit)
-        .fetch_all(&self.pool)
-        .await?;
+             LIMIT ${limit_idx}"
+        );
+
+        let mut query = sqlx::query_as::<_, (i64, String, f64)>(&sql)
+            .bind(&embedding_str);
+        for b in &binds {
+            query = query.bind(b);
+        }
+        query = query.bind(limit);
+
+        let rows = query.fetch_all(&self.pool).await?;
 
         Ok(rows)
     }
@@ -1201,6 +1554,30 @@ fn row_to_message_meta(
         in_reply_to: r.12,
         thread_id: r.13,
         modseq: r.14 as u64,
+        user_address: String::new(),
+    }
+}
+
+fn row_to_message_meta_with_user(
+    r: (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64, String),
+) -> MessageMeta {
+    MessageMeta {
+        id: r.0,
+        mailbox_id: r.1,
+        uid: r.2 as u32,
+        maildir_id: r.3,
+        sender: r.4,
+        recipients: r.5,
+        subject: r.6,
+        date: r.7,
+        size: r.8 as u32,
+        flags: r.9 as u32,
+        internal_date: r.10,
+        message_id: r.11,
+        in_reply_to: r.12,
+        thread_id: r.13,
+        modseq: r.14 as u64,
+        user_address: r.15,
     }
 }
 
@@ -1274,5 +1651,282 @@ mod tests {
     #[test]
     fn extract_header_value_empty_message() {
         assert_eq!(extract_header_value(b"", "Subject"), "");
+    }
+
+    // ---- build_user_filter tests ----
+
+    #[test]
+    fn build_user_filter_no_domains() {
+        let (sql, binds) = build_user_filter("alice@example.com", None, 1);
+        assert_eq!(sql, "mb.user_address = $1");
+        assert_eq!(binds, vec!["alice@example.com"]);
+    }
+
+    #[test]
+    fn build_user_filter_empty_domains() {
+        let (sql, binds) = build_user_filter("alice@example.com", Some(&[]), 1);
+        assert_eq!(sql, "mb.user_address = $1");
+        assert_eq!(binds, vec!["alice@example.com"]);
+    }
+
+    #[test]
+    fn build_user_filter_single_domain() {
+        let domains = vec!["example.com".to_string()];
+        let (sql, binds) = build_user_filter("alice@example.com", Some(&domains), 1);
+        assert_eq!(
+            sql,
+            "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ($1))"
+        );
+        assert_eq!(binds, vec!["example.com"]);
+    }
+
+    #[test]
+    fn build_user_filter_multiple_domains() {
+        let domains = vec!["a.com".to_string(), "b.com".to_string(), "c.com".to_string()];
+        let (sql, binds) = build_user_filter("user@a.com", Some(&domains), 1);
+        assert_eq!(
+            sql,
+            "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ($1,$2,$3))"
+        );
+        assert_eq!(binds, vec!["a.com", "b.com", "c.com"]);
+    }
+
+    #[test]
+    fn build_user_filter_custom_start_idx() {
+        let (sql, binds) = build_user_filter("alice@example.com", None, 5);
+        assert_eq!(sql, "mb.user_address = $5");
+        assert_eq!(binds, vec!["alice@example.com"]);
+
+        let domains = vec!["x.com".to_string(), "y.com".to_string()];
+        let (sql2, binds2) = build_user_filter("u@x.com", Some(&domains), 3);
+        assert_eq!(
+            sql2,
+            "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ($3,$4))"
+        );
+        assert_eq!(binds2, vec!["x.com", "y.com"]);
+    }
+
+    // ---- row_to_message_meta tests ----
+
+    #[test]
+    fn row_to_message_meta_converts_correctly() {
+        let row = (
+            42i64, 7i64, 100i32,
+            "maildir-abc".to_string(),
+            "sender@test.com".to_string(),
+            "rcpt@test.com".to_string(),
+            "Test Subject".to_string(),
+            1700000000i64, 2048i32, 1i32, 1700000001i64,
+            "<msg-001@test.com>".to_string(),
+            "<parent@test.com>".to_string(),
+            "thread-xyz".to_string(),
+            5i64,
+        );
+        let meta = row_to_message_meta(row);
+        assert_eq!(meta.id, 42);
+        assert_eq!(meta.mailbox_id, 7);
+        assert_eq!(meta.uid, 100);
+        assert_eq!(meta.maildir_id, "maildir-abc");
+        assert_eq!(meta.sender, "sender@test.com");
+        assert_eq!(meta.recipients, "rcpt@test.com");
+        assert_eq!(meta.subject, "Test Subject");
+        assert_eq!(meta.date, 1700000000);
+        assert_eq!(meta.size, 2048);
+        assert_eq!(meta.flags, 1);
+        assert_eq!(meta.internal_date, 1700000001);
+        assert_eq!(meta.message_id, "<msg-001@test.com>");
+        assert_eq!(meta.in_reply_to, "<parent@test.com>");
+        assert_eq!(meta.thread_id, "thread-xyz");
+        assert_eq!(meta.modseq, 5);
+        assert_eq!(meta.user_address, ""); // default empty
+    }
+
+    #[test]
+    fn row_to_message_meta_with_user_includes_address() {
+        let row = (
+            1i64, 2i64, 3i32,
+            "mid".to_string(), "s".to_string(), "r".to_string(), "sub".to_string(),
+            0i64, 0i32, 0i32, 0i64,
+            "".to_string(), "".to_string(), "".to_string(), 0i64,
+            "alice@example.com".to_string(),
+        );
+        let meta = row_to_message_meta_with_user(row);
+        assert_eq!(meta.user_address, "alice@example.com");
+        assert_eq!(meta.id, 1);
+    }
+
+    // ---- MessageMeta clone/debug tests ----
+
+    #[test]
+    fn message_meta_clone() {
+        let meta = MessageMeta {
+            id: 1, mailbox_id: 2, uid: 3, maildir_id: "abc".into(),
+            sender: "s@t.com".into(), recipients: "r@t.com".into(),
+            subject: "sub".into(), date: 100, size: 50, flags: FLAG_SEEN,
+            internal_date: 101, message_id: "mid".into(),
+            in_reply_to: "irt".into(), thread_id: "tid".into(),
+            modseq: 42, user_address: "u@t.com".into(),
+        };
+        let cloned = meta.clone();
+        assert_eq!(cloned.id, meta.id);
+        assert_eq!(cloned.subject, meta.subject);
+        assert_eq!(cloned.flags, meta.flags);
+        assert_eq!(cloned.user_address, meta.user_address);
+    }
+
+    #[test]
+    fn message_meta_debug() {
+        let meta = MessageMeta {
+            id: 1, mailbox_id: 2, uid: 3, maildir_id: "abc".into(),
+            sender: "s".into(), recipients: "r".into(), subject: "sub".into(),
+            date: 0, size: 0, flags: 0, internal_date: 0,
+            message_id: "".into(), in_reply_to: "".into(), thread_id: "".into(),
+            modseq: 0, user_address: "".into(),
+        };
+        let debug = format!("{:?}", meta);
+        assert!(debug.contains("MessageMeta"));
+        assert!(debug.contains("abc"));
+    }
+
+    // ---- ConversationSummary tests ----
+
+    #[test]
+    fn conversation_summary_clone() {
+        let cs = ConversationSummary {
+            thread_id: "t1".into(), subject: "Hello".into(),
+            participants: "alice,bob".into(), message_count: 5,
+            unread_count: 2, last_date: 1700000000, category: "general".into(),
+            flagged: true, snippet: "preview text".into(),
+            pinned: false, archived: false,
+        };
+        let cloned = cs.clone();
+        assert_eq!(cloned.thread_id, "t1");
+        assert_eq!(cloned.message_count, 5);
+        assert_eq!(cloned.unread_count, 2);
+        assert!(cloned.flagged);
+        assert!(!cloned.pinned);
+        assert!(!cloned.archived);
+        assert_eq!(cloned.snippet, "preview text");
+    }
+
+    #[test]
+    fn conversation_summary_debug() {
+        let cs = ConversationSummary {
+            thread_id: "t1".into(), subject: "Hi".into(),
+            participants: "a".into(), message_count: 1,
+            unread_count: 0, last_date: 0, category: "promo".into(),
+            flagged: false, snippet: "".into(),
+            pinned: true, archived: true,
+        };
+        let debug = format!("{:?}", cs);
+        assert!(debug.contains("ConversationSummary"));
+        assert!(debug.contains("promo"));
+    }
+
+    // ---- Mailbox tests ----
+
+    #[test]
+    fn mailbox_clone_and_debug() {
+        let mb = Mailbox {
+            id: 10, user: "bob@test.com".into(), name: "INBOX".into(),
+            uidvalidity: 12345, uidnext: 99, highest_modseq: 50,
+        };
+        let cloned = mb.clone();
+        assert_eq!(cloned.id, 10);
+        assert_eq!(cloned.user, "bob@test.com");
+        assert_eq!(cloned.name, "INBOX");
+        assert_eq!(cloned.uidvalidity, 12345);
+        assert_eq!(cloned.uidnext, 99);
+        assert_eq!(cloned.highest_modseq, 50);
+
+        let debug = format!("{:?}", mb);
+        assert!(debug.contains("Mailbox"));
+        assert!(debug.contains("INBOX"));
+    }
+
+    // ---- extract_header_value edge cases ----
+
+    #[test]
+    fn extract_header_value_no_crlf() {
+        let msg = b"Subject: Unix style\n\nbody here";
+        assert_eq!(extract_header_value(msg, "Subject"), "Unix style");
+    }
+
+    #[test]
+    fn extract_header_value_multiple_colons() {
+        let msg = b"Subject: Re: Re: Important: urgent\r\n\r\n";
+        assert_eq!(extract_header_value(msg, "Subject"), "Re: Re: Important: urgent");
+    }
+
+    #[test]
+    fn extract_header_value_first_match_wins() {
+        let msg = b"Subject: First\r\nSubject: Second\r\n\r\n";
+        assert_eq!(extract_header_value(msg, "Subject"), "First");
+    }
+
+    #[test]
+    fn extract_header_value_only_header_name_no_value() {
+        // "Subject:" with nothing after => trim to empty
+        let msg = b"Subject:\r\n\r\n";
+        assert_eq!(extract_header_value(msg, "Subject"), "");
+    }
+
+    #[test]
+    fn extract_header_value_utf8_content() {
+        let msg = "Subject: 你好世界\r\n\r\nbody".as_bytes();
+        assert_eq!(extract_header_value(msg, "Subject"), "你好世界");
+    }
+
+    #[test]
+    fn extract_header_value_similar_prefix_no_match() {
+        // "Subject-Alt" should not match "Subject"
+        let msg = b"Subject-Alt: nope\r\nSubject: yes\r\n\r\n";
+        assert_eq!(extract_header_value(msg, "Subject"), "yes");
+    }
+
+    // ---- FlagAction tests ----
+
+    #[test]
+    fn flag_action_clone_copy_eq() {
+        let a = FlagAction::Set;
+        let b = a;
+        assert_eq!(a, b);
+        assert_eq!(FlagAction::Add, FlagAction::Add);
+        assert_ne!(FlagAction::Set, FlagAction::Remove);
+    }
+
+    #[test]
+    fn flag_action_debug() {
+        assert_eq!(format!("{:?}", FlagAction::Set), "Set");
+        assert_eq!(format!("{:?}", FlagAction::Add), "Add");
+        assert_eq!(format!("{:?}", FlagAction::Remove), "Remove");
+    }
+
+    // ---- EmailAnalysisRow tests ----
+
+    #[test]
+    fn email_analysis_row_clone_and_debug() {
+        let row = crate::types::EmailAnalysisRow {
+            message_id: 42,
+            category: "finance".into(),
+            risk_score: 75,
+            risk_reason: "suspicious sender".into(),
+            summary: "wire transfer request".into(),
+            people: serde_json::json!(["Alice", "Bob"]),
+            dates: serde_json::json!(["2026-03-01"]),
+            amounts: serde_json::json!(["$1000"]),
+            action_items: serde_json::json!(["review"]),
+            model_version: "v2".into(),
+            clean_text: "some cleaned text".into(),
+        };
+        let cloned = row.clone();
+        assert_eq!(cloned.message_id, 42);
+        assert_eq!(cloned.category, "finance");
+        assert_eq!(cloned.risk_score, 75);
+        assert_eq!(cloned.risk_reason, "suspicious sender");
+
+        let debug = format!("{:?}", row);
+        assert!(debug.contains("EmailAnalysisRow"));
+        assert!(debug.contains("finance"));
     }
 }

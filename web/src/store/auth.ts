@@ -4,6 +4,7 @@ export type AuthInfo = {
   token: string
   address: string
   display_name: string
+  super_domains: string[]
 }
 
 const STORAGE_KEY = 'mailrs_auth'

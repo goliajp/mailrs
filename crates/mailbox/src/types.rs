@@ -29,6 +29,8 @@ pub struct MessageMeta {
     pub in_reply_to: String,
     pub thread_id: String,
     pub modseq: u64,
+    /// owner's email address (for cross-domain queries)
+    pub user_address: String,
 }
 
 /// summary of a conversation thread
@@ -41,6 +43,14 @@ pub struct ConversationSummary {
     pub unread_count: u32,
     pub last_date: i64,
     pub category: String,
+    /// whether any message in the thread has FLAG_FLAGGED set
+    pub flagged: bool,
+    /// short preview of the latest message body
+    pub snippet: String,
+    /// whether this thread has been pinned by the user
+    pub pinned: bool,
+    /// whether this thread has been archived by the user
+    pub archived: bool,
 }
 
 /// AI analysis result stored in email_analysis table
@@ -150,5 +160,74 @@ mod tests {
             assert_eq!(back.len(), 1);
             assert_eq!(back[0], flag);
         }
+    }
+
+    #[test]
+    fn passed_flag_maps_to_zero() {
+        assert_eq!(maildir_flags_to_bitmask(&[Flag::Passed]), 0);
+    }
+
+    #[test]
+    fn all_flags_combined() {
+        let all = vec![
+            Flag::Seen,
+            Flag::Replied,
+            Flag::Flagged,
+            Flag::Trashed,
+            Flag::Draft,
+            Flag::Passed,
+        ];
+        let bits = maildir_flags_to_bitmask(&all);
+        assert_eq!(
+            bits,
+            FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT
+        );
+        let back = bitmask_to_maildir_flags(bits);
+        assert_eq!(back.len(), 5); // Passed not included
+    }
+
+    #[test]
+    fn duplicate_flags_idempotent() {
+        let flags = vec![Flag::Seen, Flag::Seen, Flag::Seen];
+        let bits = maildir_flags_to_bitmask(&flags);
+        assert_eq!(bits, FLAG_SEEN);
+    }
+
+    #[test]
+    fn bitmask_ignores_unknown_bits() {
+        // bits beyond defined flags should produce no extra flags
+        let bits = 0b1111_1111;
+        let flags = bitmask_to_maildir_flags(bits);
+        assert_eq!(flags.len(), 5); // only 5 known flags
+    }
+
+    #[test]
+    fn flag_action_variants() {
+        assert_ne!(FlagAction::Set, FlagAction::Add);
+        assert_ne!(FlagAction::Add, FlagAction::Remove);
+        assert_ne!(FlagAction::Set, FlagAction::Remove);
+    }
+
+    #[test]
+    fn flag_constants_are_powers_of_two() {
+        assert_eq!(FLAG_SEEN.count_ones(), 1);
+        assert_eq!(FLAG_ANSWERED.count_ones(), 1);
+        assert_eq!(FLAG_FLAGGED.count_ones(), 1);
+        assert_eq!(FLAG_DELETED.count_ones(), 1);
+        assert_eq!(FLAG_DRAFT.count_ones(), 1);
+        assert_eq!(FLAG_RECENT.count_ones(), 1);
+    }
+
+    #[test]
+    fn flag_constants_no_overlap() {
+        let all = FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
+        assert_eq!(all.count_ones(), 6);
+    }
+
+    #[test]
+    fn bitmask_to_flags_recent_not_included() {
+        // FLAG_RECENT is not mapped to a maildir flag
+        let flags = bitmask_to_maildir_flags(FLAG_RECENT);
+        assert!(flags.is_empty());
     }
 }

@@ -63,24 +63,6 @@ export type ConversationLine = {
   timestamp: number
 }
 
-// mail API types
-export type FolderInfo = {
-  name: string
-  total: number
-  unseen: number
-  uidnext: number
-}
-
-export type MessageSummary = {
-  uid: number
-  sender: string
-  recipients: string
-  subject: string
-  size: number
-  flags: number
-  internal_date: number
-}
-
 export type AttachmentInfo = {
   filename: string
   content_type: string
@@ -106,21 +88,6 @@ export type AmountMention = {
   context: string
 }
 
-export type MessageDetail = MessageSummary & {
-  text_body: string | null
-  html_body: string | null
-  attachments: AttachmentInfo[]
-  category: string
-  risk_score: number
-  risk_reason: string
-  summary: string
-  people: PersonMention[]
-  dates: DateMention[]
-  amounts: AmountMention[]
-  action_items: string[]
-  ai_analyzed: boolean
-  clean_text: string | null
-}
 
 // admin API types
 export type DomainInfo = {
@@ -146,6 +113,11 @@ export type AliasInfo = {
   created_at: number
 }
 
+export type QuotaInfo = {
+  address: string
+  quota_bytes: number
+}
+
 // conversation API types
 export type ConversationSummary = {
   thread_id: string
@@ -155,6 +127,10 @@ export type ConversationSummary = {
   unread_count: number
   last_date: number
   category: string
+  flagged: boolean
+  snippet: string
+  pinned: boolean
+  archived: boolean
 }
 
 export type CategoryCount = {

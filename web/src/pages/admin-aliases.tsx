@@ -1,5 +1,6 @@
 import { useAtom } from 'jotai'
 import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import type { AliasInfo, DomainInfo } from '@/lib/types'
@@ -41,20 +42,30 @@ export function AdminAliases() {
 
   const handleAdd = async () => {
     if (!form.source_address.trim() || !form.target_address.trim() || !form.domain) return
-    await postJson('/admin/aliases', {
-      source_address: form.source_address.trim(),
-      target_address: form.target_address.trim(),
-      domain: form.domain,
-      alias_type: form.alias_type,
-    })
-    setForm({ source_address: '', target_address: '', domain: '', alias_type: 'alias' })
-    setAdding(false)
-    loadAliases()
+    try {
+      await postJson('/admin/aliases', {
+        source_address: form.source_address.trim(),
+        target_address: form.target_address.trim(),
+        domain: form.domain,
+        alias_type: form.alias_type,
+      })
+      toast.success(`Alias "${form.source_address.trim()}" added`)
+      setForm({ source_address: '', target_address: '', domain: '', alias_type: 'alias' })
+      setAdding(false)
+      loadAliases()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to add alias')
+    }
   }
 
   const handleDelete = async (id: number) => {
-    await deleteJson(`/admin/aliases/${id}`)
-    loadAliases()
+    try {
+      await deleteJson(`/admin/aliases/${id}`)
+      toast.success('Alias removed')
+      loadAliases()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to remove alias')
+    }
   }
 
   return (

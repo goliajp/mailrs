@@ -46,4 +46,3 @@ pub fn load_tls_config(cert_path: &Path, key_path: &Path) -> io::Result<Arc<Serv
 
     Ok(Arc::new(config))
 }
-

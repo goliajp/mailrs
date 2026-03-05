@@ -22,6 +22,7 @@ export function CategoryBadge({ category }: { category: string }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function riskColor(score: number): string {
   if (score >= 60) return 'text-red-500'
   if (score >= 40) return 'text-amber-500'

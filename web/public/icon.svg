@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <!-- Background -->
+  <rect width="192" height="192" fill="#3b82f6"/>
+
+  <!-- Envelope icon -->
+  <g transform="translate(48, 56)">
+    <!-- Outer envelope -->
+    <rect x="0" y="0" width="96" height="72" rx="4" fill="none" stroke="white" stroke-width="2"/>
+
+    <!-- Top flap -->
+    <path d="M 0 0 L 48 36 L 96 0" fill="white" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+
+    <!-- Bottom section -->
+    <line x1="0" y1="0" x2="0" y2="72" stroke="white" stroke-width="2"/>
+    <line x1="96" y1="0" x2="96" y2="72" stroke="white" stroke-width="2"/>
+    <line x1="0" y1="72" x2="96" y2="72" stroke="white" stroke-width="2"/>
+  </g>
+</svg>

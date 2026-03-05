@@ -4,19 +4,23 @@ import { AdminSidebar } from '@/components/admin-sidebar'
 import { AdminAccounts } from '@/pages/admin-accounts'
 import { AdminAliases } from '@/pages/admin-aliases'
 import { AdminDomains } from '@/pages/admin-domains'
+import { AdminOverview } from '@/pages/admin-overview'
 import { AdminQueues } from '@/pages/admin-queues'
 
 export function Admin() {
   return (
-    <div className="flex h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <div className="flex h-screen flex-col bg-white text-zinc-900 md:flex-row dark:bg-zinc-950 dark:text-zinc-100">
       <AdminSidebar />
+      <div className="min-h-0 flex-1">
       <Routes>
+        <Route path="overview" element={<AdminOverview />} />
         <Route path="domains" element={<AdminDomains />} />
         <Route path="accounts" element={<AdminAccounts />} />
         <Route path="aliases" element={<AdminAliases />} />
         <Route path="queues" element={<AdminQueues />} />
-        <Route path="*" element={<Navigate to="domains" replace />} />
+        <Route path="*" element={<Navigate to="overview" replace />} />
       </Routes>
+      </div>
     </div>
   )
 }

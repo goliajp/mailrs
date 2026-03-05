@@ -47,7 +47,12 @@ pub struct AuthGuard {
 }
 
 /// compute lockout duration with exponential backoff
-pub fn lockout_duration(base_secs: u64, consecutive_lockouts: u32, multiplier: f64, max_secs: u64) -> u64 {
+pub fn lockout_duration(
+    base_secs: u64,
+    consecutive_lockouts: u32,
+    multiplier: f64,
+    max_secs: u64,
+) -> u64 {
     let duration = (base_secs as f64 * multiplier.powi(consecutive_lockouts as i32)) as u64;
     duration.min(max_secs)
 }
@@ -58,8 +63,14 @@ fn normalize_ip(ip: IpAddr) -> IpAddr {
         IpAddr::V6(v6) => {
             let segments = v6.segments();
             let masked = std::net::Ipv6Addr::new(
-                segments[0], segments[1], segments[2], segments[3],
-                0, 0, 0, 0,
+                segments[0],
+                segments[1],
+                segments[2],
+                segments[3],
+                0,
+                0,
+                0,
+                0,
             );
             IpAddr::V6(masked)
         }
@@ -84,7 +95,9 @@ impl AuthGuard {
             if let Some(until) = rec.lockout_until {
                 if now < until {
                     let remaining = until.duration_since(now).as_secs();
-                    return AuthCheck::LockedOut { remaining_secs: remaining };
+                    return AuthCheck::LockedOut {
+                        remaining_secs: remaining,
+                    };
                 }
             }
         }
@@ -94,7 +107,9 @@ impl AuthGuard {
             if let Some(until) = rec.lockout_until {
                 if now < until {
                     let remaining = until.duration_since(now).as_secs();
-                    return AuthCheck::LockedOut { remaining_secs: remaining };
+                    return AuthCheck::LockedOut {
+                        remaining_secs: remaining,
+                    };
                 }
             }
         }
@@ -114,11 +129,14 @@ impl AuthGuard {
 
         // per-(IP, username) tracking
         let key = (ip, username.to_string());
-        let mut entry = self.account_failures.entry(key).or_insert_with(|| FailureRecord {
-            failures: Vec::new(),
-            lockout_until: None,
-            consecutive_lockouts: 0,
-        });
+        let mut entry = self
+            .account_failures
+            .entry(key)
+            .or_insert_with(|| FailureRecord {
+                failures: Vec::new(),
+                lockout_until: None,
+                consecutive_lockouts: 0,
+            });
 
         let window_start = now - Duration::from_secs(self.config.account_window_secs);
         entry.failures.retain(|t| *t > window_start);
@@ -243,7 +261,10 @@ mod tests {
         for _ in 0..5 {
             guard.record_failure(ip, "alice");
         }
-        assert!(matches!(guard.check(ip, "alice"), AuthCheck::LockedOut { .. }));
+        assert!(matches!(
+            guard.check(ip, "alice"),
+            AuthCheck::LockedOut { .. }
+        ));
     }
 
     #[test]
@@ -273,5 +294,171 @@ mod tests {
     fn ipv4_unchanged() {
         let ip: IpAddr = "192.168.1.1".parse().unwrap();
         assert_eq!(normalize_ip(ip), ip);
+    }
+
+    #[test]
+    fn ipv6_different_subnets_not_merged() {
+        let ip1: IpAddr = "2001:db8:aaaa:bbbb::1".parse().unwrap();
+        let ip2: IpAddr = "2001:db8:cccc:dddd::1".parse().unwrap();
+        assert_ne!(normalize_ip(ip1), normalize_ip(ip2));
+    }
+
+    #[test]
+    fn ip_lockout_at_threshold() {
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_ip: 3,
+            max_failures_account: 100, // high so account lock doesn't trigger
+            ..Default::default()
+        });
+        let ip: IpAddr = "10.0.0.1".parse().unwrap();
+        for _ in 0..3 {
+            guard.record_failure(ip, "user1");
+        }
+        assert!(matches!(
+            guard.check(ip, "any_user"),
+            AuthCheck::LockedOut { .. }
+        ));
+    }
+
+    #[test]
+    fn lockout_expires_after_duration() {
+        // use a very short lockout so we can simulate expiry via Instant arithmetic
+        // since Instant doesn't let us go forward, we test via cleanup_stale + re-check pattern
+        // instead we directly verify the lockout_until field is in the future
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_account: 2,
+            base_lockout_secs: 1,
+            max_lockout_secs: 1,
+            backoff_multiplier: 1.0,
+            ..Default::default()
+        });
+        let ip: IpAddr = "127.0.0.1".parse().unwrap();
+
+        // trigger lockout
+        guard.record_failure(ip, "bob");
+        guard.record_failure(ip, "bob");
+        assert!(matches!(
+            guard.check(ip, "bob"),
+            AuthCheck::LockedOut { remaining_secs }
+            if remaining_secs <= 1
+        ));
+
+        // wait just over 1 second for the lockout to expire
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        assert!(matches!(guard.check(ip, "bob"), AuthCheck::Allowed));
+    }
+
+    #[test]
+    fn cleanup_stale_removes_expired_lockouts() {
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_account: 2,
+            base_lockout_secs: 1,
+            max_lockout_secs: 1,
+            backoff_multiplier: 1.0,
+            max_failures_ip: 2,
+            ip_base_lockout_secs: 1,
+            ..Default::default()
+        });
+        let ip: IpAddr = "127.0.0.1".parse().unwrap();
+
+        // trigger both account and ip lockout
+        guard.record_failure(ip, "carol");
+        guard.record_failure(ip, "carol");
+        assert!(!guard.account_failures.is_empty());
+        assert!(!guard.ip_failures.is_empty());
+
+        // cleanup with a time far in the future should remove everything
+        let future = Instant::now() + std::time::Duration::from_secs(3600);
+        guard.cleanup_stale(future);
+        assert!(guard.account_failures.is_empty());
+        assert!(guard.ip_failures.is_empty());
+    }
+
+    #[test]
+    fn cleanup_stale_preserves_active_records() {
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_account: 10,
+            max_failures_ip: 10,
+            ..Default::default()
+        });
+        let ip: IpAddr = "127.0.0.1".parse().unwrap();
+
+        // record one failure (no lockout yet, but failures vec is non-empty)
+        guard.record_failure(ip, "dave");
+        assert_eq!(guard.account_failures.len(), 1);
+        assert_eq!(guard.ip_failures.len(), 1);
+
+        // cleanup with current time should keep records (they have recent failures)
+        guard.cleanup_stale(Instant::now());
+        assert_eq!(guard.account_failures.len(), 1);
+        assert_eq!(guard.ip_failures.len(), 1);
+    }
+
+    #[test]
+    fn normal_login_not_blocked() {
+        let guard = AuthGuard::new(AuthGuardConfig::default());
+        let ip: IpAddr = "192.168.1.100".parse().unwrap();
+        // fresh guard, no failures recorded
+        assert!(matches!(guard.check(ip, "admin"), AuthCheck::Allowed));
+    }
+
+    #[test]
+    fn exponential_backoff_increases_lockout() {
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_account: 1,
+            base_lockout_secs: 10,
+            backoff_multiplier: 2.0,
+            max_lockout_secs: 86400,
+            account_window_secs: 1, // short window so failures don't pile up across lockouts
+            ..Default::default()
+        });
+        let ip: IpAddr = "127.0.0.1".parse().unwrap();
+
+        // first lockout: base = 10s
+        guard.record_failure(ip, "eve");
+        if let AuthCheck::LockedOut { remaining_secs } = guard.check(ip, "eve") {
+            assert!(remaining_secs <= 10);
+        } else {
+            panic!("expected lockout after first failure");
+        }
+
+        // wait for lockout to expire, then trigger second lockout
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        // manually clear lockout to simulate time passing
+        if let Some(mut rec) = guard.account_failures.get_mut(&(ip, "eve".to_string())) {
+            rec.lockout_until = None;
+        }
+
+        // second lockout: base * 2^1 = 20s
+        guard.record_failure(ip, "eve");
+        if let AuthCheck::LockedOut { remaining_secs } = guard.check(ip, "eve") {
+            assert!(
+                remaining_secs > 10,
+                "second lockout should be longer than first, got {remaining_secs}"
+            );
+        } else {
+            panic!("expected lockout after second round of failures");
+        }
+    }
+
+    #[test]
+    fn ipv6_lockout_applies_to_same_subnet() {
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_account: 2,
+            ..Default::default()
+        });
+        // two different hosts in the same /64
+        let ip1: IpAddr = "2001:db8:1:2::aaaa".parse().unwrap();
+        let ip2: IpAddr = "2001:db8:1:2::bbbb".parse().unwrap();
+
+        // failures from ip1
+        guard.record_failure(ip1, "frank");
+        guard.record_failure(ip1, "frank");
+
+        // check from ip2 (same /64) should be locked
+        assert!(matches!(
+            guard.check(ip2, "frank"),
+            AuthCheck::LockedOut { .. }
+        ));
     }
 }

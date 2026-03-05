@@ -2,8 +2,10 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { fetchJson } from '@/lib/api'
+import { playNotificationSound } from '@/lib/notification-sound'
 import type { ConversationSummary, NewMessageEvent, SmtpEvent, ThreadMessage } from '@/lib/types'
-import { categoryFilterAtom, conversationsAtom, searchQueryAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
+import { categoryFilterAtom, conversationsAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
+import { notificationsAtom } from '@/store/settings'
 
 const POLL_INTERVAL = 15_000
 const WS_PING_INTERVAL = 30_000
@@ -14,12 +16,21 @@ export function useMailEvents(user: string) {
   const selectedThreadId = useAtomValue(selectedThreadIdAtom)
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedRef = useRef(selectedThreadId)
-  selectedRef.current = selectedThreadId
   const categoryRef = useRef(categoryFilter)
-  categoryRef.current = categoryFilter
   const searchQuery = useAtomValue(searchQueryAtom)
   const searchRef = useRef(searchQuery)
-  searchRef.current = searchQuery
+  const selectedDomains = useAtomValue(selectedDomainsAtom)
+  const domainsRef = useRef(selectedDomains)
+  const notificationsEnabled = useAtomValue(notificationsAtom)
+  const notificationsRef = useRef(notificationsEnabled)
+
+  useEffect(() => {
+    selectedRef.current = selectedThreadId
+    categoryRef.current = categoryFilter
+    searchRef.current = searchQuery
+    domainsRef.current = selectedDomains
+    notificationsRef.current = notificationsEnabled
+  })
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(null)
@@ -34,6 +45,10 @@ export function useMailEvents(user: string) {
     if (categoryRef.current) {
       path += `&category=${encodeURIComponent(categoryRef.current)}`
     }
+    const doms = domainsRef.current
+    if (doms.length > 0) {
+      path += `&domains=${encodeURIComponent(doms.join(','))}`
+    }
     fetchJson<ConversationSummary[]>(path).then(
       (data) => setConversations(data),
       () => {}
@@ -43,8 +58,10 @@ export function useMailEvents(user: string) {
   const refreshThread = useCallback(() => {
     const tid = selectedRef.current
     if (!tid) return
+    const doms = domainsRef.current
+    const domainsParam = doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
     fetchJson<ThreadMessage[]>(
-      `/conversations/${encodeURIComponent(tid)}`
+      `/conversations/${encodeURIComponent(tid)}${domainsParam}`
     ).then(
       (data) => setThreadMessages(data),
       () => {}
@@ -66,7 +83,10 @@ export function useMailEvents(user: string) {
       if (pingTimer.current) clearInterval(pingTimer.current)
 
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const ws = new WebSocket(`${proto}//${location.host}/api/events`)
+      const token = localStorage.getItem('mailrs_auth')
+      const parsed = token ? JSON.parse(token) : null
+      const tokenParam = parsed?.token ? `?token=${encodeURIComponent(parsed.token)}` : ''
+      const ws = new WebSocket(`${proto}//${location.host}/api/events${tokenParam}`)
       wsRef.current = ws
 
       ws.onopen = () => {
@@ -91,11 +111,15 @@ export function useMailEvents(user: string) {
                 refreshThread()
               }
 
-              if (Notification.permission === 'granted' && document.hidden) {
-                new Notification(msg.sender, {
-                  body: msg.subject || msg.snippet,
-                  tag: msg.thread_id,
-                })
+              if (notificationsRef.current) {
+                playNotificationSound()
+
+                if (Notification.permission === 'granted' && document.hidden) {
+                  new Notification(msg.sender, {
+                    body: msg.subject || msg.snippet,
+                    tag: msg.thread_id,
+                  })
+                }
               }
             }
           }

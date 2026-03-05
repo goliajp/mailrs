@@ -293,4 +293,328 @@ mod tests {
         cache.cleanup();
         assert_eq!(cache.len(), 0);
     }
+
+    // --- additional tests ---
+
+    #[test]
+    fn sanitize_strips_angle_bracket() {
+        assert_eq!(
+            format_mail_from("user>injected@example.com"),
+            "MAIL FROM:<userinjected@example.com>\r\n"
+        );
+    }
+
+    #[test]
+    fn sanitize_strips_crlf_injection() {
+        // attempt SMTP injection via \r\n in address
+        assert_eq!(
+            format_rcpt_to("user@evil.com\r\nDATA"),
+            "RCPT TO:<user@evil.comDATA>\r\n"
+        );
+    }
+
+    #[test]
+    fn sanitize_strips_newline_only() {
+        assert_eq!(
+            format_mail_from("user@evil.com\nDATA"),
+            "MAIL FROM:<user@evil.comDATA>\r\n"
+        );
+    }
+
+    #[test]
+    fn sanitize_strips_carriage_return_only() {
+        assert_eq!(
+            format_rcpt_to("user@evil.com\rDATA"),
+            "RCPT TO:<user@evil.comDATA>\r\n"
+        );
+    }
+
+    #[test]
+    fn format_mail_from_empty() {
+        // empty sender (bounce address)
+        assert_eq!(format_mail_from(""), "MAIL FROM:<>\r\n");
+    }
+
+    #[test]
+    fn format_rcpt_to_normal() {
+        assert_eq!(
+            format_rcpt_to("alice@example.com"),
+            "RCPT TO:<alice@example.com>\r\n"
+        );
+    }
+
+    #[test]
+    fn fallback_to_domain_preserves_case() {
+        let records = fallback_to_domain("Example.COM");
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].exchange, "Example.COM");
+        assert_eq!(records[0].priority, 0);
+    }
+
+    #[test]
+    fn sort_mx_records_single_record() {
+        let mut records = vec![MxRecord {
+            priority: 42,
+            exchange: "mx.example.com".into(),
+        }];
+        sort_mx_records(&mut records);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].priority, 42);
+    }
+
+    #[test]
+    fn sort_mx_records_already_sorted() {
+        let mut records = vec![
+            MxRecord { priority: 10, exchange: "a.example.com".into() },
+            MxRecord { priority: 20, exchange: "b.example.com".into() },
+        ];
+        sort_mx_records(&mut records);
+        assert_eq!(records[0].exchange, "a.example.com");
+        assert_eq!(records[1].exchange, "b.example.com");
+    }
+
+    #[test]
+    fn sort_mx_records_reverse_order() {
+        let mut records = vec![
+            MxRecord { priority: 50, exchange: "z.example.com".into() },
+            MxRecord { priority: 30, exchange: "m.example.com".into() },
+            MxRecord { priority: 10, exchange: "a.example.com".into() },
+        ];
+        sort_mx_records(&mut records);
+        assert_eq!(records[0].priority, 10);
+        assert_eq!(records[1].priority, 30);
+        assert_eq!(records[2].priority, 50);
+    }
+
+    #[test]
+    fn sort_mx_records_same_priority_multiple() {
+        let mut records = vec![
+            MxRecord { priority: 10, exchange: "c.example.com".into() },
+            MxRecord { priority: 10, exchange: "a.example.com".into() },
+            MxRecord { priority: 10, exchange: "b.example.com".into() },
+        ];
+        sort_mx_records(&mut records);
+        assert_eq!(records[0].exchange, "a.example.com");
+        assert_eq!(records[1].exchange, "b.example.com");
+        assert_eq!(records[2].exchange, "c.example.com");
+    }
+
+    #[test]
+    fn mx_cache_new_is_empty() {
+        let cache = MxCache::new(Duration::from_secs(60));
+        assert!(cache.is_empty());
+        assert_eq!(cache.len(), 0);
+    }
+
+    #[test]
+    fn mx_cache_cleanup_keeps_fresh() {
+        let cache = MxCache::new(Duration::from_secs(300));
+        {
+            let mut c = cache.cache.lock().unwrap();
+            c.insert(
+                "fresh.com".into(),
+                (vec![MxRecord { priority: 10, exchange: "mx.fresh.com".into() }], Instant::now()),
+            );
+            c.insert(
+                "stale.com".into(),
+                (
+                    vec![MxRecord { priority: 10, exchange: "mx.stale.com".into() }],
+                    Instant::now() - Duration::from_secs(600),
+                ),
+            );
+        }
+        assert_eq!(cache.len(), 2);
+        cache.cleanup();
+        assert_eq!(cache.len(), 1);
+    }
+
+    #[test]
+    fn mx_cache_multiple_domains() {
+        let cache = MxCache::new(Duration::from_secs(300));
+        {
+            let mut c = cache.cache.lock().unwrap();
+            for i in 0..5 {
+                c.insert(
+                    format!("domain{i}.com"),
+                    (
+                        vec![MxRecord {
+                            priority: 10,
+                            exchange: format!("mx.domain{i}.com"),
+                        }],
+                        Instant::now(),
+                    ),
+                );
+            }
+        }
+        assert_eq!(cache.len(), 5);
+    }
+
+    #[test]
+    fn mx_record_equality() {
+        let a = MxRecord { priority: 10, exchange: "mx.example.com".into() };
+        let b = MxRecord { priority: 10, exchange: "mx.example.com".into() };
+        let c = MxRecord { priority: 20, exchange: "mx.example.com".into() };
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn mx_record_debug() {
+        let r = MxRecord { priority: 10, exchange: "mx.test.com".into() };
+        let debug = format!("{:?}", r);
+        assert!(debug.contains("10"));
+        assert!(debug.contains("mx.test.com"));
+    }
+
+    #[test]
+    fn format_mail_from_with_plus_addressing() {
+        assert_eq!(
+            format_mail_from("user+tag@example.com"),
+            "MAIL FROM:<user+tag@example.com>\r\n"
+        );
+    }
+
+    #[test]
+    fn format_rcpt_to_with_dots() {
+        assert_eq!(
+            format_rcpt_to("first.last@example.com"),
+            "RCPT TO:<first.last@example.com>\r\n"
+        );
+    }
+
+    // --- new tests ---
+
+    #[test]
+    fn sanitize_strips_multiple_angle_brackets() {
+        assert_eq!(
+            format_mail_from("u>s>e>r@example.com"),
+            "MAIL FROM:<user@example.com>\r\n"
+        );
+    }
+
+    #[test]
+    fn sanitize_strips_combined_injection() {
+        // combined \r\n and > in one address
+        assert_eq!(
+            format_rcpt_to("bad>\r\nRCPT TO:<evil@x.com"),
+            "RCPT TO:<badRCPT TO:<evil@x.com>\r\n"
+        );
+    }
+
+    #[test]
+    fn format_mail_from_unicode_address() {
+        // international email addresses should pass through (minus dangerous chars)
+        assert_eq!(
+            format_mail_from("用户@example.com"),
+            "MAIL FROM:<用户@example.com>\r\n"
+        );
+    }
+
+    #[test]
+    fn format_rcpt_to_empty_address() {
+        assert_eq!(format_rcpt_to(""), "RCPT TO:<>\r\n");
+    }
+
+    #[test]
+    fn sort_mx_records_mixed_priorities_and_names() {
+        let mut records = vec![
+            MxRecord { priority: 20, exchange: "b.example.com".into() },
+            MxRecord { priority: 10, exchange: "z.example.com".into() },
+            MxRecord { priority: 20, exchange: "a.example.com".into() },
+            MxRecord { priority: 10, exchange: "a.example.com".into() },
+        ];
+        sort_mx_records(&mut records);
+        assert_eq!(records[0], MxRecord { priority: 10, exchange: "a.example.com".into() });
+        assert_eq!(records[1], MxRecord { priority: 10, exchange: "z.example.com".into() });
+        assert_eq!(records[2], MxRecord { priority: 20, exchange: "a.example.com".into() });
+        assert_eq!(records[3], MxRecord { priority: 20, exchange: "b.example.com".into() });
+    }
+
+    #[test]
+    fn sort_mx_records_priority_zero() {
+        let mut records = vec![
+            MxRecord { priority: 10, exchange: "mx1.example.com".into() },
+            MxRecord { priority: 0, exchange: "mx0.example.com".into() },
+        ];
+        sort_mx_records(&mut records);
+        assert_eq!(records[0].priority, 0);
+        assert_eq!(records[1].priority, 10);
+    }
+
+    #[test]
+    fn sort_mx_records_max_priority() {
+        let mut records = vec![
+            MxRecord { priority: u16::MAX, exchange: "low.example.com".into() },
+            MxRecord { priority: 0, exchange: "high.example.com".into() },
+        ];
+        sort_mx_records(&mut records);
+        assert_eq!(records[0].priority, 0);
+        assert_eq!(records[1].priority, u16::MAX);
+    }
+
+    #[test]
+    fn fallback_to_domain_empty_string() {
+        let records = fallback_to_domain("");
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].exchange, "");
+        assert_eq!(records[0].priority, 0);
+    }
+
+    #[test]
+    fn fallback_to_domain_subdomain() {
+        let records = fallback_to_domain("mail.sub.example.com");
+        assert_eq!(records[0].exchange, "mail.sub.example.com");
+    }
+
+    #[test]
+    fn mx_cache_overwrite_same_domain() {
+        let cache = MxCache::new(Duration::from_secs(300));
+        {
+            let mut c = cache.cache.lock().unwrap();
+            c.insert(
+                "example.com".into(),
+                (vec![MxRecord { priority: 10, exchange: "old.example.com".into() }], Instant::now()),
+            );
+            // overwrite with new records
+            c.insert(
+                "example.com".into(),
+                (vec![MxRecord { priority: 10, exchange: "new.example.com".into() }], Instant::now()),
+            );
+        }
+        assert_eq!(cache.len(), 1);
+        let c = cache.cache.lock().unwrap();
+        assert_eq!(c.get("example.com").unwrap().0[0].exchange, "new.example.com");
+    }
+
+    #[test]
+    fn mx_cache_cleanup_all_expired() {
+        let cache = MxCache::new(Duration::from_millis(1));
+        {
+            let mut c = cache.cache.lock().unwrap();
+            let past = Instant::now() - Duration::from_secs(10);
+            c.insert("a.com".into(), (vec![], past));
+            c.insert("b.com".into(), (vec![], past));
+            c.insert("c.com".into(), (vec![], past));
+        }
+        assert_eq!(cache.len(), 3);
+        cache.cleanup();
+        assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn mx_cache_cleanup_empty_is_noop() {
+        let cache = MxCache::new(Duration::from_secs(60));
+        cache.cleanup();
+        assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn mx_record_clone() {
+        let original = MxRecord { priority: 10, exchange: "mx.example.com".into() };
+        let cloned = original.clone();
+        assert_eq!(original, cloned);
+        // ensure clone is independent
+        assert_eq!(cloned.priority, 10);
+        assert_eq!(cloned.exchange, "mx.example.com");
+    }
 }
