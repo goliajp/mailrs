@@ -107,3 +107,120 @@ fn too_large_response_code() {
         Some(EnhancedCode { class: 5, subject: 3, detail: 4 })
     );
 }
+
+#[test]
+fn data_ok_250() {
+    let r = Response::data_ok();
+    assert_eq!(r.code, 250);
+    assert!(r.message.contains("queued"));
+    assert_eq!(
+        r.enhanced,
+        Some(EnhancedCode { class: 2, subject: 0, detail: 0 })
+    );
+}
+
+#[test]
+fn syntax_error_500() {
+    let r = Response::syntax_error();
+    assert_eq!(r.code, 500);
+    assert_eq!(
+        r.enhanced,
+        Some(EnhancedCode { class: 5, subject: 5, detail: 2 })
+    );
+    assert!(r.message.contains("Syntax error"));
+}
+
+#[test]
+fn tls_required_530() {
+    let r = Response::tls_required();
+    assert_eq!(r.code, 530);
+    assert_eq!(
+        r.enhanced,
+        Some(EnhancedCode { class: 5, subject: 7, detail: 0 })
+    );
+}
+
+#[test]
+fn mail_ok_250() {
+    let r = Response::mail_ok();
+    assert_eq!(r.code, 250);
+    assert_eq!(
+        r.enhanced,
+        Some(EnhancedCode { class: 2, subject: 1, detail: 0 })
+    );
+}
+
+#[test]
+fn rcpt_ok_250() {
+    let r = Response::rcpt_ok();
+    assert_eq!(r.code, 250);
+    assert_eq!(
+        r.enhanced,
+        Some(EnhancedCode { class: 2, subject: 1, detail: 5 })
+    );
+}
+
+#[test]
+fn vrfy_252() {
+    let r = Response::vrfy();
+    assert_eq!(r.code, 252);
+    assert_eq!(
+        r.enhanced,
+        Some(EnhancedCode { class: 2, subject: 5, detail: 2 })
+    );
+}
+
+#[test]
+fn help_214() {
+    let r = Response::help();
+    assert_eq!(r.code, 214);
+}
+
+#[test]
+fn dnsbl_reject_includes_zone() {
+    let r = Response::dnsbl_reject("zen.spamhaus.org");
+    assert!(r.message.contains("zen.spamhaus.org"));
+}
+
+#[test]
+fn response_format_no_enhanced_code() {
+    // data_start has no enhanced code
+    let r = Response::data_start();
+    let formatted = r.format();
+    assert_eq!(formatted, "354 Start mail input; end with <CRLF>.<CRLF>\r\n");
+}
+
+#[test]
+fn response_new_custom() {
+    let r = Response::new(
+        421,
+        Some(EnhancedCode { class: 4, subject: 7, detail: 0 }),
+        "custom message",
+    );
+    assert_eq!(r.code, 421);
+    assert_eq!(r.message, "custom message");
+    let formatted = r.format();
+    assert!(formatted.starts_with("421 4.7.0"));
+    assert!(formatted.ends_with("\r\n"));
+}
+
+#[test]
+fn ehlo_ok_enhanced_code() {
+    let r = Response::ehlo_ok();
+    assert_eq!(r.code, 250);
+    assert_eq!(
+        r.enhanced,
+        Some(EnhancedCode { class: 2, subject: 0, detail: 0 })
+    );
+}
+
+#[test]
+fn format_ehlo_response_many_capabilities() {
+    let caps = &["PIPELINING", "STARTTLS", "AUTH PLAIN LOGIN", "SIZE 52428800"];
+    let result = format_ehlo_response("mx.example.com", caps);
+    assert!(result.starts_with("250-mx.example.com\r\n"));
+    assert!(result.ends_with("250 SIZE 52428800\r\n"));
+    // each intermediate line uses "250-"
+    assert!(result.contains("250-PIPELINING\r\n"));
+    assert!(result.contains("250-STARTTLS\r\n"));
+}

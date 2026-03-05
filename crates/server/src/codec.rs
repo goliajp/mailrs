@@ -3,6 +3,9 @@ use tokio_util::codec::{Decoder, Encoder};
 
 use crate::config::SmuggleProtection;
 
+/// maximum command line length (RFC 5321 section 4.5.3.1.4: 512 octets including CRLF)
+const MAX_COMMAND_LINE: usize = 1024;
+
 /// SMTP codec that switches between command mode and DATA mode.
 /// in command mode: reads lines terminated by CRLF.
 /// in data mode: reads raw bytes until ".\r\n" terminator.
@@ -16,7 +19,7 @@ impl SmtpCodec {
     pub fn new() -> Self {
         Self {
             data_mode: false,
-            max_message_size: 52_428_800, // 50MB default
+            max_message_size: mailrs_smtp_proto::session::MAX_MESSAGE_SIZE as usize,
             smuggle_protection: SmuggleProtection::Permissive,
         }
     }
@@ -78,6 +81,11 @@ impl Decoder for SmtpCodec {
             }
             Ok(None)
         } else {
+            // reject oversized command lines before looking for CRLF
+            if src.len() > MAX_COMMAND_LINE && find_crlf(src).is_none() {
+                src.clear();
+                return Ok(Some(SmtpInput::Command(String::new())));
+            }
             // look for CRLF
             if let Some(pos) = find_crlf(src) {
                 let line = src.split_to(pos);
@@ -206,9 +214,6 @@ mod tests {
 
     #[test]
     fn normalize_mixed() {
-        assert_eq!(
-            normalize_line_endings(b"a\nb\r\nc\rd"),
-            b"a\r\nb\r\nc\r\nd"
-        );
+        assert_eq!(normalize_line_endings(b"a\nb\r\nc\rd"), b"a\r\nb\r\nc\r\nd");
     }
 }

@@ -1,10 +1,51 @@
+function startOfDay(date: Date): Date {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function isYesterday(d: Date, now: Date): boolean {
+  const yesterday = startOfDay(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  return startOfDay(d).getTime() === yesterday.getTime()
+}
+
+function isSameWeek(d: Date, now: Date): boolean {
+  const nowStart = startOfDay(now)
+  const dayOfWeek = nowStart.getDay()
+  // week starts on Monday: go back (dayOfWeek - 1) days, or 6 if Sunday
+  const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const weekStart = new Date(nowStart)
+  weekStart.setDate(weekStart.getDate() - mondayOffset)
+  return startOfDay(d).getTime() >= weekStart.getTime() && d < now
+}
+
 export function formatDate(ts: number): string {
   const d = new Date(ts * 1000)
   const now = new Date()
+
+  // today: show time
   if (d.toDateString() === now.toDateString()) {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+
+  // yesterday
+  if (isYesterday(d, now)) {
+    return 'Yesterday'
+  }
+
+  // same week (but not today/yesterday): show weekday
+  if (isSameWeek(d, now)) {
+    return d.toLocaleDateString([], { weekday: 'short' })
+  }
+
+  // same year: month + day
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  }
+
+  // older: abbreviated year
+  return d.toLocaleDateString([], { year: '2-digit', month: 'short', day: 'numeric' })
 }
 
 export function formatFullDate(ts: number): string {

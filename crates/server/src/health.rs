@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 pub const PG_UP: u8 = 0x01;
 pub const VALKEY_UP: u8 = 0x02;
@@ -7,13 +8,20 @@ pub const VALKEY_UP: u8 = 0x02;
 #[derive(Clone)]
 pub struct HealthState {
     flags: Arc<AtomicU8>,
+    started_at: Instant,
 }
 
 impl HealthState {
     pub fn new() -> Self {
         Self {
             flags: Arc::new(AtomicU8::new(0)),
+            started_at: Instant::now(),
         }
+    }
+
+    /// server uptime in seconds
+    pub fn uptime_secs(&self) -> u64 {
+        self.started_at.elapsed().as_secs()
     }
 
     pub fn set_pg(&self, up: bool) {
@@ -49,6 +57,76 @@ impl HealthState {
             (false, false) => 3,
         }
     }
+
+    /// returns "healthy", "degraded", or "unhealthy"
+    pub fn status_label(&self) -> &'static str {
+        match self.level() {
+            0 => "healthy",
+            1 | 2 => "degraded",
+            _ => "unhealthy",
+        }
+    }
+
+    /// true if the server can accept traffic (PG is up)
+    pub fn is_ready(&self) -> bool {
+        self.pg_up()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn health_state_initial() {
+        let hs = HealthState::new();
+        assert!(!hs.pg_up());
+        assert!(!hs.valkey_up());
+        assert_eq!(hs.level(), 3);
+        assert_eq!(hs.status_label(), "unhealthy");
+        assert!(!hs.is_ready());
+    }
+
+    #[test]
+    fn health_state_pg_only() {
+        let hs = HealthState::new();
+        hs.set_pg(true);
+        assert!(hs.pg_up());
+        assert!(!hs.valkey_up());
+        assert_eq!(hs.level(), 2);
+        assert_eq!(hs.status_label(), "degraded");
+        assert!(hs.is_ready());
+    }
+
+    #[test]
+    fn health_state_valkey_only() {
+        let hs = HealthState::new();
+        hs.set_valkey(true);
+        assert!(!hs.pg_up());
+        assert!(hs.valkey_up());
+        assert_eq!(hs.level(), 1);
+        assert_eq!(hs.status_label(), "degraded");
+        assert!(!hs.is_ready());
+    }
+
+    #[test]
+    fn health_state_both_up() {
+        let hs = HealthState::new();
+        hs.set_pg(true);
+        hs.set_valkey(true);
+        assert_eq!(hs.level(), 0);
+        assert_eq!(hs.status_label(), "healthy");
+        assert!(hs.is_ready());
+    }
+
+    #[test]
+    fn health_state_toggle() {
+        let hs = HealthState::new();
+        hs.set_pg(true);
+        assert!(hs.pg_up());
+        hs.set_pg(false);
+        assert!(!hs.pg_up());
+    }
 }
 
 pub fn spawn_health_checker(
@@ -62,10 +140,7 @@ pub fn spawn_health_checker(
             interval.tick().await;
 
             // ping PG
-            let pg_ok = sqlx::query("SELECT 1")
-                .execute(&pg)
-                .await
-                .is_ok();
+            let pg_ok = sqlx::query("SELECT 1").execute(&pg).await.is_ok();
             state.set_pg(pg_ok);
 
             // ping Valkey

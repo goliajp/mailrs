@@ -10,6 +10,7 @@ mod domain_store;
 mod event_bus;
 mod health;
 mod imap_codec;
+mod imap_format;
 mod imap_session;
 pub mod inbound;
 mod message_util;
@@ -45,6 +46,18 @@ async fn main() {
         .expect("failed to install rustls crypto provider");
 
     let cfg = ServerConfig::from_env();
+
+    for warning in cfg.validate() {
+        eprintln!("CONFIG WARNING: {warning}");
+    }
+
+    eprintln!("mailrs v{}", env!("CARGO_PKG_VERSION"));
+    eprintln!("  hostname:    {}", cfg.hostname);
+    eprintln!("  maildir:     {}", cfg.maildir_root);
+    eprintln!("  domains:     {}", if cfg.local_domains.is_empty() { "(none)".into() } else { cfg.local_domains.join(", ") });
+    eprintln!("  tls:         {:?}", cfg.tls_mode());
+    eprintln!("  antispam:    {}", cfg.antispam_enabled);
+    eprintln!("  dkim:        {}", cfg.dkim_selector.as_deref().unwrap_or("(disabled)"));
 
     // PG + Valkey connections (optional, graceful degradation)
     let pg_pool = match &cfg.pg_url {
@@ -89,7 +102,8 @@ async fn main() {
 
     let tls_state = match cfg.tls_mode() {
         TlsMode::Acme => {
-            let email = cfg.acme_email.as_ref().unwrap();
+            let email = cfg.acme_email.as_ref()
+                .expect("MAILRS_ACME_EMAIL must be set when TLS mode is ACME");
             let domains = &cfg.acme_domains;
             if domains.is_empty() {
                 panic!("MAILRS_ACME_EMAIL is set but MAILRS_ACME_DOMAINS is empty");
@@ -120,10 +134,12 @@ async fn main() {
         }
         TlsMode::Manual => {
             let tls_config = tls::load_tls_config(
-                cfg.tls_cert.as_ref().unwrap(),
-                cfg.tls_key.as_ref().unwrap(),
+                cfg.tls_cert.as_ref()
+                    .expect("MAILRS_TLS_CERT must be set when TLS mode is Manual"),
+                cfg.tls_key.as_ref()
+                    .expect("MAILRS_TLS_KEY must be set when TLS mode is Manual"),
             )
-            .expect("failed to load TLS config");
+            .expect("failed to load TLS certificate and key files");
             Some(tls::TlsState::new(
                 std::sync::Arc::try_unwrap(tls_config).unwrap_or_else(|arc| (*arc).clone()),
             ))
@@ -185,7 +201,16 @@ async fn main() {
     };
 
     // auth guard (brute force protection)
-    let auth_guard = Arc::new(AuthGuard::new(AuthGuardConfig::default()));
+    let auth_guard = Arc::new(AuthGuard::new(AuthGuardConfig {
+        max_failures_account: cfg.auth_max_failures_account,
+        account_window_secs: cfg.auth_account_window_secs,
+        base_lockout_secs: cfg.auth_base_lockout_secs,
+        max_failures_ip: cfg.auth_max_failures_ip,
+        ip_window_secs: cfg.auth_ip_window_secs,
+        ip_base_lockout_secs: cfg.auth_ip_base_lockout_secs,
+        backoff_multiplier: cfg.auth_backoff_multiplier,
+        max_lockout_secs: cfg.auth_max_lockout_secs,
+    }));
 
     // spawn periodic cleanup
     let auth_guard_cleanup = auth_guard.clone();
@@ -198,9 +223,9 @@ async fn main() {
     });
 
     // mailbox store for IMAP (PG-backed)
-    let mailbox_store = pg_pool.as_ref().map(|pool| {
-        Arc::new(MailboxStore::new(pool.clone()))
-    });
+    let mailbox_store = pg_pool
+        .as_ref()
+        .map(|pool| Arc::new(MailboxStore::new(pool.clone())));
 
     // domain store (PG + Valkey + process cache)
     let domain_store = if pg_pool.is_some() {
@@ -217,9 +242,9 @@ async fn main() {
     };
 
     // DMARC report store (PG-backed)
-    let dmarc_report_store = pg_pool.as_ref().map(|pool| {
-        Arc::new(dmarc_report::DmarcReportStore::new(pool.clone()))
-    });
+    let dmarc_report_store = pg_pool
+        .as_ref()
+        .map(|pool| Arc::new(dmarc_report::DmarcReportStore::new(pool.clone())));
 
     // backfill threading data for existing messages
     if let Some(ref mb) = mailbox_store {
@@ -247,11 +272,22 @@ async fn main() {
         }
     }
 
+    let smtp_snapshot = crate::web::SmtpConfigSnapshot {
+        hostname: cfg.hostname.clone(),
+        smtp_port: cfg.smtp_port,
+        submission_port: cfg.submission_port,
+        imap_port: cfg.imap_port,
+        local_domains: cfg.local_domains.clone(),
+        max_message_size: None,
+        tls_enabled: cfg.has_tls() || cfg.acme_email.is_some(),
+    };
+
     let mut ws = WebState::new(event_bus.clone())
         .with_maildir_root(cfg.maildir_root.clone())
         .with_hostname(cfg.hostname.clone())
         .with_auth_guard(auth_guard.clone())
-        .with_health(health_state.clone());
+        .with_health(health_state.clone())
+        .with_smtp_config(smtp_snapshot);
     if let Some(ref pool) = pg_pool {
         ws = ws.with_pg(pool.clone());
     }
@@ -268,7 +304,12 @@ async fn main() {
         ws = ws.with_domain_store(ds.clone());
     }
     if let Some(ref mode) = cfg.mta_sts_mode {
-        ws = ws.with_mta_sts(mode.clone(), cfg.mta_sts_mx.clone(), cfg.mta_sts_max_age, cfg.mta_sts_id.clone());
+        ws = ws.with_mta_sts(
+            mode.clone(),
+            cfg.mta_sts_mx.clone(),
+            cfg.mta_sts_max_age,
+            cfg.mta_sts_id.clone(),
+        );
     }
     if let Some(ref api_key) = cfg.gemini_api_key {
         ws = ws.with_gemini(ai_email::GeminiConfig::new(api_key.clone()));
@@ -398,13 +439,44 @@ async fn main() {
         .expect("failed to bind web port");
     eprintln!("mailrs web API on {web_addr}");
 
-    let static_dir = cfg.web_static_dir.as_ref().map(|p| p.to_string_lossy().into_owned());
+    let static_dir = cfg
+        .web_static_dir
+        .as_ref()
+        .map(|p| p.to_string_lossy().into_owned());
+
+    // spawn session cleanup task
+    web::spawn_session_cleanup(web_state.clone());
+
+    // spawn domain store cache eviction task
+    if let Some(ref ds) = domain_store {
+        let ds_cleanup = ds.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                let evicted = ds_cleanup.evict_expired();
+                if evicted > 0 {
+                    eprintln!("domain cache: evicted {evicted} expired entries");
+                }
+            }
+        });
+    }
+
     let app = web::router(web_state, static_dir.as_deref());
+    let web_shutdown = shutdown_rx.clone();
     tokio::spawn(async move {
         axum::serve(
             web_listener,
             app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
         )
+        .with_graceful_shutdown(async move {
+            let mut rx = web_shutdown;
+            while rx.changed().await.is_ok() {
+                if *rx.borrow() {
+                    break;
+                }
+            }
+        })
         .await
         .ok();
     });
@@ -454,7 +526,10 @@ async fn main() {
                 .expect("failed to bind IMAPS port");
             eprintln!("mailrs IMAPS on {imaps_addr}");
 
-            let imaps_tls = tls_state.clone().unwrap();
+            // safe: outer `if tls_state.is_some()` guarantees this
+            let Some(imaps_tls) = tls_state.clone() else {
+                unreachable!("tls_state checked above");
+            };
             let imaps_mb_store = mb_store.clone();
             let imaps_users = users.clone();
             let imaps_hostname = cfg.hostname.clone();
@@ -477,7 +552,10 @@ async fn main() {
                             tokio::spawn(async move {
                                 match tls.acceptor().accept(stream).await {
                                     Ok(tls_stream) => {
-                                        handle_imap_connection(tls_stream, addr, mb, u, ag, ds, eb, &h, &mr).await;
+                                        handle_imap_connection(
+                                            tls_stream, addr, mb, u, ag, ds, eb, &h, &mr,
+                                        )
+                                        .await;
                                     }
                                     Err(e) => {
                                         eprintln!("imaps tls handshake error from {addr}: {e}");
@@ -506,9 +584,11 @@ async fn main() {
             }
 
             // configure DKIM signing if key is available
-            if let (Some(selector), Some(domain), Some(key_path)) =
-                (&cfg.dkim_selector, &cfg.dkim_domain, &cfg.dkim_private_key_path)
-            {
+            if let (Some(selector), Some(domain), Some(key_path)) = (
+                &cfg.dkim_selector,
+                &cfg.dkim_domain,
+                &cfg.dkim_private_key_path,
+            ) {
                 match std::fs::read_to_string(key_path) {
                     Ok(pem) => {
                         worker = worker.with_dkim(mailrs_outbound_queue::DkimSignConfig {
@@ -519,7 +599,10 @@ async fn main() {
                         eprintln!("DKIM signing enabled (selector={selector}, domain={domain})");
                     }
                     Err(e) => {
-                        eprintln!("warning: failed to read DKIM key {}: {e}", key_path.display());
+                        eprintln!(
+                            "warning: failed to read DKIM key {}: {e}",
+                            key_path.display()
+                        );
                     }
                 }
             }
@@ -529,14 +612,24 @@ async fn main() {
             worker = worker.with_event_sender(Arc::new(move |evt| {
                 use mailrs_outbound_queue::DeliveryEvent;
                 let smtp_evt = match evt {
-                    DeliveryEvent::Attempt { queue_id, domain } =>
-                        SmtpEvent::DeliveryAttempt { queue_id, domain },
-                    DeliveryEvent::Success { queue_id, domain } =>
-                        SmtpEvent::DeliverySuccess { queue_id, domain },
-                    DeliveryEvent::Failed { queue_id, domain, error } =>
-                        SmtpEvent::DeliveryFailed { queue_id, domain, error },
-                    DeliveryEvent::Bounced { queue_id, sender } =>
-                        SmtpEvent::BounceGenerated { queue_id, sender },
+                    DeliveryEvent::Attempt { queue_id, domain } => {
+                        SmtpEvent::DeliveryAttempt { queue_id, domain }
+                    }
+                    DeliveryEvent::Success { queue_id, domain } => {
+                        SmtpEvent::DeliverySuccess { queue_id, domain }
+                    }
+                    DeliveryEvent::Failed {
+                        queue_id,
+                        domain,
+                        error,
+                    } => SmtpEvent::DeliveryFailed {
+                        queue_id,
+                        domain,
+                        error,
+                    },
+                    DeliveryEvent::Bounced { queue_id, sender } => {
+                        SmtpEvent::BounceGenerated { queue_id, sender }
+                    }
                 };
                 eb.emit(smtp_evt);
             }));
@@ -583,8 +676,7 @@ async fn handle_imap_connection<S>(
     event_bus: EventBus,
     hostname: &str,
     maildir_root: &str,
-)
-where
+) where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
     use futures_util::{SinkExt, StreamExt};
@@ -609,7 +701,7 @@ where
                 let result = session.handle_line(&line).await;
                 match result {
                     imap_session::HandleResult::Responses(responses) => {
-                        let is_logout = responses.iter().any(|r| r.contains("BYE"));
+                        let is_logout = responses.iter().any(|r| r.windows(3).any(|w| w == b"BYE"));
                         for resp in responses {
                             if framed.send(resp).await.is_err() {
                                 return;
@@ -655,7 +747,7 @@ where
                                     match frame {
                                         Some(Ok(imap_codec::ImapInput::Line(done_line))) => {
                                             if done_line.trim().eq_ignore_ascii_case("DONE") {
-                                                let resp = mailrs_imap_proto::format_ok(&tag, "IDLE terminated");
+                                                let resp = mailrs_imap_proto::format_ok(&tag, "IDLE terminated").into_bytes();
                                                 if framed.send(resp).await.is_err() {
                                                     return;
                                                 }
@@ -672,7 +764,7 @@ where
             }
             Ok(imap_codec::ImapInput::LiteralData(data)) => {
                 let responses = session.handle_literal_data(&data).await;
-                let is_logout = responses.iter().any(|r| r.contains("BYE"));
+                let is_logout = responses.iter().any(|r| r.windows(3).any(|w| w == b"BYE"));
                 for resp in responses {
                     if framed.send(resp).await.is_err() {
                         return;

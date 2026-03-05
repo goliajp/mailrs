@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use hickory_resolver::TokioResolver;
@@ -8,9 +9,15 @@ use tokio::net::TcpStream;
 use tokio_util::codec::Framed;
 
 use mailrs_smtp_proto::response::{format_ehlo_response, Response};
-use mailrs_smtp_proto::session::{AuthStep, Event, Session, SessionConfig, State};
+use mailrs_smtp_proto::session::{AuthStep, Event, Session, SessionConfig, State, MAX_MESSAGE_SIZE, MAX_RECIPIENTS};
 use mailrs_smtp_proto::{parse_command, unstuff_data};
 use mailrs_storage_maildir::Maildir;
+
+/// connection idle timeout: close if no command received within this duration
+const CONNECTION_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// timeout waiting for DATA content after 354 response
+const DATA_TIMEOUT: Duration = Duration::from_secs(600);
 
 use crate::codec::{SmtpCodec, SmtpInput};
 use crate::config::SmuggleProtection;
@@ -25,8 +32,8 @@ use crate::inbound::greylisting::GreylistConfig;
 use crate::inbound::pipeline::{self, DeliveryDecision};
 use crate::inbound::rate_limit::RateLimiter;
 use crate::sieve::{compile_sieve, evaluate_sieve, SieveAction};
-use crate::users::UserStore;
 use crate::tls::TlsState;
+use crate::users::UserStore;
 use crate::web::WebState;
 
 pub struct ConnectionContext {
@@ -89,7 +96,10 @@ pub async fn handle_plain_connection(
 
     // rate limit check
     if !ctx.rate_limiter.check(addr.ip()) {
-        let mut framed = Framed::new(stream, SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection));
+        let mut framed = Framed::new(
+            stream,
+            SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection),
+        );
         let _ = framed.send(Response::rate_limited().format()).await;
         ctx.event_bus.emit(SmtpEvent::SpamRejected {
             id: conn_id,
@@ -107,8 +117,14 @@ pub async fn handle_plain_connection(
             if let Some((zone, result)) =
                 crate::inbound::dnsbl::check_dnsbl(resolver, addr.ip(), &ctx.dnsbl_zones).await
             {
-                let mut framed = Framed::new(stream, SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection));
-                let msg = format!("554 5.7.1 Service unavailable; client [{0}] blocked using {zone} ({result:?})", addr.ip());
+                let mut framed = Framed::new(
+                    stream,
+                    SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection),
+                );
+                let msg = format!(
+                    "554 5.7.1 Service unavailable; client [{0}] blocked using {zone} ({result:?})",
+                    addr.ip()
+                );
                 let _ = framed.send(msg).await;
                 ctx.event_bus.emit(SmtpEvent::SpamRejected {
                     id: conn_id,
@@ -127,10 +143,14 @@ pub async fn handle_plain_connection(
         tls_available,
         tls_active: false,
         require_tls_for_auth: tls_available,
-        max_size: 52428800,
+        max_size: MAX_MESSAGE_SIZE,
+        max_recipients: MAX_RECIPIENTS,
     };
     let mut session = Session::new(&ctx.hostname, config);
-    let mut framed = Framed::new(stream, SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection));
+    let mut framed = Framed::new(
+        stream,
+        SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection),
+    );
 
     let greeting = Response::greeting(&ctx.hostname).format_greeting();
     if framed.send(greeting).await.is_err() {
@@ -146,13 +166,15 @@ pub async fn handle_plain_connection(
             SessionAction::Continue => continue,
             SessionAction::Close => {
                 ctx.web_state.on_disconnect();
-                ctx.event_bus.emit(SmtpEvent::ConnectionClosed { id: conn_id });
+                ctx.event_bus
+                    .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                 return;
             }
             SessionAction::UpgradeTls => {
                 let Some(ref tls) = ctx.tls_state else {
                     ctx.web_state.on_disconnect();
-                    ctx.event_bus.emit(SmtpEvent::ConnectionClosed { id: conn_id });
+                    ctx.event_bus
+                        .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                     return;
                 };
                 let acceptor = tls.acceptor();
@@ -160,7 +182,8 @@ pub async fn handle_plain_connection(
                 let parts = framed.into_parts();
                 if !parts.read_buf.is_empty() {
                     ctx.web_state.on_disconnect();
-                    ctx.event_bus.emit(SmtpEvent::ConnectionClosed { id: conn_id });
+                    ctx.event_bus
+                        .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                     return;
                 }
                 let tcp_stream = parts.io;
@@ -169,14 +192,18 @@ pub async fn handle_plain_connection(
                     Ok(s) => s,
                     Err(_) => {
                         ctx.web_state.on_disconnect();
-                        ctx.event_bus.emit(SmtpEvent::ConnectionClosed { id: conn_id });
+                        ctx.event_bus
+                            .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                         return;
                     }
                 };
 
                 session.reset_after_tls();
                 ctx.event_bus.emit(SmtpEvent::TlsUpgraded { id: conn_id });
-                let mut tls_framed = Framed::new(tls_stream, SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection));
+                let mut tls_framed = Framed::new(
+                    tls_stream,
+                    SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection),
+                );
 
                 loop {
                     let action =
@@ -185,12 +212,14 @@ pub async fn handle_plain_connection(
                         SessionAction::Continue => continue,
                         SessionAction::Close => {
                             ctx.web_state.on_disconnect();
-                            ctx.event_bus.emit(SmtpEvent::ConnectionClosed { id: conn_id });
+                            ctx.event_bus
+                                .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                             return;
                         }
                         SessionAction::UpgradeTls => {
                             ctx.web_state.on_disconnect();
-                            ctx.event_bus.emit(SmtpEvent::ConnectionClosed { id: conn_id });
+                            ctx.event_bus
+                                .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                             return;
                         }
                     }
@@ -216,7 +245,8 @@ pub async fn handle_tls_connection(
 
     let Some(ref tls) = ctx.tls_state else {
         ctx.web_state.on_disconnect();
-        ctx.event_bus.emit(SmtpEvent::ConnectionClosed { id: conn_id });
+        ctx.event_bus
+            .emit(SmtpEvent::ConnectionClosed { id: conn_id });
         return;
     };
     let acceptor = tls.acceptor();
@@ -225,7 +255,8 @@ pub async fn handle_tls_connection(
         Ok(s) => s,
         Err(_) => {
             ctx.web_state.on_disconnect();
-            ctx.event_bus.emit(SmtpEvent::ConnectionClosed { id: conn_id });
+            ctx.event_bus
+                .emit(SmtpEvent::ConnectionClosed { id: conn_id });
             return;
         }
     };
@@ -234,15 +265,20 @@ pub async fn handle_tls_connection(
         tls_available: true,
         tls_active: true,
         require_tls_for_auth: false,
-        max_size: 52428800,
+        max_size: MAX_MESSAGE_SIZE,
+        max_recipients: MAX_RECIPIENTS,
     };
     let mut session = Session::new(&ctx.hostname, config);
-    let mut framed = Framed::new(tls_stream, SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection));
+    let mut framed = Framed::new(
+        tls_stream,
+        SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection),
+    );
 
     let greeting = Response::greeting(&ctx.hostname).format_greeting();
     if framed.send(greeting).await.is_err() {
         ctx.web_state.on_disconnect();
-        ctx.event_bus.emit(SmtpEvent::ConnectionClosed { id: conn_id });
+        ctx.event_bus
+            .emit(SmtpEvent::ConnectionClosed { id: conn_id });
         return;
     }
 
@@ -252,7 +288,8 @@ pub async fn handle_tls_connection(
             SessionAction::Continue => continue,
             SessionAction::Close | SessionAction::UpgradeTls => {
                 ctx.web_state.on_disconnect();
-                ctx.event_bus.emit(SmtpEvent::ConnectionClosed { id: conn_id });
+                ctx.event_bus
+                    .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                 return;
             }
         }
@@ -276,8 +313,15 @@ async fn drive_session<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let Some(result) = framed.next().await else {
-        return SessionAction::Close;
+    let result = match tokio::time::timeout(CONNECTION_TIMEOUT, framed.next()).await {
+        Ok(Some(result)) => result,
+        Ok(None) => return SessionAction::Close,
+        Err(_) => {
+            let _ = framed
+                .send(Response::new(421, None, "Idle timeout, closing connection").format())
+                .await;
+            return SessionAction::Close;
+        }
     };
     let input = match result {
         Ok(input) => input,
@@ -377,8 +421,8 @@ where
                     }
             );
 
-            match framed.next().await {
-                Some(Ok(SmtpInput::Data(raw))) => {
+            match tokio::time::timeout(DATA_TIMEOUT, framed.next()).await {
+                Ok(Some(Ok(SmtpInput::Data(raw)))) => {
                     let body = unstuff_data(&raw);
                     let received = format_received_header(
                         &session.hostname,
@@ -398,7 +442,8 @@ where
                                 State::Authenticated { domain, .. } => domain.as_str(),
                                 _ => "unknown",
                             };
-                            let first_rcpt = forward_paths.first().map(|s| s.as_str()).unwrap_or("");
+                            let first_rcpt =
+                                forward_paths.first().map(|s| s.as_str()).unwrap_or("");
                             let decision = pipeline::run_inbound_pipeline(
                                 authenticator,
                                 &ctx.hostname,
@@ -458,7 +503,10 @@ where
                                     }
                                     return SessionAction::Continue;
                                 }
-                                DeliveryDecision::Junk { auth_header, reason } => {
+                                DeliveryDecision::Junk {
+                                    auth_header,
+                                    reason,
+                                } => {
                                     tracing::info!(
                                         event = "junk",
                                         id = conn_id,
@@ -486,7 +534,8 @@ where
                     let mut initial_local: Vec<String> = Vec::new();
                     let mut remote_rcpts: Vec<(String, bool)> = Vec::new();
                     for rcpt in &forward_paths {
-                        if rcpt.split_once('@')
+                        if rcpt
+                            .split_once('@')
                             .map(|(_, domain)| is_local_domain(domain, &ctx.local_domains))
                             .unwrap_or(true)
                         {
@@ -575,9 +624,13 @@ where
                                                                 &full_message,
                                                                 None,
                                                                 now,
-                                                            ).await;
+                                                            )
+                                                            .await;
                                                         if let Some(ref vk) = ctx.valkey {
-                                                            mailrs_outbound_queue::queue::notify(&mut vk.clone()).await;
+                                                            mailrs_outbound_queue::queue::notify(
+                                                                &mut vk.clone(),
+                                                            )
+                                                            .await;
                                                         }
                                                     }
                                                     tracing::info!(
@@ -617,12 +670,14 @@ where
 
                         if let Some((local, domain)) = rcpt.split_once('@') {
                             // check quota before delivery
-                            if let (Some(ref ds), Some(ref mb_store)) = (&ctx.domain_store, &ctx.mailbox_store) {
+                            if let (Some(ref ds), Some(ref mb_store)) =
+                                (&ctx.domain_store, &ctx.mailbox_store)
+                            {
                                 if let Ok(Some(quota)) = ds.get_quota(rcpt).await {
                                     if quota > 0 {
                                         let usage = mb_store.user_storage_usage(rcpt).await;
                                         if usage + msg_size as u64 > quota as u64 {
-                                            eprintln!("quota exceeded: user={rcpt} usage={usage} quota={quota}");
+                                            eprintln!("smtp: quota exceeded for user={rcpt} (usage={usage} bytes, quota={quota} bytes)");
                                             ok = false;
                                             continue;
                                         }
@@ -646,7 +701,10 @@ where
                                                 // pre-fetch parent thread_id asynchronously
                                                 let parent_tid = if !msg_in_reply_to.is_empty() {
                                                     mb_store
-                                                        .find_thread_id_by_message_id(&user, &msg_in_reply_to)
+                                                        .find_thread_id_by_message_id(
+                                                            &user,
+                                                            &msg_in_reply_to,
+                                                        )
                                                         .await
                                                         .ok()
                                                         .flatten()
@@ -664,22 +722,26 @@ where
 
                                             // ensure sieve target folder exists
                                             if rcpt_folder != "INBOX" && rcpt_folder != "Junk" {
-                                                let _ = mb_store.create_mailbox(&user, &rcpt_folder).await;
+                                                let _ = mb_store
+                                                    .create_mailbox(&user, &rcpt_folder)
+                                                    .await;
                                             }
 
-                                            let _ = mb_store.index_message(
-                                                &user,
-                                                &rcpt_folder,
-                                                &id.to_string(),
-                                                &reverse_path,
-                                                rcpt,
-                                                &subject,
-                                                msg_size as u32,
-                                                now,
-                                                &msg_message_id,
-                                                &msg_in_reply_to,
-                                                &thread_id,
-                                            ).await;
+                                            let _ = mb_store
+                                                .index_message(
+                                                    &user,
+                                                    &rcpt_folder,
+                                                    &id.to_string(),
+                                                    &reverse_path,
+                                                    rcpt,
+                                                    &subject,
+                                                    msg_size as u32,
+                                                    now,
+                                                    &msg_message_id,
+                                                    &msg_in_reply_to,
+                                                    &thread_id,
+                                                )
+                                                .await;
 
                                             // emit NewMessage event
                                             let snippet = extract_snippet(&full_message);
@@ -693,12 +755,12 @@ where
                                         }
                                     }
                                     Err(e) => {
-                                        eprintln!("maildir deliver failed: path={path} error={e}");
+                                        eprintln!("smtp: maildir deliver failed for rcpt={rcpt} path={path}: {e}");
                                         ok = false;
                                     }
                                 },
                                 Err(e) => {
-                                    eprintln!("maildir create failed: path={path} error={e}");
+                                    eprintln!("smtp: maildir create failed for rcpt={rcpt} path={path}: {e}");
                                     ok = false;
                                 }
                             }
@@ -729,10 +791,8 @@ where
                             let now = chrono::Utc::now().timestamp();
                             let mut enqueue_ok = false;
                             for (rcpt, is_fwd) in &remote_rcpts {
-                                let domain = rcpt
-                                    .split_once('@')
-                                    .map(|(_, d)| d)
-                                    .unwrap_or("unknown");
+                                let domain =
+                                    rcpt.split_once('@').map(|(_, d)| d).unwrap_or("unknown");
                                 match mailrs_outbound_queue::queue::enqueue_ex(
                                     pool,
                                     &reverse_path,
@@ -742,7 +802,9 @@ where
                                     None,
                                     now,
                                     *is_fwd,
-                                ).await {
+                                )
+                                .await
+                                {
                                     Ok(_) => enqueue_ok = true,
                                     Err(e) => {
                                         tracing::error!(event = "enqueue_failed", rcpt = rcpt, error = %e, "failed to enqueue remote recipient");
@@ -761,7 +823,10 @@ where
                                 });
                             }
                         } else if !remote_rcpts.is_empty() {
-                            tracing::error!(event = "no_outbound_queue", "outbound queue unavailable, cannot relay");
+                            tracing::error!(
+                                event = "no_outbound_queue",
+                                "outbound queue unavailable, cannot relay"
+                            );
                             ok = false;
                         }
                     }
@@ -794,7 +859,7 @@ where
                     }
                     SessionAction::Continue
                 }
-                Some(Ok(SmtpInput::DataRejected)) => {
+                Ok(Some(Ok(SmtpInput::DataRejected))) => {
                     let resp = Response::new(
                         550,
                         Some(mailrs_smtp_proto::EnhancedCode {
@@ -815,6 +880,15 @@ where
                     }
                     SessionAction::Continue
                 }
+                Err(_) => {
+                    // data transfer timeout
+                    let _ = framed
+                        .send(
+                            Response::new(421, None, "Data timeout, closing connection").format(),
+                        )
+                        .await;
+                    SessionAction::Close
+                }
                 _ => SessionAction::Close,
             }
         }
@@ -829,10 +903,16 @@ where
             SessionAction::UpgradeTls
         }
         Event::NeedAuth { username, password } => {
-            if let AuthCheck::LockedOut { remaining_secs } = ctx.auth_guard.check(addr.ip(), &username) {
+            if let AuthCheck::LockedOut { remaining_secs } =
+                ctx.auth_guard.check(addr.ip(), &username)
+            {
                 let resp = Response::new(
                     421,
-                    Some(mailrs_smtp_proto::EnhancedCode { class: 4, subject: 7, detail: 0 }),
+                    Some(mailrs_smtp_proto::EnhancedCode {
+                        class: 4,
+                        subject: 7,
+                        detail: 0,
+                    }),
                     &format!("Too many auth failures, try again in {remaining_secs}s"),
                 );
                 if framed.send(resp.format()).await.is_err() {
@@ -878,8 +958,15 @@ async fn handle_auth_continuation<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let Some(result) = framed.next().await else {
-        return SessionAction::Close;
+    let result = match tokio::time::timeout(CONNECTION_TIMEOUT, framed.next()).await {
+        Ok(Some(result)) => result,
+        Ok(None) => return SessionAction::Close,
+        Err(_) => {
+            let _ = framed
+                .send(Response::new(421, None, "Idle timeout, closing connection").format())
+                .await;
+            return SessionAction::Close;
+        }
     };
     let input = match result {
         Ok(input) => input,
@@ -891,10 +978,16 @@ where
             let event = session.handle_auth_response(&line, &step);
             match event {
                 Event::NeedAuth { username, password } => {
-                    if let AuthCheck::LockedOut { remaining_secs } = ctx.auth_guard.check(addr.ip(), &username) {
+                    if let AuthCheck::LockedOut { remaining_secs } =
+                        ctx.auth_guard.check(addr.ip(), &username)
+                    {
                         let resp = Response::new(
                             421,
-                            Some(mailrs_smtp_proto::EnhancedCode { class: 4, subject: 7, detail: 0 }),
+                            Some(mailrs_smtp_proto::EnhancedCode {
+                                class: 4,
+                                subject: 7,
+                                detail: 0,
+                            }),
                             &format!("Too many auth failures, try again in {remaining_secs}s"),
                         );
                         if framed.send(resp.format()).await.is_err() {
@@ -920,11 +1013,17 @@ where
                     }
                     SessionAction::Continue
                 }
-                Event::AuthChallenge { response, step: next_step } => {
+                Event::AuthChallenge {
+                    response,
+                    step: next_step,
+                } => {
                     if framed.send(response.format()).await.is_err() {
                         return SessionAction::Close;
                     }
-                    Box::pin(handle_auth_continuation(framed, session, next_step, addr, ctx, conn_id)).await
+                    Box::pin(handle_auth_continuation(
+                        framed, session, next_step, addr, ctx, conn_id,
+                    ))
+                    .await
                 }
                 Event::Reply(resp) => {
                     if framed.send(resp.format()).await.is_err() {
@@ -976,9 +1075,7 @@ fn extract_header(message: &[u8], name: &str) -> String {
     let text = String::from_utf8_lossy(message);
     let prefix = format!("{name}:");
     for line in text.lines() {
-        if line.len() > prefix.len()
-            && line[..prefix.len()].eq_ignore_ascii_case(&prefix)
-        {
+        if line.len() > prefix.len() && line[..prefix.len()].eq_ignore_ascii_case(&prefix) {
             return line[prefix.len()..].trim().to_string();
         }
         if line.is_empty() {

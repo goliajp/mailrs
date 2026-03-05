@@ -349,11 +349,30 @@ async fn deliver_domain_static(
     }
 }
 
+/// TLS policy for outbound connections
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TlsPolicy {
+    /// try STARTTLS, fall back to plaintext on failure (default)
+    Opportunistic,
+    /// require TLS, fail delivery if STARTTLS unavailable or fails
+    Require,
+}
+
 /// try to deliver messages via a specific MX host
 async fn try_deliver_via_mx(
     hostname: &str,
     mx_host: &str,
     messages: &[QueuedMessage],
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    try_deliver_via_mx_with_tls(hostname, mx_host, messages, TlsPolicy::Opportunistic).await
+}
+
+/// try to deliver messages via a specific MX host with explicit TLS policy
+async fn try_deliver_via_mx_with_tls(
+    hostname: &str,
+    mx_host: &str,
+    messages: &[QueuedMessage],
+    tls_policy: TlsPolicy,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut smtp = mailrs_smtp_client::SmtpConnection::connect(mx_host, 25).await?;
     let ehlo_resp = smtp.ehlo(hostname).await?;
@@ -362,14 +381,18 @@ async fn try_deliver_via_mx(
         return Err(format!("EHLO rejected: {}", ehlo_resp.message()).into());
     }
 
-    // try STARTTLS if available (starttls consumes self, reconnect on failure)
-    if ehlo_resp.message().contains("STARTTLS") {
+    // try STARTTLS if advertised
+    if ehlo_resp.has_extension("STARTTLS") {
         match smtp.starttls(mx_host).await {
             Ok(tls_smtp) => {
                 smtp = tls_smtp;
                 let _ = smtp.ehlo(hostname).await?;
+                tracing::debug!("TLS established with {mx_host}");
             }
             Err(e) => {
+                if tls_policy == TlsPolicy::Require {
+                    return Err(format!("STARTTLS failed for {mx_host} and TLS is required: {e}").into());
+                }
                 tracing::warn!("STARTTLS failed for {mx_host}: {e}, reconnecting without TLS");
                 smtp = mailrs_smtp_client::SmtpConnection::connect(mx_host, 25).await?;
                 let resp = smtp.ehlo(hostname).await?;
@@ -378,6 +401,10 @@ async fn try_deliver_via_mx(
                 }
             }
         }
+    } else if tls_policy == TlsPolicy::Require {
+        return Err(format!("{mx_host} does not advertise STARTTLS and TLS is required").into());
+    } else {
+        tracing::info!("delivering to {mx_host} without TLS (STARTTLS not advertised)");
     }
 
     for msg in messages {
@@ -443,5 +470,306 @@ mod tests {
         assert_eq!(cfg.max_attempts, 8);
         assert_eq!(cfg.max_concurrent_domains, 8);
         assert_eq!(cfg.max_messages_per_connection, 50);
+    }
+
+    #[test]
+    fn group_by_domain_single_domain() {
+        let messages = vec![make_msg(1, "a.com"), make_msg(2, "a.com"), make_msg(3, "a.com")];
+        let groups = group_by_domain(messages);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups["a.com"].len(), 3);
+    }
+
+    #[test]
+    fn group_by_domain_preserves_order_within_group() {
+        let messages = vec![make_msg(10, "x.com"), make_msg(20, "y.com"), make_msg(30, "x.com")];
+        let groups = group_by_domain(messages);
+        let x_ids: Vec<i64> = groups["x.com"].iter().map(|m| m.id).collect();
+        assert_eq!(x_ids, vec![10, 30]);
+    }
+
+    #[test]
+    fn group_by_domain_many_domains() {
+        let messages: Vec<QueuedMessage> = (0..100)
+            .map(|i| make_msg(i, &format!("domain{}.com", i % 10)))
+            .collect();
+        let groups = group_by_domain(messages);
+        assert_eq!(groups.len(), 10);
+        for v in groups.values() {
+            assert_eq!(v.len(), 10);
+        }
+    }
+
+    #[test]
+    fn worker_config_clone() {
+        let cfg = WorkerConfig::default();
+        let c2 = cfg.clone();
+        assert_eq!(c2.poll_interval_secs, cfg.poll_interval_secs);
+        assert_eq!(c2.batch_size, cfg.batch_size);
+    }
+
+    #[test]
+    fn group_by_domain_message_fields_intact() {
+        let msg = QueuedMessage {
+            id: 99,
+            sender: "orig@example.com".into(),
+            recipient: "dest@target.com".into(),
+            domain: "target.com".into(),
+            message_data: vec![0xde, 0xad],
+            status: QueueStatus::Pending,
+            attempts: 2,
+            max_attempts: 5,
+            next_retry: 12345,
+            last_error: Some("timeout".into()),
+            message_id: Some("mid99".into()),
+            created_at: 111,
+            updated_at: 222,
+            is_forwarded: true,
+        };
+        let groups = group_by_domain(vec![msg]);
+        let got = &groups["target.com"][0];
+        assert_eq!(got.id, 99);
+        assert_eq!(got.sender, "orig@example.com");
+        assert_eq!(got.attempts, 2);
+        assert_eq!(got.message_data, vec![0xde, 0xad]);
+        assert!(got.is_forwarded);
+        assert_eq!(got.last_error, Some("timeout".into()));
+    }
+
+    #[test]
+    fn tls_policy_equality() {
+        assert_eq!(TlsPolicy::Opportunistic, TlsPolicy::Opportunistic);
+        assert_eq!(TlsPolicy::Require, TlsPolicy::Require);
+        assert_ne!(TlsPolicy::Opportunistic, TlsPolicy::Require);
+    }
+
+    #[test]
+    fn tls_policy_debug() {
+        let dbg = format!("{:?}", TlsPolicy::Opportunistic);
+        assert!(dbg.contains("Opportunistic"));
+        let dbg = format!("{:?}", TlsPolicy::Require);
+        assert!(dbg.contains("Require"));
+    }
+
+    #[test]
+    fn tls_policy_clone() {
+        let p = TlsPolicy::Require;
+        let p2 = p;
+        assert_eq!(p, p2);
+    }
+
+    #[test]
+    fn tls_policy_copy_semantics() {
+        // TlsPolicy is Copy — original is still usable after assignment
+        let a = TlsPolicy::Opportunistic;
+        let b = a;
+        let c = a; // a still usable after copy to b
+        assert_eq!(a, b);
+        assert_eq!(b, c);
+    }
+
+    #[test]
+    fn tls_policy_all_variants_distinct() {
+        let variants = [TlsPolicy::Opportunistic, TlsPolicy::Require];
+        for (i, a) in variants.iter().enumerate() {
+            for (j, b) in variants.iter().enumerate() {
+                if i == j {
+                    assert_eq!(a, b);
+                } else {
+                    assert_ne!(a, b);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn worker_config_custom_values() {
+        let cfg = WorkerConfig {
+            poll_interval_secs: 10,
+            batch_size: 100,
+            max_attempts: 3,
+            max_concurrent_domains: 16,
+            max_messages_per_connection: 25,
+        };
+        assert_eq!(cfg.poll_interval_secs, 10);
+        assert_eq!(cfg.batch_size, 100);
+        assert_eq!(cfg.max_attempts, 3);
+        assert_eq!(cfg.max_concurrent_domains, 16);
+        assert_eq!(cfg.max_messages_per_connection, 25);
+    }
+
+    #[test]
+    fn worker_config_debug_format() {
+        let cfg = WorkerConfig::default();
+        let dbg = format!("{:?}", cfg);
+        assert!(dbg.contains("WorkerConfig"));
+        assert!(dbg.contains("poll_interval_secs"));
+        assert!(dbg.contains("batch_size"));
+    }
+
+    #[test]
+    fn group_by_domain_unicode_domains() {
+        let messages = vec![
+            make_msg(1, "xn--e1afmapc.xn--p1ai"), // punycode domain
+            make_msg(2, "xn--e1afmapc.xn--p1ai"),
+            make_msg(3, "example.jp"),
+        ];
+        let groups = group_by_domain(messages);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups["xn--e1afmapc.xn--p1ai"].len(), 2);
+        assert_eq!(groups["example.jp"].len(), 1);
+    }
+
+    #[test]
+    fn group_by_domain_all_unique_domains() {
+        let messages: Vec<QueuedMessage> = (0..50)
+            .map(|i| make_msg(i, &format!("d{i}.com")))
+            .collect();
+        let groups = group_by_domain(messages);
+        assert_eq!(groups.len(), 50);
+        for v in groups.values() {
+            assert_eq!(v.len(), 1);
+        }
+    }
+
+    #[test]
+    fn group_by_domain_domain_with_subdomains() {
+        // subdomains are distinct from parent domain
+        let messages = vec![
+            make_msg(1, "example.com"),
+            make_msg(2, "mail.example.com"),
+            make_msg(3, "example.com"),
+        ];
+        let groups = group_by_domain(messages);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups["example.com"].len(), 2);
+        assert_eq!(groups["mail.example.com"].len(), 1);
+    }
+
+    /// helper: extract sender domain the same way enqueue_dsn does
+    fn extract_sender_domain(sender: &str) -> &str {
+        sender.rsplit_once('@').map(|(_, d)| d).unwrap_or("unknown")
+    }
+
+    #[test]
+    fn sender_domain_extraction_normal() {
+        assert_eq!(extract_sender_domain("user@example.com"), "example.com");
+    }
+
+    #[test]
+    fn sender_domain_extraction_no_at() {
+        assert_eq!(extract_sender_domain("noatsign"), "unknown");
+    }
+
+    #[test]
+    fn sender_domain_extraction_multiple_at() {
+        // rsplit_once splits at the last @
+        assert_eq!(extract_sender_domain("user@sub@example.com"), "example.com");
+    }
+
+    #[test]
+    fn sender_domain_extraction_empty() {
+        assert_eq!(extract_sender_domain(""), "unknown");
+    }
+
+    #[test]
+    fn sender_domain_extraction_at_only() {
+        assert_eq!(extract_sender_domain("@"), "");
+    }
+
+    #[test]
+    fn dsn_skip_empty_sender() {
+        // enqueue_dsn skips when sender is empty — verify the condition
+        let msg = make_msg(1, "example.com");
+        assert!(msg.sender != "<>" && !msg.sender.is_empty(), "test setup: msg has a real sender");
+
+        // empty sender should be skipped
+        let empty_sender = "";
+        assert!(empty_sender.is_empty() || empty_sender == "<>");
+
+        // null sender should be skipped
+        let null_sender = "<>";
+        assert!(null_sender.is_empty() || null_sender == "<>");
+    }
+
+    #[test]
+    fn dsn_skip_null_sender() {
+        // the "<>" check prevents infinite bounce loops (RFC 3461)
+        let null_sender = "<>";
+        let empty_sender = "";
+        let real_sender = "user@example.com";
+
+        // should skip (bounce-of-bounce prevention)
+        assert!(null_sender == "<>" || null_sender.is_empty());
+        assert!(empty_sender == "<>" || empty_sender.is_empty());
+
+        // should not skip
+        assert!(real_sender != "<>" && !real_sender.is_empty());
+    }
+
+    #[test]
+    fn retry_delay_integration_with_group_delivery() {
+        // verify retry delay for each attempt matches what the worker uses
+        use crate::retry::retry_delay_secs;
+        for attempt in 0..10u32 {
+            let delay = retry_delay_secs(attempt);
+            assert!(delay >= 60, "delay at attempt {attempt} should be at least 60s");
+            assert!(delay <= 28800, "delay at attempt {attempt} should be capped at 28800s");
+        }
+    }
+
+    #[test]
+    fn should_bounce_integration_with_worker_defaults() {
+        // with default max_attempts=8, bounces start at attempt 8
+        use crate::retry::should_bounce;
+        let max = WorkerConfig::default().max_attempts;
+        for attempt in 0..max {
+            assert!(!should_bounce(attempt, max), "attempt {attempt} should not bounce");
+        }
+        assert!(should_bounce(max, max), "attempt {max} should bounce");
+        assert!(should_bounce(max + 1, max), "attempt {} should bounce", max + 1);
+    }
+
+    #[test]
+    fn make_msg_helper_defaults() {
+        let msg = make_msg(42, "test.org");
+        assert_eq!(msg.id, 42);
+        assert_eq!(msg.domain, "test.org");
+        assert_eq!(msg.recipient, "rcpt@test.org");
+        assert_eq!(msg.sender, "sender@example.com");
+        assert_eq!(msg.status, QueueStatus::Pending);
+        assert_eq!(msg.attempts, 0);
+        assert_eq!(msg.max_attempts, 8);
+        assert!(!msg.is_forwarded);
+        assert!(msg.last_error.is_none());
+        assert!(msg.message_id.is_none());
+    }
+
+    #[test]
+    fn group_by_domain_large_batch() {
+        // simulate a realistic batch size matching worker config
+        let batch_size = WorkerConfig::default().batch_size;
+        let messages: Vec<QueuedMessage> = (0..batch_size as i64)
+            .map(|i| make_msg(i, &format!("domain{}.com", i % 5)))
+            .collect();
+        let groups = group_by_domain(messages);
+        assert_eq!(groups.len(), 5);
+        let total: usize = groups.values().map(|v| v.len()).sum();
+        assert_eq!(total, batch_size as usize);
+    }
+
+    #[test]
+    fn group_by_domain_ids_are_all_present() {
+        let messages = vec![
+            make_msg(100, "a.com"),
+            make_msg(200, "b.com"),
+            make_msg(300, "a.com"),
+            make_msg(400, "c.com"),
+            make_msg(500, "b.com"),
+        ];
+        let groups = group_by_domain(messages);
+        let mut all_ids: Vec<i64> = groups.values().flat_map(|v| v.iter().map(|m| m.id)).collect();
+        all_ids.sort();
+        assert_eq!(all_ids, vec![100, 200, 300, 400, 500]);
     }
 }

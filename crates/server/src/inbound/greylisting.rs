@@ -91,14 +91,160 @@ mod tests {
             pass_ttl_secs: 3600,
         };
         // 59 seconds — too early
-        assert_eq!(evaluate_triplet(Some(0), 59, &cfg), GreylistDecision::TooEarly);
+        assert_eq!(
+            evaluate_triplet(Some(0), 59, &cfg),
+            GreylistDecision::TooEarly
+        );
         // 60 seconds — accept
-        assert_eq!(evaluate_triplet(Some(0), 60, &cfg), GreylistDecision::Accept);
+        assert_eq!(
+            evaluate_triplet(Some(0), 60, &cfg),
+            GreylistDecision::Accept
+        );
     }
 
     #[test]
     fn triplet_key_format() {
         let key = triplet_key("1.2.3.4", "sender@example.com", "rcpt@example.com");
         assert_eq!(key, "1.2.3.4|sender@example.com|rcpt@example.com");
+    }
+
+    // --- triplet_key additional tests ---
+
+    #[test]
+    fn triplet_key_ipv6() {
+        let key = triplet_key("2001:db8::1", "a@b.com", "c@d.com");
+        assert_eq!(key, "2001:db8::1|a@b.com|c@d.com");
+    }
+
+    #[test]
+    fn triplet_key_empty_sender() {
+        // bounce messages have empty sender (<>)
+        let key = triplet_key("10.0.0.1", "", "postmaster@example.com");
+        assert_eq!(key, "10.0.0.1||postmaster@example.com");
+    }
+
+    #[test]
+    fn triplet_key_preserves_case() {
+        let key = triplet_key("10.0.0.1", "User@Example.COM", "Admin@Test.ORG");
+        assert_eq!(key, "10.0.0.1|User@Example.COM|Admin@Test.ORG");
+    }
+
+    #[test]
+    fn triplet_key_special_chars() {
+        let key = triplet_key("10.0.0.1", "user+tag@example.com", "o'malley@test.org");
+        assert_eq!(key, "10.0.0.1|user+tag@example.com|o'malley@test.org");
+    }
+
+    // --- GreylistConfig defaults and boundary ---
+
+    #[test]
+    fn default_config_values() {
+        let cfg = GreylistConfig::default();
+        assert_eq!(cfg.initial_delay_secs, 300);
+        assert_eq!(cfg.pass_ttl_secs, 36 * 24 * 3600);
+    }
+
+    #[test]
+    fn zero_delay_accepts_immediately() {
+        let cfg = GreylistConfig {
+            initial_delay_secs: 0,
+            pass_ttl_secs: 3600,
+        };
+        // even at the same timestamp it should accept
+        assert_eq!(
+            evaluate_triplet(Some(100), 100, &cfg),
+            GreylistDecision::Accept
+        );
+    }
+
+    #[test]
+    fn very_large_delay() {
+        let cfg = GreylistConfig {
+            initial_delay_secs: u64::MAX,
+            pass_ttl_secs: u64::MAX,
+        };
+        // no matter how far in the future, saturating_sub prevents overflow
+        assert_eq!(
+            evaluate_triplet(Some(0), u64::MAX - 1, &cfg),
+            GreylistDecision::TooEarly
+        );
+    }
+
+    // --- evaluate_triplet time window logic ---
+
+    #[test]
+    fn exact_boundary_accepts() {
+        // exactly at the delay boundary should accept
+        let cfg = config();
+        assert_eq!(
+            evaluate_triplet(Some(1000), 1300, &cfg),
+            GreylistDecision::Accept
+        );
+    }
+
+    #[test]
+    fn one_second_before_boundary_defers() {
+        let cfg = config();
+        assert_eq!(
+            evaluate_triplet(Some(1000), 1299, &cfg),
+            GreylistDecision::TooEarly
+        );
+    }
+
+    #[test]
+    fn now_equals_first_seen_too_early() {
+        let cfg = config();
+        // elapsed = 0, less than 300
+        assert_eq!(
+            evaluate_triplet(Some(500), 500, &cfg),
+            GreylistDecision::TooEarly
+        );
+    }
+
+    #[test]
+    fn now_before_first_seen_saturates_to_zero() {
+        // clock skew scenario: now < first_seen
+        let cfg = config();
+        // saturating_sub(500, 1000) = 0, which is < 300
+        assert_eq!(
+            evaluate_triplet(Some(1000), 500, &cfg),
+            GreylistDecision::TooEarly
+        );
+    }
+
+    #[test]
+    fn long_after_delay_still_accepts() {
+        let cfg = config();
+        // first seen a day ago
+        assert_eq!(
+            evaluate_triplet(Some(0), 86400, &cfg),
+            GreylistDecision::Accept
+        );
+    }
+
+    // --- GreylistDecision enum properties ---
+
+    #[test]
+    fn decision_clone_and_debug() {
+        let d = GreylistDecision::Defer;
+        let d2 = d.clone();
+        assert_eq!(d, d2);
+        // debug format should contain variant name
+        assert!(format!("{d:?}").contains("Defer"));
+    }
+
+    #[test]
+    fn decisions_are_distinct() {
+        assert_ne!(GreylistDecision::Defer, GreylistDecision::TooEarly);
+        assert_ne!(GreylistDecision::TooEarly, GreylistDecision::Accept);
+        assert_ne!(GreylistDecision::Defer, GreylistDecision::Accept);
+    }
+
+    #[test]
+    fn config_clone() {
+        let cfg = GreylistConfig::default();
+        let cfg2 = cfg.clone();
+        assert_eq!(cfg.initial_delay_secs, cfg2.initial_delay_secs);
+        assert_eq!(cfg.pass_ttl_secs, cfg2.pass_ttl_secs);
     }
 }

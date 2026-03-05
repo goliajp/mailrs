@@ -3,20 +3,23 @@ FROM rust:1-bookworm AS rust-builder
 
 WORKDIR /build
 
-# copy workspace manifests first for layer caching
+# copy manifests first for dependency layer caching
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ crates/
 
-RUN cargo build --release --bin mailrs-server
+# mount cargo registry + git cache + target dir for incremental builds
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo build --release --bin mailrs-server \
+    && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server
 
 # stage 2: build frontend
-FROM node:22-bookworm-slim AS web-builder
+FROM oven/bun:1-debian AS web-builder
 
 WORKDIR /build
 
-RUN npm install -g bun
-
-COPY web/package.json web/bun.lock* ./
+COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
 
 COPY web/ ./
@@ -26,11 +29,17 @@ RUN bun run build
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
+    ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=rust-builder /build/target/release/mailrs-server /usr/local/bin/mailrs-server
+# run as non-root user
+RUN groupadd -r mailrs && useradd -r -g mailrs -d /data -s /sbin/nologin mailrs
+
+COPY --from=rust-builder /usr/local/bin/mailrs-server /usr/local/bin/mailrs-server
 COPY --from=web-builder /build/dist /opt/mailrs/web
+
+# create data directories with correct ownership
+RUN mkdir -p /data/maildir /data/acme /certs && chown -R mailrs:mailrs /data
 
 # default env vars
 ENV MAILRS_HOSTNAME=mx.mailrs.local \
@@ -48,5 +57,10 @@ ENV MAILRS_HOSTNAME=mx.mailrs.local \
 EXPOSE 25 80 587 465 143 3100
 
 VOLUME ["/data", "/certs"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -sf http://localhost:3100/api/health || exit 1
+
+USER mailrs
 
 ENTRYPOINT ["mailrs-server"]

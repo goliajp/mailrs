@@ -118,4 +118,83 @@ mod tests {
         let data = b"message-id: <lower@host>\r\n\r\n";
         assert_eq!(extract_message_id(data), "lower@host");
     }
+
+    #[test]
+    fn normalize_only_open_bracket() {
+        assert_eq!(normalize_message_id("<abc@host"), "<abc@host");
+    }
+
+    #[test]
+    fn normalize_only_close_bracket() {
+        assert_eq!(normalize_message_id("abc@host>"), "abc@host>");
+    }
+
+    #[test]
+    fn normalize_empty_string() {
+        assert_eq!(normalize_message_id(""), "");
+    }
+
+    #[test]
+    fn normalize_empty_brackets() {
+        assert_eq!(normalize_message_id("<>"), "");
+    }
+
+    #[test]
+    fn normalize_nested_brackets() {
+        assert_eq!(normalize_message_id("<<inner>>"), "<inner>");
+    }
+
+    #[test]
+    fn resolve_uses_lookup_result() {
+        let tid = resolve_thread_id("own@host", "parent@host", |id| {
+            if id == "parent@host" {
+                Some("thread-root".to_string())
+            } else {
+                None
+            }
+        });
+        assert_eq!(tid, "thread-root");
+    }
+
+    #[test]
+    fn resolve_empty_own_id_with_empty_reply_to() {
+        let tid = resolve_thread_id("", "", |_| None);
+        assert_eq!(tid, "");
+    }
+
+    #[test]
+    fn extract_message_id_stops_at_empty_line() {
+        let data = b"Subject: hi\r\n\r\nMessage-ID: <body@host>\r\n";
+        assert_eq!(extract_message_id(data), "");
+    }
+
+    #[test]
+    fn extract_message_id_upper_case_header() {
+        let data = b"MESSAGE-ID: <UPPER@host>\r\n\r\n";
+        assert_eq!(extract_message_id(data), "UPPER@host");
+    }
+
+    #[test]
+    fn extract_in_reply_to_multiple_headers() {
+        // should return first match
+        let data = b"In-Reply-To: <first@host>\r\nIn-Reply-To: <second@host>\r\n\r\n";
+        assert_eq!(extract_in_reply_to(data), "first@host");
+    }
+
+    #[test]
+    fn extract_header_no_crlf() {
+        let data = b"Message-ID: <no-crlf@host>";
+        assert_eq!(extract_message_id(data), "no-crlf@host");
+    }
+
+    #[test]
+    fn extract_header_lf_only() {
+        let data = b"Message-ID: <lf@host>\n\nbody";
+        assert_eq!(extract_message_id(data), "lf@host");
+    }
+
+    #[test]
+    fn extract_empty_data() {
+        assert_eq!(extract_message_id(b""), "");
+    }
 }

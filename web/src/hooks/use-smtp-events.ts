@@ -7,7 +7,13 @@ import type {
   SmtpEvent,
 } from '@/lib/types'
 
-const WS_URL = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/events`
+function getWsUrl() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const token = localStorage.getItem('mailrs_auth')
+  const parsed = token ? JSON.parse(token) : null
+  const tokenParam = parsed?.token ? `?token=${encodeURIComponent(parsed.token)}` : ''
+  return `${proto}//${location.host}/api/events${tokenParam}`
+}
 const STATUS_URL = '/api/status'
 
 export function useSmtpEvents() {
@@ -100,7 +106,7 @@ export function useSmtpEvents() {
     let retryTimeout: ReturnType<typeof setTimeout>
 
     const connect = () => {
-      ws = new WebSocket(WS_URL)
+      ws = new WebSocket(getWsUrl())
       wsRef.current = ws
 
       ws.onopen = () => setConnected(true)

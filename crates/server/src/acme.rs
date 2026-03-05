@@ -32,10 +32,11 @@ async fn load_or_create_account(
     if account_path.exists() {
         let data = std::fs::read_to_string(&account_path)?;
         let credentials: instant_acme::AccountCredentials = serde_json::from_str(&data)?;
-        let account = Account::builder()?
-            .from_credentials(credentials)
-            .await?;
-        eprintln!("acme: loaded existing account from {}", account_path.display());
+        let account = Account::builder()?.from_credentials(credentials).await?;
+        eprintln!(
+            "acme: loaded existing account from {}",
+            account_path.display()
+        );
         return Ok(account);
     }
 
@@ -53,7 +54,10 @@ async fn load_or_create_account(
 
     std::fs::create_dir_all(acme_dir)?;
     std::fs::write(&account_path, serde_json::to_string_pretty(&credentials)?)?;
-    eprintln!("acme: created new account, saved to {}", account_path.display());
+    eprintln!(
+        "acme: created new account, saved to {}",
+        account_path.display()
+    );
 
     Ok(account)
 }
@@ -64,14 +68,9 @@ async fn provision_cert(
     domains: &[String],
     tokens: &ChallengeTokens,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
-    let identifiers: Vec<Identifier> = domains
-        .iter()
-        .map(|d| Identifier::Dns(d.clone()))
-        .collect();
+    let identifiers: Vec<Identifier> = domains.iter().map(|d| Identifier::Dns(d.clone())).collect();
 
-    let mut order = account
-        .new_order(&NewOrder::new(&identifiers))
-        .await?;
+    let mut order = account.new_order(&NewOrder::new(&identifiers)).await?;
 
     let state = order.state();
     if matches!(state.status, OrderStatus::Pending) {
@@ -98,8 +97,7 @@ async fn provision_cert(
         }
 
         // poll until ready
-        let retries = RetryPolicy::new()
-            .timeout(Duration::from_secs(120));
+        let retries = RetryPolicy::new().timeout(Duration::from_secs(120));
         order.poll_ready(&retries).await?;
     }
 
@@ -109,8 +107,7 @@ async fn provision_cert(
         let key_pem = order.finalize().await?;
 
         // poll until certificate is issued
-        let retries = RetryPolicy::new()
-            .timeout(Duration::from_secs(60));
+        let retries = RetryPolicy::new().timeout(Duration::from_secs(60));
         let cert_chain = order.poll_certificate(&retries).await?;
 
         // clear tokens
@@ -140,8 +137,7 @@ fn build_server_config(
     cert_pem: &str,
     key_pem: &str,
 ) -> Result<ServerConfig, Box<dyn std::error::Error>> {
-    let certs = rustls_pemfile::certs(&mut cert_pem.as_bytes())
-        .collect::<Result<Vec<_>, _>>()?;
+    let certs = rustls_pemfile::certs(&mut cert_pem.as_bytes()).collect::<Result<Vec<_>, _>>()?;
     let key = rustls_pemfile::private_key(&mut key_pem.as_bytes())?
         .ok_or("no private key found in PEM")?;
 
@@ -170,24 +166,26 @@ pub fn spawn_challenge_server(
         let tokens = tokens.clone();
         let app = axum::Router::new().route(
             "/.well-known/acme-challenge/{token}",
-            axum::routing::get(move |axum::extract::Path(token): axum::extract::Path<String>| {
-                let tokens = tokens.clone();
-                async move {
-                    let map = tokens.read().unwrap();
-                    match map.get(&token) {
-                        Some(key_auth) => (
-                            axum::http::StatusCode::OK,
-                            [(axum::http::header::CONTENT_TYPE, "text/plain")],
-                            key_auth.clone(),
-                        ),
-                        None => (
-                            axum::http::StatusCode::NOT_FOUND,
-                            [(axum::http::header::CONTENT_TYPE, "text/plain")],
-                            "not found".to_string(),
-                        ),
+            axum::routing::get(
+                move |axum::extract::Path(token): axum::extract::Path<String>| {
+                    let tokens = tokens.clone();
+                    async move {
+                        let map = tokens.read().unwrap();
+                        match map.get(&token) {
+                            Some(key_auth) => (
+                                axum::http::StatusCode::OK,
+                                [(axum::http::header::CONTENT_TYPE, "text/plain")],
+                                key_auth.clone(),
+                            ),
+                            None => (
+                                axum::http::StatusCode::NOT_FOUND,
+                                [(axum::http::header::CONTENT_TYPE, "text/plain")],
+                                "not found".to_string(),
+                            ),
+                        }
                     }
-                }
-            }),
+                },
+            ),
         );
 
         let mut shutdown = shutdown;

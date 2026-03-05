@@ -1,52 +1,135 @@
 import { useAtomValue } from 'jotai'
 import { useRef, useState } from 'react'
+import { toast } from 'sonner'
 
+import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { MarkdownEditor } from '@/components/markdown-editor'
-import { postJson } from '@/lib/api'
+import { postJson, saveDraft } from '@/lib/api'
 import { authAtom } from '@/store/auth'
+import { appendSignature, signatureAtom, signatureEnabledAtom } from '@/store/settings'
+
+export type ReplyMode = 'reply' | 'reply-all' | 'forward'
 
 type SendResult = { success: boolean; message?: string }
 
+const MODE_LABELS: Record<ReplyMode, string> = {
+  reply: 'Reply',
+  'reply-all': 'Reply All',
+  forward: 'Forward',
+}
+
+function buildForwardBody(
+  originalFrom: string,
+  originalDate: string,
+  originalSubject: string,
+  originalBody: string,
+): string {
+  return `\n\n---------- Forwarded message ----------\nFrom: ${originalFrom}\nDate: ${originalDate}\nSubject: ${originalSubject}\n\n${originalBody}`
+}
+
 export function ReplyBox({
+  threadId,
   lastMessageId,
-  recipients,
+  replyRecipients,
+  replyAllRecipients,
   subject,
+  originalFrom,
+  originalDate,
+  originalBody,
   onSent,
+  mode,
+  onModeChange,
 }: {
   threadId: string
   lastMessageId: string
-  recipients: string
+  replyRecipients: string
+  replyAllRecipients: string
   subject: string
+  originalFrom: string
+  originalDate: string
+  originalBody: string
   onSent: () => void
+  mode: ReplyMode
+  onModeChange: (mode: ReplyMode) => void
 }) {
   const auth = useAtomValue(authAtom)
+  const signature = useAtomValue(signatureAtom)
+  const signatureEnabled = useAtomValue(signatureEnabledAtom)
   const [body, setBody] = useState('')
+  const [forwardTo, setForwardTo] = useState('')
   const [sending, setSending] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
   const [error, setError] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleModeChange = (newMode: ReplyMode) => {
+    onModeChange(newMode)
+    // pre-fill body for forward mode
+    if (newMode === 'forward' && body === '') {
+      setBody(buildForwardBody(originalFrom, originalDate, subject, originalBody))
+    } else if (newMode !== 'forward') {
+      // clear forward pre-fill if user switches away and body is only the template
+      const forwardTemplate = buildForwardBody(originalFrom, originalDate, subject, originalBody)
+      if (body === forwardTemplate) {
+        setBody('')
+      }
+    }
+  }
 
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const resolveRecipients = (): string[] => {
+    if (mode === 'reply') {
+      return replyRecipients
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    }
+    if (mode === 'reply-all') {
+      return replyAllRecipients
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    }
+    // forward
+    return forwardTo
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+
+  const resolveSubject = (): string => {
+    if (mode === 'forward') {
+      return subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`
+    }
+    return subject.startsWith('Re:') ? subject : `Re: ${subject}`
+  }
+
   const send = async () => {
+    const to = resolveRecipients()
+    if (mode === 'forward' && to.length === 0) {
+      setError('Please enter at least one recipient')
+      return
+    }
     if (!body.trim() && files.length === 0) return
     setError('')
     setSending(true)
 
-    try {
-      const to = recipients
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
+    const resolvedSubject = resolveSubject()
+    const bodyWithSig = appendSignature(body, signature, signatureEnabled)
+    // forward is not a reply — omit in_reply_to
+    const inReplyTo = mode === 'forward' ? undefined : lastMessageId
 
+    try {
       if (files.length > 0) {
         const formData = new FormData()
         formData.append('from', auth?.address ?? '')
-        formData.append('subject', subject.startsWith('Re:') ? subject : `Re: ${subject}`)
-        formData.append('body', body)
-        formData.append('in_reply_to', lastMessageId)
+        formData.append('subject', resolvedSubject)
+        formData.append('body', bodyWithSig)
+        if (inReplyTo) formData.append('in_reply_to', inReplyTo)
         for (const r of to) formData.append('to', r)
         for (const f of files) formData.append('attachments', f)
 
@@ -57,37 +140,112 @@ export function ReplyBox({
         })
         const result: SendResult = await res.json()
         if (!result.success) {
-          setError(result.message ?? 'Send failed')
+          const msg = result.message ?? 'Send failed'
+          setError(msg)
+          toast.error(msg)
           return
         }
       } else {
-        const result = await postJson<SendResult>('/mail/send', {
+        const payload: Record<string, unknown> = {
           from: auth?.address ?? '',
           to,
           cc: [],
           bcc: [],
-          subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
-          body,
-          in_reply_to: lastMessageId,
-        })
+          subject: resolvedSubject,
+          body: bodyWithSig,
+        }
+        if (inReplyTo) payload['in_reply_to'] = inReplyTo
+
+        const result = await postJson<SendResult>('/mail/send', payload)
         if (!result.success) {
-          setError(result.message ?? 'Send failed')
+          const msg = result.message ?? 'Send failed'
+          setError(msg)
+          toast.error(msg)
           return
         }
       }
 
       setBody('')
+      setForwardTo('')
       setFiles([])
+      toast.success(mode === 'forward' ? 'Forwarded' : 'Reply sent')
       onSent()
-    } catch {
-      setError('Network error')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Network error'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSending(false)
     }
   }
 
+  const handleSaveDraft = async () => {
+    if (!body.trim()) return
+    setSavingDraft(true)
+    try {
+      const to = resolveRecipients().join(', ')
+      const resolvedSubject = resolveSubject()
+      const bodyWithSig = appendSignature(body, signature, signatureEnabled)
+      const result = await saveDraft({
+        to,
+        subject: resolvedSubject,
+        body: bodyWithSig,
+        reply_to_thread_id: threadId,
+      })
+      if (result.success) {
+        toast.success('Draft saved')
+      } else {
+        toast.error(result.message ?? 'Failed to save draft')
+      }
+    } catch {
+      toast.error('Failed to save draft')
+    } finally {
+      setSavingDraft(false)
+    }
+  }
+
+  const placeholder =
+    mode === 'forward'
+      ? 'Add a message... (Markdown supported)'
+      : 'Type a reply... (Markdown supported)'
+
   return (
     <div className="border-t border-zinc-200 dark:border-zinc-800">
+      {/* mode toggle */}
+      <div className="flex items-center gap-1 px-3 pt-2">
+        {(Object.keys(MODE_LABELS) as ReplyMode[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => handleModeChange(m)}
+            className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
+              mode === m
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300'
+            }`}
+          >
+            {MODE_LABELS[m]}
+          </button>
+        ))}
+        {/* recipient preview for reply/reply-all */}
+        {mode !== 'forward' && (
+          <span className="ml-1 truncate text-xs text-zinc-400" title={mode === 'reply' ? replyRecipients : replyAllRecipients}>
+            to {mode === 'reply' ? replyRecipients : replyAllRecipients}
+          </span>
+        )}
+      </div>
+
+      {/* forward: to field */}
+      {mode === 'forward' && (
+        <div className="px-3 pt-1.5">
+          <ContactAutocomplete
+            value={forwardTo}
+            onChange={setForwardTo}
+            placeholder="To: recipient@example.com, ..."
+            className="w-full rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-sm text-zinc-800 placeholder-zinc-400 outline-none focus:border-blue-400 dark:border-zinc-700 dark:text-zinc-200"
+          />
+        </div>
+      )}
+
       {error && (
         <div className="mx-4 mt-2 rounded-md bg-red-50 px-3 py-1.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
           {error}
@@ -137,6 +295,7 @@ export function ReplyBox({
           ref={fileInputRef}
           type="file"
           multiple
+          aria-label="Attach files"
           className="hidden"
           onChange={(e) => {
             const selected = Array.from(e.target.files ?? [])
@@ -155,10 +314,19 @@ export function ReplyBox({
             value={body}
             onChange={setBody}
             onSubmit={send}
-            placeholder="Type a message... (Markdown supported)"
+            placeholder={placeholder}
             disabled={sending}
           />
         </div>
+
+        <button
+          onClick={handleSaveDraft}
+          disabled={savingDraft || !body.trim()}
+          className="flex h-8 shrink-0 items-center justify-center rounded-md px-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          title="Save draft"
+        >
+          {savingDraft ? 'Saving...' : 'Draft'}
+        </button>
 
         <button
           onClick={send}

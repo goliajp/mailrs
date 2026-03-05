@@ -128,6 +128,7 @@ function AttachmentItem({
         <img
           src={url}
           alt={att.filename}
+          loading="lazy"
           className="h-10 w-10 rounded object-cover"
         />
       ) : (

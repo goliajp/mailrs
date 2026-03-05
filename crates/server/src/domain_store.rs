@@ -1,8 +1,13 @@
+use std::time::Instant;
+
 use dashmap::DashMap;
 use serde::Serialize;
 use sqlx::PgPool;
 
 use crate::health::HealthState;
+
+/// cache entries expire after 5 minutes
+const CACHE_TTL_SECS: u64 = 300;
 
 pub struct DomainStore {
     pg: Option<PgPool>,
@@ -16,6 +21,7 @@ pub struct DomainStore {
 struct CachedAccount {
     account: Account,
     password_hash: String,
+    cached_at: Instant,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -32,6 +38,7 @@ pub struct Account {
     pub active: bool,
     pub created_at: i64,
     pub quota_bytes: i64,
+    pub super_domains: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -89,6 +96,19 @@ impl DomainStore {
         }
     }
 
+    /// number of entries in the in-process account cache
+    pub fn cache_size(&self) -> usize {
+        self.account_cache.len()
+    }
+
+    /// evict expired entries from the in-process cache
+    pub fn evict_expired(&self) -> usize {
+        let before = self.account_cache.len();
+        self.account_cache
+            .retain(|_, v| v.cached_at.elapsed().as_secs() < CACHE_TTL_SECS);
+        before - self.account_cache.len()
+    }
+
     fn pg(&self) -> Result<&PgPool> {
         match (&self.pg, self.health.pg_up()) {
             (Some(pool), true) => Ok(pool),
@@ -103,17 +123,25 @@ impl DomainStore {
     /// preload all accounts into process cache for L3 degradation
     pub async fn preload_accounts(&self) {
         let Ok(pool) = self.pg() else { return };
-        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String)>(
+        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String, String)>(
             "SELECT address, domain, display_name, active, \
-             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash \
+             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, super_domains \
              FROM accounts",
         )
         .fetch_all(pool)
         .await;
 
         if let Ok(rows) = rows {
-            for (address, domain, display_name, active, created_at, quota_bytes, password_hash) in
-                rows
+            for (
+                address,
+                domain,
+                display_name,
+                active,
+                created_at,
+                quota_bytes,
+                password_hash,
+                super_domains,
+            ) in rows
             {
                 let account = Account {
                     address: address.clone(),
@@ -122,12 +150,14 @@ impl DomainStore {
                     active,
                     created_at,
                     quota_bytes,
+                    super_domains,
                 };
                 self.account_cache.insert(
                     address,
                     CachedAccount {
                         account,
                         password_hash,
+                        cached_at: Instant::now(),
                     },
                 );
             }
@@ -195,12 +225,11 @@ impl DomainStore {
     pub async fn remove_domain(&self, name: &str) -> Result<bool> {
         let pool = self.pg()?;
         // collect affected accounts before cascade delete
-        let addresses: Vec<(String,)> = sqlx::query_as(
-            "SELECT address FROM accounts WHERE domain = $1",
-        )
-        .bind(name)
-        .fetch_all(pool)
-        .await?;
+        let addresses: Vec<(String,)> =
+            sqlx::query_as("SELECT address FROM accounts WHERE domain = $1")
+                .bind(name)
+                .fetch_all(pool)
+                .await?;
 
         // cascade deletes accounts, aliases via FK
         let res = sqlx::query("DELETE FROM domains WHERE name = $1")
@@ -224,9 +253,9 @@ impl DomainStore {
 
     pub async fn list_accounts(&self) -> Result<Vec<Account>> {
         let pool = self.pg()?;
-        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64)>(
+        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String)>(
             "SELECT address, domain, display_name, active, \
-             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes \
+             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, super_domains \
              FROM accounts ORDER BY address",
         )
         .fetch_all(pool)
@@ -235,13 +264,22 @@ impl DomainStore {
         Ok(rows
             .into_iter()
             .map(
-                |(address, domain, display_name, active, created_at, quota_bytes)| Account {
+                |(
                     address,
                     domain,
                     display_name,
                     active,
                     created_at,
                     quota_bytes,
+                    super_domains,
+                )| Account {
+                    address,
+                    domain,
+                    display_name,
+                    active,
+                    created_at,
+                    quota_bytes,
+                    super_domains,
                 },
             )
             .collect())
@@ -279,12 +317,14 @@ impl DomainStore {
             active,
             created_at: created_epoch,
             quota_bytes,
+            super_domains: String::new(),
         };
         self.account_cache.insert(
             address.to_string(),
             CachedAccount {
                 account,
                 password_hash: password_hash.to_string(),
+                cached_at: Instant::now(),
             },
         );
         self.valkey_del(&format!("acct:{address}")).await;
@@ -293,10 +333,7 @@ impl DomainStore {
         Ok(())
     }
 
-    pub async fn get_account_with_hash(
-        &self,
-        address: &str,
-    ) -> Result<Option<(Account, String)>> {
+    pub async fn get_account_with_hash(&self, address: &str) -> Result<Option<(Account, String)>> {
         // try valkey cache
         let cache_key = format!("acct:{address}");
         if let Some(cached) = self.valkey_get::<CachedAccount>(&cache_key).await {
@@ -305,16 +342,27 @@ impl DomainStore {
 
         // try PG
         if let Ok(pool) = self.pg() {
-            let row = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String)>(
-                "SELECT address, domain, display_name, active, \
-                 EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash \
+            let row =
+                sqlx::query_as::<_, (String, String, String, bool, i64, i64, String, String)>(
+                    "SELECT address, domain, display_name, active, \
+                 EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, super_domains \
                  FROM accounts WHERE address = $1",
-            )
-            .bind(address)
-            .fetch_optional(pool)
-            .await?;
+                )
+                .bind(address)
+                .fetch_optional(pool)
+                .await?;
 
-            if let Some((addr, domain, display_name, active, created_at, quota_bytes, hash)) = row {
+            if let Some((
+                addr,
+                domain,
+                display_name,
+                active,
+                created_at,
+                quota_bytes,
+                hash,
+                super_domains,
+            )) = row
+            {
                 let account = Account {
                     address: addr,
                     domain,
@@ -322,15 +370,16 @@ impl DomainStore {
                     active,
                     created_at,
                     quota_bytes,
+                    super_domains,
                 };
                 let cached = CachedAccount {
                     account: account.clone(),
                     password_hash: hash.clone(),
+                    cached_at: Instant::now(),
                 };
                 // backfill caches
                 self.valkey_set(&cache_key, &cached, 300).await;
-                self.account_cache
-                    .insert(address.to_string(), cached);
+                self.account_cache.insert(address.to_string(), cached);
                 return Ok(Some((account, hash)));
             }
             return Ok(None);
@@ -338,7 +387,11 @@ impl DomainStore {
 
         // L3 fallback: process cache
         if let Some(entry) = self.account_cache.get(address) {
-            return Ok(Some((entry.account.clone(), entry.password_hash.clone())));
+            if entry.cached_at.elapsed().as_secs() < CACHE_TTL_SECS {
+                return Ok(Some((entry.account.clone(), entry.password_hash.clone())));
+            }
+            drop(entry);
+            self.account_cache.remove(address);
         }
 
         Ok(None)
@@ -382,12 +435,11 @@ impl DomainStore {
 
     pub async fn get_sieve_script(&self, address: &str) -> Result<Option<String>> {
         let pool = self.pg()?;
-        let row = sqlx::query_as::<_, (String,)>(
-            "SELECT script FROM sieve_scripts WHERE address = $1",
-        )
-        .bind(address)
-        .fetch_optional(pool)
-        .await?;
+        let row =
+            sqlx::query_as::<_, (String,)>("SELECT script FROM sieve_scripts WHERE address = $1")
+                .bind(address)
+                .fetch_optional(pool)
+                .await?;
         Ok(row.map(|(s,)| s))
     }
 
@@ -470,12 +522,11 @@ impl DomainStore {
     pub async fn remove_alias(&self, id: i64) -> Result<bool> {
         let pool = self.pg()?;
         // get source_address before deleting for cache invalidation
-        let source = sqlx::query_as::<_, (String,)>(
-            "SELECT source_address FROM aliases WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let source =
+            sqlx::query_as::<_, (String,)>("SELECT source_address FROM aliases WHERE id = $1")
+                .bind(id)
+                .fetch_optional(pool)
+                .await?;
 
         let res = sqlx::query("DELETE FROM aliases WHERE id = $1")
             .bind(id)
@@ -620,9 +671,9 @@ struct CachedResolution {
 impl From<CachedResolution> for ResolvedRecipient {
     fn from(c: CachedResolution) -> Self {
         match c.kind.as_str() {
-            "account" => ResolvedRecipient::Account(
-                c.addresses.into_iter().next().unwrap_or_default(),
-            ),
+            "account" => {
+                ResolvedRecipient::Account(c.addresses.into_iter().next().unwrap_or_default())
+            }
             "forward" => ResolvedRecipient::Forward(c.addresses),
             _ => ResolvedRecipient::Reject,
         }
@@ -650,7 +701,10 @@ impl From<&ResolvedRecipient> for CachedResolution {
 
 // serde for CachedAccount (valkey)
 impl serde::Serialize for CachedAccount {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
         let mut s = serializer.serialize_struct("CachedAccount", 2)?;
         s.serialize_field("account", &self.account)?;
@@ -660,7 +714,9 @@ impl serde::Serialize for CachedAccount {
 }
 
 impl<'de> serde::Deserialize<'de> for CachedAccount {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
         #[derive(serde::Deserialize)]
         struct Helper {
             account: Account,
@@ -670,6 +726,7 @@ impl<'de> serde::Deserialize<'de> for CachedAccount {
         Ok(CachedAccount {
             account: h.account,
             password_hash: h.password_hash,
+            cached_at: Instant::now(),
         })
     }
 }
@@ -677,6 +734,302 @@ impl<'de> serde::Deserialize<'de> for CachedAccount {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
+
+    // helper to build an Account with sensible defaults
+    fn make_account(address: &str) -> Account {
+        Account {
+            address: address.to_string(),
+            domain: "example.com".to_string(),
+            display_name: "Test User".to_string(),
+            active: true,
+            created_at: 1700000000,
+            quota_bytes: 1_073_741_824,
+            super_domains: String::new(),
+        }
+    }
+
+    // helper to build a CachedAccount
+    fn make_cached(address: &str, hash: &str) -> CachedAccount {
+        CachedAccount {
+            account: make_account(address),
+            password_hash: hash.to_string(),
+            cached_at: Instant::now(),
+        }
+    }
+
+    // helper to build a DomainStore without PG/Valkey
+    fn make_store() -> DomainStore {
+        DomainStore::new(None, None, HealthState::new())
+    }
+
+    // --- CachedAccount serde ---
+
+    #[test]
+    fn cached_account_serde_roundtrip() {
+        let original = make_cached("alice@example.com", "$argon2id$hash");
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: CachedAccount = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.account.address, "alice@example.com");
+        assert_eq!(deserialized.password_hash, "$argon2id$hash");
+        // cached_at is reset to Instant::now() on deserialize, so just verify it exists
+        assert!(deserialized.cached_at.elapsed().as_secs() < 1);
+    }
+
+    #[test]
+    fn cached_account_serialized_fields() {
+        let cached = make_cached("bob@example.com", "secret_hash");
+        let json = serde_json::to_string(&cached).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        // should have exactly "account" and "password_hash" fields
+        assert!(parsed.get("account").is_some());
+        assert!(parsed.get("password_hash").is_some());
+        // should NOT serialize cached_at (Instant is not serializable directly)
+        assert!(parsed.get("cached_at").is_none());
+    }
+
+    #[test]
+    fn cached_account_clone_independence() {
+        let original = make_cached("clone@example.com", "hash1");
+        let cloned = original.clone();
+
+        assert_eq!(cloned.account.address, original.account.address);
+        assert_eq!(cloned.password_hash, original.password_hash);
+    }
+
+    // --- Account serde & defaults ---
+
+    #[test]
+    fn account_deserialize_with_super_domains_default() {
+        // super_domains is marked #[serde(default)] in the Deserialize impl
+        let json = r#"{
+            "address": "nosuper@example.com",
+            "domain": "example.com",
+            "display_name": "No Super",
+            "active": true,
+            "created_at": 1700000000,
+            "quota_bytes": 0
+        }"#;
+        let account: Account = serde_json::from_str(json).unwrap();
+        assert_eq!(account.super_domains, "");
+    }
+
+    #[test]
+    fn account_deserialize_with_super_domains_present() {
+        let json = r#"{
+            "address": "admin@example.com",
+            "domain": "example.com",
+            "display_name": "Admin",
+            "active": true,
+            "created_at": 1700000000,
+            "quota_bytes": 1073741824,
+            "super_domains": "example.com,other.com"
+        }"#;
+        let account: Account = serde_json::from_str(json).unwrap();
+        assert_eq!(account.super_domains, "example.com,other.com");
+    }
+
+    #[test]
+    fn account_serialize_all_fields() {
+        let account = Account {
+            address: "full@example.com".into(),
+            domain: "example.com".into(),
+            display_name: "Full Account".into(),
+            active: false,
+            created_at: 1234567890,
+            quota_bytes: 500_000_000,
+            super_domains: "a.com".into(),
+        };
+        let json = serde_json::to_string(&account).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed["address"], "full@example.com");
+        assert_eq!(parsed["domain"], "example.com");
+        assert_eq!(parsed["display_name"], "Full Account");
+        assert_eq!(parsed["active"], false);
+        assert_eq!(parsed["created_at"], 1234567890);
+        assert_eq!(parsed["quota_bytes"], 500_000_000);
+        assert_eq!(parsed["super_domains"], "a.com");
+    }
+
+    #[test]
+    fn account_serde_roundtrip() {
+        let original = make_account("roundtrip@example.com");
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: Account = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.address, original.address);
+        assert_eq!(deserialized.domain, original.domain);
+        assert_eq!(deserialized.display_name, original.display_name);
+        assert_eq!(deserialized.active, original.active);
+        assert_eq!(deserialized.created_at, original.created_at);
+        assert_eq!(deserialized.quota_bytes, original.quota_bytes);
+        assert_eq!(deserialized.super_domains, original.super_domains);
+    }
+
+    // --- DomainStore cache operations (no DB) ---
+
+    #[test]
+    fn store_empty_cache_size() {
+        let store = make_store();
+        assert_eq!(store.cache_size(), 0);
+    }
+
+    #[test]
+    fn store_cache_insert_and_size() {
+        let store = make_store();
+        store
+            .account_cache
+            .insert("a@example.com".into(), make_cached("a@example.com", "h1"));
+        store
+            .account_cache
+            .insert("b@example.com".into(), make_cached("b@example.com", "h2"));
+        assert_eq!(store.cache_size(), 2);
+    }
+
+    #[test]
+    fn store_evict_expired_none_expired() {
+        let store = make_store();
+        store
+            .account_cache
+            .insert("fresh@example.com".into(), make_cached("fresh@example.com", "h"));
+        let evicted = store.evict_expired();
+        assert_eq!(evicted, 0);
+        assert_eq!(store.cache_size(), 1);
+    }
+
+    #[test]
+    fn store_evict_expired_with_stale_entry() {
+        let store = make_store();
+
+        // insert a fresh entry
+        store.account_cache.insert(
+            "fresh@example.com".into(),
+            make_cached("fresh@example.com", "h1"),
+        );
+
+        // insert a stale entry with cached_at far in the past
+        let stale = CachedAccount {
+            account: make_account("stale@example.com"),
+            password_hash: "h2".into(),
+            cached_at: Instant::now() - Duration::from_secs(CACHE_TTL_SECS + 10),
+        };
+        store
+            .account_cache
+            .insert("stale@example.com".into(), stale);
+
+        assert_eq!(store.cache_size(), 2);
+        let evicted = store.evict_expired();
+        assert_eq!(evicted, 1);
+        assert_eq!(store.cache_size(), 1);
+        assert!(store.account_cache.contains_key("fresh@example.com"));
+        assert!(!store.account_cache.contains_key("stale@example.com"));
+    }
+
+    #[test]
+    fn store_evict_expired_all_stale() {
+        let store = make_store();
+        for i in 0..5 {
+            let addr = format!("user{i}@example.com");
+            let stale = CachedAccount {
+                account: make_account(&addr),
+                password_hash: "hash".into(),
+                cached_at: Instant::now() - Duration::from_secs(CACHE_TTL_SECS + 1),
+            };
+            store.account_cache.insert(addr, stale);
+        }
+        assert_eq!(store.cache_size(), 5);
+        let evicted = store.evict_expired();
+        assert_eq!(evicted, 5);
+        assert_eq!(store.cache_size(), 0);
+    }
+
+    #[test]
+    fn store_evict_expired_empty_cache() {
+        let store = make_store();
+        let evicted = store.evict_expired();
+        assert_eq!(evicted, 0);
+    }
+
+    // --- TTL boundary check ---
+
+    #[test]
+    fn ttl_boundary_not_yet_expired() {
+        let store = make_store();
+        // entry at exactly TTL - 1 second should survive
+        let entry = CachedAccount {
+            account: make_account("boundary@example.com"),
+            password_hash: "hash".into(),
+            cached_at: Instant::now() - Duration::from_secs(CACHE_TTL_SECS - 1),
+        };
+        store
+            .account_cache
+            .insert("boundary@example.com".into(), entry);
+        let evicted = store.evict_expired();
+        assert_eq!(evicted, 0);
+        assert_eq!(store.cache_size(), 1);
+    }
+
+    #[test]
+    fn ttl_boundary_just_expired() {
+        let store = make_store();
+        // entry at exactly TTL + 1 second should be evicted
+        let entry = CachedAccount {
+            account: make_account("expired@example.com"),
+            password_hash: "hash".into(),
+            cached_at: Instant::now() - Duration::from_secs(CACHE_TTL_SECS + 1),
+        };
+        store
+            .account_cache
+            .insert("expired@example.com".into(), entry);
+        let evicted = store.evict_expired();
+        assert_eq!(evicted, 1);
+        assert_eq!(store.cache_size(), 0);
+    }
+
+    // --- DomainStore.pg() returns Unavailable without PG ---
+
+    #[test]
+    fn store_pg_unavailable_without_pool() {
+        let store = make_store();
+        let result = store.pg();
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), StoreError::Unavailable));
+    }
+
+    // --- StoreError Display ---
+
+    #[test]
+    fn store_error_unavailable_display() {
+        let err = StoreError::Unavailable;
+        assert_eq!(format!("{err}"), "storage unavailable");
+    }
+
+    #[test]
+    fn store_error_pg_display() {
+        let pg_err = sqlx::Error::RowNotFound;
+        let err = StoreError::Pg(pg_err);
+        let msg = format!("{err}");
+        assert!(msg.starts_with("database error:"));
+    }
+
+    #[test]
+    fn store_error_from_sqlx() {
+        let pg_err = sqlx::Error::RowNotFound;
+        let err: StoreError = pg_err.into();
+        assert!(matches!(err, StoreError::Pg(_)));
+    }
+
+    // --- CACHE_TTL_SECS constant ---
+
+    #[test]
+    fn cache_ttl_is_five_minutes() {
+        assert_eq!(CACHE_TTL_SECS, 300);
+    }
+
+    // --- CachedResolution (existing tests below) ---
 
     #[test]
     fn cached_resolution_account_roundtrip() {
@@ -740,7 +1093,9 @@ mod tests {
 
 // Account needs Deserialize for valkey cache
 impl<'de> serde::Deserialize<'de> for Account {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
         #[derive(serde::Deserialize)]
         struct Helper {
             address: String,
@@ -749,6 +1104,8 @@ impl<'de> serde::Deserialize<'de> for Account {
             active: bool,
             created_at: i64,
             quota_bytes: i64,
+            #[serde(default)]
+            super_domains: String,
         }
         let h = Helper::deserialize(deserializer)?;
         Ok(Account {
@@ -758,6 +1115,7 @@ impl<'de> serde::Deserialize<'de> for Account {
             active: h.active,
             created_at: h.created_at,
             quota_bytes: h.quota_bytes,
+            super_domains: h.super_domains,
         })
     }
 }

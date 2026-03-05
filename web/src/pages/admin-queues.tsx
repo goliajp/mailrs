@@ -1,9 +1,14 @@
 import { useAtom } from 'jotai'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { fetchJson, postJson } from '@/lib/api'
 import type { QueueEntry } from '@/lib/types'
 import { queueAtom } from '@/store/admin'
+
+const PAGE_SIZE = 20
+
+const ALL_STATUSES = ['pending', 'inflight', 'delivered', 'failed', 'bounced'] as const
+type QueueStatus = (typeof ALL_STATUSES)[number]
 
 const statusStyles: Record<string, string> = {
   pending: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -15,8 +20,23 @@ const statusStyles: Record<string, string> = {
     'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 }
 
+const filterBaseStyle =
+  'rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
+const filterActiveStyle =
+  'ring-2 ring-offset-1 ring-zinc-400 dark:ring-zinc-500 dark:ring-offset-zinc-900'
+const filterAllStyle =
+  'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'
+
 export function AdminQueues() {
   const [queue, setQueue] = useAtom(queueAtom)
+  const [statusFilter, setStatusFilterRaw] = useState<QueueStatus | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+
+  // wrap setStatusFilter to also reset page
+  const setStatusFilter = useCallback((v: QueueStatus | null) => {
+    setStatusFilterRaw(v)
+    setCurrentPage(1)
+  }, [])
 
   const loadQueue = useCallback(async () => {
     try {
@@ -38,10 +58,42 @@ export function AdminQueues() {
     loadQueue()
   }
 
-  const counts = {
-    pending: queue.filter((q) => q.status === 'pending').length,
-    failed: queue.filter((q) => q.status === 'failed').length,
-    delivered: queue.filter((q) => q.status === 'delivered').length,
+  const counts = useMemo(() => {
+    const result: Record<string, number> = {}
+    for (const s of ALL_STATUSES) {
+      result[s] = 0
+    }
+    for (const entry of queue) {
+      if (entry.status in result) {
+        result[entry.status] += 1
+      }
+    }
+    return result
+  }, [queue])
+
+  const filtered = useMemo(
+    () =>
+      statusFilter
+        ? queue.filter((q) => q.status === statusFilter)
+        : queue,
+    [queue, statusFilter],
+  )
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+
+  // clamp current page if data shrinks
+  const safePage = Math.min(currentPage, totalPages)
+  if (safePage !== currentPage) {
+    setCurrentPage(safePage)
+  }
+
+  const pageItems = useMemo(
+    () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filtered, safePage],
+  )
+
+  const handleFilterClick = (status: QueueStatus) => {
+    setStatusFilter(statusFilter === status ? null : status)
   }
 
   return (
@@ -56,18 +108,26 @@ export function AdminQueues() {
         </button>
       </div>
 
-      <div className="mb-6 flex gap-4">
-        {Object.entries(counts).map(([status, count]) => (
-          <div
+      {/* status counts as clickable filter chips */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button
+          onClick={() => setStatusFilter(null)}
+          className={`${filterBaseStyle} ${filterAllStyle} ${statusFilter === null ? filterActiveStyle : ''}`}
+        >
+          All ({queue.length})
+        </button>
+        {ALL_STATUSES.map((status) => (
+          <button
             key={status}
-            className="rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-800"
+            onClick={() => handleFilterClick(status)}
+            className={`${filterBaseStyle} ${statusStyles[status]} ${statusFilter === status ? filterActiveStyle : ''}`}
           >
-            <div className="text-2xl font-semibold tabular-nums">{count}</div>
-            <div className="text-xs text-zinc-400 capitalize">{status}</div>
-          </div>
+            <span className="capitalize">{status}</span> ({counts[status]})
+          </button>
         ))}
       </div>
 
+      {/* table */}
       <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
@@ -82,7 +142,7 @@ export function AdminQueues() {
             </tr>
           </thead>
           <tbody>
-            {queue.map((item) => (
+            {pageItems.map((item) => (
               <tr
                 key={item.id}
                 className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/50"
@@ -113,16 +173,43 @@ export function AdminQueues() {
                 </td>
               </tr>
             ))}
-            {queue.length === 0 && (
+            {pageItems.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-zinc-400">
-                  Queue is empty
+                  {statusFilter
+                    ? `No ${statusFilter} entries`
+                    : 'Queue is empty'}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* pagination */}
+      {filtered.length > PAGE_SIZE && (
+        <div className="mt-4 flex items-center justify-between text-sm">
+          <span className="text-zinc-500">
+            {filtered.length} entries &middot; Page {safePage} / {totalPages}
+          </span>
+          <div className="flex gap-2">
+            <button
+              disabled={safePage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="rounded-md border border-zinc-200 px-3 py-1.5 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Previous
+            </button>
+            <button
+              disabled={safePage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="rounded-md border border-zinc-200 px-3 py-1.5 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

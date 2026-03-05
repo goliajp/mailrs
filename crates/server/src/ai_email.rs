@@ -24,7 +24,10 @@ impl GeminiConfig {
 
     /// model_version string stored in DB — includes prompt version
     pub fn model_version(&self) -> String {
-        format!("{}/{}/{}", self.analysis_model, self.embedding_model, PROMPT_VERSION)
+        format!(
+            "{}/{}/{}",
+            self.analysis_model, self.embedding_model, PROMPT_VERSION
+        )
     }
 }
 
@@ -121,7 +124,10 @@ pub async fn generate_embedding(config: &GeminiConfig, text: &str) -> Option<Vec
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        eprintln!("gemini embedding API error {status}: {}", &body[..body.len().min(200)]);
+        eprintln!(
+            "gemini embedding API error {status}: {}",
+            &body[..body.len().min(200)]
+        );
         return None;
     }
 
@@ -142,7 +148,10 @@ pub async fn generate_embedding(config: &GeminiConfig, text: &str) -> Option<Vec
     if embedding.len() == 768 {
         Some(embedding)
     } else {
-        eprintln!("gemini embedding bad dim: {} (expected 768)", embedding.len());
+        eprintln!(
+            "gemini embedding bad dim: {} (expected 768)",
+            embedding.len()
+        );
         None
     }
 }
@@ -241,7 +250,10 @@ JSON schema:
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        eprintln!("gemini analysis API error {status}: {}", &body[..body.len().min(200)]);
+        eprintln!(
+            "gemini analysis API error {status}: {}",
+            &body[..body.len().min(200)]
+        );
         return None;
     }
 

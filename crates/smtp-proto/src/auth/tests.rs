@@ -1,3 +1,4 @@
+use base64::Engine;
 use crate::auth::{decode_login_response, decode_plain, AuthError};
 
 // --- PLAIN decoding ---
@@ -76,4 +77,54 @@ fn decode_login_invalid_base64() {
         decode_login_response("not-valid!!!"),
         Err(AuthError::InvalidBase64)
     ));
+}
+
+// --- decode_plain additional edge cases ---
+
+#[test]
+fn decode_plain_only_one_null() {
+    // only one null separator — second null missing
+    let encoded = base64::engine::general_purpose::STANDARD
+        .encode("\0user");
+    assert!(matches!(
+        decode_plain(&encoded),
+        Err(AuthError::MalformedPayload)
+    ));
+}
+
+#[test]
+fn decode_plain_special_chars_in_password() {
+    // password contains special characters
+    let payload = format!("\0alice\0p@$$w0rd!");
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&payload);
+    let (user, pass) = decode_plain(&encoded).unwrap();
+    assert_eq!(user, "alice");
+    assert_eq!(pass, "p@$$w0rd!");
+}
+
+#[test]
+fn decode_plain_unicode_username() {
+    // utf-8 username
+    let payload = format!("\0用户\0密码");
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&payload);
+    let (user, pass) = decode_plain(&encoded).unwrap();
+    assert_eq!(user, "用户");
+    assert_eq!(pass, "密码");
+}
+
+// --- decode_login_response additional edge cases ---
+
+#[test]
+fn decode_login_empty_string_base64() {
+    // empty string encoded in base64
+    let encoded = base64::engine::general_purpose::STANDARD.encode("");
+    let result = decode_login_response(&encoded).unwrap();
+    assert_eq!(result, "");
+}
+
+#[test]
+fn decode_login_special_chars() {
+    let encoded = base64::engine::general_purpose::STANDARD.encode("p@$$w0rd!");
+    let result = decode_login_response(&encoded).unwrap();
+    assert_eq!(result, "p@$$w0rd!");
 }

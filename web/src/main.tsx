@@ -1,19 +1,20 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
+import { Toaster } from 'sonner'
 
 import { App } from '@/app'
 import '@/index.css'
+import { initTheme } from '@/lib/theme'
 
-// init dark mode from system preference
-if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-  document.documentElement.classList.add('dark')
-}
+// init dark mode from user preference or system preference, and listen for changes
+initTheme()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <App />
+      <Toaster position="top-right" richColors />
     </BrowserRouter>
   </StrictMode>
 )

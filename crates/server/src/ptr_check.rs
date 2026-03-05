@@ -14,7 +14,11 @@ pub fn ptr_score_from_names(names: &[String], ehlo_domain: &str) -> f64 {
         let name_str = name.trim_end_matches('.').to_lowercase();
         name_str == ehlo_lower || name_str.ends_with(&format!(".{ehlo_lower}"))
     });
-    if matches { 0.0 } else { 1.0 }
+    if matches {
+        0.0
+    } else {
+        1.0
+    }
 }
 
 /// check client PTR record and return a spam score contribution
@@ -27,10 +31,7 @@ pub async fn check_client_ptr(resolver: &TokioResolver, ip: IpAddr, ehlo_domain:
 
     match resolver.reverse_lookup(ip).await {
         Ok(names) => {
-            let name_strs: Vec<String> = names
-                .iter()
-                .map(|n| n.to_ascii())
-                .collect();
+            let name_strs: Vec<String> = names.iter().map(|n| n.to_ascii()).collect();
             ptr_score_from_names(&name_strs, ehlo_domain)
         }
         Err(_) => 1.5,
@@ -121,5 +122,48 @@ mod tests {
     fn trailing_dot_stripped() {
         let names = vec!["mail.example.com.".to_string()];
         assert_eq!(ptr_score_from_names(&names, "mail.example.com"), 0.0);
+    }
+
+    #[test]
+    fn ehlo_uppercase_ptr_lowercase() {
+        let names = vec!["mail.example.com".to_string()];
+        assert_eq!(ptr_score_from_names(&names, "MAIL.EXAMPLE.COM"), 0.0);
+    }
+
+    #[test]
+    fn partial_domain_no_false_positive() {
+        // "notexample.com" should NOT match ehlo "example.com"
+        let names = vec!["notexample.com".to_string()];
+        assert_eq!(ptr_score_from_names(&names, "example.com"), 1.0);
+    }
+
+    #[test]
+    fn multiple_names_none_match() {
+        let names = vec![
+            "foo.bar.net".to_string(),
+            "baz.qux.org".to_string(),
+        ];
+        assert_eq!(ptr_score_from_names(&names, "mail.example.com"), 1.0);
+    }
+
+    #[test]
+    fn deep_subdomain_matches() {
+        let names = vec!["a.b.c.example.com".to_string()];
+        assert_eq!(ptr_score_from_names(&names, "example.com"), 0.0);
+    }
+
+    #[test]
+    fn empty_ehlo_domain_no_match() {
+        let names = vec!["mail.example.com".to_string()];
+        assert_eq!(ptr_score_from_names(&names, ""), 1.0);
+    }
+
+    #[test]
+    fn trailing_dot_on_both() {
+        let names = vec!["mail.example.com.".to_string()];
+        // ehlo with trailing dot — ptr name stripped, but ehlo stays as-is
+        // "mail.example.com" != "mail.example.com." so no exact match
+        // also ".mail.example.com." won't match as suffix
+        assert_eq!(ptr_score_from_names(&names, "mail.example.com."), 1.0);
     }
 }

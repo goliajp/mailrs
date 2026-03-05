@@ -267,6 +267,91 @@ mod tests {
         assert_eq!(QueueStatus::Failed.as_str(), "failed");
         assert_eq!(QueueStatus::Bounced.as_str(), "bounced");
     }
+
+    #[test]
+    fn queue_status_parse_case_sensitive() {
+        // parse is case-sensitive — uppercase variants are not valid
+        assert_eq!(QueueStatus::parse("Pending"), None);
+        assert_eq!(QueueStatus::parse("InFlight"), None);
+        assert_eq!(QueueStatus::parse("DELIVERED"), None);
+        assert_eq!(QueueStatus::parse("Failed"), None);
+        assert_eq!(QueueStatus::parse("Bounced"), None);
+    }
+
+    #[test]
+    fn queue_status_parse_whitespace_rejected() {
+        assert_eq!(QueueStatus::parse(" pending"), None);
+        assert_eq!(QueueStatus::parse("pending "), None);
+        assert_eq!(QueueStatus::parse("  "), None);
+    }
+
+    #[test]
+    fn queue_status_eq() {
+        assert_eq!(QueueStatus::Pending, QueueStatus::Pending);
+        assert_ne!(QueueStatus::Pending, QueueStatus::Delivered);
+        assert_ne!(QueueStatus::Failed, QueueStatus::Bounced);
+    }
+
+    #[test]
+    fn queue_status_clone() {
+        let s = QueueStatus::InFlight;
+        let c = s.clone();
+        assert_eq!(s, c);
+    }
+
+    #[test]
+    fn queued_message_clone_preserves_fields() {
+        let msg = QueuedMessage {
+            id: 42,
+            sender: "s@example.com".into(),
+            recipient: "r@remote.com".into(),
+            domain: "remote.com".into(),
+            message_data: vec![1, 2, 3],
+            status: QueueStatus::Pending,
+            attempts: 3,
+            max_attempts: 8,
+            next_retry: 1_700_000_000,
+            last_error: Some("temporary failure".into()),
+            message_id: Some("msg-id-123".into()),
+            created_at: 1_699_000_000,
+            updated_at: 1_699_500_000,
+            is_forwarded: true,
+        };
+        let cloned = msg.clone();
+        assert_eq!(cloned.id, 42);
+        assert_eq!(cloned.sender, "s@example.com");
+        assert_eq!(cloned.recipient, "r@remote.com");
+        assert_eq!(cloned.domain, "remote.com");
+        assert_eq!(cloned.message_data, vec![1, 2, 3]);
+        assert_eq!(cloned.attempts, 3);
+        assert_eq!(cloned.max_attempts, 8);
+        assert_eq!(cloned.next_retry, 1_700_000_000);
+        assert_eq!(cloned.last_error, Some("temporary failure".into()));
+        assert_eq!(cloned.message_id, Some("msg-id-123".into()));
+        assert!(cloned.is_forwarded);
+    }
+
+    #[test]
+    fn queued_message_no_last_error() {
+        let msg = QueuedMessage {
+            id: 1,
+            sender: "s@example.com".into(),
+            recipient: "r@remote.com".into(),
+            domain: "remote.com".into(),
+            message_data: vec![],
+            status: QueueStatus::Pending,
+            attempts: 0,
+            max_attempts: 8,
+            next_retry: 0,
+            last_error: None,
+            message_id: None,
+            created_at: 0,
+            updated_at: 0,
+            is_forwarded: false,
+        };
+        assert!(msg.last_error.is_none());
+        assert!(msg.message_id.is_none());
+    }
 }
 
 /// list recent queue entries for admin UI
