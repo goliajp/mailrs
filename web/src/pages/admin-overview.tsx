@@ -57,7 +57,7 @@ export function AdminOverview() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetchJson<HealthInfo>('/admin/health').then(setHealth, () => setError('Failed to load health'))
+    fetchJson<HealthInfo>('/health').then(setHealth, () => setError('Failed to load health'))
     fetchJson<SmtpConfig>('/admin/config/smtp').then(setSmtp, () => {})
   }, [])
 
