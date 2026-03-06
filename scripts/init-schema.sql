@@ -60,6 +60,9 @@ CREATE TABLE messages (
     in_reply_to TEXT NOT NULL DEFAULT '',
     thread_id TEXT NOT NULL DEFAULT '',
     modseq BIGINT NOT NULL DEFAULT 0,
+    pinned BOOLEAN NOT NULL DEFAULT false,
+    archived BOOLEAN NOT NULL DEFAULT false,
+    text_body TEXT,
     UNIQUE(mailbox_id, uid)
 );
 CREATE INDEX idx_messages_date ON messages(mailbox_id, date_epoch DESC);
