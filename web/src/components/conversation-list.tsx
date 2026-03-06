@@ -15,6 +15,7 @@ import {
   categoryFilterAtom,
   composingNewAtom,
   conversationsAtom,
+  crossAccountReadAtom,
   hasMoreAtom,
   initialLoadingAtom,
   loadingMoreAtom,
@@ -204,6 +205,7 @@ const ConversationItem = memo(function ConversationItem({
 function DomainSelector() {
   const auth = useAtomValue(authAtom)
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
+  const [crossAccountRead, setCrossAccountRead] = useAtom(crossAccountReadAtom)
 
   const superDomains = auth?.super_domains ?? []
   if (superDomains.length === 0) return null
@@ -255,6 +257,17 @@ function DomainSelector() {
           {domain}
         </button>
       ))}
+      {selectedDomains.length > 0 && (
+        <label className="ml-auto flex shrink-0 cursor-pointer items-center gap-1 text-xs text-zinc-500">
+          <input
+            type="checkbox"
+            checked={crossAccountRead}
+            onChange={(e) => setCrossAccountRead(e.target.checked)}
+            className="h-3 w-3 rounded border-zinc-300 accent-blue-500"
+          />
+          Cross-read
+        </label>
+      )}
     </div>
   )
 }

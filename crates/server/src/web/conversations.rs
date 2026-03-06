@@ -295,6 +295,7 @@ pub(super) async fn get_thread_messages(
 
 pub(super) async fn mark_thread_read(
     Path(thread_id): Path<String>,
+    Query(dq): Query<DomainsQuery>,
     AuthUser(user): AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -312,7 +313,12 @@ pub(super) async fn mark_thread_read(
         });
     };
 
-    match mb_store.mark_thread_read(&user, &thread_id).await {
+    let domains = validate_domains(dq.domains.as_deref(), &user, &state);
+
+    match mb_store
+        .mark_thread_read(&user, &thread_id, domains.as_deref())
+        .await
+    {
         Ok(count) => Json(ApiResult {
             success: true,
             message: Some(format!("{count} messages marked as read")),
@@ -696,7 +702,7 @@ pub(super) async fn batch_conversations(
     match req.action {
         BatchAction::Read => {
             for thread_id in &req.thread_ids {
-                match mb_store.mark_thread_read(&user, thread_id).await {
+                match mb_store.mark_thread_read(&user, thread_id, None).await {
                     Ok(_) => processed += 1,
                     Err(_) => failed += 1,
                 }
