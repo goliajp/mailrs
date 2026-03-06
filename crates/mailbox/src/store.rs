@@ -819,27 +819,55 @@ impl MailboxStore {
     }
 
     /// mark all messages in a thread as read
+    /// when `domains` is provided, marks read across all accounts in those domains
     pub async fn mark_thread_read(
         &self,
         user: &str,
         thread_id: &str,
+        domains: Option<&[String]>,
     ) -> Result<u32, sqlx::Error> {
+        // determine user filter and param count
+        let (user_filter, extra_params) =
+            if let Some(doms) = domains.filter(|d| !d.is_empty()) {
+                let placeholders: Vec<String> = doms
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| format!("${}", i + 3))
+                    .collect();
+                (
+                    format!(
+                        "user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
+                        placeholders.join(",")
+                    ),
+                    doms.len(),
+                )
+            } else {
+                ("user_address = $3".to_string(), 1usize)
+            };
+        let modseq_idx = 3 + extra_params;
+
         // bump highest_modseq for all affected mailboxes
-        sqlx::query(
+        let bump_sql = format!(
             "UPDATE mailboxes SET highest_modseq = highest_modseq + 1
              WHERE id IN (
                 SELECT DISTINCT mailbox_id FROM messages
                 WHERE thread_id = $1 AND (flags & $2) = 0
-                  AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $3)
-             )",
-        )
-        .bind(thread_id)
-        .bind(FLAG_SEEN as i32)
-        .bind(user)
-        .execute(&self.pool)
-        .await?;
+                  AND mailbox_id IN (SELECT id FROM mailboxes WHERE {user_filter})
+             )"
+        );
+        let mut q = sqlx::query(&bump_sql)
+            .bind(thread_id)
+            .bind(FLAG_SEEN as i32);
+        if let Some(doms) = domains.filter(|d| !d.is_empty()) {
+            for d in doms {
+                q = q.bind(d);
+            }
+        } else {
+            q = q.bind(user);
+        }
+        q.execute(&self.pool).await?;
 
-        // get the new modseq value (max across affected mailboxes)
+        // get new modseq (use user's own mailbox modseq as baseline)
         let new_modseq: (i64,) = sqlx::query_as(
             "SELECT COALESCE(MAX(highest_modseq), 0) FROM mailboxes WHERE user_address = $1",
         )
@@ -847,17 +875,24 @@ impl MailboxStore {
         .fetch_one(&self.pool)
         .await?;
 
-        let result = sqlx::query(
-            "UPDATE messages SET flags = flags | $1, modseq = $4
+        // mark messages as read
+        let update_sql = format!(
+            "UPDATE messages SET flags = flags | $1, modseq = ${modseq_idx}
              WHERE thread_id = $2 AND (flags & $1) = 0
-               AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $3)",
-        )
-        .bind(FLAG_SEEN as i32)
-        .bind(thread_id)
-        .bind(user)
-        .bind(new_modseq.0)
-        .execute(&self.pool)
-        .await?;
+               AND mailbox_id IN (SELECT id FROM mailboxes WHERE {user_filter})"
+        );
+        let mut q = sqlx::query(&update_sql)
+            .bind(FLAG_SEEN as i32)
+            .bind(thread_id);
+        if let Some(doms) = domains.filter(|d| !d.is_empty()) {
+            for d in doms {
+                q = q.bind(d);
+            }
+        } else {
+            q = q.bind(user);
+        }
+        q = q.bind(new_modseq.0);
+        let result = q.execute(&self.pool).await?;
 
         Ok(result.rows_affected() as u32)
     }

@@ -28,5 +28,8 @@ export const selectedThreadIdsAtom = atom<Set<string>>(new Set<string>())
 // archived view toggle
 export const showArchivedAtom = atom(false)
 
+// supermode: mark read across all domain accounts
+export const crossAccountReadAtom = atom(false)
+
 // keyboard shortcuts dialog
 export const shortcutsDialogOpenAtom = atom(false)

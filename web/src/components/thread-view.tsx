@@ -12,7 +12,7 @@ import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { getToken } from '@/store/auth'
 import { formatFullDate } from '@/lib/format'
 import type { ConversationSummary, ThreadMessage } from '@/lib/types'
-import { categoryFilterAtom, conversationsAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
+import { categoryFilterAtom, conversationsAtom, crossAccountReadAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
 import { authAtom } from '@/store/auth'
 
 // source message used as the forward origin (may differ from lastMsg)
@@ -43,6 +43,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const selectedDomains = useAtomValue(selectedDomainsAtom)
   const domainsRef = useRef(selectedDomains)
   domainsRef.current = selectedDomains
+  const crossAccountRead = useAtomValue(crossAccountReadAtom)
+  const crossAccountReadRef = useRef(crossAccountRead)
+  crossAccountReadRef.current = crossAccountRead
   const bottomRef = useRef<HTMLDivElement>(null)
   const replyBoxRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -74,7 +77,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         // auto-select last message
         if (data.length > 0) setSelectedMsgIdx(data.length - 1)
 
-        postJson(`/conversations/${encodeURIComponent(threadId)}/read`, {}).catch(
+        const crossAll = crossAccountReadRef.current
+        const readParam = crossAll && doms.length > 0
+          ? `?domains=${encodeURIComponent(doms.join(','))}`
+          : ''
+        postJson(`/conversations/${encodeURIComponent(threadId)}/read${readParam}`, {}).catch(
           () => {},
         )
         setIsRead(true)
@@ -145,7 +152,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const handleMarkRead = useCallback(async () => {
     if (!selectedId) return
     try {
-      await postJson(`/conversations/${encodeURIComponent(selectedId)}/read`, {})
+      const doms = domainsRef.current
+      const crossAll = crossAccountReadRef.current
+      const domainsParam = crossAll && doms.length > 0
+        ? `?domains=${encodeURIComponent(doms.join(','))}`
+        : ''
+      await postJson(`/conversations/${encodeURIComponent(selectedId)}/read${domainsParam}`, {})
       setIsRead(true)
       setConversations((prev) =>
         prev.map((c) =>
