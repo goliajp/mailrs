@@ -36,6 +36,8 @@ export function NewConversation() {
   const [polishing, setPolishing] = useState(false)
   const [error, setError] = useState('')
   const [templates, setTemplates] = useState<TemplateInfo[]>([])
+  const [files, setFiles] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const editorRef = useRef<Editor | null>(null)
 
   useEffect(() => {
@@ -85,7 +87,7 @@ export function NewConversation() {
     }
 
     const { text, html } = getEditorContent(editorRef.current)
-    if (!text.trim()) {
+    if (!text.trim() && files.length === 0) {
       setError('Message body is required')
       return
     }
@@ -97,16 +99,37 @@ export function NewConversation() {
       const ccList = cc.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
       const bccList = bcc.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
 
-      const result = await postJson<SendResult>('/mail/send', {
-        from: auth?.address ?? '',
-        to: recipients,
-        cc: ccList,
-        bcc: bccList,
-        subject,
-        body: text,
-        html_body: html,
-        in_reply_to: null,
-      })
+      let result: SendResult
+
+      if (files.length > 0) {
+        const formData = new FormData()
+        formData.append('from', auth?.address ?? '')
+        formData.append('subject', subject)
+        formData.append('body', text)
+        formData.append('html_body', html)
+        for (const r of recipients) formData.append('to', r)
+        for (const c of ccList) formData.append('cc', c)
+        for (const b of bccList) formData.append('bcc', b)
+        for (const f of files) formData.append('attachments', f)
+
+        const res = await fetch('/api/mail/send-multipart', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${auth?.token ?? ''}` },
+          body: formData,
+        })
+        result = await res.json()
+      } else {
+        result = await postJson<SendResult>('/mail/send', {
+          from: auth?.address ?? '',
+          to: recipients,
+          cc: ccList,
+          bcc: bccList,
+          subject,
+          body: text,
+          html_body: html,
+          in_reply_to: null,
+        })
+      }
 
       if (result.success) {
         toast.success('Message sent')
@@ -214,6 +237,29 @@ export function NewConversation() {
           minHeight="12rem"
           getEditorRef={setEditorRef}
         />
+
+        {files.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {files.map((f, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-1.5 rounded-md bg-zinc-100 px-2.5 py-1 text-xs dark:bg-zinc-800"
+              >
+                <svg className="h-3.5 w-3.5 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                </svg>
+                <span className="max-w-40 truncate text-zinc-700 dark:text-zinc-300">{f.name}</span>
+                <span className="text-zinc-400">({(f.size / 1024).toFixed(0)}KB)</span>
+                <button
+                  onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
+                  className="ml-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2 border-t border-zinc-200 p-4 dark:border-zinc-800">
@@ -224,6 +270,25 @@ export function NewConversation() {
         >
           {sending ? 'Sending...' : 'Send'}
         </button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="rounded-md bg-zinc-100 px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+          title="Attach files"
+        >
+          Attach
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          aria-label="Attach files"
+          className="hidden"
+          onChange={(e) => {
+            const selected = Array.from(e.target.files ?? [])
+            setFiles((prev) => [...prev, ...selected])
+            e.target.value = ''
+          }}
+        />
         <button
           onClick={polish}
           disabled={polishing || sending}
