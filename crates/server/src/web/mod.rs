@@ -15,10 +15,12 @@ use crate::inbound::auth_guard::AuthGuard;
 use mailrs_mailbox::MailboxStore;
 
 mod admin;
+mod ai_assist;
 mod auth;
 mod autodiscover;
 mod conversations;
 mod mail;
+mod templates;
 pub(crate) mod rate_limit;
 mod request_id;
 mod ws;
@@ -560,12 +562,38 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             "/api/mail/messages/{uid}/attachments/{index}",
             get(mail::get_attachment),
         )
+        // attachment content (OCR/PDF text)
+        .route(
+            "/api/mail/messages/{uid}/attachments/{index}/content",
+            get(mail::get_attachment_content),
+        )
+        // inline image upload/serve
+        .route(
+            "/api/mail/inline-upload",
+            post(mail::upload_inline_image),
+        )
+        .route(
+            "/api/mail/inline/{id}",
+            get(mail::serve_inline_image),
+        )
         // drafts API
         .route(
             "/api/mail/drafts",
             post(mail::save_draft).get(mail::list_drafts),
         )
         .route("/api/mail/drafts/{id}", delete(mail::delete_draft))
+        // templates API
+        .route(
+            "/api/mail/templates",
+            post(templates::save_template).get(templates::list_templates),
+        )
+        .route(
+            "/api/mail/templates/{id}",
+            delete(templates::delete_template),
+        )
+        // AI assist
+        .route("/api/mail/ai/polish", post(ai_assist::ai_polish))
+        .route("/api/mail/ai/reply-suggest", post(ai_assist::ai_reply_suggest))
         // conversations API
         .route("/api/conversations", get(conversations::get_conversations))
         .route(

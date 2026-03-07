@@ -1225,7 +1225,9 @@ impl MailboxStore {
                     BOOL_OR(m.archived)
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {user_filter} AND thread_id != ''
-               AND (m.subject ILIKE ${pattern_idx} OR m.sender ILIKE ${pattern_idx})
+               AND (m.subject ILIKE ${pattern_idx} OR m.sender ILIKE ${pattern_idx}
+                    OR m.text_body ILIKE ${pattern_idx}
+                    OR EXISTS (SELECT 1 FROM attachment_content ac WHERE ac.message_id = m.id AND ac.extracted_text ILIKE ${pattern_idx}))
                {category_filter}
              GROUP BY m.thread_id HAVING BOOL_OR(m.archived) = false
              ORDER BY MAX(m.internal_date) DESC LIMIT ${limit_idx}"
@@ -1646,6 +1648,29 @@ fn read_raw_from_maildir(maildir_root: &str, user: &str, maildir_id: &str) -> Op
 
     find_in(md.scan_cur().unwrap_or_default())
         .or_else(|| find_in(md.scan_new().unwrap_or_default()))
+}
+
+impl MailboxStore {
+    /// get concatenated extracted text from all attachments of a message
+    pub async fn get_attachment_texts(&self, message_id: i64) -> Result<String, sqlx::Error> {
+        let rows = sqlx::query_as::<_, (String,)>(
+            "SELECT COALESCE(extracted_text, '')
+             FROM attachment_content
+             WHERE message_id = $1 AND attachment_index >= 0 AND extracted_text != ''
+             ORDER BY attachment_index",
+        )
+        .bind(message_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let combined: String = rows
+            .into_iter()
+            .map(|r| r.0)
+            .collect::<Vec<_>>()
+            .join("\n---\n");
+
+        Ok(combined)
+    }
 }
 
 #[cfg(test)]
