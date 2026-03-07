@@ -328,14 +328,25 @@ export function ReplyBox({
         </div>
       )}
 
-      <div className="flex items-end gap-2 p-3">
+      {/* editor */}
+      <div className="px-3 pt-2">
+        <RichEditor
+          onSubmit={send}
+          placeholder={placeholder}
+          disabled={sending}
+          getEditorRef={setEditorRef}
+        />
+      </div>
+
+      {/* action bar */}
+      <div className="flex items-center gap-1 px-3 pb-2 pt-1.5">
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
           title="Attach file"
         >
           <svg
-            className="h-5 w-5"
+            className="h-4 w-4"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -361,20 +372,11 @@ export function ReplyBox({
           }}
         />
 
-        <div className="flex-1">
-          <RichEditor
-            onSubmit={send}
-            placeholder={placeholder}
-            disabled={sending}
-            getEditorRef={setEditorRef}
-          />
-        </div>
-
         {mode !== 'forward' && (
           <button
             onClick={suggest}
             disabled={suggesting}
-            className="flex h-8 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-900/30 dark:hover:text-purple-300"
+            className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-900/30 dark:hover:text-purple-300"
             title="AI reply suggestions"
           >
             {suggesting ? '...' : 'Suggest'}
@@ -383,7 +385,7 @@ export function ReplyBox({
         <button
           onClick={polish}
           disabled={polishing}
-          className="flex h-8 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-900/30 dark:hover:text-purple-300"
+          className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-900/30 dark:hover:text-purple-300"
           title="AI polish text"
         >
           {polishing ? '...' : 'Polish'}
@@ -391,21 +393,24 @@ export function ReplyBox({
         <button
           onClick={handleSaveDraft}
           disabled={savingDraft}
-          className="flex h-8 shrink-0 items-center justify-center rounded-md px-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           title="Save draft"
         >
           {savingDraft ? 'Saving...' : 'Draft'}
         </button>
 
+        <div className="flex-1" />
+
         <button
           onClick={send}
           disabled={sending}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white transition-colors hover:bg-blue-600 disabled:opacity-40"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full bg-blue-500 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-40"
           title="Send (Ctrl+Enter)"
         >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
           </svg>
+          {sending ? 'Sending...' : 'Send'}
         </button>
       </div>
     </div>
