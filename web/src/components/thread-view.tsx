@@ -46,16 +46,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const crossAccountReadRef = useRef(crossAccountRead)
   crossAccountReadRef.current = crossAccountRead
   const bottomRef = useRef<HTMLDivElement>(null)
-  const replyBoxRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
-  const [expandedMsgs, setExpandedMsgs] = useState<Set<number>>(new Set())
+  const [selectedMsgIdx, setSelectedMsgIdx] = useState<number | null>(null)
   const [isRead, setIsRead] = useState(true)
   const [isFlagged, setIsFlagged] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [replyMode, setReplyMode] = useState<ReplyMode>('reply')
   const [forwardSource, setForwardSource] = useState<ForwardSource | null>(null)
   const [loadingThread, setLoadingThread] = useState(false)
-  const [showAnalysis, setShowAnalysis] = useState<number | null>(null)
 
   const loadMessages = useCallback(
     async (threadId: string) => {
@@ -73,18 +71,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         )
         if (controller.signal.aborted) return
         setMessages(data)
-        // auto-expand the last message
-        if (data.length > 0) {
-          setExpandedMsgs(new Set([data.length - 1]))
-        }
+        if (data.length > 0) setSelectedMsgIdx(data.length - 1)
 
         const crossAll = crossAccountReadRef.current
         const readParam = crossAll && doms.length > 0
           ? `?domains=${encodeURIComponent(doms.join(','))}`
           : ''
-        postJson(`/conversations/${encodeURIComponent(threadId)}/read${readParam}`, {}).catch(
-          () => {},
-        )
+        postJson(`/conversations/${encodeURIComponent(threadId)}/read${readParam}`, {}).catch(() => {})
         setIsRead(true)
 
         const sq = searchRef.current
@@ -95,9 +88,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         if (cat) path += `&category=${encodeURIComponent(cat)}`
         if (doms.length > 0) path += `&domains=${encodeURIComponent(doms.join(','))}`
         fetchJson<ConversationSummary[]>(path)
-          .then((convos) => {
-            if (!controller.signal.aborted) setConversations(convos)
-          })
+          .then((convos) => { if (!controller.signal.aborted) setConversations(convos) })
           .catch(() => {})
       } catch (err) {
         if (!controller.signal.aborted) {
@@ -121,9 +112,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     try {
       const convos = await fetchJson<ConversationSummary[]>(path)
       setConversations(convos)
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }, [setConversations])
 
   const handleMarkUnread = useCallback(async () => {
@@ -131,15 +120,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     try {
       await postJson(`/conversations/${encodeURIComponent(selectedId)}/unread`, {})
       setIsRead(false)
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.thread_id === selectedId ? { ...c, unread_count: c.unread_count + 1 } : c,
-        ),
-      )
+      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, unread_count: c.unread_count + 1 } : c))
       toast.success('Marked as unread')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
-    }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
   }, [selectedId, setConversations])
 
   const handleMarkRead = useCallback(async () => {
@@ -147,20 +130,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     try {
       const doms = domainsRef.current
       const crossAll = crossAccountReadRef.current
-      const domainsParam = crossAll && doms.length > 0
-        ? `?domains=${encodeURIComponent(doms.join(','))}`
-        : ''
+      const domainsParam = crossAll && doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
       await postJson(`/conversations/${encodeURIComponent(selectedId)}/read${domainsParam}`, {})
       setIsRead(true)
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.thread_id === selectedId ? { ...c, unread_count: 0 } : c,
-        ),
-      )
+      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, unread_count: 0 } : c))
       toast.success('Marked as read')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
-    }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
   }, [selectedId, setConversations])
 
   const handleStar = useCallback(async () => {
@@ -168,14 +143,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     try {
       await postJson(`/conversations/${encodeURIComponent(selectedId)}/star`, {})
       setIsFlagged(true)
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.thread_id === selectedId ? { ...c, flagged: true } : c,
-        ),
-      )
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
-    }
+      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, flagged: true } : c))
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
   }, [selectedId, setConversations])
 
   const handleUnstar = useCallback(async () => {
@@ -183,27 +152,21 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     try {
       await postJson(`/conversations/${encodeURIComponent(selectedId)}/unstar`, {})
       setIsFlagged(false)
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.thread_id === selectedId ? { ...c, flagged: false } : c,
-        ),
-      )
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
-    }
+      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, flagged: false } : c))
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
   }, [selectedId, setConversations])
 
   const handleDelete = useCallback(async () => {
     if (!selectedId) return
     try {
       await deleteJson(`/conversations/${encodeURIComponent(selectedId)}`)
-      toast.success('Conversation deleted')
+      toast.success('Deleted')
       setSelectedId(null)
       setMessages([])
       setShowDeleteConfirm(false)
       await refreshConversations()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete')
+      toast.error(err instanceof Error ? err.message : 'Failed')
       setShowDeleteConfirm(false)
     }
   }, [selectedId, setSelectedId, setMessages, refreshConversations])
@@ -211,11 +174,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const handlePrint = useCallback((msg: ThreadMessage) => {
     const w = window.open('', '_blank')
     if (!w) return
-    const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const body = msg.html_body
       ? msg.html_body
-      : `<pre style="white-space:pre-wrap;word-break:break-word;font-family:sans-serif;font-size:14px;line-height:1.6">${escHtml(msg.clean_text || msg.text_body || '(no content)')}</pre>`
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escHtml(msg.subject || '(no subject)')}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:2rem;max-width:800px;margin:0 auto;color:#1a1a1a}table{border-collapse:collapse;margin-bottom:1.5rem;width:100%}td{padding:4px 8px;vertical-align:top;font-size:14px}td:first-child{font-weight:600;white-space:nowrap;color:#555;width:80px}hr{border:none;border-top:1px solid #ddd;margin:1rem 0}.body{font-size:14px;line-height:1.6}img{max-width:100%}@media print{body{padding:0}}</style></head><body><table><tr><td>From</td><td>${escHtml(msg.sender)}</td></tr><tr><td>To</td><td>${escHtml(msg.recipients)}</td></tr><tr><td>Date</td><td>${escHtml(formatFullDate(msg.internal_date))}</td></tr><tr><td>Subject</td><td>${escHtml(msg.subject || '(no subject)')}</td></tr></table><hr><div class="body">${body}</div></body></html>`)
+      : `<pre style="white-space:pre-wrap;word-break:break-word;font-family:sans-serif;font-size:14px;line-height:1.6">${esc(msg.clean_text || msg.text_body || '')}</pre>`
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(msg.subject || '')}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:2rem;max-width:800px;margin:0 auto}table{border-collapse:collapse;width:100%;margin-bottom:1.5rem}td{padding:4px 8px;font-size:14px}td:first-child{font-weight:600;white-space:nowrap;color:#555;width:80px}hr{border:none;border-top:1px solid #ddd;margin:1rem 0}img{max-width:100%}@media print{body{padding:0}}</style></head><body><table><tr><td>From</td><td>${esc(msg.sender)}</td></tr><tr><td>To</td><td>${esc(msg.recipients)}</td></tr><tr><td>Date</td><td>${esc(formatFullDate(msg.internal_date))}</td></tr><tr><td>Subject</td><td>${esc(msg.subject || '')}</td></tr></table><hr><div>${body}</div></body></html>`)
     w.document.close()
     w.onload = () => w.print()
   }, [])
@@ -226,24 +189,18 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       const headers: Record<string, string> = {}
       if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch(`/api/mail/messages/${uid}/raw`, { headers })
-      if (!res.ok) {
-        toast.error('Failed to download .eml')
-        return
-      }
+      if (!res.ok) { toast.error('Download failed'); return }
       const blob = await res.blob()
       const safeName = subject.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u30ff _-]/g, '_').trim()
-      const filename = safeName ? `${safeName}.eml` : `message-${uid}.eml`
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = filename
+      a.download = safeName ? `${safeName}.eml` : `message-${uid}.eml`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-    } catch {
-      toast.error('Failed to download .eml')
-    }
+    } catch { toast.error('Download failed') }
   }, [])
 
   const handleForwardMsg = useCallback((msg: ThreadMessage) => {
@@ -255,27 +212,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       messageId: msg.message_id,
     })
     setReplyMode('forward')
-    requestAnimationFrame(() => {
-      replyBoxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-    })
-  }, [])
-
-  const toggleExpanded = useCallback((idx: number) => {
-    setExpandedMsgs((prev) => {
-      const next = new Set(prev)
-      if (next.has(idx)) {
-        next.delete(idx)
-      } else {
-        next.add(idx)
-      }
-      return next
-    })
   }, [])
 
   useEffect(() => {
     if (!selectedId) {
       setMessages([])
-      setExpandedMsgs(new Set())
+      setSelectedMsgIdx(null)
       setShowDeleteConfirm(false)
       setForwardSource(null)
       return
@@ -286,45 +228,29 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
     loadMessages(selectedId)
-    return () => {
-      abortRef.current?.abort()
-    }
+    return () => { abortRef.current?.abort() }
   }, [selectedId, loadMessages, setMessages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // empty state
   if (!selectedId) {
     return (
       <div className="flex flex-1 flex-col">
         {onBack && (
           <div className="flex items-center border-b border-zinc-200 px-4 py-3 dark:border-zinc-800 md:hidden">
-            <button
-              onClick={onBack}
-              className="flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-800 dark:hover:text-zinc-200"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
+            <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
               Back
             </button>
           </div>
         )}
         <div className="flex flex-1 items-center justify-center text-zinc-400">
           <div className="text-center">
-            <svg
-              className="mx-auto mb-3 h-12 w-12 text-zinc-300 dark:text-zinc-600"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
-              />
+            <svg className="mx-auto mb-3 h-12 w-12 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
             </svg>
             <p className="text-sm">Select a conversation</p>
           </div>
@@ -336,15 +262,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const subject = messages[0]?.subject ?? ''
   const lastMsg = messages[messages.length - 1]
   const myEmail = auth?.address ?? ''
+  const selectedMsg = selectedMsgIdx !== null ? messages[selectedMsgIdx] : null
 
   const replyRecipients = lastMsg ? extractEmail(lastMsg.sender) : ''
   const replyAllRecipients = lastMsg
     ? (() => {
         const senderEmail = extractEmail(lastMsg.sender)
-        const recipientEmails = lastMsg.recipients
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean)
+        const recipientEmails = lastMsg.recipients.split(',').map((s) => s.trim()).filter(Boolean)
         const all = new Set([senderEmail, ...recipientEmails])
         all.delete(myEmail)
         return [...all].join(', ')
@@ -353,7 +277,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   const lastMsgBody = lastMsg?.clean_text || lastMsg?.text_body || ''
   const lastMsgDate = lastMsg ? formatFullDate(lastMsg.internal_date) : ''
-
   const fwdOriginalFrom = forwardSource?.sender ?? lastMsg?.sender ?? ''
   const fwdOriginalDate = forwardSource?.date ?? lastMsgDate
   const fwdSubject = forwardSource?.subject ?? subject
@@ -362,321 +285,231 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* thread header bar */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800 md:px-6">
+      {/* header bar */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
         {onBack && (
-          <button
-            onClick={onBack}
-            className="shrink-0 rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 md:hidden"
-            title="Back to list"
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
+          <button onClick={onBack} className="shrink-0 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 md:hidden" title="Back">
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
           </button>
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              {subject || '(no subject)'}
-            </h2>
+            <h2 className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{subject || '(no subject)'}</h2>
             <CategoryBadge category={messages[0]?.category} />
+            <span className="text-xs text-zinc-400">{messages.length} message{messages.length !== 1 && 's'}</span>
           </div>
-          <p className="text-xs text-zinc-400">
-            {messages.length} message{messages.length !== 1 && 's'}
-          </p>
         </div>
-
-        {/* actions */}
         <div className="flex shrink-0 items-center gap-0.5">
-          <ActionButton
-            onClick={isRead ? handleMarkUnread : handleMarkRead}
-            title={isRead ? 'Mark unread' : 'Mark read'}
-          >
+          <HdrBtn onClick={isRead ? handleMarkUnread : handleMarkRead} title={isRead ? 'Mark unread' : 'Mark read'}>
             {isRead ? (
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51-4.66-2.51m0 0-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V8.844a2.25 2.25 0 011.183-1.981l7.5-4.039a2.25 2.25 0 012.134 0l7.5 4.039a2.25 2.25 0 011.183 1.98V19.5z" />
-              </svg>
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51-4.66-2.51m0 0-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V8.844a2.25 2.25 0 011.183-1.981l7.5-4.039a2.25 2.25 0 012.134 0l7.5 4.039a2.25 2.25 0 011.183 1.98V19.5z" /></svg>
             ) : (
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" />
-                <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" />
-              </svg>
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" /><path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" /></svg>
             )}
-          </ActionButton>
-          <ActionButton
-            onClick={isFlagged ? handleUnstar : handleStar}
-            title={isFlagged ? 'Unstar' : 'Star'}
-            className={isFlagged ? 'text-yellow-400 hover:text-yellow-500' : undefined}
-          >
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill={isFlagged ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-            </svg>
-          </ActionButton>
-          <ActionButton
-            onClick={() => setShowDeleteConfirm(true)}
-            title="Delete"
-            className="hover:text-red-500"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-            </svg>
-          </ActionButton>
-          <ActionButton
-            onClick={() => setSelectedId(null)}
-            title="Close"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </ActionButton>
+          </HdrBtn>
+          <HdrBtn onClick={isFlagged ? handleUnstar : handleStar} title={isFlagged ? 'Unstar' : 'Star'} className={isFlagged ? 'text-yellow-400 hover:text-yellow-500' : undefined}>
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill={isFlagged ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>
+          </HdrBtn>
+          <HdrBtn onClick={() => setShowDeleteConfirm(true)} title="Delete" className="hover:text-red-500">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+          </HdrBtn>
+          <HdrBtn onClick={() => setSelectedId(null)} title="Close">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </HdrBtn>
         </div>
       </div>
 
-      {/* delete confirmation */}
+      {/* delete dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true">
           <div className="mx-4 w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Delete conversation?</h3>
-            <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-              This will permanently delete all messages in this thread.
-            </p>
+            <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">This will permanently delete all messages.</p>
             <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
-              >
-                Delete
-              </button>
+              <button onClick={() => setShowDeleteConfirm(false)} className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800">Cancel</button>
+              <button onClick={handleDelete} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700">Delete</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* scrollable message area */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-4 py-4 md:px-8">
-          {/* loading skeleton */}
-          {loadingThread && messages.length === 0 && (
-            <div className="animate-pulse space-y-6">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-                    <div className="space-y-1.5">
-                      <div className="h-3 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-                      <div className="h-2.5 w-48 rounded bg-zinc-200 dark:bg-zinc-700" />
-                    </div>
+      {/* main content: two columns */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* column 1: raw email (current message) */}
+        <div className="flex w-1/2 flex-col overflow-hidden border-r border-zinc-200 dark:border-zinc-800">
+          {selectedMsg ? (
+            <>
+              {/* email header */}
+              <div className="shrink-0 border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  {selectedMsg.subject || '(no subject)'}
+                </h3>
+                <div className="mt-2 flex items-center gap-3">
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white ${avatarColor(selectedMsg.sender)}`}>
+                    {avatarInitial(selectedMsg.sender)}
                   </div>
-                  <div className="mt-3 space-y-2">
-                    <div className="h-3 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
-                    <div className="h-3 w-3/4 rounded bg-zinc-200 dark:bg-zinc-700" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{extractName(selectedMsg.sender)}</p>
+                    <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                      to {selectedMsg.recipients.slice(0, 80)} · {formatFullDate(selectedMsg.internal_date)}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    {selectedMsg.ai_analyzed && (
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        selectedMsg.risk_score >= 60
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          : selectedMsg.risk_score >= 40
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                            : selectedMsg.risk_score >= 15
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                              : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      }`}>
+                        {selectedMsg.risk_score >= 60 ? 'Dangerous' : selectedMsg.risk_score >= 40 ? 'Suspicious' : selectedMsg.risk_score >= 15 ? 'Caution' : 'Safe'}
+                        {selectedMsg.risk_score > 0 && ` ${selectedMsg.risk_score}`}
+                      </span>
+                    )}
+                    <SmBtn onClick={() => handleForwardMsg(selectedMsg)} title="Forward">
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" /></svg>
+                    </SmBtn>
+                    <SmBtn onClick={() => handlePrint(selectedMsg)} title="Print">
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18.25 7.28H5.75" /></svg>
+                    </SmBtn>
+                    <SmBtn onClick={() => handleDownloadEml(selectedMsg.uid, selectedMsg.subject)} title="Download .eml">
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                    </SmBtn>
                   </div>
                 </div>
-              ))}
+              </div>
+
+              {/* AI analysis */}
+              <AiAnalysisPanel message={selectedMsg} />
+
+              {/* email body */}
+              <div className="flex-1 overflow-y-auto">
+                {selectedMsg.html_body && (
+                  <div className="border-b border-zinc-200 dark:border-zinc-800">
+                    <MessageBubble uid={selectedMsg.uid} textBody={null} htmlBody={selectedMsg.html_body} attachments={[]} isOwn={false} />
+                  </div>
+                )}
+                {(selectedMsg.clean_text || selectedMsg.text_body || !selectedMsg.html_body) && (
+                  <div className="px-5 py-4">
+                    <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+                      {selectedMsg.clean_text || selectedMsg.text_body || '(no text content)'}
+                    </pre>
+                  </div>
+                )}
+                <AttachmentPreview attachments={selectedMsg.attachments} uid={selectedMsg.uid} />
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-zinc-400">
+              <p className="text-sm">Select a message to preview</p>
             </div>
           )}
-
-          {/* message cards */}
-          <div className="space-y-3">
-            {messages.map((msg, idx) => {
-              const senderEmail = extractEmail(msg.sender)
-              const isOwn = senderEmail === myEmail
-              const name = extractName(msg.sender)
-              const initial = avatarInitial(msg.sender)
-              const color = avatarColor(msg.sender)
-              const isExpanded = expandedMsgs.has(idx)
-              return (
-                <div
-                  key={msg.id}
-                  className={`group rounded-lg border transition-colors ${
-                    isExpanded
-                      ? 'border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900'
-                      : 'border-transparent hover:border-zinc-200 hover:bg-zinc-50 dark:hover:border-zinc-800 dark:hover:bg-zinc-900/50'
-                  }`}
-                >
-                  {/* message header — always visible, click to expand/collapse */}
-                  <button
-                    onClick={() => toggleExpanded(idx)}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left"
-                  >
-                    <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white ${color}`}
-                    >
-                      {initial}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                          {isOwn ? 'You' : name}
-                        </span>
-                        {!isExpanded && msg.category && <CategoryBadge category={msg.category} />}
-                        {msg.ai_analyzed && !isExpanded && msg.risk_score >= 40 && (
-                          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                            Risk {msg.risk_score}
-                          </span>
-                        )}
-                      </div>
-                      {isExpanded ? (
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                          to {msg.recipients.slice(0, 60)}{msg.recipients.length > 60 ? '...' : ''}
-                          {' · '}
-                          {formatFullDate(msg.internal_date)}
-                        </p>
-                      ) : (
-                        <p className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
-                          {msg.clean_text?.slice(0, 120) || msg.text_body?.slice(0, 120) || '(no content)'}
-                        </p>
-                      )}
-                    </div>
-                    <span className="shrink-0 text-xs text-zinc-400">
-                      {isExpanded ? '' : formatDate(msg.internal_date)}
-                    </span>
-                    {/* expand/collapse chevron */}
-                    <svg
-                      className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-
-                  {/* expanded content */}
-                  {isExpanded && (
-                    <div className="border-t border-zinc-100 dark:border-zinc-800">
-                      {/* action buttons */}
-                      <div className="flex items-center gap-1 px-4 py-1.5">
-                        <MsgActionButton onClick={() => handleForwardMsg(msg)} title="Forward">
-                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" />
-                          </svg>
-                        </MsgActionButton>
-                        <MsgActionButton onClick={() => handlePrint(msg)} title="Print">
-                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18.25 7.28H5.75" />
-                          </svg>
-                        </MsgActionButton>
-                        <MsgActionButton onClick={() => handleDownloadEml(msg.uid, msg.subject)} title="Download .eml">
-                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                          </svg>
-                        </MsgActionButton>
-                        {msg.ai_analyzed && (
-                          <MsgActionButton
-                            onClick={() => setShowAnalysis(showAnalysis === idx ? null : idx)}
-                            title="AI Analysis"
-                          >
-                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
-                            </svg>
-                          </MsgActionButton>
-                        )}
-                      </div>
-
-                      {/* AI analysis panel */}
-                      {showAnalysis === idx && <AiAnalysisPanel message={msg} />}
-
-                      {/* message body */}
-                      <div className="px-4 pb-4">
-                        <MessageBubble
-                          uid={msg.uid}
-                          textBody={msg.html_body ? null : (msg.clean_text || msg.text_body)}
-                          htmlBody={msg.html_body}
-                          attachments={[]}
-                          isOwn={isOwn}
-                        />
-                      </div>
-
-                      {/* attachments */}
-                      {msg.attachments.length > 0 && (
-                        <AttachmentPreview attachments={msg.attachments} uid={msg.uid} />
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-            <div ref={bottomRef} />
-          </div>
         </div>
-      </div>
 
-      {/* reply box — pinned to bottom, full width */}
-      <div ref={replyBoxRef} className="shrink-0 border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="mx-auto max-w-4xl">
-          <ReplyBox
-            threadId={selectedId}
-            lastMessageId={fwdLastMessageId}
-            replyRecipients={replyRecipients || extractEmail(messages[0]?.sender ?? '')}
-            replyAllRecipients={replyAllRecipients || extractEmail(messages[0]?.sender ?? '')}
-            subject={fwdSubject}
-            originalFrom={fwdOriginalFrom}
-            originalDate={fwdOriginalDate}
-            originalBody={fwdOriginalBody}
-            mode={replyMode}
-            onModeChange={(m) => {
-              setReplyMode(m)
-              if (m !== 'forward') setForwardSource(null)
-            }}
-            onSent={() => {
-              setForwardSource(null)
-              loadMessages(selectedId)
-            }}
-          />
+        {/* column 2: chat bubbles + reply editor */}
+        <div className="flex w-1/2 flex-col overflow-hidden">
+          {/* chat bubbles — scrollable, takes remaining space */}
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            {loadingThread && messages.length === 0 && (
+              <div className="animate-pulse space-y-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className={`flex gap-2 ${i % 2 === 0 ? '' : 'flex-row-reverse'}`}>
+                    <div className="h-7 w-7 shrink-0 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="h-10 w-2/3 rounded-2xl bg-zinc-200 dark:bg-zinc-700" />
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              {messages.map((msg, idx) => {
+                const senderEmail = extractEmail(msg.sender)
+                const isOwn = senderEmail === myEmail
+                const name = extractName(msg.sender)
+                const initial = avatarInitial(msg.sender)
+                const color = avatarColor(msg.sender)
+                const isSelected = selectedMsgIdx === idx
+                const snippet = msg.clean_text?.slice(0, 200) || msg.text_body?.slice(0, 200) || msg.subject || ''
+
+                return (
+                  <button
+                    key={msg.id}
+                    onClick={() => setSelectedMsgIdx(idx)}
+                    className={`flex gap-2 text-left ${isOwn ? 'flex-row-reverse' : ''}`}
+                  >
+                    {!isOwn && (
+                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white ${color}`}>
+                        {initial}
+                      </div>
+                    )}
+                    <div className={`max-w-[85%] ${isOwn ? 'items-end' : 'items-start'}`}>
+                      <div className={`rounded-2xl px-3 py-2 text-sm transition-colors ${
+                        isOwn
+                          ? isSelected
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-blue-500 text-white'
+                          : isSelected
+                            ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
+                            : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
+                      } ${isSelected ? 'ring-2 ring-blue-400/50' : ''}`}>
+                        {!isOwn && (
+                          <p className="mb-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{name}</p>
+                        )}
+                        <p className="line-clamp-3 text-[13px] leading-snug">{snippet}</p>
+                      </div>
+                      <p className={`mt-0.5 text-[10px] text-zinc-400 ${isOwn ? 'text-right' : ''}`}>
+                        {formatDate(msg.internal_date)}
+                        {msg.attachments.length > 0 && ' 📎'}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })}
+              <div ref={bottomRef} />
+            </div>
+          </div>
+
+          {/* reply editor — large, ~40% of the column height */}
+          <div className="flex h-[42%] shrink-0 flex-col border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+            <ReplyBox
+              threadId={selectedId}
+              lastMessageId={fwdLastMessageId}
+              replyRecipients={replyRecipients || extractEmail(messages[0]?.sender ?? '')}
+              replyAllRecipients={replyAllRecipients || extractEmail(messages[0]?.sender ?? '')}
+              subject={fwdSubject}
+              originalFrom={fwdOriginalFrom}
+              originalDate={fwdOriginalDate}
+              originalBody={fwdOriginalBody}
+              mode={replyMode}
+              onModeChange={(m) => {
+                setReplyMode(m)
+                if (m !== 'forward') setForwardSource(null)
+              }}
+              onSent={() => {
+                setForwardSource(null)
+                loadMessages(selectedId)
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-// small reusable button for header actions
-function ActionButton({
-  onClick,
-  title,
-  className,
-  children,
-}: {
-  onClick: () => void
-  title: string
-  className?: string
-  children: React.ReactNode
-}) {
+function HdrBtn({ onClick, title, className, children }: { onClick: () => void; title: string; className?: string; children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      className={`rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 ${className ?? ''}`}
-      title={title}
-    >
+    <button onClick={onClick} className={`rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 ${className ?? ''}`} title={title}>
       {children}
     </button>
   )
 }
 
-// small reusable button for per-message actions
-function MsgActionButton({
-  onClick,
-  title,
-  children,
-}: {
-  onClick: () => void
-  title: string
-  children: React.ReactNode
-}) {
+function SmBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-      title={title}
-    >
+    <button onClick={onClick} className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300" title={title}>
       {children}
     </button>
   )
