@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 
 import { formatSize } from '@/lib/format'
 import type { AttachmentInfo } from '@/lib/types'
+import { getToken } from '@/store/auth'
 
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'])
 
@@ -17,7 +18,8 @@ function isPdfAttachment(att: AttachmentInfo): boolean {
 }
 
 function attachmentUrl(uid: number, index: number): string {
-  return `/api/mail/messages/${uid}/attachments/${index}`
+  const token = getToken() ?? ''
+  return `/api/mail/messages/${uid}/attachments/${index}?token=${encodeURIComponent(token)}`
 }
 
 // pdf icon
