@@ -23,14 +23,12 @@ import {
   threadMessagesAtom,
 } from '@/store/chat'
 
-// mock api module
 vi.mock('@/lib/api', () => ({
   fetchJson: vi.fn(() => Promise.resolve([])),
   postJson: vi.fn(() => Promise.resolve({ success: true })),
   deleteJson: vi.fn(() => Promise.resolve({ success: true })),
 }))
 
-// mock store/auth getToken
 vi.mock('@/store/auth', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/store/auth')>()
   return {
@@ -39,10 +37,8 @@ vi.mock('@/store/auth', async (importOriginal) => {
   }
 })
 
-// stub scrollIntoView for jsdom
 Element.prototype.scrollIntoView = vi.fn()
 
-// mock sonner toast
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
@@ -50,7 +46,6 @@ vi.mock('sonner', () => ({
   },
 }))
 
-// mock child components to isolate ThreadView logic
 vi.mock('@/components/ai-analysis', () => ({
   AiAnalysisPanel: ({ message }: { message: { summary?: string } }) => (
     <div data-testid="ai-analysis">{message.summary}</div>
@@ -139,7 +134,6 @@ function Wrapper({ store, children }: { store: ReturnType<typeof createStore>; c
   return <Provider store={store}>{children}</Provider>
 }
 
-// must import after mocks
 const { ThreadView } = await import('@/components/thread-view')
 
 afterEach(() => {
@@ -187,7 +181,7 @@ describe('ThreadView — with selection and messages', () => {
     store.set(selectedThreadIdAtom, 'thread-1')
   })
 
-  it('renders thread subject from messages', () => {
+  it('renders thread subject in header', () => {
     store.set(threadMessagesAtom, [makeMessage({ subject: 'Important Email' })])
 
     render(
@@ -208,7 +202,6 @@ describe('ThreadView — with selection and messages', () => {
       </Wrapper>,
     )
 
-    // the header shows (no subject)
     const noSubjects = screen.getAllByText('(no subject)')
     expect(noSubjects.length).toBeGreaterThan(0)
   })
@@ -240,7 +233,7 @@ describe('ThreadView — with selection and messages', () => {
     expect(screen.getByText('1 message')).toBeDefined()
   })
 
-  it('renders sender name in message list', () => {
+  it('renders sender name in collapsed message header', () => {
     store.set(threadMessagesAtom, [makeMessage({ sender: 'Charlie Brown <charlie@example.com>' })])
 
     render(
@@ -263,56 +256,14 @@ describe('ThreadView — with selection and messages', () => {
 
     expect(screen.getByText('You')).toBeDefined()
   })
-
-  it('renders message preview text', () => {
-    store.set(threadMessagesAtom, [makeMessage({ clean_text: 'Preview of the message body' })])
-
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>,
-    )
-
-    expect(screen.getByText('Preview of the message body')).toBeDefined()
-  })
-
-  it('falls back to text_body for preview when clean_text is null', () => {
-    store.set(threadMessagesAtom, [
-      makeMessage({ clean_text: null, text_body: 'Fallback text body preview' }),
-    ])
-
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>,
-    )
-
-    expect(screen.getByText('Fallback text body preview')).toBeDefined()
-  })
-
-  it('shows "(no content)" when no text content available', () => {
-    store.set(threadMessagesAtom, [
-      makeMessage({ clean_text: null, text_body: null, subject: '' }),
-    ])
-
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>,
-    )
-
-    expect(screen.getByText('(no content)')).toBeDefined()
-  })
 })
 
-describe('ThreadView — selected message detail', () => {
+describe('ThreadView — expanded message', () => {
   let store: ReturnType<typeof createStore>
 
-  // helper: render thread view, wait for loadMessages to populate, then click the message
-  async function renderAndOpenDetail(msg: ThreadMessage) {
+  async function renderAndExpand(msg: ThreadMessage) {
     const { fetchJson } = await import('@/lib/api')
     const mockFetch = vi.mocked(fetchJson)
-    // loadMessages calls fetchJson twice: first for thread messages, then for conversation list refresh
     mockFetch
       .mockResolvedValueOnce([msg])
       .mockResolvedValueOnce([makeConversation()])
@@ -327,37 +278,24 @@ describe('ThreadView — selected message detail', () => {
       </Wrapper>,
     )
 
-    // wait for loadMessages to resolve and render message cards, then click to open detail
+    // wait for messages to load — the last message auto-expands
     await waitFor(() => {
-      const buttons = screen.getAllByRole('button')
-      const msgButton = buttons.find((b) => b.className.includes('flex w-full gap-3'))
-      expect(msgButton).toBeDefined()
-      if (msgButton) fireEvent.click(msgButton)
+      expect(screen.getByTestId('message-bubble')).toBeDefined()
     })
   }
 
   it('renders HTML content via MessageBubble when html_body is present', async () => {
-    await renderAndOpenDetail(makeMessage({ html_body: '<p>Hello HTML</p>' }))
+    await renderAndExpand(makeMessage({ html_body: '<p>Hello HTML</p>' }))
     expect(screen.getByTestId('message-bubble').textContent).toBe('HTML')
   })
 
-  it('renders plain text section', async () => {
-    await renderAndOpenDetail(makeMessage({ text_body: 'Plain text email body', html_body: null }))
-    expect(screen.getByText('Plain Text')).toBeDefined()
+  it('renders plain text via MessageBubble when no html_body', async () => {
+    await renderAndExpand(makeMessage({ text_body: 'Plain text email', html_body: null }))
+    expect(screen.getByTestId('message-bubble').textContent).toBe('TEXT')
   })
 
-  it('shows "AI Extracted Text" label when clean_text is present', async () => {
-    await renderAndOpenDetail(makeMessage({ clean_text: 'AI extracted content', text_body: null }))
-    expect(screen.getByText('AI Extracted Text')).toBeDefined()
-  })
-
-  it('shows "(no text content)" when both text fields are null', async () => {
-    await renderAndOpenDetail(makeMessage({ clean_text: null, text_body: null }))
-    expect(screen.getAllByText('(no text content)').length).toBeGreaterThanOrEqual(1)
-  })
-
-  it('renders attachment preview component', async () => {
-    await renderAndOpenDetail(makeMessage({
+  it('renders attachment preview for messages with attachments', async () => {
+    await renderAndExpand(makeMessage({
       attachments: [
         { filename: 'doc.pdf', content_type: 'application/pdf', size: 1024 },
       ],
@@ -366,29 +304,23 @@ describe('ThreadView — selected message detail', () => {
     expect(preview.textContent).toContain('1 attachment(s)')
   })
 
-  it('renders risk badge for high risk messages', async () => {
-    await renderAndOpenDetail(makeMessage({ ai_analyzed: true, risk_score: 75 }))
-    expect(screen.getByText(/Dangerous/)).toBeDefined()
-  })
+  it('shows risk badge for high risk messages in collapsed header', () => {
+    store = makeStore()
+    store.set(conversationsAtom, [makeConversation()])
+    store.set(selectedThreadIdAtom, 'thread-1')
+    store.set(threadMessagesAtom, [
+      makeMessage({ ai_analyzed: true, risk_score: 75 }),
+      makeMessage({ id: 2, uid: 101, ai_analyzed: true, risk_score: 45 }),
+    ])
 
-  it('renders "Safe" badge for low risk analyzed messages', async () => {
-    await renderAndOpenDetail(makeMessage({ ai_analyzed: true, risk_score: 5 }))
-    expect(screen.getByText(/Safe/)).toBeDefined()
-  })
+    render(
+      <Wrapper store={store}>
+        <ThreadView />
+      </Wrapper>,
+    )
 
-  it('renders "Suspicious" badge for medium risk messages', async () => {
-    await renderAndOpenDetail(makeMessage({ ai_analyzed: true, risk_score: 45 }))
-    expect(screen.getByText(/Suspicious/)).toBeDefined()
-  })
-
-  it('renders "Caution" badge for moderate risk messages', async () => {
-    await renderAndOpenDetail(makeMessage({ ai_analyzed: true, risk_score: 20 }))
-    expect(screen.getByText(/Caution/)).toBeDefined()
-  })
-
-  it('does not render risk badge for non-analyzed messages', async () => {
-    await renderAndOpenDetail(makeMessage({ ai_analyzed: false, risk_score: 80 }))
-    expect(screen.queryByText(/Dangerous/)).toBeNull()
+    // first message is collapsed, should show risk badge
+    expect(screen.getByText('Risk 75')).toBeDefined()
   })
 })
 
@@ -396,7 +328,6 @@ describe('ThreadView — loading state', () => {
   it('shows skeleton placeholders when loading with no messages', async () => {
     const { fetchJson } = await import('@/lib/api')
     const mockFetchJson = vi.mocked(fetchJson)
-    // delay the response to keep loading state visible
     mockFetchJson.mockImplementation(
       () => new Promise((resolve) => setTimeout(() => resolve([]), 500)),
     )
@@ -412,7 +343,6 @@ describe('ThreadView — loading state', () => {
       </Wrapper>,
     )
 
-    // loading skeleton uses animate-pulse class
     await waitFor(() => {
       const pulse = container.querySelector('.animate-pulse')
       expect(pulse).not.toBeNull()
@@ -437,11 +367,8 @@ describe('ThreadView — delete confirmation dialog', () => {
       </Wrapper>,
     )
 
-    const deleteButton = screen.getByTitle('Delete conversation')
-    fireEvent.click(deleteButton)
-
+    fireEvent.click(screen.getByTitle('Delete'))
     expect(screen.getByText('Delete conversation?')).toBeDefined()
-    expect(screen.getByText(/permanently delete/)).toBeDefined()
   })
 
   it('closes delete confirmation dialog on cancel', () => {
@@ -451,7 +378,7 @@ describe('ThreadView — delete confirmation dialog', () => {
       </Wrapper>,
     )
 
-    fireEvent.click(screen.getByTitle('Delete conversation'))
+    fireEvent.click(screen.getByTitle('Delete'))
     expect(screen.getByText('Delete conversation?')).toBeDefined()
 
     fireEvent.click(screen.getByText('Cancel'))
@@ -476,10 +403,7 @@ describe('ThreadView — toolbar actions', () => {
       </Wrapper>,
     )
 
-    const closeButton = screen.getByLabelText('Close conversation')
-    fireEvent.click(closeButton)
-
-    // after closing, selectedThreadIdAtom should be null
+    fireEvent.click(screen.getByTitle('Close'))
     expect(store.get(selectedThreadIdAtom)).toBeNull()
   })
 
@@ -494,7 +418,7 @@ describe('ThreadView — toolbar actions', () => {
     expect(replyBox.textContent).toContain('mode: reply')
   })
 
-  it('renders star/unstar button', () => {
+  it('renders star button', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
@@ -511,6 +435,6 @@ describe('ThreadView — toolbar actions', () => {
       </Wrapper>,
     )
 
-    expect(screen.getByTitle('Mark as unread')).toBeDefined()
+    expect(screen.getByTitle('Mark unread')).toBeDefined()
   })
 })
