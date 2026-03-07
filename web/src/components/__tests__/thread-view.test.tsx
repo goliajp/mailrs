@@ -296,8 +296,3 @@ describe('ThreadView — toolbar', () => {
   })
 })
 
-// helper used by tests
-function extractNameFromSender(sender: string): string {
-  const match = sender.match(/^(.+?)\s*</)
-  return match ? match[1].trim() : sender
-}
