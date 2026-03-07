@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm'
 import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
 import type { AttachmentInfo } from '@/lib/types'
+import { getToken } from '@/store/auth'
 
 function looksLikeMarkdown(text: string): boolean {
   return /```|^#{1,6}\s|\*\*|__|\[.+\]\(.+\)/m.test(text)
@@ -164,7 +165,8 @@ function AttachmentItem({
 }) {
   const isImage = att.content_type.startsWith('image/')
   const isPdf = att.content_type === 'application/pdf'
-  const url = `/api/mail/messages/${uid}/attachments/${index}`
+  const token = getToken() ?? ''
+  const url = `/api/mail/messages/${uid}/attachments/${index}?token=${encodeURIComponent(token)}`
   const [lightbox, setLightbox] = useState(false)
   const [showContent, setShowContent] = useState(false)
   const [extractedText, setExtractedText] = useState<string | null>(null)
@@ -177,10 +179,9 @@ function AttachmentItem({
     }
     setLoading(true)
     try {
-      const { getToken } = await import('@/store/auth')
-      const token = getToken()
+      const t = getToken()
       const headers: Record<string, string> = {}
-      if (token) headers['Authorization'] = `Bearer ${token}`
+      if (t) headers['Authorization'] = `Bearer ${t}`
       const res = await fetch(`/api/mail/messages/${uid}/attachments/${index}/content`, { headers })
       const data = await res.json()
       if (data.success && data.extracted_text) {
