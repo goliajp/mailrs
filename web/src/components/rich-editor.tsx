@@ -322,12 +322,12 @@ export function RichEditor({
 
   return (
     <div
-      className={`rounded-xl border ${
+      className={`flex h-full flex-col rounded-xl border ${
         'border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900'
       }`}
     >
       <Toolbar editor={editor} />
-      <div onDrop={handleDrop} onPaste={handlePaste} onDragOver={(e) => e.preventDefault()}>
+      <div className="min-h-0 flex-1 overflow-y-auto" onDrop={handleDrop} onPaste={handlePaste} onDragOver={(e) => e.preventDefault()}>
         <EditorContent editor={editor} />
       </div>
     </div>
