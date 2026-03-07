@@ -29,20 +29,34 @@ impl FromRequestParts<Arc<WebState>> for AuthUser {
         parts: &mut Parts,
         state: &Arc<WebState>,
     ) -> Result<Self, Self::Rejection> {
+        // try Authorization header first
         let auth_header = parts
             .headers
             .get("authorization")
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
 
-        if let Some(token) = auth_header.strip_prefix("Bearer ") {
-            if let Some(session) = state.sessions.get(token) {
+        let token = if let Some(t) = auth_header.strip_prefix("Bearer ") {
+            Some(t.to_string())
+        } else {
+            // fallback: ?token= query param (for <img src>, <a href>, <iframe src>)
+            parts
+                .uri
+                .query()
+                .and_then(|q| {
+                    q.split('&')
+                        .find_map(|pair| pair.strip_prefix("token="))
+                        .map(|t| t.to_string())
+                })
+        };
+
+        if let Some(token) = token {
+            if let Some(session) = state.sessions.get(token.as_str()) {
                 if session.created_at.elapsed() < super::SESSION_TTL {
                     return Ok(AuthUser(session.address.clone()));
                 }
-                // expired — remove and reject
                 drop(session);
-                state.sessions.remove(token);
+                state.sessions.remove(token.as_str());
             }
         }
 
