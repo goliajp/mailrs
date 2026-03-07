@@ -4,6 +4,8 @@ mod ai_email;
 mod ai_spam;
 mod codec;
 mod config;
+mod content_extract;
+mod content_worker;
 mod dmarc_report;
 mod domain_check;
 mod domain_store;
@@ -13,6 +15,7 @@ mod imap_codec;
 mod imap_format;
 mod imap_session;
 pub mod inbound;
+mod inline_image;
 mod message_util;
 mod pg;
 mod ptr_check;
@@ -270,6 +273,11 @@ async fn main() {
                 eprintln!("warning: AI analysis enabled but MAILRS_GEMINI_API_KEY not set");
             }
         }
+    }
+
+    // content extraction worker (OCR, PDF text)
+    if let Some(ref pool) = pg_pool {
+        content_worker::spawn_content_worker(pool.clone(), cfg.maildir_root.clone());
     }
 
     let smtp_snapshot = crate::web::SmtpConfigSnapshot {

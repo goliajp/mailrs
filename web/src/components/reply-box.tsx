@@ -1,30 +1,24 @@
 import { useAtomValue } from 'jotai'
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
-import { MarkdownEditor } from '@/components/markdown-editor'
+import { RichEditor, getEditorContent } from '@/components/rich-editor'
 import { postJson, saveDraft } from '@/lib/api'
 import { authAtom } from '@/store/auth'
 import { appendSignature, signatureAtom, signatureEnabledAtom } from '@/store/settings'
+import type { Editor } from '@tiptap/react'
 
 export type ReplyMode = 'reply' | 'reply-all' | 'forward'
 
 type SendResult = { success: boolean; message?: string }
+type ReplySuggestResult = { success: boolean; suggestions: string[]; message?: string }
+type PolishResult = { success: boolean; polished?: string; message?: string }
 
 const MODE_LABELS: Record<ReplyMode, string> = {
   reply: 'Reply',
   'reply-all': 'Reply All',
   forward: 'Forward',
-}
-
-function buildForwardBody(
-  originalFrom: string,
-  originalDate: string,
-  originalSubject: string,
-  originalBody: string,
-): string {
-  return `\n\n---------- Forwarded message ----------\nFrom: ${originalFrom}\nDate: ${originalDate}\nSubject: ${originalSubject}\n\n${originalBody}`
 }
 
 export function ReplyBox({
@@ -55,24 +49,28 @@ export function ReplyBox({
   const auth = useAtomValue(authAtom)
   const signature = useAtomValue(signatureAtom)
   const signatureEnabled = useAtomValue(signatureEnabledAtom)
-  const [body, setBody] = useState('')
   const [forwardTo, setForwardTo] = useState('')
   const [sending, setSending] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
+  const [polishing, setPolishing] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
   const [error, setError] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const editorRef = useRef<Editor | null>(null)
+
+  const setEditorRef = useCallback((editor: Editor | null) => {
+    editorRef.current = editor
+  }, [])
 
   const handleModeChange = (newMode: ReplyMode) => {
     onModeChange(newMode)
-    // pre-fill body for forward mode
-    if (newMode === 'forward' && body === '') {
-      setBody(buildForwardBody(originalFrom, originalDate, subject, originalBody))
-    } else if (newMode !== 'forward') {
-      // clear forward pre-fill if user switches away and body is only the template
-      const forwardTemplate = buildForwardBody(originalFrom, originalDate, subject, originalBody)
-      if (body === forwardTemplate) {
-        setBody('')
+    if (newMode === 'forward' && editorRef.current) {
+      const { text } = getEditorContent(editorRef.current)
+      if (!text.trim()) {
+        const fwdHtml = `<br><br><p>---------- Forwarded message ----------</p><p>From: ${originalFrom}</p><p>Date: ${originalDate}</p><p>Subject: ${subject}</p><br>${originalBody}`
+        editorRef.current.commands.setContent(fwdHtml)
       }
     }
   }
@@ -83,22 +81,12 @@ export function ReplyBox({
 
   const resolveRecipients = (): string[] => {
     if (mode === 'reply') {
-      return replyRecipients
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
+      return replyRecipients.split(',').map((s) => s.trim()).filter(Boolean)
     }
     if (mode === 'reply-all') {
-      return replyAllRecipients
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
+      return replyAllRecipients.split(',').map((s) => s.trim()).filter(Boolean)
     }
-    // forward
-    return forwardTo
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
+    return forwardTo.split(',').map((s) => s.trim()).filter(Boolean)
   }
 
   const resolveSubject = (): string => {
@@ -114,13 +102,15 @@ export function ReplyBox({
       setError('Please enter at least one recipient')
       return
     }
-    if (!body.trim() && files.length === 0) return
+
+    const { text, html } = getEditorContent(editorRef.current)
+    if (!text.trim() && files.length === 0) return
+
     setError('')
     setSending(true)
 
     const resolvedSubject = resolveSubject()
-    const bodyWithSig = appendSignature(body, signature, signatureEnabled)
-    // forward is not a reply — omit in_reply_to
+    const bodyWithSig = appendSignature(text, signature, signatureEnabled)
     const inReplyTo = mode === 'forward' ? undefined : lastMessageId
 
     try {
@@ -129,6 +119,7 @@ export function ReplyBox({
         formData.append('from', auth?.address ?? '')
         formData.append('subject', resolvedSubject)
         formData.append('body', bodyWithSig)
+        formData.append('html_body', html)
         if (inReplyTo) formData.append('in_reply_to', inReplyTo)
         for (const r of to) formData.append('to', r)
         for (const f of files) formData.append('attachments', f)
@@ -153,6 +144,7 @@ export function ReplyBox({
           bcc: [],
           subject: resolvedSubject,
           body: bodyWithSig,
+          html_body: html,
         }
         if (inReplyTo) payload['in_reply_to'] = inReplyTo
 
@@ -165,7 +157,8 @@ export function ReplyBox({
         }
       }
 
-      setBody('')
+      // clear editor
+      editorRef.current?.commands.clearContent()
       setForwardTo('')
       setFiles([])
       toast.success(mode === 'forward' ? 'Forwarded' : 'Reply sent')
@@ -180,12 +173,13 @@ export function ReplyBox({
   }
 
   const handleSaveDraft = async () => {
-    if (!body.trim()) return
+    const { text } = getEditorContent(editorRef.current)
+    if (!text.trim()) return
     setSavingDraft(true)
     try {
       const to = resolveRecipients().join(', ')
       const resolvedSubject = resolveSubject()
-      const bodyWithSig = appendSignature(body, signature, signatureEnabled)
+      const bodyWithSig = appendSignature(text, signature, signatureEnabled)
       const result = await saveDraft({
         to,
         subject: resolvedSubject,
@@ -204,10 +198,52 @@ export function ReplyBox({
     }
   }
 
+  const polish = async () => {
+    const { text } = getEditorContent(editorRef.current)
+    if (!text.trim()) return
+    setPolishing(true)
+    try {
+      const result = await postJson<PolishResult>('/mail/ai/polish', { text })
+      if (result.success && result.polished && editorRef.current) {
+        editorRef.current.commands.setContent(`<p>${result.polished.replace(/\n/g, '</p><p>')}</p>`)
+        toast.success('Text polished')
+      }
+    } catch {
+      toast.error('AI unavailable')
+    } finally {
+      setPolishing(false)
+    }
+  }
+
+  const suggest = async () => {
+    setSuggesting(true)
+    try {
+      const result = await postJson<ReplySuggestResult>('/mail/ai/reply-suggest', {
+        original_sender: originalFrom,
+        original_subject: subject,
+        original_body: originalBody,
+      })
+      if (result.success && result.suggestions.length > 0) {
+        setSuggestions(result.suggestions)
+      } else {
+        toast.error(result.message ?? 'No suggestions')
+      }
+    } catch {
+      toast.error('AI unavailable')
+    } finally {
+      setSuggesting(false)
+    }
+  }
+
+  const applySuggestion = (text: string) => {
+    if (editorRef.current) {
+      editorRef.current.commands.setContent(`<p>${text.replace(/\n/g, '</p><p>')}</p>`)
+    }
+    setSuggestions([])
+  }
+
   const placeholder =
-    mode === 'forward'
-      ? 'Add a message... (Markdown supported)'
-      : 'Type a reply... (Markdown supported)'
+    mode === 'forward' ? 'Add a message...' : 'Type a reply...'
 
   return (
     <div className="border-t border-zinc-200 dark:border-zinc-800">
@@ -226,7 +262,6 @@ export function ReplyBox({
             {MODE_LABELS[m]}
           </button>
         ))}
-        {/* recipient preview for reply/reply-all */}
         {mode !== 'forward' && (
           <span className="ml-1 truncate text-xs text-zinc-400" title={mode === 'reply' ? replyRecipients : replyAllRecipients}>
             to {mode === 'reply' ? replyRecipients : replyAllRecipients}
@@ -271,6 +306,28 @@ export function ReplyBox({
         </div>
       )}
 
+      {/* AI reply suggestions */}
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-4 pb-1 pt-2">
+          {suggestions.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => applySuggestion(s)}
+              className="max-w-xs truncate rounded-md border border-purple-200 bg-purple-50 px-2 py-1 text-xs text-purple-700 transition-colors hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/40"
+              title={s}
+            >
+              {s.slice(0, 80)}{s.length > 80 ? '...' : ''}
+            </button>
+          ))}
+          <button
+            onClick={() => setSuggestions([])}
+            className="rounded-md px-1.5 py-1 text-xs text-zinc-400 hover:text-zinc-600"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className="flex items-end gap-2 p-3">
         <button
           onClick={() => fileInputRef.current?.click()}
@@ -302,26 +359,38 @@ export function ReplyBox({
             setFiles((prev) => [...prev, ...selected])
             e.target.value = ''
           }}
-          onDrop={(e) => {
-            e.preventDefault()
-            const dropped = Array.from(e.dataTransfer.files)
-            setFiles((prev) => [...prev, ...dropped])
-          }}
         />
 
         <div className="flex-1">
-          <MarkdownEditor
-            value={body}
-            onChange={setBody}
+          <RichEditor
             onSubmit={send}
             placeholder={placeholder}
             disabled={sending}
+            getEditorRef={setEditorRef}
           />
         </div>
 
+        {mode !== 'forward' && (
+          <button
+            onClick={suggest}
+            disabled={suggesting}
+            className="flex h-8 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-900/30 dark:hover:text-purple-300"
+            title="AI reply suggestions"
+          >
+            {suggesting ? '...' : 'Suggest'}
+          </button>
+        )}
+        <button
+          onClick={polish}
+          disabled={polishing}
+          className="flex h-8 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-900/30 dark:hover:text-purple-300"
+          title="AI polish text"
+        >
+          {polishing ? '...' : 'Polish'}
+        </button>
         <button
           onClick={handleSaveDraft}
-          disabled={savingDraft || !body.trim()}
+          disabled={savingDraft}
           className="flex h-8 shrink-0 items-center justify-center rounded-md px-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           title="Save draft"
         >
@@ -330,7 +399,7 @@ export function ReplyBox({
 
         <button
           onClick={send}
-          disabled={sending || (!body.trim() && files.length === 0)}
+          disabled={sending}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white transition-colors hover:bg-blue-600 disabled:opacity-40"
           title="Send (Ctrl+Enter)"
         >

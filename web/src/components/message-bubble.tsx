@@ -12,6 +12,47 @@ function looksLikeMarkdown(text: string): boolean {
   return /```|^#{1,6}\s|\*\*|__|\[.+\]\(.+\)/m.test(text)
 }
 
+function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLElement>) {
+  const [copied, setCopied] = useState(false)
+  const code = String(children).replace(/\n$/, '')
+  const lang = className?.replace('language-', '') ?? ''
+
+  const copy = () => {
+    navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="group relative">
+      {lang && (
+        <span className="absolute right-10 top-2 text-[10px] text-zinc-500 opacity-0 transition-opacity group-hover:opacity-100">
+          {lang}
+        </span>
+      )}
+      <button
+        onClick={copy}
+        className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[10px] text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-700 hover:text-zinc-200 group-hover:opacity-100"
+      >
+        {copied ? 'Copied!' : 'Copy'}
+      </button>
+      <code className={className} {...props}>
+        {children}
+      </code>
+    </div>
+  )
+}
+
+const markdownComponents = {
+  code: ({ className, children, ...props }: React.HTMLAttributes<HTMLElement>) => {
+    const isBlock = className?.startsWith('language-') || String(children).includes('\n')
+    if (isBlock) {
+      return <CodeBlock className={className} {...props}>{children}</CodeBlock>
+    }
+    return <code className={className} {...props}>{children}</code>
+  },
+}
+
 const CJK_FONTS = "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji'"
 
 // inject CJK fallback fonts into all font-family declarations so kana
@@ -29,23 +70,22 @@ function injectCjkFonts(html: string): string {
   )
 }
 
-function sanitizeEmail(html: string): string {
-  // force all links to open in a new tab
-  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-    if (node.tagName === 'A') {
-      node.setAttribute('target', '_blank')
-      node.setAttribute('rel', 'noopener noreferrer')
-    }
-  })
+// dedicated DOMPurify instance avoids global hook race conditions in concurrent renders
+const emailPurifier = DOMPurify()
+emailPurifier.addHook('afterSanitizeAttributes', (node) => {
+  if (node.tagName === 'A') {
+    node.setAttribute('target', '_blank')
+    node.setAttribute('rel', 'noopener noreferrer')
+  }
+})
 
-  const clean = DOMPurify.sanitize(html, {
+function sanitizeEmail(html: string): string {
+  const clean = emailPurifier.sanitize(html, {
     ALLOW_UNKNOWN_PROTOCOLS: false,
     ADD_ATTR: ['style', 'align', 'dir', 'bgcolor', 'color', 'face', 'size', 'target', 'rel'],
     ADD_TAGS: ['style'],
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
   })
-
-  DOMPurify.removeHook('afterSanitizeAttributes')
   return injectCjkFonts(clean)
 }
 
@@ -105,6 +145,14 @@ function HtmlFrame({ html }: { html: string }) {
   )
 }
 
+// check if content type supports OCR/text extraction
+function isExtractable(contentType: string): boolean {
+  return (
+    contentType.startsWith('image/') ||
+    contentType === 'application/pdf'
+  )
+}
+
 function AttachmentItem({
   att,
   uid,
@@ -115,44 +163,135 @@ function AttachmentItem({
   index: number
 }) {
   const isImage = att.content_type.startsWith('image/')
+  const isPdf = att.content_type === 'application/pdf'
   const url = `/api/mail/messages/${uid}/attachments/${index}`
+  const [lightbox, setLightbox] = useState(false)
+  const [showContent, setShowContent] = useState(false)
+  const [extractedText, setExtractedText] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const fetchContent = useCallback(async () => {
+    if (extractedText !== null) {
+      setShowContent((v) => !v)
+      return
+    }
+    setLoading(true)
+    try {
+      const { getToken } = await import('@/store/auth')
+      const token = getToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const res = await fetch(`/api/mail/messages/${uid}/attachments/${index}/content`, { headers })
+      const data = await res.json()
+      if (data.success && data.extracted_text) {
+        setExtractedText(data.extracted_text)
+        setShowContent(true)
+      } else {
+        setExtractedText('')
+        setShowContent(false)
+      }
+    } catch {
+      setExtractedText('')
+    } finally {
+      setLoading(false)
+    }
+  }, [uid, index, extractedText])
 
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-    >
-      {isImage ? (
-        <img
-          src={url}
-          alt={att.filename}
-          loading="lazy"
-          className="h-10 w-10 rounded object-cover"
-        />
-      ) : (
-        <svg
-          className="h-5 w-5 text-zinc-400"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+    <div className="rounded-md border border-zinc-200 dark:border-zinc-700">
+      <div className="flex items-center gap-2 px-3 py-2 text-sm">
+        {isImage ? (
+          <img
+            src={url}
+            alt={att.filename}
+            loading="lazy"
+            className="h-10 w-10 cursor-pointer rounded object-cover"
+            onClick={() => setLightbox(true)}
           />
-        </svg>
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-zinc-700 dark:text-zinc-300">
-          {att.filename}
-        </p>
-        <p className="text-xs text-zinc-400">{formatSize(att.size)}</p>
+        ) : (
+          <a href={url} target="_blank" rel="noopener noreferrer">
+            <svg
+              className="h-5 w-5 text-zinc-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+              />
+            </svg>
+          </a>
+        )}
+        <div className="min-w-0 flex-1">
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block truncate text-zinc-700 hover:underline dark:text-zinc-300"
+          >
+            {att.filename}
+          </a>
+          <p className="text-xs text-zinc-400">{formatSize(att.size)}</p>
+        </div>
+        {isExtractable(att.content_type) && (
+          <button
+            type="button"
+            onClick={fetchContent}
+            disabled={loading}
+            className="shrink-0 rounded px-2 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            title="Show extracted text"
+          >
+            {loading ? '...' : showContent ? 'Hide text' : 'OCR'}
+          </button>
+        )}
       </div>
-    </a>
+
+      {/* extracted text panel */}
+      {showContent && extractedText && (
+        <div className="border-t border-zinc-200 px-3 py-2 dark:border-zinc-700">
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-xs text-zinc-600 dark:text-zinc-400">
+            {extractedText}
+          </pre>
+        </div>
+      )}
+
+      {/* image lightbox */}
+      {lightbox && isImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setLightbox(false)}
+        >
+          <img
+            src={url}
+            alt={att.filename}
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            className="absolute right-4 top-4 rounded-full bg-black/50 px-3 py-1 text-white hover:bg-black/70"
+            onClick={() => setLightbox(false)}
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
+      {/* PDF inline preview — sandbox restricts script execution in PDF viewers */}
+      {isPdf && showContent && (
+        <div className="border-t border-zinc-200 dark:border-zinc-700">
+          <iframe
+            src={url}
+            className="h-96 w-full"
+            title={att.filename}
+            sandbox="allow-scripts allow-same-origin"
+          />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -166,7 +305,7 @@ function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
             : 'dark:prose-invert'
         }`}
       >
-        <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+        <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
           {body}
         </Markdown>
       </div>

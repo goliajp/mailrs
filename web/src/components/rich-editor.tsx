@@ -1,0 +1,347 @@
+import { useCallback, useEffect, useRef } from 'react'
+import { useEditor, EditorContent, type Editor } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import Image from '@tiptap/extension-image'
+import Link from '@tiptap/extension-link'
+import { Table } from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
+import Placeholder from '@tiptap/extension-placeholder'
+import Underline from '@tiptap/extension-underline'
+import { common, createLowlight } from 'lowlight'
+
+import { getToken } from '@/store/auth'
+
+const lowlight = createLowlight(common)
+
+async function uploadInlineImage(file: File): Promise<string | null> {
+  const form = new FormData()
+  form.append('image', file)
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  try {
+    const res = await fetch('/api/mail/inline-upload', {
+      method: 'POST',
+      headers,
+      body: form,
+    })
+    const data = await res.json()
+    if (data.success && data.url) return data.url as string
+  } catch {
+    // fallback handled by caller
+  }
+  return null
+}
+
+type ToolbarButtonProps = {
+  onClick: () => void
+  active?: boolean
+  disabled?: boolean
+  title: string
+  children: React.ReactNode
+}
+
+function ToolbarButton({ onClick, active, disabled, title, children }: ToolbarButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
+        active
+          ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200'
+          : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-700 dark:hover:text-zinc-300'
+      } disabled:opacity-30`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
+  // hooks must be called before any conditional returns
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  if (!editor) return null
+
+  const addLink = () => {
+    const url = window.prompt('URL')
+    if (url) {
+      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+    }
+  }
+  const addImage = () => {
+    fileInputRef.current?.click()
+  }
+  const handleImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !editor) return
+    const url = await uploadInlineImage(file)
+    if (url) {
+      editor.chain().focus().setImage({ src: url }).run()
+    }
+    e.target.value = ''
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-0.5 border-b border-zinc-200 px-2 py-1 dark:border-zinc-700">
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleBold().run()}
+        active={editor.isActive('bold')}
+        title="Bold (Ctrl+B)"
+      >
+        <span className="font-bold">B</span>
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+        active={editor.isActive('italic')}
+        title="Italic (Ctrl+I)"
+      >
+        <span className="italic">I</span>
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
+        active={editor.isActive('underline')}
+        title="Underline (Ctrl+U)"
+      >
+        <span className="underline">U</span>
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+        active={editor.isActive('strike')}
+        title="Strikethrough"
+      >
+        <span className="line-through">S</span>
+      </ToolbarButton>
+
+      <div className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
+
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleCode().run()}
+        active={editor.isActive('code')}
+        title="Inline code"
+      >
+        <span className="font-mono text-[10px]">&lt;/&gt;</span>
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+        active={editor.isActive('codeBlock')}
+        title="Code block"
+      >
+        <span className="font-mono text-[10px]">{'{ }'}</span>
+      </ToolbarButton>
+
+      <div className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
+
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+        active={editor.isActive('heading', { level: 2 })}
+        title="Heading"
+      >
+        H
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        active={editor.isActive('blockquote')}
+        title="Quote"
+      >
+        &ldquo;
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+        active={editor.isActive('bulletList')}
+        title="Bullet list"
+      >
+        &bull;
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        active={editor.isActive('orderedList')}
+        title="Numbered list"
+      >
+        1.
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleTaskList().run()}
+        active={editor.isActive('taskList')}
+        title="Task list"
+      >
+        &#9744;
+      </ToolbarButton>
+
+      <div className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
+
+      <ToolbarButton onClick={addLink} active={editor.isActive('link')} title="Link">
+        <span className="text-[10px]">Link</span>
+      </ToolbarButton>
+      <ToolbarButton onClick={addImage} title="Image">
+        <span className="text-[10px]">Img</span>
+      </ToolbarButton>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageFile}
+      />
+      <ToolbarButton
+        onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3 }).run()}
+        title="Table"
+      >
+        <span className="text-[10px]">Table</span>
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().setHorizontalRule().run()}
+        title="Divider"
+      >
+        &mdash;
+      </ToolbarButton>
+    </div>
+  )
+}
+
+export function RichEditor({
+  onSubmit,
+  placeholder,
+  disabled,
+  minHeight,
+  getEditorRef,
+}: {
+  onSubmit: () => void
+  placeholder?: string
+  disabled?: boolean
+  minHeight?: string
+  getEditorRef?: (editor: Editor | null) => void
+}) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        codeBlock: false, // replaced by CodeBlockLowlight
+        link: false, // configured separately below
+        underline: false, // configured separately below
+      }),
+      CodeBlockLowlight.configure({
+        lowlight,
+        defaultLanguage: 'plaintext',
+      }),
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+      }),
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+      }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableCell,
+      TableHeader,
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      Placeholder.configure({
+        placeholder: placeholder ?? 'Write your message...',
+      }),
+      Underline,
+    ],
+    editorProps: {
+      attributes: {
+        class:
+          'prose prose-sm max-w-none px-4 py-2 outline-none dark:prose-invert ' +
+          'prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-md ' +
+          'prose-code:before:content-none prose-code:after:content-none ' +
+          'min-h-[' + (minHeight ?? '3rem') + ']',
+      },
+      handleKeyDown: (_view, event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+          event.preventDefault()
+          onSubmit()
+          return true
+        }
+        // tab indentation in code blocks
+        if (event.key === 'Tab' && editor?.isActive('codeBlock')) {
+          event.preventDefault()
+          if (event.shiftKey) {
+            // naive outdent: we don't have a built-in for this
+            return true
+          }
+          editor?.commands.insertContent('  ')
+          return true
+        }
+        return false
+      },
+    },
+    editable: !disabled,
+  })
+
+  useEffect(() => {
+    if (editor && getEditorRef) {
+      getEditorRef(editor)
+    }
+  }, [editor, getEditorRef])
+
+  // handle image paste/drop — upload to server
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      if (!editor) return
+      const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+      if (files.length === 0) return
+      e.preventDefault()
+      for (const file of files) {
+        const url = await uploadInlineImage(file)
+        if (url) {
+          editor.chain().focus().setImage({ src: url }).run()
+        }
+      }
+    },
+    [editor],
+  )
+
+  const handlePaste = useCallback(
+    async (e: React.ClipboardEvent) => {
+      if (!editor) return
+      const items = Array.from(e.clipboardData.items).filter((i) => i.type.startsWith('image/'))
+      if (items.length === 0) return
+      e.preventDefault()
+      for (const item of items) {
+        const file = item.getAsFile()
+        if (!file) continue
+        const url = await uploadInlineImage(file)
+        if (url) {
+          editor.chain().focus().setImage({ src: url }).run()
+        }
+      }
+    },
+    [editor],
+  )
+
+  return (
+    <div
+      className={`rounded-xl border ${
+        'border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900'
+      }`}
+    >
+      <Toolbar editor={editor} />
+      <div onDrop={handleDrop} onPaste={handlePaste} onDragOver={(e) => e.preventDefault()}>
+        <EditorContent editor={editor} />
+      </div>
+    </div>
+  )
+}
+
+// utility to get plain text and html from editor
+export function getEditorContent(editor: Editor | null): {
+  text: string
+  html: string
+} {
+  if (!editor) return { text: '', html: '' }
+  return {
+    text: editor.getText(),
+    html: editor.getHTML(),
+  }
+}

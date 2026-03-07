@@ -248,15 +248,27 @@ async fn analyze_single_message(
     let sender = message_util::decode_header(sender_raw);
     let subject = message_util::decode_header(subject_raw);
 
-    let body_for_analysis = text_body.as_deref().or(html_body.as_deref()).unwrap_or("");
+    let body_text = text_body.as_deref().or(html_body.as_deref()).unwrap_or("");
 
-    // prepare text for embedding: combine subject + body
+    // include attachment extracted text for richer analysis context
+    let attachment_text = store
+        .get_attachment_texts(message_id)
+        .await
+        .unwrap_or_default();
+
+    let body_for_analysis = if attachment_text.is_empty() {
+        body_text.to_string()
+    } else {
+        format!("{body_text}\n\n[Attachment content]\n{attachment_text}")
+    };
+
+    // prepare text for embedding: combine subject + body + attachment text
     let embedding_text = format!("{subject}\n\n{body_for_analysis}");
 
     // run embedding and analysis concurrently
     let (embedding_result, analysis_result) = tokio::join!(
         ai_email::generate_embedding(config, &embedding_text),
-        ai_email::analyze_email(config, &sender, &subject, body_for_analysis),
+        ai_email::analyze_email(config, &sender, &subject, &body_for_analysis),
     );
 
     let analysis = match analysis_result {

@@ -1,15 +1,25 @@
 import { useAtomValue, useSetAtom } from 'jotai'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
-import { MarkdownEditor } from '@/components/markdown-editor'
+import { RichEditor, getEditorContent } from '@/components/rich-editor'
 import { fetchJson, postJson } from '@/lib/api'
 import type { ConversationSummary } from '@/lib/types'
 import { authAtom } from '@/store/auth'
 import { composingNewAtom, conversationsAtom, selectedThreadIdAtom } from '@/store/chat'
+import type { Editor } from '@tiptap/react'
 
 type SendResult = { success: boolean; message?: string }
+type TemplateInfo = {
+  id: number
+  name: string
+  subject: string
+  html_body: string
+  text_body: string
+  category: string
+}
+type PolishResult = { success: boolean; polished?: string; message?: string }
 
 export function NewConversation() {
   const auth = useAtomValue(authAtom)
@@ -22,9 +32,47 @@ export function NewConversation() {
   const [bcc, setBcc] = useState('')
   const [showCcBcc, setShowCcBcc] = useState(false)
   const [subject, setSubject] = useState('')
-  const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
+  const [polishing, setPolishing] = useState(false)
   const [error, setError] = useState('')
+  const [templates, setTemplates] = useState<TemplateInfo[]>([])
+  const editorRef = useRef<Editor | null>(null)
+
+  useEffect(() => {
+    fetchJson<TemplateInfo[]>('/mail/templates')
+      .then(setTemplates)
+      .catch(() => {})
+  }, [])
+
+  const applyTemplate = (t: TemplateInfo) => {
+    setSubject(t.subject)
+    if (editorRef.current && t.html_body) {
+      editorRef.current.commands.setContent(t.html_body)
+    }
+  }
+
+  const polish = async () => {
+    const { text } = getEditorContent(editorRef.current)
+    if (!text.trim()) return
+    setPolishing(true)
+    try {
+      const result = await postJson<PolishResult>('/mail/ai/polish', { text })
+      if (result.success && result.polished && editorRef.current) {
+        editorRef.current.commands.setContent(`<p>${result.polished.replace(/\n/g, '</p><p>')}</p>`)
+        toast.success('Text polished')
+      } else {
+        toast.error(result.message ?? 'Polish failed')
+      }
+    } catch {
+      toast.error('AI unavailable')
+    } finally {
+      setPolishing(false)
+    }
+  }
+
+  const setEditorRef = useCallback((editor: Editor | null) => {
+    editorRef.current = editor
+  }, [])
 
   const send = async () => {
     const recipients = to
@@ -33,6 +81,12 @@ export function NewConversation() {
       .filter(Boolean)
     if (recipients.length === 0) {
       setError('Recipient is required')
+      return
+    }
+
+    const { text, html } = getEditorContent(editorRef.current)
+    if (!text.trim()) {
+      setError('Message body is required')
       return
     }
 
@@ -49,13 +103,13 @@ export function NewConversation() {
         cc: ccList,
         bcc: bccList,
         subject,
-        body,
+        body: text,
+        html_body: html,
         in_reply_to: null,
       })
 
       if (result.success) {
         toast.success('Message sent')
-        // refresh conversations and select the new one
         const convos = await fetchJson<ConversationSummary[]>(
           '/conversations?limit=50',
         )
@@ -153,17 +207,16 @@ export function NewConversation() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        <MarkdownEditor
-          value={body}
-          onChange={setBody}
+        <RichEditor
           onSubmit={send}
-          placeholder="Write your message... (Markdown supported)"
+          placeholder="Write your message..."
           disabled={sending}
-          minRows={6}
+          minHeight="12rem"
+          getEditorRef={setEditorRef}
         />
       </div>
 
-      <div className="flex gap-2 border-t border-zinc-200 p-4 dark:border-zinc-800">
+      <div className="flex items-center gap-2 border-t border-zinc-200 p-4 dark:border-zinc-800">
         <button
           onClick={send}
           disabled={sending}
@@ -171,6 +224,35 @@ export function NewConversation() {
         >
           {sending ? 'Sending...' : 'Send'}
         </button>
+        <button
+          onClick={polish}
+          disabled={polishing || sending}
+          className="rounded-md bg-purple-100 px-3 py-1.5 text-sm text-purple-700 transition-colors hover:bg-purple-200 disabled:opacity-50 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
+          title="AI polish your text"
+        >
+          {polishing ? 'Polishing...' : 'AI Polish'}
+        </button>
+        {templates.length > 0 && (
+          <select
+            onChange={(e) => {
+              const t = templates.find((t) => t.id === Number(e.target.value))
+              if (t) applyTemplate(t)
+              e.target.value = ''
+            }}
+            defaultValue=""
+            className="rounded-md bg-zinc-100 px-2 py-1.5 text-sm text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+          >
+            <option value="" disabled>
+              Templates
+            </option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <div className="flex-1" />
         <button
           onClick={() => setComposingNew(false)}
           disabled={sending}
