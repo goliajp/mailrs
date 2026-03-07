@@ -1134,11 +1134,14 @@ pub(super) async fn get_attachment(
                             .unwrap_or_else(|| "application/octet-stream".into());
                         let body = att.contents().to_vec();
 
-                        // use inline for images so browsers can preview them
-                        let disposition = if content_type.starts_with("image/") {
-                            "inline".to_string()
+                        // use inline for browser-viewable types, attachment for the rest
+                        let inline = content_type.starts_with("image/")
+                            || content_type.starts_with("text/")
+                            || content_type == "application/pdf";
+                        let param = message_util::rfc2231_encode_param("filename", &filename);
+                        let disposition = if inline {
+                            format!("inline; {param}")
                         } else {
-                            let param = message_util::rfc2231_encode_param("filename", &filename);
                             format!("attachment; {param}")
                         };
 
