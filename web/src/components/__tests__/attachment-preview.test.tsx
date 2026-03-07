@@ -1,8 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import type { AttachmentInfo } from '@/lib/types'
 import { AttachmentPreview } from '@/components/attachment-preview'
+
+vi.mock('@/store/auth', () => ({ getToken: () => 'test-token' }))
 
 afterEach(() => {
   cleanup()
@@ -48,7 +50,7 @@ describe('AttachmentPreview', () => {
     const { container } = render(<AttachmentPreview attachments={attachments} uid={42} />)
     const img = container.querySelector('img')
     expect(img).not.toBeNull()
-    expect(img?.getAttribute('src')).toBe('/api/mail/messages/42/attachments/0')
+    expect(img?.getAttribute('src')).toBe('/api/mail/messages/42/attachments/0?token=test-token')
     expect(img?.getAttribute('alt')).toBe('photo.jpg')
   })
 
@@ -60,7 +62,7 @@ describe('AttachmentPreview', () => {
     const { container } = render(<AttachmentPreview attachments={attachments} uid={5} />)
     const link = container.querySelector('a')
     expect(link).not.toBeNull()
-    expect(link?.getAttribute('href')).toBe('/api/mail/messages/5/attachments/0')
+    expect(link?.getAttribute('href')).toBe('/api/mail/messages/5/attachments/0?token=test-token')
     expect(link?.getAttribute('target')).toBe('_blank')
   })
 
