@@ -521,11 +521,11 @@ pub(super) async fn deliver_message(
     message_id: &str,
     ts: i64,
 ) -> Json<ApiResult> {
-    let all_recipients: Vec<&str> = to
+    let all_recipients: Vec<String> = to
         .iter()
         .chain(cc.iter())
         .chain(bcc.iter())
-        .map(|s| s.as_str())
+        .map(|s| extract_address(s))
         .collect();
 
     let local_domains: Vec<String> = if let Some(ref ds) = state.domain_store {
@@ -604,6 +604,16 @@ pub(super) async fn deliver_message(
             message: Some(errors.join("; ")),
         })
     }
+}
+
+// extract bare email from "Display Name <addr>" or return as-is
+fn extract_address(s: &str) -> String {
+    if let Some(start) = s.rfind('<') {
+        if let Some(end) = s[start..].find('>') {
+            return s[start + 1..start + end].trim().to_string();
+        }
+    }
+    s.trim().to_string()
 }
 
 pub(super) fn build_rfc5322_message(
@@ -1134,5 +1144,33 @@ pub(super) async fn delete_draft(
             success: false,
             message: Some(e.to_string()),
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_address_bare() {
+        assert_eq!(extract_address("user@example.com"), "user@example.com");
+    }
+
+    #[test]
+    fn extract_address_display_name() {
+        assert_eq!(
+            extract_address("Chenyun Dai <chenyund@qti.qualcomm.com>"),
+            "chenyund@qti.qualcomm.com"
+        );
+    }
+
+    #[test]
+    fn extract_address_angle_only() {
+        assert_eq!(extract_address("<foo@bar.com>"), "foo@bar.com");
+    }
+
+    #[test]
+    fn extract_address_with_spaces() {
+        assert_eq!(extract_address("  alice@test.org  "), "alice@test.org");
     }
 }
