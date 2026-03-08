@@ -25,7 +25,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         {reservations.map((r, i) => (
           <div
             key={`res-${i}`}
-            className="rounded border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
+            className="border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
           >
             <div className="flex items-center gap-2">
               <ReservationIcon kind={r.type} />
@@ -34,7 +34,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
               </span>
               {r.reservation_id && (
                 <Copyable value={r.reservation_id}>
-                  <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[11px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
+                  <span className="bg-zinc-200 px-1.5 py-0.5 text-[11px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
                     {r.reservation_id}
                   </span>
                 </Copyable>
@@ -65,7 +65,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         {orders.map((o, i) => (
           <div
             key={`ord-${i}`}
-            className="rounded border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
+            className="border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
           >
             <div className="flex items-center gap-2">
               <ShoppingBag className="h-4 w-4 text-emerald-500" />
@@ -74,7 +74,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
               </span>
               {o.order_number && (
                 <Copyable value={o.order_number}>
-                  <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[11px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
+                  <span className="bg-zinc-200 px-1.5 py-0.5 text-[11px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
                     #{o.order_number}
                   </span>
                 </Copyable>
@@ -109,7 +109,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         {events.map((e, i) => (
           <div
             key={`evt-${i}`}
-            className="rounded border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
+            className="border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
           >
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-blue-500" />
@@ -140,7 +140,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         ))}
 
         {actions.map((a, i) => (
-          <div key={`act-${i}`} className="rounded border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
+          <div key={`act-${i}`} className="border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
             <div className="flex items-center gap-2">
               <ExternalLink className="h-4 w-4 text-blue-600" />
               <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">

@@ -42,7 +42,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.people.map((p, i) => (
                   <span
                     key={i}
-                    className="inline-flex select-text items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
+                    className="inline-flex select-text items-center gap-1 bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
                   >
                     {p.name}
                     {p.role && (
@@ -72,7 +72,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.dates.map((d, i) => (
                   <span
                     key={i}
-                    className="inline-flex select-text items-center gap-1 rounded bg-green-50 px-2 py-0.5 text-xs text-green-700 dark:bg-green-950/50 dark:text-green-300"
+                    className="inline-flex select-text items-center gap-1 bg-green-50 px-2 py-0.5 text-xs text-green-700 dark:bg-green-950/50 dark:text-green-300"
                     title={d.context}
                   >
                     {d.text}
@@ -92,7 +92,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.amounts.map((a, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                    className="inline-flex items-center gap-1 bg-amber-50 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
                     title={a.context}
                   >
                     <Copyable value={a.text}>{a.text}</Copyable>
