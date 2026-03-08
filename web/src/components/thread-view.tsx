@@ -475,7 +475,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                         })
                       }
                     }}
-                    className={`flex gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${isOwn ? 'flex-row-reverse' : ''}`}
+                    className={`flex gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 ${isOwn ? 'flex-row-reverse' : ''}`}
                   >
                     {!isOwn && (
                       <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium text-white ${color}`}>
@@ -486,12 +486,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                       <div className={`overflow-hidden rounded-2xl px-3 py-2 text-sm transition-colors ${
                         isOwn
                           ? isSelected
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-indigo-500 text-white'
+                            ? 'bg-red-600 text-white'
+                            : 'bg-red-500 text-white'
                           : isSelected
                             ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
                             : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
-                      } ${isSelected ? 'ring-2 ring-indigo-400/50' : ''}`}>
+                      } ${isSelected ? 'ring-2 ring-red-400/50' : ''}`}>
                         {!isOwn && (
                           <p className="mb-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">{name}</p>
                         )}
@@ -499,7 +499,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           {isExpanded ? fullText : snippet}
                         </p>
                         {isLong && (
-                          <span className="mt-1 block text-xs text-indigo-500 dark:text-indigo-400">
+                          <span className="mt-1 block text-xs text-red-500 dark:text-red-400">
                             {isExpanded ? 'show less' : 'show more'}
                           </span>
                         )}
@@ -549,7 +549,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 }
 
 // box-drawing, table borders, repeated decorative lines
-const NOISE_LINE = /^[\s│┼┬┴├┤┌┐└┘─━═╌╍╎╏║╔╗╚╝╠╣╦╩╬\-=_·•*#|+:>{}\[\]~`]+$/
+const NOISE_LINE = /^[\s│┼┬┴├┤┌┐└┘─━═╌╍╎╏║╔╗╚╝╠╣╦╩╬\-=_·•*#|+:>{}[\]~`]+$/
 
 function cleanTextForBubble(raw: string): string {
   return raw

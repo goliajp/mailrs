@@ -1,28 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="100%" stop-color="#3b82f6"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#ef4444"/>
+      <stop offset="50%" stop-color="#dc2626"/>
+      <stop offset="100%" stop-color="#991b1b"/>
     </linearGradient>
+    <linearGradient id="flap" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#fca5a5"/>
+      <stop offset="100%" stop-color="#f87171"/>
+    </linearGradient>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="112%">
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#000" flood-opacity="0.15"/>
+    </filter>
   </defs>
   <!-- rounded square background -->
-  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
-  <!-- envelope body -->
-  <rect x="96" y="168" width="320" height="216" rx="16" fill="none" stroke="white" stroke-width="16" stroke-linejoin="round"/>
-  <!-- envelope flap (V shape) -->
-  <path d="M96 168 L256 296 L416 168" fill="none" stroke="white" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- small Rust gear accent at bottom-right -->
-  <circle cx="400" cy="368" r="28" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="6"/>
-  <circle cx="400" cy="368" r="10" fill="rgba(255,255,255,0.35)"/>
-  <!-- gear teeth -->
-  <g stroke="rgba(255,255,255,0.35)" stroke-width="6" stroke-linecap="round">
-    <line x1="400" y1="336" x2="400" y2="344"/>
-    <line x1="400" y1="392" x2="400" y2="400"/>
-    <line x1="368" y1="368" x2="376" y2="368"/>
-    <line x1="424" y1="368" x2="432" y2="368"/>
-    <line x1="380" y1="348" x2="386" y2="354"/>
-    <line x1="414" y1="382" x2="420" y2="388"/>
-    <line x1="380" y1="388" x2="386" y2="382"/>
-    <line x1="414" y1="354" x2="420" y2="348"/>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- envelope body - slightly raised -->
+  <g filter="url(#shadow)">
+    <rect x="88" y="160" width="336" height="224" rx="20" fill="white" opacity="0.95"/>
   </g>
+  <!-- envelope flap - gradient overlay -->
+  <path d="M88 180 C88 167 97 160 108 160 L404 160 C415 160 424 167 424 180 L256 308 Z" fill="url(#flap)" opacity="0.9"/>
+  <!-- flap fold line -->
+  <path d="M88 180 L256 308 L424 180" fill="none" stroke="white" stroke-width="4" stroke-linejoin="round" opacity="0.6"/>
+  <!-- subtle R mark (for Rust) bottom-right -->
+  <text x="388" y="362" font-family="Georgia, serif" font-size="48" font-weight="bold" font-style="italic" fill="#dc2626" opacity="0.25">R</text>
 </svg>

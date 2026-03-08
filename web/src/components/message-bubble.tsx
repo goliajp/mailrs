@@ -302,7 +302,7 @@ function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
       <div
         className={`prose prose-sm max-w-none ${
           isOwn
-            ? '[&_*]:text-white [&_a]:text-indigo-200 [&_code]:bg-indigo-600'
+            ? '[&_*]:text-white [&_a]:text-red-200 [&_code]:bg-red-600'
             : 'dark:prose-invert'
         }`}
       >
@@ -353,7 +353,7 @@ export function MessageBubble({
         <div
           className={`rounded-2xl px-4 py-2.5 ${
             isOwn
-              ? 'bg-indigo-500 text-white'
+              ? 'bg-red-500 text-white'
               : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
           }`}
         >
