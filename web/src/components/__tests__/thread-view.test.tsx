@@ -191,7 +191,6 @@ describe('ThreadView — selected message detail', () => {
     const { fetchJson } = await import('@/lib/api')
     vi.mocked(fetchJson)
       .mockResolvedValueOnce([msg])           // loadMessages: thread messages
-      .mockResolvedValueOnce([makeConversation()]) // loadMessages: conversation refresh
 
     const store = makeStore()
     store.set(conversationsAtom, [makeConversation()])

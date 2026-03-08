@@ -88,17 +88,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           : ''
         postJson(`/conversations/${encodeURIComponent(threadId)}/read${readParam}`, {}).catch(() => {})
         setIsRead(true)
-
-        const sq = searchRef.current
-        const cat = categoryRef.current
-        let path = sq
-          ? `/conversations/search?q=${encodeURIComponent(sq)}&limit=50`
-          : '/conversations?limit=50'
-        if (cat) path += `&category=${encodeURIComponent(cat)}`
-        if (doms.length > 0) path += `&domains=${encodeURIComponent(doms.join(','))}`
-        fetchJson<ConversationSummary[]>(path)
-          .then((convos) => { if (!controller.signal.aborted) setConversations(convos) })
-          .catch(() => {})
+        // update unread_count locally instead of re-fetching entire list
+        setConversations((prev) => prev.map((c) => c.thread_id === threadId ? { ...c, unread_count: 0 } : c))
       } catch (err) {
         if (!controller.signal.aborted) {
           toast.error(err instanceof Error ? err.message : 'Failed to load messages')
