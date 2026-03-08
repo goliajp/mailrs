@@ -1484,6 +1484,268 @@ impl MailboxStore {
 
         Ok(rows)
     }
+
+    // ---- contact management ----
+
+    /// upsert a contact on inbound email (received from sender)
+    pub async fn upsert_contact_inbound(
+        &self,
+        user: &str,
+        sender_email: &str,
+        display_name: &str,
+        is_mailing_list: bool,
+        is_automated: bool,
+    ) -> Result<(), sqlx::Error> {
+        let email = normalize_email(sender_email);
+        sqlx::query(
+            "INSERT INTO contacts (user_address, email, display_name, first_seen, last_seen, received_count, is_mailing_list, is_automated)
+             VALUES ($1, $2, $3, now(), now(), 1, $4, $5)
+             ON CONFLICT (user_address, email) DO UPDATE SET
+               display_name = CASE WHEN EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE contacts.display_name END,
+               last_seen = now(),
+               received_count = contacts.received_count + 1,
+               is_mailing_list = contacts.is_mailing_list OR EXCLUDED.is_mailing_list,
+               is_automated = contacts.is_automated OR EXCLUDED.is_automated",
+        )
+        .bind(user)
+        .bind(&email)
+        .bind(display_name)
+        .bind(is_mailing_list)
+        .bind(is_automated)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// upsert a contact on outbound email (sent to recipient)
+    pub async fn upsert_contact_outbound(
+        &self,
+        user: &str,
+        recipient_email: &str,
+        display_name: &str,
+    ) -> Result<(), sqlx::Error> {
+        let email = normalize_email(recipient_email);
+        sqlx::query(
+            "INSERT INTO contacts (user_address, email, display_name, first_seen, last_seen, sent_count, is_mutual)
+             VALUES ($1, $2, $3, now(), now(), 1, true)
+             ON CONFLICT (user_address, email) DO UPDATE SET
+               display_name = CASE WHEN EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE contacts.display_name END,
+               last_seen = now(),
+               sent_count = contacts.sent_count + 1,
+               is_mutual = true",
+        )
+        .bind(user)
+        .bind(&email)
+        .bind(display_name)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// mark contact as mutual (when user replies to a sender)
+    pub async fn mark_contact_mutual(
+        &self,
+        user: &str,
+        email: &str,
+    ) -> Result<(), sqlx::Error> {
+        let email = normalize_email(email);
+        sqlx::query(
+            "UPDATE contacts SET is_mutual = true, reply_count = reply_count + 1
+             WHERE user_address = $1 AND email = $2",
+        )
+        .bind(user)
+        .bind(&email)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// get contact info for importance scoring
+    pub async fn get_contact_for_scoring(
+        &self,
+        user: &str,
+        sender_email: &str,
+    ) -> Result<Option<ContactInfo>, sqlx::Error> {
+        let email = normalize_email(sender_email);
+        let row = sqlx::query_as::<_, (bool, bool, bool, bool, f32, i32, i32)>(
+            "SELECT is_mutual, is_mailing_list, is_vip, is_blocked, importance_bias, received_count, sent_count
+             FROM contacts WHERE user_address = $1 AND email = $2",
+        )
+        .bind(user)
+        .bind(&email)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|r| ContactInfo {
+            is_mutual: r.0,
+            is_mailing_list: r.1,
+            is_vip: r.2,
+            is_blocked: r.3,
+            importance_bias: r.4,
+            received_count: r.5,
+            sent_count: r.6,
+        }))
+    }
+
+    /// update message content fields after deep cleaning
+    pub async fn update_message_content(
+        &self,
+        message_id: i64,
+        text_body: Option<&str>,
+        html_body: Option<&str>,
+        clean_text: Option<&str>,
+        new_content: Option<&str>,
+        is_bulk_sender: bool,
+        has_tracking_pixel: bool,
+        importance_level: &str,
+        importance_score: f32,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE messages SET
+               text_body = COALESCE($2, text_body),
+               html_body = COALESCE($3, html_body),
+               clean_text = COALESCE($4, clean_text),
+               new_content = COALESCE($5, new_content),
+               is_bulk_sender = $6,
+               has_tracking_pixel = $7,
+               importance_level = $8,
+               importance_score = $9
+             WHERE id = $1",
+        )
+        .bind(message_id)
+        .bind(text_body)
+        .bind(html_body)
+        .bind(clean_text)
+        .bind(new_content)
+        .bind(is_bulk_sender)
+        .bind(has_tracking_pixel)
+        .bind(importance_level)
+        .bind(importance_score)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// get message id by mailbox user and maildir_id
+    pub async fn get_message_id_by_maildir(
+        &self,
+        user: &str,
+        maildir_id: &str,
+    ) -> Result<Option<i64>, sqlx::Error> {
+        let row = sqlx::query_as::<_, (i64,)>(
+            "SELECT m.id FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE mb.user_address = $1 AND m.maildir_id = $2",
+        )
+        .bind(user)
+        .bind(maildir_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|r| r.0))
+    }
+
+    /// check if user has sent email to this address (for is_reply_to_my_email detection)
+    pub async fn has_sent_to(
+        &self,
+        user: &str,
+        recipient_email: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let email = normalize_email(recipient_email);
+        let row = sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM contacts
+             WHERE user_address = $1 AND email = $2 AND sent_count > 0",
+        )
+        .bind(user)
+        .bind(&email)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(row.0 > 0)
+    }
+
+    /// record user feedback on a sender (for learning)
+    pub async fn record_sender_feedback(
+        &self,
+        user: &str,
+        sender_email: &str,
+        action: &str,
+    ) -> Result<(), sqlx::Error> {
+        let email = normalize_email(sender_email);
+        sqlx::query(
+            "INSERT INTO sender_feedback (user_address, sender_email, action) VALUES ($1, $2, $3)",
+        )
+        .bind(user)
+        .bind(&email)
+        .bind(action)
+        .execute(&self.pool)
+        .await?;
+
+        // update contact importance_bias based on action
+        let bias_delta: f32 = match action {
+            "mark_important" => 0.2,
+            "mark_vip" => 0.4,
+            "mark_spam" | "block" => -0.5,
+            "archive" => -0.05,
+            _ => 0.0,
+        };
+
+        if bias_delta.abs() > f32::EPSILON {
+            sqlx::query(
+                "UPDATE contacts SET importance_bias = LEAST(1.0, GREATEST(-1.0, importance_bias + $3))
+                 WHERE user_address = $1 AND email = $2",
+            )
+            .bind(user)
+            .bind(&email)
+            .bind(bias_delta)
+            .execute(&self.pool)
+            .await?;
+        }
+
+        Ok(())
+    }
+}
+
+/// contact info for importance scoring
+pub struct ContactInfo {
+    pub is_mutual: bool,
+    pub is_mailing_list: bool,
+    pub is_vip: bool,
+    pub is_blocked: bool,
+    pub importance_bias: f32,
+    pub received_count: i32,
+    pub sent_count: i32,
+}
+
+/// normalize email address: lowercase, remove +tags
+fn normalize_email(email: &str) -> String {
+    let email = email.trim().to_lowercase();
+    // extract bare email from "Display Name <email@domain>" format
+    let email = if let Some(start) = email.find('<') {
+        if let Some(end) = email.find('>') {
+            email[start + 1..end].to_string()
+        } else {
+            email
+        }
+    } else {
+        email
+    };
+
+    // remove + tags (e.g., user+tag@domain -> user@domain)
+    if let Some((local, domain)) = email.split_once('@') {
+        let local = if let Some((base, _)) = local.split_once('+') {
+            base
+        } else {
+            local
+        };
+        format!("{local}@{domain}")
+    } else {
+        email
+    }
 }
 
 // ---- free functions ----
@@ -1988,5 +2250,39 @@ mod tests {
         let debug = format!("{:?}", row);
         assert!(debug.contains("EmailAnalysisRow"));
         assert!(debug.contains("finance"));
+    }
+
+    // ---- normalize_email tests ----
+
+    #[test]
+    fn normalize_email_basic() {
+        assert_eq!(normalize_email("Alice@Example.COM"), "alice@example.com");
+    }
+
+    #[test]
+    fn normalize_email_with_display_name() {
+        assert_eq!(normalize_email("Alice <alice@example.com>"), "alice@example.com");
+        assert_eq!(normalize_email("\"Bob\" <BOB@Test.COM>"), "bob@test.com");
+    }
+
+    #[test]
+    fn normalize_email_removes_plus_tag() {
+        assert_eq!(normalize_email("user+tag@example.com"), "user@example.com");
+        assert_eq!(normalize_email("alice+newsletter@test.com"), "alice@test.com");
+    }
+
+    #[test]
+    fn normalize_email_no_plus_tag() {
+        assert_eq!(normalize_email("alice@example.com"), "alice@example.com");
+    }
+
+    #[test]
+    fn normalize_email_trims_whitespace() {
+        assert_eq!(normalize_email("  alice@example.com  "), "alice@example.com");
+    }
+
+    #[test]
+    fn normalize_email_bare_string() {
+        assert_eq!(normalize_email("notanemail"), "notanemail");
     }
 }
