@@ -174,10 +174,10 @@ export type ThreadMessage = {
 }
 
 export type StructuredData = {
-  reservations: Reservation[]
-  orders: Order[]
-  events: EventInfo[]
-  actions: ActionInfoItem[]
+  reservations?: Reservation[]
+  orders?: Order[]
+  events?: EventInfo[]
+  actions?: ActionInfoItem[]
 }
 
 export type Reservation = {

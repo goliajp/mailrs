@@ -1,11 +1,16 @@
 import type { StructuredData } from '@/lib/types'
 
 export function StructuredDataCard({ data }: { data: StructuredData }) {
+  const reservations = data.reservations ?? []
+  const orders = data.orders ?? []
+  const events = data.events ?? []
+  const actions = data.actions ?? []
+
   const hasContent =
-    data.reservations.length > 0 ||
-    data.orders.length > 0 ||
-    data.events.length > 0 ||
-    data.actions.length > 0
+    reservations.length > 0 ||
+    orders.length > 0 ||
+    events.length > 0 ||
+    actions.length > 0
 
   if (!hasContent) return null
 
@@ -15,7 +20,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         Structured Data
       </p>
       <div className="space-y-2">
-        {data.reservations.map((r, i) => (
+        {reservations.map((r, i) => (
           <div
             key={`res-${i}`}
             className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
@@ -51,7 +56,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
           </div>
         ))}
 
-        {data.orders.map((o, i) => (
+        {orders.map((o, i) => (
           <div
             key={`ord-${i}`}
             className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
@@ -95,7 +100,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
           </div>
         ))}
 
-        {data.events.map((e, i) => (
+        {events.map((e, i) => (
           <div
             key={`evt-${i}`}
             className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
@@ -130,7 +135,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
           </div>
         ))}
 
-        {data.actions.map((a, i) => (
+        {actions.map((a, i) => (
           <div key={`act-${i}`} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
             <div className="flex items-center gap-2">
               <svg className="h-4 w-4 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
