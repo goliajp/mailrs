@@ -482,8 +482,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                         {initial}
                       </div>
                     )}
-                    <div className={`max-w-[85%] ${isOwn ? 'items-end' : 'items-start'}`}>
-                      <div className={`rounded-2xl px-3 py-2 text-sm transition-colors ${
+                    <div className={`min-w-0 max-w-[85%] ${isOwn ? 'items-end' : 'items-start'}`}>
+                      <div className={`overflow-hidden rounded-2xl px-3 py-2 text-sm transition-colors ${
                         isOwn
                           ? isSelected
                             ? 'bg-blue-600 text-white'
@@ -495,14 +495,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                         {!isOwn && (
                           <p className="mb-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{name}</p>
                         )}
-                        <p className={`text-[13px] leading-snug whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-3'}`}>
+                        <p className={`break-words text-[13px] leading-snug whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-3'}`}>
                           {isExpanded ? fullText : snippet}
                         </p>
-                        {isLong && !isExpanded && (
-                          <span className="text-[11px] text-blue-500 dark:text-blue-400">show more</span>
-                        )}
-                        {isLong && isExpanded && (
-                          <span className="text-[11px] text-blue-500 dark:text-blue-400">show less</span>
+                        {isLong && (
+                          <span className="mt-1 block text-[11px] text-blue-500 dark:text-blue-400">
+                            {isExpanded ? 'show less' : 'show more'}
+                          </span>
                         )}
                       </div>
                       <p className={`mt-0.5 text-[10px] text-zinc-400 ${isOwn ? 'text-right' : ''}`}>
