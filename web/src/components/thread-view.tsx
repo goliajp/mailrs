@@ -297,14 +297,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             <ArrowLeft className="h-5 w-5" />
           </button>
         )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="select-text truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{subject || '(no subject)'}</h2>
-            <CategoryBadge category={messages[0]?.category} />
-            <ImportanceBadge level={messages[0]?.importance_level} />
-            {messages.some((m) => m.requires_action) && <ActionBadge />}
-            <span className="text-xs text-zinc-400">{messages.length} message{messages.length !== 1 && 's'}</span>
-          </div>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <h2 className="select-text truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{subject || '(no subject)'}</h2>
+          <span className="shrink-0 text-xs text-zinc-400">{messages.length}</span>
+          <CategoryBadge category={messages[0]?.category} />
+          <ImportanceBadge level={messages[0]?.importance_level} />
+          {messages.some((m) => m.requires_action) && <ActionBadge />}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <HdrBtn onClick={isRead ? handleMarkUnread : handleMarkRead} title={isRead ? 'Mark unread' : 'Mark read'}>
@@ -348,10 +346,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             <>
               {/* email header */}
               <div className="shrink-0 border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  {selectedMsg.subject || '(no subject)'}
-                </h3>
-                <div className="mt-2 flex items-center gap-3">
+                <div className="flex items-center gap-3">
                   <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white ${avatarColor(selectedMsg.sender)}`}>
                     {avatarInitial(selectedMsg.sender)}
                   </div>
@@ -367,7 +362,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-0.5">
-                    {selectedMsg.requires_action && <ActionBadge />}
                     <IntentBadge intent={selectedMsg.sender_intent} />
                     {selectedMsg.action_deadline && (
                       <span className="bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
