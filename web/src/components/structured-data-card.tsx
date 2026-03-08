@@ -11,14 +11,14 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
 
   return (
     <div className="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-      <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+      <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
         Structured Data
       </p>
       <div className="space-y-2">
         {data.reservations.map((r, i) => (
           <div
             key={`res-${i}`}
-            className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
+            className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
           >
             <div className="flex items-center gap-2">
               <ReservationIcon kind={r.type} />
@@ -26,7 +26,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
                 {r.type} Reservation
               </span>
               {r.reservation_id && (
-                <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
+                <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[11px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
                   {r.reservation_id}
                 </span>
               )}
@@ -54,7 +54,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         {data.orders.map((o, i) => (
           <div
             key={`ord-${i}`}
-            className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
+            className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
           >
             <div className="flex items-center gap-2">
               <svg className="h-4 w-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -64,7 +64,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
                 Order
               </span>
               {o.order_number && (
-                <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
+                <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[11px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
                   #{o.order_number}
                 </span>
               )}
@@ -98,7 +98,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         {data.events.map((e, i) => (
           <div
             key={`evt-${i}`}
-            className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
+            className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50"
           >
             <div className="flex items-center gap-2">
               <svg className="h-4 w-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -131,7 +131,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         ))}
 
         {data.actions.map((a, i) => (
-          <div key={`act-${i}`} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
+          <div key={`act-${i}`} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
             <div className="flex items-center gap-2">
               <svg className="h-4 w-4 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />

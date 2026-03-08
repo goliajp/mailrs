@@ -14,7 +14,7 @@ export function AiAnalysisPanel({ message }: Props) {
   const hasDetails = hasPeople || hasDates || hasAmounts || hasActions
 
   return (
-    <div className="border-b border-zinc-200 bg-zinc-50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+    <div className="border-b border-zinc-200 bg-zinc-50 px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
       {/* summary */}
       {message.summary && (
         <p className="text-sm text-zinc-700 dark:text-zinc-300">
@@ -41,11 +41,11 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.people.map((p, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
+                    className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300"
                   >
                     {p.name}
                     {p.role && (
-                      <span className="text-blue-400 dark:text-blue-500">
+                      <span className="text-indigo-400 dark:text-indigo-500">
                         ({p.role})
                       </span>
                     )}

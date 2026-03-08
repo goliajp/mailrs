@@ -328,7 +328,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
       {/* delete dialog */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true">
           <div className="mx-4 w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Delete conversation?</h3>
             <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">This will permanently delete all messages.</p>
@@ -365,17 +365,17 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     {selectedMsg.requires_action && <ActionBadge />}
                     <IntentBadge intent={selectedMsg.sender_intent} />
                     {selectedMsg.action_deadline && (
-                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
                         Due: {selectedMsg.action_deadline}
                       </span>
                     )}
                     {selectedMsg.is_bulk_sender && (
-                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
                         Bulk
                       </span>
                     )}
                     {selectedMsg.ai_analyzed && (
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
                         selectedMsg.risk_score >= 60
                           ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                           : selectedMsg.risk_score >= 40
@@ -475,10 +475,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                         })
                       }
                     }}
-                    className={`flex gap-2 text-left ${isOwn ? 'flex-row-reverse' : ''}`}
+                    className={`flex gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${isOwn ? 'flex-row-reverse' : ''}`}
                   >
                     {!isOwn && (
-                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white ${color}`}>
+                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium text-white ${color}`}>
                         {initial}
                       </div>
                     )}
@@ -486,27 +486,31 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                       <div className={`overflow-hidden rounded-2xl px-3 py-2 text-sm transition-colors ${
                         isOwn
                           ? isSelected
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-blue-500 text-white'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-indigo-500 text-white'
                           : isSelected
                             ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
                             : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
-                      } ${isSelected ? 'ring-2 ring-blue-400/50' : ''}`}>
+                      } ${isSelected ? 'ring-2 ring-indigo-400/50' : ''}`}>
                         {!isOwn && (
-                          <p className="mb-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{name}</p>
+                          <p className="mb-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">{name}</p>
                         )}
-                        <p className={`break-words text-[13px] leading-snug whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-3'}`}>
+                        <p className={`break-words text-sm leading-snug whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-3'}`}>
                           {isExpanded ? fullText : snippet}
                         </p>
                         {isLong && (
-                          <span className="mt-1 block text-[11px] text-blue-500 dark:text-blue-400">
+                          <span className="mt-1 block text-xs text-indigo-500 dark:text-indigo-400">
                             {isExpanded ? 'show less' : 'show more'}
                           </span>
                         )}
                       </div>
-                      <p className={`mt-0.5 text-[10px] text-zinc-400 ${isOwn ? 'text-right' : ''}`}>
+                      <p className={`mt-0.5 text-[11px] text-zinc-400 ${isOwn ? 'text-right' : ''}`}>
                         {formatDate(msg.internal_date)}
-                        {msg.attachments.length > 0 && ' 📎'}
+                        {msg.attachments.length > 0 && (
+                          <svg className="ml-1 inline-block h-3 w-3 align-[-1px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+                          </svg>
+                        )}
                       </p>
                     </div>
                   </button>
@@ -636,7 +640,7 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
       </button>
       {open && (
         <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-          <p className="truncate px-3 py-1 text-[10px] text-zinc-400">{senderEmail}</p>
+          <p className="truncate px-3 py-1 text-[11px] text-zinc-400">{senderEmail}</p>
           {FEEDBACK_ITEMS.map((item) => (
             <button
               key={item.action}
