@@ -142,4 +142,18 @@ describe('extractName', () => {
   it('handles single-word display name', () => {
     expect(extractName('Eve <eve@example.com>')).toBe('Eve')
   })
+
+  it('returns domain-based name for machine-generated bounce addresses', () => {
+    const result = extractName('<0101019ccdad21d4-3b587183-7366-4b5f-a157-c01ce00c45e1-000000@atlassian-bounces.atlassian.net>')
+    expect(result).toBe('Atlassian')
+  })
+
+  it('returns domain-based name for long hex local parts', () => {
+    const result = extractName('01234567890abcdef01234567@mailer.example.com')
+    expect(result).toBe('Mailer')
+  })
+
+  it('keeps short normal local parts as-is', () => {
+    expect(extractName('noreply@github.com')).toBe('noreply')
+  })
 })
