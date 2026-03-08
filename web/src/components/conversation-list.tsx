@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Archive, Check, CheckCircle, Clock, Inbox, Mail, MailOpen, Paperclip, Pin, Search, SquarePen, Star } from 'lucide-react'
+import { Archive, Check, CheckCircle, Clock, Mail, MailOpen, Pin, Search, SlidersHorizontal, SquarePen, Star } from 'lucide-react'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
@@ -31,7 +31,6 @@ import {
   visibleConversationIdsAtom,
   quickFilterAtom,
   type ImportanceSection,
-  type QuickFilter,
   type SortOrder,
 } from '@/store/chat'
 
@@ -279,260 +278,293 @@ const ConversationItem = memo(function ConversationItem({
   )
 })
 
-const QUICK_FILTERS: { value: QuickFilter; label: string; icon: React.ReactNode }[] = [
-  { value: 'all', label: 'All', icon: <Inbox className="h-3.5 w-3.5" /> },
-  { value: 'unread', label: 'Unread', icon: <Mail className="h-3.5 w-3.5" /> },
-  { value: 'starred', label: 'Starred', icon: <Star className="h-3.5 w-3.5" /> },
-  { value: 'attachment', label: 'Files', icon: <Paperclip className="h-3.5 w-3.5" /> },
+// unified tab bar: replaces 5 separate filter rows with one compact line
+const VIEW_TABS: { value: string; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'unread', label: 'Unread' },
+  { value: 'starred', label: 'Starred' },
+  { value: 'action', label: 'Action' },
 ]
 
-function QuickFilterBar() {
-  const [filter, setFilter] = useAtom(quickFilterAtom)
-  return (
-    <div className="flex select-none gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">
-      {QUICK_FILTERS.map((f) => (
-        <button
-          key={f.value}
-          onClick={() => setFilter(f.value)}
-          aria-pressed={filter === f.value}
-          className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
-            filter === f.value
-              ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
-              : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
-          }`}
-        >
-          {f.icon}
-          {f.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function DomainSelector() {
-  const auth = useAtomValue(authAtom)
+function FilterBar() {
+  const [quickFilter, setQuickFilter] = useAtom(quickFilterAtom)
+  const [section, setSection] = useAtom(importanceSectionAtom)
+  const [sortOrder, setSortOrder] = useAtom(sortOrderAtom)
+  const [showArchived, setShowArchived] = useAtom(showArchivedAtom)
+  const [activeCategory, setActiveCategory] = useAtom(categoryFilterAtom)
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
   const [crossAccountRead, setCrossAccountRead] = useAtom(crossAccountReadAtom)
-
-  const superDomains = auth?.super_domains ?? []
-  if (superDomains.length === 0) return null
-
-  const toggleDomain = (domain: string) => {
-    setSelectedDomains((prev) =>
-      prev.includes(domain)
-        ? prev.filter((d) => d !== domain)
-        : [...prev, domain]
-    )
-  }
-
-  const allSelected = selectedDomains.length === superDomains.length
-  const toggleAll = () => {
-    if (allSelected) {
-      setSelectedDomains([])
-    } else {
-      setSelectedDomains([...superDomains])
-    }
-  }
-
-  return (
-    <div className="flex items-center gap-1.5 overflow-x-auto border-b border-[var(--color-border-default)] px-3 py-1.5" role="group" aria-label="Domain filter">
-      <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]" aria-hidden="true">Domains:</span>
-      <button
-        onClick={toggleAll}
-        aria-pressed={selectedDomains.length === 0}
-        aria-label={selectedDomains.length === 0 ? 'Show my emails only' : allSelected ? 'Show all domains' : 'Mixed domain selection'}
-        className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
-          selectedDomains.length === 0
-            ? 'bg-[var(--color-brand-primary)] text-white'
-            : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
-        }`}
-      >
-        {selectedDomains.length === 0 ? 'Mine' : allSelected ? 'All' : 'Mix'}
-      </button>
-      {superDomains.map((domain) => (
-        <button
-          key={domain}
-          onClick={() => toggleDomain(domain)}
-          aria-pressed={selectedDomains.includes(domain)}
-          aria-label={`Filter by domain ${domain}`}
-          className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
-            selectedDomains.includes(domain)
-              ? 'bg-[var(--color-brand-primary)] text-white'
-              : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
-          }`}
-        >
-          {domain}
-        </button>
-      ))}
-      {selectedDomains.length > 0 && (
-        <label className="ml-auto flex shrink-0 cursor-pointer items-center gap-1 text-xs text-[var(--color-text-tertiary)]">
-          <input
-            type="checkbox"
-            checked={crossAccountRead}
-            onChange={(e) => setCrossAccountRead(e.target.checked)}
-            className="h-3 w-3 rounded border-[var(--color-border-default)] accent-[var(--color-brand-primary)]"
-          />
-          Cross-read
-        </label>
-      )}
-    </div>
-  )
-}
-
-function CategoryChips() {
+  const auth = useAtomValue(authAtom)
+  const selectedDomainsVal = useAtomValue(selectedDomainsAtom)
+  const conversations = useAtomValue(conversationsAtom)
   const [categories, setCategories] = useState<CategoryCount[]>([])
-  const [activeCategory, setActiveCategory] = useAtom(categoryFilterAtom)
-  const selectedDomains = useAtomValue(selectedDomainsAtom)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
 
+  // fetch categories
   useEffect(() => {
-    const domainsParam = selectedDomains.length > 0
-      ? `?domains=${encodeURIComponent(selectedDomains.join(','))}`
+    const domainsParam = selectedDomainsVal.length > 0
+      ? `?domains=${encodeURIComponent(selectedDomainsVal.join(','))}`
       : ''
     fetchJson<CategoryCount[]>(`/conversations/categories${domainsParam}`).then(
       (data) => setCategories(data),
       () => {}
     )
-  }, [selectedDomains])
+  }, [selectedDomainsVal])
 
-  if (categories.length === 0) return null
+  // close dropdown on outside click
+  useEffect(() => {
+    if (!filtersOpen) return
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setFiltersOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [filtersOpen])
 
-  return (
-    <div className="flex gap-1.5 overflow-x-auto border-b border-[var(--color-border-default)] px-3 py-1.5" role="group" aria-label="Category filter">
-      <button
-        onClick={() => setActiveCategory(null)}
-        aria-pressed={activeCategory === null}
-        aria-label="Show all categories"
-        className={`shrink-0 rounded-md px-2.5 py-0.5 text-xs font-medium transition-colors ${
-          activeCategory === null
-            ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
-            : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
-        }`}
-      >
-        All
-      </button>
-      {categories.map((cat) => (
-        <button
-          key={cat.category}
-          onClick={() =>
-            setActiveCategory(
-              activeCategory === cat.category ? null : cat.category
-            )
-          }
-          aria-pressed={activeCategory === cat.category}
-          aria-label={`Filter by category ${cat.category}, ${cat.count} conversations`}
-          className={`shrink-0 rounded-md px-2.5 py-0.5 text-xs font-medium capitalize transition-colors ${
-            activeCategory === cat.category
-              ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
-              : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
-          }`}
-        >
-          {cat.category} ({cat.count})
-        </button>
-      ))}
-    </div>
+  // compute active tab from quickFilter + importanceSection
+  const activeTab = section === 'action' ? 'action' : quickFilter !== 'all' ? quickFilter : 'all'
+
+  const handleTab = (tab: string) => {
+    if (tab === 'action') {
+      setQuickFilter('all')
+      setSection(section === 'action' ? null : 'action')
+    } else if (tab === 'unread') {
+      setSection(null)
+      setQuickFilter(quickFilter === 'unread' ? 'all' : 'unread')
+    } else if (tab === 'starred') {
+      setSection(null)
+      setQuickFilter(quickFilter === 'starred' ? 'all' : 'starred')
+    } else {
+      setQuickFilter('all')
+      setSection(null)
+    }
+  }
+
+  // action count for badge
+  const actionCount = useMemo(() =>
+    conversations.filter(
+      (c) => c.importance_level === 'critical' || (c.importance_level === 'important' && c.unread_count > 0)
+    ).length,
+    [conversations]
   )
-}
 
-const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'oldest', label: 'Oldest' },
-  { value: 'unread', label: 'Unread first' },
-]
+  // whether any advanced filters are active
+  const hasAdvancedFilters = sortOrder !== 'newest' || showArchived || activeCategory !== null || selectedDomains.length > 0 || section === 'important' || section === 'other'
 
-function SortAndArchivedRow() {
-  const [sortOrder, setSortOrder] = useAtom(sortOrderAtom)
-  const [showArchived, setShowArchived] = useAtom(showArchivedAtom)
+  const superDomains = auth?.super_domains ?? []
 
   return (
-    <div className="flex items-center gap-1 overflow-hidden border-b border-[var(--color-border-default)] px-3 py-1.5" role="group" aria-label="Sort order">
-      {SORT_OPTIONS.map((opt) => (
+    <div className="flex items-center gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">
+      {/* main tabs */}
+      {VIEW_TABS.map((t) => (
         <button
-          key={opt.value}
-          onClick={() => setSortOrder(opt.value)}
-          aria-pressed={sortOrder === opt.value}
-          aria-label={`Sort by ${opt.label}`}
-          className={`truncate rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
-            sortOrder === opt.value
-              ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+          key={t.value}
+          onClick={() => handleTab(t.value)}
+          className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+            activeTab === t.value
+              ? t.value === 'action'
+                ? 'bg-[var(--color-status-danger)] text-white'
+                : 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
               : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
           }`}
         >
-          {opt.label}
+          {t.label}
+          {t.value === 'action' && actionCount > 0 && (
+            <span className="ml-1 opacity-70">{actionCount}</span>
+          )}
         </button>
       ))}
-      <button
-        onClick={() => setShowArchived((prev) => !prev)}
-        aria-pressed={showArchived}
-        className={`ml-auto shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
-          showArchived
-            ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
-            : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
-        }`}
-      >
-        {showArchived ? 'Archived' : 'Active'}
-      </button>
-    </div>
-  )
-}
 
-const IMPORTANCE_SECTIONS: { value: ImportanceSection; label: string; description: string }[] = [
-  { value: null, label: 'All', description: 'All conversations' },
-  { value: 'action', label: 'Action', description: 'Requires your action' },
-  { value: 'important', label: 'Important', description: 'Important messages' },
-  { value: 'other', label: 'Other', description: 'Low priority & noise' },
-]
+      {/* filter dropdown toggle */}
+      <div className="relative ml-auto" ref={panelRef}>
+        <button
+          onClick={() => setFiltersOpen((prev) => !prev)}
+          className={`relative flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
+            filtersOpen || hasAdvancedFilters
+              ? 'text-[var(--color-brand-primary)]'
+              : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
+          }`}
+          title="Filters"
+          aria-label="Toggle filters"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          {hasAdvancedFilters && (
+            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[var(--color-brand-primary)]" />
+          )}
+        </button>
 
-function ImportanceSectionTabs() {
-  const [section, setSection] = useAtom(importanceSectionAtom)
-  const conversations = useAtomValue(conversationsAtom)
-
-  const counts = useMemo(() => {
-    let action = 0
-    let important = 0
-    let other = 0
-    for (const c of conversations) {
-      const lvl = c.importance_level
-      if (lvl === 'critical' || lvl === 'important') {
-        important++
-      } else if (lvl === 'low' || lvl === 'noise') {
-        other++
-      }
-      // count action-requiring separately (can overlap)
-      // we check unread + importance for action tab
-    }
-    // action count: critical importance or unread important
-    action = conversations.filter(
-      (c) => c.importance_level === 'critical' || (c.importance_level === 'important' && c.unread_count > 0)
-    ).length
-    return { action, important, other }
-  }, [conversations])
-
-  return (
-    <div className="flex gap-0.5 border-b border-[var(--color-border-default)] px-3 py-1.5" role="tablist" aria-label="Importance filter">
-      {IMPORTANCE_SECTIONS.map((s) => {
-        const count = s.value === 'action' ? counts.action : s.value === 'important' ? counts.important : s.value === 'other' ? counts.other : 0
-        return (
-          <button
-            key={s.value ?? 'all'}
-            role="tab"
-            aria-selected={section === s.value}
-            aria-label={s.description}
-            onClick={() => setSection(section === s.value ? null : s.value)}
-            className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
-              section === s.value
-                ? s.value === 'action'
-                  ? 'bg-[var(--color-status-danger)] text-white'
-                  : 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
-                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
-            }`}
+        {/* filter dropdown panel */}
+        {filtersOpen && (
+          <div
+            style={{ boxShadow: 'var(--shadow-lg)' }}
+            className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3 text-xs"
           >
-            {s.label}
-            {s.value && count > 0 && (
-              <span className="ml-1 opacity-70">{count}</span>
+            {/* sort */}
+            <div className="mb-3">
+              <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">Sort</label>
+              <div className="flex gap-1">
+                {(['newest', 'oldest', 'unread'] as SortOrder[]).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSortOrder(s)}
+                    className={`rounded-md px-2 py-0.5 capitalize transition-colors ${
+                      sortOrder === s
+                        ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                    }`}
+                  >
+                    {s === 'unread' ? 'Unread first' : s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* view: active / archived */}
+            <div className="mb-3">
+              <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">View</label>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setShowArchived(false)}
+                  className={`rounded-md px-2 py-0.5 transition-colors ${
+                    !showArchived
+                      ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                  }`}
+                >
+                  Active
+                </button>
+                <button
+                  onClick={() => setShowArchived(true)}
+                  className={`rounded-md px-2 py-0.5 transition-colors ${
+                    showArchived
+                      ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                  }`}
+                >
+                  Archived
+                </button>
+              </div>
+            </div>
+
+            {/* priority */}
+            <div className="mb-3">
+              <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">Priority</label>
+              <div className="flex flex-wrap gap-1">
+                {([null, 'important', 'other'] as ImportanceSection[]).map((s) => (
+                  <button
+                    key={s ?? 'all'}
+                    onClick={() => setSection(section === s ? null : s)}
+                    className={`rounded-md px-2 py-0.5 transition-colors ${
+                      section === s
+                        ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                    }`}
+                  >
+                    {s === null ? 'All' : s === 'important' ? 'Important' : 'Other'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* categories */}
+            {categories.length > 0 && (
+              <div className="mb-3">
+                <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">Category</label>
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    onClick={() => setActiveCategory(null)}
+                    className={`rounded-md px-2 py-0.5 transition-colors ${
+                      activeCategory === null
+                        ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.category}
+                      onClick={() => setActiveCategory(activeCategory === cat.category ? null : cat.category)}
+                      className={`rounded-md px-2 py-0.5 capitalize transition-colors ${
+                        activeCategory === cat.category
+                          ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+                          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                      }`}
+                    >
+                      {cat.category}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
-          </button>
-        )
-      })}
+
+            {/* domains (super-admin only) */}
+            {superDomains.length > 0 && (
+              <div>
+                <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">Domains</label>
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    onClick={() => setSelectedDomains([])}
+                    className={`rounded-md px-2 py-0.5 transition-colors ${
+                      selectedDomains.length === 0
+                        ? 'bg-[var(--color-brand-primary)] text-white'
+                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                    }`}
+                  >
+                    Mine
+                  </button>
+                  {superDomains.map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setSelectedDomains((prev) =>
+                        prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
+                      )}
+                      className={`rounded-md px-2 py-0.5 transition-colors ${
+                        selectedDomains.includes(d)
+                          ? 'bg-[var(--color-brand-primary)] text-white'
+                          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+                {selectedDomains.length > 0 && (
+                  <label className="mt-1.5 flex cursor-pointer items-center gap-1 text-[var(--color-text-tertiary)]">
+                    <input
+                      type="checkbox"
+                      checked={crossAccountRead}
+                      onChange={(e) => setCrossAccountRead(e.target.checked)}
+                      className="h-3 w-3 rounded border-[var(--color-border-default)] accent-[var(--color-brand-primary)]"
+                    />
+                    Cross-read
+                  </label>
+                )}
+              </div>
+            )}
+
+            {/* reset all filters */}
+            {hasAdvancedFilters && (
+              <button
+                onClick={() => {
+                  setSortOrder('newest')
+                  setShowArchived(false)
+                  setActiveCategory(null)
+                  setSelectedDomains([])
+                  setSection(null)
+                  setFiltersOpen(false)
+                }}
+                className="mt-3 w-full rounded-md border border-[var(--color-border-default)] py-1 text-center text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+              >
+                Reset filters
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -892,11 +924,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
         </button>
       </div>
 
-      <QuickFilterBar />
-      <DomainSelector />
-      <ImportanceSectionTabs />
-      <CategoryChips />
-      <SortAndArchivedRow />
+      <FilterBar />
 
       <div
         ref={scrollContainerRef}

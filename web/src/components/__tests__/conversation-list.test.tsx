@@ -93,7 +93,12 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('DomainSelector', () => {
+// helper: open the filter dropdown panel
+function openFilterPanel() {
+  fireEvent.click(screen.getByLabelText('Toggle filters'))
+}
+
+describe('FilterBar — domain selector', () => {
   let store: ReturnType<typeof createStore>
 
   beforeEach(() => {
@@ -101,54 +106,21 @@ describe('DomainSelector', () => {
     store.set(conversationsAtom, [makeConversation()])
   })
 
-  it('renders domain buttons when super_domains are available', () => {
+  it('shows domain buttons in filter dropdown when super_domains are available', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
       </Wrapper>,
     )
 
-    expect(screen.getByLabelText('Domain filter')).toBeDefined()
-    expect(screen.getByLabelText('Filter by domain example.com')).toBeDefined()
-    expect(screen.getByLabelText('Filter by domain golia.jp')).toBeDefined()
-  })
-
-  it('shows Mine button initially (no domains selected)', () => {
-    render(
-      <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
-    )
-
+    openFilterPanel()
+    expect(screen.getByText('Domains')).toBeDefined()
     expect(screen.getByText('Mine')).toBeDefined()
+    expect(screen.getByText('example.com')).toBeDefined()
+    expect(screen.getByText('golia.jp')).toBeDefined()
   })
 
-  it('toggles domain selection on click', () => {
-    render(
-      <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
-    )
-
-    const domainButton = screen.getByLabelText('Filter by domain example.com')
-    fireEvent.click(domainButton)
-    // after clicking one domain, Mine changes to Mix
-    expect(screen.getByText('Mix')).toBeDefined()
-  })
-
-  it('shows All when all domains are selected', () => {
-    render(
-      <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
-    )
-
-    fireEvent.click(screen.getByLabelText('Filter by domain example.com'))
-    fireEvent.click(screen.getByLabelText('Filter by domain golia.jp'))
-    expect(screen.getAllByText('All').length).toBeGreaterThanOrEqual(1)
-  })
-
-  it('does not render when super_domains is empty', () => {
+  it('does not show domain section when super_domains is empty', () => {
     const noSuperStore = createStore()
     noSuperStore.set(authAtom, {
       token: 'test-token',
@@ -165,11 +137,12 @@ describe('DomainSelector', () => {
       </Wrapper>,
     )
 
-    expect(screen.queryByLabelText('Domain filter')).toBeNull()
+    openFilterPanel()
+    expect(screen.queryByText('Domains')).toBeNull()
   })
 })
 
-describe('SortSelector', () => {
+describe('FilterBar — sort', () => {
   let store: ReturnType<typeof createStore>
 
   beforeEach(() => {
@@ -177,40 +150,18 @@ describe('SortSelector', () => {
     store.set(conversationsAtom, [makeConversation()])
   })
 
-  it('renders all sort options', () => {
+  it('shows sort options in filter dropdown', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
       </Wrapper>,
     )
 
-    expect(screen.getByLabelText('Sort order')).toBeDefined()
-    expect(screen.getByLabelText('Sort by Newest')).toBeDefined()
-    expect(screen.getByLabelText('Sort by Oldest')).toBeDefined()
-    expect(screen.getByLabelText('Sort by Unread first')).toBeDefined()
-  })
-
-  it('defaults to newest being pressed', () => {
-    render(
-      <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
-    )
-
-    const newestBtn = screen.getByLabelText('Sort by Newest')
-    expect(newestBtn.getAttribute('aria-pressed')).toBe('true')
-  })
-
-  it('updates sort order on click', () => {
-    render(
-      <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
-    )
-
-    fireEvent.click(screen.getByLabelText('Sort by Oldest'))
-    expect(screen.getByLabelText('Sort by Oldest').getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByLabelText('Sort by Newest').getAttribute('aria-pressed')).toBe('false')
+    openFilterPanel()
+    expect(screen.getByText('Sort')).toBeDefined()
+    expect(screen.getByText('newest')).toBeDefined()
+    expect(screen.getByText('oldest')).toBeDefined()
+    expect(screen.getByText('Unread first')).toBeDefined()
   })
 
   it('applies oldest sort to conversations', () => {
@@ -226,23 +177,23 @@ describe('SortSelector', () => {
       </Wrapper>,
     )
 
-    fireEvent.click(screen.getByLabelText('Sort by Oldest'))
+    openFilterPanel()
+    fireEvent.click(screen.getByText('oldest'))
 
     const items = screen.getAllByRole('listitem')
-    // oldest first
     expect(items[0].textContent).toContain('Older')
     expect(items[1].textContent).toContain('Newer')
   })
 })
 
-describe('ArchivedToggle', () => {
+describe('FilterBar — archived toggle', () => {
   let store: ReturnType<typeof createStore>
 
   beforeEach(() => {
     store = makeStore()
   })
 
-  it('renders the Active button in unpressed state by default', () => {
+  it('shows Active/Archived in filter dropdown', () => {
     store.set(conversationsAtom, [makeConversation()])
 
     render(
@@ -251,27 +202,12 @@ describe('ArchivedToggle', () => {
       </Wrapper>,
     )
 
-    const btn = screen.getByText('Active')
-    expect(btn.getAttribute('aria-pressed')).toBe('false')
+    openFilterPanel()
+    expect(screen.getByText('Active')).toBeDefined()
+    expect(screen.getByText('Archived')).toBeDefined()
   })
 
-  it('toggles to Archived on click', () => {
-    store.set(conversationsAtom, [makeConversation()])
-
-    render(
-      <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
-    )
-
-    const btn = screen.getByText('Active')
-    fireEvent.click(btn)
-    // after toggle, button text changes to "Archived" with aria-pressed=true
-    const archived = screen.getByText('Archived')
-    expect(archived.getAttribute('aria-pressed')).toBe('true')
-  })
-
-  it('shows archived conversations when toggled on', () => {
+  it('shows archived conversations when Archived clicked', () => {
     store.set(conversationsAtom, [
       makeConversation({ thread_id: 'normal', subject: 'Normal Item', archived: false }),
       makeConversation({ thread_id: 'archived', subject: 'Archived Item', archived: true }),
@@ -283,11 +219,10 @@ describe('ArchivedToggle', () => {
       </Wrapper>,
     )
 
-    // archived item hidden by default
     expect(screen.queryByText('Archived Item')).toBeNull()
 
-    // toggle on
-    fireEvent.click(screen.getByText('Active'))
+    openFilterPanel()
+    fireEvent.click(screen.getByText('Archived'))
     expect(screen.getByText('Archived Item')).toBeDefined()
   })
 })
