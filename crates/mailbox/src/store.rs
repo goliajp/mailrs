@@ -1328,8 +1328,10 @@ impl MailboxStore {
 
     /// get analysis result for a message
     pub async fn get_email_analysis(&self, message_id: i64) -> Result<Option<crate::types::EmailAnalysisRow>, sqlx::Error> {
-        let row = sqlx::query_as::<_, (i64, String, i16, String, String, serde_json::Value, serde_json::Value, serde_json::Value, serde_json::Value, String, String)>(
-            "SELECT message_id, category, risk_score, risk_reason, summary, people, dates, amounts, action_items, model_version, clean_text
+        let row = sqlx::query_as::<_, (i64, String, i16, String, String, serde_json::Value, serde_json::Value, serde_json::Value, serde_json::Value, String, String, bool, String, Option<String>)>(
+            "SELECT message_id, category, risk_score, risk_reason, summary, people, dates, amounts, action_items, model_version,
+                    COALESCE(clean_text, ''), COALESCE(requires_action, false), COALESCE(sender_intent, 'inform'),
+                    action_deadline::text
              FROM email_analysis WHERE message_id = $1",
         )
         .bind(message_id)
@@ -1348,6 +1350,9 @@ impl MailboxStore {
             action_items: r.8,
             model_version: r.9,
             clean_text: r.10,
+            requires_action: r.11,
+            sender_intent: r.12,
+            action_deadline: r.13,
         }))
     }
 
@@ -1366,6 +1371,9 @@ impl MailboxStore {
         embedding: Option<&[f32]>,
         model_version: &str,
         clean_text: &str,
+        requires_action: bool,
+        sender_intent: &str,
+        action_deadline: Option<&str>,
     ) -> Result<(), sqlx::Error> {
         // format embedding as pgvector text literal
         let embedding_str = embedding.map(|v| {
@@ -1374,8 +1382,8 @@ impl MailboxStore {
         });
 
         sqlx::query(
-            "INSERT INTO email_analysis (message_id, category, risk_score, risk_reason, summary, people, dates, amounts, action_items, embedding, model_version, clean_text, analyzed_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector, $11, $12, now())
+            "INSERT INTO email_analysis (message_id, category, risk_score, risk_reason, summary, people, dates, amounts, action_items, embedding, model_version, clean_text, requires_action, sender_intent, action_deadline, analyzed_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector, $11, $12, $13, $14, $15::timestamptz, now())
              ON CONFLICT (message_id) DO UPDATE SET
                category = EXCLUDED.category,
                risk_score = EXCLUDED.risk_score,
@@ -1388,6 +1396,9 @@ impl MailboxStore {
                embedding = EXCLUDED.embedding,
                model_version = EXCLUDED.model_version,
                clean_text = EXCLUDED.clean_text,
+               requires_action = EXCLUDED.requires_action,
+               sender_intent = EXCLUDED.sender_intent,
+               action_deadline = EXCLUDED.action_deadline,
                analyzed_at = now()",
         )
         .bind(message_id)
@@ -1402,6 +1413,9 @@ impl MailboxStore {
         .bind(embedding_str.as_deref())
         .bind(model_version)
         .bind(clean_text)
+        .bind(requires_action)
+        .bind(sender_intent)
+        .bind(action_deadline)
         .execute(&self.pool)
         .await?;
 
@@ -1624,6 +1638,28 @@ impl MailboxStore {
         .bind(has_tracking_pixel)
         .bind(importance_level)
         .bind(importance_score)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// boost importance score when AI detects action items
+    pub async fn boost_importance_for_action(&self, message_id: i64) -> Result<(), sqlx::Error> {
+        // add 0.2 to importance_score and re-evaluate level
+        sqlx::query(
+            "UPDATE messages SET
+               importance_score = LEAST(1.0, importance_score + 0.2),
+               importance_level = CASE
+                 WHEN LEAST(1.0, importance_score + 0.2) >= 0.8 THEN 'critical'
+                 WHEN LEAST(1.0, importance_score + 0.2) >= 0.5 THEN 'important'
+                 WHEN LEAST(1.0, importance_score + 0.2) >= 0.2 THEN 'normal'
+                 WHEN LEAST(1.0, importance_score + 0.2) >= 0.0 THEN 'low'
+                 ELSE 'noise'
+               END
+             WHERE id = $1",
+        )
+        .bind(message_id)
         .execute(&self.pool)
         .await?;
 
@@ -2240,6 +2276,9 @@ mod tests {
             action_items: serde_json::json!(["review"]),
             model_version: "v2".into(),
             clean_text: "some cleaned text".into(),
+            requires_action: true,
+            sender_intent: "request".into(),
+            action_deadline: Some("2026-03-15".into()),
         };
         let cloned = row.clone();
         assert_eq!(cloned.message_id, 42);

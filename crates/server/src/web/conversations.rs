@@ -54,6 +54,9 @@ pub(super) struct ThreadMessageResponse {
     pub importance_score: f32,
     pub is_bulk_sender: bool,
     pub has_tracking_pixel: bool,
+    pub requires_action: bool,
+    pub sender_intent: String,
+    pub action_deadline: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -301,6 +304,9 @@ pub(super) async fn get_thread_messages(
             importance_score: 0.0,
             is_bulk_sender: false,
             has_tracking_pixel: false,
+            requires_action: ai.as_ref().map_or(false, |a| a.requires_action),
+            sender_intent: ai.as_ref().map_or_else(|| "inform".into(), |a| a.sender_intent.clone()),
+            action_deadline: ai.as_ref().and_then(|a| a.action_deadline.clone()),
         });
     }
 
