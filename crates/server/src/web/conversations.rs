@@ -86,6 +86,8 @@ pub(super) struct ConversationsQuery {
     pub domains: Option<String>,
     #[serde(default)]
     pub archived: bool,
+    #[serde(default)]
+    pub folder: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -160,6 +162,7 @@ pub(super) async fn get_conversations(
             q.category.as_deref(),
             domains.as_deref(),
             q.archived,
+            q.folder.as_deref(),
         )
         .await
         .unwrap_or_default();
