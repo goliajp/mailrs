@@ -168,6 +168,26 @@ describe('extractName', () => {
     expect(result).toBe('Crates')
   })
 
+  it('returns domain-based name for bounces+ with subdomain', () => {
+    const result = extractName('bounces+46507342-d0da-lihao=golia.jp <bounces+46507342-d0da-lihao=golia.jp@em8742.bsm.freee.work>')
+    expect(result).toBe('Freee')
+  })
+
+  it('returns domain-based name for tracking-id display names', () => {
+    const result = extractName('z-bd148-xiacv7-0-2t4n-005lihaogolia.jp <z-bd148-xiacv7-0-2t4n-005lihaogolia.jp@bma.mpse.jp>')
+    expect(result).toBe('Mpse')
+  })
+
+  it('returns domain-based name for tracking-id with deeper subdomain', () => {
+    const result = extractName('z-cap7-xiadwo-0-5piy-005lihaogolia.jp <z-cap7-xiadwo-0-5piy-005lihaogolia.jp@bma.rec.mpse.jp>')
+    expect(result).toBe('Mpse')
+  })
+
+  it('handles .co.jp multi-part TLD', () => {
+    const result = extractName('0101019ccdad21d4-abcdef@bounce.example.co.jp')
+    expect(result).toBe('Example')
+  })
+
   it('keeps short normal local parts as-is', () => {
     expect(extractName('noreply@github.com')).toBe('noreply')
   })
@@ -196,6 +216,19 @@ describe('isMachineGenerated', () => {
 
   it('detects bounce+ prefixed addresses', () => {
     expect(isMachineGenerated('bounce+6a5245.e953aa-lihao=golia.jp')).toBe(true)
+  })
+
+  it('detects bounces+ prefixed addresses', () => {
+    expect(isMachineGenerated('bounces+46507342-d0da-lihao=golia.jp')).toBe(true)
+  })
+
+  it('detects long no-space strings with digits (tracking IDs)', () => {
+    expect(isMachineGenerated('z-bd148-xiacv7-0-2t4n-005lihaogolia.jp')).toBe(true)
+    expect(isMachineGenerated('z-cap7-xiadwo-0-5piy-005lihaogolia.jp')).toBe(true)
+  })
+
+  it('detects VERP = encoding in long strings', () => {
+    expect(isMachineGenerated('user=recipient@sender.com')).toBe(true)
   })
 
   it('returns false for short human names', () => {
