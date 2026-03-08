@@ -1,6 +1,6 @@
 // decode RFC 2047 encoded-words in email headers (e.g. =?UTF-8?B?...?= or =?UTF-8?Q?...?=)
 export function decodeMimeHeader(value: string): string {
-  if (!value.includes('=?')) return value
+  if (!value || !value.includes('=?')) return value ?? ''
   return value.replace(
     /=\?([^?]+)\?(B|Q)\?([^?]*)\?=/gi,
     (_match, charset: string, encoding: string, encoded: string) => {
