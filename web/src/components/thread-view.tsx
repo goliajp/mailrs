@@ -595,11 +595,15 @@ function bubbleDateLabel(dateStr: string | number): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: now.getFullYear() !== d.getFullYear() ? 'numeric' : undefined })
 }
 
+// strip invisible unicode: ZWJ, ZWNJ, ZW space, BOM, soft hyphen, directional marks, etc.
+const INVISIBLE_RE = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF\u00AD\u034F\u061C\u180E]/g
+
 // box-drawing, table borders, repeated decorative lines
 const NOISE_LINE = /^[\s│┼┬┴├┤┌┐└┘─━═╌╍╎╏║╔╗╚╝╠╣╦╩╬\-=_·•*#|+:>{}[\]~`]+$/
 
 function cleanTextForBubble(raw: string): string {
   return raw
+    .replace(INVISIBLE_RE, '')
     .split('\n')
     .filter((line) => !NOISE_LINE.test(line))
     .map((line) => line.replace(/\s{2,}/g, ' ').trim())
