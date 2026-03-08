@@ -1,6 +1,6 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Check, CheckCircle, Mail, Pin, Search, SquarePen, Star } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Archive, Check, CheckCircle, Inbox, Mail, MailOpen, Paperclip, Pin, Search, SquarePen, Star } from 'lucide-react'
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
@@ -28,7 +28,9 @@ import {
   showArchivedAtom,
   sortOrderAtom,
   visibleConversationIdsAtom,
+  quickFilterAtom,
   type ImportanceSection,
+  type QuickFilter,
   type SortOrder,
 } from '@/store/chat'
 
@@ -45,6 +47,18 @@ interface BatchResult {
 interface ApiResult {
   success: boolean
   message?: string
+}
+
+function QuickBtn({ onClick, title, children }: { onClick: (e: React.MouseEvent) => void; title: string; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="rounded-md p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
+    >
+      {children}
+    </button>
+  )
 }
 
 const ConversationItem = memo(function ConversationItem({
@@ -114,7 +128,11 @@ const ConversationItem = memo(function ConversationItem({
       onContextMenu={ctx.open}
       aria-selected={selected && !batchMode}
       aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
-      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 ${
+      className={`group/item relative flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 ${
+        hasUnread ? 'border-l-[3px] border-l-blue-600' : 'border-l-[3px] border-l-transparent'
+      } ${
+        !hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''
+      } ${
         selected && !batchMode
           ? 'bg-zinc-100 dark:bg-zinc-800'
           : checked
@@ -189,11 +207,55 @@ const ConversationItem = memo(function ConversationItem({
           </p>
         )}
       </div>
+      {/* hover quick actions */}
+      {!batchMode && (
+        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md bg-white/90 px-1 py-0.5 opacity-0 backdrop-blur-sm transition-opacity group-hover/item:opacity-100 dark:bg-zinc-900/90">
+          <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread') }} title={hasUnread ? 'Mark read' : 'Mark unread'}>
+            {hasUnread ? <MailOpen className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+          </QuickBtn>
+          <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive') }} title={isArchived ? 'Unarchive' : 'Archive'}>
+            <Archive className="h-3.5 w-3.5" />
+          </QuickBtn>
+          <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star') }} title={isFlagged ? 'Unstar' : 'Star'}>
+            <Star className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
+          </QuickBtn>
+        </div>
+      )}
     </button>
     <ContextMenu position={ctx.position} items={contextItems} onClose={ctx.close} />
     </div>
   )
 })
+
+const QUICK_FILTERS: { value: QuickFilter; label: string; icon: React.ReactNode }[] = [
+  { value: 'all', label: 'All', icon: <Inbox className="h-3.5 w-3.5" /> },
+  { value: 'unread', label: 'Unread', icon: <Mail className="h-3.5 w-3.5" /> },
+  { value: 'starred', label: 'Starred', icon: <Star className="h-3.5 w-3.5" /> },
+  { value: 'attachment', label: 'Files', icon: <Paperclip className="h-3.5 w-3.5" /> },
+]
+
+function QuickFilterBar() {
+  const [filter, setFilter] = useAtom(quickFilterAtom)
+  return (
+    <div className="flex select-none gap-1 border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
+      {QUICK_FILTERS.map((f) => (
+        <button
+          key={f.value}
+          onClick={() => setFilter(f.value)}
+          aria-pressed={filter === f.value}
+          className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+            filter === f.value
+              ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
+              : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+          }`}
+        >
+          {f.icon}
+          {f.label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 function DomainSelector() {
   const auth = useAtomValue(authAtom)
@@ -423,6 +485,33 @@ function ImportanceSectionTabs() {
   )
 }
 
+function dateLabel(epoch: number): string {
+  const d = new Date(epoch * 1000)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const diffDays = Math.floor((today.getTime() - msgDate.getTime()) / 86400000)
+
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return d.toLocaleDateString(undefined, { weekday: 'long' })
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: now.getFullYear() !== d.getFullYear() ? 'numeric' : undefined,
+  })
+}
+
+function DateDivider({ label }: { label: string }) {
+  return (
+    <div className="flex select-none items-center gap-3 px-4 py-1.5">
+      <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+      <span className="shrink-0 text-[11px] font-medium text-zinc-400">{label}</span>
+      <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+    </div>
+  )
+}
+
 function ConversationSkeleton() {
   return (
     <div className="animate-pulse">
@@ -638,10 +727,19 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
   const sortOrder = useAtomValue(sortOrderAtom)
   const showArchived = useAtomValue(showArchivedAtom)
   const importanceSection = useAtomValue(importanceSectionAtom)
+  const quickFilter = useAtomValue(quickFilterAtom)
 
   // apply client-side filtering + sort
   const sortedConversations = useMemo(() => {
     let visible = showArchived ? conversations : conversations.filter((c) => !c.archived)
+
+    // quick filter
+    if (quickFilter === 'unread') {
+      visible = visible.filter((c) => c.unread_count > 0)
+    } else if (quickFilter === 'starred') {
+      visible = visible.filter((c) => c.flagged)
+    }
+    // attachment filter skipped: ConversationSummary does not have has_attachments yet
 
     // importance section filter
     if (importanceSection === 'action') {
@@ -667,7 +765,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
       unpinned.sort((a, b) => b.unread_count - a.unread_count || b.last_date - a.last_date)
     }
     return [...pinned, ...unpinned]
-  }, [conversations, sortOrder, showArchived, importanceSection])
+  }, [conversations, sortOrder, showArchived, importanceSection, quickFilter])
 
   // sync visible conversation ids to store for keyboard nav
   const setVisibleIds = useSetAtom(visibleConversationIdsAtom)
@@ -736,6 +834,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
         </button>
       </div>
 
+      <QuickFilterBar />
       <DomainSelector />
       <ImportanceSectionTabs />
       <CategoryChips />
@@ -756,18 +855,28 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
             <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : 'No conversations to show'}</p>
           </div>
         ) : (
-          sortedConversations.map((c) => (
-            <ConversationItem
-              key={c.thread_id}
-              convo={c}
-              selected={selectedId === c.thread_id}
-              batchMode={batchMode}
-              checked={selectedThreadIds.has(c.thread_id)}
-              onSelect={handleSelect}
-              onToggleCheck={toggleThreadCheck}
-              onContextAction={handleContextAction}
-            />
-          ))
+          (() => {
+            let prevGroup = ''
+            return sortedConversations.map((c) => {
+              const group = dateLabel(c.last_date)
+              const showDivider = group !== prevGroup
+              prevGroup = group
+              return (
+                <Fragment key={c.thread_id}>
+                  {showDivider && <DateDivider label={group} />}
+                  <ConversationItem
+                    convo={c}
+                    selected={selectedId === c.thread_id}
+                    batchMode={batchMode}
+                    checked={selectedThreadIds.has(c.thread_id)}
+                    onSelect={handleSelect}
+                    onToggleCheck={toggleThreadCheck}
+                    onContextAction={handleContextAction}
+                  />
+                </Fragment>
+              )
+            })
+          })()
         )}
 
         {/* infinite scroll sentinel */}
