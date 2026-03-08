@@ -242,7 +242,7 @@ describe('ArchivedToggle', () => {
     store = makeStore()
   })
 
-  it('renders the switch in off state by default', () => {
+  it('renders the Active button in unpressed state by default', () => {
     store.set(conversationsAtom, [makeConversation()])
 
     render(
@@ -251,11 +251,11 @@ describe('ArchivedToggle', () => {
       </Wrapper>,
     )
 
-    const toggle = screen.getByRole('switch')
-    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    const btn = screen.getByText('Active')
+    expect(btn.getAttribute('aria-pressed')).toBe('false')
   })
 
-  it('toggles archived view on click', () => {
+  it('toggles to Archived on click', () => {
     store.set(conversationsAtom, [makeConversation()])
 
     render(
@@ -264,14 +264,16 @@ describe('ArchivedToggle', () => {
       </Wrapper>,
     )
 
-    const toggle = screen.getByRole('switch')
-    fireEvent.click(toggle)
-    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    const btn = screen.getByText('Active')
+    fireEvent.click(btn)
+    // after toggle, button text changes to "Archived" with aria-pressed=true
+    const archived = screen.getByText('Archived')
+    expect(archived.getAttribute('aria-pressed')).toBe('true')
   })
 
   it('shows archived conversations when toggled on', () => {
     store.set(conversationsAtom, [
-      makeConversation({ thread_id: 'active', subject: 'Active', archived: false }),
+      makeConversation({ thread_id: 'normal', subject: 'Normal Item', archived: false }),
       makeConversation({ thread_id: 'archived', subject: 'Archived Item', archived: true }),
     ])
 
@@ -285,7 +287,7 @@ describe('ArchivedToggle', () => {
     expect(screen.queryByText('Archived Item')).toBeNull()
 
     // toggle on
-    fireEvent.click(screen.getByRole('switch'))
+    fireEvent.click(screen.getByText('Active'))
     expect(screen.getByText('Archived Item')).toBeDefined()
   })
 })

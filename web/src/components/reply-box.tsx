@@ -255,7 +255,7 @@ export function ReplyBox({
             onClick={() => handleModeChange(m)}
             className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
               mode === m
-                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
                 : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300'
             }`}
           >
@@ -276,7 +276,7 @@ export function ReplyBox({
             value={forwardTo}
             onChange={setForwardTo}
             placeholder="To: recipient@example.com, ..."
-            className="w-full rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-sm text-zinc-800 placeholder-zinc-400 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:text-zinc-200"
+            className="w-full rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-sm text-zinc-800 placeholder-zinc-400 outline-none focus:border-red-400 dark:border-zinc-700 dark:text-zinc-200"
           />
         </div>
       )}
@@ -409,7 +409,7 @@ export function ReplyBox({
         <button
           onClick={send}
           disabled={sending}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-xl bg-indigo-500 px-3 text-xs font-medium text-white transition-colors hover:bg-indigo-600 disabled:opacity-40"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-xl bg-red-500 px-3 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-40"
           title="Send (Ctrl+Enter)"
         >
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
