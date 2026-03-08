@@ -649,6 +649,10 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             post(conversations::unarchive_thread),
         )
         .route("/api/contacts", get(conversations::get_contacts))
+        .route(
+            "/api/mail/feedback",
+            post(conversations::record_feedback),
+        )
         // auth API (login handled separately with stricter rate limit)
         .merge(auth_routes)
         .route("/api/auth/logout", post(auth::logout))

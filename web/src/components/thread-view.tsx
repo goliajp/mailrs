@@ -4,11 +4,13 @@ import { toast } from 'sonner'
 
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
-import { CategoryBadge } from '@/components/category-badge'
+import { ActionBadge, CategoryBadge, ImportanceBadge, IntentBadge } from '@/components/category-badge'
+import { StructuredDataCard } from '@/components/structured-data-card'
 import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
+import DOMPurify from 'dompurify'
 import { avatarColor, avatarInitial, extractEmail, extractName } from '@/lib/avatar'
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchJson, postJson, recordFeedback, type FeedbackAction } from '@/lib/api'
 import { getToken } from '@/store/auth'
 import { formatDate, formatFullDate } from '@/lib/format'
 import type { ConversationSummary, ThreadMessage } from '@/lib/types'
@@ -176,7 +178,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     if (!w) return
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const body = msg.html_body
-      ? msg.html_body
+      ? DOMPurify.sanitize(msg.html_body)
       : `<pre style="white-space:pre-wrap;word-break:break-word;font-family:sans-serif;font-size:14px;line-height:1.6">${esc(msg.clean_text || msg.text_body || '')}</pre>`
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(msg.subject || '')}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:2rem;max-width:800px;margin:0 auto}table{border-collapse:collapse;width:100%;margin-bottom:1.5rem}td{padding:4px 8px;font-size:14px}td:first-child{font-weight:600;white-space:nowrap;color:#555;width:80px}hr{border:none;border-top:1px solid #ddd;margin:1rem 0}img{max-width:100%}@media print{body{padding:0}}</style></head><body><table><tr><td>From</td><td>${esc(msg.sender)}</td></tr><tr><td>To</td><td>${esc(msg.recipients)}</td></tr><tr><td>Date</td><td>${esc(formatFullDate(msg.internal_date))}</td></tr><tr><td>Subject</td><td>${esc(msg.subject || '')}</td></tr></table><hr><div>${body}</div></body></html>`)
     w.document.close()
@@ -296,6 +298,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           <div className="flex items-center gap-2">
             <h2 className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{subject || '(no subject)'}</h2>
             <CategoryBadge category={messages[0]?.category} />
+            <ImportanceBadge level={messages[0]?.importance_level} />
+            {messages.some((m) => m.requires_action) && <ActionBadge />}
             <span className="text-xs text-zinc-400">{messages.length} message{messages.length !== 1 && 's'}</span>
           </div>
         </div>
@@ -355,6 +359,18 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-0.5">
+                    {selectedMsg.requires_action && <ActionBadge />}
+                    <IntentBadge intent={selectedMsg.sender_intent} />
+                    {selectedMsg.action_deadline && (
+                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                        Due: {selectedMsg.action_deadline}
+                      </span>
+                    )}
+                    {selectedMsg.is_bulk_sender && (
+                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                        Bulk
+                      </span>
+                    )}
                     {selectedMsg.ai_analyzed && (
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
                         selectedMsg.risk_score >= 60
@@ -378,9 +394,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     <SmBtn onClick={() => handleDownloadEml(selectedMsg.uid, selectedMsg.subject)} title="Download .eml">
                       <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
                     </SmBtn>
+                    <FeedbackMenu senderEmail={extractEmail(selectedMsg.sender)} />
                   </div>
                 </div>
               </div>
+
+              {/* structured data card */}
+              {selectedMsg.structured_data && (
+                <StructuredDataCard data={selectedMsg.structured_data} />
+              )}
 
               {/* AI analysis */}
               <AiAnalysisPanel message={selectedMsg} />
@@ -431,7 +453,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 const initial = avatarInitial(msg.sender)
                 const color = avatarColor(msg.sender)
                 const isSelected = selectedMsgIdx === idx
-                const snippet = msg.clean_text?.slice(0, 200) || msg.text_body?.slice(0, 200) || msg.subject || ''
+                const snippet = msg.new_content?.slice(0, 200) || msg.clean_text?.slice(0, 200) || msg.text_body?.slice(0, 200) || msg.subject || ''
 
                 return (
                   <button
@@ -512,5 +534,78 @@ function SmBtn({ onClick, title, children }: { onClick: () => void; title: strin
     <button onClick={onClick} className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300" title={title}>
       {children}
     </button>
+  )
+}
+
+const FEEDBACK_ITEMS: { action: FeedbackAction; label: string; icon: string }[] = [
+  { action: 'mark_important', label: 'Mark Important', icon: '!' },
+  { action: 'mark_vip', label: 'Mark VIP', icon: '\u2605' },
+  { action: 'mark_spam', label: 'Report Spam', icon: '\u26A0' },
+  { action: 'block', label: 'Block Sender', icon: '\u2718' },
+]
+
+function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  const handleAction = async (action: FeedbackAction) => {
+    if (action === 'block' || action === 'mark_spam') {
+      const label = action === 'block' ? 'block this sender' : 'report this sender as spam'
+      if (!window.confirm(`Are you sure you want to ${label}?`)) return
+    }
+    setOpen(false)
+    if (!senderEmail) return
+    try {
+      const result = await recordFeedback(senderEmail, action)
+      if (result.success) {
+        toast.success(result.message ?? 'Feedback recorded')
+      } else {
+        toast.error(result.message ?? 'Failed')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed')
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+        title="Sender feedback"
+      >
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+          <p className="truncate px-3 py-1 text-[10px] text-zinc-400">{senderEmail}</p>
+          {FEEDBACK_ITEMS.map((item) => (
+            <button
+              key={item.action}
+              onClick={() => handleAction(item.action)}
+              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
+                item.action === 'block' || item.action === 'mark_spam'
+                  ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20'
+                  : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+              }`}
+            >
+              <span className="w-4 text-center">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

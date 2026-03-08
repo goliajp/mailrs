@@ -31,6 +31,14 @@ function makeMessage(overrides: Partial<ThreadMessage> = {}): ThreadMessage {
     action_items: [],
     ai_analyzed: false,
     clean_text: null,
+    new_content: null,
+    importance_level: 'normal',
+    importance_score: 0.3,
+    is_bulk_sender: false,
+    has_tracking_pixel: false,
+    requires_action: false,
+    sender_intent: 'inform',
+    action_deadline: null,
     ...overrides,
   }
 }

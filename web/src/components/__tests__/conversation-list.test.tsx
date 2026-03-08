@@ -63,6 +63,8 @@ function makeConversation(overrides: Partial<ConversationSummary> = {}): Convers
     snippet: 'A snippet',
     pinned: false,
     archived: false,
+    importance_level: 'normal',
+    importance_score: 0.3,
     ...overrides,
   }
 }
@@ -143,7 +145,7 @@ describe('DomainSelector', () => {
 
     fireEvent.click(screen.getByLabelText('Filter by domain example.com'))
     fireEvent.click(screen.getByLabelText('Filter by domain golia.jp'))
-    expect(screen.getByText('All')).toBeDefined()
+    expect(screen.getAllByText('All').length).toBeGreaterThanOrEqual(1)
   })
 
   it('does not render when super_domains is empty', () => {

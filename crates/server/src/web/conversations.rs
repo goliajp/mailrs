@@ -57,6 +57,8 @@ pub(super) struct ThreadMessageResponse {
     pub requires_action: bool,
     pub sender_intent: String,
     pub action_deadline: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub structured_data: Option<crate::structured_data::StructuredData>,
 }
 
 #[derive(Serialize)]
@@ -129,8 +131,8 @@ pub(super) fn convos_to_response(
             snippet: c.snippet,
             pinned: c.pinned,
             archived: c.archived,
-            importance_level: String::from("normal"),
-            importance_score: 0.0,
+            importance_level: c.importance_level,
+            importance_score: c.importance_score,
         })
         .collect()
 }
@@ -277,6 +279,12 @@ pub(super) async fn get_thread_messages(
             )
         };
 
+        // extract structured data from HTML before moving it
+        let structured_data = parsed.1.as_deref().and_then(|html| {
+            let sd = crate::structured_data::extract_structured_data(html);
+            if sd.is_empty() { None } else { Some(sd) }
+        });
+
         result.push(ThreadMessageResponse {
             id: msg.id,
             uid: msg.uid,
@@ -299,14 +307,15 @@ pub(super) async fn get_thread_messages(
             action_items,
             ai_analyzed,
             clean_text,
-            new_content: None,
-            importance_level: String::from("normal"),
-            importance_score: 0.0,
-            is_bulk_sender: false,
-            has_tracking_pixel: false,
+            new_content: msg.new_content.clone(),
+            importance_level: msg.importance_level.clone(),
+            importance_score: msg.importance_score,
+            is_bulk_sender: msg.is_bulk_sender,
+            has_tracking_pixel: msg.has_tracking_pixel,
             requires_action: ai.as_ref().map_or(false, |a| a.requires_action),
             sender_intent: ai.as_ref().map_or_else(|| "inform".into(), |a| a.sender_intent.clone()),
             action_deadline: ai.as_ref().and_then(|a| a.action_deadline.clone()),
+            structured_data,
         });
     }
 
@@ -567,6 +576,8 @@ async fn semantic_search_threads(
             snippet: String::new(),
             pinned: false,
             archived: false,
+            importance_level: msgs.iter().max_by(|a, b| a.importance_score.partial_cmp(&b.importance_score).unwrap_or(std::cmp::Ordering::Equal)).map(|m| m.importance_level.clone()).unwrap_or_else(|| "normal".into()),
+            importance_score: msgs.iter().map(|m| m.importance_score).fold(0.0f32, f32::max),
         });
     }
 
@@ -622,6 +633,70 @@ pub(super) async fn semantic_search(
         .collect();
 
     Json(result)
+}
+
+// ---- feedback API ----
+
+#[derive(Deserialize)]
+pub(super) struct FeedbackRequest {
+    pub sender_email: String,
+    pub action: String,
+}
+
+const VALID_FEEDBACK_ACTIONS: &[&str] = &[
+    "mark_important",
+    "mark_vip",
+    "mark_spam",
+    "block",
+    "archive",
+    "unblock",
+];
+
+pub(super) async fn record_feedback(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<FeedbackRequest>,
+) -> impl IntoResponse {
+    let Some(ref mb_store) = state.mailbox_store else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("mailbox not configured".into()),
+        });
+    };
+
+    if req.sender_email.len() > 320 || !req.sender_email.contains('@') {
+        return Json(ApiResult {
+            success: false,
+            message: Some("invalid sender email".into()),
+        });
+    }
+
+    if !VALID_FEEDBACK_ACTIONS.contains(&req.action.as_str()) {
+        return Json(ApiResult {
+            success: false,
+            message: Some(format!(
+                "invalid action, must be one of: {}",
+                VALID_FEEDBACK_ACTIONS.join(", ")
+            )),
+        });
+    }
+
+    match mb_store
+        .record_sender_feedback(&user, &req.sender_email, &req.action)
+        .await
+    {
+        Ok(()) => Json(ApiResult {
+            success: true,
+            message: Some(format!("feedback '{}' recorded", req.action)),
+        }),
+        Err(e) => {
+            tracing::error!(event = "feedback_error", user = %user, error = %e);
+            Json(ApiResult {
+                success: false,
+                message: Some("internal error".into()),
+            })
+        }
+    }
 }
 
 pub(super) async fn get_contacts(

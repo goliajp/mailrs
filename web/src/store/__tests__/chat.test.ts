@@ -36,6 +36,8 @@ function makeConversation(
     snippet: '',
     pinned: false,
     archived: false,
+    importance_level: 'normal',
+    importance_score: 0.3,
     ...overrides,
   }
 }

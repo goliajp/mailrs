@@ -61,6 +61,11 @@ vi.mock('@/components/message-bubble', () => ({
 vi.mock('@/components/category-badge', () => ({
   CategoryBadge: ({ category }: { category: string }) =>
     category && category !== 'general' ? <span data-testid="category-badge">{category}</span> : null,
+  ImportanceBadge: ({ level }: { level: string }) =>
+    level && level !== 'normal' ? <span data-testid="importance-badge">{level}</span> : null,
+  ActionBadge: () => <span data-testid="action-badge">Action</span>,
+  IntentBadge: ({ intent }: { intent: string }) =>
+    intent && intent !== 'inform' ? <span data-testid="intent-badge">{intent}</span> : null,
 }))
 
 vi.mock('@/components/reply-box', () => ({
@@ -80,6 +85,9 @@ function makeMessage(overrides: Partial<ThreadMessage> = {}): ThreadMessage {
     category: 'general', risk_score: 0, risk_reason: '',
     summary: '', people: [], dates: [], amounts: [], action_items: [],
     ai_analyzed: false, clean_text: null,
+    new_content: null, importance_level: 'normal', importance_score: 0.3,
+    is_bulk_sender: false, has_tracking_pixel: false,
+    requires_action: false, sender_intent: 'inform', action_deadline: null,
     ...overrides,
   }
 }
@@ -90,7 +98,8 @@ function makeConversation(overrides: Partial<ConversationSummary> = {}): Convers
     participants: ['alice@example.com'], message_count: 1,
     unread_count: 0, last_date: Math.floor(Date.now() / 1000),
     category: 'general', flagged: false, snippet: 'A snippet',
-    pinned: false, archived: false, ...overrides,
+    pinned: false, archived: false,
+    importance_level: 'normal', importance_score: 0.3, ...overrides,
   }
 }
 
