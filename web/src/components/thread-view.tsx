@@ -17,7 +17,7 @@ import { deleteJson, fetchJson, getThreadReactions, postJson, recordFeedback, to
 import { getToken } from '@/store/auth'
 import { formatDate, formatFullDate } from '@/lib/format'
 import type { ConversationSummary, ReactionSummary, ThreadMessage } from '@/lib/types'
-import { categoryFilterAtom, conversationsAtom, crossAccountReadAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
+import { categoryFilterAtom, conversationsAtom, crossAccountReadAtom, folderAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
 import { authAtom } from '@/store/auth'
 
 type ForwardSource = {
@@ -47,6 +47,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const selectedDomains = useAtomValue(selectedDomainsAtom)
   const domainsRef = useRef(selectedDomains)
   domainsRef.current = selectedDomains
+  const folder = useAtomValue(folderAtom)
+  const folderRef = useRef(folder)
+  folderRef.current = folder
   const crossAccountRead = useAtomValue(crossAccountReadAtom)
   const crossAccountReadRef = useRef(crossAccountRead)
   crossAccountReadRef.current = crossAccountRead
@@ -109,6 +112,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       : '/conversations?limit=50'
     if (categoryRef.current) path += `&category=${encodeURIComponent(categoryRef.current)}`
     if (doms.length > 0) path += `&domains=${encodeURIComponent(doms.join(','))}`
+    const f = folderRef.current
+    if (f) path += `&folder=${encodeURIComponent(f)}`
     try {
       const convos = await fetchJson<ConversationSummary[]>(path)
       setConversations(convos)
