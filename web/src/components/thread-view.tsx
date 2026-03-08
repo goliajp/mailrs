@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 import { ArrowLeft, Download, Forward, Mail, MailOpen, MoreVertical, Paperclip, Printer, Star, Trash2, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { AiAnalysisPanel } from '@/components/ai-analysis'
@@ -59,6 +59,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const [forwardSource, setForwardSource] = useState<ForwardSource | null>(null)
   const [loadingThread, setLoadingThread] = useState(false)
   const [expandedBubbles, setExpandedBubbles] = useState<Set<number>>(new Set())
+  const [showAllMessages, setShowAllMessages] = useState(false)
 
   const loadMessages = useCallback(
     async (threadId: string) => {
@@ -231,6 +232,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setForwardSource(null)
     setReplyMode('reply')
     setExpandedBubbles(new Set())
+    setShowAllMessages(false)
     const existing = conversationsRef.current.find((c) => c.thread_id === selectedId)
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
@@ -448,71 +450,97 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               </div>
             )}
             <div className="flex flex-col gap-2">
-              {messages.map((msg, idx) => {
-                const senderEmail = extractEmail(msg.sender)
-                const isOwn = senderEmail === myEmail
-                const name = extractName(msg.sender)
-                const initial = avatarInitial(msg.sender)
-                const color = avatarColor(msg.sender)
-                const isSelected = selectedMsgIdx === idx
-                const fullText = bubbleText(msg)
-                const isLong = fullText.length > 200
-                const snippet = isLong ? fullText.slice(0, 200) : fullText
-                const isExpanded = expandedBubbles.has(idx)
+              {(() => {
+                const VISIBLE_RECENT = 3
+                const hasCollapsed = messages.length > 5 && !showAllMessages
+                const visibleMessages = hasCollapsed ? messages.slice(-VISIBLE_RECENT) : messages
+                let prevDateGroup = ''
 
                 return (
-                  <button
-                    key={msg.id}
-                    onClick={() => {
-                      setSelectedMsgIdx(idx)
-                      if (isLong) {
-                        setExpandedBubbles((prev) => {
-                          const next = new Set(prev)
-                          if (next.has(idx)) next.delete(idx)
-                          else next.add(idx)
-                          return next
-                        })
-                      }
-                    }}
-                    className={`flex gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 ${isOwn ? 'flex-row-reverse' : ''}`}
-                  >
-                    {!isOwn && (
-                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium text-white ${color}`}>
-                        {initial}
-                      </div>
+                  <>
+                    {hasCollapsed && (
+                      <button
+                        onClick={() => setShowAllMessages(true)}
+                        className="mx-auto mb-2 block text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                      >
+                        Show {messages.length - VISIBLE_RECENT} earlier messages
+                      </button>
                     )}
-                    <div className={`min-w-0 max-w-[85%] ${isOwn ? 'items-end' : 'items-start'}`}>
-                      <div className={`overflow-hidden px-3 py-2 text-sm transition-colors ${
-                        isOwn
-                          ? isSelected
-                            ? 'bg-blue-700 text-white'
-                            : 'bg-blue-600 text-white'
-                          : isSelected
-                            ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
-                            : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
-                      } ${isSelected ? 'ring-2 ring-blue-400/50' : ''}`}>
-                        {!isOwn && (
-                          <p className="mb-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">{name}</p>
-                        )}
-                        <p className={`select-text break-words text-sm leading-snug whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-3'}`}>
-                          {isExpanded ? fullText : snippet}
-                        </p>
-                        {isLong && (
-                          <span className="mt-1 block select-none text-xs text-blue-600 dark:text-blue-400">
-                            {isExpanded ? 'show less' : 'show more'}
-                          </span>
-                        )}
-                      </div>
-                      <p className={`mt-0.5 select-none text-[11px] text-zinc-400 ${isOwn ? 'text-right' : ''}`}>
-                        {formatDate(msg.internal_date)}
-                        {msg.attachments.length > 0 && (
-                          <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />
-                        )}
-                      </p>
-                    </div>
-                  </button>
+                    {visibleMessages.map((msg) => {
+                      const idx = messages.indexOf(msg)
+                      const senderEmail = extractEmail(msg.sender)
+                      const isOwn = senderEmail === myEmail
+                      const name = extractName(msg.sender)
+                      const initial = avatarInitial(msg.sender)
+                      const color = avatarColor(msg.sender)
+                      const isSelected = selectedMsgIdx === idx
+                      const fullText = bubbleText(msg)
+                      const isLong = fullText.length > 200
+                      const snippet = isLong ? fullText.slice(0, 200) : fullText
+                      const isExpanded = expandedBubbles.has(idx)
+
+                      const msgDateGroup = new Date(msg.internal_date * 1000).toDateString()
+                      const showDivider = msgDateGroup !== prevDateGroup
+                      prevDateGroup = msgDateGroup
+
+                      return (
+                        <Fragment key={msg.id}>
+                          {showDivider && <BubbleDateDivider label={bubbleDateLabel(msg.internal_date)} />}
+                          <button
+                            onClick={() => {
+                              setSelectedMsgIdx(idx)
+                              if (isLong) {
+                                setExpandedBubbles((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(idx)) next.delete(idx)
+                                  else next.add(idx)
+                                  return next
+                                })
+                              }
+                            }}
+                            className={`flex gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 ${isOwn ? 'flex-row-reverse' : ''}`}
+                          >
+                            {!isOwn && (
+                              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium text-white ${color}`}>
+                                {initial}
+                              </div>
+                            )}
+                            <div className={`min-w-0 max-w-[85%] ${isOwn ? 'items-end' : 'items-start'}`}>
+                              <div className={`overflow-hidden px-3 py-2 text-sm transition-colors ${
+                                isOwn
+                                  ? isSelected
+                                    ? 'bg-blue-700 text-white'
+                                    : 'bg-blue-600 text-white'
+                                  : isSelected
+                                    ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
+                                    : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
+                              } ${isSelected ? 'ring-2 ring-blue-400/50' : ''}`}>
+                                {!isOwn && (
+                                  <p className="mb-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">{name}</p>
+                                )}
+                                <p className={`select-text break-words text-sm leading-snug whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-3'}`}>
+                                  {isExpanded ? fullText : snippet}
+                                </p>
+                                {isLong && (
+                                  <span className="mt-1 block select-none text-xs text-blue-600 dark:text-blue-400">
+                                    {isExpanded ? 'show less' : 'show more'}
+                                  </span>
+                                )}
+                              </div>
+                              <p className={`mt-0.5 select-none text-[11px] text-zinc-400 ${isOwn ? 'text-right' : ''}`}>
+                                {formatDate(msg.internal_date)}
+                                {msg.attachments.length > 0 && (
+                                  <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />
+                                )}
+                              </p>
+                            </div>
+                          </button>
+                        </Fragment>
+                      )
+                    })}
+                  </>
                 )
-              })}
+              })()}
               <div ref={bottomRef} />
             </div>
           </div>
@@ -543,6 +571,28 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       </div>
     </div>
   )
+}
+
+function BubbleDateDivider({ label }: { label: string }) {
+  return (
+    <div className="flex select-none items-center gap-3 py-2">
+      <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+      <span className="shrink-0 text-[11px] font-medium text-zinc-400">{label}</span>
+      <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+    </div>
+  )
+}
+
+function bubbleDateLabel(dateStr: string | number): string {
+  const d = new Date(typeof dateStr === 'number' ? dateStr * 1000 : dateStr)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const diffDays = Math.floor((today.getTime() - msgDate.getTime()) / 86400000)
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return d.toLocaleDateString(undefined, { weekday: 'long' })
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: now.getFullYear() !== d.getFullYear() ? 'numeric' : undefined })
 }
 
 // box-drawing, table borders, repeated decorative lines

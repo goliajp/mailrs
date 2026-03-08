@@ -35,6 +35,10 @@ export const crossAccountReadAtom = atom(false)
 export type ImportanceSection = 'action' | 'important' | 'other' | null
 export const importanceSectionAtom = atom<ImportanceSection>(null)
 
+// quick filter
+export type QuickFilter = 'all' | 'unread' | 'starred' | 'attachment'
+export const quickFilterAtom = atom<QuickFilter>('all')
+
 // keyboard shortcuts dialog
 export const shortcutsDialogOpenAtom = atom(false)
 
