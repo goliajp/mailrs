@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { avatarColor, avatarInitial, decodeMimeHeader, extractEmail, extractName } from '../avatar'
+import { avatarColor, avatarInitial, decodeMimeHeader, extractEmail, extractName, isMachineGenerated } from '../avatar'
 
 // valid Tailwind color classes used in avatar.ts
 const VALID_COLORS = [
@@ -150,7 +150,22 @@ describe('extractName', () => {
 
   it('returns domain-based name for long hex local parts', () => {
     const result = extractName('01234567890abcdef01234567@mailer.example.com')
-    expect(result).toBe('Mailer')
+    expect(result).toBe('Example')
+  })
+
+  it('returns domain-based name for digit-heavy tracking IDs', () => {
+    const result = extractName('722-YFB-855.0.848.0.0.2733.9.9404639 <722-YFB-855.0.848.0.0.2733.9.9404639@magazine2.zehitomo.com>')
+    expect(result).toBe('Zehitomo')
+  })
+
+  it('returns domain-based name for VERP bounce addresses', () => {
+    const result = extractName('msprvs1=205268vVROh3y=bounces-265094 <msprvs1=205268vVROh3y=bounces-265094@notify.cloudflare.com>')
+    expect(result).toBe('Cloudflare')
+  })
+
+  it('returns domain-based name for bounce+ prefixed addresses', () => {
+    const result = extractName('bounce+6a5245.e953aa-lihao=golia.jp <bounce+6a5245.e953aa-lihao=golia.jp@crates.io>')
+    expect(result).toBe('Crates')
   })
 
   it('keeps short normal local parts as-is', () => {
@@ -163,6 +178,39 @@ describe('extractName', () => {
 
   it('decodes MIME quoted-printable display name', () => {
     expect(extractName('=?UTF-8?Q?Caf=C3=A9?= <cafe@example.com>')).toBe('Café')
+  })
+})
+
+describe('isMachineGenerated', () => {
+  it('detects long hex/uuid strings', () => {
+    expect(isMachineGenerated('0101019ccdad21d4-3b587183-7366-4b5f-a157-c01ce00c45e1-000000')).toBe(true)
+  })
+
+  it('detects digit-heavy tracking IDs', () => {
+    expect(isMachineGenerated('722-YFB-855.0.848.0.0.2733.9.9404639')).toBe(true)
+  })
+
+  it('detects VERP bounce addresses', () => {
+    expect(isMachineGenerated('msprvs1=205268vVROh3y=bounces-265094')).toBe(true)
+  })
+
+  it('detects bounce+ prefixed addresses', () => {
+    expect(isMachineGenerated('bounce+6a5245.e953aa-lihao=golia.jp')).toBe(true)
+  })
+
+  it('returns false for short human names', () => {
+    expect(isMachineGenerated('alice')).toBe(false)
+    expect(isMachineGenerated('noreply')).toBe(false)
+    expect(isMachineGenerated('User123')).toBe(false)
+  })
+
+  it('returns false for normal display names', () => {
+    expect(isMachineGenerated('Alice Smith')).toBe(false)
+    expect(isMachineGenerated('Bob Jones')).toBe(false)
+  })
+
+  it('returns false for newsletter-style local parts', () => {
+    expect(isMachineGenerated('newsletter')).toBe(false)
   })
 })
 
