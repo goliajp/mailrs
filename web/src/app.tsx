@@ -6,6 +6,7 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import { Admin } from '@/pages/admin'
 import { Chat } from '@/pages/chat'
 import { Login } from '@/pages/login'
+import { Playground } from '@/pages/playground'
 import { Protocol } from '@/pages/protocol'
 import { Settings } from '@/pages/settings'
 import { authAtom } from '@/store/auth'
@@ -32,6 +33,7 @@ export function App() {
     <ErrorBoundary>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/playground" element={<Playground />} />
         <Route path="/protocol" element={<Protocol />} />
         <Route
           path="/admin/*"
