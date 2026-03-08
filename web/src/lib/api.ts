@@ -119,6 +119,46 @@ export async function listDrafts(): Promise<Draft[]> {
   return fetchJson<Draft[]>('/mail/drafts')
 }
 
+// --- reactions API ---
+
+import type { ReactionSummary } from '@/lib/types'
+
+export async function toggleReaction(
+  threadId: string,
+  uid: number,
+  emoji: string,
+): Promise<ReactionSummary[]> {
+  const result = await putJson<{ reactions: ReactionSummary[] }>(
+    `/conversations/${encodeURIComponent(threadId)}/messages/${uid}/reactions`,
+    { emoji },
+  )
+  return result.reactions
+}
+
+export async function getThreadReactions(
+  threadId: string,
+): Promise<Record<number, ReactionSummary[]>> {
+  const result = await fetchJson<{ reactions: Record<number, ReactionSummary[]> }>(
+    `/conversations/${encodeURIComponent(threadId)}/reactions`,
+  )
+  return result.reactions
+}
+
+// --- snooze API ---
+
+export async function snoozeConversation(
+  threadId: string,
+  until: string,
+): Promise<{ success: boolean; message?: string }> {
+  return putJson(`/conversations/${encodeURIComponent(threadId)}/snooze`, { until })
+}
+
+export async function unsnoozeConversation(
+  threadId: string,
+): Promise<{ success: boolean; message?: string }> {
+  return deleteJson(`/conversations/${encodeURIComponent(threadId)}/snooze`)
+}
+
 // --- sender feedback API ---
 
 export type FeedbackAction =

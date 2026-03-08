@@ -167,3 +167,23 @@ CREATE TABLE email_analysis (
 CREATE INDEX idx_ea_category ON email_analysis(category);
 CREATE INDEX idx_ea_embedding ON email_analysis
     USING ivfflat (embedding vector_cosine_ops) WITH (lists = 20);
+
+CREATE TABLE IF NOT EXISTS reactions (
+    id BIGSERIAL PRIMARY KEY,
+    message_uid BIGINT NOT NULL,
+    thread_id TEXT NOT NULL,
+    account_address TEXT NOT NULL,
+    emoji TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(message_uid, account_address, emoji)
+);
+CREATE INDEX IF NOT EXISTS idx_reactions_thread ON reactions(thread_id);
+
+CREATE TABLE IF NOT EXISTS snoozed_conversations (
+    thread_id TEXT NOT NULL,
+    account_address TEXT NOT NULL,
+    snoozed_until TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (thread_id, account_address)
+);
+CREATE INDEX IF NOT EXISTS idx_snoozed_until ON snoozed_conversations(snoozed_until);

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use axum::middleware;
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, post, put};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use tower_http::cors::CorsLayer;
@@ -647,6 +647,18 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route(
             "/api/conversations/{thread_id}/unarchive",
             post(conversations::unarchive_thread),
+        )
+        .route(
+            "/api/conversations/{thread_id}/snooze",
+            put(conversations::snooze_thread).delete(conversations::unsnooze_thread),
+        )
+        .route(
+            "/api/conversations/{thread_id}/messages/{uid}/reactions",
+            put(conversations::toggle_reaction),
+        )
+        .route(
+            "/api/conversations/{thread_id}/reactions",
+            get(conversations::get_thread_reactions),
         )
         .route("/api/contacts", get(conversations::get_contacts))
         .route(

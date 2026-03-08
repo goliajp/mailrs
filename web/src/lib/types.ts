@@ -249,6 +249,12 @@ export type DomainCheckReport = {
   checked_at: number
 }
 
+export type ReactionSummary = {
+  emoji: string
+  count: number
+  me: boolean
+}
+
 // flag constants
 export const FLAG_SEEN = 1
 export const FLAG_ANSWERED = 2

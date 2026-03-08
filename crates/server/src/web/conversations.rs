@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
@@ -635,6 +636,78 @@ pub(super) async fn semantic_search(
     Json(result)
 }
 
+// ---- snooze API ----
+
+#[derive(Deserialize)]
+pub(super) struct SnoozeRequest {
+    pub until: String,
+}
+
+pub(super) async fn snooze_thread(
+    Path(thread_id): Path<String>,
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<SnoozeRequest>,
+) -> impl IntoResponse {
+    if thread_id.len() > super::MAX_PATH_LEN {
+        return Json(ApiResult { success: false, message: Some("thread id too long".into()) });
+    }
+    let Some(ref mb_store) = state.mailbox_store else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("mailbox not configured".into()),
+        });
+    };
+
+    let until = match req.until.parse::<chrono::DateTime<chrono::Utc>>() {
+        Ok(dt) => dt,
+        Err(_) => {
+            return Json(ApiResult {
+                success: false,
+                message: Some("invalid datetime format".into()),
+            });
+        }
+    };
+
+    match mb_store.snooze_thread(&user, &thread_id, until).await {
+        Ok(()) => Json(ApiResult {
+            success: true,
+            message: Some("thread snoozed".into()),
+        }),
+        Err(e) => Json(ApiResult {
+            success: false,
+            message: Some(e.to_string()),
+        }),
+    }
+}
+
+pub(super) async fn unsnooze_thread(
+    Path(thread_id): Path<String>,
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if thread_id.len() > super::MAX_PATH_LEN {
+        return Json(ApiResult { success: false, message: Some("thread id too long".into()) });
+    }
+    let Some(ref mb_store) = state.mailbox_store else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("mailbox not configured".into()),
+        });
+    };
+
+    match mb_store.unsnooze_thread(&user, &thread_id).await {
+        Ok(()) => Json(ApiResult {
+            success: true,
+            message: Some("thread unsnoozed".into()),
+        }),
+        Err(e) => Json(ApiResult {
+            success: false,
+            message: Some(e.to_string()),
+        }),
+    }
+}
+
 // ---- feedback API ----
 
 #[derive(Deserialize)]
@@ -1045,4 +1118,141 @@ pub(super) async fn unarchive_thread(
             message: Some(e.to_string()),
         }),
     }
+}
+
+// ---- reactions API ----
+
+#[derive(Deserialize)]
+pub(super) struct ToggleReactionRequest {
+    pub emoji: String,
+}
+
+#[derive(Serialize)]
+pub(super) struct ReactionSummary {
+    pub emoji: String,
+    pub count: i64,
+    pub me: bool,
+}
+
+#[derive(Serialize)]
+pub(super) struct ToggleReactionResponse {
+    pub reactions: Vec<ReactionSummary>,
+}
+
+#[derive(Serialize)]
+pub(super) struct ThreadReactionsResponse {
+    pub reactions: HashMap<i64, Vec<ReactionSummary>>,
+}
+
+pub(super) async fn toggle_reaction(
+    Path((thread_id, uid)): Path<(String, i64)>,
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<ToggleReactionRequest>,
+) -> impl IntoResponse {
+    if thread_id.len() > super::MAX_PATH_LEN {
+        return Json(ToggleReactionResponse { reactions: vec![] });
+    }
+
+    // validate emoji: at most 32 bytes, non-empty
+    if req.emoji.is_empty() || req.emoji.len() > 32 {
+        return Json(ToggleReactionResponse { reactions: vec![] });
+    }
+
+    let Some(ref pool) = state.pg_pool else {
+        return Json(ToggleReactionResponse { reactions: vec![] });
+    };
+
+    // toggle: try insert, if conflict then delete
+    let inserted = sqlx::query_scalar::<_, bool>(
+        "INSERT INTO reactions (message_uid, thread_id, account_address, emoji)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (message_uid, account_address, emoji) DO NOTHING
+         RETURNING true"
+    )
+    .bind(uid)
+    .bind(&thread_id)
+    .bind(&user)
+    .bind(&req.emoji)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    if inserted.is_none() {
+        // row already existed — remove it
+        let _ = sqlx::query(
+            "DELETE FROM reactions WHERE message_uid = $1 AND account_address = $2 AND emoji = $3"
+        )
+        .bind(uid)
+        .bind(&user)
+        .bind(&req.emoji)
+        .execute(pool)
+        .await;
+    }
+
+    // fetch updated reactions for this message
+    let reactions = fetch_message_reactions(pool, uid, &user).await;
+    Json(ToggleReactionResponse { reactions })
+}
+
+pub(super) async fn get_thread_reactions(
+    Path(thread_id): Path<String>,
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if thread_id.len() > super::MAX_PATH_LEN {
+        return Json(ThreadReactionsResponse { reactions: HashMap::new() });
+    }
+
+    let Some(ref pool) = state.pg_pool else {
+        return Json(ThreadReactionsResponse { reactions: HashMap::new() });
+    };
+
+    let rows = sqlx::query_as::<_, (i64, String, i64, bool)>(
+        "SELECT message_uid, emoji, COUNT(*) as cnt,
+                bool_or(account_address = $1) as me
+         FROM reactions
+         WHERE thread_id = $2
+         GROUP BY message_uid, emoji
+         ORDER BY message_uid, emoji"
+    )
+    .bind(&user)
+    .bind(&thread_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let mut reactions: HashMap<i64, Vec<ReactionSummary>> = HashMap::new();
+    for (message_uid, emoji, count, me) in rows {
+        reactions
+            .entry(message_uid)
+            .or_default()
+            .push(ReactionSummary { emoji, count, me });
+    }
+
+    Json(ThreadReactionsResponse { reactions })
+}
+
+async fn fetch_message_reactions(
+    pool: &sqlx::PgPool,
+    message_uid: i64,
+    current_user: &str,
+) -> Vec<ReactionSummary> {
+    sqlx::query_as::<_, (String, i64, bool)>(
+        "SELECT emoji, COUNT(*) as cnt,
+                bool_or(account_address = $1) as me
+         FROM reactions
+         WHERE message_uid = $2
+         GROUP BY emoji
+         ORDER BY emoji"
+    )
+    .bind(current_user)
+    .bind(message_uid)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|(emoji, count, me)| ReactionSummary { emoji, count, me })
+    .collect()
 }
