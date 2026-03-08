@@ -264,16 +264,16 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     return (
       <div className="flex flex-1 flex-col">
         {onBack && (
-          <div className="flex items-center border-b border-zinc-200 px-4 py-3 dark:border-zinc-800 md:hidden">
-            <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">
+          <div className="flex items-center border-b border-[var(--color-border-default)] px-4 py-3 md:hidden">
+            <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
               <ArrowLeft className="h-4 w-4" />
               Back
             </button>
           </div>
         )}
-        <div className="flex flex-1 items-center justify-center text-zinc-400">
+        <div className="flex flex-1 items-center justify-center text-[var(--color-text-tertiary)]">
           <div className="text-center">
-            <Mail className="mx-auto mb-3 h-12 w-12 text-zinc-300 dark:text-zinc-600" strokeWidth={1} />
+            <Mail className="mx-auto mb-3 h-12 w-12 text-[var(--color-text-tertiary)]" strokeWidth={1} />
             <p className="text-sm">Select a conversation</p>
           </div>
         </div>
@@ -308,15 +308,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* header bar */}
-      <div className="flex shrink-0 select-none items-center gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
+      <div className="flex shrink-0 select-none items-center gap-2 border-b border-[var(--color-border-default)] px-4 py-2">
         {onBack && (
-          <button onClick={onBack} className="shrink-0 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 md:hidden" title="Back">
+          <button onClick={onBack} className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] md:hidden" title="Back">
             <ArrowLeft className="h-5 w-5" />
           </button>
         )}
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h2 className="select-text truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{subject || '(no subject)'}</h2>
-          <span className="shrink-0 text-xs text-zinc-400">{messages.length}</span>
+          <h2 className="select-text truncate text-sm font-semibold text-[var(--color-text-primary)]">{subject || '(no subject)'}</h2>
+          <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">{messages.length}</span>
           <CategoryBadge category={messages[0]?.category} />
           <ImportanceBadge level={messages[0]?.importance_level} />
           {messages.some((m) => m.requires_action) && <ActionBadge />}
@@ -344,12 +344,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       {/* delete dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true">
-          <div className="mx-4 w-full max-w-sm border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Delete conversation?</h3>
-            <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">This will permanently delete all messages.</p>
+          <div className="mx-4 w-full max-w-sm border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-6 shadow-xl">
+            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Delete conversation?</h3>
+            <p className="mt-1.5 text-sm text-[var(--color-text-tertiary)]">This will permanently delete all messages.</p>
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setShowDeleteConfirm(false)} className="rounded border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800">Cancel</button>
-              <button onClick={handleDelete} className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700">Delete</button>
+              <button onClick={() => setShowDeleteConfirm(false)} className="rounded border border-[var(--color-border-default)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)]">Cancel</button>
+              <button onClick={handleDelete} className="rounded bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--color-status-danger)]">Delete</button>
             </div>
           </div>
         </div>
@@ -358,47 +358,47 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       {/* main content: two columns */}
       <div className="flex flex-1 overflow-hidden">
         {/* column 1: raw email (current message) */}
-        <div className="flex w-1/2 flex-col overflow-hidden border-r border-zinc-200 dark:border-zinc-800">
+        <div className="flex w-1/2 flex-col overflow-hidden border-r border-[var(--color-border-default)]">
           {selectedMsg ? (
             <>
               {/* email header */}
-              <div className="shrink-0 border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
+              <div className="shrink-0 border-b border-[var(--color-border-default)] px-5 py-3">
                 <div className="flex items-center gap-3">
                   <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white ${avatarColor(selectedMsg.sender)}`}>
                     {avatarInitial(selectedMsg.sender)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="select-text text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    <p className="select-text text-sm font-medium text-[var(--color-text-primary)]">
                       {extractName(selectedMsg.sender)}{' '}
                       <Copyable value={extractEmail(selectedMsg.sender)}>
-                        <span className="font-normal text-zinc-500 dark:text-zinc-400">&lt;{extractEmail(selectedMsg.sender)}&gt;</span>
+                        <span className="font-normal text-[var(--color-text-tertiary)]">&lt;{extractEmail(selectedMsg.sender)}&gt;</span>
                       </Copyable>
                     </p>
-                    <p className="select-text truncate text-xs text-zinc-500 dark:text-zinc-400">
+                    <p className="select-text truncate text-xs text-[var(--color-text-tertiary)]">
                       to <Copyable value={selectedMsg.recipients.slice(0, 80)}>{selectedMsg.recipients.slice(0, 80)}</Copyable> · {formatFullDate(selectedMsg.internal_date)}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-0.5">
                     <IntentBadge intent={selectedMsg.sender_intent} />
                     {selectedMsg.action_deadline && (
-                      <span className="bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                      <span className="bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-status-warning)]">
                         Due: {selectedMsg.action_deadline}
                       </span>
                     )}
                     {selectedMsg.is_bulk_sender && (
-                      <span className="bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                      <span className="bg-[var(--color-bg-raised)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-tertiary)]">
                         Bulk
                       </span>
                     )}
                     {selectedMsg.ai_analyzed && (
                       <span className={`px-2 py-0.5 text-[11px] font-medium ${
                         selectedMsg.risk_score >= 60
-                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
                           : selectedMsg.risk_score >= 40
-                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                            ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
                             : selectedMsg.risk_score >= 15
-                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                              : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                              ? 'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]'
+                              : 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
                       }`}>
                         {selectedMsg.risk_score >= 60 ? 'Dangerous' : selectedMsg.risk_score >= 40 ? 'Suspicious' : selectedMsg.risk_score >= 15 ? 'Caution' : 'Safe'}
                         {selectedMsg.risk_score > 0 && ` ${selectedMsg.risk_score}`}
@@ -429,13 +429,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               {/* email body */}
               <div className="flex-1 overflow-y-auto">
                 {selectedMsg.html_body && (
-                  <div className="border-b border-zinc-200 dark:border-zinc-800">
+                  <div className="border-b border-[var(--color-border-default)]">
                     <MessageBubble uid={selectedMsg.uid} textBody={null} htmlBody={selectedMsg.html_body} attachments={[]} isOwn={false} />
                   </div>
                 )}
                 {(selectedMsg.clean_text || selectedMsg.text_body || !selectedMsg.html_body) && (
                   <div className="select-text px-5 py-4">
-                    <div className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-zinc-800 dark:text-zinc-200">
+                    <div className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-[var(--color-text-primary)]">
                       {highlightMentions(selectedMsg.clean_text || selectedMsg.text_body || '(no text content)', myEmail, auth?.display_name)}
                     </div>
                   </div>
@@ -444,7 +444,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               </div>
             </>
           ) : (
-            <div className="flex flex-1 items-center justify-center text-zinc-400">
+            <div className="flex flex-1 items-center justify-center text-[var(--color-text-tertiary)]">
               <p className="text-sm">Select a message to preview</p>
             </div>
           )}
@@ -458,8 +458,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <div className="animate-pulse space-y-4">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className={`flex gap-2 ${i % 2 === 0 ? '' : 'flex-row-reverse'}`}>
-                    <div className="h-7 w-7 shrink-0 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-                    <div className="h-10 w-2/3 bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="h-7 w-7 shrink-0 rounded-full bg-[var(--color-border-default)]" />
+                    <div className="h-10 w-2/3 bg-[var(--color-border-default)]" />
                   </div>
                 ))}
               </div>
@@ -476,7 +476,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     {hasCollapsed && (
                       <button
                         onClick={() => setShowAllMessages(true)}
-                        className="mx-auto mb-2 block text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                        className="mx-auto mb-2 block text-xs font-medium text-[var(--color-brand-primary)] hover:text-[var(--color-brand-primary-hover)]"
                       >
                         Show {messages.length - VISIBLE_RECENT} earlier messages
                       </button>
@@ -523,29 +523,29 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   }
                                 }}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
-                                className={`cursor-pointer overflow-hidden px-3.5 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 ${
+                                className={`cursor-pointer overflow-hidden px-3.5 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
                                   isOwn
                                     ? isSelected
                                       ? 'bg-blue-700 text-white'
                                       : 'bg-blue-600 text-white'
                                     : isSelected
-                                      ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
-                                      : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
+                                      ? 'bg-[var(--color-bg-raised)] text-[var(--color-text-primary)]'
+                                      : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-primary)]'
                                 } ${isSelected ? 'ring-2 ring-blue-400/50' : ''}`}
                               >
                                 {!isOwn && (
-                                  <p className="mb-1 text-[13px] font-semibold text-zinc-600 dark:text-zinc-300">{name}</p>
+                                  <p className="mb-1 text-[13px] font-semibold text-[var(--color-text-secondary)]">{name}</p>
                                 )}
                                 <p className={`select-text break-words text-[13px] leading-relaxed ${isExpanded ? '' : 'line-clamp-5'}`}>
                                   {highlightMentions(isExpanded ? fullText : snippet, myEmail, auth?.display_name)}
                                 </p>
                                 {isLong && (
-                                  <span className={`mt-1.5 block select-none text-xs font-medium ${isOwn ? 'text-blue-200' : 'text-blue-600 dark:text-blue-400'}`}>
+                                  <span className={`mt-1.5 block select-none text-xs font-medium ${isOwn ? 'text-blue-200' : 'text-[var(--color-brand-primary)]'}`}>
                                     {isExpanded ? 'show less' : 'show more'}
                                   </span>
                                 )}
                               </div>
-                              <p className={`mt-0.5 select-none text-[11px] text-zinc-400 ${isOwn ? 'text-right' : ''}`}>
+                              <p className={`mt-0.5 select-none text-[11px] text-[var(--color-text-tertiary)] ${isOwn ? 'text-right' : ''}`}>
                                 {formatDate(msg.internal_date)}
                                 {msg.attachments.length > 0 && (
                                   <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />
@@ -568,7 +568,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           </div>
 
           {/* reply editor — large, ~40% of the column height */}
-          <div className="flex h-[42%] shrink-0 flex-col border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex h-[42%] shrink-0 flex-col border-t border-[var(--color-border-default)] bg-[var(--color-bg-base)]">
             <ReplyBox
               threadId={selectedId}
               lastMessageId={fwdLastMessageId}
@@ -612,28 +612,28 @@ function ReactionBar({
           onClick={(e) => { e.stopPropagation(); onToggle(r.emoji) }}
           className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs transition-colors ${
             r.me
-              ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/30'
-              : 'border-zinc-200 bg-zinc-50 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700'
+              ? 'border-[var(--color-brand-primary)] bg-[var(--color-brand-subtle)]'
+              : 'border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] hover:bg-[var(--color-hover)]'
           }`}
         >
           <span>{r.emoji}</span>
-          <span className="text-[10px] text-zinc-500">{r.count}</span>
+          <span className="text-[10px] text-[var(--color-text-tertiary)]">{r.count}</span>
         </button>
       ))}
       <div className="group/react relative">
         <button
-          className="flex h-5 w-5 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-zinc-100 hover:text-zinc-500 dark:hover:bg-zinc-800"
+          className="flex h-5 w-5 items-center justify-center rounded-full text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-tertiary)]"
           title="Add reaction"
           onClick={(e) => e.stopPropagation()}
         >
           <SmilePlus className="h-3.5 w-3.5" />
         </button>
-        <div className="absolute bottom-full left-0 mb-1 hidden gap-0.5 rounded border border-zinc-200 bg-white p-1 shadow-lg group-hover/react:flex dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="absolute bottom-full left-0 mb-1 hidden gap-0.5 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-1 shadow-lg group-hover/react:flex">
           {QUICK_EMOJIS.map((e) => (
             <button
               key={e}
               onClick={(ev) => { ev.stopPropagation(); onToggle(e) }}
-              className="rounded p-0.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              className="rounded p-0.5 text-sm hover:bg-[var(--color-hover)]"
             >
               {e}
             </button>
@@ -647,9 +647,9 @@ function ReactionBar({
 function BubbleDateDivider({ label }: { label: string }) {
   return (
     <div className="flex select-none items-center gap-3 py-2">
-      <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-      <span className="shrink-0 text-[11px] font-medium text-zinc-400">{label}</span>
-      <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+      <div className="h-px flex-1 bg-[var(--color-border-default)]" />
+      <span className="shrink-0 text-[11px] font-medium text-[var(--color-text-tertiary)]">{label}</span>
+      <div className="h-px flex-1 bg-[var(--color-border-default)]" />
     </div>
   )
 }
@@ -725,7 +725,7 @@ function bubbleText(msg: ThreadMessage): string {
 
 function HdrBtn({ onClick, title, className, children }: { onClick: () => void; title: string; className?: string; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 ${className ?? ''}`} title={title}>
+    <button onClick={onClick} className={`rounded-md p-1.5 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] ${className ?? ''}`} title={title}>
       {children}
     </button>
   )
@@ -733,7 +733,7 @@ function HdrBtn({ onClick, title, className, children }: { onClick: () => void; 
 
 function SmBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300" title={title}>
+    <button onClick={onClick} className="rounded p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]" title={title}>
       {children}
     </button>
   )
@@ -782,22 +782,22 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((p) => !p)}
-        className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+        className="rounded p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
         title="Sender feedback"
       >
         <MoreVertical className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-40 border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-          <p className="truncate px-3 py-1 text-[11px] text-zinc-400">{senderEmail}</p>
+        <div className="absolute right-0 top-full z-50 mt-1 w-40 border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] py-1 shadow-lg">
+          <p className="truncate px-3 py-1 text-[11px] text-[var(--color-text-tertiary)]">{senderEmail}</p>
           {FEEDBACK_ITEMS.map((item) => (
             <button
               key={item.action}
               onClick={() => handleAction(item.action)}
               className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
                 item.action === 'block' || item.action === 'mark_spam'
-                  ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20'
-                  : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                  ? 'text-[var(--color-status-danger)] hover:bg-[var(--color-status-danger-subtle)]'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
               }`}
             >
               <span className="w-4 text-center">{item.icon}</span>

@@ -33,10 +33,10 @@ export function AdminSidebar() {
   return (
     <>
       {/* mobile: horizontal tab bar */}
-      <nav className="flex select-none items-center gap-1 overflow-x-auto border-b border-zinc-200 bg-zinc-50 px-2 py-1.5 md:hidden dark:border-zinc-800 dark:bg-zinc-900/50">
+      <nav className="flex select-none items-center gap-1 overflow-x-auto border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 py-1.5 md:hidden">
         <NavLink
           to="/"
-          className="shrink-0 rounded-md px-2 py-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          className="shrink-0 rounded-md px-2 py-1 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
         >
           Mail
         </NavLink>
@@ -47,24 +47,24 @@ export function AdminSidebar() {
             className={({ isActive }) =>
               `flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ${
                 isActive
-                  ? 'bg-zinc-200 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
-                  : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800/50'
+                  ? 'bg-[var(--color-bg-selected)] font-medium text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
               }`
             }
           >
-            <span className="text-zinc-400 dark:text-zinc-500">{item.icon}</span>
+            <span className="text-[var(--color-text-tertiary)]">{item.icon}</span>
             <span>{item.label}</span>
           </NavLink>
         ))}
       </nav>
 
       {/* desktop: vertical sidebar */}
-      <aside className="hidden h-full w-56 shrink-0 select-none flex-col border-r border-zinc-200 bg-zinc-50 md:flex dark:border-zinc-800 dark:bg-zinc-900/50">
+      <aside className="hidden h-full w-56 shrink-0 select-none flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] md:flex">
         <div className="p-4">
-          <h1 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <h1 className="text-lg font-semibold tracking-tight text-[var(--color-text-primary)]">
             mailrs
           </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">Admin</p>
+          <p className="text-xs text-[var(--color-text-tertiary)]">Admin</p>
         </div>
         <nav className="flex-1 px-2">
           {navItems.map((item) => (
@@ -74,28 +74,28 @@ export function AdminSidebar() {
               className={({ isActive }) =>
                 `flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
                   isActive
-                    ? 'bg-zinc-200 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
-                    : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800/50'
+                    ? 'bg-[var(--color-bg-selected)] font-medium text-[var(--color-text-primary)]'
+                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
                 }`
               }
             >
-              <span className="text-zinc-500 dark:text-zinc-400">
+              <span className="text-[var(--color-text-tertiary)]">
                 {item.icon}
               </span>
               <span>{item.label}</span>
             </NavLink>
           ))}
         </nav>
-        <div className="space-y-1 border-t border-zinc-200 p-3 dark:border-zinc-800">
+        <div className="space-y-1 border-t border-[var(--color-border-default)] p-3">
           <NavLink
             to="/protocol"
-            className="block text-xs text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+            className="block text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
           >
             SMTP Monitor
           </NavLink>
           <NavLink
             to="/"
-            className="block text-xs text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+            className="block text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
           >
             Back to Mail
           </NavLink>

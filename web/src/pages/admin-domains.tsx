@@ -84,7 +84,7 @@ export function AdminDomains() {
         <h2 className="text-lg font-semibold">Domains</h2>
         <button
           onClick={() => setAdding(true)}
-          className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
         >
           Add Domain
         </button>
@@ -96,12 +96,12 @@ export function AdminDomains() {
             value={newDomain}
             onChange={(e) => setNewDomain(e.target.value)}
             placeholder="example.com"
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
           />
           <button
             onClick={handleAdd}
-            className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
+            className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)]"
           >
             Save
           </button>
@@ -114,9 +114,9 @@ export function AdminDomains() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded border border-zinc-200 dark:border-zinc-800">
+      <div className="overflow-hidden rounded border border-[var(--color-border-default)]">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+          <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
             <tr>
               <th className="px-4 py-2.5 font-medium">Domain</th>
               <th className="px-4 py-2.5 font-medium">Created</th>
@@ -126,7 +126,7 @@ export function AdminDomains() {
           <tbody>
             {domains.map((domain) => (
               <Fragment key={domain.name}>
-                <tr className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/50">
+                <tr className="border-b border-[var(--color-border-default)] last:border-0">
                   <td className="px-4 py-3 font-medium"><Copyable value={domain.name}>{domain.name}</Copyable></td>
                   <td className="px-4 py-3 text-zinc-500">
                     {new Date(domain.created_at * 1000).toLocaleDateString()}
@@ -135,7 +135,7 @@ export function AdminDomains() {
                     <button
                       onClick={() => toggleReport(domain.name)}
                       disabled={checking === domain.name}
-                      className="mr-3 text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50 dark:text-blue-400 dark:hover:text-blue-300"
+                      className="mr-3 text-xs text-[var(--color-brand-primary)] hover:opacity-80 disabled:opacity-50"
                     >
                       {checking === domain.name
                         ? 'Checking...'

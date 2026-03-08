@@ -67,16 +67,16 @@ export function KeyboardShortcutsDialog({ open, onClose }: Props) {
     >
       {/* panel — stop propagation so clicks inside don't close */}
       <div
-        className="w-full max-w-sm select-none rounded border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+        className="w-full max-w-sm select-none rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
             Keyboard Shortcuts
           </h2>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
@@ -86,7 +86,7 @@ export function KeyboardShortcutsDialog({ open, onClose }: Props) {
         <div className="space-y-5">
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.title}>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">
                 {group.title}
               </p>
               <ul className="space-y-1.5">
@@ -95,14 +95,14 @@ export function KeyboardShortcutsDialog({ open, onClose }: Props) {
                     key={shortcut.description}
                     className="flex items-center justify-between gap-4"
                   >
-                    <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                    <span className="text-sm text-[var(--color-text-secondary)]">
                       {shortcut.description}
                     </span>
                     <span className="flex shrink-0 gap-1">
                       {shortcut.keys.map((key) => (
                         <kbd
                           key={key}
-                          className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded border border-zinc-300 bg-zinc-100 px-1.5 font-mono text-xs text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                          className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1.5 font-mono text-xs text-[var(--color-text-secondary)]"
                         >
                           {key}
                         </kbd>
@@ -115,8 +115,8 @@ export function KeyboardShortcutsDialog({ open, onClose }: Props) {
           ))}
         </div>
 
-        <p className="mt-5 text-center text-xs text-zinc-400 dark:text-zinc-600">
-          Press <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-zinc-300 bg-zinc-100 px-1 font-mono text-xs text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">?</kbd> or <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-zinc-300 bg-zinc-100 px-1 font-mono text-xs text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">Esc</kbd> to close
+        <p className="mt-5 text-center text-xs text-[var(--color-text-tertiary)]">
+          Press <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1 font-mono text-xs text-[var(--color-text-secondary)]">?</kbd> or <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1 font-mono text-xs text-[var(--color-text-secondary)]">Esc</kbd> to close
         </p>
       </div>
     </div>

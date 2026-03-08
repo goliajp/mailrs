@@ -15,10 +15,10 @@ export function AiAnalysisPanel({ message }: Props) {
   const hasDetails = hasPeople || hasDates || hasAmounts || hasActions
 
   return (
-    <div className="border-b border-zinc-200 bg-zinc-50 px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+    <div className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-5 py-3">
       {/* summary */}
       {message.summary && (
-        <p className="select-text text-sm text-zinc-700 dark:text-zinc-300">
+        <p className="select-text text-sm text-[var(--color-text-secondary)]">
           {message.summary}
         </p>
       )}
@@ -42,11 +42,11 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.people.map((p, i) => (
                   <span
                     key={i}
-                    className="inline-flex select-text items-center gap-1 bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
+                    className="inline-flex select-text items-center gap-1 bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]"
                   >
                     {p.name}
                     {p.role && (
-                      <span className="text-blue-400 dark:text-blue-500">
+                      <span className="text-[var(--color-brand-primary)] opacity-70">
                         ({p.role})
                       </span>
                     )}
@@ -72,7 +72,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.dates.map((d, i) => (
                   <span
                     key={i}
-                    className="inline-flex select-text items-center gap-1 bg-green-50 px-2 py-0.5 text-xs text-green-700 dark:bg-green-950/50 dark:text-green-300"
+                    className="inline-flex select-text items-center gap-1 bg-[var(--color-status-success-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-success)]"
                     title={d.context}
                   >
                     {d.text}
@@ -112,7 +112,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.action_items.map((item, i) => (
                   <li
                     key={i}
-                    className="flex select-text items-start gap-1.5 text-xs text-zinc-600 dark:text-zinc-400"
+                    className="flex select-text items-start gap-1.5 text-xs text-[var(--color-text-secondary)]"
                   >
                     <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
                     {item}

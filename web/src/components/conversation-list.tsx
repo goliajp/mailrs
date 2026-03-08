@@ -55,7 +55,7 @@ function QuickBtn({ onClick, title, children }: { onClick: (e: React.MouseEvent)
     <button
       onClick={onClick}
       title={title}
-      className="rounded-md p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
+      className="rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
     >
       {children}
     </button>
@@ -66,19 +66,19 @@ function PreviewCard({ convo, style }: { convo: ConversationSummary; style: Reac
   return (
     <div
       style={style}
-      className="pointer-events-none fixed z-50 w-72 border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+      className="pointer-events-none fixed z-50 w-72 border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3 shadow-lg"
     >
-      <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{convo.subject || '(no subject)'}</p>
-      <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+      <p className="text-xs font-semibold text-[var(--color-text-primary)]">{convo.subject || '(no subject)'}</p>
+      <p className="mt-1 text-[11px] text-[var(--color-text-tertiary)]">
         {convo.participants.slice(0, 3).map(p => extractName(p)).join(', ')}
         {convo.participants.length > 3 && ` +${convo.participants.length - 3}`}
       </p>
       {convo.snippet && (
-        <p className="mt-1.5 line-clamp-4 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">{convo.snippet}</p>
+        <p className="mt-1.5 line-clamp-4 text-xs leading-relaxed text-[var(--color-text-secondary)]">{convo.snippet}</p>
       )}
-      <div className="mt-2 flex items-center gap-2 text-[11px] text-zinc-400">
+      <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--color-text-tertiary)]">
         <span>{formatDate(convo.last_date)}</span>
-        {convo.unread_count > 0 && <span className="font-medium text-blue-600">{convo.unread_count} unread</span>}
+        {convo.unread_count > 0 && <span className="font-medium text-[var(--color-brand-primary)]">{convo.unread_count} unread</span>}
         {convo.message_count > 1 && <span>{convo.message_count} messages</span>}
       </div>
     </div>
@@ -173,16 +173,16 @@ const ConversationItem = memo(function ConversationItem({
       onContextMenu={ctx.open}
       aria-selected={selected && !batchMode}
       aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
-      className={`group/item relative flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 ${
-        hasUnread ? 'border-l-[3px] border-l-blue-600' : 'border-l-[3px] border-l-transparent'
+      className={`group/item relative flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
+        hasUnread ? 'border-l-[3px] border-l-[var(--color-brand-primary)]' : 'border-l-[3px] border-l-transparent'
       } ${
         !hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''
       } ${
         selected && !batchMode
-          ? 'bg-zinc-100 dark:bg-zinc-800'
+          ? 'bg-[var(--color-bg-selected)]'
           : checked
-            ? 'bg-blue-50 dark:bg-blue-900/20'
-            : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+            ? 'bg-[var(--color-brand-subtle)]'
+            : 'hover:bg-[var(--color-hover)]'
       }`}
     >
       {batchMode && (
@@ -190,8 +190,8 @@ const ConversationItem = memo(function ConversationItem({
           <div
             className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-colors ${
               checked
-                ? 'border-blue-600 bg-blue-600'
-                : 'border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-900'
+                ? 'border-[var(--color-brand-primary)] bg-[var(--color-brand-primary)]'
+                : 'border-[var(--color-border-default)] bg-[var(--color-bg-base)]'
             }`}
           >
             {checked && (
@@ -208,11 +208,11 @@ const ConversationItem = memo(function ConversationItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span
-            className={`select-text truncate text-sm ${hasUnread ? 'font-semibold text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'}`}
+            className={`select-text truncate text-sm ${hasUnread ? 'font-semibold text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'}`}
           >
             {name}
             {convo.participants.length > 1 && (
-              <span className="text-zinc-400">
+              <span className="text-[var(--color-text-tertiary)]">
                 {' '}
                 +{convo.participants.length - 1}
               </span>
@@ -220,16 +220,16 @@ const ConversationItem = memo(function ConversationItem({
           </span>
           <div className="flex shrink-0 items-center gap-1">
             {isPinned && (
-              <Pin className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+              <Pin className="h-3 w-3 text-[var(--color-brand-primary)]" />
             )}
-            <span className="text-xs text-zinc-400" title={formatFullDate(convo.last_date)}>
+            <span className="text-xs text-[var(--color-text-tertiary)]" title={formatFullDate(convo.last_date)}>
               {formatDate(convo.last_date)}
             </span>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           <p
-            className={`min-w-0 flex-1 select-text truncate text-sm ${hasUnread ? 'font-medium text-zinc-800 dark:text-zinc-200' : 'text-zinc-500 dark:text-zinc-400'}`}
+            className={`min-w-0 flex-1 select-text truncate text-sm ${hasUnread ? 'font-medium text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'}`}
           >
             {convo.subject || '(no subject)'}
           </p>
@@ -241,20 +241,20 @@ const ConversationItem = memo(function ConversationItem({
             <CategoryBadge category={convo.category} />
           )}
           {hasUnread && (
-            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 px-1.5 text-xs font-medium text-white">
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-1.5 text-xs font-medium text-white">
               {convo.unread_count}
             </span>
           )}
         </div>
         {convo.snippet && (
-          <p className="select-text truncate text-xs text-zinc-400 dark:text-zinc-500">
+          <p className="select-text truncate text-xs text-[var(--color-text-tertiary)]">
             {convo.snippet}
           </p>
         )}
       </div>
       {/* hover quick actions */}
       {!batchMode && (
-        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md bg-white/90 px-1 py-0.5 opacity-0 backdrop-blur-sm transition-opacity group-hover/item:opacity-100 dark:bg-zinc-900/90">
+        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md bg-[var(--color-bg-overlay)] px-1 py-0.5 opacity-0 backdrop-blur-sm transition-opacity group-hover/item:opacity-100">
           <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread') }} title={hasUnread ? 'Mark read' : 'Mark unread'}>
             {hasUnread ? <MailOpen className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
           </QuickBtn>
@@ -289,7 +289,7 @@ const QUICK_FILTERS: { value: QuickFilter; label: string; icon: React.ReactNode 
 function QuickFilterBar() {
   const [filter, setFilter] = useAtom(quickFilterAtom)
   return (
-    <div className="flex select-none gap-1 border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
+    <div className="flex select-none gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">
       {QUICK_FILTERS.map((f) => (
         <button
           key={f.value}
@@ -297,8 +297,8 @@ function QuickFilterBar() {
           aria-pressed={filter === f.value}
           className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
             filter === f.value
-              ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
-              : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+              : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
           }`}
         >
           {f.icon}
@@ -335,16 +335,16 @@ function DomainSelector() {
   }
 
   return (
-    <div className="flex items-center gap-1.5 overflow-x-auto border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800" role="group" aria-label="Domain filter">
-      <span className="shrink-0 text-xs text-zinc-400" aria-hidden="true">Domains:</span>
+    <div className="flex items-center gap-1.5 overflow-x-auto border-b border-[var(--color-border-default)] px-3 py-1.5" role="group" aria-label="Domain filter">
+      <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]" aria-hidden="true">Domains:</span>
       <button
         onClick={toggleAll}
         aria-pressed={selectedDomains.length === 0}
         aria-label={selectedDomains.length === 0 ? 'Show my emails only' : allSelected ? 'Show all domains' : 'Mixed domain selection'}
         className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium transition-colors ${
           selectedDomains.length === 0
-            ? 'bg-blue-600 text-white'
-            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+            ? 'bg-[var(--color-brand-primary)] text-white'
+            : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
         }`}
       >
         {selectedDomains.length === 0 ? 'Mine' : allSelected ? 'All' : 'Mix'}
@@ -357,8 +357,8 @@ function DomainSelector() {
           aria-label={`Filter by domain ${domain}`}
           className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium transition-colors ${
             selectedDomains.includes(domain)
-              ? 'bg-blue-600 text-white'
-              : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+              ? 'bg-[var(--color-brand-primary)] text-white'
+              : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
           }`}
         >
           {domain}
@@ -397,15 +397,15 @@ function CategoryChips() {
   if (categories.length === 0) return null
 
   return (
-    <div className="flex gap-1.5 overflow-x-auto border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800" role="group" aria-label="Category filter">
+    <div className="flex gap-1.5 overflow-x-auto border-b border-[var(--color-border-default)] px-3 py-1.5" role="group" aria-label="Category filter">
       <button
         onClick={() => setActiveCategory(null)}
         aria-pressed={activeCategory === null}
         aria-label="Show all categories"
         className={`shrink-0 rounded-md px-2.5 py-0.5 text-xs font-medium transition-colors ${
           activeCategory === null
-            ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
-            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+            ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+            : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
         }`}
       >
         All
@@ -422,8 +422,8 @@ function CategoryChips() {
           aria-label={`Filter by category ${cat.category}, ${cat.count} conversations`}
           className={`shrink-0 rounded-md px-2.5 py-0.5 text-xs font-medium capitalize transition-colors ${
             activeCategory === cat.category
-              ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
-              : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+              ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+              : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
           }`}
         >
           {cat.category} ({cat.count})
@@ -444,7 +444,7 @@ function SortAndArchivedRow() {
   const [showArchived, setShowArchived] = useAtom(showArchivedAtom)
 
   return (
-    <div className="flex items-center gap-1 overflow-hidden border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800" role="group" aria-label="Sort order">
+    <div className="flex items-center gap-1 overflow-hidden border-b border-[var(--color-border-default)] px-3 py-1.5" role="group" aria-label="Sort order">
       {SORT_OPTIONS.map((opt) => (
         <button
           key={opt.value}
@@ -453,8 +453,8 @@ function SortAndArchivedRow() {
           aria-label={`Sort by ${opt.label}`}
           className={`truncate rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
             sortOrder === opt.value
-              ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
-              : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+              : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
           }`}
         >
           {opt.label}
@@ -465,8 +465,8 @@ function SortAndArchivedRow() {
         aria-pressed={showArchived}
         className={`ml-auto shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
           showArchived
-            ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
-            : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+            : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
         }`}
       >
         {showArchived ? 'Archived' : 'Active'}
@@ -508,7 +508,7 @@ function ImportanceSectionTabs() {
   }, [conversations])
 
   return (
-    <div className="flex gap-0.5 border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800" role="tablist" aria-label="Importance filter">
+    <div className="flex gap-0.5 border-b border-[var(--color-border-default)] px-3 py-1.5" role="tablist" aria-label="Importance filter">
       {IMPORTANCE_SECTIONS.map((s) => {
         const count = s.value === 'action' ? counts.action : s.value === 'important' ? counts.important : s.value === 'other' ? counts.other : 0
         return (
@@ -521,9 +521,9 @@ function ImportanceSectionTabs() {
             className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
               section === s.value
                 ? s.value === 'action'
-                  ? 'bg-red-600 text-white dark:bg-red-500'
-                  : 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
-                : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                  ? 'bg-[var(--color-status-danger)] text-white'
+                  : 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
             }`}
           >
             {s.label}
@@ -557,9 +557,9 @@ function dateLabel(epoch: number): string {
 function DateDivider({ label }: { label: string }) {
   return (
     <div className="flex select-none items-center gap-3 px-4 py-1.5">
-      <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-      <span className="shrink-0 text-[11px] font-medium text-zinc-400">{label}</span>
-      <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+      <div className="h-px flex-1 bg-[var(--color-border-default)]" />
+      <span className="shrink-0 text-[11px] font-medium text-[var(--color-text-tertiary)]">{label}</span>
+      <div className="h-px flex-1 bg-[var(--color-border-default)]" />
     </div>
   )
 }
@@ -569,13 +569,13 @@ function ConversationSkeleton() {
     <div className="animate-pulse">
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="flex items-start gap-3 px-4 py-3">
-          <div className="h-9 w-9 shrink-0 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+          <div className="h-9 w-9 shrink-0 rounded-full bg-[var(--color-border-default)]" />
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex items-center justify-between">
-              <div className="h-3.5 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-              <div className="h-3 w-10 rounded bg-zinc-200 dark:bg-zinc-700" />
+              <div className="h-3.5 w-24 rounded bg-[var(--color-border-default)]" />
+              <div className="h-3 w-10 rounded bg-[var(--color-border-default)]" />
             </div>
-            <div className="h-3 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
+            <div className="h-3 w-40 rounded bg-[var(--color-border-default)]" />
           </div>
         </div>
       ))}
@@ -597,44 +597,44 @@ function BatchActionBar({
   loading: boolean
 }) {
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white/95 px-3 py-2 backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
+    <div className="absolute bottom-0 left-0 right-0 z-40 border-t border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] px-3 py-2 backdrop-blur">
       <div className="flex items-center gap-2">
-        <span className="shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+        <span className="shrink-0 text-xs font-medium text-[var(--color-text-secondary)]">
           {selectedCount} selected
         </span>
         <div className="flex flex-1 items-center gap-1.5 overflow-x-auto">
           <button
             onClick={() => onAction('read')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           >
             Mark read
           </button>
           <button
             onClick={() => onAction('unread')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           >
             Mark unread
           </button>
           <button
             onClick={() => onAction('star')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           >
             Star
           </button>
           <button
             onClick={() => onAction('archive')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           >
             Archive
           </button>
           <button
             onClick={() => onAction('delete')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:text-red-400 dark:hover:bg-red-900/20"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-status-danger)] transition-colors hover:bg-[var(--color-status-danger-subtle)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           >
             Delete
           </button>
@@ -642,12 +642,12 @@ function BatchActionBar({
         <button
           onClick={onCancel}
           disabled={loading}
-          className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50"
         >
           Cancel
         </button>
         {loading && (
-          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600 dark:border-zinc-600 dark:border-t-zinc-300" />
+          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--color-border-default)] border-t-[var(--color-text-secondary)]" />
         )}
       </div>
     </div>
@@ -843,16 +843,16 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
 
   return (
     <div className="relative flex h-full select-none flex-col">
-      <div className="flex items-center gap-2 border-b border-zinc-200 p-3 dark:border-zinc-800">
+      <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] p-3">
         <div role="search" className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden="true" />
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]" aria-hidden="true" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search..."
             aria-label="Search conversations"
-            className="w-full rounded-md border border-zinc-200 bg-zinc-50 py-1.5 pl-9 pr-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-500"
+            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-1.5 pl-9 pr-3 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-border-strong)]"
           />
         </div>
 
@@ -870,8 +870,8 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
             aria-label={batchMode ? 'Exit batch select mode' : 'Enter batch select mode'}
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
               batchMode
-                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
+                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
             }`}
             title="Batch select"
           >
@@ -885,7 +885,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
             setSelectedId(null)
           }}
           aria-label="New conversation"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
           title="New conversation"
         >
           <SquarePen className="h-5 w-5" aria-hidden="true" />
@@ -907,8 +907,8 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
         {initialLoading && conversations.length === 0 ? (
           <ConversationSkeleton />
         ) : conversations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center text-zinc-400">
-            <Mail className="mb-3 h-10 w-10 text-zinc-300 dark:text-zinc-600" strokeWidth={1} aria-hidden="true" />
+          <div className="flex flex-col items-center justify-center p-8 text-center text-[var(--color-text-tertiary)]">
+            <Mail className="mb-3 h-10 w-10 text-[var(--color-text-tertiary)]" strokeWidth={1} aria-hidden="true" />
             <p className="text-sm font-medium">{isSearching ? 'No results found' : 'All caught up!'}</p>
             <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : 'No conversations to show'}</p>
           </div>
@@ -941,13 +941,13 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
         {hasMore && conversations.length > 0 && (
           <div ref={sentinelCallback} className="flex justify-center py-4">
             {loadingMore && (
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600 dark:border-zinc-600 dark:border-t-zinc-300" />
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-border-default)] border-t-[var(--color-text-secondary)]" />
             )}
           </div>
         )}
 
         {!hasMore && conversations.length > 0 && (
-          <div className="py-3 text-center text-xs text-zinc-400">
+          <div className="py-3 text-center text-xs text-[var(--color-text-tertiary)]">
             No more conversations
           </div>
         )}

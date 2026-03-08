@@ -163,7 +163,7 @@ export function Chat() {
   const showThread = mobileView === 'thread'
 
   return (
-    <div className="flex h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <div className="flex h-screen bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
       {/* sidebar: hidden on mobile, visible on md+ */}
       <div className="hidden md:flex">
         <ChatSidebar />
@@ -173,7 +173,7 @@ export function Chat() {
       <div
         className={`${
           showList ? 'flex' : 'hidden'
-        } w-full shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800 md:flex md:w-80`}
+        } w-full shrink-0 flex-col border-r border-[var(--color-border-default)] md:flex md:w-80`}
       >
         <ConversationList
           onLoadMore={loadMore}
@@ -222,7 +222,7 @@ function ChatSidebar() {
   }
 
   return (
-    <aside className="flex h-full w-14 shrink-0 select-none flex-col items-center border-r border-zinc-200 bg-zinc-50 py-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+    <aside className="flex h-full w-14 shrink-0 select-none flex-col items-center border-r border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-4">
       {/* logo */}
       <div className="mb-4">
         <img src="/icon.svg" alt="mailrs" className="h-9 w-9 rounded" />
@@ -232,7 +232,7 @@ function ChatSidebar() {
       <nav className="flex flex-1 flex-col items-center gap-1.5">
         <a
           href="/"
-          className="flex h-9 w-9 items-center justify-center rounded bg-blue-50 text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:bg-blue-950 dark:text-blue-400"
+          className="flex h-9 w-9 items-center justify-center rounded bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           title="Chat"
           aria-label="Chat"
           aria-current="page"
@@ -241,7 +241,7 @@ function ChatSidebar() {
         </a>
         <a
           href="/admin"
-          className="flex h-9 w-9 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           title="Admin"
           aria-label="Admin"
         >
@@ -254,7 +254,7 @@ function ChatSidebar() {
         {/* theme toggle */}
         <button
           onClick={cycleTheme}
-          className="flex h-9 w-9 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           title={`Theme: ${theme}`}
           aria-label={`Switch theme, current: ${theme}`}
         >
@@ -270,7 +270,7 @@ function ChatSidebar() {
         {/* settings */}
         <a
           href="/settings"
-          className="flex h-9 w-9 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           title="Settings"
           aria-label="Settings"
         >
@@ -279,7 +279,7 @@ function ChatSidebar() {
 
         <button
           onClick={handleLogout}
-          className="flex h-9 w-9 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           title={`Sign out (${auth?.address})`}
           aria-label={`Sign out (${auth?.address})`}
         >

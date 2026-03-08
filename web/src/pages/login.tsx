@@ -56,17 +56,17 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-100 dark:bg-zinc-950">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-sunken)]">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm select-none space-y-5 rounded border border-zinc-300 bg-white p-8 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
+        className="w-full max-w-sm select-none space-y-5 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-sm"
       >
         <div className="flex flex-col items-center">
           <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded shadow-md" />
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
             mailrs
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
             Sign in to your account
           </p>
         </div>
@@ -74,7 +74,7 @@ export function Login() {
         {error && (
           <div
             role="alert"
-            className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+            className="rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-2 text-sm text-[var(--color-status-danger)]"
           >
             {error}
           </div>
@@ -83,7 +83,7 @@ export function Login() {
         <div className="space-y-1.5">
           <label
             htmlFor="login-email"
-            className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+            className="block text-sm font-medium text-[var(--color-text-secondary)]"
           >
             Email
           </label>
@@ -96,14 +96,14 @@ export function Login() {
             required
             autoFocus
             aria-label="Email address"
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
           />
         </div>
 
         <div className="space-y-1.5">
           <label
             htmlFor="login-password"
-            className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+            className="block text-sm font-medium text-[var(--color-text-secondary)]"
           >
             Password
           </label>
@@ -115,13 +115,13 @@ export function Login() {
               onChange={(e) => setPassword(e.target.value)}
               required
               aria-label="Password"
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 pr-10 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+              className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-3 py-2 pr-10 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
               tabIndex={-1}
             >
               {showPassword ? (
@@ -138,15 +138,15 @@ export function Login() {
             type="checkbox"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
-            className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500 dark:border-zinc-600 dark:bg-zinc-800"
+            className="h-4 w-4 rounded border-[var(--color-border-default)] focus:ring-zinc-500"
           />
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">Remember email</span>
+          <span className="text-sm text-[var(--color-text-secondary)]">Remember email</span>
         </label>
 
         <button
           type="submit"
           disabled={loading}
-          className="flex w-full items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-400"
+          className="flex w-full items-center justify-center rounded-md bg-[var(--color-brand-primary)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
         >
           {loading && (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

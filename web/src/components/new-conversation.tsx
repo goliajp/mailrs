@@ -153,27 +153,27 @@ export function NewConversation() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+      <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-6 py-3">
+        <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
           New Conversation
         </h2>
         <button
           onClick={() => setComposingNew(false)}
-          className="text-xs text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+          className="text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
         >
           Cancel
         </button>
       </div>
 
       {error && (
-        <div className="mx-6 mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <div className="mx-6 mt-3 rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-2 text-sm text-[var(--color-status-danger)]">
           {error}
         </div>
       )}
 
-      <div className="flex flex-col border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center border-b border-zinc-100 px-6 dark:border-zinc-800/50">
-          <label className="w-12 shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+      <div className="flex flex-col border-b border-[var(--color-border-default)]">
+        <div className="flex items-center border-b border-[var(--color-border-default)] px-6">
+          <label className="w-12 shrink-0 text-xs text-[var(--color-text-tertiary)]">
             To
           </label>
           <ContactAutocomplete
@@ -185,7 +185,7 @@ export function NewConversation() {
           {!showCcBcc && (
             <button
               onClick={() => setShowCcBcc(true)}
-              className="shrink-0 text-xs text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+              className="shrink-0 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
             >
               Cc/Bcc
             </button>
@@ -193,8 +193,8 @@ export function NewConversation() {
         </div>
         {showCcBcc && (
           <>
-            <div className="flex items-center border-b border-zinc-100 px-6 dark:border-zinc-800/50">
-              <label className="w-12 shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="flex items-center border-b border-[var(--color-border-default)] px-6">
+              <label className="w-12 shrink-0 text-xs text-[var(--color-text-tertiary)]">
                 Cc
               </label>
               <ContactAutocomplete
@@ -203,8 +203,8 @@ export function NewConversation() {
                 placeholder="cc@example.com"
               />
             </div>
-            <div className="flex items-center border-b border-zinc-100 px-6 dark:border-zinc-800/50">
-              <label className="w-12 shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="flex items-center border-b border-[var(--color-border-default)] px-6">
+              <label className="w-12 shrink-0 text-xs text-[var(--color-text-tertiary)]">
                 Bcc
               </label>
               <ContactAutocomplete
@@ -216,7 +216,7 @@ export function NewConversation() {
           </>
         )}
         <div className="flex items-center px-6">
-          <label htmlFor="new-conv-subject" className="w-12 shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+          <label htmlFor="new-conv-subject" className="w-12 shrink-0 text-xs text-[var(--color-text-tertiary)]">
             Subject
           </label>
           <input
@@ -224,7 +224,7 @@ export function NewConversation() {
             type="text"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            className="flex-1 bg-transparent py-2 text-sm text-zinc-900 outline-none dark:text-zinc-100"
+            className="flex-1 bg-transparent py-2 text-sm text-[var(--color-text-primary)] outline-none"
           />
         </div>
       </div>
@@ -243,16 +243,16 @@ export function NewConversation() {
             {files.map((f, i) => (
               <div
                 key={i}
-                className="flex items-center gap-1.5 rounded-md bg-zinc-100 px-2.5 py-1 text-xs dark:bg-zinc-800"
+                className="flex items-center gap-1.5 rounded-md bg-[var(--color-bg-raised)] px-2.5 py-1 text-xs"
               >
                 <svg className="h-3.5 w-3.5 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                 </svg>
-                <span className="max-w-40 truncate text-zinc-700 dark:text-zinc-300">{f.name}</span>
+                <span className="max-w-40 truncate text-[var(--color-text-secondary)]">{f.name}</span>
                 <span className="text-zinc-400">({(f.size / 1024).toFixed(0)}KB)</span>
                 <button
                   onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                  className="ml-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                  className="ml-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
                 >
                   &times;
                 </button>
@@ -262,7 +262,7 @@ export function NewConversation() {
         )}
       </div>
 
-      <div className="flex items-center gap-2 border-t border-zinc-200 p-4 dark:border-zinc-800">
+      <div className="flex items-center gap-2 border-t border-[var(--color-border-default)] p-4">
         <button
           onClick={send}
           disabled={sending}
@@ -272,7 +272,7 @@ export function NewConversation() {
         </button>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-md bg-zinc-100 px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+          className="rounded-md bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
           title="Attach files"
         >
           Attach
@@ -292,7 +292,7 @@ export function NewConversation() {
         <button
           onClick={polish}
           disabled={polishing || sending}
-          className="rounded-md bg-purple-100 px-3 py-1.5 text-sm text-purple-700 transition-colors hover:bg-purple-200 disabled:opacity-50 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
+          className="rounded-md bg-purple-100 px-3 py-1.5 text-sm text-purple-700 transition-colors hover:bg-purple-200 disabled:opacity-50 dark:bg-purple-950/30 dark:text-purple-300 dark:hover:bg-purple-950/50"
           title="AI polish your text"
         >
           {polishing ? 'Polishing...' : 'AI Polish'}
@@ -305,7 +305,7 @@ export function NewConversation() {
               e.target.value = ''
             }}
             defaultValue=""
-            className="rounded-md bg-zinc-100 px-2 py-1.5 text-sm text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+            className="rounded-md bg-[var(--color-bg-raised)] px-2 py-1.5 text-sm text-[var(--color-text-secondary)]"
           >
             <option value="" disabled>
               Templates
@@ -321,7 +321,7 @@ export function NewConversation() {
         <button
           onClick={() => setComposingNew(false)}
           disabled={sending}
-          className="rounded-md bg-zinc-100 px-3 py-1.5 text-sm transition-colors hover:bg-zinc-200 disabled:opacity-50 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+          className="rounded-md bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50"
         >
           Cancel
         </button>

@@ -94,7 +94,7 @@ function ImageThumbnail({ uid, index, att }: { uid: number; index: number; att: 
       <div className="group relative">
         <button
           onClick={() => setLightboxOpen(true)}
-          className="block overflow-hidden rounded border border-zinc-200 transition-shadow hover:shadow-md dark:border-zinc-700"
+          className="block overflow-hidden rounded border border-[var(--color-border-default)] transition-shadow hover:shadow-md"
           title={`${att.filename} - click to enlarge`}
         >
           <img
@@ -104,9 +104,9 @@ function ImageThumbnail({ uid, index, att }: { uid: number; index: number; att: 
             loading="lazy"
           />
         </button>
-        <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="mt-1 truncate text-xs text-[var(--color-text-tertiary)]">
           <Copyable value={att.filename}>{att.filename}</Copyable>
-          <span className="ml-1 text-zinc-400 dark:text-zinc-500">
+          <span className="ml-1 text-[var(--color-text-tertiary)]">
             ({formatSize(att.size)})
           </span>
         </p>
@@ -132,15 +132,15 @@ function FileRow({ uid, index, att }: { uid: number; index: number; att: Attachm
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+      className="flex items-center gap-2 rounded-md border border-[var(--color-border-default)] px-3 py-2 text-sm transition-colors hover:bg-[var(--color-hover)]"
     >
       {isPdf ? (
-        <PdfIcon className="h-5 w-5 shrink-0 text-red-500 dark:text-red-400" />
+        <PdfIcon className="h-5 w-5 shrink-0 text-[var(--color-status-danger)]" />
       ) : (
         <FileIcon className="h-5 w-5 shrink-0 text-zinc-400" />
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-zinc-700 dark:text-zinc-300">
+        <p className="truncate text-[var(--color-text-secondary)]">
           <Copyable value={att.filename}>{att.filename}</Copyable>
         </p>
         <p className="text-xs text-zinc-400">
@@ -168,12 +168,12 @@ export function AttachmentPreview({
     .filter(({ att }) => !isImageAttachment(att))
 
   return (
-    <div className="border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
+    <div className="border-t border-[var(--color-border-default)] px-6 py-4">
       <div className="mb-2 flex items-center gap-2">
         <span className="select-none text-xs font-medium uppercase tracking-wide text-zinc-400">
           Attachments ({attachments.length})
         </span>
-        <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+        <div className="h-px flex-1 bg-[var(--color-border-default)]" />
       </div>
 
       {/* image thumbnails grid */}

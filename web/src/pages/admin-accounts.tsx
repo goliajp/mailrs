@@ -62,7 +62,7 @@ function QuotaCell({ address }: { address: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[var(--color-border-default)]">
         <div
           className="h-full rounded-full bg-blue-500"
           style={{ width: '0%' }}
@@ -109,7 +109,7 @@ function PasswordCell({
     return (
       <button
         onClick={() => setEditing(true)}
-        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+        className="text-xs text-[var(--color-brand-primary)] hover:opacity-80"
       >
         Change
       </button>
@@ -123,7 +123,7 @@ function PasswordCell({
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="New password"
-        className="w-28 rounded border border-zinc-300 px-2 py-0.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+        className="w-28 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-2 py-0.5 text-xs"
         onKeyDown={(e) => {
           if (e.key === 'Enter') handleSave()
           if (e.key === 'Escape') {
@@ -137,7 +137,7 @@ function PasswordCell({
       <button
         onClick={handleSave}
         disabled={saving || !password.trim()}
-        className="text-xs text-green-600 hover:text-green-800 disabled:opacity-50 dark:text-green-400 dark:hover:text-green-300"
+        className="text-xs text-[var(--color-status-success)] hover:opacity-80 disabled:opacity-50"
       >
         {saving ? '...' : 'Save'}
       </button>
@@ -166,11 +166,11 @@ function DeleteConfirmDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-sm rounded bg-white p-6 shadow-xl dark:bg-zinc-900">
+      <div className="w-full max-w-sm rounded bg-[var(--color-bg-raised)] p-6 shadow-xl">
         <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
         <p className="mb-4 text-sm text-zinc-500">
           Are you sure you want to delete{' '}
-          <span className="font-medium text-zinc-900 dark:text-zinc-100">
+          <span className="font-medium text-[var(--color-text-primary)]">
             {address}
           </span>
           ? This action cannot be undone.
@@ -278,30 +278,30 @@ export function AdminAccounts() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter accounts..."
-          className="min-w-0 flex-1 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-500"
+          className="min-w-0 flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)]"
         />
         <button
           onClick={() => setAdding(true)}
-          className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
         >
           Add Account
         </button>
       </div>
 
       {adding && (
-        <div className="mb-4 space-y-2 rounded border border-zinc-200 p-4 dark:border-zinc-800">
+        <div className="mb-4 space-y-2 rounded border border-[var(--color-border-default)] p-4">
           <div className="flex gap-2">
             <input
               value={form.address}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
               placeholder="user@example.com"
-              className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
             />
             <input
               value={form.domain}
               onChange={(e) => setForm({ ...form, domain: e.target.value })}
               placeholder="example.com"
-              className="w-40 rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              className="w-40 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
             />
           </div>
           <div className="flex gap-2">
@@ -311,20 +311,20 @@ export function AdminAccounts() {
                 setForm({ ...form, displayName: e.target.value })
               }
               placeholder="Display Name"
-              className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
             />
             <input
               type="password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder="Password"
-              className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
             />
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleAdd}
-              className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
+              className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)]"
             >
               Save
             </button>
@@ -338,9 +338,9 @@ export function AdminAccounts() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
+      <div className="overflow-x-auto rounded border border-[var(--color-border-default)]">
         <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+          <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
             <tr>
               <th className="px-4 py-2.5 font-medium">Address</th>
               <th className="px-4 py-2.5 font-medium">Display Name</th>
@@ -355,7 +355,7 @@ export function AdminAccounts() {
             {paged.map((account) => (
               <tr
                 key={account.address}
-                className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/50"
+                className="border-b border-[var(--color-border-default)] last:border-0"
               >
                 <td className="px-4 py-3 font-medium"><Copyable value={account.address}>{account.address}</Copyable></td>
                 <td className="select-text px-4 py-3 text-zinc-500">
@@ -369,7 +369,7 @@ export function AdminAccounts() {
                   {account.active ? (
                     <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
                   ) : (
-                    <span className="inline-block h-2 w-2 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+                    <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-border-default)]" />
                   )}
                 </td>
                 <td className="px-4 py-3">
@@ -412,14 +412,14 @@ export function AdminAccounts() {
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={safePage === 0}
-              className="rounded px-2.5 py-1 hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
+              className="rounded px-2.5 py-1 hover:bg-[var(--color-hover)] disabled:opacity-40"
             >
               Prev
             </button>
             <button
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={safePage >= totalPages - 1}
-              className="rounded px-2.5 py-1 hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
+              className="rounded px-2.5 py-1 hover:bg-[var(--color-hover)] disabled:opacity-40"
             >
               Next
             </button>
