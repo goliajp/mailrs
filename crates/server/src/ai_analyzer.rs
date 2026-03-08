@@ -284,6 +284,12 @@ async fn analyze_single_message(
     let amounts = serde_json::to_value(&analysis.amounts).unwrap_or_default();
     let action_items = serde_json::to_value(&analysis.action_items).unwrap_or_default();
 
+    let sender_intent = if analysis.sender_intent.is_empty() {
+        "inform"
+    } else {
+        &analysis.sender_intent
+    };
+
     if let Err(e) = store
         .upsert_email_analysis(
             message_id,
@@ -298,6 +304,9 @@ async fn analyze_single_message(
             embedding_result.as_deref(),
             model_version,
             &analysis.clean_text,
+            analysis.requires_action,
+            sender_intent,
+            analysis.action_deadline.as_deref(),
         )
         .await
     {
@@ -305,11 +314,19 @@ async fn analyze_single_message(
         return false;
     }
 
+    // update importance score if action items were detected
+    if analysis.requires_action {
+        // boost importance for messages requiring action
+        let _ = store.boost_importance_for_action(message_id).await;
+    }
+
     eprintln!(
-        "AI analyzed msg={} cat={} risk={} embed={}",
+        "AI analyzed msg={} cat={} risk={} action={} intent={} embed={}",
         message_id,
         analysis.category,
         analysis.risk_score,
+        analysis.requires_action,
+        sender_intent,
         embedding_result.is_some()
     );
 

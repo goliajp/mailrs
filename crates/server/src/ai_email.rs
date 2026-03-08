@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// current prompt version — bump this to trigger automatic reanalysis of all messages
-pub const PROMPT_VERSION: &str = "v2";
+pub const PROMPT_VERSION: &str = "v3";
 
 /// gemini API configuration
 #[derive(Debug, Clone)]
@@ -44,6 +44,12 @@ pub struct EmailAnalysis {
     pub action_items: Vec<String>,
     #[serde(default)]
     pub clean_text: String,
+    #[serde(default)]
+    pub requires_action: bool,
+    #[serde(default)]
+    pub sender_intent: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action_deadline: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -203,6 +209,16 @@ Look for: urgent calls to action (「至急」「今すぐ」「アカウント�
 ## clean_text Instructions
 Extract the main readable content from the email body. Remove all HTML tags, navigation, headers/footers, unsubscribe notices, tracking elements, and boilerplate. Preserve paragraph structure with blank lines. Convert links to markdown format [text](url). Keep the text natural and readable. Max 2000 characters. If the body is already plain text, clean up whitespace and formatting.
 
+## Action Detection
+- requires_action: true if the recipient needs to do something (reply, review, approve, pay, sign, attend, etc.)
+- sender_intent: classify the sender's primary purpose:
+  - "request" — asking the recipient to do something
+  - "inform" — sharing information, no action needed
+  - "confirm" — confirming a transaction, booking, or agreement
+  - "social" — social greeting, introduction, or casual conversation
+  - "alert" — urgent notification requiring attention (security, system, billing)
+- action_deadline: if the email mentions a deadline or due date for the action, extract as ISO 8601 (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). null if none.
+
 JSON schema:
 {{
   "category": "<one of the categories above>",
@@ -210,6 +226,9 @@ JSON schema:
   "risk_reason": "<brief reason for risk score>",
   "summary": "<2-3 sentence summary of the email content and purpose>",
   "clean_text": "<extracted clean readable text from the email, max 2000 chars>",
+  "requires_action": <true|false>,
+  "sender_intent": "<request|inform|confirm|social|alert>",
+  "action_deadline": "<ISO 8601 date or null>",
   "people": [{{"name": "...", "email": "...", "role": "..."}}],
   "dates": [{{"text": "original text", "iso_date": "YYYY-MM-DD", "context": "..."}}],
   "amounts": [{{"text": "original text", "value": 123.45, "currency": "USD", "context": "..."}}],
@@ -317,7 +336,7 @@ mod tests {
 
     #[test]
     fn parse_valid_response() {
-        let json = r#"{"category":"personal","risk_score":5,"risk_reason":"from known sender","summary":"A friendly hello","people":[{"name":"John","email":"john@example.com"}],"dates":[],"amounts":[],"action_items":["reply to John"],"clean_text":"Hello there"}"#;
+        let json = r#"{"category":"personal","risk_score":5,"risk_reason":"from known sender","summary":"A friendly hello","people":[{"name":"John","email":"john@example.com"}],"dates":[],"amounts":[],"action_items":["reply to John"],"clean_text":"Hello there","requires_action":true,"sender_intent":"request","action_deadline":"2026-03-15"}"#;
         let result = parse_analysis_response(json).unwrap();
         assert_eq!(result.category, "personal");
         assert_eq!(result.risk_score, 5);
@@ -325,6 +344,9 @@ mod tests {
         assert_eq!(result.people[0].name, "John");
         assert_eq!(result.action_items, vec!["reply to John"]);
         assert_eq!(result.clean_text, "Hello there");
+        assert!(result.requires_action);
+        assert_eq!(result.sender_intent, "request");
+        assert_eq!(result.action_deadline.as_deref(), Some("2026-03-15"));
     }
 
     #[test]
@@ -332,6 +354,10 @@ mod tests {
         let json = r#"{"category":"personal","risk_score":5,"risk_reason":"safe","summary":"test","people":[],"dates":[],"amounts":[],"action_items":[]}"#;
         let result = parse_analysis_response(json).unwrap();
         assert_eq!(result.clean_text, "");
+        // defaults for new fields
+        assert!(!result.requires_action);
+        assert_eq!(result.sender_intent, "");
+        assert_eq!(result.action_deadline, None);
     }
 
     #[test]

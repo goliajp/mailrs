@@ -67,6 +67,9 @@ pub struct EmailAnalysisRow {
     pub action_items: serde_json::Value,
     pub model_version: String,
     pub clean_text: String,
+    pub requires_action: bool,
+    pub sender_intent: String,
+    pub action_deadline: Option<String>,
 }
 
 /// flag update action for CONDSTORE UNCHANGEDSINCE
