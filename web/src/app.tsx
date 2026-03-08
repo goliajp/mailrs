@@ -2,6 +2,7 @@ import { useAtomValue } from 'jotai'
 import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 
+import { AppSidebar } from '@/components/app-sidebar'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { Admin } from '@/pages/admin'
 import { Chat } from '@/pages/chat'
@@ -16,6 +17,17 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const auth = useAtomValue(authAtom)
   if (!auth) return <Navigate to="/login" replace />
   return children
+}
+
+function AuthLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <RequireAuth>
+      <div className="flex h-screen bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
+        <AppSidebar />
+        <div className="min-w-0 flex-1">{children}</div>
+      </div>
+    </RequireAuth>
+  )
 }
 
 function useDocumentTitle() {
@@ -34,30 +46,37 @@ export function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/playground" element={<Playground />} />
-        <Route path="/protocol" element={<Protocol />} />
+        <Route
+          path="/protocol"
+          element={
+            <AuthLayout>
+              <Protocol />
+            </AuthLayout>
+          }
+        />
         <Route
           path="/admin/*"
           element={
-            <RequireAuth>
+            <AuthLayout>
               <Admin />
-            </RequireAuth>
+            </AuthLayout>
           }
         />
         <Route
           path="/settings"
           element={
-            <RequireAuth>
+            <AuthLayout>
               <Settings />
-            </RequireAuth>
+            </AuthLayout>
           }
         />
         <Route path="/mail/*" element={<Navigate to="/" replace />} />
         <Route
           path="/*"
           element={
-            <RequireAuth>
+            <AuthLayout>
               <Chat />
-            </RequireAuth>
+            </AuthLayout>
           }
         />
       </Routes>

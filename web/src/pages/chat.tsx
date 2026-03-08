@@ -1,16 +1,13 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { LogOut, MessageSquare, Monitor, Moon, Settings, Sun } from 'lucide-react'
 import { useCallback, useEffect, useRef } from 'react'
-import type { ThemeMode } from '@/lib/theme'
 
 import { ConversationList } from '@/components/conversation-list'
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { NewConversation } from '@/components/new-conversation'
 import { ThreadView } from '@/components/thread-view'
-import { fetchJson, postJson } from '@/lib/api'
+import { fetchJson } from '@/lib/api'
 import type { ConversationSummary } from '@/lib/types'
 import { authAtom } from '@/store/auth'
-import { themeAtom } from '@/store/theme'
 import {
   categoryFilterAtom,
   composingNewAtom,
@@ -163,12 +160,7 @@ export function Chat() {
   const showThread = mobileView === 'thread'
 
   return (
-    <div className="flex h-screen bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
-      {/* sidebar: hidden on mobile, visible on md+ */}
-      <div className="hidden md:flex">
-        <ChatSidebar />
-      </div>
-
+    <div className="flex h-full">
       {/* conversation list: full width on mobile when showing list, fixed width on desktop */}
       <div
         className={`${
@@ -195,97 +187,5 @@ export function Chat() {
         onClose={() => setShortcutsOpen(false)}
       />
     </div>
-  )
-}
-
-const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
-
-function ChatSidebar() {
-  const auth = useAtomValue(authAtom)
-  const setAuth = useSetAtom(authAtom)
-  const [theme, setTheme] = useAtom(themeAtom)
-
-  const cycleTheme = () => {
-    const idx = THEME_CYCLE.indexOf(theme)
-    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]
-    setTheme(next)
-  }
-
-  const handleLogout = async () => {
-    try {
-      await postJson('/auth/logout', {})
-    } catch {
-      // ignore
-    }
-    setAuth(null)
-    window.location.href = '/login'
-  }
-
-  return (
-    <aside className="flex h-full w-14 shrink-0 select-none flex-col items-center border-r border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-4">
-      {/* logo */}
-      <div className="mb-4">
-        <img src="/icon.svg" alt="mailrs" className="h-9 w-9 rounded-lg" />
-      </div>
-
-      {/* nav icons */}
-      <nav className="flex flex-1 flex-col items-center gap-1.5">
-        <a
-          href="/"
-          className="flex h-9 w-9 items-center justify-center rounded-md bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
-          title="Chat"
-          aria-label="Chat"
-          aria-current="page"
-        >
-          <MessageSquare className="h-5 w-5" />
-        </a>
-        <a
-          href="/admin"
-          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
-          title="Admin"
-          aria-label="Admin"
-        >
-          <Settings className="h-5 w-5" />
-        </a>
-      </nav>
-
-      {/* user */}
-      <div className="flex flex-col items-center gap-2">
-        {/* theme toggle */}
-        <button
-          onClick={cycleTheme}
-          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
-          title={`Theme: ${theme}`}
-          aria-label={`Switch theme, current: ${theme}`}
-        >
-          {theme === 'dark' ? (
-            <Moon className="h-5 w-5" />
-          ) : theme === 'light' ? (
-            <Sun className="h-5 w-5" />
-          ) : (
-            <Monitor className="h-5 w-5" />
-          )}
-        </button>
-
-        {/* settings */}
-        <a
-          href="/settings"
-          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
-          title="Settings"
-          aria-label="Settings"
-        >
-          <Settings className="h-5 w-5" />
-        </a>
-
-        <button
-          onClick={handleLogout}
-          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
-          title={`Sign out (${auth?.address})`}
-          aria-label={`Sign out (${auth?.address})`}
-        >
-          <LogOut className="h-5 w-5" />
-        </button>
-      </div>
-    </aside>
   )
 }
