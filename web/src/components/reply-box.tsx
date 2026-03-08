@@ -396,7 +396,7 @@ export function ReplyBox({
         <button
           onClick={send}
           disabled={sending}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
           title="Send (Ctrl+Enter)"
         >
           <Send className="h-3.5 w-3.5" />

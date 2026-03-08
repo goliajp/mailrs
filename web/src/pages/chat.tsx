@@ -225,14 +225,14 @@ function ChatSidebar() {
     <aside className="flex h-full w-14 shrink-0 select-none flex-col items-center border-r border-zinc-200 bg-zinc-50 py-4 dark:border-zinc-800 dark:bg-zinc-900/50">
       {/* logo */}
       <div className="mb-4">
-        <img src="/icon.svg" alt="mailrs" className="h-9 w-9 rounded-lg" />
+        <img src="/icon.svg" alt="mailrs" className="h-9 w-9 rounded" />
       </div>
 
       {/* nav icons */}
       <nav className="flex flex-1 flex-col items-center gap-1.5">
         <a
           href="/"
-          className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:bg-blue-950 dark:text-blue-400"
+          className="flex h-9 w-9 items-center justify-center rounded bg-blue-50 text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:bg-blue-950 dark:text-blue-400"
           title="Chat"
           aria-label="Chat"
           aria-current="page"
@@ -241,7 +241,7 @@ function ChatSidebar() {
         </a>
         <a
           href="/admin"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="flex h-9 w-9 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           title="Admin"
           aria-label="Admin"
         >
@@ -254,7 +254,7 @@ function ChatSidebar() {
         {/* theme toggle */}
         <button
           onClick={cycleTheme}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="flex h-9 w-9 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           title={`Theme: ${theme}`}
           aria-label={`Switch theme, current: ${theme}`}
         >
@@ -270,7 +270,7 @@ function ChatSidebar() {
         {/* settings */}
         <a
           href="/settings"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="flex h-9 w-9 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           title="Settings"
           aria-label="Settings"
         >
@@ -279,7 +279,7 @@ function ChatSidebar() {
 
         <button
           onClick={handleLogout}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="flex h-9 w-9 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           title={`Sign out (${auth?.address})`}
           aria-label={`Sign out (${auth?.address})`}
         >

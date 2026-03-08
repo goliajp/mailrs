@@ -114,7 +114,7 @@ export function AdminDomains() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+      <div className="overflow-hidden rounded border border-zinc-200 dark:border-zinc-800">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
             <tr>

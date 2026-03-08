@@ -32,10 +32,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-          <div className="w-full max-w-md px-6 py-8 bg-white rounded-lg shadow-lg">
+          <div className="w-full max-w-md px-6 py-8 bg-white rounded shadow-lg">
             <div className="text-center">
               <div className="mb-4 flex justify-center">
-                <div className="rounded-full bg-red-100 p-3">
+                <div className="rounded bg-red-100 p-3">
                   <svg
                     className="h-8 w-8 text-red-600"
                     fill="none"
@@ -69,7 +69,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               )}
               <button
                 onClick={this.handleReload}
-                className="w-full rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-700 active:bg-blue-800"
+                className="w-full rounded bg-blue-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-700 active:bg-blue-800"
               >
                 重新加载
               </button>

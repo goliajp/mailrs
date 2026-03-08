@@ -257,12 +257,12 @@ function AttachmentItem({
           <img
             src={url}
             alt={att.filename}
-            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+            className="max-h-[90vh] max-w-[90vw] rounded object-contain"
             onClick={(e) => e.stopPropagation()}
           />
           <button
             type="button"
-            className="absolute right-4 top-4 rounded-full bg-black/50 px-3 py-1 text-white hover:bg-black/70"
+            className="absolute right-4 top-4 rounded bg-black/50 px-3 py-1 text-white hover:bg-black/70"
             onClick={() => setLightbox(false)}
           >
             &times;
@@ -335,12 +335,12 @@ export function MessageBubble({
   return (
     <div>
       {isHtml ? (
-        <div className="select-text overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700">
+        <div className="select-text overflow-hidden rounded border border-zinc-200 bg-white dark:border-zinc-700">
           <HtmlFrame html={parts.body} />
         </div>
       ) : (
         <div
-          className={`select-text rounded-2xl px-4 py-2.5 ${
+          className={`select-text rounded px-4 py-2.5 ${
             isOwn
               ? 'bg-blue-600 text-white'
               : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'

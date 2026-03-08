@@ -70,7 +70,7 @@ function ImageLightbox({
     >
       <button
         onClick={onClose}
-        className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+        className="absolute right-4 top-4 rounded bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
         aria-label="Close preview"
       >
         <X className="h-5 w-5" />
@@ -78,7 +78,7 @@ function ImageLightbox({
       <img
         src={src}
         alt={alt}
-        className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+        className="max-h-[90vh] max-w-[90vw] rounded object-contain shadow-2xl"
       />
     </div>
   )
@@ -94,7 +94,7 @@ function ImageThumbnail({ uid, index, att }: { uid: number; index: number; att: 
       <div className="group relative">
         <button
           onClick={() => setLightboxOpen(true)}
-          className="block overflow-hidden rounded-lg border border-zinc-200 transition-shadow hover:shadow-md dark:border-zinc-700"
+          className="block overflow-hidden rounded border border-zinc-200 transition-shadow hover:shadow-md dark:border-zinc-700"
           title={`${att.filename} - click to enlarge`}
         >
           <img

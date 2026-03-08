@@ -37,7 +37,7 @@ const statusConfig: Record<CheckStatus, { bg: string; border: string; text: stri
 function StatusBadge({ status }: { status: CheckStatus }) {
   const config = statusConfig[status]
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${config.dot}`} />
       {config.label}
     </span>
@@ -50,7 +50,7 @@ function CheckResultCard({ check }: { check: CheckResult }) {
   const hasDetails = check.details.length > 0
 
   return (
-    <div className={`rounded-lg border ${config.border} ${config.bg} transition-colors`}>
+    <div className={`rounded border ${config.border} ${config.bg} transition-colors`}>
       <button
         onClick={() => hasDetails && setExpanded(!expanded)}
         className={`flex w-full items-center gap-3 px-3 py-2.5 text-left ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
@@ -144,7 +144,7 @@ export function DomainHealthCard({ report, checking, onRecheck }: DomainHealthCa
   const timeStr = checkedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+    <div className="overflow-hidden rounded border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
       {/* header */}
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
         <div>

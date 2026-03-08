@@ -81,7 +81,7 @@ export function AdminAliases() {
       </div>
 
       {adding && (
-        <div className="mb-4 space-y-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <div className="mb-4 space-y-2 rounded border border-zinc-200 p-4 dark:border-zinc-800">
           <div className="flex gap-2">
             <input
               value={form.source_address}
@@ -135,7 +135,7 @@ export function AdminAliases() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+      <div className="overflow-hidden rounded border border-zinc-200 dark:border-zinc-800">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
             <tr>
@@ -157,7 +157,7 @@ export function AdminAliases() {
                 <td className="px-4 py-3 text-zinc-500">{alias.domain}</td>
                 <td className="px-4 py-3">
                   <span
-                    className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                    className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
                       alias.alias_type === 'forward'
                         ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                         : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
