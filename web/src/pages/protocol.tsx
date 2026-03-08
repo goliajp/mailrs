@@ -14,7 +14,7 @@ function StatusCard({
   color: string
 }) {
   return (
-    <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3">
+    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3">
       <div className="text-xs text-[var(--color-text-tertiary)]">{label}</div>
       <div className={`mt-1 text-2xl font-bold tabular-nums ${color}`}>
         {value}
@@ -47,12 +47,12 @@ function ConnectionRow({
       <span className="truncate">{conn.addr}</span>
       <div className="ml-auto flex items-center gap-1.5">
         {conn.tls && (
-          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+          <span className="rounded-md bg-[var(--color-status-success-subtle)] px-1.5 py-0.5 text-xs text-[var(--color-status-success)]">
             TLS
           </span>
         )}
         {conn.authenticated && (
-          <span className="rounded bg-[var(--color-brand-subtle)] px-1.5 py-0.5 text-xs text-[var(--color-brand-primary)]">
+          <span className="rounded-md bg-[var(--color-brand-subtle)] px-1.5 py-0.5 text-xs text-[var(--color-brand-primary)]">
             {conn.authenticated}
           </span>
         )}
@@ -94,16 +94,16 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
             <div
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                 isServer
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                  ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
                   : 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
               }`}
             >
               {isServer ? 'S' : 'C'}
             </div>
             <div
-              className={`max-w-[80%] rounded px-3 py-1.5 font-mono text-xs leading-relaxed ${
+              className={`max-w-[80%] rounded-md px-3 py-1.5 font-mono text-xs leading-relaxed ${
                 isServer
-                  ? 'bg-[var(--color-bg-raised)] text-emerald-700 dark:text-emerald-300'
+                  ? 'bg-[var(--color-bg-raised)] text-[var(--color-status-success)]'
                   : 'bg-[var(--color-bg-raised)] text-[var(--color-brand-primary)]'
               }`}
             >
@@ -142,7 +142,7 @@ function EventLog({ events }: { events: SmtpEvent[] }) {
         .map((event, i) => (
           <div
             key={i}
-            className="flex items-center gap-2 rounded px-2 py-1 font-mono text-xs"
+            className="flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs"
           >
             <span className="text-[var(--color-text-tertiary)]">
               #{event.id}
@@ -167,14 +167,14 @@ function EventBadge({ type }: { type: string }) {
     ConnectionOpened: 'text-[var(--color-status-success)]',
     ConnectionClosed: 'text-[var(--color-status-danger)]',
     CommandReceived: 'text-[var(--color-brand-primary)]',
-    ResponseSent: 'text-amber-600 dark:text-amber-400',
-    TlsUpgraded: 'text-purple-600 dark:text-purple-400',
-    Authenticated: 'text-cyan-600 dark:text-cyan-400',
+    ResponseSent: 'text-[var(--color-status-warning)]',
+    TlsUpgraded: 'text-[var(--color-brand-primary)]',
+    Authenticated: 'text-[var(--color-status-info)]',
     MessageDelivered: 'text-[var(--color-status-success)]',
   }
 
   return (
-    <span className={`shrink-0 ${colors[type] ?? 'text-zinc-500'}`}>
+    <span className={`shrink-0 ${colors[type] ?? 'text-[var(--color-text-tertiary)]'}`}>
       {type.replace(/([A-Z])/g, ' $1').trim()}
     </span>
   )
@@ -225,7 +225,7 @@ export function Protocol() {
         </div>
         <div className="flex items-center gap-2">
           <div
-            className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`}
+            className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-[var(--color-status-success)]' : 'bg-[var(--color-status-danger)]'}`}
           />
           <span className="text-xs text-[var(--color-text-tertiary)]">
             {connected ? 'connected' : 'disconnected'}
@@ -248,7 +248,7 @@ export function Protocol() {
         <StatusCard
           label="Messages Delivered"
           value={status?.total_messages ?? 0}
-          color="text-amber-600 dark:text-amber-400"
+          color="text-[var(--color-status-warning)]"
         />
         <StatusCard
           label="Uptime"

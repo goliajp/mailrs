@@ -100,7 +100,7 @@ export function ContactAutocomplete({
         autoFocus={autoFocus}
       />
       {showSuggestions && (
-        <div className="absolute left-0 top-full z-10 mt-1 w-72 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] shadow-lg">
+        <div className="absolute left-0 top-full z-10 mt-1 w-72 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)]" style={{ boxShadow: 'var(--shadow-lg)' }}>
           {suggestions.map((s, i) => (
             <button
               key={s}

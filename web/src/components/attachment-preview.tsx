@@ -70,7 +70,7 @@ function ImageLightbox({
     >
       <button
         onClick={onClose}
-        className="absolute right-4 top-4 rounded bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+        className="absolute right-4 top-4 rounded-md bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
         aria-label="Close preview"
       >
         <X className="h-5 w-5" />
@@ -78,7 +78,7 @@ function ImageLightbox({
       <img
         src={src}
         alt={alt}
-        className="max-h-[90vh] max-w-[90vw] rounded object-contain shadow-2xl"
+        className="max-h-[90vh] max-w-[90vw] rounded-md object-contain" style={{ boxShadow: 'var(--shadow-lg)' }}
       />
     </div>
   )
@@ -94,7 +94,7 @@ function ImageThumbnail({ uid, index, att }: { uid: number; index: number; att: 
       <div className="group relative">
         <button
           onClick={() => setLightboxOpen(true)}
-          className="block overflow-hidden rounded border border-[var(--color-border-default)] transition-shadow hover:shadow-md"
+          className="block overflow-hidden rounded-md border border-[var(--color-border-default)] transition-shadow hover:shadow-md"
           title={`${att.filename} - click to enlarge`}
         >
           <img
@@ -137,13 +137,13 @@ function FileRow({ uid, index, att }: { uid: number; index: number; att: Attachm
       {isPdf ? (
         <PdfIcon className="h-5 w-5 shrink-0 text-[var(--color-status-danger)]" />
       ) : (
-        <FileIcon className="h-5 w-5 shrink-0 text-zinc-400" />
+        <FileIcon className="h-5 w-5 shrink-0 text-[var(--color-text-tertiary)]" />
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-[var(--color-text-secondary)]">
           <Copyable value={att.filename}>{att.filename}</Copyable>
         </p>
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-[var(--color-text-tertiary)]">
           {att.content_type} · {formatSize(att.size)}
         </p>
       </div>
@@ -170,7 +170,7 @@ export function AttachmentPreview({
   return (
     <div className="border-t border-[var(--color-border-default)] px-6 py-4">
       <div className="mb-2 flex items-center gap-2">
-        <span className="select-none text-xs font-medium uppercase tracking-wide text-zinc-400">
+        <span className="select-none text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
           Attachments ({attachments.length})
         </span>
         <div className="h-px flex-1 bg-[var(--color-border-default)]" />

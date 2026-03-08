@@ -28,13 +28,13 @@ function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLE
   return (
     <div className="group relative">
       {lang && (
-        <span className="absolute right-10 top-2 text-[11px] text-zinc-500 opacity-0 transition-opacity group-hover:opacity-100">
+        <span className="absolute right-10 top-2 text-[11px] text-[var(--color-text-tertiary)] opacity-0 transition-opacity group-hover:opacity-100">
           {lang}
         </span>
       )}
       <button
         onClick={copy}
-        className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[11px] text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-700 hover:text-zinc-200 group-hover:opacity-100"
+        className="absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[11px] text-[var(--color-text-tertiary)] opacity-0 transition-opacity hover:bg-[var(--color-active)] hover:text-[var(--color-text-primary)] group-hover:opacity-100"
       >
         {copied ? 'Copied!' : 'Copy'}
       </button>
@@ -207,12 +207,12 @@ function AttachmentItem({
             src={url}
             alt={att.filename}
             loading="lazy"
-            className="h-10 w-10 cursor-pointer rounded object-cover"
+            className="h-10 w-10 cursor-pointer rounded-md object-cover"
             onClick={() => setLightbox(true)}
           />
         ) : (
           <a href={url} target="_blank" rel="noopener noreferrer">
-            <File className="h-5 w-5 text-zinc-400" />
+            <File className="h-5 w-5 text-[var(--color-text-tertiary)]" />
           </a>
         )}
         <div className="min-w-0 flex-1">
@@ -224,14 +224,14 @@ function AttachmentItem({
           >
             {att.filename}
           </a>
-          <p className="text-xs text-zinc-400">{formatSize(att.size)}</p>
+          <p className="text-xs text-[var(--color-text-tertiary)]">{formatSize(att.size)}</p>
         </div>
         {isExtractable(att.content_type) && (
           <button
             type="button"
             onClick={fetchContent}
             disabled={loading}
-            className="shrink-0 rounded px-2 py-0.5 text-xs text-zinc-500 hover:bg-[var(--color-hover)]"
+            className="shrink-0 rounded-md px-2 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
             title="Show extracted text"
           >
             {loading ? '...' : showContent ? 'Hide text' : 'OCR'}
@@ -257,12 +257,12 @@ function AttachmentItem({
           <img
             src={url}
             alt={att.filename}
-            className="max-h-[90vh] max-w-[90vw] rounded object-contain"
+            className="max-h-[90vh] max-w-[90vw] rounded-md object-contain"
             onClick={(e) => e.stopPropagation()}
           />
           <button
             type="button"
-            className="absolute right-4 top-4 rounded bg-black/50 px-3 py-1 text-white hover:bg-black/70"
+            className="absolute right-4 top-4 rounded-md bg-black/50 px-3 py-1 text-white transition-colors hover:bg-black/70"
             onClick={() => setLightbox(false)}
           >
             &times;
@@ -291,8 +291,8 @@ function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
       <div
         className={`prose prose-sm max-w-none ${
           isOwn
-            ? '[&_*]:text-white [&_a]:text-blue-200 [&_code]:bg-blue-700'
-            : 'prose-[var(--color-text-primary)] dark:prose-invert'
+            ? '[&_*]:text-white [&_a]:text-white/70 [&_code]:bg-white/20'
+            : 'prose-[var(--color-text-primary)]'
         }`}
       >
         <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
@@ -342,7 +342,7 @@ export function MessageBubble({
         <div
           className={`select-text px-4 py-2.5 ${
             isOwn
-              ? 'bg-blue-600 text-white'
+              ? 'bg-[var(--color-brand-primary)] text-white'
               : 'bg-[var(--color-bg-raised)] text-[var(--color-text-primary)]'
           }`}
         >

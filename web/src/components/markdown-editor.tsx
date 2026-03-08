@@ -99,7 +99,7 @@ export function MarkdownEditor({
             <button
               key={a.label}
               onClick={() => applyFormat(a)}
-              className="rounded px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
+              className="rounded-md px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
               title={a.label}
               type="button"
             >
@@ -120,7 +120,7 @@ export function MarkdownEditor({
           <button
             type="button"
             onClick={togglePreview}
-            className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+            className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
               previewing
                 ? 'bg-[var(--color-border-default)] text-[var(--color-text-secondary)]'
                 : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
@@ -135,7 +135,7 @@ export function MarkdownEditor({
       {/* preview pane */}
       {previewing ? (
         <div
-          className="prose prose-sm max-w-none px-4 py-2 prose-[var(--color-text-primary)] dark:prose-invert"
+          className="prose prose-sm max-w-none px-4 py-2 prose-[var(--color-text-primary)]"
           style={{ minHeight: `${(minRows ?? 1) * 1.5}rem` }}
         >
           {value.trim() ? (
@@ -143,7 +143,7 @@ export function MarkdownEditor({
               {value}
             </Markdown>
           ) : (
-            <p className="text-zinc-400">{placeholder ?? 'Nothing to preview'}</p>
+            <p className="text-[var(--color-text-tertiary)]">{placeholder ?? 'Nothing to preview'}</p>
           )}
         </div>
       ) : (

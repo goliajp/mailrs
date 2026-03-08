@@ -6,30 +6,30 @@ import type { CheckResult, CheckStatus, DomainCheckReport } from '@/lib/types'
 const statusConfig: Record<CheckStatus, { bg: string; border: string; text: string; dot: string; label: string }> = {
   pass: {
     bg: 'bg-[var(--color-status-success-subtle)]',
-    border: 'border-green-200 dark:border-green-800/50',
+    border: 'border-[var(--color-status-success-subtle)]',
     text: 'text-[var(--color-status-success)]',
-    dot: 'bg-green-500',
+    dot: 'bg-[var(--color-status-success)]',
     label: 'Pass',
   },
   warn: {
-    bg: 'bg-yellow-50 dark:bg-yellow-950/30',
-    border: 'border-yellow-200 dark:border-yellow-800/50',
-    text: 'text-yellow-700 dark:text-yellow-400',
-    dot: 'bg-yellow-500',
+    bg: 'bg-[var(--color-status-warning-subtle)]',
+    border: 'border-[var(--color-status-warning-subtle)]',
+    text: 'text-[var(--color-status-warning)]',
+    dot: 'bg-[var(--color-status-warning)]',
     label: 'Warn',
   },
   fail: {
     bg: 'bg-[var(--color-status-danger-subtle)]',
-    border: 'border-red-200 dark:border-red-800/50',
+    border: 'border-[var(--color-status-danger-subtle)]',
     text: 'text-[var(--color-status-danger)]',
-    dot: 'bg-red-500',
+    dot: 'bg-[var(--color-status-danger)]',
     label: 'Fail',
   },
   skip: {
     bg: 'bg-[var(--color-bg-sunken)]',
     border: 'border-[var(--color-border-default)]',
     text: 'text-[var(--color-text-tertiary)]',
-    dot: 'bg-zinc-400',
+    dot: 'bg-[var(--color-text-tertiary)]',
     label: 'Skip',
   },
 }
@@ -37,7 +37,7 @@ const statusConfig: Record<CheckStatus, { bg: string; border: string; text: stri
 function StatusBadge({ status }: { status: CheckStatus }) {
   const config = statusConfig[status]
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${config.dot}`} />
       {config.label}
     </span>
@@ -50,7 +50,7 @@ function CheckResultCard({ check }: { check: CheckResult }) {
   const hasDetails = check.details.length > 0
 
   return (
-    <div className={`rounded border ${config.border} ${config.bg} transition-colors`}>
+    <div className={`rounded-lg border ${config.border} ${config.bg} transition-colors`}>
       <button
         onClick={() => hasDetails && setExpanded(!expanded)}
         className={`flex w-full items-center gap-3 px-3 py-2.5 text-left ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
@@ -66,7 +66,7 @@ function CheckResultCard({ check }: { check: CheckResult }) {
         </span>
         {hasDetails && (
           <svg
-            className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            className={`h-4 w-4 shrink-0 text-[var(--color-text-tertiary)] transition-transform ${expanded ? 'rotate-180' : ''}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -82,7 +82,7 @@ function CheckResultCard({ check }: { check: CheckResult }) {
             {check.details.map((detail, i) => (
               <pre
                 key={i}
-                className="whitespace-pre-wrap break-all rounded bg-white/60 px-2 py-1 font-mono text-xs text-[var(--color-text-secondary)] dark:bg-black/20"
+                className="whitespace-pre-wrap break-all rounded-md bg-[var(--color-bg-sunken)] px-2 py-1 font-mono text-xs text-[var(--color-text-secondary)]"
               >
                 {detail}
               </pre>
@@ -109,9 +109,9 @@ function SummaryBar({ checks }: { checks: CheckResult[] }) {
           if (count === 0) return null
           const width = (count / total) * 100
           const colors: Record<CheckStatus, string> = {
-            pass: 'bg-green-500',
-            warn: 'bg-yellow-500',
-            fail: 'bg-red-500',
+            pass: 'bg-[var(--color-status-success)]',
+            warn: 'bg-[var(--color-status-warning)]',
+            fail: 'bg-[var(--color-status-danger)]',
             skip: 'bg-[var(--color-border-default)]',
           }
           return (
@@ -123,11 +123,11 @@ function SummaryBar({ checks }: { checks: CheckResult[] }) {
           )
         })}
       </div>
-      <div className="flex shrink-0 gap-3 text-xs text-zinc-500">
+      <div className="flex shrink-0 gap-3 text-xs text-[var(--color-text-secondary)]">
         {counts.pass ? <span className="text-[var(--color-status-success)]">{counts.pass} pass</span> : null}
-        {counts.warn ? <span className="text-yellow-600 dark:text-yellow-400">{counts.warn} warn</span> : null}
+        {counts.warn ? <span className="text-[var(--color-status-warning)]">{counts.warn} warn</span> : null}
         {counts.fail ? <span className="text-[var(--color-status-danger)]">{counts.fail} fail</span> : null}
-        {counts.skip ? <span className="text-zinc-400">{counts.skip} skip</span> : null}
+        {counts.skip ? <span className="text-[var(--color-text-secondary)]">{counts.skip} skip</span> : null}
       </div>
     </div>
   )
@@ -144,14 +144,14 @@ export function DomainHealthCard({ report, checking, onRecheck }: DomainHealthCa
   const timeStr = checkedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div className="overflow-hidden rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] shadow-sm">
+    <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)]" style={{ boxShadow: 'var(--shadow-sm)' }}>
       {/* header */}
       <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-4 py-3">
         <div>
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
             Health Check
           </h3>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-[var(--color-text-secondary)]">
             Last checked at {timeStr}
           </p>
         </div>

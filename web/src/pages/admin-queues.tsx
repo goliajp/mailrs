@@ -12,16 +12,16 @@ type QueueStatus = (typeof ALL_STATUSES)[number]
 
 const statusStyles: Record<string, string> = {
   pending: 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]',
-  inflight: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+  inflight: 'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]',
   delivered:
     'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]',
   failed: 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]',
   bounced:
-    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]',
 }
 
 const filterBaseStyle =
-  'rounded px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
+  'rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
 const filterActiveStyle =
   'ring-2 ring-offset-1 ring-[var(--color-border-default)] ring-offset-[var(--color-bg-base)]'
 const filterAllStyle =
@@ -128,7 +128,7 @@ export function AdminQueues() {
       </div>
 
       {/* table */}
-      <div className="overflow-hidden rounded border border-[var(--color-border-default)]">
+      <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
             <tr>
@@ -149,7 +149,7 @@ export function AdminQueues() {
               >
                 <td className="px-4 py-3 font-medium">{item.sender}</td>
                 <td className="px-4 py-3">{item.recipient}</td>
-                <td className="px-4 py-3 text-zinc-500">{item.domain}</td>
+                <td className="px-4 py-3 text-[var(--color-text-secondary)]">{item.domain}</td>
                 <td className="px-4 py-3">
                   <span
                     className={`rounded px-1.5 py-0.5 text-xs ${statusStyles[item.status] ?? ''}`}
@@ -158,14 +158,14 @@ export function AdminQueues() {
                   </span>
                 </td>
                 <td className="px-4 py-3 tabular-nums">{item.attempts}</td>
-                <td className="max-w-48 truncate px-4 py-3 text-xs text-zinc-400">
+                <td className="max-w-48 truncate px-4 py-3 text-xs text-[var(--color-text-tertiary)]">
                   {item.last_error ?? '—'}
                 </td>
                 <td className="px-4 py-3 text-right">
                   {item.status === 'failed' && (
                     <button
                       onClick={() => handleRetry(item.id)}
-                      className="text-xs text-blue-500 hover:text-blue-700"
+                      className="text-xs text-[var(--color-brand-primary)] transition-colors hover:opacity-70"
                     >
                       Retry
                     </button>
@@ -175,7 +175,7 @@ export function AdminQueues() {
             ))}
             {pageItems.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-zinc-400">
+                <td colSpan={7} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
                   {statusFilter
                     ? `No ${statusFilter} entries`
                     : 'Queue is empty'}
@@ -189,7 +189,7 @@ export function AdminQueues() {
       {/* pagination */}
       {filtered.length > PAGE_SIZE && (
         <div className="mt-4 flex items-center justify-between text-sm">
-          <span className="text-zinc-500">
+          <span className="text-[var(--color-text-secondary)]">
             {filtered.length} entries &middot; Page {safePage} / {totalPages}
           </span>
           <div className="flex gap-2">

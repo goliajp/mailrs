@@ -51,36 +51,36 @@ describe('CategoryBadge', () => {
 })
 
 describe('riskColor', () => {
-  it('returns red for score >= 60', () => {
-    expect(riskColor(60)).toBe('text-red-500')
-    expect(riskColor(100)).toBe('text-red-500')
-    expect(riskColor(75)).toBe('text-red-500')
+  it('returns danger for score >= 60', () => {
+    expect(riskColor(60)).toBe('text-[var(--color-status-danger)]')
+    expect(riskColor(100)).toBe('text-[var(--color-status-danger)]')
+    expect(riskColor(75)).toBe('text-[var(--color-status-danger)]')
   })
 
-  it('returns amber for score 40-59', () => {
-    expect(riskColor(40)).toBe('text-amber-500')
-    expect(riskColor(59)).toBe('text-amber-500')
-    expect(riskColor(50)).toBe('text-amber-500')
+  it('returns warning for score 40-59', () => {
+    expect(riskColor(40)).toBe('text-[var(--color-status-warning)]')
+    expect(riskColor(59)).toBe('text-[var(--color-status-warning)]')
+    expect(riskColor(50)).toBe('text-[var(--color-status-warning)]')
   })
 
-  it('returns blue for score 15-39', () => {
-    expect(riskColor(15)).toBe('text-blue-500')
-    expect(riskColor(39)).toBe('text-blue-500')
-    expect(riskColor(25)).toBe('text-blue-500')
+  it('returns info for score 15-39', () => {
+    expect(riskColor(15)).toBe('text-[var(--color-status-info)]')
+    expect(riskColor(39)).toBe('text-[var(--color-status-info)]')
+    expect(riskColor(25)).toBe('text-[var(--color-status-info)]')
   })
 
-  it('returns green for score < 15', () => {
-    expect(riskColor(0)).toBe('text-green-500')
-    expect(riskColor(14)).toBe('text-green-500')
-    expect(riskColor(1)).toBe('text-green-500')
+  it('returns success for score < 15', () => {
+    expect(riskColor(0)).toBe('text-[var(--color-status-success)]')
+    expect(riskColor(14)).toBe('text-[var(--color-status-success)]')
+    expect(riskColor(1)).toBe('text-[var(--color-status-success)]')
   })
 
   it('handles boundary values exactly', () => {
-    expect(riskColor(14)).toBe('text-green-500')
-    expect(riskColor(15)).toBe('text-blue-500')
-    expect(riskColor(39)).toBe('text-blue-500')
-    expect(riskColor(40)).toBe('text-amber-500')
-    expect(riskColor(59)).toBe('text-amber-500')
-    expect(riskColor(60)).toBe('text-red-500')
+    expect(riskColor(14)).toBe('text-[var(--color-status-success)]')
+    expect(riskColor(15)).toBe('text-[var(--color-status-info)]')
+    expect(riskColor(39)).toBe('text-[var(--color-status-info)]')
+    expect(riskColor(40)).toBe('text-[var(--color-status-warning)]')
+    expect(riskColor(59)).toBe('text-[var(--color-status-warning)]')
+    expect(riskColor(60)).toBe('text-[var(--color-status-danger)]')
   })
 })

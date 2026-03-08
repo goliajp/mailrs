@@ -107,14 +107,14 @@ export function AdminDomains() {
           </button>
           <button
             onClick={() => setAdding(false)}
-            className="rounded-md px-3 py-1.5 text-sm text-zinc-500"
+            className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
           >
             Cancel
           </button>
         </div>
       )}
 
-      <div className="overflow-hidden rounded border border-[var(--color-border-default)]">
+      <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
             <tr>
@@ -128,7 +128,7 @@ export function AdminDomains() {
               <Fragment key={domain.name}>
                 <tr className="border-b border-[var(--color-border-default)] last:border-0">
                   <td className="px-4 py-3 font-medium"><Copyable value={domain.name}>{domain.name}</Copyable></td>
-                  <td className="px-4 py-3 text-zinc-500">
+                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
                     {new Date(domain.created_at * 1000).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -145,7 +145,7 @@ export function AdminDomains() {
                     </button>
                     <button
                       onClick={() => handleDelete(domain.name)}
-                      className="text-xs text-red-500 hover:text-red-700"
+                      className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
                     >
                       Delete
                     </button>
@@ -166,7 +166,7 @@ export function AdminDomains() {
             ))}
             {domains.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-zinc-400">
+                <td colSpan={3} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
                   No domains configured
                 </td>
               </tr>

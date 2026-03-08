@@ -25,7 +25,7 @@ export function AiAnalysisPanel({ message }: Props) {
 
       {/* risk reason */}
       {message.risk_score > 0 && message.risk_reason && (
-        <p className="mt-1 select-text text-xs text-amber-600 dark:text-amber-400">
+        <p className="mt-1 select-text text-xs text-[var(--color-status-warning)]">
           Risk: {message.risk_reason}
         </p>
       )}
@@ -35,7 +35,7 @@ export function AiAnalysisPanel({ message }: Props) {
           {/* people */}
           {hasPeople && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
                 People
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
@@ -65,7 +65,7 @@ export function AiAnalysisPanel({ message }: Props) {
           {/* dates */}
           {hasDates && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
                 Dates
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
@@ -85,14 +85,14 @@ export function AiAnalysisPanel({ message }: Props) {
           {/* amounts */}
           {hasAmounts && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
                 Amounts
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
                 {message.amounts.map((a, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1 bg-amber-50 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                    className="inline-flex items-center gap-1 bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-warning)]"
                     title={a.context}
                   >
                     <Copyable value={a.text}>{a.text}</Copyable>
@@ -105,7 +105,7 @@ export function AiAnalysisPanel({ message }: Props) {
           {/* action items */}
           {hasActions && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
                 Action Items
               </span>
               <ul className="mt-0.5 space-y-0.5">
@@ -114,7 +114,7 @@ export function AiAnalysisPanel({ message }: Props) {
                     key={i}
                     className="flex select-text items-start gap-1.5 text-xs text-[var(--color-text-secondary)]"
                   >
-                    <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                    <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-brand-primary)]" />
                     {item}
                   </li>
                 ))}

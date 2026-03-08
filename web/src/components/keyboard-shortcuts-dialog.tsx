@@ -67,7 +67,8 @@ export function KeyboardShortcutsDialog({ open, onClose }: Props) {
     >
       {/* panel — stop propagation so clicks inside don't close */}
       <div
-        className="w-full max-w-sm select-none rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-2xl"
+        className="w-full max-w-sm select-none rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6"
+        style={{ boxShadow: 'var(--shadow-lg)' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">

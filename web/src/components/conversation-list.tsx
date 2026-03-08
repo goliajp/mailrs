@@ -65,8 +65,8 @@ function QuickBtn({ onClick, title, children }: { onClick: (e: React.MouseEvent)
 function PreviewCard({ convo, style }: { convo: ConversationSummary; style: React.CSSProperties }) {
   return (
     <div
-      style={style}
-      className="pointer-events-none fixed z-50 w-72 border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3 shadow-lg"
+      style={{ ...style, boxShadow: 'var(--shadow-lg)' }}
+      className="pointer-events-none fixed z-50 w-72 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3"
     >
       <p className="text-xs font-semibold text-[var(--color-text-primary)]">{convo.subject || '(no subject)'}</p>
       <p className="mt-1 text-[11px] text-[var(--color-text-tertiary)]">
@@ -234,7 +234,7 @@ const ConversationItem = memo(function ConversationItem({
             {convo.subject || '(no subject)'}
           </p>
           {isFlagged && (
-            <Star className="h-3.5 w-3.5 shrink-0 text-yellow-400" fill="currentColor" />
+            <Star className="h-3.5 w-3.5 shrink-0 text-[var(--color-status-warning)]" fill="currentColor" />
           )}
           <ImportanceBadge level={convo.importance_level} />
           {convo.category && convo.category !== 'general' && (
@@ -341,7 +341,7 @@ function DomainSelector() {
         onClick={toggleAll}
         aria-pressed={selectedDomains.length === 0}
         aria-label={selectedDomains.length === 0 ? 'Show my emails only' : allSelected ? 'Show all domains' : 'Mixed domain selection'}
-        className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium transition-colors ${
+        className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
           selectedDomains.length === 0
             ? 'bg-[var(--color-brand-primary)] text-white'
             : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
@@ -355,7 +355,7 @@ function DomainSelector() {
           onClick={() => toggleDomain(domain)}
           aria-pressed={selectedDomains.includes(domain)}
           aria-label={`Filter by domain ${domain}`}
-          className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium transition-colors ${
+          className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
             selectedDomains.includes(domain)
               ? 'bg-[var(--color-brand-primary)] text-white'
               : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
@@ -365,12 +365,12 @@ function DomainSelector() {
         </button>
       ))}
       {selectedDomains.length > 0 && (
-        <label className="ml-auto flex shrink-0 cursor-pointer items-center gap-1 text-xs text-zinc-500">
+        <label className="ml-auto flex shrink-0 cursor-pointer items-center gap-1 text-xs text-[var(--color-text-tertiary)]">
           <input
             type="checkbox"
             checked={crossAccountRead}
             onChange={(e) => setCrossAccountRead(e.target.checked)}
-            className="h-3 w-3 rounded border-zinc-300 accent-blue-600"
+            className="h-3 w-3 rounded border-[var(--color-border-default)] accent-[var(--color-brand-primary)]"
           />
           Cross-read
         </label>
@@ -606,35 +606,35 @@ function BatchActionBar({
           <button
             onClick={() => onAction('read')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           >
             Mark read
           </button>
           <button
             onClick={() => onAction('unread')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           >
             Mark unread
           </button>
           <button
             onClick={() => onAction('star')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           >
             Star
           </button>
           <button
             onClick={() => onAction('archive')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           >
             Archive
           </button>
           <button
             onClick={() => onAction('delete')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-status-danger)] transition-colors hover:bg-[var(--color-status-danger-subtle)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-status-danger)] transition-colors hover:bg-[var(--color-status-danger-subtle)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           >
             Delete
           </button>
@@ -642,7 +642,7 @@ function BatchActionBar({
         <button
           onClick={onCancel}
           disabled={loading}
-          className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50"
+          className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50"
         >
           Cancel
         </button>

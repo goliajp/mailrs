@@ -21,10 +21,10 @@ export function CopyButton({ value, className }: { value: string; className?: st
       onClick={handleCopy}
       title={copied ? 'Copied!' : `Copy "${value}"`}
       aria-label={copied ? 'Copied' : `Copy ${value}`}
-      className={`inline-flex shrink-0 items-center justify-center rounded p-0.5 text-[var(--color-text-tertiary)] opacity-0 transition-opacity hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] group-hover/copy:opacity-100 ${className ?? ''}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-md p-0.5 text-[var(--color-text-tertiary)] opacity-0 transition-opacity hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] group-hover/copy:opacity-100 ${className ?? ''}`}
     >
       {copied ? (
-        <Check className="h-3 w-3 text-green-500" />
+        <Check className="h-3 w-3 text-[var(--color-status-success)]" />
       ) : (
         <Copy className="h-3 w-3" />
       )}

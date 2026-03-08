@@ -36,10 +36,10 @@ function formatUptime(secs: number): string {
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
+    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
       <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">{label}</p>
       <p className="mt-1 select-text text-2xl font-semibold text-[var(--color-text-primary)]">{value}</p>
-      {sub && <p className="mt-0.5 select-text text-xs text-zinc-500">{sub}</p>}
+      {sub && <p className="mt-0.5 select-text text-xs text-[var(--color-text-tertiary)]">{sub}</p>}
     </div>
   )
 }
@@ -47,7 +47,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 function StatusDot({ ok }: { ok: boolean }) {
   return (
     <span
-      className={`inline-block h-2.5 w-2.5 rounded-full ${ok ? 'bg-green-500' : 'bg-red-500'}`}
+      className={`inline-block h-2.5 w-2.5 rounded-full ${ok ? 'bg-[var(--color-status-success)]' : 'bg-[var(--color-status-danger)]'}`}
     />
   )
 }
@@ -64,7 +64,7 @@ export function AdminOverview() {
 
   if (error) {
     return (
-      <div className="p-6 text-sm text-red-500">{error}</div>
+      <div className="p-6 text-sm text-[var(--color-status-danger)]">{error}</div>
     )
   }
 
@@ -115,17 +115,17 @@ export function AdminOverview() {
       {/* service status */}
       {health && (
         <div className="mb-6">
-          <h2 className="mb-3 text-sm font-medium text-zinc-500">Services</h2>
+          <h2 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">Services</h2>
           <div className="space-y-2">
-            <div className="flex items-center gap-3 rounded border border-[var(--color-border-default)] px-4 py-3">
+            <div className="flex items-center gap-3 rounded-md border border-[var(--color-border-default)] px-4 py-3">
               <StatusDot ok={health.pg} />
               <span className="text-sm font-medium">PostgreSQL</span>
-              <span className="ml-auto select-text text-xs text-zinc-400">{health.pg ? 'Connected' : 'Unavailable'}</span>
+              <span className="ml-auto select-text text-xs text-[var(--color-text-tertiary)]">{health.pg ? 'Connected' : 'Unavailable'}</span>
             </div>
-            <div className="flex items-center gap-3 rounded border border-[var(--color-border-default)] px-4 py-3">
+            <div className="flex items-center gap-3 rounded-md border border-[var(--color-border-default)] px-4 py-3">
               <StatusDot ok={health.valkey} />
               <span className="text-sm font-medium">Valkey / Redis</span>
-              <span className="ml-auto select-text text-xs text-zinc-400">{health.valkey ? 'Connected' : 'Unavailable'}</span>
+              <span className="ml-auto select-text text-xs text-[var(--color-text-tertiary)]">{health.valkey ? 'Connected' : 'Unavailable'}</span>
             </div>
           </div>
         </div>
@@ -134,29 +134,29 @@ export function AdminOverview() {
       {/* sessions and traffic */}
       {health && (
         <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-2">
-          <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
-            <h3 className="mb-3 text-sm font-medium text-zinc-500">Sessions</h3>
+          <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
+            <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">Sessions</h3>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-400">Active Sessions</span>
+                <span className="text-xs text-[var(--color-text-tertiary)]">Active Sessions</span>
                 <span className="font-semibold text-[var(--color-text-primary)]">{health.active_sessions.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-400">Total Connections</span>
+                <span className="text-xs text-[var(--color-text-tertiary)]">Total Connections</span>
                 <span className="font-semibold text-[var(--color-text-primary)]">{health.total_connections.toLocaleString()}</span>
               </div>
             </div>
           </div>
 
-          <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
-            <h3 className="mb-3 text-sm font-medium text-zinc-500">Traffic</h3>
+          <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
+            <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">Traffic</h3>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-400">Total Messages</span>
+                <span className="text-xs text-[var(--color-text-tertiary)]">Total Messages</span>
                 <span className="font-semibold text-[var(--color-text-primary)]">{health.total_messages.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-400">Cached Accounts</span>
+                <span className="text-xs text-[var(--color-text-tertiary)]">Cached Accounts</span>
                 <span className="font-semibold text-[var(--color-text-primary)]">{health.account_cache_size.toLocaleString()}</span>
               </div>
             </div>
@@ -167,8 +167,8 @@ export function AdminOverview() {
       {/* SMTP config */}
       {smtp && (
         <div>
-          <h2 className="mb-3 text-sm font-medium text-zinc-500">SMTP Configuration</h2>
-          <div className="overflow-hidden rounded border border-[var(--color-border-default)]">
+          <h2 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">SMTP Configuration</h2>
+          <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
             <table className="w-full text-sm">
               <tbody className="divide-y divide-[var(--color-border-default)]">
                 <tr className="hover:bg-[var(--color-hover)]">
@@ -184,7 +184,7 @@ export function AdminOverview() {
                 <tr className="hover:bg-[var(--color-hover)]">
                   <td className="px-4 py-2.5 font-medium text-[var(--color-text-secondary)]">TLS</td>
                   <td className="px-4 py-2.5 text-[var(--color-text-primary)]">
-                    <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${smtp.tls_enabled ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'}`}>
+                    <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium ${smtp.tls_enabled ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]' : 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'}`}>
                       {smtp.tls_enabled ? 'Enabled' : 'Disabled'}
                     </span>
                   </td>
@@ -195,7 +195,7 @@ export function AdminOverview() {
                     <div className="flex flex-wrap gap-1.5">
                       {smtp.local_domains.map((d) => (
                         <Copyable key={d} value={d}>
-                          <span className="rounded bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs font-mono">
+                          <span className="rounded-md bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs font-mono">
                             {d}
                           </span>
                         </Copyable>

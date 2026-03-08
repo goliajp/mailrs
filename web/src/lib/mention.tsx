@@ -30,7 +30,7 @@ export function highlightMentions(text: string, myEmail: string, myName?: string
       parts.push(text.slice(lastIndex, match.index))
     }
     parts.push(
-      <mark key={key++} className="bg-blue-100 px-0.5 font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+      <mark key={key++} className="bg-[var(--color-brand-subtle)] px-0.5 font-medium text-[var(--color-brand-primary)]">
         {match[0]}
       </mark>
     )

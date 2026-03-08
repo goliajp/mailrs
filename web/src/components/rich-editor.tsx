@@ -53,7 +53,7 @@ function ToolbarButton({ onClick, active, disabled, title, children }: ToolbarBu
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
+      className={`rounded-md px-1.5 py-0.5 text-xs transition-colors ${
         active
           ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]'
           : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
@@ -252,7 +252,7 @@ export function RichEditor({
     editorProps: {
       attributes: {
         class:
-          'prose prose-sm max-w-none px-3 py-2 outline-none prose-[var(--color-text-primary)] dark:prose-invert ' +
+          'prose prose-sm max-w-none px-3 py-2 outline-none prose-[var(--color-text-primary)] ' +
           'prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-md ' +
           'prose-code:before:content-none prose-code:after:content-none ' +
           'min-h-[' + (minHeight ?? '3rem') + ']',
@@ -322,7 +322,7 @@ export function RichEditor({
 
   return (
     <div
-      className={`flex h-full flex-col rounded border ${
+      className={`flex h-full flex-col rounded-lg border ${
         'border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]'
       }`}
     >

@@ -81,7 +81,7 @@ export function AdminAliases() {
       </div>
 
       {adding && (
-        <div className="mb-4 space-y-2 rounded border border-[var(--color-border-default)] p-4">
+        <div className="mb-4 space-y-2 rounded-lg border border-[var(--color-border-default)] p-4">
           <div className="flex gap-2">
             <input
               value={form.source_address}
@@ -127,7 +127,7 @@ export function AdminAliases() {
             </button>
             <button
               onClick={() => setAdding(false)}
-              className="rounded-md px-3 py-1.5 text-sm text-zinc-500"
+              className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
             >
               Cancel
             </button>
@@ -135,7 +135,7 @@ export function AdminAliases() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded border border-[var(--color-border-default)]">
+      <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
             <tr>
@@ -153,8 +153,8 @@ export function AdminAliases() {
                 className="border-b border-[var(--color-border-default)] last:border-0"
               >
                 <td className="px-4 py-3 font-medium">{alias.source_address}</td>
-                <td className="px-4 py-3 text-zinc-500">{alias.target_address}</td>
-                <td className="px-4 py-3 text-zinc-500">{alias.domain}</td>
+                <td className="px-4 py-3 text-[var(--color-text-secondary)]">{alias.target_address}</td>
+                <td className="px-4 py-3 text-[var(--color-text-secondary)]">{alias.domain}</td>
                 <td className="px-4 py-3">
                   <span
                     className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
@@ -169,7 +169,7 @@ export function AdminAliases() {
                 <td className="px-4 py-3 text-right">
                   <button
                     onClick={() => handleDelete(alias.id)}
-                    className="text-xs text-red-500 hover:text-red-700"
+                    className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
                   >
                     Delete
                   </button>
@@ -178,7 +178,7 @@ export function AdminAliases() {
             ))}
             {aliases.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-zinc-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
                   No aliases configured
                 </td>
               </tr>

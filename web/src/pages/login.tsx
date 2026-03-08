@@ -63,7 +63,7 @@ export function Login() {
         style={{ boxShadow: 'var(--shadow-lg)' }}
       >
         <div className="flex flex-col items-center">
-          <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded shadow-md" />
+          <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg" style={{ boxShadow: 'var(--shadow-sm)' }} />
           <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
             mailrs
           </h1>
@@ -139,7 +139,7 @@ export function Login() {
             type="checkbox"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
-            className="h-4 w-4 rounded border-[var(--color-border-default)] focus:ring-zinc-500"
+            className="h-4 w-4 rounded border-[var(--color-border-default)] focus:ring-[var(--color-focus-ring)]"
           />
           <span className="text-sm text-[var(--color-text-secondary)]">Remember email</span>
         </label>
