@@ -22,6 +22,8 @@ pub(super) struct ConversationResponse {
     pub snippet: String,
     pub pinned: bool,
     pub archived: bool,
+    pub importance_level: String,
+    pub importance_score: f32,
 }
 
 #[derive(Serialize)]
@@ -47,6 +49,11 @@ pub(super) struct ThreadMessageResponse {
     pub action_items: serde_json::Value,
     pub ai_analyzed: bool,
     pub clean_text: Option<String>,
+    pub new_content: Option<String>,
+    pub importance_level: String,
+    pub importance_score: f32,
+    pub is_bulk_sender: bool,
+    pub has_tracking_pixel: bool,
 }
 
 #[derive(Serialize)]
@@ -119,6 +126,8 @@ pub(super) fn convos_to_response(
             snippet: c.snippet,
             pinned: c.pinned,
             archived: c.archived,
+            importance_level: String::from("normal"),
+            importance_score: 0.0,
         })
         .collect()
 }
@@ -287,6 +296,11 @@ pub(super) async fn get_thread_messages(
             action_items,
             ai_analyzed,
             clean_text,
+            new_content: None,
+            importance_level: String::from("normal"),
+            importance_score: 0.0,
+            is_bulk_sender: false,
+            has_tracking_pixel: false,
         });
     }
 

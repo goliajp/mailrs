@@ -63,12 +63,20 @@ CREATE TABLE messages (
     pinned BOOLEAN NOT NULL DEFAULT false,
     archived BOOLEAN NOT NULL DEFAULT false,
     text_body TEXT,
+    html_body TEXT,
+    clean_text TEXT,
+    new_content TEXT,
+    importance_level TEXT NOT NULL DEFAULT 'normal',
+    importance_score REAL NOT NULL DEFAULT 0.0,
+    is_bulk_sender BOOLEAN NOT NULL DEFAULT false,
+    has_tracking_pixel BOOLEAN NOT NULL DEFAULT false,
     UNIQUE(mailbox_id, uid)
 );
 CREATE INDEX idx_messages_date ON messages(mailbox_id, date_epoch DESC);
 CREATE INDEX idx_messages_thread ON messages(thread_id);
 CREATE INDEX idx_messages_message_id ON messages(message_id);
 CREATE INDEX idx_messages_modseq ON messages(mailbox_id, modseq);
+CREATE INDEX idx_messages_importance ON messages(mailbox_id, importance_level, internal_date DESC);
 
 CREATE TABLE outbound_queue (
     id BIGSERIAL PRIMARY KEY,
@@ -107,6 +115,40 @@ CREATE TABLE greylist_triplets (
     first_seen BIGINT NOT NULL,
     last_seen BIGINT NOT NULL
 );
+
+CREATE TABLE contacts (
+    id              BIGSERIAL PRIMARY KEY,
+    user_address    TEXT NOT NULL,
+    email           TEXT NOT NULL,
+    display_name    TEXT NOT NULL DEFAULT '',
+    first_seen      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    received_count  INT NOT NULL DEFAULT 0,
+    sent_count      INT NOT NULL DEFAULT 0,
+    reply_count     INT NOT NULL DEFAULT 0,
+    is_mutual       BOOLEAN NOT NULL DEFAULT false,
+    is_mailing_list BOOLEAN NOT NULL DEFAULT false,
+    is_automated    BOOLEAN NOT NULL DEFAULT false,
+    organization    TEXT NOT NULL DEFAULT '',
+    title           TEXT NOT NULL DEFAULT '',
+    phone           TEXT NOT NULL DEFAULT '',
+    importance_bias REAL NOT NULL DEFAULT 0.0,
+    is_vip          BOOLEAN NOT NULL DEFAULT false,
+    is_blocked      BOOLEAN NOT NULL DEFAULT false,
+    relationship_score REAL NOT NULL DEFAULT 0.0,
+    UNIQUE(user_address, email)
+);
+CREATE INDEX idx_contacts_user_score ON contacts(user_address, relationship_score DESC);
+CREATE INDEX idx_contacts_user_email ON contacts(user_address, email);
+
+CREATE TABLE sender_feedback (
+    id              BIGSERIAL PRIMARY KEY,
+    user_address    TEXT NOT NULL,
+    sender_email    TEXT NOT NULL,
+    action          TEXT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_sender_feedback_user ON sender_feedback(user_address, sender_email);
 
 CREATE TABLE email_analysis (
     message_id BIGINT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
