@@ -254,7 +254,7 @@ export function ReplyBox({
           <button
             key={m}
             onClick={() => handleModeChange(m)}
-            className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
+            className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
               mode === m
                 ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
                 : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
@@ -264,7 +264,7 @@ export function ReplyBox({
           </button>
         ))}
         {mode !== 'forward' && (
-          <span className="ml-1 truncate text-xs text-zinc-400" title={mode === 'reply' ? replyRecipients : replyAllRecipients}>
+          <span className="ml-1 truncate text-xs text-[var(--color-text-tertiary)]" title={mode === 'reply' ? replyRecipients : replyAllRecipients}>
             to {mode === 'reply' ? replyRecipients : replyAllRecipients}
           </span>
         )}
@@ -316,7 +316,7 @@ export function ReplyBox({
             <button
               key={i}
               onClick={() => applySuggestion(s)}
-              className="max-w-xs truncate rounded-md border border-purple-200 bg-purple-50 px-2 py-1 text-xs text-purple-700 transition-colors hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/20 dark:text-purple-300 dark:hover:bg-purple-950/40"
+              className="max-w-xs truncate rounded-md border border-[var(--color-border-default)] bg-[var(--color-brand-subtle)] px-2 py-1 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-hover)]"
               title={s}
             >
               {s.slice(0, 80)}{s.length > 80 ? '...' : ''}
@@ -324,7 +324,7 @@ export function ReplyBox({
           ))}
           <button
             onClick={() => setSuggestions([])}
-            className="rounded-md px-1.5 py-1 text-xs text-zinc-400 hover:text-zinc-600"
+            className="rounded-md px-1.5 py-1 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
           >
             Dismiss
           </button>
@@ -368,7 +368,7 @@ export function ReplyBox({
           <button
             onClick={suggest}
             disabled={suggesting}
-            className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-950/30 dark:hover:text-purple-300"
+            className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:opacity-40"
             title="AI reply suggestions"
           >
             {suggesting ? '...' : 'Suggest'}
@@ -377,7 +377,7 @@ export function ReplyBox({
         <button
           onClick={polish}
           disabled={polishing}
-          className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-950/30 dark:hover:text-purple-300"
+          className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:opacity-40"
           title="AI polish text"
         >
           {polishing ? '...' : 'Polish'}
@@ -396,7 +396,7 @@ export function ReplyBox({
         <button
           onClick={send}
           disabled={sending}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-40"
           title="Send (Ctrl+Enter)"
         >
           <Send className="h-3.5 w-3.5" />

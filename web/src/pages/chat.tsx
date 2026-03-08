@@ -225,14 +225,14 @@ function ChatSidebar() {
     <aside className="flex h-full w-14 shrink-0 select-none flex-col items-center border-r border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-4">
       {/* logo */}
       <div className="mb-4">
-        <img src="/icon.svg" alt="mailrs" className="h-9 w-9 rounded" />
+        <img src="/icon.svg" alt="mailrs" className="h-9 w-9 rounded-lg" />
       </div>
 
       {/* nav icons */}
       <nav className="flex flex-1 flex-col items-center gap-1.5">
         <a
           href="/"
-          className="flex h-9 w-9 items-center justify-center rounded bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+          className="flex h-9 w-9 items-center justify-center rounded-md bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           title="Chat"
           aria-label="Chat"
           aria-current="page"
@@ -241,7 +241,7 @@ function ChatSidebar() {
         </a>
         <a
           href="/admin"
-          className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           title="Admin"
           aria-label="Admin"
         >
@@ -254,7 +254,7 @@ function ChatSidebar() {
         {/* theme toggle */}
         <button
           onClick={cycleTheme}
-          className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           title={`Theme: ${theme}`}
           aria-label={`Switch theme, current: ${theme}`}
         >
@@ -270,7 +270,7 @@ function ChatSidebar() {
         {/* settings */}
         <a
           href="/settings"
-          className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           title="Settings"
           aria-label="Settings"
         >
@@ -279,7 +279,7 @@ function ChatSidebar() {
 
         <button
           onClick={handleLogout}
-          className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
           title={`Sign out (${auth?.address})`}
           aria-label={`Sign out (${auth?.address})`}
         >

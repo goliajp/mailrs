@@ -329,10 +329,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <Mail className="h-4 w-4" />
             )}
           </HdrBtn>
-          <HdrBtn onClick={isFlagged ? handleUnstar : handleStar} title={isFlagged ? 'Unstar' : 'Star'} className={isFlagged ? 'text-yellow-400 hover:text-yellow-500' : undefined}>
+          <HdrBtn onClick={isFlagged ? handleUnstar : handleStar} title={isFlagged ? 'Unstar' : 'Star'} className={isFlagged ? 'text-[var(--color-status-warning)] hover:text-[var(--color-status-warning)]' : undefined}>
             <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
           </HdrBtn>
-          <HdrBtn onClick={() => setShowDeleteConfirm(true)} title="Delete" className="hover:text-red-500">
+          <HdrBtn onClick={() => setShowDeleteConfirm(true)} title="Delete" className="hover:text-[var(--color-status-danger)]">
             <Trash2 className="h-4 w-4" />
           </HdrBtn>
           <HdrBtn onClick={() => setSelectedId(null)} title="Close">
@@ -344,12 +344,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       {/* delete dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true">
-          <div className="mx-4 w-full max-w-sm border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-6 shadow-xl">
+          <div className="mx-4 w-full max-w-sm rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }}>
             <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Delete conversation?</h3>
             <p className="mt-1.5 text-sm text-[var(--color-text-tertiary)]">This will permanently delete all messages.</p>
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setShowDeleteConfirm(false)} className="rounded border border-[var(--color-border-default)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)]">Cancel</button>
-              <button onClick={handleDelete} className="rounded bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--color-status-danger)]">Delete</button>
+              <button onClick={() => setShowDeleteConfirm(false)} className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]">Cancel</button>
+              <button onClick={handleDelete} className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90">Delete</button>
             </div>
           </div>
         </div>
@@ -540,7 +540,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   {highlightMentions(isExpanded ? fullText : snippet, myEmail, auth?.display_name)}
                                 </p>
                                 {isLong && (
-                                  <span className={`mt-1.5 block select-none text-xs font-medium ${isOwn ? 'text-blue-200' : 'text-[var(--color-brand-primary)]'}`}>
+                                  <span className={`mt-1.5 block select-none text-xs font-medium ${isOwn ? 'text-white/70' : 'text-[var(--color-brand-primary)]'}`}>
                                     {isExpanded ? 'show less' : 'show more'}
                                   </span>
                                 )}
@@ -628,12 +628,12 @@ function ReactionBar({
         >
           <SmilePlus className="h-3.5 w-3.5" />
         </button>
-        <div className="absolute bottom-full left-0 mb-1 hidden gap-0.5 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-1 shadow-lg group-hover/react:flex">
+        <div className="absolute bottom-full left-0 mb-1 hidden gap-0.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-1 group-hover/react:flex" style={{ boxShadow: 'var(--shadow-md)' }}>
           {QUICK_EMOJIS.map((e) => (
             <button
               key={e}
               onClick={(ev) => { ev.stopPropagation(); onToggle(e) }}
-              className="rounded p-0.5 text-sm hover:bg-[var(--color-hover)]"
+              className="rounded-md p-0.5 text-sm hover:bg-[var(--color-hover)]"
             >
               {e}
             </button>
@@ -733,7 +733,7 @@ function HdrBtn({ onClick, title, className, children }: { onClick: () => void; 
 
 function SmBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className="rounded p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]" title={title}>
+    <button onClick={onClick} className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]" title={title}>
       {children}
     </button>
   )
@@ -782,13 +782,13 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((p) => !p)}
-        className="rounded p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
+        className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
         title="Sender feedback"
       >
         <MoreVertical className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-40 border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] py-1 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] py-1" style={{ boxShadow: 'var(--shadow-lg)' }}>
           <p className="truncate px-3 py-1 text-[11px] text-[var(--color-text-tertiary)]">{senderEmail}</p>
           {FEEDBACK_ITEMS.map((item) => (
             <button

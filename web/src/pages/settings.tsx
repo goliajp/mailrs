@@ -62,7 +62,7 @@ export function Settings() {
       <header className="flex items-center gap-3 border-b border-[var(--color-border-default)] px-4 py-3 sm:px-6">
         <button
           onClick={() => navigate('/')}
-          className="flex h-8 w-8 items-center justify-center rounded text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
           title="Back to mail"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -143,7 +143,7 @@ export function Settings() {
                 />
               </button>
               {notificationError && (
-                <p className="text-xs text-red-500">{notificationError}</p>
+                <p className="text-xs text-[var(--color-status-danger)]">{notificationError}</p>
               )}
             </div>
           </Field>
@@ -190,7 +190,7 @@ export function Settings() {
         <div className="border-t border-[var(--color-border-default)] pt-6">
           <button
             onClick={handleLogout}
-            className="rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600"
+            className="rounded-md bg-[var(--color-status-danger)] px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
           >
             Sign out
           </button>
@@ -211,7 +211,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
         {title}
       </h2>
-      <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4">
+      <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4">
         {children}
       </div>
     </section>

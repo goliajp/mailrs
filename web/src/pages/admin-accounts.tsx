@@ -47,13 +47,13 @@ function QuotaCell({ address }: { address: string }) {
 
   if (quota.status === 'loading') {
     return (
-      <span className="text-xs text-zinc-400">Loading...</span>
+      <span className="text-xs text-[var(--color-text-tertiary)]">Loading...</span>
     )
   }
 
   if (quota.status === 'none') {
     return (
-      <span className="text-xs text-zinc-400">No quota set</span>
+      <span className="text-xs text-[var(--color-text-tertiary)]">No quota set</span>
     )
   }
 
@@ -64,11 +64,11 @@ function QuotaCell({ address }: { address: string }) {
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[var(--color-border-default)]">
         <div
-          className="h-full rounded-full bg-blue-500"
+          className="h-full rounded-full bg-[var(--color-brand-primary)]"
           style={{ width: '0%' }}
         />
       </div>
-      <span className="text-xs text-zinc-500">{formatted}</span>
+      <span className="text-xs text-[var(--color-text-secondary)]">{formatted}</span>
     </div>
   )
 }
@@ -123,7 +123,7 @@ function PasswordCell({
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="New password"
-        className="w-28 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-2 py-0.5 text-xs"
+        className="w-28 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-2 py-0.5 text-xs"
         onKeyDown={(e) => {
           if (e.key === 'Enter') handleSave()
           if (e.key === 'Escape') {
@@ -147,7 +147,7 @@ function PasswordCell({
           setEditing(false)
         }}
         disabled={saving}
-        className="text-xs text-zinc-400 hover:text-zinc-600"
+        className="text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
       >
         Cancel
       </button>
@@ -166,9 +166,9 @@ function DeleteConfirmDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-sm rounded bg-[var(--color-bg-raised)] p-6 shadow-xl">
+      <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }}>
         <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
-        <p className="mb-4 text-sm text-zinc-500">
+        <p className="mb-4 text-sm text-[var(--color-text-tertiary)]">
           Are you sure you want to delete{' '}
           <span className="font-medium text-[var(--color-text-primary)]">
             {address}
@@ -178,13 +178,13 @@ function DeleteConfirmDialog({
         <div className="flex justify-end gap-2">
           <button
             onClick={onCancel}
-            className="rounded-md px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700"
+            className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+            className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
           >
             Delete
           </button>
@@ -289,7 +289,7 @@ export function AdminAccounts() {
       </div>
 
       {adding && (
-        <div className="mb-4 space-y-2 rounded border border-[var(--color-border-default)] p-4">
+        <div className="mb-4 space-y-2 rounded-lg border border-[var(--color-border-default)] p-4">
           <div className="flex gap-2">
             <input
               value={form.address}
@@ -330,7 +330,7 @@ export function AdminAccounts() {
             </button>
             <button
               onClick={() => setAdding(false)}
-              className="rounded-md px-3 py-1.5 text-sm text-zinc-500"
+              className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
             >
               Cancel
             </button>
@@ -338,7 +338,7 @@ export function AdminAccounts() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded border border-[var(--color-border-default)]">
+      <div className="overflow-x-auto rounded-lg border border-[var(--color-border-default)]">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
             <tr>
@@ -358,16 +358,16 @@ export function AdminAccounts() {
                 className="border-b border-[var(--color-border-default)] last:border-0"
               >
                 <td className="px-4 py-3 font-medium"><Copyable value={account.address}>{account.address}</Copyable></td>
-                <td className="select-text px-4 py-3 text-zinc-500">
+                <td className="select-text px-4 py-3 text-[var(--color-text-secondary)]">
                   {account.display_name}
                 </td>
-                <td className="px-4 py-3 text-zinc-500">{account.domain}</td>
+                <td className="px-4 py-3 text-[var(--color-text-secondary)]">{account.domain}</td>
                 <td className="px-4 py-3">
                   <QuotaCell address={account.address} />
                 </td>
                 <td className="px-4 py-3">
                   {account.active ? (
-                    <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                    <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-status-success)]" />
                   ) : (
                     <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-border-default)]" />
                   )}
@@ -381,7 +381,7 @@ export function AdminAccounts() {
                 <td className="px-4 py-3 text-right">
                   <button
                     onClick={() => setDeleteTarget(account.address)}
-                    className="text-xs text-red-500 hover:text-red-700"
+                    className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
                   >
                     Delete
                   </button>
@@ -390,7 +390,7 @@ export function AdminAccounts() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-zinc-400">
+                <td colSpan={7} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
                   {accounts.length === 0
                     ? 'No accounts configured'
                     : 'No accounts match the filter'}
@@ -402,7 +402,7 @@ export function AdminAccounts() {
       </div>
 
       {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-between text-sm text-zinc-500">
+        <div className="mt-4 flex items-center justify-between text-sm text-[var(--color-text-secondary)]">
           <span>
             Showing {safePage * PAGE_SIZE + 1}--
             {Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of{' '}
@@ -412,14 +412,14 @@ export function AdminAccounts() {
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={safePage === 0}
-              className="rounded px-2.5 py-1 hover:bg-[var(--color-hover)] disabled:opacity-40"
+              className="rounded-md px-2.5 py-1 hover:bg-[var(--color-hover)] disabled:opacity-40"
             >
               Prev
             </button>
             <button
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={safePage >= totalPages - 1}
-              className="rounded px-2.5 py-1 hover:bg-[var(--color-hover)] disabled:opacity-40"
+              className="rounded-md px-2.5 py-1 hover:bg-[var(--color-hover)] disabled:opacity-40"
             >
               Next
             </button>
