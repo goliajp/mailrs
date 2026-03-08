@@ -68,28 +68,37 @@ export function extractEmail(sender: string): string {
 
 // check if a string looks machine-generated (tracking IDs, bounce addresses, hashes)
 export function isMachineGenerated(s: string): boolean {
-  // short strings are likely human
   if (s.length <= 10) return false
-  // known machine prefixes (VERP bounce, prvs anti-spam)
-  if (/^(bounce|msprvs|prvs)\b/i.test(s)) return true
+  // known machine prefixes
+  if (/^(bounce|msprvs|prvs)/i.test(s)) return true
+  // VERP encoding embeds recipient with =
+  if (s.length > 15 && s.includes('=')) return true
   const digits = s.replace(/[^0-9]/g, '').length
-  const letters = s.replace(/[^a-z]/gi, '').length
-  // high digit ratio in a reasonably long string → machine
+  // high digit ratio
   if (s.length > 12 && digits / s.length > 0.3) return true
-  // low letter ratio in a long string → machine (tracking IDs with dots/dashes/equals)
+  // long string without spaces that contains digits → not a human name
+  // (human names either have spaces between words or are short)
+  if (s.length > 20 && !s.includes(' ') && digits > 0) return true
+  // low letter ratio (tracking IDs heavy on dots/dashes/equals)
+  const letters = s.replace(/[^a-z]/gi, '').length
   if (s.length > 15 && letters / s.length < 0.5) return true
   return false
 }
 
-// extract the registrable domain label (e.g. "notify.cloudflare.com" → "cloudflare")
-const TLDS = new Set(['com', 'net', 'org', 'io', 'co', 'jp', 'ai', 'uk', 'au', 'de', 'fr', 'cn', 'kr', 'in', 'br', 'ru', 'es', 'it', 'nl', 'se', 'no', 'fi', 'dk', 'pt', 'pl', 'cz', 'at', 'ch', 'be', 'ie', 'nz', 'sg', 'hk', 'tw', 'th', 'my', 'ph', 'id', 'vn'])
+// extract the brand/registrable domain label
+// e.g. "notify.cloudflare.com" → "cloudflare", "em8742.bsm.freee.work" → "freee"
+const SECONDARY_TLDS = new Set(['co', 'com', 'net', 'org', 'ac', 'gov', 'edu', 'ne', 'or'])
 
 function domainLabel(domain: string): string {
   const parts = domain.split('.')
-  // walk from the end to skip TLD parts, then return the first meaningful part
-  let i = parts.length - 1
-  while (i > 0 && TLDS.has(parts[i])) i--
-  return parts[i] || domain
+  if (parts.length <= 1) return domain
+  // the brand is usually the second-to-last part (just before the TLD)
+  // for multi-part TLDs like .co.jp / .co.uk, go one level deeper
+  const sld = parts[parts.length - 2]
+  if (parts.length >= 3 && SECONDARY_TLDS.has(sld)) {
+    return parts[parts.length - 3] || sld
+  }
+  return sld
 }
 
 // extract a human-readable display name from a "Name <email>" or raw email string
