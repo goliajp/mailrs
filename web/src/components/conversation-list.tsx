@@ -1,12 +1,13 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Archive, Check, CheckCircle, Inbox, Mail, MailOpen, Paperclip, Pin, Search, SquarePen, Star } from 'lucide-react'
+import { Archive, Check, CheckCircle, Clock, Inbox, Mail, MailOpen, Paperclip, Pin, Search, SquarePen, Star } from 'lucide-react'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ContextMenu, useContextMenu } from '@/components/context-menu'
 import type { ContextMenuItem } from '@/components/context-menu'
-import { fetchJson, postJson } from '@/lib/api'
+import { fetchJson, postJson, snoozeConversation } from '@/lib/api'
 import { avatarColor, avatarInitial, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import type { CategoryCount, ConversationSummary } from '@/lib/types'
@@ -35,7 +36,7 @@ import {
 } from '@/store/chat'
 
 type BatchAction = 'read' | 'unread' | 'delete' | 'star' | 'unstar' | 'archive' | 'unarchive'
-type SingleAction = BatchAction | 'pin' | 'unpin'
+type SingleAction = BatchAction | 'pin' | 'unpin' | 'snooze'
 
 interface BatchResult {
   success: boolean
@@ -58,6 +59,29 @@ function QuickBtn({ onClick, title, children }: { onClick: (e: React.MouseEvent)
     >
       {children}
     </button>
+  )
+}
+
+function PreviewCard({ convo, style }: { convo: ConversationSummary; style: React.CSSProperties }) {
+  return (
+    <div
+      style={style}
+      className="pointer-events-none fixed z-50 w-72 border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+    >
+      <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{convo.subject || '(no subject)'}</p>
+      <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+        {convo.participants.slice(0, 3).map(p => extractName(p)).join(', ')}
+        {convo.participants.length > 3 && ` +${convo.participants.length - 3}`}
+      </p>
+      {convo.snippet && (
+        <p className="mt-1.5 line-clamp-4 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">{convo.snippet}</p>
+      )}
+      <div className="mt-2 flex items-center gap-2 text-[11px] text-zinc-400">
+        <span>{formatDate(convo.last_date)}</span>
+        {convo.unread_count > 0 && <span className="font-medium text-blue-600">{convo.unread_count} unread</span>}
+        {convo.message_count > 1 && <span>{convo.message_count} messages</span>}
+      </div>
+    </div>
   )
 }
 
@@ -89,6 +113,23 @@ const ConversationItem = memo(function ConversationItem({
 
   const ctx = useContextMenu()
 
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewPos, setPreviewPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const top = rect.top + 200 > window.innerHeight ? rect.bottom - 200 : rect.top
+    setPreviewPos({ top, left: rect.right + 8 })
+    hoverTimer.current = setTimeout(() => setShowPreview(true), 300)
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+    hoverTimer.current = null
+    setShowPreview(false)
+  }, [])
+
   const contextItems: ContextMenuItem[] = [
     {
       label: hasUnread ? 'Mark as read' : 'Mark as unread',
@@ -107,6 +148,10 @@ const ConversationItem = memo(function ConversationItem({
       onClick: () => onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive'),
     },
     {
+      label: 'Snooze until tomorrow',
+      onClick: () => onContextAction(convo.thread_id, 'snooze'),
+    },
+    {
       label: 'Delete',
       danger: true,
       onClick: () => onContextAction(convo.thread_id, 'delete'),
@@ -122,7 +167,7 @@ const ConversationItem = memo(function ConversationItem({
   }
 
   return (
-    <div role="listitem">
+    <div role="listitem" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
     <button
       onClick={handleClick}
       onContextMenu={ctx.open}
@@ -219,10 +264,17 @@ const ConversationItem = memo(function ConversationItem({
           <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star') }} title={isFlagged ? 'Unstar' : 'Star'}>
             <Star className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
           </QuickBtn>
+          <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, 'snooze') }} title="Snooze until tomorrow">
+            <Clock className="h-3.5 w-3.5" />
+          </QuickBtn>
         </div>
       )}
     </button>
     <ContextMenu position={ctx.position} items={contextItems} onClose={ctx.close} />
+    {showPreview && !batchMode && createPortal(
+      <PreviewCard convo={convo} style={{ top: previewPos.top, left: previewPos.left }} />,
+      document.body
+    )}
     </div>
   )
 })
@@ -707,7 +759,13 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
   // single-thread context menu action: pin/unpin/archive/unarchive use dedicated endpoints, others use batch API
   const handleContextAction = useCallback(async (threadId: string, action: SingleAction) => {
     try {
-      if (action === 'pin' || action === 'unpin' || action === 'archive' || action === 'unarchive') {
+      if (action === 'snooze') {
+        const tomorrow = new Date()
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        tomorrow.setHours(9, 0, 0, 0)
+        await snoozeConversation(threadId, tomorrow.toISOString())
+        toast.success('Snoozed until tomorrow 9:00')
+      } else if (action === 'pin' || action === 'unpin' || action === 'archive' || action === 'unarchive') {
         await postJson<ApiResult>(`/conversations/${encodeURIComponent(threadId)}/${action}`, {})
         const labels: Record<string, string> = { pin: 'Pinned', unpin: 'Unpinned', archive: 'Archived', unarchive: 'Unarchived' }
         toast.success(labels[action] ?? 'Updated')

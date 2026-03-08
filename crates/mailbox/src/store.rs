@@ -642,6 +642,11 @@ impl MailboxStore {
         };
         conditions.insert(0, user_condition);
 
+        // exclude snoozed conversations (snooze still active)
+        conditions.push(format!(
+            "NOT EXISTS (SELECT 1 FROM snoozed_conversations sc WHERE sc.thread_id = m.thread_id AND sc.account_address = mb.user_address AND sc.snoozed_until > NOW())"
+        ));
+
         let limit_idx = param_idx;
         param_idx += 1;
 
@@ -1043,6 +1048,44 @@ impl MailboxStore {
         .await?;
 
         Ok(result.rows_affected() as u32)
+    }
+
+    /// snooze a conversation until a given time
+    pub async fn snooze_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+        until: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT INTO snoozed_conversations (thread_id, account_address, snoozed_until)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (thread_id, account_address) DO UPDATE SET snoozed_until = $3",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .bind(until)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// unsnooze a conversation
+    pub async fn unsnooze_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "DELETE FROM snoozed_conversations WHERE thread_id = $1 AND account_address = $2",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 
     /// delete all mailbox entries for a thread belonging to a user

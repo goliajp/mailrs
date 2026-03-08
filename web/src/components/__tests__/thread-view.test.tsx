@@ -27,6 +27,11 @@ vi.mock('@/lib/api', () => ({
   postJson: vi.fn(() => Promise.resolve({ success: true })),
   deleteJson: vi.fn(() => Promise.resolve({ success: true })),
   saveDraft: vi.fn(() => Promise.resolve({ success: true })),
+  getThreadReactions: vi.fn(() => Promise.resolve({})),
+  toggleReaction: vi.fn(() => Promise.resolve({ success: true })),
+  recordFeedback: vi.fn(() => Promise.resolve({ success: true })),
+  snoozeConversation: vi.fn(() => Promise.resolve({ success: true })),
+  unsnoozeConversation: vi.fn(() => Promise.resolve({ success: true })),
 }))
 
 vi.mock('@/store/auth', async (importOriginal) => {
