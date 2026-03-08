@@ -456,7 +456,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 const initial = avatarInitial(msg.sender)
                 const color = avatarColor(msg.sender)
                 const isSelected = selectedMsgIdx === idx
-                const fullText = msg.new_content || msg.clean_text || msg.text_body || msg.subject || ''
+                const fullText = bubbleText(msg)
                 const isLong = fullText.length > 200
                 const snippet = isLong ? fullText.slice(0, 200) : fullText
                 const isExpanded = expandedBubbles.has(idx)
@@ -542,6 +542,30 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       </div>
     </div>
   )
+}
+
+// box-drawing, table borders, repeated decorative lines
+const NOISE_LINE = /^[\s│┼┬┴├┤┌┐└┘─━═╌╍╎╏║╔╗╚╝╠╣╦╩╬\-=_·•*#|+:>{}\[\]~`]+$/
+
+function cleanTextForBubble(raw: string): string {
+  return raw
+    .split('\n')
+    .filter((line) => !NOISE_LINE.test(line))
+    .map((line) => line.replace(/\s{2,}/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function bubbleText(msg: ThreadMessage): string {
+  // prefer AI summary — always clean and readable
+  if (msg.summary) return msg.summary
+  // fall back to cleaned raw text
+  const raw = msg.new_content || msg.clean_text || msg.text_body || ''
+  if (!raw) return msg.subject || ''
+  const cleaned = cleanTextForBubble(raw)
+  return cleaned || msg.subject || ''
 }
 
 function HdrBtn({ onClick, title, className, children }: { onClick: () => void; title: string; className?: string; children: React.ReactNode }) {
