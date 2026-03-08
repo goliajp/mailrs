@@ -1916,6 +1916,11 @@ mod tests {
             thread_id: "".into(),
             modseq: 1,
             user_address: "test@example.com".into(),
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            is_bulk_sender: false,
+            has_tracking_pixel: false,
+            new_content: None,
         };
         overrides(&mut msg);
         msg

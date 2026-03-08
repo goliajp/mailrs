@@ -1,4 +1,4 @@
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 
 use crate::threading;
 use crate::types::{ConversationSummary, FlagAction, Mailbox, MessageMeta, FLAG_DELETED, FLAG_FLAGGED, FLAG_SEEN};
@@ -668,7 +668,9 @@ impl MailboxStore {
                               WHERE m3.thread_id = m.thread_id AND m3.text_body IS NOT NULL AND m3.text_body != ''
                               ORDER BY m3.internal_date DESC LIMIT 1), ''),
                     BOOL_OR(m.pinned),
-                    BOOL_OR(m.archived)
+                    BOOL_OR(m.archived),
+                    COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal'),
+                    COALESCE(MAX(m.importance_score), 0.0)
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {where_clause}
              GROUP BY m.thread_id HAVING {archived_filter}
@@ -676,7 +678,7 @@ impl MailboxStore {
         );
 
         // bind parameters in order
-        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool)>(&sql);
+        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32)>(&sql);
 
         if let Some(doms) = domains {
             if doms.is_empty() {
@@ -715,6 +717,8 @@ impl MailboxStore {
                 snippet: r.8,
                 pinned: r.9,
                 archived: r.10,
+                importance_level: r.11,
+                importance_score: r.12,
             })
             .collect())
     }
@@ -744,7 +748,10 @@ impl MailboxStore {
         let sql = format!(
             "SELECT m.id, m.mailbox_id, m.uid, m.maildir_id, m.sender, m.recipients, m.subject,
                     m.date_epoch, m.size, m.flags, m.internal_date, m.message_id, m.in_reply_to, m.thread_id, m.modseq,
-                    mb.user_address
+                    mb.user_address,
+                    COALESCE(m.importance_level, 'normal'), COALESCE(m.importance_score, 0.0),
+                    COALESCE(m.is_bulk_sender, false), COALESCE(m.has_tracking_pixel, false),
+                    m.new_content
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {user_filter} AND m.thread_id = $2
                AND m.id = (
@@ -757,7 +764,7 @@ impl MailboxStore {
              ORDER BY m.internal_date ASC"
         );
 
-        let mut query = sqlx::query_as::<_, (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64, String)>(&sql)
+        let mut query = sqlx::query(&sql)
             .bind(user)
             .bind(thread_id);
 
@@ -771,7 +778,7 @@ impl MailboxStore {
 
         let rows = query.fetch_all(&self.pool).await?;
 
-        Ok(rows.into_iter().map(row_to_message_meta_with_user).collect())
+        Ok(rows.into_iter().map(row_to_message_meta_from_row).collect())
     }
 
     /// get all message-ids in the thread that contains the given message_id,
@@ -1176,7 +1183,8 @@ impl MailboxStore {
         category: Option<&str>,
         domains: Option<&[String]>,
     ) -> Result<Vec<ConversationSummary>, sqlx::Error> {
-        let pattern = format!("%{query}%");
+        let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let pattern = format!("%{escaped}%");
         let count_expr = "COUNT(DISTINCT CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END)";
         let unread_expr = "COUNT(DISTINCT CASE WHEN (m.flags & 1) = 0 THEN CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END END)";
 
@@ -1222,7 +1230,9 @@ impl MailboxStore {
                               WHERE m3.thread_id = m.thread_id AND m3.text_body IS NOT NULL AND m3.text_body != ''
                               ORDER BY m3.internal_date DESC LIMIT 1), ''),
                     BOOL_OR(m.pinned),
-                    BOOL_OR(m.archived)
+                    BOOL_OR(m.archived),
+                    COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal'),
+                    COALESCE(MAX(m.importance_score), 0.0)
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {user_filter} AND thread_id != ''
                AND (m.subject ILIKE ${pattern_idx} OR m.sender ILIKE ${pattern_idx}
@@ -1233,7 +1243,7 @@ impl MailboxStore {
              ORDER BY MAX(m.internal_date) DESC LIMIT ${limit_idx}"
         );
 
-        let mut q = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool)>(&sql);
+        let mut q = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32)>(&sql);
 
         if let Some(doms) = domains {
             if !doms.is_empty() {
@@ -1269,6 +1279,8 @@ impl MailboxStore {
                 snippet: r.8,
                 pinned: r.9,
                 archived: r.10,
+                importance_level: r.11,
+                importance_score: r.12,
             })
             .collect())
     }
@@ -1307,7 +1319,8 @@ impl MailboxStore {
         query: &str,
         limit: u32,
     ) -> Result<Vec<String>, sqlx::Error> {
-        let pattern = format!("%{query}%");
+        let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let pattern = format!("%{escaped}%");
         let rows = sqlx::query_as::<_, (String,)>(
             "SELECT sender FROM messages m
              JOIN mailboxes mb ON m.mailbox_id = mb.id
@@ -1726,6 +1739,7 @@ impl MailboxStore {
             "mark_important" => 0.2,
             "mark_vip" => 0.4,
             "mark_spam" | "block" => -0.5,
+            "unblock" => 0.5,
             "archive" => -0.05,
             _ => 0.0,
         };
@@ -1890,29 +1904,38 @@ fn row_to_message_meta(
         thread_id: r.13,
         modseq: r.14 as u64,
         user_address: String::new(),
+        importance_level: String::from("normal"),
+        importance_score: 0.0,
+        is_bulk_sender: false,
+        has_tracking_pixel: false,
+        new_content: None,
     }
 }
 
-fn row_to_message_meta_with_user(
-    r: (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64, String),
-) -> MessageMeta {
+/// convert a PgRow to MessageMeta (for queries with >16 columns)
+fn row_to_message_meta_from_row(r: sqlx::postgres::PgRow) -> MessageMeta {
     MessageMeta {
-        id: r.0,
-        mailbox_id: r.1,
-        uid: r.2 as u32,
-        maildir_id: r.3,
-        sender: r.4,
-        recipients: r.5,
-        subject: r.6,
-        date: r.7,
-        size: r.8 as u32,
-        flags: r.9 as u32,
-        internal_date: r.10,
-        message_id: r.11,
-        in_reply_to: r.12,
-        thread_id: r.13,
-        modseq: r.14 as u64,
-        user_address: r.15,
+        id: r.get::<i64, _>(0),
+        mailbox_id: r.get::<i64, _>(1),
+        uid: r.get::<i32, _>(2) as u32,
+        maildir_id: r.get::<String, _>(3),
+        sender: r.get::<String, _>(4),
+        recipients: r.get::<String, _>(5),
+        subject: r.get::<String, _>(6),
+        date: r.get::<i64, _>(7),
+        size: r.get::<i32, _>(8) as u32,
+        flags: r.get::<i32, _>(9) as u32,
+        internal_date: r.get::<i64, _>(10),
+        message_id: r.get::<String, _>(11),
+        in_reply_to: r.get::<String, _>(12),
+        thread_id: r.get::<String, _>(13),
+        modseq: r.get::<i64, _>(14) as u64,
+        user_address: r.get::<String, _>(15),
+        importance_level: r.get::<String, _>(16),
+        importance_score: r.get::<f32, _>(17),
+        is_bulk_sender: r.get::<bool, _>(18),
+        has_tracking_pixel: r.get::<bool, _>(19),
+        new_content: r.get::<Option<String>, _>(20),
     }
 }
 
@@ -2100,17 +2123,21 @@ mod tests {
     }
 
     #[test]
-    fn row_to_message_meta_with_user_includes_address() {
+    fn row_to_message_meta_defaults() {
+        // row_to_message_meta sets default importance fields
         let row = (
             1i64, 2i64, 3i32,
             "mid".to_string(), "s".to_string(), "r".to_string(), "sub".to_string(),
             0i64, 0i32, 0i32, 0i64,
             "".to_string(), "".to_string(), "".to_string(), 0i64,
-            "alice@example.com".to_string(),
         );
-        let meta = row_to_message_meta_with_user(row);
-        assert_eq!(meta.user_address, "alice@example.com");
-        assert_eq!(meta.id, 1);
+        let meta = row_to_message_meta(row);
+        assert_eq!(meta.user_address, "");
+        assert_eq!(meta.importance_level, "normal");
+        assert_eq!(meta.importance_score, 0.0);
+        assert!(!meta.is_bulk_sender);
+        assert!(!meta.has_tracking_pixel);
+        assert_eq!(meta.new_content, None);
     }
 
     // ---- MessageMeta clone/debug tests ----
@@ -2124,6 +2151,8 @@ mod tests {
             internal_date: 101, message_id: "mid".into(),
             in_reply_to: "irt".into(), thread_id: "tid".into(),
             modseq: 42, user_address: "u@t.com".into(),
+            importance_level: "normal".into(), importance_score: 0.0,
+            is_bulk_sender: false, has_tracking_pixel: false, new_content: None,
         };
         let cloned = meta.clone();
         assert_eq!(cloned.id, meta.id);
@@ -2140,6 +2169,8 @@ mod tests {
             date: 0, size: 0, flags: 0, internal_date: 0,
             message_id: "".into(), in_reply_to: "".into(), thread_id: "".into(),
             modseq: 0, user_address: "".into(),
+            importance_level: "normal".into(), importance_score: 0.0,
+            is_bulk_sender: false, has_tracking_pixel: false, new_content: None,
         };
         let debug = format!("{:?}", meta);
         assert!(debug.contains("MessageMeta"));
@@ -2156,6 +2187,7 @@ mod tests {
             unread_count: 2, last_date: 1700000000, category: "general".into(),
             flagged: true, snippet: "preview text".into(),
             pinned: false, archived: false,
+            importance_level: "normal".into(), importance_score: 0.0,
         };
         let cloned = cs.clone();
         assert_eq!(cloned.thread_id, "t1");
@@ -2175,6 +2207,7 @@ mod tests {
             unread_count: 0, last_date: 0, category: "promo".into(),
             flagged: false, snippet: "".into(),
             pinned: true, archived: true,
+            importance_level: "normal".into(), importance_score: 0.0,
         };
         let debug = format!("{:?}", cs);
         assert!(debug.contains("ConversationSummary"));

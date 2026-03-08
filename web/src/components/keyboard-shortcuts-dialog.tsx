@@ -25,6 +25,8 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     shortcuts: [
       { keys: ['n'], description: 'New conversation' },
       { keys: ['r'], description: 'Reply' },
+      { keys: ['e'], description: 'Archive / Unarchive' },
+      { keys: ['s'], description: 'Star / Unstar' },
       { keys: ['/'], description: 'Focus search' },
       { keys: ['?'], description: 'Show shortcuts' },
     ],

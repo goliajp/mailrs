@@ -131,6 +131,8 @@ export type ConversationSummary = {
   snippet: string
   pinned: boolean
   archived: boolean
+  importance_level: string
+  importance_score: number
 }
 
 export type CategoryCount = {
@@ -160,6 +162,66 @@ export type ThreadMessage = {
   action_items: string[]
   ai_analyzed: boolean
   clean_text: string | null
+  new_content: string | null
+  importance_level: string
+  importance_score: number
+  is_bulk_sender: boolean
+  has_tracking_pixel: boolean
+  requires_action: boolean
+  sender_intent: string
+  action_deadline: string | null
+  structured_data?: StructuredData | null
+}
+
+export type StructuredData = {
+  reservations: Reservation[]
+  orders: Order[]
+  events: EventInfo[]
+  actions: ActionInfoItem[]
+}
+
+export type Reservation = {
+  type: string
+  name?: string
+  reservation_id?: string
+  status?: string
+  start_date?: string
+  end_date?: string
+  location?: string
+  provider?: string
+  departure_airport?: string
+  arrival_airport?: string
+  flight_number?: string
+}
+
+export type Order = {
+  order_number?: string
+  merchant?: string
+  order_date?: string
+  status?: string
+  items: OrderItem[]
+  total?: string
+  currency?: string
+}
+
+export type OrderItem = {
+  name: string
+  quantity?: number
+  price?: string
+}
+
+export type EventInfo = {
+  name: string
+  start_date?: string
+  end_date?: string
+  location?: string
+  url?: string
+}
+
+export type ActionInfoItem = {
+  type: string
+  name: string
+  url?: string
 }
 
 export type NewMessageEvent = {

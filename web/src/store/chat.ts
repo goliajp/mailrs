@@ -31,5 +31,12 @@ export const showArchivedAtom = atom(false)
 // supermode: mark read across all domain accounts
 export const crossAccountReadAtom = atom(false)
 
+// importance section filter: null = all, or 'action' | 'important' | 'other'
+export type ImportanceSection = 'action' | 'important' | 'other' | null
+export const importanceSectionAtom = atom<ImportanceSection>(null)
+
 // keyboard shortcuts dialog
 export const shortcutsDialogOpenAtom = atom(false)
+
+// visible conversation ids in display order (synced from conversation-list)
+export const visibleConversationIdsAtom = atom<string[]>([])

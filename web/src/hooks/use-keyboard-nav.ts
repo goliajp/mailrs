@@ -1,12 +1,15 @@
-import { useAtom, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
+import { toast } from 'sonner'
 
+import { postJson } from '@/lib/api'
 import {
   composingNewAtom,
   conversationsAtom,
   mobileViewAtom,
   selectedThreadIdAtom,
   shortcutsDialogOpenAtom,
+  visibleConversationIdsAtom,
 } from '@/store/chat'
 
 // ignore keypresses originating from editable elements
@@ -19,7 +22,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 export function useKeyboardNav() {
-  const [conversations] = useAtom(conversationsAtom)
+  const [conversations, setConversations] = useAtom(conversationsAtom)
+  const visibleIds = useAtomValue(visibleConversationIdsAtom)
   const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
@@ -33,14 +37,14 @@ export function useKeyboardNav() {
         case 'j':
         case 'ArrowDown': {
           e.preventDefault()
-          if (conversations.length === 0) return
+          if (visibleIds.length === 0) return
           if (selectedThreadId === null) {
-            setSelectedThreadId(conversations[0].thread_id)
+            setSelectedThreadId(visibleIds[0])
             return
           }
-          const idx = conversations.findIndex((c) => c.thread_id === selectedThreadId)
-          if (idx < conversations.length - 1) {
-            setSelectedThreadId(conversations[idx + 1].thread_id)
+          const idx = visibleIds.indexOf(selectedThreadId)
+          if (idx < visibleIds.length - 1) {
+            setSelectedThreadId(visibleIds[idx + 1])
           }
           break
         }
@@ -48,14 +52,14 @@ export function useKeyboardNav() {
         case 'k':
         case 'ArrowUp': {
           e.preventDefault()
-          if (conversations.length === 0) return
+          if (visibleIds.length === 0) return
           if (selectedThreadId === null) {
-            setSelectedThreadId(conversations[0].thread_id)
+            setSelectedThreadId(visibleIds[0])
             return
           }
-          const idx = conversations.findIndex((c) => c.thread_id === selectedThreadId)
+          const idx = visibleIds.indexOf(selectedThreadId)
           if (idx > 0) {
-            setSelectedThreadId(conversations[idx - 1].thread_id)
+            setSelectedThreadId(visibleIds[idx - 1])
           }
           break
         }
@@ -97,6 +101,57 @@ export function useKeyboardNav() {
           break
         }
 
+        case 'e': {
+          // archive current thread
+          if (!selectedThreadId) break
+          e.preventDefault()
+          const convo = conversations.find((c) => c.thread_id === selectedThreadId)
+          const action = convo?.archived ? 'unarchive' : 'archive'
+          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${action}`, {})
+            .then(() => {
+              toast.success(action === 'archive' ? 'Archived' : 'Unarchived')
+              setConversations((prev) =>
+                prev.map((c) =>
+                  c.thread_id === selectedThreadId ? { ...c, archived: action === 'archive' } : c
+                )
+              )
+            })
+            .catch(() => toast.error('Failed'))
+          break
+        }
+
+        case 's': {
+          // star/unstar current thread
+          if (!selectedThreadId) break
+          e.preventDefault()
+          const flagged = conversations.find((c) => c.thread_id === selectedThreadId)?.flagged
+          const act = flagged ? 'unstar' : 'star'
+          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${act}`, {})
+            .then(() => {
+              setConversations((prev) =>
+                prev.map((c) =>
+                  c.thread_id === selectedThreadId ? { ...c, flagged: act === 'star' } : c
+                )
+              )
+            })
+            .catch(() => toast.error('Failed'))
+          break
+        }
+
+        case 'r': {
+          // focus reply box
+          if (!selectedThreadId) break
+          e.preventDefault()
+          setMobileView('thread')
+          // focus the reply textarea after a tick
+          setTimeout(() => {
+            const textarea = document.querySelector<HTMLTextAreaElement>('textarea[placeholder*="Reply"]')
+              ?? document.querySelector<HTMLTextAreaElement>('textarea')
+            textarea?.focus()
+          }, 100)
+          break
+        }
+
         default:
           break
       }
@@ -104,5 +159,5 @@ export function useKeyboardNav() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [conversations, selectedThreadId, setSelectedThreadId, setComposingNew, setMobileView, setShortcutsOpen])
+  }, [conversations, visibleIds, selectedThreadId, setSelectedThreadId, setComposingNew, setConversations, setMobileView, setShortcutsOpen])
 }

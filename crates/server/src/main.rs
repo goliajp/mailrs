@@ -19,6 +19,7 @@ mod imap_session;
 pub mod inbound;
 mod inline_image;
 mod message_util;
+mod structured_data;
 mod pg;
 mod ptr_check;
 mod sieve;

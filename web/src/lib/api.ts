@@ -119,6 +119,23 @@ export async function listDrafts(): Promise<Draft[]> {
   return fetchJson<Draft[]>('/mail/drafts')
 }
 
+// --- sender feedback API ---
+
+export type FeedbackAction =
+  | 'mark_important'
+  | 'mark_vip'
+  | 'mark_spam'
+  | 'block'
+  | 'archive'
+  | 'unblock'
+
+export async function recordFeedback(
+  senderEmail: string,
+  action: FeedbackAction,
+): Promise<{ success: boolean; message?: string }> {
+  return postJson('/mail/feedback', { sender_email: senderEmail, action })
+}
+
 export async function deleteDraft(
   id: number,
 ): Promise<{ success: boolean; message?: string }> {

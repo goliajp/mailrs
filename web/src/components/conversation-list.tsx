@@ -2,7 +2,7 @@ import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { CategoryBadge } from '@/components/category-badge'
+import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ContextMenu, useContextMenu } from '@/components/context-menu'
 import type { ContextMenuItem } from '@/components/context-menu'
 import { fetchJson, postJson } from '@/lib/api'
@@ -17,6 +17,7 @@ import {
   conversationsAtom,
   crossAccountReadAtom,
   hasMoreAtom,
+  importanceSectionAtom,
   initialLoadingAtom,
   loadingMoreAtom,
   searchQueryAtom,
@@ -25,6 +26,8 @@ import {
   selectedThreadIdsAtom,
   showArchivedAtom,
   sortOrderAtom,
+  visibleConversationIdsAtom,
+  type ImportanceSection,
   type SortOrder,
 } from '@/store/chat'
 
@@ -181,6 +184,7 @@ const ConversationItem = memo(function ConversationItem({
               <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
             </svg>
           )}
+          <ImportanceBadge level={convo.importance_level} />
           {convo.category && convo.category !== 'general' && (
             <CategoryBadge category={convo.category} />
           )}
@@ -385,6 +389,68 @@ function ArchivedToggle() {
   )
 }
 
+const IMPORTANCE_SECTIONS: { value: ImportanceSection; label: string; description: string }[] = [
+  { value: null, label: 'All', description: 'All conversations' },
+  { value: 'action', label: 'Action', description: 'Requires your action' },
+  { value: 'important', label: 'Important', description: 'Important messages' },
+  { value: 'other', label: 'Other', description: 'Low priority & noise' },
+]
+
+function ImportanceSectionTabs() {
+  const [section, setSection] = useAtom(importanceSectionAtom)
+  const conversations = useAtomValue(conversationsAtom)
+
+  const counts = useMemo(() => {
+    let action = 0
+    let important = 0
+    let other = 0
+    for (const c of conversations) {
+      const lvl = c.importance_level
+      if (lvl === 'critical' || lvl === 'important') {
+        important++
+      } else if (lvl === 'low' || lvl === 'noise') {
+        other++
+      }
+      // count action-requiring separately (can overlap)
+      // we check unread + importance for action tab
+    }
+    // action count: critical importance or unread important
+    action = conversations.filter(
+      (c) => c.importance_level === 'critical' || (c.importance_level === 'important' && c.unread_count > 0)
+    ).length
+    return { action, important, other }
+  }, [conversations])
+
+  return (
+    <div className="flex gap-0.5 border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800" role="tablist" aria-label="Importance filter">
+      {IMPORTANCE_SECTIONS.map((s) => {
+        const count = s.value === 'action' ? counts.action : s.value === 'important' ? counts.important : s.value === 'other' ? counts.other : 0
+        return (
+          <button
+            key={s.value ?? 'all'}
+            role="tab"
+            aria-selected={section === s.value}
+            aria-label={s.description}
+            onClick={() => setSection(section === s.value ? null : s.value)}
+            className={`shrink-0 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+              section === s.value
+                ? s.value === 'action'
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
+                : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+            }`}
+          >
+            {s.label}
+            {s.value && count > 0 && (
+              <span className="ml-1 text-[10px] opacity-70">({count})</span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function ConversationSkeleton() {
   return (
     <div className="animate-pulse">
@@ -581,7 +647,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
   const handleContextAction = useCallback(async (threadId: string, action: SingleAction) => {
     try {
       if (action === 'pin' || action === 'unpin' || action === 'archive' || action === 'unarchive') {
-        await postJson<ApiResult>(`/conversations/${threadId}/${action}`, {})
+        await postJson<ApiResult>(`/conversations/${encodeURIComponent(threadId)}/${action}`, {})
         const labels: Record<string, string> = { pin: 'Pinned', unpin: 'Unpinned', archive: 'Archived', unarchive: 'Unarchived' }
         toast.success(labels[action] ?? 'Updated')
       } else {
@@ -599,10 +665,27 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
 
   const sortOrder = useAtomValue(sortOrderAtom)
   const showArchived = useAtomValue(showArchivedAtom)
+  const importanceSection = useAtomValue(importanceSectionAtom)
 
-  // apply client-side sort (backend always returns pinned first, then by sort order)
+  // apply client-side filtering + sort
   const sortedConversations = useMemo(() => {
-    const visible = showArchived ? conversations : conversations.filter((c) => !c.archived)
+    let visible = showArchived ? conversations : conversations.filter((c) => !c.archived)
+
+    // importance section filter
+    if (importanceSection === 'action') {
+      visible = visible.filter(
+        (c) => c.importance_level === 'critical' || (c.importance_level === 'important' && c.unread_count > 0)
+      )
+    } else if (importanceSection === 'important') {
+      visible = visible.filter(
+        (c) => c.importance_level === 'critical' || c.importance_level === 'important'
+      )
+    } else if (importanceSection === 'other') {
+      visible = visible.filter(
+        (c) => c.importance_level === 'low' || c.importance_level === 'noise'
+      )
+    }
+
     if (sortOrder === 'newest') return visible
     const pinned = visible.filter((c) => c.pinned)
     const unpinned = visible.filter((c) => !c.pinned)
@@ -612,7 +695,13 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
       unpinned.sort((a, b) => b.unread_count - a.unread_count || b.last_date - a.last_date)
     }
     return [...pinned, ...unpinned]
-  }, [conversations, sortOrder, showArchived])
+  }, [conversations, sortOrder, showArchived, importanceSection])
+
+  // sync visible conversation ids to store for keyboard nav
+  const setVisibleIds = useSetAtom(visibleConversationIdsAtom)
+  useEffect(() => {
+    setVisibleIds(sortedConversations.map((c) => c.thread_id))
+  }, [sortedConversations, setVisibleIds])
 
   // stable callbacks that accept threadId to avoid inline closures in the map
   const handleSelect = useCallback((threadId: string) => {
@@ -701,6 +790,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
       </div>
 
       <DomainSelector />
+      <ImportanceSectionTabs />
       <CategoryChips />
       <SortSelector />
       <ArchivedToggle />

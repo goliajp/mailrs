@@ -31,6 +31,12 @@ pub struct MessageMeta {
     pub modseq: u64,
     /// owner's email address (for cross-domain queries)
     pub user_address: String,
+    // importance fields (populated by post-delivery processing)
+    pub importance_level: String,
+    pub importance_score: f32,
+    pub is_bulk_sender: bool,
+    pub has_tracking_pixel: bool,
+    pub new_content: Option<String>,
 }
 
 /// summary of a conversation thread
@@ -51,6 +57,10 @@ pub struct ConversationSummary {
     pub pinned: bool,
     /// whether this thread has been archived by the user
     pub archived: bool,
+    /// highest importance level in the thread
+    pub importance_level: String,
+    /// highest importance score in the thread
+    pub importance_score: f32,
 }
 
 /// AI analysis result stored in email_analysis table
