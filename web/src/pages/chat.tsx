@@ -223,15 +223,15 @@ function ChatSidebar() {
   return (
     <aside className="flex h-full w-14 shrink-0 flex-col items-center border-r border-zinc-200 bg-zinc-50 py-4 dark:border-zinc-800 dark:bg-zinc-900/50">
       {/* logo */}
-      <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500 text-sm font-bold text-white">
-        M
+      <div className="mb-4">
+        <img src="/icon.svg" alt="mailrs" className="h-9 w-9 rounded-lg" />
       </div>
 
       {/* nav icons */}
       <nav className="flex flex-1 flex-col items-center gap-1">
         <a
           href="/"
-          className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+          className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400"
           title="Chat"
           aria-label="Chat"
           aria-current="page"
