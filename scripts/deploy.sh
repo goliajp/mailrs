@@ -53,7 +53,7 @@ if [ "$WEB_ONLY" = false ]; then
     echo "==> uploading .env secrets"
     {
       grep '^GEMINI_API_KEY=' "$ROOT/.env.local" | sed 's/^GEMINI_API_KEY=/MAILRS_GEMINI_API_KEY=/'
-      echo 'MAILRS_AI_ANALYSIS_ENABLED=true'
+      echo 'MAILRS_AI_ANALYSIS_ENABLED=false'
     } > /tmp/mailrs-deploy-env
     $SCP /tmp/mailrs-deploy-env "$SSH_HOST:$REMOTE_DIR/.env"
     rm -f /tmp/mailrs-deploy-env
