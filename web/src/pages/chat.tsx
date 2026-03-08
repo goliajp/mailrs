@@ -222,7 +222,7 @@ function ChatSidebar() {
   }
 
   return (
-    <aside className="flex h-full w-14 shrink-0 flex-col items-center border-r border-zinc-200 bg-zinc-50 py-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+    <aside className="flex h-full w-14 shrink-0 select-none flex-col items-center border-r border-zinc-200 bg-zinc-50 py-4 dark:border-zinc-800 dark:bg-zinc-900/50">
       {/* logo */}
       <div className="mb-4">
         <img src="/icon.svg" alt="mailrs" className="h-9 w-9 rounded-lg" />

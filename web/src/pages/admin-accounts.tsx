@@ -2,6 +2,7 @@ import { useAtom } from 'jotai'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { Copyable } from '@/components/copy-button'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import type { AccountInfo, QuotaInfo } from '@/lib/types'
 import { accountsAtom } from '@/store/admin'
@@ -356,8 +357,8 @@ export function AdminAccounts() {
                 key={account.address}
                 className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/50"
               >
-                <td className="px-4 py-3 font-medium">{account.address}</td>
-                <td className="px-4 py-3 text-zinc-500">
+                <td className="px-4 py-3 font-medium"><Copyable value={account.address}>{account.address}</Copyable></td>
+                <td className="select-text px-4 py-3 text-zinc-500">
                   {account.display_name}
                 </td>
                 <td className="px-4 py-3 text-zinc-500">{account.domain}</td>

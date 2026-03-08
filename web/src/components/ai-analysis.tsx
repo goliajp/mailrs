@@ -1,3 +1,4 @@
+import { Copyable } from '@/components/copy-button'
 import type { ThreadMessage } from '@/lib/types'
 
 type Props = {
@@ -17,14 +18,14 @@ export function AiAnalysisPanel({ message }: Props) {
     <div className="border-b border-zinc-200 bg-zinc-50 px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
       {/* summary */}
       {message.summary && (
-        <p className="text-sm text-zinc-700 dark:text-zinc-300">
+        <p className="select-text text-sm text-zinc-700 dark:text-zinc-300">
           {message.summary}
         </p>
       )}
 
       {/* risk reason */}
       {message.risk_score > 0 && message.risk_reason && (
-        <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+        <p className="mt-1 select-text text-xs text-amber-600 dark:text-amber-400">
           Risk: {message.risk_reason}
         </p>
       )}
@@ -41,13 +42,19 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.people.map((p, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
+                    className="inline-flex select-text items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
                   >
                     {p.name}
                     {p.role && (
                       <span className="text-blue-400 dark:text-blue-500">
                         ({p.role})
                       </span>
+                    )}
+                    {p.email && (
+                      <>
+                        {' '}
+                        <Copyable value={p.email}>{p.email}</Copyable>
+                      </>
                     )}
                   </span>
                 ))}
@@ -65,7 +72,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.dates.map((d, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700 dark:bg-green-950/50 dark:text-green-300"
+                    className="inline-flex select-text items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700 dark:bg-green-950/50 dark:text-green-300"
                     title={d.context}
                   >
                     {d.text}
@@ -88,7 +95,7 @@ export function AiAnalysisPanel({ message }: Props) {
                     className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
                     title={a.context}
                   >
-                    {a.text}
+                    <Copyable value={a.text}>{a.text}</Copyable>
                   </span>
                 ))}
               </div>
@@ -105,7 +112,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.action_items.map((item, i) => (
                   <li
                     key={i}
-                    className="flex items-start gap-1.5 text-xs text-zinc-600 dark:text-zinc-400"
+                    className="flex select-text items-start gap-1.5 text-xs text-zinc-600 dark:text-zinc-400"
                   >
                     <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
                     {item}

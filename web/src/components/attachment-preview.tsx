@@ -1,6 +1,7 @@
 import { File, FileText, X } from 'lucide-react'
 import { useCallback, useState } from 'react'
 
+import { Copyable } from '@/components/copy-button'
 import { formatSize } from '@/lib/format'
 import type { AttachmentInfo } from '@/lib/types'
 import { getToken } from '@/store/auth'
@@ -104,7 +105,7 @@ function ImageThumbnail({ uid, index, att }: { uid: number; index: number; att: 
           />
         </button>
         <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
-          {att.filename}
+          <Copyable value={att.filename}>{att.filename}</Copyable>
           <span className="ml-1 text-zinc-400 dark:text-zinc-500">
             ({formatSize(att.size)})
           </span>
@@ -140,7 +141,7 @@ function FileRow({ uid, index, att }: { uid: number; index: number; att: Attachm
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-zinc-700 dark:text-zinc-300">
-          {att.filename}
+          <Copyable value={att.filename}>{att.filename}</Copyable>
         </p>
         <p className="text-xs text-zinc-400">
           {att.content_type} · {formatSize(att.size)}
@@ -169,7 +170,7 @@ export function AttachmentPreview({
   return (
     <div className="border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+        <span className="select-none text-xs font-medium uppercase tracking-wide text-zinc-400">
           Attachments ({attachments.length})
         </span>
         <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />

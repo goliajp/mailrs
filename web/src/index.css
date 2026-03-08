@@ -160,3 +160,11 @@ body {
   height: auto;
   border-radius: 0.375rem;
 }
+
+/* text selection: UI chrome is non-selectable by default */
+button, [role="button"], [role="tab"], [role="tablist"],
+nav, [role="navigation"], [role="group"],
+label, [role="menuitem"] {
+  user-select: none;
+  -webkit-user-select: none;
+}

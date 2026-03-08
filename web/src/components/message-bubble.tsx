@@ -335,12 +335,12 @@ export function MessageBubble({
   return (
     <div>
       {isHtml ? (
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700">
+        <div className="select-text overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700">
           <HtmlFrame html={parts.body} />
         </div>
       ) : (
         <div
-          className={`rounded-2xl px-4 py-2.5 ${
+          className={`select-text rounded-2xl px-4 py-2.5 ${
             isOwn
               ? 'bg-blue-600 text-white'
               : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'

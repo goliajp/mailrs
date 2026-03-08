@@ -33,7 +33,7 @@ export function AdminSidebar() {
   return (
     <>
       {/* mobile: horizontal tab bar */}
-      <nav className="flex items-center gap-1 overflow-x-auto border-b border-zinc-200 bg-zinc-50 px-2 py-1.5 md:hidden dark:border-zinc-800 dark:bg-zinc-900/50">
+      <nav className="flex select-none items-center gap-1 overflow-x-auto border-b border-zinc-200 bg-zinc-50 px-2 py-1.5 md:hidden dark:border-zinc-800 dark:bg-zinc-900/50">
         <NavLink
           to="/"
           className="shrink-0 rounded-md px-2 py-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
@@ -59,7 +59,7 @@ export function AdminSidebar() {
       </nav>
 
       {/* desktop: vertical sidebar */}
-      <aside className="hidden h-full w-56 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 md:flex dark:border-zinc-800 dark:bg-zinc-900/50">
+      <aside className="hidden h-full w-56 shrink-0 select-none flex-col border-r border-zinc-200 bg-zinc-50 md:flex dark:border-zinc-800 dark:bg-zinc-900/50">
         <div className="p-4">
           <h1 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
             mailrs

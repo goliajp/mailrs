@@ -1,4 +1,5 @@
 import { Building2, Calendar, Car, ExternalLink, Plane, ShoppingBag, UtensilsCrossed } from 'lucide-react'
+import { Copyable } from '@/components/copy-button'
 import type { StructuredData } from '@/lib/types'
 
 export function StructuredDataCard({ data }: { data: StructuredData }) {
@@ -32,18 +33,22 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
                 {r.type} Reservation
               </span>
               {r.reservation_id && (
-                <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[11px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
-                  {r.reservation_id}
-                </span>
+                <Copyable value={r.reservation_id}>
+                  <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[11px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
+                    {r.reservation_id}
+                  </span>
+                </Copyable>
               )}
             </div>
-            <div className="mt-1.5 space-y-0.5 text-xs text-zinc-600 dark:text-zinc-400">
+            <div className="mt-1.5 select-text space-y-0.5 text-xs text-zinc-600 dark:text-zinc-400">
               {r.name && <p>{r.name}</p>}
               {r.provider && <p className="text-zinc-500">{r.provider}</p>}
               {r.departure_airport && r.arrival_airport && (
                 <p className="font-medium">
                   {r.departure_airport} → {r.arrival_airport}
-                  {r.flight_number && ` (${r.flight_number})`}
+                  {r.flight_number && (
+                    <> (<Copyable value={r.flight_number}>{r.flight_number}</Copyable>)</>
+                  )}
                 </p>
               )}
               {r.start_date && (
@@ -68,16 +73,18 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
                 Order
               </span>
               {o.order_number && (
-                <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[11px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
-                  #{o.order_number}
-                </span>
+                <Copyable value={o.order_number}>
+                  <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[11px] font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
+                    #{o.order_number}
+                  </span>
+                </Copyable>
               )}
               {o.merchant && (
                 <span className="text-xs text-zinc-500">{o.merchant}</span>
               )}
             </div>
             {o.items.length > 0 && (
-              <ul className="mt-1.5 space-y-0.5 text-xs text-zinc-600 dark:text-zinc-400">
+              <ul className="mt-1.5 select-text space-y-0.5 text-xs text-zinc-600 dark:text-zinc-400">
                 {o.items.map((item, j) => (
                   <li key={j} className="flex items-center gap-2">
                     <span>{item.name}</span>
@@ -92,7 +99,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
               </ul>
             )}
             {o.total && (
-              <p className="mt-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+              <p className="mt-1.5 select-text text-xs font-medium text-zinc-700 dark:text-zinc-300">
                 Total: {o.currency && `${o.currency} `}{o.total}
               </p>
             )}
@@ -106,11 +113,11 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
           >
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-blue-500" />
-              <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+              <span className="select-text text-xs font-medium text-zinc-700 dark:text-zinc-300">
                 {e.name}
               </span>
             </div>
-            <div className="mt-1 space-y-0.5 text-xs text-zinc-600 dark:text-zinc-400">
+            <div className="mt-1 select-text space-y-0.5 text-xs text-zinc-600 dark:text-zinc-400">
               {e.start_date && (
                 <p>
                   {formatSchemaDate(e.start_date)}
