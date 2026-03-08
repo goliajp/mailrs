@@ -1,3 +1,31 @@
+// decode RFC 2047 encoded-words in email headers (e.g. =?UTF-8?B?...?= or =?UTF-8?Q?...?=)
+export function decodeMimeHeader(value: string): string {
+  if (!value.includes('=?')) return value
+  return value.replace(
+    /=\?([^?]+)\?(B|Q)\?([^?]*)\?=/gi,
+    (_match, charset: string, encoding: string, encoded: string) => {
+      try {
+        if (encoding.toUpperCase() === 'B') {
+          // base64
+          const binary = atob(encoded)
+          const bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+          return new TextDecoder(charset).decode(bytes)
+        }
+        // quoted-printable
+        const decoded = encoded
+          .replace(/_/g, ' ')
+          .replace(/=([0-9A-Fa-f]{2})/g, (_m, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+        const bytes = new Uint8Array(decoded.length)
+        for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i)
+        return new TextDecoder(charset).decode(bytes)
+      } catch {
+        return encoded
+      }
+    },
+  ).replace(/\s+/g, ' ').trim()
+}
+
 // generate a consistent color from an email address
 const colors = [
   'bg-red-500',
@@ -27,16 +55,15 @@ export function avatarColor(email: string): string {
 }
 
 export function avatarInitial(sender: string): string {
-  // extract name or first char of email
-  const match = sender.match(/^"?([^"<]+)"?\s*</)
-  if (match) return match[1].trim()[0].toUpperCase()
-  return (sender[0] ?? '?').toUpperCase()
+  const name = extractName(sender)
+  return (name[0] ?? '?').toUpperCase()
 }
 
 export function extractEmail(sender: string): string {
-  const match = sender.match(/<([^>]+)>/)
+  const decoded = decodeMimeHeader(sender)
+  const match = decoded.match(/<([^>]+)>/)
   if (match) return match[1]
-  return sender
+  return decoded
 }
 
 // check if the local part of an email looks like a machine-generated hash
@@ -50,14 +77,16 @@ function isMachineLocal(local: string): boolean {
 
 // extract a human-readable display name from a "Name <email>" or raw email string
 export function extractName(sender: string): string {
-  const nameMatch = sender.match(/^"?([^"<]+)"?\s*</)
+  // decode MIME encoded-words first
+  const decoded = decodeMimeHeader(sender)
+  const nameMatch = decoded.match(/^"?([^"<]+)"?\s*</)
   if (nameMatch) {
     const name = nameMatch[1].trim()
     // if the "name" part is actually a machine address, fall through to domain
     if (!name.includes('@') && !isMachineLocal(name)) return name
   }
   // fallback: use local part, or domain for machine-generated addresses
-  const email = extractEmail(sender)
+  const email = extractEmail(decoded)
   const [local, domain] = email.split('@')
   if (local && domain && isMachineLocal(local)) {
     // derive a readable label from the domain (e.g. "atlassian-bounces.atlassian.net" → "Atlassian")
