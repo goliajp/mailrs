@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
-# usage: ./scripts/release.sh [patch|minor|major|<version>]
+# usage: ./scripts/release.sh [--web-only] [patch|minor|major|<version>]
+# --web-only: skip Rust tests and cross-compilation, only deploy web assets
 # runs tests, bumps version, commits, and deploys
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# parse version bump type (default: patch)
-BUMP="${1:-patch}"
+# parse flags
+WEB_ONLY=false
+BUMP="patch"
+for arg in "$@"; do
+  case "$arg" in
+    --web-only) WEB_ONLY=true ;;
+    *) BUMP="$arg" ;;
+  esac
+done
 
 # read current version from root Cargo.toml
 CURRENT=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
@@ -25,10 +33,12 @@ echo "==> current version: $CURRENT"
 echo "==> target  version: $VERSION"
 echo ""
 
-# 1. rust tests
-echo "==> running cargo test"
-cargo test --workspace
-echo ""
+# 1. rust tests (skip in web-only mode)
+if [ "$WEB_ONLY" = false ]; then
+  echo "==> running cargo test"
+  cargo test --workspace
+  echo ""
+fi
 
 # 2. web tests
 echo "==> running web tests"
@@ -61,7 +71,11 @@ git push && git push --tags
 
 # 8. deploy
 echo "==> deploying"
-"$ROOT/scripts/deploy.sh"
+if [ "$WEB_ONLY" = true ]; then
+  "$ROOT/scripts/deploy.sh" --web-only
+else
+  "$ROOT/scripts/deploy.sh"
+fi
 
 echo ""
 echo "==> released v$VERSION"
