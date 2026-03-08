@@ -48,7 +48,7 @@ describe('avatarInitial edge cases', () => {
   })
 
   it('handles only angle brackets', () => {
-    expect(avatarInitial('<a@example.com>')).toBe('<')
+    expect(avatarInitial('<a@example.com>')).toBe('A')
   })
 })
 

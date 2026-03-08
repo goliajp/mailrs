@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { avatarColor, avatarInitial, extractEmail, extractName } from '../avatar'
+import { avatarColor, avatarInitial, decodeMimeHeader, extractEmail, extractName } from '../avatar'
 
 // valid Tailwind color classes used in avatar.ts
 const VALID_COLORS = [
@@ -155,5 +155,32 @@ describe('extractName', () => {
 
   it('keeps short normal local parts as-is', () => {
     expect(extractName('noreply@github.com')).toBe('noreply')
+  })
+
+  it('decodes MIME base64 encoded display name', () => {
+    expect(extractName('=?UTF-8?B?6aKG6Iux?= <notifications-noreply@linkedin.com>')).toBe('领英')
+  })
+
+  it('decodes MIME quoted-printable display name', () => {
+    expect(extractName('=?UTF-8?Q?Caf=C3=A9?= <cafe@example.com>')).toBe('Café')
+  })
+})
+
+describe('decodeMimeHeader', () => {
+  it('passes through plain ASCII', () => {
+    expect(decodeMimeHeader('Hello World')).toBe('Hello World')
+  })
+
+  it('decodes UTF-8 base64', () => {
+    expect(decodeMimeHeader('=?UTF-8?B?5pel5pys6Kqe?=')).toBe('日本語')
+  })
+
+  it('decodes UTF-8 quoted-printable', () => {
+    expect(decodeMimeHeader('=?UTF-8?Q?Caf=C3=A9?=')).toBe('Café')
+  })
+
+  it('handles multiple encoded-words', () => {
+    const result = decodeMimeHeader('=?UTF-8?B?5pel5pys?= =?UTF-8?B?6Kqe?=')
+    expect(result).toBe('日本 語')
   })
 })
