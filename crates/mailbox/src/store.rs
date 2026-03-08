@@ -613,6 +613,7 @@ impl MailboxStore {
         category: Option<&str>,
         domains: Option<&[String]>,
         archived: bool,
+        folder: Option<&str>,
     ) -> Result<Vec<ConversationSummary>, sqlx::Error> {
         let count_expr = "COUNT(DISTINCT CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END)";
         let unread_expr = "COUNT(DISTINCT CASE WHEN (m.flags & 1) = 0 THEN CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END END)";
@@ -646,6 +647,12 @@ impl MailboxStore {
         conditions.push(format!(
             "NOT EXISTS (SELECT 1 FROM snoozed_conversations sc WHERE sc.thread_id = m.thread_id AND sc.account_address = mb.user_address AND sc.snoozed_until > NOW())"
         ));
+
+        // folder filter (e.g. "Sent", "Drafts")
+        if folder.is_some() {
+            conditions.push(format!("mb.name = ${param_idx}"));
+            param_idx += 1;
+        }
 
         let limit_idx = param_idx;
         param_idx += 1;
@@ -695,6 +702,10 @@ impl MailboxStore {
             }
         } else {
             query = query.bind(user);
+        }
+
+        if let Some(f) = folder {
+            query = query.bind(f);
         }
 
         query = query.bind(limit as i64);

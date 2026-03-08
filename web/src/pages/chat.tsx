@@ -12,6 +12,7 @@ import {
   categoryFilterAtom,
   composingNewAtom,
   conversationsAtom,
+  folderAtom,
   hasMoreAtom,
   initialLoadingAtom,
   loadingMoreAtom,
@@ -33,6 +34,7 @@ export function Chat() {
   const searchQuery = useAtomValue(searchQueryAtom)
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedDomains = useAtomValue(selectedDomainsAtom)
+  const folder = useAtomValue(folderAtom)
   const setHasMore = useSetAtom(hasMoreAtom)
   const setLoadingMore = useSetAtom(loadingMoreAtom)
   const setInitialLoading = useSetAtom(initialLoadingAtom)
@@ -53,6 +55,8 @@ export function Chat() {
   domainsRef.current = selectedDomains
   const archivedRef = useRef(showArchived)
   archivedRef.current = showArchived
+  const folderRef = useRef(folder)
+  folderRef.current = folder
 
   // request notification permission
   useEffect(() => {
@@ -69,8 +73,8 @@ export function Chat() {
 
   // build API path helper
   const buildPath = useCallback(
-    (opts?: { query?: string; before?: number; category?: string | null; domains?: string[]; archived?: boolean }) => {
-      const { query, before, category, domains, archived } = opts ?? {}
+    (opts?: { query?: string; before?: number; category?: string | null; domains?: string[]; archived?: boolean; folder?: string | null }) => {
+      const { query, before, category, domains, archived, folder: f } = opts ?? {}
       if (query) {
         let path = `/conversations/search?q=${encodeURIComponent(query)}&limit=${PAGE_SIZE}`
         if (category) path += `&category=${encodeURIComponent(category)}`
@@ -82,6 +86,7 @@ export function Chat() {
       if (category) path += `&category=${encodeURIComponent(category)}`
       if (domains && domains.length > 0) path += `&domains=${encodeURIComponent(domains.join(','))}`
       if (archived) path += '&archived=true'
+      if (f) path += `&folder=${encodeURIComponent(f)}`
       return path
     },
     []
@@ -89,7 +94,7 @@ export function Chat() {
 
   // load conversations with optional append mode
   const loadConversations = useCallback(
-    async (opts?: { query?: string; before?: number; category?: string | null; domains?: string[]; archived?: boolean; append?: boolean }) => {
+    async (opts?: { query?: string; before?: number; category?: string | null; domains?: string[]; archived?: boolean; folder?: string | null; append?: boolean }) => {
       const { append } = opts ?? {}
       try {
         const path = buildPath(opts)
@@ -131,6 +136,7 @@ export function Chat() {
         category: categoryRef.current,
         domains: domainsRef.current.length > 0 ? domainsRef.current : undefined,
         archived: archivedRef.current || undefined,
+        folder: folderRef.current,
         append: true,
       })
     } finally {
@@ -139,7 +145,7 @@ export function Chat() {
     }
   }, [setLoadingMore, loadConversations])
 
-  // initial load + react to filter/search/domain/archived changes
+  // initial load + react to filter/search/domain/archived/folder changes
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
@@ -149,12 +155,13 @@ export function Chat() {
         category: categoryFilter,
         domains: selectedDomains.length > 0 ? selectedDomains : undefined,
         archived: showArchived || undefined,
+        folder,
       })
     }, 300)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [searchQuery, categoryFilter, selectedDomains, showArchived, loadConversations, setHasMore])
+  }, [searchQuery, categoryFilter, selectedDomains, showArchived, folder, loadConversations, setHasMore])
 
   const showList = mobileView === 'list'
   const showThread = mobileView === 'thread'

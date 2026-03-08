@@ -25,6 +25,10 @@ export const sortOrderAtom = atom<SortOrder>('newest')
 export const batchModeAtom = atom(false)
 export const selectedThreadIdsAtom = atom<Set<string>>(new Set<string>())
 
+// mailbox folder filter (null = INBOX default, 'Sent' = sent folder)
+export type MailFolder = 'Sent' | 'Drafts' | 'Trash' | null
+export const folderAtom = atom<MailFolder>(null)
+
 // archived view toggle
 export const showArchivedAtom = atom(false)
 

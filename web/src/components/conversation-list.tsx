@@ -26,6 +26,7 @@ import {
   selectedDomainsAtom,
   selectedThreadIdAtom,
   selectedThreadIdsAtom,
+  folderAtom,
   showArchivedAtom,
   sortOrderAtom,
   visibleConversationIdsAtom,
@@ -249,16 +250,18 @@ const ConversationItem = memo(function ConversationItem({
   )
 })
 
-// unified tab bar: replaces 5 separate filter rows with one compact line
+// unified tab bar
 const VIEW_TABS: { value: string; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'unread', label: 'Unread' },
   { value: 'starred', label: 'Starred' },
+  { value: 'sent', label: 'Sent' },
   { value: 'action', label: 'Action' },
 ]
 
 function FilterBar() {
   const [quickFilter, setQuickFilter] = useAtom(quickFilterAtom)
+  const [folder, setFolder] = useAtom(folderAtom)
   const [section, setSection] = useAtom(importanceSectionAtom)
   const [sortOrder, setSortOrder] = useAtom(sortOrderAtom)
   const [showArchived, setShowArchived] = useAtom(showArchivedAtom)
@@ -295,20 +298,28 @@ function FilterBar() {
     return () => document.removeEventListener('mousedown', handler)
   }, [filtersOpen])
 
-  // compute active tab from quickFilter + importanceSection
-  const activeTab = section === 'action' ? 'action' : quickFilter !== 'all' ? quickFilter : 'all'
+  // compute active tab from folder + quickFilter + importanceSection
+  const activeTab = folder === 'Sent' ? 'sent' : section === 'action' ? 'action' : quickFilter !== 'all' ? quickFilter : 'all'
 
   const handleTab = (tab: string) => {
-    if (tab === 'action') {
+    if (tab === 'sent') {
+      setQuickFilter('all')
+      setSection(null)
+      setFolder(folder === 'Sent' ? null : 'Sent')
+    } else if (tab === 'action') {
+      setFolder(null)
       setQuickFilter('all')
       setSection(section === 'action' ? null : 'action')
     } else if (tab === 'unread') {
+      setFolder(null)
       setSection(null)
       setQuickFilter(quickFilter === 'unread' ? 'all' : 'unread')
     } else if (tab === 'starred') {
+      setFolder(null)
       setSection(null)
       setQuickFilter(quickFilter === 'starred' ? 'all' : 'starred')
     } else {
+      setFolder(null)
       setQuickFilter('all')
       setSection(null)
     }
