@@ -207,7 +207,7 @@ const ConversationItem = memo(function ConversationItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span
-            className={`select-text truncate text-sm ${hasUnread ? 'font-semibold text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'}`}
+            className={`truncate text-sm ${hasUnread ? 'font-semibold text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'}`}
           >
             {name}
             {convo.participants.length > 1 && (
@@ -228,7 +228,7 @@ const ConversationItem = memo(function ConversationItem({
         </div>
         <div className="flex items-center gap-1.5">
           <p
-            className={`min-w-0 flex-1 select-text truncate text-sm ${hasUnread ? 'font-medium text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'}`}
+            className={`min-w-0 flex-1 truncate text-sm ${hasUnread ? 'font-medium text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'}`}
           >
             {convo.subject || '(no subject)'}
           </p>
@@ -246,14 +246,14 @@ const ConversationItem = memo(function ConversationItem({
           )}
         </div>
         {convo.snippet && (
-          <p className="select-text truncate text-xs text-[var(--color-text-tertiary)]">
+          <p className="truncate text-xs text-[var(--color-text-tertiary)]">
             {convo.snippet}
           </p>
         )}
       </div>
       {/* hover quick actions — only 2 most-used; rest in right-click menu */}
       {!batchMode && (
-        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1 py-0.5 opacity-0 transition-opacity group-hover/item:opacity-100" style={{ boxShadow: 'var(--shadow-sm)' }}>
+        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-1 opacity-0 transition-opacity group-hover/item:opacity-100" style={{ boxShadow: 'var(--shadow-sm)' }}>
           <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread') }} title={hasUnread ? 'Mark read' : 'Mark unread'}>
             {hasUnread ? <MailOpen className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
           </QuickBtn>
