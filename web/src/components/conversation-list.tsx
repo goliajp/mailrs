@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Archive, Check, CheckCircle, Clock, Mail, MailOpen, Pin, Search, SlidersHorizontal, SquarePen, Star } from 'lucide-react'
+import { Archive, Check, CheckCircle, Mail, MailOpen, Pin, Search, SlidersHorizontal, SquarePen, Star } from 'lucide-react'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
@@ -54,7 +54,7 @@ function QuickBtn({ onClick, title, children }: { onClick: (e: React.MouseEvent)
     <button
       onClick={onClick}
       title={title}
-      className="rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
+      className="rounded-md p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
     >
       {children}
     </button>
@@ -251,20 +251,14 @@ const ConversationItem = memo(function ConversationItem({
           </p>
         )}
       </div>
-      {/* hover quick actions */}
+      {/* hover quick actions — only 2 most-used; rest in right-click menu */}
       {!batchMode && (
-        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md bg-[var(--color-bg-overlay)] px-1 py-0.5 opacity-0 backdrop-blur-sm transition-opacity group-hover/item:opacity-100">
+        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1 py-0.5 opacity-0 transition-opacity group-hover/item:opacity-100" style={{ boxShadow: 'var(--shadow-sm)' }}>
           <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread') }} title={hasUnread ? 'Mark read' : 'Mark unread'}>
-            {hasUnread ? <MailOpen className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+            {hasUnread ? <MailOpen className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
           </QuickBtn>
           <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive') }} title={isArchived ? 'Unarchive' : 'Archive'}>
-            <Archive className="h-3.5 w-3.5" />
-          </QuickBtn>
-          <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star') }} title={isFlagged ? 'Unstar' : 'Star'}>
-            <Star className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
-          </QuickBtn>
-          <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, 'snooze') }} title="Snooze until tomorrow">
-            <Clock className="h-3.5 w-3.5" />
+            <Archive className="h-4 w-4" />
           </QuickBtn>
         </div>
       )}
