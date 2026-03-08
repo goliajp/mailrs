@@ -66,13 +66,30 @@ export function extractEmail(sender: string): string {
   return decoded
 }
 
-// check if the local part of an email looks like a machine-generated hash
-function isMachineLocal(local: string): boolean {
-  // long hex/uuid-like strings with dashes that mix digits and letters
-  if (local.length <= 20) return false
-  if (!/^[0-9a-f-]+$/i.test(local)) return false
-  // must contain both digits and letters to look like a hash (not just repeated chars)
-  return /[0-9]/.test(local) && /[a-f]/i.test(local)
+// check if a string looks machine-generated (tracking IDs, bounce addresses, hashes)
+export function isMachineGenerated(s: string): boolean {
+  // short strings are likely human
+  if (s.length <= 10) return false
+  // known machine prefixes (VERP bounce, prvs anti-spam)
+  if (/^(bounce|msprvs|prvs)\b/i.test(s)) return true
+  const digits = s.replace(/[^0-9]/g, '').length
+  const letters = s.replace(/[^a-z]/gi, '').length
+  // high digit ratio in a reasonably long string → machine
+  if (s.length > 12 && digits / s.length > 0.3) return true
+  // low letter ratio in a long string → machine (tracking IDs with dots/dashes/equals)
+  if (s.length > 15 && letters / s.length < 0.5) return true
+  return false
+}
+
+// extract the registrable domain label (e.g. "notify.cloudflare.com" → "cloudflare")
+const TLDS = new Set(['com', 'net', 'org', 'io', 'co', 'jp', 'ai', 'uk', 'au', 'de', 'fr', 'cn', 'kr', 'in', 'br', 'ru', 'es', 'it', 'nl', 'se', 'no', 'fi', 'dk', 'pt', 'pl', 'cz', 'at', 'ch', 'be', 'ie', 'nz', 'sg', 'hk', 'tw', 'th', 'my', 'ph', 'id', 'vn'])
+
+function domainLabel(domain: string): string {
+  const parts = domain.split('.')
+  // walk from the end to skip TLD parts, then return the first meaningful part
+  let i = parts.length - 1
+  while (i > 0 && TLDS.has(parts[i])) i--
+  return parts[i] || domain
 }
 
 // extract a human-readable display name from a "Name <email>" or raw email string
@@ -83,16 +100,15 @@ export function extractName(sender: string): string {
   if (nameMatch) {
     const name = nameMatch[1].trim()
     // if the "name" part is actually a machine address, fall through to domain
-    if (!name.includes('@') && !isMachineLocal(name)) return name
+    if (!name.includes('@') && !isMachineGenerated(name)) return name
   }
   // fallback: use local part, or domain for machine-generated addresses
   const email = extractEmail(decoded)
   const [local, domain] = email.split('@')
-  if (local && domain && isMachineLocal(local)) {
-    // derive a readable label from the domain (e.g. "atlassian-bounces.atlassian.net" → "Atlassian")
-    const parts = domain.split('.')
-    const meaningful = parts.find((p) => !['com', 'net', 'org', 'io', 'co', 'jp', 'ai', 'mail', 'bounces', 'email', 'smtp', 'noreply', 'notifications'].includes(p) && !p.includes('bounce'))
-    return meaningful ? meaningful.charAt(0).toUpperCase() + meaningful.slice(1) : domain
+  if (local && domain && isMachineGenerated(local)) {
+    // derive a readable label from the registrable domain name
+    const label = domainLabel(domain)
+    return label.charAt(0).toUpperCase() + label.slice(1)
   }
   return local ?? sender
 }
