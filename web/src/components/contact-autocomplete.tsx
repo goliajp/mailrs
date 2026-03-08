@@ -94,21 +94,21 @@ export function ContactAutocomplete({
         onKeyDown={handleKeyDown}
         className={
           className ||
-          'w-full bg-transparent py-2 text-sm text-zinc-900 outline-none dark:text-zinc-100'
+          'w-full bg-transparent py-2 text-sm text-[var(--color-text-primary)] outline-none'
         }
         placeholder={placeholder}
         autoFocus={autoFocus}
       />
       {showSuggestions && (
-        <div className="absolute left-0 top-full z-10 mt-1 w-72 rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="absolute left-0 top-full z-10 mt-1 w-72 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] shadow-lg">
           {suggestions.map((s, i) => (
             <button
               key={s}
               onMouseDown={() => selectSuggestion(s)}
               className={`w-full px-3 py-2 text-left text-sm transition-colors ${
                 i === activeIndex
-                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-                  : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                  ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
               }`}
             >
               {s}

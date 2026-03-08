@@ -200,7 +200,7 @@ function AttachmentItem({
   }, [uid, index, extractedText])
 
   return (
-    <div className="border border-zinc-200 dark:border-zinc-700">
+    <div className="border border-[var(--color-border-default)]">
       <div className="flex items-center gap-2 px-3 py-2 text-sm">
         {isImage ? (
           <img
@@ -220,7 +220,7 @@ function AttachmentItem({
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block truncate text-zinc-700 hover:underline dark:text-zinc-300"
+            className="block truncate text-[var(--color-text-secondary)] hover:underline"
           >
             {att.filename}
           </a>
@@ -231,7 +231,7 @@ function AttachmentItem({
             type="button"
             onClick={fetchContent}
             disabled={loading}
-            className="shrink-0 rounded px-2 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2 py-0.5 text-xs text-zinc-500 hover:bg-[var(--color-hover)]"
             title="Show extracted text"
           >
             {loading ? '...' : showContent ? 'Hide text' : 'OCR'}
@@ -241,8 +241,8 @@ function AttachmentItem({
 
       {/* extracted text panel */}
       {showContent && extractedText && (
-        <div className="border-t border-zinc-200 px-3 py-2 dark:border-zinc-700">
-          <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-xs text-zinc-600 dark:text-zinc-400">
+        <div className="border-t border-[var(--color-border-default)] px-3 py-2">
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-xs text-[var(--color-text-secondary)]">
             {extractedText}
           </pre>
         </div>
@@ -272,7 +272,7 @@ function AttachmentItem({
 
       {/* PDF inline preview — sandbox restricts script execution in PDF viewers */}
       {isPdf && showContent && (
-        <div className="border-t border-zinc-200 dark:border-zinc-700">
+        <div className="border-t border-[var(--color-border-default)]">
           <iframe
             src={url}
             className="h-96 w-full"
@@ -292,7 +292,7 @@ function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
         className={`prose prose-sm max-w-none ${
           isOwn
             ? '[&_*]:text-white [&_a]:text-blue-200 [&_code]:bg-blue-700'
-            : 'dark:prose-invert'
+            : 'prose-[var(--color-text-primary)] dark:prose-invert'
         }`}
       >
         <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
@@ -305,7 +305,7 @@ function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
   return (
     <pre
       className={`whitespace-pre-wrap break-words font-sans text-sm leading-relaxed ${
-        isOwn ? 'text-white' : 'text-zinc-800 dark:text-zinc-200'
+        isOwn ? 'text-white' : 'text-[var(--color-text-primary)]'
       }`}
     >
       {body}
@@ -335,7 +335,7 @@ export function MessageBubble({
   return (
     <div>
       {isHtml ? (
-        <div className="select-text overflow-hidden border border-zinc-200 bg-white dark:border-zinc-700">
+        <div className="select-text overflow-hidden border border-[var(--color-border-default)] bg-[var(--color-bg-base)]">
           <HtmlFrame html={parts.body} />
         </div>
       ) : (
@@ -343,7 +343,7 @@ export function MessageBubble({
           className={`select-text px-4 py-2.5 ${
             isOwn
               ? 'bg-blue-600 text-white'
-              : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
+              : 'bg-[var(--color-bg-raised)] text-[var(--color-text-primary)]'
           }`}
         >
           <TextContent body={parts.body} isOwn={isOwn} />

@@ -14,8 +14,8 @@ function StatusCard({
   color: string
 }) {
   return (
-    <div className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="text-xs text-zinc-500 dark:text-zinc-400">{label}</div>
+    <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3">
+      <div className="text-xs text-[var(--color-text-tertiary)]">{label}</div>
       <div className={`mt-1 text-2xl font-bold tabular-nums ${color}`}>
         {value}
       </div>
@@ -37,26 +37,26 @@ function ConnectionRow({
       onClick={onClick}
       className={`flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm transition-colors ${
         selected
-          ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
-          : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50'
+          ? 'bg-[var(--color-bg-raised)] text-[var(--color-text-primary)]'
+          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
       }`}
     >
-      <span className="font-mono text-xs text-zinc-400 dark:text-zinc-600">
+      <span className="font-mono text-xs text-[var(--color-text-tertiary)]">
         #{conn.id}
       </span>
       <span className="truncate">{conn.addr}</span>
       <div className="ml-auto flex items-center gap-1.5">
         {conn.tls && (
-          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">
+          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
             TLS
           </span>
         )}
         {conn.authenticated && (
-          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/50 dark:text-blue-400">
+          <span className="rounded bg-[var(--color-brand-subtle)] px-1.5 py-0.5 text-xs text-[var(--color-brand-primary)]">
             {conn.authenticated}
           </span>
         )}
-        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+        <span className="rounded bg-[var(--color-bg-raised)] px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)]">
           {conn.state}
         </span>
       </div>
@@ -76,7 +76,7 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
 
   if (!conn) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-zinc-400 dark:text-zinc-600">
+      <div className="flex h-full items-center justify-center text-sm text-[var(--color-text-tertiary)]">
         select a connection to view its SMTP conversation
       </div>
     )
@@ -94,8 +94,8 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
             <div
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                 isServer
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'
-                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                  : 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
               }`}
             >
               {isServer ? 'S' : 'C'}
@@ -103,8 +103,8 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
             <div
               className={`max-w-[80%] rounded px-3 py-1.5 font-mono text-xs leading-relaxed ${
                 isServer
-                  ? 'bg-zinc-100 text-emerald-700 dark:bg-zinc-800 dark:text-emerald-300'
-                  : 'bg-zinc-100 text-blue-700 dark:bg-zinc-800 dark:text-blue-300'
+                  ? 'bg-[var(--color-bg-raised)] text-emerald-700 dark:text-emerald-300'
+                  : 'bg-[var(--color-bg-raised)] text-[var(--color-brand-primary)]'
               }`}
             >
               {line.text.split('\r\n').map((l, j) => (
@@ -115,7 +115,7 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
         )
       })}
       {conn.lines.length === 0 && (
-        <div className="text-sm text-zinc-400 dark:text-zinc-600">
+        <div className="text-sm text-[var(--color-text-tertiary)]">
           waiting for commands...
         </div>
       )}
@@ -144,17 +144,17 @@ function EventLog({ events }: { events: SmtpEvent[] }) {
             key={i}
             className="flex items-center gap-2 rounded px-2 py-1 font-mono text-xs"
           >
-            <span className="text-zinc-400 dark:text-zinc-600">
+            <span className="text-[var(--color-text-tertiary)]">
               #{event.id}
             </span>
             <EventBadge type={event.type} />
-            <span className="truncate text-zinc-500 dark:text-zinc-400">
+            <span className="truncate text-[var(--color-text-tertiary)]">
               {formatEvent(event)}
             </span>
           </div>
         ))}
       {events.length === 0 && (
-        <div className="text-xs text-zinc-400 dark:text-zinc-600">
+        <div className="text-xs text-[var(--color-text-tertiary)]">
           no events yet — connect to the SMTP server to see real-time activity
         </div>
       )}
@@ -164,13 +164,13 @@ function EventLog({ events }: { events: SmtpEvent[] }) {
 
 function EventBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
-    ConnectionOpened: 'text-emerald-600 dark:text-emerald-400',
-    ConnectionClosed: 'text-red-600 dark:text-red-400',
-    CommandReceived: 'text-blue-600 dark:text-blue-400',
+    ConnectionOpened: 'text-[var(--color-status-success)]',
+    ConnectionClosed: 'text-[var(--color-status-danger)]',
+    CommandReceived: 'text-[var(--color-brand-primary)]',
     ResponseSent: 'text-amber-600 dark:text-amber-400',
     TlsUpgraded: 'text-purple-600 dark:text-purple-400',
     Authenticated: 'text-cyan-600 dark:text-cyan-400',
-    MessageDelivered: 'text-green-600 dark:text-green-400',
+    MessageDelivered: 'text-[var(--color-status-success)]',
   }
 
   return (
@@ -214,12 +214,12 @@ export function Protocol() {
     selectedId !== null ? (connections.get(selectedId) ?? null) : null
 
   return (
-    <div className="flex h-screen flex-col bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <div className="flex h-screen flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
       {/* header */}
-      <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+      <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-6 py-4">
         <div>
           <h1 className="text-lg font-semibold">SMTP Live Monitor</h1>
-          <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="mt-0.5 text-sm text-[var(--color-text-tertiary)]">
             real-time SMTP session status and event stream
           </p>
         </div>
@@ -227,23 +227,23 @@ export function Protocol() {
           <div
             className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`}
           />
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          <span className="text-xs text-[var(--color-text-tertiary)]">
             {connected ? 'connected' : 'disconnected'}
           </span>
         </div>
       </div>
 
       {/* status cards */}
-      <div className="grid grid-cols-4 gap-3 border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
+      <div className="grid grid-cols-4 gap-3 border-b border-[var(--color-border-default)] px-6 py-3">
         <StatusCard
           label="Active Connections"
           value={status?.active_connections ?? 0}
-          color="text-emerald-600 dark:text-emerald-400"
+          color="text-[var(--color-status-success)]"
         />
         <StatusCard
           label="Total Connections"
           value={status?.total_connections ?? 0}
-          color="text-blue-600 dark:text-blue-400"
+          color="text-[var(--color-brand-primary)]"
         />
         <StatusCard
           label="Messages Delivered"
@@ -253,14 +253,14 @@ export function Protocol() {
         <StatusCard
           label="Uptime"
           value={status ? formatUptime(status.uptime_secs) : '-'}
-          color="text-zinc-700 dark:text-zinc-300"
+          color="text-[var(--color-text-secondary)]"
         />
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* left: connection list */}
-        <div className="flex w-72 shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
-          <div className="border-b border-zinc-200 px-4 py-2 text-xs font-medium tracking-wider text-zinc-500 uppercase dark:border-zinc-800 dark:text-zinc-400">
+        <div className="flex w-72 shrink-0 flex-col border-r border-[var(--color-border-default)]">
+          <div className="border-b border-[var(--color-border-default)] px-4 py-2 text-xs font-medium tracking-wider text-[var(--color-text-tertiary)] uppercase">
             Active Sessions ({connList.length})
           </div>
           <div className="flex-1 space-y-1 overflow-y-auto p-2">
@@ -273,7 +273,7 @@ export function Protocol() {
               />
             ))}
             {connList.length === 0 && (
-              <div className="p-4 text-center text-xs text-zinc-400 dark:text-zinc-600">
+              <div className="p-4 text-center text-xs text-[var(--color-text-tertiary)]">
                 no active connections
               </div>
             )}
@@ -282,7 +282,7 @@ export function Protocol() {
 
         {/* center: conversation */}
         <div className="flex flex-1 flex-col">
-          <div className="border-b border-zinc-200 px-4 py-2 text-xs font-medium tracking-wider text-zinc-500 uppercase dark:border-zinc-800 dark:text-zinc-400">
+          <div className="border-b border-[var(--color-border-default)] px-4 py-2 text-xs font-medium tracking-wider text-[var(--color-text-tertiary)] uppercase">
             {selectedConn
               ? `Session #${selectedConn.id} — ${selectedConn.addr}`
               : 'Conversation'}
@@ -293,8 +293,8 @@ export function Protocol() {
         </div>
 
         {/* right: event log */}
-        <div className="flex w-96 shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-800">
-          <div className="border-b border-zinc-200 px-4 py-2 text-xs font-medium tracking-wider text-zinc-500 uppercase dark:border-zinc-800 dark:text-zinc-400">
+        <div className="flex w-96 shrink-0 flex-col border-l border-[var(--color-border-default)]">
+          <div className="border-b border-[var(--color-border-default)] px-4 py-2 text-xs font-medium tracking-wider text-[var(--color-text-tertiary)] uppercase">
             Event Stream ({events.length})
           </div>
           <div className="flex-1 overflow-hidden">

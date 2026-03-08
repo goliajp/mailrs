@@ -22,7 +22,7 @@ describe('CategoryBadge', () => {
     const { container } = render(<CategoryBadge category="scam" />)
     expect(screen.getByText('Scam')).toBeDefined()
     const span = container.querySelector('span')
-    expect(span?.className).toContain('text-red-700')
+    expect(span?.className).toContain('text-[var(--color-status-danger)]')
   })
 
   it('renders unknown category as-is', () => {
@@ -33,8 +33,8 @@ describe('CategoryBadge', () => {
   it('uses fallback styles for unknown category', () => {
     const { container } = render(<CategoryBadge category="unknown" />)
     const span = container.querySelector('span')
-    expect(span?.className).toContain('bg-zinc-100')
-    expect(span?.className).toContain('text-zinc-500')
+    expect(span?.className).toContain('bg-[var(--color-bg-raised)]')
+    expect(span?.className).toContain('text-[var(--color-text-tertiary)]')
   })
 
   it('renders all known categories without error', () => {

@@ -74,33 +74,33 @@ export function AdminAliases() {
         <h2 className="text-lg font-semibold">Aliases</h2>
         <button
           onClick={() => setAdding(true)}
-          className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
         >
           Add Alias
         </button>
       </div>
 
       {adding && (
-        <div className="mb-4 space-y-2 rounded border border-zinc-200 p-4 dark:border-zinc-800">
+        <div className="mb-4 space-y-2 rounded border border-[var(--color-border-default)] p-4">
           <div className="flex gap-2">
             <input
               value={form.source_address}
               onChange={(e) => setForm({ ...form, source_address: e.target.value })}
               placeholder="admin@example.com"
-              className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
             />
             <input
               value={form.target_address}
               onChange={(e) => setForm({ ...form, target_address: e.target.value })}
               placeholder="user@example.com"
-              className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
             />
           </div>
           <div className="flex gap-2">
             <select
               value={form.domain}
               onChange={(e) => setForm({ ...form, domain: e.target.value })}
-              className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
             >
               <option value="">Select domain...</option>
               {domains.map((d) => (
@@ -112,7 +112,7 @@ export function AdminAliases() {
             <select
               value={form.alias_type}
               onChange={(e) => setForm({ ...form, alias_type: e.target.value })}
-              className="w-36 rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              className="w-36 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
             >
               <option value="alias">Alias</option>
               <option value="forward">Forward</option>
@@ -121,7 +121,7 @@ export function AdminAliases() {
           <div className="flex gap-2">
             <button
               onClick={handleAdd}
-              className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
+              className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)]"
             >
               Save
             </button>
@@ -135,9 +135,9 @@ export function AdminAliases() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded border border-zinc-200 dark:border-zinc-800">
+      <div className="overflow-hidden rounded border border-[var(--color-border-default)]">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+          <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
             <tr>
               <th className="px-4 py-2.5 font-medium">Source</th>
               <th className="px-4 py-2.5 font-medium">Target</th>
@@ -150,7 +150,7 @@ export function AdminAliases() {
             {aliases.map((alias) => (
               <tr
                 key={alias.id}
-                className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/50"
+                className="border-b border-[var(--color-border-default)] last:border-0"
               >
                 <td className="px-4 py-3 font-medium">{alias.source_address}</td>
                 <td className="px-4 py-3 text-zinc-500">{alias.target_address}</td>
@@ -159,8 +159,8 @@ export function AdminAliases() {
                   <span
                     className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
                       alias.alias_type === 'forward'
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                        : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                        ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
+                        : 'bg-[var(--color-bg-raised)] text-[var(--color-text-secondary)]'
                     }`}
                   >
                     {alias.alias_type}

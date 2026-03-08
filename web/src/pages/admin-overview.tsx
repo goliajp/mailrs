@@ -36,9 +36,9 @@ function formatUptime(secs: number): string {
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-      <p className="text-xs font-medium uppercase tracking-wider text-zinc-400">{label}</p>
-      <p className="mt-1 select-text text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{value}</p>
+    <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
+      <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">{label}</p>
+      <p className="mt-1 select-text text-2xl font-semibold text-[var(--color-text-primary)]">{value}</p>
       {sub && <p className="mt-0.5 select-text text-xs text-zinc-500">{sub}</p>}
     </div>
   )
@@ -117,12 +117,12 @@ export function AdminOverview() {
         <div className="mb-6">
           <h2 className="mb-3 text-sm font-medium text-zinc-500">Services</h2>
           <div className="space-y-2">
-            <div className="flex items-center gap-3 rounded border border-zinc-200 px-4 py-3 dark:border-zinc-700">
+            <div className="flex items-center gap-3 rounded border border-[var(--color-border-default)] px-4 py-3">
               <StatusDot ok={health.pg} />
               <span className="text-sm font-medium">PostgreSQL</span>
               <span className="ml-auto select-text text-xs text-zinc-400">{health.pg ? 'Connected' : 'Unavailable'}</span>
             </div>
-            <div className="flex items-center gap-3 rounded border border-zinc-200 px-4 py-3 dark:border-zinc-700">
+            <div className="flex items-center gap-3 rounded border border-[var(--color-border-default)] px-4 py-3">
               <StatusDot ok={health.valkey} />
               <span className="text-sm font-medium">Valkey / Redis</span>
               <span className="ml-auto select-text text-xs text-zinc-400">{health.valkey ? 'Connected' : 'Unavailable'}</span>
@@ -134,30 +134,30 @@ export function AdminOverview() {
       {/* sessions and traffic */}
       {health && (
         <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-2">
-          <div className="rounded border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
             <h3 className="mb-3 text-sm font-medium text-zinc-500">Sessions</h3>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-400">Active Sessions</span>
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">{health.active_sessions.toLocaleString()}</span>
+                <span className="font-semibold text-[var(--color-text-primary)]">{health.active_sessions.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-400">Total Connections</span>
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">{health.total_connections.toLocaleString()}</span>
+                <span className="font-semibold text-[var(--color-text-primary)]">{health.total_connections.toLocaleString()}</span>
               </div>
             </div>
           </div>
 
-          <div className="rounded border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
             <h3 className="mb-3 text-sm font-medium text-zinc-500">Traffic</h3>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-400">Total Messages</span>
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">{health.total_messages.toLocaleString()}</span>
+                <span className="font-semibold text-[var(--color-text-primary)]">{health.total_messages.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-400">Cached Accounts</span>
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">{health.account_cache_size.toLocaleString()}</span>
+                <span className="font-semibold text-[var(--color-text-primary)]">{health.account_cache_size.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -168,34 +168,34 @@ export function AdminOverview() {
       {smtp && (
         <div>
           <h2 className="mb-3 text-sm font-medium text-zinc-500">SMTP Configuration</h2>
-          <div className="overflow-hidden rounded border border-zinc-200 dark:border-zinc-700">
+          <div className="overflow-hidden rounded border border-[var(--color-border-default)]">
             <table className="w-full text-sm">
-              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-                <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                  <td className="px-4 py-2.5 font-medium text-zinc-600 dark:text-zinc-400">Hostname</td>
-                  <td className="select-text px-4 py-2.5 font-mono text-zinc-900 dark:text-zinc-100"><Copyable value={smtp.hostname}>{smtp.hostname}</Copyable></td>
+              <tbody className="divide-y divide-[var(--color-border-default)]">
+                <tr className="hover:bg-[var(--color-hover)]">
+                  <td className="px-4 py-2.5 font-medium text-[var(--color-text-secondary)]">Hostname</td>
+                  <td className="select-text px-4 py-2.5 font-mono text-[var(--color-text-primary)]"><Copyable value={smtp.hostname}>{smtp.hostname}</Copyable></td>
                 </tr>
-                <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                  <td className="px-4 py-2.5 font-medium text-zinc-600 dark:text-zinc-400">Ports</td>
-                  <td className="select-text px-4 py-2.5 font-mono text-zinc-900 dark:text-zinc-100">
+                <tr className="hover:bg-[var(--color-hover)]">
+                  <td className="px-4 py-2.5 font-medium text-[var(--color-text-secondary)]">Ports</td>
+                  <td className="select-text px-4 py-2.5 font-mono text-[var(--color-text-primary)]">
                     SMTP {smtp.smtp_port} / Submission {smtp.submission_port} / IMAP {smtp.imap_port}
                   </td>
                 </tr>
-                <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                  <td className="px-4 py-2.5 font-medium text-zinc-600 dark:text-zinc-400">TLS</td>
-                  <td className="px-4 py-2.5 text-zinc-900 dark:text-zinc-100">
-                    <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${smtp.tls_enabled ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'}`}>
+                <tr className="hover:bg-[var(--color-hover)]">
+                  <td className="px-4 py-2.5 font-medium text-[var(--color-text-secondary)]">TLS</td>
+                  <td className="px-4 py-2.5 text-[var(--color-text-primary)]">
+                    <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${smtp.tls_enabled ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'}`}>
                       {smtp.tls_enabled ? 'Enabled' : 'Disabled'}
                     </span>
                   </td>
                 </tr>
-                <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                  <td className="px-4 py-2.5 font-medium text-zinc-600 dark:text-zinc-400">Local Domains</td>
-                  <td className="px-4 py-2.5 text-zinc-900 dark:text-zinc-100">
+                <tr className="hover:bg-[var(--color-hover)]">
+                  <td className="px-4 py-2.5 font-medium text-[var(--color-text-secondary)]">Local Domains</td>
+                  <td className="px-4 py-2.5 text-[var(--color-text-primary)]">
                     <div className="flex flex-wrap gap-1.5">
                       {smtp.local_domains.map((d) => (
                         <Copyable key={d} value={d}>
-                          <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs font-mono dark:bg-zinc-800">
+                          <span className="rounded bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs font-mono">
                             {d}
                           </span>
                         </Copyable>

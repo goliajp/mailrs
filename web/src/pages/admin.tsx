@@ -9,7 +9,7 @@ import { AdminQueues } from '@/pages/admin-queues'
 
 export function Admin() {
   return (
-    <div className="flex h-screen flex-col bg-white text-zinc-900 md:flex-row dark:bg-zinc-950 dark:text-zinc-100">
+    <div className="flex h-screen flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)] md:flex-row">
       <AdminSidebar />
       <div className="min-h-0 flex-1">
       <Routes>

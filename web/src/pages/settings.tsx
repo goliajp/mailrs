@@ -57,12 +57,12 @@ export function Settings() {
   )
 
   return (
-    <div className="flex min-h-screen flex-col bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <div className="flex min-h-screen flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
       {/* header */}
-      <header className="flex items-center gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800 sm:px-6">
+      <header className="flex items-center gap-3 border-b border-[var(--color-border-default)] px-4 py-3 sm:px-6">
         <button
           onClick={() => navigate('/')}
-          className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="flex h-8 w-8 items-center justify-center rounded text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
           title="Back to mail"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -78,10 +78,10 @@ export function Settings() {
         <Section title="Account">
           <div className="space-y-3">
             <Field label="Email">
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">{auth?.address ?? '-'}</span>
+              <span className="text-sm text-[var(--color-text-secondary)]">{auth?.address ?? '-'}</span>
             </Field>
             <Field label="Display Name">
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">{auth?.display_name || '-'}</span>
+              <span className="text-sm text-[var(--color-text-secondary)]">{auth?.display_name || '-'}</span>
             </Field>
           </div>
         </Section>
@@ -96,8 +96,8 @@ export function Settings() {
                   onClick={() => setTheme(opt.value)}
                   className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
                     theme === opt.value
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                      ? 'bg-[var(--color-brand-primary)] text-[var(--color-brand-primary-text)]'
+                      : 'bg-[var(--color-bg-raised)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
                   }`}
                 >
                   {opt.label}
@@ -113,7 +113,7 @@ export function Settings() {
             <select
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+              className="rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] focus:border-[var(--color-brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
             >
               {PAGE_SIZE_OPTIONS.map((size) => (
                 <option key={size} value={size}>
@@ -131,7 +131,7 @@ export function Settings() {
               <button
                 onClick={() => handleNotificationToggle(!notifications)}
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-                  notifications ? 'bg-blue-500' : 'bg-zinc-300 dark:bg-zinc-600'
+                  notifications ? 'bg-[var(--color-brand-primary)]' : 'bg-[var(--color-border-strong)]'
                 }`}
                 role="switch"
                 aria-checked={notifications}
@@ -156,7 +156,7 @@ export function Settings() {
               <button
                 onClick={() => setSignatureEnabled(!signatureEnabled)}
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-                  signatureEnabled ? 'bg-blue-500' : 'bg-zinc-300 dark:bg-zinc-600'
+                  signatureEnabled ? 'bg-[var(--color-brand-primary)]' : 'bg-[var(--color-border-strong)]'
                 }`}
                 role="switch"
                 aria-checked={signatureEnabled}
@@ -169,7 +169,7 @@ export function Settings() {
               </button>
             </Field>
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-600 dark:text-zinc-400">
+              <label className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">
                 Signature text
               </label>
               <textarea
@@ -177,9 +177,9 @@ export function Settings() {
                 onChange={(e) => setSignature(e.target.value)}
                 placeholder="Best regards,&#10;Your Name"
                 rows={4}
-                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 placeholder-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:placeholder-zinc-500"
+                className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-3 py-2 text-sm text-[var(--color-text-secondary)] placeholder-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
               />
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
                 Appended after standard separator (-- ) when sending or replying.
               </p>
             </div>
@@ -187,7 +187,7 @@ export function Settings() {
         </Section>
 
         {/* sign out */}
-        <div className="border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        <div className="border-t border-[var(--color-border-default)] pt-6">
           <button
             onClick={handleLogout}
             className="rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600"
@@ -195,7 +195,7 @@ export function Settings() {
             Sign out
           </button>
           {auth?.address && (
-            <p className="mt-2 text-xs text-zinc-400">
+            <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">
               Signed in as {auth.address}
             </p>
           )}
@@ -208,10 +208,10 @@ export function Settings() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
         {title}
       </h2>
-      <div className="rounded border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+      <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4">
         {children}
       </div>
     </section>
@@ -221,7 +221,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">{label}</span>
+      <span className="text-sm font-medium text-[var(--color-text-secondary)]">{label}</span>
       {children}
     </div>
   )

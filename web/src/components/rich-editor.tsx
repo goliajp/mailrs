@@ -55,8 +55,8 @@ function ToolbarButton({ onClick, active, disabled, title, children }: ToolbarBu
       title={title}
       className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
         active
-          ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200'
-          : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-700 dark:hover:text-zinc-300'
+          ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]'
+          : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
       } disabled:opacity-30`}
     >
       {children}
@@ -90,7 +90,7 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-zinc-200 px-2 py-1 dark:border-zinc-700">
+    <div className="flex flex-wrap items-center gap-0.5 border-b border-[var(--color-border-default)] px-2 py-1">
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBold().run()}
         active={editor.isActive('bold')}
@@ -120,7 +120,7 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         <span className="line-through">S</span>
       </ToolbarButton>
 
-      <div className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mx-1 h-4 w-px bg-[var(--color-border-default)]" />
 
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleCode().run()}
@@ -137,7 +137,7 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         <span className="font-mono text-[10px]">{'{ }'}</span>
       </ToolbarButton>
 
-      <div className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mx-1 h-4 w-px bg-[var(--color-border-default)]" />
 
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
@@ -175,7 +175,7 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         &#9744;
       </ToolbarButton>
 
-      <div className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mx-1 h-4 w-px bg-[var(--color-border-default)]" />
 
       <ToolbarButton onClick={addLink} active={editor.isActive('link')} title="Link">
         <span className="text-[10px]">Link</span>
@@ -252,7 +252,7 @@ export function RichEditor({
     editorProps: {
       attributes: {
         class:
-          'prose prose-sm max-w-none px-3 py-2 outline-none dark:prose-invert ' +
+          'prose prose-sm max-w-none px-3 py-2 outline-none prose-[var(--color-text-primary)] dark:prose-invert ' +
           'prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-md ' +
           'prose-code:before:content-none prose-code:after:content-none ' +
           'min-h-[' + (minHeight ?? '3rem') + ']',
@@ -323,7 +323,7 @@ export function RichEditor({
   return (
     <div
       className={`flex h-full flex-col rounded border ${
-        'border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900'
+        'border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]'
       }`}
     >
       <Toolbar editor={editor} />

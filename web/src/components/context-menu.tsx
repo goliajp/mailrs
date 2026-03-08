@@ -65,7 +65,7 @@ export function ContextMenu({
   }
 
   return (
-    <div ref={ref} style={style} role="menu" className="min-w-[160px] rounded border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+    <div ref={ref} style={style} role="menu" className="min-w-[160px] rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] py-1 shadow-lg">
       {items.map((item) => (
         <button
           key={item.label}
@@ -76,8 +76,8 @@ export function ContextMenu({
           }}
           className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors ${
             item.danger
-              ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20'
-              : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700'
+              ? 'text-[var(--color-status-danger)] hover:bg-[var(--color-status-danger-subtle)]'
+              : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
           }`}
         >
           {item.icon && <span className="shrink-0">{item.icon}</span>}

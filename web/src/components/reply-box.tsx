@@ -256,8 +256,8 @@ export function ReplyBox({
             onClick={() => handleModeChange(m)}
             className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
               mode === m
-                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-                : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300'
+                ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
+                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
             }`}
           >
             {MODE_LABELS[m]}
@@ -277,13 +277,13 @@ export function ReplyBox({
             value={forwardTo}
             onChange={setForwardTo}
             placeholder="To: recipient@example.com, ..."
-            className="w-full rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-sm text-zinc-800 placeholder-zinc-400 outline-none focus:border-blue-400 dark:border-zinc-700 dark:text-zinc-200"
+            className="w-full rounded-md border border-[var(--color-border-default)] bg-transparent px-2 py-1 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-brand-primary)]"
           />
         </div>
       )}
 
       {error && (
-        <div className="mx-4 mt-2 rounded-md bg-red-50 px-3 py-1.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <div className="mx-4 mt-2 rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-1.5 text-sm text-[var(--color-status-danger)]">
           {error}
         </div>
       )}
@@ -293,14 +293,14 @@ export function ReplyBox({
           {files.map((f, i) => (
             <div
               key={i}
-              className="flex items-center gap-1.5 rounded-md bg-zinc-100 px-2.5 py-1 text-xs dark:bg-zinc-800"
+              className="flex items-center gap-1.5 rounded-md bg-[var(--color-bg-raised)] px-2.5 py-1 text-xs"
             >
-              <FileIcon className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
-              <span className="max-w-32 truncate text-zinc-700 dark:text-zinc-300">{f.name}</span>
-              <span className="text-zinc-400">({(f.size / 1024).toFixed(0)}KB)</span>
+              <FileIcon className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
+              <span className="max-w-32 truncate text-[var(--color-text-secondary)]">{f.name}</span>
+              <span className="text-[var(--color-text-tertiary)]">({(f.size / 1024).toFixed(0)}KB)</span>
               <button
                 onClick={() => removeFile(i)}
-                className="ml-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                className="ml-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
               >
                 &times;
               </button>
@@ -316,7 +316,7 @@ export function ReplyBox({
             <button
               key={i}
               onClick={() => applySuggestion(s)}
-              className="max-w-xs truncate rounded-md border border-purple-200 bg-purple-50 px-2 py-1 text-xs text-purple-700 transition-colors hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/40"
+              className="max-w-xs truncate rounded-md border border-purple-200 bg-purple-50 px-2 py-1 text-xs text-purple-700 transition-colors hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/20 dark:text-purple-300 dark:hover:bg-purple-950/40"
               title={s}
             >
               {s.slice(0, 80)}{s.length > 80 ? '...' : ''}
@@ -346,7 +346,7 @@ export function ReplyBox({
       <div className="flex shrink-0 select-none items-center gap-1 px-3 pb-2 pt-1.5">
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
           title="Attach file"
         >
           <Paperclip className="h-4 w-4" />
@@ -368,7 +368,7 @@ export function ReplyBox({
           <button
             onClick={suggest}
             disabled={suggesting}
-            className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-900/30 dark:hover:text-purple-300"
+            className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-950/30 dark:hover:text-purple-300"
             title="AI reply suggestions"
           >
             {suggesting ? '...' : 'Suggest'}
@@ -377,7 +377,7 @@ export function ReplyBox({
         <button
           onClick={polish}
           disabled={polishing}
-          className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-900/30 dark:hover:text-purple-300"
+          className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40 dark:hover:bg-purple-950/30 dark:hover:text-purple-300"
           title="AI polish text"
         >
           {polishing ? '...' : 'Polish'}
@@ -385,7 +385,7 @@ export function ReplyBox({
         <button
           onClick={handleSaveDraft}
           disabled={savingDraft}
-          className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:opacity-40"
           title="Save draft"
         >
           {savingDraft ? 'Saving...' : 'Draft'}

@@ -11,11 +11,11 @@ const ALL_STATUSES = ['pending', 'inflight', 'delivered', 'failed', 'bounced'] a
 type QueueStatus = (typeof ALL_STATUSES)[number]
 
 const statusStyles: Record<string, string> = {
-  pending: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  pending: 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]',
   inflight: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
   delivered:
-    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]',
+  failed: 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]',
   bounced:
     'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 }
@@ -23,9 +23,9 @@ const statusStyles: Record<string, string> = {
 const filterBaseStyle =
   'rounded px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
 const filterActiveStyle =
-  'ring-2 ring-offset-1 ring-zinc-400 dark:ring-zinc-500 dark:ring-offset-zinc-900'
+  'ring-2 ring-offset-1 ring-[var(--color-border-default)] ring-offset-[var(--color-bg-base)]'
 const filterAllStyle =
-  'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'
+  'bg-[var(--color-border-default)] text-[var(--color-text-secondary)]'
 
 export function AdminQueues() {
   const [queue, setQueue] = useAtom(queueAtom)
@@ -102,7 +102,7 @@ export function AdminQueues() {
         <h2 className="text-lg font-semibold">Outbound Queue</h2>
         <button
           onClick={loadQueue}
-          className="rounded-md bg-zinc-100 px-3 py-1.5 text-sm transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+          className="rounded-md bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--color-hover)]"
         >
           Refresh
         </button>
@@ -128,9 +128,9 @@ export function AdminQueues() {
       </div>
 
       {/* table */}
-      <div className="overflow-hidden rounded border border-zinc-200 dark:border-zinc-800">
+      <div className="overflow-hidden rounded border border-[var(--color-border-default)]">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+          <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
             <tr>
               <th className="px-4 py-2.5 font-medium">From</th>
               <th className="px-4 py-2.5 font-medium">To</th>
@@ -145,7 +145,7 @@ export function AdminQueues() {
             {pageItems.map((item) => (
               <tr
                 key={item.id}
-                className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/50"
+                className="border-b border-[var(--color-border-default)] last:border-0"
               >
                 <td className="px-4 py-3 font-medium">{item.sender}</td>
                 <td className="px-4 py-3">{item.recipient}</td>
@@ -196,14 +196,14 @@ export function AdminQueues() {
             <button
               disabled={safePage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="rounded-md border border-zinc-200 px-3 py-1.5 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 transition-colors hover:bg-[var(--color-hover)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Previous
             </button>
             <button
               disabled={safePage >= totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="rounded-md border border-zinc-200 px-3 py-1.5 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 transition-colors hover:bg-[var(--color-hover)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Next
             </button>

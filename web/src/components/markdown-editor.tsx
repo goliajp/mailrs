@@ -83,8 +83,8 @@ export function MarkdownEditor({
     <div
       className={`rounded-xl border ${
         dragOver
-          ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/20'
-          : 'border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900'
+          ? 'border-[var(--color-brand-primary)] bg-[var(--color-brand-subtle)]'
+          : 'border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]'
       }`}
       onDragOver={(e) => {
         e.preventDefault()
@@ -93,13 +93,13 @@ export function MarkdownEditor({
       onDragLeave={() => setDragOver(false)}
     >
       {/* toolbar */}
-      <div className="flex items-center gap-0.5 border-b border-zinc-200 px-2 py-1 dark:border-zinc-700">
+      <div className="flex items-center gap-0.5 border-b border-[var(--color-border-default)] px-2 py-1">
         {!previewing &&
           ACTIONS.map((a) => (
             <button
               key={a.label}
               onClick={() => applyFormat(a)}
-              className="rounded px-1.5 py-0.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
+              className="rounded px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
               title={a.label}
               type="button"
             >
@@ -122,8 +122,8 @@ export function MarkdownEditor({
             onClick={togglePreview}
             className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
               previewing
-                ? 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300'
-                : 'text-zinc-400 hover:bg-zinc-200 hover:text-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-400'
+                ? 'bg-[var(--color-border-default)] text-[var(--color-text-secondary)]'
+                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
             }`}
             title={previewing ? 'Back to editing' : 'Preview Markdown'}
           >
@@ -135,7 +135,7 @@ export function MarkdownEditor({
       {/* preview pane */}
       {previewing ? (
         <div
-          className="prose prose-sm max-w-none px-4 py-2 dark:prose-invert"
+          className="prose prose-sm max-w-none px-4 py-2 prose-[var(--color-text-primary)] dark:prose-invert"
           style={{ minHeight: `${(minRows ?? 1) * 1.5}rem` }}
         >
           {value.trim() ? (
@@ -157,7 +157,7 @@ export function MarkdownEditor({
           placeholder={placeholder}
           disabled={disabled}
           rows={minRows ?? 1}
-          className="max-h-[200px] w-full resize-none bg-transparent px-4 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
+          className="max-h-[200px] w-full resize-none bg-transparent px-4 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]"
           style={{ minHeight: `${(minRows ?? 1) * 1.5}rem` }}
         />
       )}
