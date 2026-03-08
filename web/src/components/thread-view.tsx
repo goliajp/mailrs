@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
 import { ActionBadge, CategoryBadge, ImportanceBadge, IntentBadge } from '@/components/category-badge'
+import { Copyable } from '@/components/copy-button'
 import { StructuredDataCard } from '@/components/structured-data-card'
 import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
@@ -290,7 +291,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* header bar */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
+      <div className="flex shrink-0 select-none items-center gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
         {onBack && (
           <button onClick={onBack} className="shrink-0 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 md:hidden" title="Back">
             <ArrowLeft className="h-5 w-5" />
@@ -298,7 +299,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{subject || '(no subject)'}</h2>
+            <h2 className="select-text truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{subject || '(no subject)'}</h2>
             <CategoryBadge category={messages[0]?.category} />
             <ImportanceBadge level={messages[0]?.importance_level} />
             {messages.some((m) => m.requires_action) && <ActionBadge />}
@@ -355,9 +356,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     {avatarInitial(selectedMsg.sender)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{extractName(selectedMsg.sender)}</p>
-                    <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                      to {selectedMsg.recipients.slice(0, 80)} · {formatFullDate(selectedMsg.internal_date)}
+                    <p className="select-text text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                      {extractName(selectedMsg.sender)}{' '}
+                      <Copyable value={extractEmail(selectedMsg.sender)}>
+                        <span className="font-normal text-zinc-500 dark:text-zinc-400">&lt;{extractEmail(selectedMsg.sender)}&gt;</span>
+                      </Copyable>
+                    </p>
+                    <p className="select-text truncate text-xs text-zinc-500 dark:text-zinc-400">
+                      to <Copyable value={selectedMsg.recipients.slice(0, 80)}>{selectedMsg.recipients.slice(0, 80)}</Copyable> · {formatFullDate(selectedMsg.internal_date)}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-0.5">
@@ -417,7 +423,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                   </div>
                 )}
                 {(selectedMsg.clean_text || selectedMsg.text_body || !selectedMsg.html_body) && (
-                  <div className="px-5 py-4">
+                  <div className="select-text px-5 py-4">
                     <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
                       {selectedMsg.clean_text || selectedMsg.text_body || '(no text content)'}
                     </pre>
@@ -494,16 +500,16 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                         {!isOwn && (
                           <p className="mb-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">{name}</p>
                         )}
-                        <p className={`break-words text-sm leading-snug whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-3'}`}>
+                        <p className={`select-text break-words text-sm leading-snug whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-3'}`}>
                           {isExpanded ? fullText : snippet}
                         </p>
                         {isLong && (
-                          <span className="mt-1 block text-xs text-blue-600 dark:text-blue-400">
+                          <span className="mt-1 block select-none text-xs text-blue-600 dark:text-blue-400">
                             {isExpanded ? 'show less' : 'show more'}
                           </span>
                         )}
                       </div>
-                      <p className={`mt-0.5 text-[11px] text-zinc-400 ${isOwn ? 'text-right' : ''}`}>
+                      <p className={`mt-0.5 select-none text-[11px] text-zinc-400 ${isOwn ? 'text-right' : ''}`}>
                         {formatDate(msg.internal_date)}
                         {msg.attachments.length > 0 && (
                           <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />

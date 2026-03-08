@@ -2,6 +2,7 @@ import { useAtom } from 'jotai'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { Copyable } from '@/components/copy-button'
 import { DomainHealthCard } from '@/components/domain-health-card'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import type { DomainCheckReport, DomainInfo } from '@/lib/types'
@@ -126,7 +127,7 @@ export function AdminDomains() {
             {domains.map((domain) => (
               <Fragment key={domain.name}>
                 <tr className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/50">
-                  <td className="px-4 py-3 font-medium">{domain.name}</td>
+                  <td className="px-4 py-3 font-medium"><Copyable value={domain.name}>{domain.name}</Copyable></td>
                   <td className="px-4 py-3 text-zinc-500">
                     {new Date(domain.created_at * 1000).toLocaleDateString()}
                   </td>

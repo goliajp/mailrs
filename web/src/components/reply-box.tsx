@@ -249,7 +249,7 @@ export function ReplyBox({
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* mode toggle */}
-      <div className="flex shrink-0 items-center gap-1 px-3 pt-2">
+      <div className="flex shrink-0 select-none items-center gap-1 px-3 pt-2">
         {(Object.keys(MODE_LABELS) as ReplyMode[]).map((m) => (
           <button
             key={m}
@@ -343,7 +343,7 @@ export function ReplyBox({
       </div>
 
       {/* action bar */}
-      <div className="flex shrink-0 items-center gap-1 px-3 pb-2 pt-1.5">
+      <div className="flex shrink-0 select-none items-center gap-1 px-3 pb-2 pt-1.5">
         <button
           onClick={() => fileInputRef.current?.click()}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"

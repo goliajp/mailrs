@@ -145,7 +145,7 @@ const ConversationItem = memo(function ConversationItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span
-            className={`truncate text-sm ${hasUnread ? 'font-semibold text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'}`}
+            className={`select-text truncate text-sm ${hasUnread ? 'font-semibold text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'}`}
           >
             {name}
             {convo.participants.length > 1 && (
@@ -166,7 +166,7 @@ const ConversationItem = memo(function ConversationItem({
         </div>
         <div className="flex items-center gap-1.5">
           <p
-            className={`min-w-0 flex-1 truncate text-sm ${hasUnread ? 'font-medium text-zinc-800 dark:text-zinc-200' : 'text-zinc-500 dark:text-zinc-400'}`}
+            className={`min-w-0 flex-1 select-text truncate text-sm ${hasUnread ? 'font-medium text-zinc-800 dark:text-zinc-200' : 'text-zinc-500 dark:text-zinc-400'}`}
           >
             {convo.subject || '(no subject)'}
           </p>
@@ -184,7 +184,7 @@ const ConversationItem = memo(function ConversationItem({
           )}
         </div>
         {convo.snippet && (
-          <p className="truncate text-xs text-zinc-400 dark:text-zinc-500">
+          <p className="select-text truncate text-xs text-zinc-400 dark:text-zinc-500">
             {convo.snippet}
           </p>
         )}
@@ -686,7 +686,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
   const hasBatchBar = batchMode && selectedThreadIds.size > 0
 
   return (
-    <div className="relative flex h-full flex-col">
+    <div className="relative flex h-full select-none flex-col">
       <div className="flex items-center gap-2 border-b border-zinc-200 p-3 dark:border-zinc-800">
         <div role="search" className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden="true" />
