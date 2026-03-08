@@ -523,15 +523,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   }
                                 }}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
-                                className={`cursor-pointer overflow-hidden px-3.5 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
+                                className={`cursor-pointer overflow-hidden rounded-xl px-3.5 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
                                   isOwn
                                     ? isSelected
-                                      ? 'bg-blue-700 text-white'
-                                      : 'bg-blue-600 text-white'
+                                      ? 'bg-[var(--color-brand-primary-hover)] text-white'
+                                      : 'bg-[var(--color-brand-primary)] text-white'
                                     : isSelected
-                                      ? 'bg-[var(--color-bg-raised)] text-[var(--color-text-primary)]'
+                                      ? 'bg-[var(--color-bg-selected)] text-[var(--color-text-primary)]'
                                       : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-primary)]'
-                                } ${isSelected ? 'ring-2 ring-blue-400/50' : ''}`}
+                                } ${isSelected ? 'ring-2 ring-[var(--color-focus-ring)]' : ''}`}
                               >
                                 {!isOwn && (
                                   <p className="mb-1 text-[13px] font-semibold text-[var(--color-text-secondary)]">{name}</p>

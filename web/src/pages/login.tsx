@@ -59,7 +59,8 @@ export function Login() {
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-sunken)]">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm select-none space-y-5 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-sm"
+        className="w-full max-w-sm select-none space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8"
+        style={{ boxShadow: 'var(--shadow-lg)' }}
       >
         <div className="flex flex-col items-center">
           <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded shadow-md" />
@@ -96,7 +97,7 @@ export function Login() {
             required
             autoFocus
             aria-label="Email address"
-            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
           />
         </div>
 
