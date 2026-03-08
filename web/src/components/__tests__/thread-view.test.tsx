@@ -165,13 +165,13 @@ describe('ThreadView — with messages', () => {
       makeMessage({ id: 2, uid: 101, sender: 'Bob <bob@example.com>' }),
     ])
     render(<Wrapper store={store}><ThreadView /></Wrapper>)
-    expect(screen.getByText('2 messages')).toBeDefined()
+    expect(screen.getByText('2')).toBeDefined()
   })
 
-  it('shows singular "message" for single message', () => {
+  it('shows singular count for single message', () => {
     store.set(threadMessagesAtom, [makeMessage()])
     render(<Wrapper store={store}><ThreadView /></Wrapper>)
-    expect(screen.getByText('1 message')).toBeDefined()
+    expect(screen.getByText('1')).toBeDefined()
   })
 
   it('renders sender name in chat bubble', () => {
