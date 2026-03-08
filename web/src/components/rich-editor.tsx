@@ -252,7 +252,7 @@ export function RichEditor({
     editorProps: {
       attributes: {
         class:
-          'prose prose-sm max-w-none px-4 py-2 outline-none dark:prose-invert ' +
+          'prose prose-sm max-w-none px-3 py-2 outline-none dark:prose-invert ' +
           'prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-md ' +
           'prose-code:before:content-none prose-code:after:content-none ' +
           'min-h-[' + (minHeight ?? '3rem') + ']',
