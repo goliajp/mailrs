@@ -56,6 +56,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const [replyMode, setReplyMode] = useState<ReplyMode>('reply')
   const [forwardSource, setForwardSource] = useState<ForwardSource | null>(null)
   const [loadingThread, setLoadingThread] = useState(false)
+  const [expandedBubbles, setExpandedBubbles] = useState<Set<number>>(new Set())
 
   const loadMessages = useCallback(
     async (threadId: string) => {
@@ -222,10 +223,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       setSelectedMsgIdx(null)
       setShowDeleteConfirm(false)
       setForwardSource(null)
+      setExpandedBubbles(new Set())
       return
     }
     setForwardSource(null)
     setReplyMode('reply')
+    setExpandedBubbles(new Set())
     const existing = conversationsRef.current.find((c) => c.thread_id === selectedId)
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
@@ -453,12 +456,25 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 const initial = avatarInitial(msg.sender)
                 const color = avatarColor(msg.sender)
                 const isSelected = selectedMsgIdx === idx
-                const snippet = msg.new_content?.slice(0, 200) || msg.clean_text?.slice(0, 200) || msg.text_body?.slice(0, 200) || msg.subject || ''
+                const fullText = msg.new_content || msg.clean_text || msg.text_body || msg.subject || ''
+                const isLong = fullText.length > 200
+                const snippet = isLong ? fullText.slice(0, 200) : fullText
+                const isExpanded = expandedBubbles.has(idx)
 
                 return (
                   <button
                     key={msg.id}
-                    onClick={() => setSelectedMsgIdx(idx)}
+                    onClick={() => {
+                      setSelectedMsgIdx(idx)
+                      if (isLong) {
+                        setExpandedBubbles((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(idx)) next.delete(idx)
+                          else next.add(idx)
+                          return next
+                        })
+                      }
+                    }}
                     className={`flex gap-2 text-left ${isOwn ? 'flex-row-reverse' : ''}`}
                   >
                     {!isOwn && (
@@ -479,7 +495,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                         {!isOwn && (
                           <p className="mb-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{name}</p>
                         )}
-                        <p className="line-clamp-3 text-[13px] leading-snug">{snippet}</p>
+                        <p className={`text-[13px] leading-snug whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-3'}`}>
+                          {isExpanded ? fullText : snippet}
+                        </p>
+                        {isLong && !isExpanded && (
+                          <span className="text-[11px] text-blue-500 dark:text-blue-400">show more</span>
+                        )}
+                        {isLong && isExpanded && (
+                          <span className="text-[11px] text-blue-500 dark:text-blue-400">show less</span>
+                        )}
                       </div>
                       <p className={`mt-0.5 text-[10px] text-zinc-400 ${isOwn ? 'text-right' : ''}`}>
                         {formatDate(msg.internal_date)}
