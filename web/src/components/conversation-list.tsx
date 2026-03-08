@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Archive, Check, CheckCircle, Mail, MailOpen, Pin, Search, SlidersHorizontal, SquarePen, Star } from 'lucide-react'
+import { Archive, Check, CheckCircle, Mail, Pin, Search, SlidersHorizontal, SquarePen, Star } from 'lucide-react'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
@@ -47,18 +47,6 @@ interface BatchResult {
 interface ApiResult {
   success: boolean
   message?: string
-}
-
-function QuickBtn({ onClick, title, children }: { onClick: (e: React.MouseEvent) => void; title: string; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      className="rounded-md p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
-    >
-      {children}
-    </button>
-  )
 }
 
 function PreviewCard({ convo, style }: { convo: ConversationSummary; style: React.CSSProperties }) {
@@ -172,7 +160,7 @@ const ConversationItem = memo(function ConversationItem({
       onContextMenu={ctx.open}
       aria-selected={selected && !batchMode}
       aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
-      className={`group/item relative flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
+      className={`relative flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
         hasUnread ? 'border-l-[3px] border-l-[var(--color-brand-primary)]' : 'border-l-[3px] border-l-transparent'
       } ${
         !hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''
@@ -251,17 +239,6 @@ const ConversationItem = memo(function ConversationItem({
           </p>
         )}
       </div>
-      {/* hover quick actions — only 2 most-used; rest in right-click menu */}
-      {!batchMode && (
-        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-1 opacity-0 transition-opacity group-hover/item:opacity-100" style={{ boxShadow: 'var(--shadow-sm)' }}>
-          <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread') }} title={hasUnread ? 'Mark read' : 'Mark unread'}>
-            {hasUnread ? <MailOpen className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
-          </QuickBtn>
-          <QuickBtn onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive') }} title={isArchived ? 'Unarchive' : 'Archive'}>
-            <Archive className="h-4 w-4" />
-          </QuickBtn>
-        </div>
-      )}
     </button>
     <ContextMenu position={ctx.position} items={contextItems} onClose={ctx.close} />
     {showPreview && !batchMode && createPortal(
