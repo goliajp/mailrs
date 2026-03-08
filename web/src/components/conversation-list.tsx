@@ -1,4 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { Check, CheckCircle, Mail, Pin, Search, SquarePen, Star } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -44,14 +45,6 @@ interface BatchResult {
 interface ApiResult {
   success: boolean
   message?: string
-}
-
-function PinIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
-    </svg>
-  )
 }
 
 const ConversationItem = memo(function ConversationItem({
@@ -121,11 +114,11 @@ const ConversationItem = memo(function ConversationItem({
       onContextMenu={ctx.open}
       aria-selected={selected && !batchMode}
       aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
-      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 ${
+      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 ${
         selected && !batchMode
           ? 'bg-zinc-100 dark:bg-zinc-800'
           : checked
-            ? 'bg-red-50 dark:bg-red-900/20'
+            ? 'bg-blue-50 dark:bg-blue-900/20'
             : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
       }`}
     >
@@ -134,14 +127,12 @@ const ConversationItem = memo(function ConversationItem({
           <div
             className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-colors ${
               checked
-                ? 'border-red-500 bg-red-500'
+                ? 'border-blue-600 bg-blue-600'
                 : 'border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-900'
             }`}
           >
             {checked && (
-              <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="currentColor">
-                <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
-              </svg>
+              <Check className="h-3 w-3 text-white" />
             )}
           </div>
         </div>
@@ -166,7 +157,7 @@ const ConversationItem = memo(function ConversationItem({
           </span>
           <div className="flex shrink-0 items-center gap-1">
             {isPinned && (
-              <PinIcon className="h-3 w-3 text-red-500 dark:text-red-400" />
+              <Pin className="h-3 w-3 text-blue-600 dark:text-blue-400" />
             )}
             <span className="text-xs text-zinc-400" title={formatFullDate(convo.last_date)}>
               {formatDate(convo.last_date)}
@@ -180,16 +171,14 @@ const ConversationItem = memo(function ConversationItem({
             {convo.subject || '(no subject)'}
           </p>
           {isFlagged && (
-            <svg className="h-3.5 w-3.5 shrink-0 text-yellow-400" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-            </svg>
+            <Star className="h-3.5 w-3.5 shrink-0 text-yellow-400" fill="currentColor" />
           )}
           <ImportanceBadge level={convo.importance_level} />
           {convo.category && convo.category !== 'general' && (
             <CategoryBadge category={convo.category} />
           )}
           {hasUnread && (
-            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-medium text-white">
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 px-1.5 text-xs font-medium text-white">
               {convo.unread_count}
             </span>
           )}
@@ -240,7 +229,7 @@ function DomainSelector() {
         aria-label={selectedDomains.length === 0 ? 'Show my emails only' : allSelected ? 'Show all domains' : 'Mixed domain selection'}
         className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium transition-colors ${
           selectedDomains.length === 0
-            ? 'bg-red-500 text-white'
+            ? 'bg-blue-600 text-white'
             : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
         }`}
       >
@@ -254,7 +243,7 @@ function DomainSelector() {
           aria-label={`Filter by domain ${domain}`}
           className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium transition-colors ${
             selectedDomains.includes(domain)
-              ? 'bg-red-500 text-white'
+              ? 'bg-blue-600 text-white'
               : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
           }`}
         >
@@ -267,7 +256,7 @@ function DomainSelector() {
             type="checkbox"
             checked={crossAccountRead}
             onChange={(e) => setCrossAccountRead(e.target.checked)}
-            className="h-3 w-3 rounded border-zinc-300 accent-red-500"
+            className="h-3 w-3 rounded border-zinc-300 accent-blue-600"
           />
           Cross-read
         </label>
@@ -476,35 +465,35 @@ function BatchActionBar({
           <button
             onClick={() => onAction('read')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             Mark read
           </button>
           <button
             onClick={() => onAction('unread')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             Mark unread
           </button>
           <button
             onClick={() => onAction('star')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             Star
           </button>
           <button
             onClick={() => onAction('archive')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             Archive
           </button>
           <button
             onClick={() => onAction('delete')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-red-400 dark:hover:bg-red-900/20"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 dark:text-red-400 dark:hover:bg-red-900/20"
           >
             Delete
           </button>
@@ -700,17 +689,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
     <div className="relative flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-zinc-200 p-3 dark:border-zinc-800">
         <div role="search" className="relative flex-1">
-          <svg
-            className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            aria-hidden="true"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden="true" />
           <input
             type="text"
             value={searchQuery}
@@ -735,14 +714,12 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
             aria-label={batchMode ? 'Exit batch select mode' : 'Enter batch select mode'}
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
               batchMode
-                ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                 : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
             title="Batch select"
           >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <CheckCircle className="h-5 w-5" aria-hidden="true" />
           </button>
         )}
 
@@ -755,20 +732,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
           title="New conversation"
         >
-          <svg
-            className="h-5 w-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125"
-            />
-          </svg>
+          <SquarePen className="h-5 w-5" aria-hidden="true" />
         </button>
       </div>
 
@@ -787,9 +751,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
           <ConversationSkeleton />
         ) : conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-center text-zinc-400">
-            <svg className="mb-3 h-10 w-10 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-            </svg>
+            <Mail className="mb-3 h-10 w-10 text-zinc-300 dark:text-zinc-600" strokeWidth={1} aria-hidden="true" />
             <p className="text-sm font-medium">{isSearching ? 'No results found' : 'All caught up!'}</p>
             <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : 'No conversations to show'}</p>
           </div>

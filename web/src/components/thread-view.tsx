@@ -1,4 +1,5 @@
 import { useAtomValue, useSetAtom } from 'jotai'
+import { ArrowLeft, Download, Forward, Mail, MailOpen, MoreVertical, Paperclip, Printer, Star, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -247,16 +248,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         {onBack && (
           <div className="flex items-center border-b border-zinc-200 px-4 py-3 dark:border-zinc-800 md:hidden">
             <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+              <ArrowLeft className="h-4 w-4" />
               Back
             </button>
           </div>
         )}
         <div className="flex flex-1 items-center justify-center text-zinc-400">
           <div className="text-center">
-            <svg className="mx-auto mb-3 h-12 w-12 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-            </svg>
+            <Mail className="mx-auto mb-3 h-12 w-12 text-zinc-300 dark:text-zinc-600" strokeWidth={1} />
             <p className="text-sm">Select a conversation</p>
           </div>
         </div>
@@ -294,7 +293,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
         {onBack && (
           <button onClick={onBack} className="shrink-0 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 md:hidden" title="Back">
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+            <ArrowLeft className="h-5 w-5" />
           </button>
         )}
         <div className="min-w-0 flex-1">
@@ -309,19 +308,19 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         <div className="flex shrink-0 items-center gap-0.5">
           <HdrBtn onClick={isRead ? handleMarkUnread : handleMarkRead} title={isRead ? 'Mark unread' : 'Mark read'}>
             {isRead ? (
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51-4.66-2.51m0 0-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V8.844a2.25 2.25 0 011.183-1.981l7.5-4.039a2.25 2.25 0 012.134 0l7.5 4.039a2.25 2.25 0 011.183 1.98V19.5z" /></svg>
+              <MailOpen className="h-4 w-4" />
             ) : (
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" /><path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" /></svg>
+              <Mail className="h-4 w-4" />
             )}
           </HdrBtn>
           <HdrBtn onClick={isFlagged ? handleUnstar : handleStar} title={isFlagged ? 'Unstar' : 'Star'} className={isFlagged ? 'text-yellow-400 hover:text-yellow-500' : undefined}>
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill={isFlagged ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>
+            <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
           </HdrBtn>
           <HdrBtn onClick={() => setShowDeleteConfirm(true)} title="Delete" className="hover:text-red-500">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+            <Trash2 className="h-4 w-4" />
           </HdrBtn>
           <HdrBtn onClick={() => setSelectedId(null)} title="Close">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            <X className="h-4 w-4" />
           </HdrBtn>
         </div>
       </div>
@@ -389,13 +388,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                       </span>
                     )}
                     <SmBtn onClick={() => handleForwardMsg(selectedMsg)} title="Forward">
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" /></svg>
+                      <Forward className="h-3.5 w-3.5" />
                     </SmBtn>
                     <SmBtn onClick={() => handlePrint(selectedMsg)} title="Print">
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18.25 7.28H5.75" /></svg>
+                      <Printer className="h-3.5 w-3.5" />
                     </SmBtn>
                     <SmBtn onClick={() => handleDownloadEml(selectedMsg.uid, selectedMsg.subject)} title="Download .eml">
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                      <Download className="h-3.5 w-3.5" />
                     </SmBtn>
                     <FeedbackMenu senderEmail={extractEmail(selectedMsg.sender)} />
                   </div>
@@ -475,7 +474,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                         })
                       }
                     }}
-                    className={`flex gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 ${isOwn ? 'flex-row-reverse' : ''}`}
+                    className={`flex gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 ${isOwn ? 'flex-row-reverse' : ''}`}
                   >
                     {!isOwn && (
                       <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium text-white ${color}`}>
@@ -486,12 +485,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                       <div className={`overflow-hidden rounded-2xl px-3 py-2 text-sm transition-colors ${
                         isOwn
                           ? isSelected
-                            ? 'bg-red-600 text-white'
-                            : 'bg-red-500 text-white'
+                            ? 'bg-blue-700 text-white'
+                            : 'bg-blue-600 text-white'
                           : isSelected
                             ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
                             : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
-                      } ${isSelected ? 'ring-2 ring-red-400/50' : ''}`}>
+                      } ${isSelected ? 'ring-2 ring-blue-400/50' : ''}`}>
                         {!isOwn && (
                           <p className="mb-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">{name}</p>
                         )}
@@ -499,7 +498,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           {isExpanded ? fullText : snippet}
                         </p>
                         {isLong && (
-                          <span className="mt-1 block text-xs text-red-500 dark:text-red-400">
+                          <span className="mt-1 block text-xs text-blue-600 dark:text-blue-400">
                             {isExpanded ? 'show less' : 'show more'}
                           </span>
                         )}
@@ -507,9 +506,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                       <p className={`mt-0.5 text-[11px] text-zinc-400 ${isOwn ? 'text-right' : ''}`}>
                         {formatDate(msg.internal_date)}
                         {msg.attachments.length > 0 && (
-                          <svg className="ml-1 inline-block h-3 w-3 align-[-1px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
-                          </svg>
+                          <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />
                         )}
                       </p>
                     </div>
@@ -634,9 +631,7 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
         className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
         title="Sender feedback"
       >
-        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
-        </svg>
+        <MoreVertical className="h-3.5 w-3.5" />
       </button>
       {open && (
         <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">

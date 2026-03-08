@@ -1,4 +1,5 @@
 import { useAtomValue } from 'jotai'
+import { File as FileIcon, Paperclip, Send } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -255,7 +256,7 @@ export function ReplyBox({
             onClick={() => handleModeChange(m)}
             className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
               mode === m
-                ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
                 : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300'
             }`}
           >
@@ -276,7 +277,7 @@ export function ReplyBox({
             value={forwardTo}
             onChange={setForwardTo}
             placeholder="To: recipient@example.com, ..."
-            className="w-full rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-sm text-zinc-800 placeholder-zinc-400 outline-none focus:border-red-400 dark:border-zinc-700 dark:text-zinc-200"
+            className="w-full rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-sm text-zinc-800 placeholder-zinc-400 outline-none focus:border-blue-400 dark:border-zinc-700 dark:text-zinc-200"
           />
         </div>
       )}
@@ -294,9 +295,7 @@ export function ReplyBox({
               key={i}
               className="flex items-center gap-1.5 rounded-md bg-zinc-100 px-2.5 py-1 text-xs dark:bg-zinc-800"
             >
-              <svg className="h-3.5 w-3.5 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-              </svg>
+              <FileIcon className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
               <span className="max-w-32 truncate text-zinc-700 dark:text-zinc-300">{f.name}</span>
               <span className="text-zinc-400">({(f.size / 1024).toFixed(0)}KB)</span>
               <button
@@ -350,19 +349,7 @@ export function ReplyBox({
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
           title="Attach file"
         >
-          <svg
-            className="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"
-            />
-          </svg>
+          <Paperclip className="h-4 w-4" />
         </button>
         <input
           ref={fileInputRef}
@@ -409,12 +396,10 @@ export function ReplyBox({
         <button
           onClick={send}
           disabled={sending}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-xl bg-red-500 px-3 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-40"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
           title="Send (Ctrl+Enter)"
         >
-          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-          </svg>
+          <Send className="h-3.5 w-3.5" />
           {sending ? 'Sending...' : 'Send'}
         </button>
       </div>
