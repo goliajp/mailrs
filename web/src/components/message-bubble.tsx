@@ -200,7 +200,7 @@ function AttachmentItem({
   }, [uid, index, extractedText])
 
   return (
-    <div className="rounded-md border border-zinc-200 dark:border-zinc-700">
+    <div className="border border-zinc-200 dark:border-zinc-700">
       <div className="flex items-center gap-2 px-3 py-2 text-sm">
         {isImage ? (
           <img
@@ -335,12 +335,12 @@ export function MessageBubble({
   return (
     <div>
       {isHtml ? (
-        <div className="select-text overflow-hidden rounded border border-zinc-200 bg-white dark:border-zinc-700">
+        <div className="select-text overflow-hidden border border-zinc-200 bg-white dark:border-zinc-700">
           <HtmlFrame html={parts.body} />
         </div>
       ) : (
         <div
-          className={`select-text rounded px-4 py-2.5 ${
+          className={`select-text px-4 py-2.5 ${
             isOwn
               ? 'bg-blue-600 text-white'
               : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
