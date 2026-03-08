@@ -16,7 +16,7 @@ const styles: Record<string, { bg: string; text: string; label: string }> = {
 export function CategoryBadge({ category }: { category: string }) {
   const s = styles[category] ?? { bg: 'bg-zinc-100 dark:bg-zinc-800', text: 'text-zinc-500 dark:text-zinc-400', label: category }
   return (
-    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize ${s.bg} ${s.text}`}>
+    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium capitalize ${s.bg} ${s.text}`}>
       {s.label}
     </span>
   )
@@ -42,7 +42,7 @@ export function ImportanceBadge({ level }: { level: string }) {
   if (!level || level === 'normal') return null
   const s = importanceStyles[level] ?? importanceStyles.normal
   return (
-    <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${s.bg} ${s.text}`}>
+    <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${s.bg} ${s.text}`}>
       {s.icon && <span className="font-bold">{s.icon}</span>}
       {s.label}
     </span>
@@ -51,7 +51,7 @@ export function ImportanceBadge({ level }: { level: string }) {
 
 export function ActionBadge() {
   return (
-    <span className="inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+    <span className="inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[11px] font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
       Action
     </span>
   )
@@ -67,7 +67,7 @@ export function IntentBadge({ intent }: { intent: string }) {
   }
   const s = intentStyles[intent] ?? { bg: 'bg-zinc-100 dark:bg-zinc-800', text: 'text-zinc-500 dark:text-zinc-400' }
   return (
-    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize ${s.bg} ${s.text}`}>
+    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium capitalize ${s.bg} ${s.text}`}>
       {intent}
     </span>
   )

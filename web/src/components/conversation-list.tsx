@@ -121,11 +121,11 @@ const ConversationItem = memo(function ConversationItem({
       onContextMenu={ctx.open}
       aria-selected={selected && !batchMode}
       aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
-      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${
+      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${
         selected && !batchMode
           ? 'bg-zinc-100 dark:bg-zinc-800'
           : checked
-            ? 'bg-blue-50 dark:bg-blue-900/20'
+            ? 'bg-indigo-50 dark:bg-indigo-900/20'
             : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
       }`}
     >
@@ -134,7 +134,7 @@ const ConversationItem = memo(function ConversationItem({
           <div
             className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-colors ${
               checked
-                ? 'border-blue-500 bg-blue-500'
+                ? 'border-indigo-500 bg-indigo-500'
                 : 'border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-900'
             }`}
           >
@@ -166,7 +166,7 @@ const ConversationItem = memo(function ConversationItem({
           </span>
           <div className="flex shrink-0 items-center gap-1">
             {isPinned && (
-              <PinIcon className="h-3 w-3 text-blue-500 dark:text-blue-400" />
+              <PinIcon className="h-3 w-3 text-indigo-500 dark:text-indigo-400" />
             )}
             <span className="text-xs text-zinc-400" title={formatFullDate(convo.last_date)}>
               {formatDate(convo.last_date)}
@@ -189,7 +189,7 @@ const ConversationItem = memo(function ConversationItem({
             <CategoryBadge category={convo.category} />
           )}
           {hasUnread && (
-            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-medium text-white">
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 px-1.5 text-xs font-medium text-white">
               {convo.unread_count}
             </span>
           )}
@@ -240,7 +240,7 @@ function DomainSelector() {
         aria-label={selectedDomains.length === 0 ? 'Show my emails only' : allSelected ? 'Show all domains' : 'Mixed domain selection'}
         className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium transition-colors ${
           selectedDomains.length === 0
-            ? 'bg-blue-500 text-white'
+            ? 'bg-indigo-500 text-white'
             : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
         }`}
       >
@@ -254,7 +254,7 @@ function DomainSelector() {
           aria-label={`Filter by domain ${domain}`}
           className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium transition-colors ${
             selectedDomains.includes(domain)
-              ? 'bg-blue-500 text-white'
+              ? 'bg-indigo-500 text-white'
               : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
           }`}
         >
@@ -267,7 +267,7 @@ function DomainSelector() {
             type="checkbox"
             checked={crossAccountRead}
             onChange={(e) => setCrossAccountRead(e.target.checked)}
-            className="h-3 w-3 rounded border-zinc-300 accent-blue-500"
+            className="h-3 w-3 rounded border-zinc-300 accent-indigo-500"
           />
           Cross-read
         </label>
@@ -294,12 +294,12 @@ function CategoryChips() {
   if (categories.length === 0) return null
 
   return (
-    <div className="flex gap-1.5 overflow-x-auto border-b border-zinc-200 px-3 py-2 dark:border-zinc-800" role="group" aria-label="Category filter">
+    <div className="flex gap-1.5 overflow-x-auto border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800" role="group" aria-label="Category filter">
       <button
         onClick={() => setActiveCategory(null)}
         aria-pressed={activeCategory === null}
         aria-label="Show all categories"
-        className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+        className={`shrink-0 rounded-md px-2.5 py-0.5 text-xs font-medium transition-colors ${
           activeCategory === null
             ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
             : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
@@ -317,7 +317,7 @@ function CategoryChips() {
           }
           aria-pressed={activeCategory === cat.category}
           aria-label={`Filter by category ${cat.category}, ${cat.count} conversations`}
-          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-colors ${
+          className={`shrink-0 rounded-md px-2.5 py-0.5 text-xs font-medium capitalize transition-colors ${
             activeCategory === cat.category
               ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
               : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
@@ -336,8 +336,9 @@ const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
   { value: 'unread', label: 'Unread first' },
 ]
 
-function SortSelector() {
+function SortAndArchivedRow() {
   const [sortOrder, setSortOrder] = useAtom(sortOrderAtom)
+  const [showArchived, setShowArchived] = useAtom(showArchivedAtom)
 
   return (
     <div className="flex items-center gap-1 border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800" role="group" aria-label="Sort order">
@@ -357,23 +358,15 @@ function SortSelector() {
           {opt.label}
         </button>
       ))}
-    </div>
-  )
-}
-
-function ArchivedToggle() {
-  const [showArchived, setShowArchived] = useAtom(showArchivedAtom)
-
-  return (
-    <div className="flex items-center gap-1.5 border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
-      <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+      <div className="flex-1" />
+      <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
         <button
           role="switch"
           aria-checked={showArchived}
           onClick={() => setShowArchived((prev) => !prev)}
           className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
             showArchived
-              ? 'bg-blue-500'
+              ? 'bg-indigo-500'
               : 'bg-zinc-300 dark:bg-zinc-600'
           }`}
         >
@@ -383,7 +376,7 @@ function ArchivedToggle() {
             }`}
           />
         </button>
-        Show Archived
+        Archived
       </label>
     </div>
   )
@@ -442,7 +435,7 @@ function ImportanceSectionTabs() {
           >
             {s.label}
             {s.value && count > 0 && (
-              <span className="ml-1 text-[10px] opacity-70">({count})</span>
+              <span className="ml-1 text-[11px] opacity-70">({count})</span>
             )}
           </button>
         )
@@ -493,35 +486,35 @@ function BatchActionBar({
           <button
             onClick={() => onAction('read')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             Mark read
           </button>
           <button
             onClick={() => onAction('unread')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             Mark unread
           </button>
           <button
             onClick={() => onAction('star')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             Star
           </button>
           <button
             onClick={() => onAction('archive')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             Archive
           </button>
           <button
             onClick={() => onAction('delete')}
             disabled={loading}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 dark:text-red-400 dark:hover:bg-red-900/20"
           >
             Delete
           </button>
@@ -752,7 +745,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
             aria-label={batchMode ? 'Exit batch select mode' : 'Enter batch select mode'}
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
               batchMode
-                ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
                 : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
             title="Batch select"
@@ -792,8 +785,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
       <DomainSelector />
       <ImportanceSectionTabs />
       <CategoryChips />
-      <SortSelector />
-      <ArchivedToggle />
+      <SortAndArchivedRow />
 
       <div
         ref={scrollContainerRef}

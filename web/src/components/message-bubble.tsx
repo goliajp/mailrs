@@ -27,13 +27,13 @@ function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLE
   return (
     <div className="group relative">
       {lang && (
-        <span className="absolute right-10 top-2 text-[10px] text-zinc-500 opacity-0 transition-opacity group-hover:opacity-100">
+        <span className="absolute right-10 top-2 text-[11px] text-zinc-500 opacity-0 transition-opacity group-hover:opacity-100">
           {lang}
         </span>
       )}
       <button
         onClick={copy}
-        className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[10px] text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-700 hover:text-zinc-200 group-hover:opacity-100"
+        className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[11px] text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-700 hover:text-zinc-200 group-hover:opacity-100"
       >
         {copied ? 'Copied!' : 'Copy'}
       </button>
@@ -262,7 +262,7 @@ function AttachmentItem({
       {/* image lightbox */}
       {lightbox && isImage && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
           onClick={() => setLightbox(false)}
         >
           <img
@@ -302,7 +302,7 @@ function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
       <div
         className={`prose prose-sm max-w-none ${
           isOwn
-            ? '[&_*]:text-white [&_a]:text-blue-200 [&_code]:bg-blue-600'
+            ? '[&_*]:text-white [&_a]:text-indigo-200 [&_code]:bg-indigo-600'
             : 'dark:prose-invert'
         }`}
       >
@@ -353,7 +353,7 @@ export function MessageBubble({
         <div
           className={`rounded-2xl px-4 py-2.5 ${
             isOwn
-              ? 'bg-blue-500 text-white'
+              ? 'bg-indigo-500 text-white'
               : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
           }`}
         >
