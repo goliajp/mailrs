@@ -39,8 +39,31 @@ export function extractEmail(sender: string): string {
   return sender
 }
 
+// check if the local part of an email looks like a machine-generated hash
+function isMachineLocal(local: string): boolean {
+  // long hex/uuid-like strings with dashes that mix digits and letters
+  if (local.length <= 20) return false
+  if (!/^[0-9a-f-]+$/i.test(local)) return false
+  // must contain both digits and letters to look like a hash (not just repeated chars)
+  return /[0-9]/.test(local) && /[a-f]/i.test(local)
+}
+
+// extract a human-readable display name from a "Name <email>" or raw email string
 export function extractName(sender: string): string {
-  const match = sender.match(/^"?([^"<]+)"?\s*</)
-  if (match) return match[1].trim()
-  return sender.split('@')[0]
+  const nameMatch = sender.match(/^"?([^"<]+)"?\s*</)
+  if (nameMatch) {
+    const name = nameMatch[1].trim()
+    // if the "name" part is actually a machine address, fall through to domain
+    if (!name.includes('@') && !isMachineLocal(name)) return name
+  }
+  // fallback: use local part, or domain for machine-generated addresses
+  const email = extractEmail(sender)
+  const [local, domain] = email.split('@')
+  if (local && domain && isMachineLocal(local)) {
+    // derive a readable label from the domain (e.g. "atlassian-bounces.atlassian.net" → "Atlassian")
+    const parts = domain.split('.')
+    const meaningful = parts.find((p) => !['com', 'net', 'org', 'io', 'co', 'jp', 'ai', 'mail', 'bounces', 'email', 'smtp', 'noreply', 'notifications'].includes(p) && !p.includes('bounce'))
+    return meaningful ? meaningful.charAt(0).toUpperCase() + meaningful.slice(1) : domain
+  }
+  return local ?? sender
 }

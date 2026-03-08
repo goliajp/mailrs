@@ -371,11 +371,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     <p className="select-text text-sm font-medium text-[var(--color-text-primary)]">
                       {extractName(selectedMsg.sender)}{' '}
                       <Copyable value={extractEmail(selectedMsg.sender)}>
-                        <span className="font-normal text-[var(--color-text-tertiary)]">&lt;{extractEmail(selectedMsg.sender)}&gt;</span>
+                        <span className="max-w-[200px] truncate font-normal text-[var(--color-text-tertiary)]">&lt;{extractEmail(selectedMsg.sender)}&gt;</span>
                       </Copyable>
                     </p>
                     <p className="select-text truncate text-xs text-[var(--color-text-tertiary)]">
-                      to <Copyable value={selectedMsg.recipients.slice(0, 80)}>{selectedMsg.recipients.slice(0, 80)}</Copyable> · {formatFullDate(selectedMsg.internal_date)}
+                      to {formatRecipients(selectedMsg.recipients)} · {formatFullDate(selectedMsg.internal_date)}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-0.5">
@@ -721,6 +721,15 @@ function bubbleText(msg: ThreadMessage): string {
   if (!raw) return msg.subject || ''
   const cleaned = cleanTextForBubble(raw)
   return cleaned || msg.subject || ''
+}
+
+// format recipients string into a short human-readable form
+function formatRecipients(recipients: string): string {
+  // split by comma, extract names, deduplicate
+  const parts = recipients.split(',').map((r) => extractName(r.trim())).filter(Boolean)
+  if (parts.length === 0) return recipients
+  if (parts.length <= 2) return parts.join(', ')
+  return `${parts[0]}, ${parts[1]} +${parts.length - 2}`
 }
 
 function HdrBtn({ onClick, title, className, children }: { onClick: () => void; title: string; className?: string; children: React.ReactNode }) {
