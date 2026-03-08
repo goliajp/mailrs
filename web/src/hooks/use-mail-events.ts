@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { fetchJson } from '@/lib/api'
 import { playNotificationSound } from '@/lib/notification-sound'
 import type { ConversationSummary, NewMessageEvent, SmtpEvent, ThreadMessage } from '@/lib/types'
-import { categoryFilterAtom, conversationsAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
+import { categoryFilterAtom, conversationsAtom, folderAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
 import { notificationsAtom } from '@/store/settings'
 
 const POLL_INTERVAL = 15_000
@@ -21,6 +21,8 @@ export function useMailEvents(user: string) {
   const searchRef = useRef(searchQuery)
   const selectedDomains = useAtomValue(selectedDomainsAtom)
   const domainsRef = useRef(selectedDomains)
+  const folder = useAtomValue(folderAtom)
+  const folderRef = useRef(folder)
   const notificationsEnabled = useAtomValue(notificationsAtom)
   const notificationsRef = useRef(notificationsEnabled)
 
@@ -29,6 +31,7 @@ export function useMailEvents(user: string) {
     categoryRef.current = categoryFilter
     searchRef.current = searchQuery
     domainsRef.current = selectedDomains
+    folderRef.current = folder
     notificationsRef.current = notificationsEnabled
   })
 
@@ -48,6 +51,10 @@ export function useMailEvents(user: string) {
     const doms = domainsRef.current
     if (doms.length > 0) {
       path += `&domains=${encodeURIComponent(doms.join(','))}`
+    }
+    const f = folderRef.current
+    if (f) {
+      path += `&folder=${encodeURIComponent(f)}`
     }
     fetchJson<ConversationSummary[]>(path).then(
       (data) => setConversations(data),
