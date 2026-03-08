@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Archive, Check, CheckCircle, Mail, Pin, Search, SlidersHorizontal, SquarePen, Star } from 'lucide-react'
+import { Check, CheckCircle, Mail, Pin, Search, SlidersHorizontal, SquarePen, Star } from 'lucide-react'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
