@@ -1,3 +1,4 @@
+import { File, FileText, X } from 'lucide-react'
 import { useCallback, useState } from 'react'
 
 import { formatSize } from '@/lib/format'
@@ -24,31 +25,12 @@ function attachmentUrl(uid: number, index: number): string {
 
 // pdf icon
 function PdfIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-      />
-      <text x="7" y="20" fontSize="6" fill="currentColor" stroke="none" fontWeight="bold">
-        PDF
-      </text>
-    </svg>
-  )
+  return <FileText className={className} />
 }
 
 // generic file icon
 function FileIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-      />
-    </svg>
-  )
+  return <File className={className} />
 }
 
 // lightbox modal for full-size image preview
@@ -90,9 +72,7 @@ function ImageLightbox({
         className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
         aria-label="Close preview"
       >
-        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <X className="h-5 w-5" />
       </button>
       <img
         src={src}

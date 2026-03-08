@@ -41,11 +41,11 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.people.map((p, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700 dark:bg-red-950/50 dark:text-red-300"
+                    className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
                   >
                     {p.name}
                     {p.role && (
-                      <span className="text-red-400 dark:text-red-500">
+                      <span className="text-blue-400 dark:text-blue-500">
                         ({p.role})
                       </span>
                     )}
