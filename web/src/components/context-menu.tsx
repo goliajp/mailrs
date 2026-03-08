@@ -65,7 +65,7 @@ export function ContextMenu({
   }
 
   return (
-    <div ref={ref} style={style} role="menu" className="min-w-[160px] rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+    <div ref={ref} style={style} role="menu" className="min-w-[160px] rounded border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
       {items.map((item) => (
         <button
           key={item.label}

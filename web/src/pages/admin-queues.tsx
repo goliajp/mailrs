@@ -21,7 +21,7 @@ const statusStyles: Record<string, string> = {
 }
 
 const filterBaseStyle =
-  'rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
+  'rounded px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
 const filterActiveStyle =
   'ring-2 ring-offset-1 ring-zinc-400 dark:ring-zinc-500 dark:ring-offset-zinc-900'
 const filterAllStyle =
@@ -128,7 +128,7 @@ export function AdminQueues() {
       </div>
 
       {/* table */}
-      <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+      <div className="overflow-hidden rounded border border-zinc-200 dark:border-zinc-800">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
             <tr>

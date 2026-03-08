@@ -59,10 +59,10 @@ export function Login() {
     <div className="flex min-h-screen items-center justify-center bg-zinc-100 dark:bg-zinc-950">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm select-none space-y-5 rounded-xl border border-zinc-300 bg-white p-8 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
+        className="w-full max-w-sm select-none space-y-5 rounded border border-zinc-300 bg-white p-8 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
       >
         <div className="flex flex-col items-center">
-          <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-xl shadow-md" />
+          <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded shadow-md" />
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
             mailrs
           </h1>

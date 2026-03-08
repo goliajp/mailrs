@@ -14,7 +14,7 @@ function StatusCard({
   color: string
 }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="text-xs text-zinc-500 dark:text-zinc-400">{label}</div>
       <div className={`mt-1 text-2xl font-bold tabular-nums ${color}`}>
         {value}
@@ -35,7 +35,7 @@ function ConnectionRow({
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+      className={`flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm transition-colors ${
         selected
           ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
           : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50'
@@ -101,7 +101,7 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
               {isServer ? 'S' : 'C'}
             </div>
             <div
-              className={`max-w-[80%] rounded-lg px-3 py-1.5 font-mono text-xs leading-relaxed ${
+              className={`max-w-[80%] rounded px-3 py-1.5 font-mono text-xs leading-relaxed ${
                 isServer
                   ? 'bg-zinc-100 text-emerald-700 dark:bg-zinc-800 dark:text-emerald-300'
                   : 'bg-zinc-100 text-blue-700 dark:bg-zinc-800 dark:text-blue-300'

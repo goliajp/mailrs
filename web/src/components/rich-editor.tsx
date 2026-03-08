@@ -322,7 +322,7 @@ export function RichEditor({
 
   return (
     <div
-      className={`flex h-full flex-col rounded-xl border ${
+      className={`flex h-full flex-col rounded border ${
         'border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900'
       }`}
     >

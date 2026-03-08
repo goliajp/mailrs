@@ -166,7 +166,7 @@ function DeleteConfirmDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl dark:bg-zinc-900">
+      <div className="w-full max-w-sm rounded bg-white p-6 shadow-xl dark:bg-zinc-900">
         <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
         <p className="mb-4 text-sm text-zinc-500">
           Are you sure you want to delete{' '}
@@ -289,7 +289,7 @@ export function AdminAccounts() {
       </div>
 
       {adding && (
-        <div className="mb-4 space-y-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <div className="mb-4 space-y-2 rounded border border-zinc-200 p-4 dark:border-zinc-800">
           <div className="flex gap-2">
             <input
               value={form.address}
@@ -338,7 +338,7 @@ export function AdminAccounts() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
             <tr>

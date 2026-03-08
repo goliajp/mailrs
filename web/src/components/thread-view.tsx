@@ -329,12 +329,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       {/* delete dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true">
-          <div className="mx-4 w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="mx-4 w-full max-w-sm rounded border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Delete conversation?</h3>
             <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">This will permanently delete all messages.</p>
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setShowDeleteConfirm(false)} className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800">Cancel</button>
-              <button onClick={handleDelete} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700">Delete</button>
+              <button onClick={() => setShowDeleteConfirm(false)} className="rounded border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800">Cancel</button>
+              <button onClick={handleDelete} className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700">Delete</button>
             </div>
           </div>
         </div>
@@ -370,17 +370,17 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     {selectedMsg.requires_action && <ActionBadge />}
                     <IntentBadge intent={selectedMsg.sender_intent} />
                     {selectedMsg.action_deadline && (
-                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                      <span className="rounded bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
                         Due: {selectedMsg.action_deadline}
                       </span>
                     )}
                     {selectedMsg.is_bulk_sender && (
-                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                      <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
                         Bulk
                       </span>
                     )}
                     {selectedMsg.ai_analyzed && (
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${
                         selectedMsg.risk_score >= 60
                           ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                           : selectedMsg.risk_score >= 40
@@ -448,7 +448,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className={`flex gap-2 ${i % 2 === 0 ? '' : 'flex-row-reverse'}`}>
                     <div className="h-7 w-7 shrink-0 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-                    <div className="h-10 w-2/3 rounded-2xl bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="h-10 w-2/3 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </div>
                 ))}
               </div>
@@ -488,7 +488,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                       </div>
                     )}
                     <div className={`min-w-0 max-w-[85%] ${isOwn ? 'items-end' : 'items-start'}`}>
-                      <div className={`overflow-hidden rounded-2xl px-3 py-2 text-sm transition-colors ${
+                      <div className={`overflow-hidden rounded px-3 py-2 text-sm transition-colors ${
                         isOwn
                           ? isSelected
                             ? 'bg-blue-700 text-white'
@@ -640,7 +640,7 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
         <MoreVertical className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
           <p className="truncate px-3 py-1 text-[11px] text-zinc-400">{senderEmail}</p>
           {FEEDBACK_ITEMS.map((item) => (
             <button

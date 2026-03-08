@@ -36,7 +36,7 @@ function formatUptime(secs: number): string {
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+    <div className="rounded border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
       <p className="text-xs font-medium uppercase tracking-wider text-zinc-400">{label}</p>
       <p className="mt-1 select-text text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{value}</p>
       {sub && <p className="mt-0.5 select-text text-xs text-zinc-500">{sub}</p>}
@@ -117,12 +117,12 @@ export function AdminOverview() {
         <div className="mb-6">
           <h2 className="mb-3 text-sm font-medium text-zinc-500">Services</h2>
           <div className="space-y-2">
-            <div className="flex items-center gap-3 rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-700">
+            <div className="flex items-center gap-3 rounded border border-zinc-200 px-4 py-3 dark:border-zinc-700">
               <StatusDot ok={health.pg} />
               <span className="text-sm font-medium">PostgreSQL</span>
               <span className="ml-auto select-text text-xs text-zinc-400">{health.pg ? 'Connected' : 'Unavailable'}</span>
             </div>
-            <div className="flex items-center gap-3 rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-700">
+            <div className="flex items-center gap-3 rounded border border-zinc-200 px-4 py-3 dark:border-zinc-700">
               <StatusDot ok={health.valkey} />
               <span className="text-sm font-medium">Valkey / Redis</span>
               <span className="ml-auto select-text text-xs text-zinc-400">{health.valkey ? 'Connected' : 'Unavailable'}</span>
@@ -134,7 +134,7 @@ export function AdminOverview() {
       {/* sessions and traffic */}
       {health && (
         <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="rounded border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
             <h3 className="mb-3 text-sm font-medium text-zinc-500">Sessions</h3>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -148,7 +148,7 @@ export function AdminOverview() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="rounded border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
             <h3 className="mb-3 text-sm font-medium text-zinc-500">Traffic</h3>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -168,7 +168,7 @@ export function AdminOverview() {
       {smtp && (
         <div>
           <h2 className="mb-3 text-sm font-medium text-zinc-500">SMTP Configuration</h2>
-          <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+          <div className="overflow-hidden rounded border border-zinc-200 dark:border-zinc-700">
             <table className="w-full text-sm">
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
                 <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
