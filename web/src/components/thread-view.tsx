@@ -435,9 +435,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 )}
                 {(selectedMsg.clean_text || selectedMsg.text_body || !selectedMsg.html_body) && (
                   <div className="select-text px-5 py-4">
-                    <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+                    <div className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-zinc-800 dark:text-zinc-200">
                       {highlightMentions(selectedMsg.clean_text || selectedMsg.text_body || '(no text content)', myEmail, auth?.display_name)}
-                    </pre>
+                    </div>
                   </div>
                 )}
                 <AttachmentPreview attachments={selectedMsg.attachments} uid={selectedMsg.uid} />
@@ -490,8 +490,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                       const color = avatarColor(msg.sender)
                       const isSelected = selectedMsgIdx === idx
                       const fullText = bubbleText(msg)
-                      const isLong = fullText.length > 200
-                      const snippet = isLong ? fullText.slice(0, 200) : fullText
+                      const isLong = fullText.length > 300
+                      const snippet = isLong ? smartTruncate(fullText, 300) : fullText
                       const isExpanded = expandedBubbles.has(idx)
 
                       const msgDateGroup = new Date(msg.internal_date * 1000).toDateString()
@@ -501,43 +501,46 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                       return (
                         <Fragment key={msg.id}>
                           {showDivider && <BubbleDateDivider label={bubbleDateLabel(msg.internal_date)} />}
-                          <button
-                            onClick={() => {
-                              setSelectedMsgIdx(idx)
-                              if (isLong) {
-                                setExpandedBubbles((prev) => {
-                                  const next = new Set(prev)
-                                  if (next.has(idx)) next.delete(idx)
-                                  else next.add(idx)
-                                  return next
-                                })
-                              }
-                            }}
-                            className={`flex gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 ${isOwn ? 'flex-row-reverse' : ''}`}
-                          >
+                          <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
                             {!isOwn && (
                               <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium text-white ${color}`}>
                                 {initial}
                               </div>
                             )}
                             <div className={`min-w-0 max-w-[85%] ${isOwn ? 'items-end' : 'items-start'}`}>
-                              <div className={`overflow-hidden px-3 py-2 text-sm transition-colors ${
-                                isOwn
-                                  ? isSelected
-                                    ? 'bg-blue-700 text-white'
-                                    : 'bg-blue-600 text-white'
-                                  : isSelected
-                                    ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
-                                    : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
-                              } ${isSelected ? 'ring-2 ring-blue-400/50' : ''}`}>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
+                                  setSelectedMsgIdx(idx)
+                                  if (isLong) {
+                                    setExpandedBubbles((prev) => {
+                                      const next = new Set(prev)
+                                      if (next.has(idx)) next.delete(idx)
+                                      else next.add(idx)
+                                      return next
+                                    })
+                                  }
+                                }}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
+                                className={`cursor-pointer overflow-hidden px-3.5 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/50 ${
+                                  isOwn
+                                    ? isSelected
+                                      ? 'bg-blue-700 text-white'
+                                      : 'bg-blue-600 text-white'
+                                    : isSelected
+                                      ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
+                                      : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
+                                } ${isSelected ? 'ring-2 ring-blue-400/50' : ''}`}
+                              >
                                 {!isOwn && (
-                                  <p className="mb-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">{name}</p>
+                                  <p className="mb-1 text-[13px] font-semibold text-zinc-600 dark:text-zinc-300">{name}</p>
                                 )}
-                                <p className={`select-text break-words text-sm leading-snug whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-3'}`}>
+                                <p className={`select-text break-words text-[13px] leading-relaxed ${isExpanded ? '' : 'line-clamp-5'}`}>
                                   {highlightMentions(isExpanded ? fullText : snippet, myEmail, auth?.display_name)}
                                 </p>
                                 {isLong && (
-                                  <span className="mt-1 block select-none text-xs text-blue-600 dark:text-blue-400">
+                                  <span className={`mt-1.5 block select-none text-xs font-medium ${isOwn ? 'text-blue-200' : 'text-blue-600 dark:text-blue-400'}`}>
                                     {isExpanded ? 'show less' : 'show more'}
                                   </span>
                                 )}
@@ -553,7 +556,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                 onToggle={(emoji) => handleToggleReaction(msg.uid, emoji)}
                               />
                             </div>
-                          </button>
+                          </div>
                         </Fragment>
                       )
                     })}
@@ -670,15 +673,44 @@ const INVISIBLE_RE = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF\u00AD\u034F
 const NOISE_LINE = /^[\s│┼┬┴├┤┌┐└┘─━═╌╍╎╏║╔╗╚╝╠╣╦╩╬\-=_·•*#|+:>{}[\]~`]+$/
 
 function cleanTextForBubble(raw: string): string {
-  return raw
+  const lines = raw
     .replace(INVISIBLE_RE, '')
     .split('\n')
+
+  // find signature delimiter and remove everything after it
+  let sigIdx = lines.length
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i] === '-- ' || lines[i] === '--') {
+      sigIdx = i
+      break
+    }
+  }
+
+  return lines
+    .slice(0, sigIdx)
     .filter((line) => !NOISE_LINE.test(line))
+    .filter((line) => !line.startsWith('>')) // remove quoted lines
     .map((line) => line.replace(/\s{2,}/g, ' ').trim())
     .filter(Boolean)
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
+}
+
+// truncate at nearest sentence/paragraph boundary instead of hard character cut
+function smartTruncate(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text
+  const sub = text.slice(0, maxLen)
+  // try to break at paragraph
+  const lastNewline = sub.lastIndexOf('\n')
+  if (lastNewline > maxLen * 0.5) return sub.slice(0, lastNewline).trimEnd()
+  // try to break at sentence (。.!?！？)
+  const sentenceEnd = sub.search(/[.。!！?？]\s*[^\s]*$/)
+  if (sentenceEnd > maxLen * 0.4) return sub.slice(0, sentenceEnd + 1).trimEnd()
+  // fall back to word boundary
+  const lastSpace = sub.lastIndexOf(' ')
+  if (lastSpace > maxLen * 0.5) return sub.slice(0, lastSpace).trimEnd() + '…'
+  return sub.trimEnd() + '…'
 }
 
 function bubbleText(msg: ThreadMessage): string {
