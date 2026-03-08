@@ -1,6 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useState } from 'react'
-import { useNavigate } from 'react-router'
 import type { ThemeMode } from '@/lib/theme'
 
 import { postJson } from '@/lib/api'
@@ -25,7 +24,7 @@ export function Settings() {
   const [signature, setSignature] = useAtom(signatureAtom)
   const [signatureEnabled, setSignatureEnabled] = useAtom(signatureEnabledAtom)
   const [notificationError, setNotificationError] = useState<string | null>(null)
-  const navigate = useNavigate()
+
 
   const handleLogout = useCallback(async () => {
     try {
@@ -57,18 +56,9 @@ export function Settings() {
   )
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
+    <div className="flex h-full flex-col overflow-y-auto">
       {/* header */}
-      <header className="flex items-center gap-3 border-b border-[var(--color-border-default)] px-4 py-3 sm:px-6">
-        <button
-          onClick={() => navigate('/')}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
-          title="Back to mail"
-        >
-          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-          </svg>
-        </button>
+      <header className="border-b border-[var(--color-border-default)] px-4 py-3 sm:px-6">
         <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
       </header>
 

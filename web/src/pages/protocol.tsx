@@ -214,7 +214,7 @@ export function Protocol() {
     selectedId !== null ? (connections.get(selectedId) ?? null) : null
 
   return (
-    <div className="flex h-screen flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
+    <div className="flex h-full flex-col">
       {/* header */}
       <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-6 py-4">
         <div>
