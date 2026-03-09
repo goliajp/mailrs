@@ -74,11 +74,11 @@ Plans:
   2. Claude Code 配置 MCP server 后，可通过 send_email / reply_email 工具发送邮件
   3. Claude Code 可通过 read_email / search_emails / list_conversations 工具查阅邮件
   4. MCP 工具使用 API key 认证，权限与 REST API 一致
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md — MCP service struct + ServerHandler + 5 mail tools + auth middleware
+- [ ] 04-02-PLAN.md — Router wiring at /mcp + release + Claude Code 端到端验证
 
 ## Progress
 
@@ -90,4 +90,4 @@ Phases 1 → 2 → 3 and 4 (parallel). Phase 3 and 4 both depend on Phase 2, but
 | 1. API Key Authentication | 2/2 | Complete    | 2026-03-09 |
 | 2. Agent Email Operations | 2/2 | Complete   | 2026-03-09 |
 | 3. Webhook Subscriptions | 1/2 | Executing | - |
-| 4. MCP Server | 0/? | Not started | - |
+| 4. MCP Server | 0/2 | Not started | - |
