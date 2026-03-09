@@ -29,7 +29,7 @@ pub(crate) enum AuthMethod {
 }
 
 /// extractor that validates bearer token and returns the authenticated user context
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct AuthUser {
     pub address: String,
     pub display_name: String,

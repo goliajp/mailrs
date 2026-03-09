@@ -27,7 +27,7 @@ pub(crate) mod rate_limit;
 mod request_id;
 mod ws;
 
-pub(crate) use auth::AuthUser;
+pub(crate) use auth::{AuthMethod, AuthUser};
 
 /// session token TTL: 7 days
 const SESSION_TTL: Duration = Duration::from_secs(7 * 24 * 3600);
