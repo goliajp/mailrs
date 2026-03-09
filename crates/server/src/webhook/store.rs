@@ -77,6 +77,18 @@ pub async fn delete_subscription(
     Ok(result.rows_affected() > 0)
 }
 
+/// get a single subscription by id
+pub async fn get_subscription(pool: &PgPool, id: i64) -> Result<Option<Subscription>, sqlx::Error> {
+    sqlx::query_as::<_, Subscription>(
+        "SELECT id, account_address, url, event_type, filter_sender, filter_thread_id, signing_secret, active, created_at
+         FROM webhook_subscriptions
+         WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+}
+
 /// find active subscriptions matching account, event type, and optional sender/thread filters
 pub async fn find_matching_subscriptions(
     pool: &PgPool,
