@@ -2,6 +2,7 @@ mod acme;
 mod ai_analyzer;
 mod ai_email;
 mod ai_spam;
+mod api_key_store;
 mod codec;
 mod config;
 mod content_extract;
