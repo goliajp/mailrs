@@ -22,6 +22,7 @@ mod autodiscover;
 mod conversations;
 mod mail;
 mod templates;
+mod webhook;
 pub(crate) mod rate_limit;
 mod request_id;
 mod ws;
@@ -664,6 +665,9 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         // API key management
         .route("/api/agent/keys", post(api_key::create_api_key).get(api_key::list_api_keys))
         .route("/api/agent/keys/{id}", delete(api_key::revoke_api_key))
+        // webhook subscriptions
+        .route("/api/agent/webhooks", post(webhook::create_webhook).get(webhook::list_webhooks))
+        .route("/api/agent/webhooks/{id}", delete(webhook::delete_webhook))
         // admin API
         .route(
             "/api/admin/domains",

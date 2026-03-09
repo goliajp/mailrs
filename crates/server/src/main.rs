@@ -657,6 +657,23 @@ async fn main() {
         }
     }
 
+    // webhook listener + delivery worker
+    if let Some(ref pool) = pg_pool {
+        let pool_clone = pool.clone();
+        let eb = event_bus.clone();
+        let rx = shutdown_rx.clone();
+        tokio::spawn(async move {
+            webhook::listener::run(&eb, &pool_clone, rx).await;
+        });
+
+        let worker = webhook::worker::WebhookWorker::new(pool.clone());
+        let rx = shutdown_rx.clone();
+        tokio::spawn(async move {
+            worker.run(rx).await;
+        });
+        eprintln!("mailrs webhook system started");
+    }
+
     // DMARC aggregate report generation
     if let (Some(ref dmarc_store), Some(ref resolver)) = (&dmarc_report_store, &ctx.resolver) {
         dmarc_report::spawn_daily_report_task(
