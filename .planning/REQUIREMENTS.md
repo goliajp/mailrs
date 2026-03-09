@@ -1,0 +1,113 @@
+# Requirements: mailrs AI Agent API
+
+**Defined:** 2026-03-10
+**Core Value:** AI agent 能通过简单的 API 调用收发邮件，像人类用邮箱一样自然地参与邮件通信
+
+## v1 Requirements
+
+### API Key Authentication
+
+- [ ] **AKEY-01**: User can create API key for their account
+- [ ] **AKEY-02**: API key shown once on creation, stored as SHA-256 hash
+- [ ] **AKEY-03**: API key uses `mlrs_` prefix, first 8 chars stored as plaintext identifier
+- [ ] **AKEY-04**: API key authenticates via `Authorization: Bearer <key>`
+- [ ] **AKEY-05**: User can revoke API key with immediate effect (including Valkey cache eviction)
+- [ ] **AKEY-06**: API key inherits account role; superadmin key can operate any mailbox
+- [ ] **AKEY-07**: API key supports optional expiration time
+
+### Email Operations
+
+- [ ] **MAIL-01**: Agent can send email via API (to/cc/bcc, subject, text/html body)
+- [ ] **MAIL-02**: Agent can send email with attachments (multipart/form-data)
+- [ ] **MAIL-03**: Superadmin key can specify arbitrary from address
+- [ ] **MAIL-04**: Agent can read full message content via API
+- [ ] **MAIL-05**: Agent can list conversations and search messages via API
+- [ ] **MAIL-06**: Agent can reply to existing thread via API
+
+### Webhook Subscriptions
+
+- [ ] **HOOK-01**: Agent can create webhook subscription (URL + event type)
+- [ ] **HOOK-02**: Webhook can filter by contact email address
+- [ ] **HOOK-03**: Webhook can filter by thread ID
+- [ ] **HOOK-04**: Webhook payload contains only message ID + metadata (not full content)
+- [ ] **HOOK-05**: Failed webhook deliveries retry with exponential backoff
+- [ ] **HOOK-06**: Webhook payload signed with HMAC-SHA256
+
+### MCP Server
+
+- [ ] **MCP-01**: MCP server embedded in mailrs-server using Rust rmcp
+- [ ] **MCP-02**: Streamable HTTP transport mounted at `/mcp` route
+- [ ] **MCP-03**: send_email tool available via MCP
+- [ ] **MCP-04**: read_email tool available via MCP
+- [ ] **MCP-05**: search_emails tool available via MCP
+- [ ] **MCP-06**: reply_email tool available via MCP
+- [ ] **MCP-07**: list_conversations tool available via MCP
+
+## v2 Requirements
+
+### Fine-Grained Permissions
+
+- **PERM-01**: Per-key scopes (mail:read, mail:send, webhook:manage)
+- **PERM-02**: Rate limiting per API key
+
+### Advanced Webhooks
+
+- **HOOK-07**: Advanced filter DSL beyond contact/thread
+- **HOOK-08**: Webhook delivery log API
+
+### MCP Enhancements
+
+- **MCP-08**: stdio MCP wrapper binary for local Claude Code
+- **MCP-09**: MCP resources (mailbox_summary, unread_count)
+- **MCP-10**: download_attachment tool
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| OAuth 2.0 | 服务间调用场景，API key 足够，复杂度不值得 |
+| GraphQL API | REST 足够，维护成本高 |
+| Webhook 推邮件全文 | Payload 大、敏感数据暴露风险 |
+| MCP marketplace 发布 | 先满足自用，稳定后再考虑 |
+| 邮件 AI 分析/摘要 | 已有 ai_assist 模块，不在本次范围 |
+| Base64 附件 in JSON body | 内存爆炸风险，用 multipart/form-data |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| AKEY-01 | Phase 1 | Pending |
+| AKEY-02 | Phase 1 | Pending |
+| AKEY-03 | Phase 1 | Pending |
+| AKEY-04 | Phase 1 | Pending |
+| AKEY-05 | Phase 1 | Pending |
+| AKEY-06 | Phase 1 | Pending |
+| AKEY-07 | Phase 1 | Pending |
+| MAIL-01 | Phase 2 | Pending |
+| MAIL-02 | Phase 2 | Pending |
+| MAIL-03 | Phase 2 | Pending |
+| MAIL-04 | Phase 2 | Pending |
+| MAIL-05 | Phase 2 | Pending |
+| MAIL-06 | Phase 2 | Pending |
+| HOOK-01 | Phase 3 | Pending |
+| HOOK-02 | Phase 3 | Pending |
+| HOOK-03 | Phase 3 | Pending |
+| HOOK-04 | Phase 3 | Pending |
+| HOOK-05 | Phase 3 | Pending |
+| HOOK-06 | Phase 3 | Pending |
+| MCP-01 | Phase 4 | Pending |
+| MCP-02 | Phase 4 | Pending |
+| MCP-03 | Phase 4 | Pending |
+| MCP-04 | Phase 4 | Pending |
+| MCP-05 | Phase 4 | Pending |
+| MCP-06 | Phase 4 | Pending |
+| MCP-07 | Phase 4 | Pending |
+
+**Coverage:**
+- v1 requirements: 26 total
+- Mapped to phases: 26
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-03-10*
+*Last updated: 2026-03-10 after initial definition*
