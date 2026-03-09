@@ -59,7 +59,7 @@ pub(super) struct SetSieveRequest {
 }
 
 pub(super) async fn list_domains(
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
@@ -69,7 +69,7 @@ pub(super) async fn list_domains(
 }
 
 pub(super) async fn add_domain(
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddDomainRequest>,
 ) -> impl IntoResponse {
@@ -100,7 +100,7 @@ pub(super) async fn add_domain(
 
 pub(super) async fn remove_domain(
     Path(name): Path<String>,
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
@@ -127,7 +127,7 @@ pub(super) async fn remove_domain(
 
 pub(super) async fn check_domain_handler(
     Path(name): Path<String>,
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref resolver) = state.resolver else {
@@ -153,7 +153,7 @@ pub(super) async fn check_domain_handler(
 }
 
 pub(super) async fn list_accounts(
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
@@ -163,7 +163,7 @@ pub(super) async fn list_accounts(
 }
 
 pub(super) async fn add_account(
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddAccountRequest>,
 ) -> impl IntoResponse {
@@ -224,7 +224,7 @@ pub(super) async fn add_account(
 
 pub(super) async fn remove_account(
     Path(address): Path<String>,
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
@@ -250,7 +250,7 @@ pub(super) async fn remove_account(
 }
 
 pub(super) async fn list_aliases(
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
@@ -260,7 +260,7 @@ pub(super) async fn list_aliases(
 }
 
 pub(super) async fn add_alias(
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddAliasRequest>,
 ) -> impl IntoResponse {
@@ -312,7 +312,7 @@ pub(super) async fn add_alias(
 
 pub(super) async fn remove_alias(
     Path(id): Path<i64>,
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
@@ -339,7 +339,7 @@ pub(super) async fn remove_alias(
 
 pub(super) async fn get_quota(
     Path(address): Path<String>,
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
@@ -370,7 +370,7 @@ pub(super) async fn get_quota(
 
 pub(super) async fn set_quota(
     Path(address): Path<String>,
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetQuotaRequest>,
 ) -> impl IntoResponse {
@@ -398,7 +398,7 @@ pub(super) async fn set_quota(
 
 pub(super) async fn get_sieve(
     Path(address): Path<String>,
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
@@ -420,7 +420,7 @@ pub(super) async fn get_sieve(
 
 pub(super) async fn set_sieve(
     Path(address): Path<String>,
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetSieveRequest>,
 ) -> impl IntoResponse {
@@ -464,7 +464,7 @@ pub(super) async fn set_sieve(
 
 pub(super) async fn delete_sieve(
     Path(address): Path<String>,
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
@@ -685,7 +685,7 @@ pub(super) async fn retry_queue_message(
 // ---------- smtp config endpoint ----------
 
 pub(super) async fn get_smtp_config(
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     match &state.smtp_config {
