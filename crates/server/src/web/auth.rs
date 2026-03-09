@@ -19,8 +19,20 @@ pub(super) struct LoginRequest {
     pub password: String,
 }
 
-/// extractor that validates bearer token and returns the user address
-pub(crate) struct AuthUser(pub String);
+/// how the user authenticated
+#[derive(Debug, Clone)]
+pub(crate) enum AuthMethod {
+    Session,
+    ApiKey(i64),
+}
+
+/// extractor that validates bearer token and returns the authenticated user context
+pub(crate) struct AuthUser {
+    pub address: String,
+    pub display_name: String,
+    pub super_domains: Vec<String>,
+    pub auth_method: AuthMethod,
+}
 
 impl FromRequestParts<Arc<WebState>> for AuthUser {
     type Rejection = (StatusCode, &'static str);
@@ -53,7 +65,12 @@ impl FromRequestParts<Arc<WebState>> for AuthUser {
         if let Some(token) = token {
             if let Some(session) = state.sessions.get(token.as_str()) {
                 if session.created_at.elapsed() < super::SESSION_TTL {
-                    return Ok(AuthUser(session.address.clone()));
+                    return Ok(AuthUser {
+                        address: session.address.clone(),
+                        display_name: session.display_name.clone(),
+                        super_domains: session.super_domains.clone(),
+                        auth_method: AuthMethod::Session,
+                    });
                 }
                 drop(session);
                 state.sessions.remove(token.as_str());
@@ -187,23 +204,10 @@ pub(super) async fn logout(
 }
 
 pub(super) async fn auth_me(
-    State(state): State<Arc<WebState>>,
-    AuthUser(user): AuthUser,
+    AuthUser { address, display_name, super_domains, .. }: AuthUser,
 ) -> impl IntoResponse {
-    let (display_name, super_domains) = state
-        .sessions
-        .iter()
-        .find(|s| s.value().address == user)
-        .map(|s| {
-            (
-                s.value().display_name.clone(),
-                s.value().super_domains.clone(),
-            )
-        })
-        .unwrap_or_default();
-
     Json(serde_json::json!({
-        "address": user,
+        "address": address,
         "display_name": display_name,
         "super_domains": super_domains,
     }))

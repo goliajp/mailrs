@@ -262,23 +262,14 @@ pub(super) fn clamp_offset(offset: u32) -> u32 {
 /// parse and validate domains query parameter against user's super_domains permission
 pub(super) fn validate_domains(
     domains_param: Option<&str>,
-    user: &str,
-    state: &WebState,
+    super_domains: &[String],
 ) -> Option<Vec<String>> {
     let raw = domains_param?;
     if raw.is_empty() {
         return None;
     }
 
-    // look up user's super_domains from session
-    let allowed: Vec<String> = state
-        .sessions
-        .iter()
-        .find(|s| s.value().address == user)
-        .map(|s| s.value().super_domains.clone())
-        .unwrap_or_default();
-
-    if allowed.is_empty() {
+    if super_domains.is_empty() {
         return None;
     }
 
@@ -291,7 +282,7 @@ pub(super) fn validate_domains(
     // only allow domains the user has permission for
     let validated: Vec<String> = requested
         .into_iter()
-        .filter(|d| allowed.contains(d))
+        .filter(|d| super_domains.contains(d))
         .collect();
 
     if validated.is_empty() {
@@ -765,93 +756,54 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event_bus::EventBus;
-    use std::time::Instant;
-
-    fn make_state() -> WebState {
-        WebState::new(EventBus::new(16))
-    }
-
-    fn make_state_with_session(user: &str, super_domains: Vec<String>) -> WebState {
-        let state = make_state();
-        let token = format!("tok-{user}");
-        state.sessions.insert(
-            token,
-            SessionInfo {
-                address: user.to_string(),
-                display_name: user.to_string(),
-                super_domains,
-                created_at: Instant::now(),
-            },
-        );
-        state
-    }
 
     // --- validate_domains ---
 
     #[test]
     fn validate_domains_returns_none_when_param_is_none() {
-        let state = make_state();
-        assert!(validate_domains(None, "alice@example.com", &state).is_none());
+        assert!(validate_domains(None, &[]).is_none());
     }
 
     #[test]
     fn validate_domains_returns_none_when_param_is_empty() {
-        let state = make_state();
-        assert!(validate_domains(Some(""), "alice@example.com", &state).is_none());
+        assert!(validate_domains(Some(""), &[]).is_none());
     }
 
     #[test]
-    fn validate_domains_returns_none_when_user_has_no_session() {
-        let state = make_state();
-        assert!(validate_domains(Some("example.com"), "alice@example.com", &state).is_none());
+    fn validate_domains_returns_none_when_no_super_domains() {
+        assert!(validate_domains(Some("example.com"), &[]).is_none());
     }
 
     #[test]
     fn validate_domains_returns_none_when_user_has_no_super_domains() {
-        let state = make_state_with_session("alice@example.com", vec![]);
-        assert!(validate_domains(Some("example.com"), "alice@example.com", &state).is_none());
+        assert!(validate_domains(Some("example.com"), &[]).is_none());
     }
 
     #[test]
     fn validate_domains_returns_allowed_domain() {
-        let state =
-            make_state_with_session("alice@example.com", vec!["example.com".into()]);
-        let result = validate_domains(Some("example.com"), "alice@example.com", &state);
+        let domains = vec!["example.com".to_string()];
+        let result = validate_domains(Some("example.com"), &domains);
         assert_eq!(result, Some(vec!["example.com".to_string()]));
     }
 
     #[test]
     fn validate_domains_filters_unauthorized_domains() {
-        let state =
-            make_state_with_session("alice@example.com", vec!["example.com".into()]);
-        let result = validate_domains(
-            Some("example.com,evil.com"),
-            "alice@example.com",
-            &state,
-        );
+        let domains = vec!["example.com".to_string()];
+        let result = validate_domains(Some("example.com,evil.com"), &domains);
         assert_eq!(result, Some(vec!["example.com".to_string()]));
     }
 
     #[test]
     fn validate_domains_returns_none_when_all_domains_unauthorized() {
-        let state =
-            make_state_with_session("alice@example.com", vec!["example.com".into()]);
-        let result = validate_domains(Some("evil.com"), "alice@example.com", &state);
+        let domains = vec!["example.com".to_string()];
+        let result = validate_domains(Some("evil.com"), &domains);
         assert!(result.is_none());
     }
 
     #[test]
     fn validate_domains_handles_multiple_allowed_domains() {
-        let state = make_state_with_session(
-            "admin@example.com",
-            vec!["example.com".into(), "example.org".into()],
-        );
-        let result = validate_domains(
-            Some("example.com,example.org"),
-            "admin@example.com",
-            &state,
-        );
+        let domains = vec!["example.com".to_string(), "example.org".to_string()];
+        let result = validate_domains(Some("example.com,example.org"), &domains);
         assert_eq!(
             result,
             Some(vec!["example.com".to_string(), "example.org".to_string()])
@@ -860,25 +812,15 @@ mod tests {
 
     #[test]
     fn validate_domains_trims_whitespace() {
-        let state =
-            make_state_with_session("alice@example.com", vec!["example.com".into()]);
-        let result = validate_domains(
-            Some("  example.com  ,  "),
-            "alice@example.com",
-            &state,
-        );
+        let domains = vec!["example.com".to_string()];
+        let result = validate_domains(Some("  example.com  ,  "), &domains);
         assert_eq!(result, Some(vec!["example.com".to_string()]));
     }
 
     #[test]
     fn validate_domains_skips_empty_segments() {
-        let state =
-            make_state_with_session("alice@example.com", vec!["example.com".into()]);
-        let result = validate_domains(
-            Some(",example.com,,"),
-            "alice@example.com",
-            &state,
-        );
+        let domains = vec!["example.com".to_string()];
+        let result = validate_domains(Some(",example.com,,"), &domains);
         assert_eq!(result, Some(vec!["example.com".to_string()]));
     }
 

@@ -75,7 +75,7 @@ pub(super) struct ReplySuggestResult {
 }
 
 pub(super) async fn ai_polish(
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<PolishRequest>,
 ) -> impl IntoResponse {
@@ -130,7 +130,7 @@ Original:
 }
 
 pub(super) async fn ai_reply_suggest(
-    AuthUser(_user): AuthUser,
+    AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<ReplySuggestRequest>,
 ) -> impl IntoResponse {

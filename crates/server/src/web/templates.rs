@@ -48,7 +48,7 @@ pub(super) struct SaveTemplateResult {
 }
 
 pub(super) async fn save_template(
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SaveTemplateRequest>,
 ) -> impl IntoResponse {
@@ -120,7 +120,7 @@ pub(super) async fn save_template(
 }
 
 pub(super) async fn list_templates(
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref pool) = state.pg_pool else {
@@ -164,7 +164,7 @@ pub(super) async fn list_templates(
 
 pub(super) async fn delete_template(
     Path(id): Path<i64>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref pool) = state.pg_pool else {

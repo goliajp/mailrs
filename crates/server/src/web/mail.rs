@@ -134,7 +134,7 @@ pub(super) struct AttachmentData {
 }
 
 pub(super) async fn get_folders(
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref mb_store) = state.mailbox_store else {
@@ -162,7 +162,7 @@ pub(super) async fn get_folders(
 pub(super) async fn get_folder_messages(
     Path(name): Path<String>,
     Query(q): Query<FolderMessagesQuery>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref mb_store) = state.mailbox_store else {
@@ -204,7 +204,7 @@ pub(super) async fn get_folder_messages(
 
 pub(super) async fn get_message(
     Path(uid): Path<u32>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref mb_store) = state.mailbox_store else {
@@ -305,7 +305,7 @@ pub(super) async fn get_message(
 
 pub(super) async fn update_message_flags(
     Path(uid): Path<u32>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(update): Json<FlagUpdate>,
 ) -> impl IntoResponse {
@@ -355,7 +355,7 @@ pub(super) async fn update_message_flags(
 
 pub(super) async fn delete_message(
     Path(uid): Path<u32>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref mb_store) = state.mailbox_store else {
@@ -395,7 +395,7 @@ pub(super) async fn delete_message(
 }
 
 pub(super) async fn send_message(
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SendMessageRequest>,
 ) -> impl IntoResponse {
@@ -867,7 +867,7 @@ pub(super) fn build_rfc5322_with_attachments(
 }
 
 pub(super) async fn send_message_multipart(
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
@@ -1042,7 +1042,7 @@ pub(super) async fn send_message_multipart(
 
 pub(super) async fn get_message_raw(
     Path(uid): Path<u32>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref mb_store) = state.mailbox_store else {
@@ -1095,7 +1095,7 @@ pub(super) async fn get_message_raw(
 
 pub(super) async fn get_attachment(
     Path((uid, index)): Path<(u32, usize)>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref mb_store) = state.mailbox_store else {
@@ -1185,7 +1185,7 @@ struct AttachmentContentResponse {
 
 pub(super) async fn get_attachment_content(
     Path((uid, index)): Path<(u32, i16)>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref pool) = state.pg_pool else {
@@ -1255,7 +1255,7 @@ struct InlineUploadResult {
 }
 
 pub(super) async fn upload_inline_image(
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
@@ -1328,7 +1328,7 @@ pub(super) async fn upload_inline_image(
 
 pub(super) async fn serve_inline_image(
     Path(id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     use axum::http::header;
@@ -1384,7 +1384,7 @@ pub(super) async fn serve_inline_image(
 // --- draft handlers ---
 
 pub(super) async fn save_draft(
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SaveDraftRequest>,
 ) -> impl IntoResponse {
@@ -1444,7 +1444,7 @@ pub(super) async fn save_draft(
 }
 
 pub(super) async fn list_drafts(
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref pool) = state.pg_pool else {
@@ -1482,7 +1482,7 @@ pub(super) async fn list_drafts(
 
 pub(super) async fn delete_draft(
     Path(id): Path<i64>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref pool) = state.pg_pool else {

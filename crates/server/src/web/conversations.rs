@@ -141,7 +141,7 @@ pub(super) fn convos_to_response(
 }
 
 pub(super) async fn get_conversations(
-    AuthUser(user): AuthUser,
+    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
     Query(q): Query<ConversationsQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -149,10 +149,10 @@ pub(super) async fn get_conversations(
         return Json(Vec::<ConversationResponse>::new());
     };
 
-    let _ = mb_store.ensure_default_mailboxes(&user).await;
+    let _ = mb_store.ensure_default_mailboxes(user).await;
 
     let limit = super::clamp_limit(q.limit);
-    let domains = validate_domains(q.domains.as_deref(), &user, &state);
+    let domains = validate_domains(q.domains.as_deref(), super_domains);
 
     let convos = mb_store
         .list_conversations(
@@ -173,7 +173,7 @@ pub(super) async fn get_conversations(
 pub(super) async fn get_thread_messages(
     Path(thread_id): Path<String>,
     Query(dq): Query<DomainsQuery>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref mb_store) = state.mailbox_store else {
@@ -184,7 +184,7 @@ pub(super) async fn get_thread_messages(
         return Json(Vec::<ThreadMessageResponse>::new());
     }
 
-    let domains = validate_domains(dq.domains.as_deref(), &user, &state);
+    let domains = validate_domains(dq.domains.as_deref(), super_domains);
 
     let messages = mb_store
         .list_thread_messages(&user, &thread_id, domains.as_deref())
@@ -329,7 +329,7 @@ pub(super) async fn get_thread_messages(
 pub(super) async fn mark_thread_read(
     Path(thread_id): Path<String>,
     Query(dq): Query<DomainsQuery>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
@@ -346,7 +346,7 @@ pub(super) async fn mark_thread_read(
         });
     };
 
-    let domains = validate_domains(dq.domains.as_deref(), &user, &state);
+    let domains = validate_domains(dq.domains.as_deref(), super_domains);
 
     match mb_store
         .mark_thread_read(&user, &thread_id, domains.as_deref())
@@ -365,7 +365,7 @@ pub(super) async fn mark_thread_read(
 
 pub(super) async fn mark_thread_unread(
     Path(thread_id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
@@ -396,7 +396,7 @@ pub(super) async fn mark_thread_unread(
 
 pub(super) async fn delete_thread(
     Path(thread_id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
@@ -444,7 +444,7 @@ pub(super) async fn delete_thread(
 }
 
 pub(super) async fn get_conversation_categories(
-    AuthUser(user): AuthUser,
+    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
     Query(dq): Query<DomainsQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -452,7 +452,7 @@ pub(super) async fn get_conversation_categories(
         return Json(Vec::<CategoryCount>::new());
     };
 
-    let domains = validate_domains(dq.domains.as_deref(), &user, &state);
+    let domains = validate_domains(dq.domains.as_deref(), super_domains);
 
     let cats = mb_store
         .list_conversation_categories(&user, domains.as_deref())
@@ -468,7 +468,7 @@ pub(super) async fn get_conversation_categories(
 }
 
 pub(super) async fn search_conversations(
-    AuthUser(user): AuthUser,
+    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
     Query(q): Query<SearchQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -481,7 +481,7 @@ pub(super) async fn search_conversations(
     }
 
     let limit = super::clamp_limit(q.limit);
-    let domains = validate_domains(q.domains.as_deref(), &user, &state);
+    let domains = validate_domains(q.domains.as_deref(), super_domains);
 
     let mut convos = mb_store
         .search_conversations(
@@ -589,7 +589,7 @@ async fn semantic_search_threads(
 }
 
 pub(super) async fn semantic_search(
-    AuthUser(user): AuthUser,
+    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
     Query(q): Query<SearchQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -612,7 +612,7 @@ pub(super) async fn semantic_search(
         None => return Json(Vec::<SemanticSearchResult>::new()),
     };
 
-    let domains = validate_domains(q.domains.as_deref(), &user, &state);
+    let domains = validate_domains(q.domains.as_deref(), super_domains);
 
     let results = mb_store
         .semantic_search(&user, &embedding, limit as i64, domains.as_deref())
@@ -648,7 +648,7 @@ pub(super) struct SnoozeRequest {
 
 pub(super) async fn snooze_thread(
     Path(thread_id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SnoozeRequest>,
 ) -> impl IntoResponse {
@@ -686,7 +686,7 @@ pub(super) async fn snooze_thread(
 
 pub(super) async fn unsnooze_thread(
     Path(thread_id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
@@ -729,7 +729,7 @@ const VALID_FEEDBACK_ACTIONS: &[&str] = &[
 ];
 
 pub(super) async fn record_feedback(
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<FeedbackRequest>,
 ) -> impl IntoResponse {
@@ -776,7 +776,7 @@ pub(super) async fn record_feedback(
 }
 
 pub(super) async fn get_contacts(
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     Query(q): Query<ContactsQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -827,7 +827,7 @@ pub(super) struct BatchResult {
 }
 
 pub(super) async fn batch_conversations(
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<BatchRequest>,
 ) -> impl IntoResponse {
@@ -963,7 +963,7 @@ pub(super) async fn batch_conversations(
 
 pub(super) async fn star_thread(
     Path(thread_id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
@@ -990,7 +990,7 @@ pub(super) async fn star_thread(
 
 pub(super) async fn unstar_thread(
     Path(thread_id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
@@ -1017,7 +1017,7 @@ pub(super) async fn unstar_thread(
 
 pub(super) async fn pin_thread(
     Path(thread_id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
@@ -1044,7 +1044,7 @@ pub(super) async fn pin_thread(
 
 pub(super) async fn unpin_thread(
     Path(thread_id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
@@ -1071,7 +1071,7 @@ pub(super) async fn unpin_thread(
 
 pub(super) async fn archive_thread(
     Path(thread_id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
@@ -1098,7 +1098,7 @@ pub(super) async fn archive_thread(
 
 pub(super) async fn unarchive_thread(
     Path(thread_id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
@@ -1149,7 +1149,7 @@ pub(super) struct ThreadReactionsResponse {
 
 pub(super) async fn toggle_reaction(
     Path((thread_id, uid)): Path<(String, i64)>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<ToggleReactionRequest>,
 ) -> impl IntoResponse {
@@ -1201,7 +1201,7 @@ pub(super) async fn toggle_reaction(
 
 pub(super) async fn get_thread_reactions(
     Path(thread_id): Path<String>,
-    AuthUser(user): AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
