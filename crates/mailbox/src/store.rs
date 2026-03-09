@@ -841,6 +841,47 @@ impl MailboxStore {
         }
     }
 
+    /// get the message_id of the last message in a thread (by internal_date)
+    pub async fn get_last_message_id_in_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> Result<Option<String>, sqlx::Error> {
+        let row = sqlx::query_as::<_, (String,)>(
+            "SELECT m.message_id FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE mb.user_address = $1 AND m.thread_id = $2 AND m.message_id != ''
+             ORDER BY m.internal_date DESC
+             LIMIT 1",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|r| r.0))
+    }
+
+    /// get all message_ids in a thread ordered by date (for References header)
+    pub async fn get_thread_message_ids(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, (String,)>(
+            "SELECT DISTINCT m.message_id
+             FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE mb.user_address = $1 AND m.thread_id = $2 AND m.message_id != ''
+             ORDER BY m.message_id",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
     /// mark all messages in a thread as read
     /// when `domains` is provided, marks read across all accounts in those domains
     pub async fn mark_thread_read(
