@@ -29,6 +29,7 @@ mod tls;
 mod users;
 mod valkey_store;
 mod web;
+mod webhook;
 
 use std::sync::Arc;
 
