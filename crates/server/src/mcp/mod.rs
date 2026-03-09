@@ -16,7 +16,12 @@ use rmcp::transport::streamable_http_server::StreamableHttpService;
 use rmcp::ErrorData as McpError;
 use rmcp::{tool, tool_handler, tool_router};
 
-use crate::web::{AuthUser, WebState};
+use crate::web::{AuthMethod, AuthUser, WebState};
+
+tokio::task_local! {
+    /// set by mcp_auth_middleware, read by the session factory closure
+    pub(crate) static MCP_AUTH_USER: AuthUser;
+}
 
 use self::tools::{
     ListConversationsParams, ReadEmailParams, ReplyEmailParams, SearchEmailsParams,
@@ -405,29 +410,25 @@ impl ServerHandler for MailMcpService {
 
 /// create the MCP axum Router
 ///
-/// Auth approach: the factory closure for `StreamableHttpService` creates a
-/// `MailMcpService` with a default/placeholder `AuthUser`. Since rmcp's
-/// streamable HTTP transport doesn't expose per-request headers to the factory,
-/// the `mcp_auth_middleware` validates the token and inserts `AuthUser` into
-/// request extensions *before* the request reaches the MCP service.
-///
-/// For the initial implementation, each tool method will extract auth from
-/// `self.auth_user` which is set during service construction. The middleware
-/// is applied as a layer on the MCP router (will be wired in plan 02).
+/// Auth approach: `mcp_auth_middleware` validates the Bearer token and sets
+/// `MCP_AUTH_USER` (task-local) before calling `next.run(request)`. The
+/// `StreamableHttpService` factory closure reads the task-local to create
+/// `MailMcpService` with the correct authenticated user. Both run in the
+/// same tokio task, so the task-local is always available in the factory.
 pub fn setup_mcp(state: Arc<WebState>) -> axum::Router<Arc<WebState>> {
     let state_clone = state.clone();
     let service = StreamableHttpService::new(
         move || {
-            // default auth_user for the session factory
-            // the actual auth is handled per-request by mcp_auth_middleware
-            // and tool methods will use self.auth_user
-            let default_user = AuthUser {
-                address: String::new(),
-                display_name: String::new(),
-                super_domains: vec![],
-                auth_method: crate::web::AuthMethod::Session,
-            };
-            Ok(MailMcpService::new(state_clone.clone(), default_user))
+            // read auth user from task-local (set by mcp_auth_middleware)
+            let auth_user = MCP_AUTH_USER
+                .try_with(|u| u.clone())
+                .unwrap_or_else(|_| AuthUser {
+                    address: String::new(),
+                    display_name: String::new(),
+                    super_domains: vec![],
+                    auth_method: AuthMethod::Session,
+                });
+            Ok(MailMcpService::new(state_clone.clone(), auth_user))
         },
         LocalSessionManager::default().into(),
         Default::default(),

@@ -137,6 +137,7 @@ pub(crate) async fn mcp_auth_middleware(
         auth_method: AuthMethod::ApiKey(cached.id),
     };
 
-    request.extensions_mut().insert(auth_user);
-    next.run(request).await
+    request.extensions_mut().insert(auth_user.clone());
+    // set task-local so the StreamableHttpService factory can read it
+    super::MCP_AUTH_USER.scope(auth_user, next.run(request)).await
 }
