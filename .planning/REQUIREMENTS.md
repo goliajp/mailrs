@@ -27,10 +27,10 @@
 ### Webhook Subscriptions
 
 - [x] **HOOK-01**: Agent can create webhook subscription (URL + event type)
-- [ ] **HOOK-02**: Webhook can filter by contact email address
-- [ ] **HOOK-03**: Webhook can filter by thread ID
-- [ ] **HOOK-04**: Webhook payload contains only message ID + metadata (not full content)
-- [ ] **HOOK-05**: Failed webhook deliveries retry with exponential backoff
+- [x] **HOOK-02**: Webhook can filter by contact email address
+- [x] **HOOK-03**: Webhook can filter by thread ID
+- [x] **HOOK-04**: Webhook payload contains only message ID + metadata (not full content)
+- [x] **HOOK-05**: Failed webhook deliveries retry with exponential backoff
 - [x] **HOOK-06**: Webhook payload signed with HMAC-SHA256
 
 ### MCP Server
@@ -90,10 +90,10 @@
 | MAIL-05 | Phase 2 | Complete |
 | MAIL-06 | Phase 2 | Complete |
 | HOOK-01 | Phase 3 | Complete |
-| HOOK-02 | Phase 3 | Pending |
-| HOOK-03 | Phase 3 | Pending |
-| HOOK-04 | Phase 3 | Pending |
-| HOOK-05 | Phase 3 | Pending |
+| HOOK-02 | Phase 3 | Complete |
+| HOOK-03 | Phase 3 | Complete |
+| HOOK-04 | Phase 3 | Complete |
+| HOOK-05 | Phase 3 | Complete |
 | HOOK-06 | Phase 3 | Complete |
 | MCP-01 | Phase 4 | Pending |
 | MCP-02 | Phase 4 | Pending |
