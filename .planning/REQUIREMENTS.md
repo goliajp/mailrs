@@ -8,12 +8,12 @@
 ### API Key Authentication
 
 - [ ] **AKEY-01**: User can create API key for their account
-- [ ] **AKEY-02**: API key shown once on creation, stored as SHA-256 hash
-- [ ] **AKEY-03**: API key uses `mlrs_` prefix, first 8 chars stored as plaintext identifier
+- [x] **AKEY-02**: API key shown once on creation, stored as SHA-256 hash
+- [x] **AKEY-03**: API key uses `mlrs_` prefix, first 8 chars stored as plaintext identifier
 - [ ] **AKEY-04**: API key authenticates via `Authorization: Bearer <key>`
 - [ ] **AKEY-05**: User can revoke API key with immediate effect (including Valkey cache eviction)
-- [ ] **AKEY-06**: API key inherits account role; superadmin key can operate any mailbox
-- [ ] **AKEY-07**: API key supports optional expiration time
+- [x] **AKEY-06**: API key inherits account role; superadmin key can operate any mailbox
+- [x] **AKEY-07**: API key supports optional expiration time
 
 ### Email Operations
 
@@ -77,12 +77,12 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | AKEY-01 | Phase 1 | Pending |
-| AKEY-02 | Phase 1 | Pending |
-| AKEY-03 | Phase 1 | Pending |
+| AKEY-02 | Phase 1 | Complete |
+| AKEY-03 | Phase 1 | Complete |
 | AKEY-04 | Phase 1 | Pending |
 | AKEY-05 | Phase 1 | Pending |
-| AKEY-06 | Phase 1 | Pending |
-| AKEY-07 | Phase 1 | Pending |
+| AKEY-06 | Phase 1 | Complete |
+| AKEY-07 | Phase 1 | Complete |
 | MAIL-01 | Phase 2 | Pending |
 | MAIL-02 | Phase 2 | Pending |
 | MAIL-03 | Phase 2 | Pending |
