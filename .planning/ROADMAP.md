@@ -12,7 +12,7 @@
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: API Key Authentication** - API key CRUD、哈希存储、Bearer 认证、权限继承 (completed 2026-03-09)
+- [x] **Phase 1: API Key Authentication** - API key CRUD、哈希存储、Bearer 认证、权限继承 (completed 2026-03-09)
 - [ ] **Phase 2: Agent Email Operations** - 发送（含附件）、读取、搜索、回复邮件的 REST API
 - [ ] **Phase 3: Webhook Subscriptions** - 订阅管理、事件捕获（DB outbox）、异步投递、重试
 - [ ] **Phase 4: MCP Server** - rmcp 嵌入 Axum、Streamable HTTP、邮件工具集
@@ -32,8 +32,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — AuthUser 重构为 named-field struct + api_keys 表迁移 + api_key_store 存储模块
-- [ ] 01-02-PLAN.md — API key 认证接入 auth extractor + CRUD 端点 + 测试
+- [x] 01-01-PLAN.md — AuthUser 重构为 named-field struct + api_keys 表迁移 + api_key_store 存储模块
+- [x] 01-02-PLAN.md — API key 认证接入 auth extractor + CRUD 端点 + 测试
 
 ### Phase 2: Agent Email Operations
 **Goal**: Agent 能通过 REST API 完成完整的邮件收发工作流
@@ -44,11 +44,11 @@ Plans:
   2. Agent 可通过 multipart/form-data 发送带附件的邮件
   3. Superadmin key 可指定任意 from 地址发送邮件
   4. Agent 可读取邮件全文、列出会话、搜索消息、回复已有 thread
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md — Superadmin from 校验放开 + reply_to_thread_id 字段 + 单元测试
+- [ ] 02-02-PLAN.md — 读取/列表/搜索端点 agent 场景集成测试
 
 ### Phase 3: Webhook Subscriptions
 **Goal**: Agent 能订阅邮件事件并通过 webhook 接收实时通知
@@ -88,6 +88,6 @@ Phases 1 → 2 → 3 and 4 (parallel). Phase 3 and 4 both depend on Phase 2, but
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. API Key Authentication | 2/2 | Complete    | 2026-03-09 |
-| 2. Agent Email Operations | 0/? | Not started | - |
+| 2. Agent Email Operations | 0/2 | In Progress | - |
 | 3. Webhook Subscriptions | 0/? | Not started | - |
 | 4. MCP Server | 0/? | Not started | - |
