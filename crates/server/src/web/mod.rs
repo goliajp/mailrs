@@ -512,6 +512,29 @@ async fn security_headers(
 pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
     let rate_limiter = state.web_rate_limiter.clone();
 
+    // mcp router: auth middleware but no general rate limiter (MCP sessions are long-lived)
+    let mcp_router = crate::mcp::setup_mcp(state.clone())
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::mcp::auth::mcp_auth_middleware,
+        ))
+        .layer(middleware::from_fn(security_headers))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(tower_http::cors::Any)
+                .allow_methods([
+                    axum::http::Method::GET,
+                    axum::http::Method::POST,
+                    axum::http::Method::DELETE,
+                    axum::http::Method::OPTIONS,
+                ])
+                .allow_headers([
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::CONTENT_TYPE,
+                ])
+                .max_age(Duration::from_secs(3600)),
+        );
+
     // auth routes with stricter rate limit (10 req/min per IP)
     let auth_routes = axum::Router::new()
         .route("/api/auth/login", post(auth::login))
@@ -749,7 +772,10 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
                 .expose_headers([axum::http::HeaderName::from_static("x-request-id")])
                 .max_age(Duration::from_secs(3600)),
         )
-        .with_state(state);
+        .with_state(state.clone());
+
+    // merge MCP router after with_state so it bypasses the general rate limiter
+    app = app.merge(mcp_router.with_state(state));
 
     // serve frontend static files with SPA fallback
     if let Some(dir) = static_dir {
