@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 ## Current Position
 
 Phase: 1 of 4 (API Key Authentication)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-10 — Roadmap created
+Plan: 1 of 2 in current phase
+Status: Executing
+Last activity: 2026-03-10 — Completed 01-01-PLAN.md
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 10%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 8min
+- Total execution time: 0.13 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-api-key-auth | 1 | 8min | 8min |
 
 **Recent Trend:**
-- Last 5 plans: -
+- Last 5 plans: 8min
 - Trend: -
 
 *Updated after each plan completion*
@@ -45,6 +45,8 @@ Recent decisions affecting current work:
 - MCP server 用 Rust (rmcp 1.1) 嵌入 mailrs-server，而非 TypeScript 独立进程
 - Webhook 使用 DB outbox 模式，不直接依赖 EventBus broadcast（避免 lag 丢事件）
 - Phase 3 和 4 可并行执行（互不依赖）
+- validate_domains 改为接受 &[String] 切片而非 &WebState，解耦域名验证和会话存储
+- auth_me 直接从 AuthUser 字段读取，移除 State 依赖
 
 ### Pending Todos
 
@@ -57,5 +59,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-10
-Stopped at: Roadmap created, ready to plan Phase 1
+Stopped at: Completed 01-01-PLAN.md
 Resume file: None
