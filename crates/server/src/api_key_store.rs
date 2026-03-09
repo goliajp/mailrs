@@ -29,7 +29,7 @@ pub(crate) struct CachedApiKey {
 }
 
 /// hex-encode a SHA-256 digest
-fn sha256_hex(data: &[u8]) -> String {
+pub(crate) fn sha256_hex(data: &[u8]) -> String {
     let hash = Sha256::digest(data);
     hex::encode(hash)
 }
@@ -110,22 +110,23 @@ pub(crate) async fn list_api_keys(
     .await
 }
 
-/// revoke an API key, returns true if a row was updated
+/// revoke an API key, returns the prefix if a row was updated (for cache eviction)
 pub(crate) async fn revoke_api_key(
     pool: &PgPool,
     id: i64,
     account_address: &str,
-) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
+) -> Result<Option<String>, sqlx::Error> {
+    let prefix = sqlx::query_scalar::<_, String>(
         "UPDATE api_keys SET revoked_at = now()
-         WHERE id = $1 AND account_address = $2 AND revoked_at IS NULL",
+         WHERE id = $1 AND account_address = $2 AND revoked_at IS NULL
+         RETURNING prefix",
     )
     .bind(id)
     .bind(account_address)
-    .execute(pool)
+    .fetch_optional(pool)
     .await?;
 
-    Ok(result.rows_affected() > 0)
+    Ok(prefix)
 }
 
 /// update last_used_at timestamp (fire-and-forget friendly)
