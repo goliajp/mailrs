@@ -1932,6 +1932,7 @@ dependencies = [
  "futures-util",
  "hex",
  "hickory-resolver 0.25.2",
+ "hmac",
  "html2text",
  "image",
  "instant-acme",
