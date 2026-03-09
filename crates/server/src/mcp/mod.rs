@@ -3,15 +3,25 @@ pub(crate) mod tools;
 
 use std::sync::Arc;
 
+use rand_core::RngCore;
+
 use rmcp::handler::server::router::tool::ToolRouter;
+use rmcp::handler::server::wrapper::Parameters;
 use rmcp::handler::server::ServerHandler;
-use rmcp::model::{Implementation, ProtocolVersion, ServerCapabilities, ServerInfo};
-use rmcp::tool_handler;
-use rmcp::tool_router;
+use rmcp::model::{
+    CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
+};
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::StreamableHttpService;
+use rmcp::ErrorData as McpError;
+use rmcp::{tool, tool_handler, tool_router};
 
 use crate::web::{AuthUser, WebState};
+
+use self::tools::{
+    ListConversationsParams, ReadEmailParams, ReplyEmailParams, SearchEmailsParams,
+    SendEmailParams,
+};
 
 /// MCP service that exposes mailrs operations as MCP tools
 ///
@@ -34,6 +44,350 @@ impl MailMcpService {
             auth_user,
             tool_router: Self::tool_router(),
         }
+    }
+
+    #[tool(description = "Send an email. Returns message ID on success.")]
+    async fn send_email(
+        &self,
+        Parameters(params): Parameters<SendEmailParams>,
+    ) -> Result<CallToolResult, McpError> {
+        if params.to.is_empty() {
+            return Err(McpError::invalid_params("recipient list is empty", None));
+        }
+
+        let cc = params.cc.unwrap_or_default();
+        let total_recipients = params.to.len() + cc.len();
+        if total_recipients > 50 {
+            return Err(McpError::invalid_params(
+                "too many recipients (max 50)",
+                None,
+            ));
+        }
+
+        let from = params
+            .from
+            .as_deref()
+            .unwrap_or(&self.auth_user.address);
+
+        if let Err(msg) = crate::web::mail::verify_sender(
+            from,
+            &self.auth_user.address,
+            &self.auth_user.super_domains,
+        ) {
+            return Err(McpError::invalid_params(msg, None));
+        }
+
+        let now = chrono::Utc::now();
+        let message_id = format!(
+            "{}.{}@{}",
+            now.timestamp_millis(),
+            rand_core::OsRng.next_u32(),
+            self.web_state.hostname,
+        );
+
+        let raw = crate::web::mail::build_rfc5322_message(
+            from,
+            &params.to,
+            &cc,
+            &params.subject,
+            &params.body,
+            params.html_body.as_deref(),
+            &message_id,
+            None,
+            &[],
+            &now,
+            None,
+        );
+
+        let result = crate::web::mail::deliver_message(
+            &self.web_state,
+            from,
+            &params.to,
+            &cc,
+            &[],
+            &raw,
+            &message_id,
+            now.timestamp(),
+        )
+        .await;
+
+        let body = result.0;
+        if body.success {
+            Ok(CallToolResult::success(vec![Content::text(
+                serde_json::json!({
+                    "message_id": message_id,
+                    "status": "queued",
+                })
+                .to_string(),
+            )]))
+        } else {
+            Err(McpError::internal_error(
+                body.message.unwrap_or_else(|| "delivery failed".to_string()),
+                None,
+            ))
+        }
+    }
+
+    #[tool(description = "Read an email by UID. Returns sender, subject, text body, and metadata.")]
+    async fn read_email(
+        &self,
+        Parameters(params): Parameters<ReadEmailParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let Some(ref mb_store) = self.web_state.mailbox_store else {
+            return Err(McpError::internal_error(
+                "mailbox store not available",
+                None,
+            ));
+        };
+
+        let user = &self.auth_user.address;
+        let mailboxes = mb_store
+            .list_mailboxes(user)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(format!("failed to list mailboxes: {e}"), None)
+            })?;
+
+        for mb in &mailboxes {
+            if let Ok(Some(msg)) = mb_store.get_message(mb.id, params.uid).await {
+                let raw = crate::message_util::read_message_raw(
+                    &self.web_state.maildir_root,
+                    user,
+                    &msg.maildir_id,
+                );
+                let (text_body, _html_body, _attachments) = raw
+                    .as_deref()
+                    .map(crate::message_util::parse_message)
+                    .unwrap_or_default();
+
+                let sender = crate::message_util::decode_header(&msg.sender);
+                let subject = crate::message_util::decode_header(&msg.subject);
+
+                return Ok(CallToolResult::success(vec![Content::text(
+                    serde_json::json!({
+                        "uid": msg.uid,
+                        "sender": sender,
+                        "subject": subject,
+                        "text_body": text_body.unwrap_or_default(),
+                        "internal_date": msg.internal_date,
+                        "message_id": msg.message_id,
+                        "thread_id": msg.thread_id,
+                    })
+                    .to_string(),
+                )]));
+            }
+        }
+
+        Err(McpError::invalid_params("message not found", None))
+    }
+
+    #[tool(description = "Search emails by keyword. Returns conversation summaries (thread_id, subject, snippet, participants).")]
+    async fn search_emails(
+        &self,
+        Parameters(params): Parameters<SearchEmailsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let Some(ref mb_store) = self.web_state.mailbox_store else {
+            return Err(McpError::internal_error(
+                "mailbox store not available",
+                None,
+            ));
+        };
+
+        let limit = params.limit.unwrap_or(20).min(20);
+        let user = &self.auth_user.address;
+
+        let results = mb_store
+            .search_conversations(user, &params.query, limit, None, None)
+            .await
+            .map_err(|e| McpError::internal_error(format!("search failed: {e}"), None))?;
+
+        let items: Vec<serde_json::Value> = results
+            .into_iter()
+            .map(|c| {
+                serde_json::json!({
+                    "thread_id": c.thread_id,
+                    "subject": c.subject,
+                    "snippet": c.snippet,
+                    "participants": c.participants,
+                    "last_date": c.last_date,
+                    "message_count": c.message_count,
+                })
+            })
+            .collect();
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string()),
+        )]))
+    }
+
+    #[tool(description = "Reply to an email thread. Automatically sets In-Reply-To headers. Returns message ID.")]
+    async fn reply_email(
+        &self,
+        Parameters(params): Parameters<ReplyEmailParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let Some(ref mb_store) = self.web_state.mailbox_store else {
+            return Err(McpError::internal_error(
+                "mailbox store not available",
+                None,
+            ));
+        };
+
+        let from = params
+            .from
+            .as_deref()
+            .unwrap_or(&self.auth_user.address);
+
+        if let Err(msg) = crate::web::mail::verify_sender(
+            from,
+            &self.auth_user.address,
+            &self.auth_user.super_domains,
+        ) {
+            return Err(McpError::invalid_params(msg, None));
+        }
+
+        // resolve thread to get in_reply_to and references
+        let (resolved_in_reply_to, references) = crate::web::mail::resolve_thread_reply(
+            Some(&params.thread_id),
+            None,
+            from,
+            Some(mb_store.as_ref()),
+        )
+        .await;
+
+        let Some(ref in_reply_to) = resolved_in_reply_to else {
+            return Err(McpError::invalid_params(
+                "thread not found or has no messages",
+                None,
+            ));
+        };
+
+        // load thread messages to determine subject and reply recipient
+        let thread_messages = mb_store
+            .list_thread_messages(from, &params.thread_id, None)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(format!("failed to load thread: {e}"), None)
+            })?;
+
+        if thread_messages.is_empty() {
+            return Err(McpError::invalid_params("thread has no messages", None));
+        }
+
+        let last_msg = &thread_messages[thread_messages.len() - 1];
+        let subject = {
+            let s = crate::message_util::decode_header(&last_msg.subject);
+            if s.starts_with("Re: ") || s.starts_with("RE: ") || s.starts_with("re: ") {
+                s
+            } else {
+                format!("Re: {s}")
+            }
+        };
+
+        // reply to the sender of the last message
+        let reply_to = crate::message_util::decode_header(&last_msg.sender);
+        let to = vec![reply_to];
+
+        let now = chrono::Utc::now();
+        let message_id = format!(
+            "{}.{}@{}",
+            now.timestamp_millis(),
+            rand_core::OsRng.next_u32(),
+            self.web_state.hostname,
+        );
+
+        let raw = crate::web::mail::build_rfc5322_message(
+            from,
+            &to,
+            &[],
+            &subject,
+            &params.body,
+            None,
+            &message_id,
+            Some(in_reply_to),
+            &references,
+            &now,
+            None,
+        );
+
+        let result = crate::web::mail::deliver_message(
+            &self.web_state,
+            from,
+            &to,
+            &[],
+            &[],
+            &raw,
+            &message_id,
+            now.timestamp(),
+        )
+        .await;
+
+        let body = result.0;
+        if body.success {
+            Ok(CallToolResult::success(vec![Content::text(
+                serde_json::json!({
+                    "message_id": message_id,
+                    "thread_id": params.thread_id,
+                    "status": "queued",
+                })
+                .to_string(),
+            )]))
+        } else {
+            Err(McpError::internal_error(
+                body.message.unwrap_or_else(|| "delivery failed".to_string()),
+                None,
+            ))
+        }
+    }
+
+    #[tool(description = "List recent email conversations. Returns thread summaries (thread_id, subject, snippet, participants, unread count).")]
+    async fn list_conversations(
+        &self,
+        Parameters(params): Parameters<ListConversationsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let Some(ref mb_store) = self.web_state.mailbox_store else {
+            return Err(McpError::internal_error(
+                "mailbox store not available",
+                None,
+            ));
+        };
+
+        let limit = params.limit.unwrap_or(20).min(20);
+        let user = &self.auth_user.address;
+
+        let results = mb_store
+            .list_conversations(
+                user,
+                limit,
+                None,
+                params.category.as_deref(),
+                None,
+                false,
+                None,
+            )
+            .await
+            .map_err(|e| {
+                McpError::internal_error(format!("failed to list conversations: {e}"), None)
+            })?;
+
+        let items: Vec<serde_json::Value> = results
+            .into_iter()
+            .map(|c| {
+                serde_json::json!({
+                    "thread_id": c.thread_id,
+                    "subject": c.subject,
+                    "snippet": c.snippet,
+                    "participants": c.participants,
+                    "message_count": c.message_count,
+                    "unread_count": c.unread_count,
+                    "last_date": c.last_date,
+                    "category": c.category,
+                })
+            })
+            .collect();
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string()),
+        )]))
     }
 }
 
