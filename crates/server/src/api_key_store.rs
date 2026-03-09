@@ -12,6 +12,7 @@ pub(crate) struct ApiKeyRecord {
     pub key_hash: String,
     pub account_address: String,
     pub name: String,
+    pub full_key: Option<String>,
     pub expires_at: Option<DateTime<Utc>>,
     pub last_used_at: Option<DateTime<Utc>>,
     pub revoked_at: Option<DateTime<Utc>>,
@@ -57,17 +58,19 @@ pub(crate) async fn insert_api_key(
     pool: &PgPool,
     prefix: &str,
     key_hash: &str,
+    full_key: &str,
     account_address: &str,
     name: &str,
     expires_at: Option<DateTime<Utc>>,
 ) -> Result<i64, sqlx::Error> {
     let id = sqlx::query_scalar::<_, i64>(
-        "INSERT INTO api_keys (prefix, key_hash, account_address, name, expires_at)
-         VALUES ($1, $2, $3, $4, $5)
+        "INSERT INTO api_keys (prefix, key_hash, full_key, account_address, name, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id",
     )
     .bind(prefix)
     .bind(key_hash)
+    .bind(full_key)
     .bind(account_address)
     .bind(name)
     .bind(expires_at)
@@ -83,7 +86,7 @@ pub(crate) async fn get_api_key_by_prefix(
     prefix: &str,
 ) -> Result<Option<ApiKeyRecord>, sqlx::Error> {
     sqlx::query_as::<_, ApiKeyRecord>(
-        "SELECT id, prefix, key_hash, account_address, name, expires_at,
+        "SELECT id, prefix, key_hash, account_address, name, full_key, expires_at,
                 last_used_at, revoked_at, created_at
          FROM api_keys
          WHERE prefix = $1 AND revoked_at IS NULL",
@@ -99,7 +102,7 @@ pub(crate) async fn list_api_keys(
     account_address: &str,
 ) -> Result<Vec<ApiKeyRecord>, sqlx::Error> {
     sqlx::query_as::<_, ApiKeyRecord>(
-        "SELECT id, prefix, key_hash, account_address, name, expires_at,
+        "SELECT id, prefix, key_hash, account_address, name, full_key, expires_at,
                 last_used_at, revoked_at, created_at
          FROM api_keys
          WHERE account_address = $1 AND revoked_at IS NULL

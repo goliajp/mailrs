@@ -26,12 +26,12 @@ struct CreateApiKeyResponse {
     prefix: String,
     name: String,
     expires_at: Option<DateTime<Utc>>,
-    warning: &'static str,
 }
 
 #[derive(Serialize)]
 struct ApiKeyResponse {
     id: i64,
+    key: Option<String>,
     prefix: String,
     name: String,
     created_at: DateTime<Utc>,
@@ -79,6 +79,7 @@ pub(super) async fn create_api_key(
             pool,
             &prefix,
             &key_hash,
+            &full_key,
             &auth_user.address,
             &req.name,
             req.expires_at,
@@ -94,7 +95,6 @@ pub(super) async fn create_api_key(
                         prefix,
                         name: req.name,
                         expires_at: req.expires_at,
-                        warning: "Save this key now. It cannot be retrieved again.",
                     })),
                 );
             }
@@ -139,6 +139,7 @@ pub(super) async fn list_api_keys(
                 .into_iter()
                 .map(|r| ApiKeyResponse {
                     id: r.id,
+                    key: r.full_key,
                     prefix: r.prefix,
                     name: r.name,
                     created_at: r.created_at,
