@@ -6,9 +6,11 @@ use axum::http::request::Parts;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
+use chrono::Utc;
 use rand_core::RngCore;
 use serde::Deserialize;
 
+use crate::api_key_store;
 use crate::inbound::auth_guard::AuthCheck;
 
 use super::{ApiResult, SessionInfo, WebState};
@@ -27,6 +29,7 @@ pub(crate) enum AuthMethod {
 }
 
 /// extractor that validates bearer token and returns the authenticated user context
+#[derive(Debug)]
 pub(crate) struct AuthUser {
     pub address: String,
     pub display_name: String,
@@ -62,7 +65,11 @@ impl FromRequestParts<Arc<WebState>> for AuthUser {
                 })
         };
 
-        if let Some(token) = token {
+        if let Some(ref token) = token {
+            if token.starts_with("mlrs_") {
+                return verify_api_key(token, state).await;
+            }
+
             if let Some(session) = state.sessions.get(token.as_str()) {
                 if session.created_at.elapsed() < super::SESSION_TTL {
                     return Ok(AuthUser {
@@ -79,6 +86,111 @@ impl FromRequestParts<Arc<WebState>> for AuthUser {
 
         Err((StatusCode::UNAUTHORIZED, "authentication required"))
     }
+}
+
+/// verify an API key token (mlrs_{prefix}_{secret}) against cache/DB
+async fn verify_api_key(
+    token: &str,
+    state: &Arc<WebState>,
+) -> Result<AuthUser, (StatusCode, &'static str)> {
+    // parse: mlrs_{8hex}_{40hex}
+    let parts: Vec<&str> = token.splitn(3, '_').collect();
+    if parts.len() != 3 || parts[0] != "mlrs" {
+        return Err((StatusCode::UNAUTHORIZED, "invalid api key format"));
+    }
+    let prefix = parts[1];
+
+    // try Valkey cache first
+    let cached = if let Some(ref valkey) = state.valkey {
+        api_key_store::cache_get(valkey, prefix).await
+    } else {
+        None
+    };
+
+    let cached = match cached {
+        Some(c) => c,
+        None => {
+            // cache miss — query PG
+            let pool = state
+                .pg_pool
+                .as_ref()
+                .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "auth backend unavailable"))?;
+
+            let record = api_key_store::get_api_key_by_prefix(pool, prefix)
+                .await
+                .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "auth backend unavailable"))?
+                .ok_or((StatusCode::UNAUTHORIZED, "invalid api key"))?;
+
+            // resolve super_domains from domain_store
+            let super_domains = if let Some(ref ds) = state.domain_store {
+                match ds.get_account_with_hash(&record.account_address).await.map(|opt| opt.map(|(acct, _)| acct)) {
+                    Ok(Some(account)) => account
+                        .super_domains
+                        .split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect(),
+                    _ => vec![],
+                }
+            } else {
+                vec![]
+            };
+
+            let entry = api_key_store::CachedApiKey {
+                key_hash: record.key_hash,
+                account_address: record.account_address,
+                super_domains,
+                expires_at: record.expires_at,
+                id: record.id,
+            };
+
+            // populate cache
+            if let Some(ref valkey) = state.valkey {
+                api_key_store::cache_set(valkey, prefix, &entry).await;
+            }
+
+            entry
+        }
+    };
+
+    // verify hash
+    let token_hash = api_key_store::sha256_hex(token.as_bytes());
+    if token_hash != cached.key_hash {
+        return Err((StatusCode::UNAUTHORIZED, "invalid api key"));
+    }
+
+    // check expiration
+    if let Some(expires_at) = cached.expires_at {
+        if expires_at < Utc::now() {
+            return Err((StatusCode::UNAUTHORIZED, "api key expired"));
+        }
+    }
+
+    // fire-and-forget last_used_at update
+    if let Some(ref pool) = state.pg_pool {
+        let pool = pool.clone();
+        let id = cached.id;
+        tokio::spawn(async move {
+            api_key_store::update_last_used(&pool, id).await;
+        });
+    }
+
+    // resolve display_name
+    let display_name = if let Some(ref ds) = state.domain_store {
+        match ds.get_account_with_hash(&cached.account_address).await {
+            Ok(Some((account, _))) => account.display_name,
+            _ => cached.account_address.clone(),
+        }
+    } else {
+        cached.account_address.clone()
+    };
+
+    Ok(AuthUser {
+        address: cached.account_address,
+        display_name,
+        super_domains: cached.super_domains,
+        auth_method: AuthMethod::ApiKey(cached.id),
+    })
 }
 
 pub(super) async fn login(
