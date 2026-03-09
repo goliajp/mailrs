@@ -20,7 +20,7 @@ mod api_key;
 mod auth;
 mod autodiscover;
 mod conversations;
-mod mail;
+pub(crate) mod mail;
 mod templates;
 mod webhook;
 pub(crate) mod rate_limit;
@@ -214,7 +214,7 @@ impl WebState {
 // shared types used across modules
 
 #[derive(Serialize)]
-pub(super) struct ApiResult {
+pub(crate) struct ApiResult {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,

@@ -415,7 +415,7 @@ pub(crate) fn verify_sender(from: &str, user: &str, super_domains: &[String]) ->
 
 /// resolve reply_to_thread_id into in_reply_to message-id and references
 /// returns (resolved_in_reply_to, references)
-async fn resolve_thread_reply(
+pub(crate) async fn resolve_thread_reply(
     reply_to_thread_id: Option<&str>,
     in_reply_to: Option<&str>,
     user: &str,
@@ -590,7 +590,7 @@ pub(super) async fn send_message(
     .await
 }
 
-pub(super) async fn deliver_message(
+pub(crate) async fn deliver_message(
     state: &Arc<WebState>,
     from: &str,
     to: &[String],
@@ -695,7 +695,7 @@ fn extract_address(s: &str) -> String {
     s.trim().to_string()
 }
 
-pub(super) fn build_rfc5322_message(
+pub(crate) fn build_rfc5322_message(
     from: &str,
     to: &[String],
     cc: &[String],
@@ -814,7 +814,7 @@ async fn resolve_inline_images(
     (rewritten, images)
 }
 
-pub(super) fn build_rfc5322_with_attachments(
+pub(crate) fn build_rfc5322_with_attachments(
     from: &str,
     to: &[String],
     cc: &[String],
