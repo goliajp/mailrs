@@ -1610,4 +1610,67 @@ mod tests {
     fn extract_address_with_spaces() {
         assert_eq!(extract_address("  alice@test.org  "), "alice@test.org");
     }
+
+    // --- verify_sender tests ---
+
+    #[test]
+    fn verify_sender_superadmin_matching_domain_allowed() {
+        let super_domains = vec!["golia.jp".to_string(), "example.com".to_string()];
+        assert!(verify_sender("agent@golia.jp", "admin@golia.jp", &super_domains).is_ok());
+        // different user but same domain
+        assert!(verify_sender("other@example.com", "admin@golia.jp", &super_domains).is_ok());
+    }
+
+    #[test]
+    fn verify_sender_superadmin_non_matching_domain_rejected() {
+        let super_domains = vec!["golia.jp".to_string()];
+        assert_eq!(
+            verify_sender("agent@evil.com", "admin@golia.jp", &super_domains),
+            Err("sender must match authenticated user")
+        );
+    }
+
+    #[test]
+    fn verify_sender_non_superadmin_different_from_rejected() {
+        let super_domains: Vec<String> = vec![];
+        assert_eq!(
+            verify_sender("other@golia.jp", "user@golia.jp", &super_domains),
+            Err("sender must match authenticated user")
+        );
+    }
+
+    #[test]
+    fn verify_sender_non_superadmin_matching_from_allowed() {
+        let super_domains: Vec<String> = vec![];
+        assert!(verify_sender("user@golia.jp", "user@golia.jp", &super_domains).is_ok());
+    }
+
+    // --- resolve_thread_reply tests ---
+
+    #[tokio::test]
+    async fn resolve_thread_reply_thread_id_resolves_when_no_in_reply_to() {
+        // when no mailbox store and no in_reply_to, thread_id cannot resolve (no DB)
+        // but it should not panic
+        let (reply, refs) = resolve_thread_reply(
+            Some("thread-abc"),
+            None,
+            "user@test.com",
+            None,
+        ).await;
+        // without a store, cannot resolve thread_id
+        assert!(reply.is_none());
+        assert!(refs.is_empty());
+    }
+
+    #[tokio::test]
+    async fn resolve_thread_reply_explicit_in_reply_to_takes_precedence() {
+        // explicit in_reply_to should be used even if reply_to_thread_id is present
+        let (reply, _refs) = resolve_thread_reply(
+            Some("thread-abc"),
+            Some("explicit-msg-id@test.com"),
+            "user@test.com",
+            None,
+        ).await;
+        assert_eq!(reply.as_deref(), Some("explicit-msg-id@test.com"));
+    }
 }
