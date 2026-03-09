@@ -551,18 +551,30 @@ pub(super) async fn send_message(
         _ => req.body.clone(),
     };
 
-    let raw = build_rfc5322_message(
+    // resolve inline images from HTML before building MIME
+    let (resolved_html, inline_images) = match req.html_body.as_deref() {
+        Some(html) => {
+            let (rewritten, images) =
+                resolve_inline_images(html, &state.maildir_root, from, &state.hostname).await;
+            (Some(rewritten), images)
+        }
+        None => (None, vec![]),
+    };
+
+    let raw = build_rfc5322_with_attachments(
         from,
         &req.to,
         &req.cc,
         &req.subject,
         &body_with_quote,
-        req.html_body.as_deref(),
+        resolved_html.as_deref(),
         &message_id,
         in_reply_to_ref,
         &references,
         &now,
+        &[],
         req.list_unsubscribe.as_deref(),
+        &inline_images,
     );
 
     deliver_message(
