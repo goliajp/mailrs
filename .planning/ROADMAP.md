@@ -29,11 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Superadmin key 可以操作任意邮箱的端点
   4. User revoke API key 后，该 key 立即失效（含 Valkey 缓存清除），后续请求返回 401
   5. 设置了过期时间的 API key 到期后自动失效
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md — AuthUser 重构为 named-field struct + api_keys 表迁移 + api_key_store 存储模块
+- [ ] 01-02-PLAN.md — API key 认证接入 auth extractor + CRUD 端点 + 测试
 
 ### Phase 2: Agent Email Operations
 **Goal**: Agent 能通过 REST API 完成完整的邮件收发工作流
@@ -87,7 +87,7 @@ Phases 1 → 2 → 3 and 4 (parallel). Phase 3 and 4 both depend on Phase 2, but
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. API Key Authentication | 0/? | Not started | - |
+| 1. API Key Authentication | 0/2 | Planning complete | - |
 | 2. Agent Email Operations | 0/? | Not started | - |
 | 3. Webhook Subscriptions | 0/? | Not started | - |
 | 4. MCP Server | 0/? | Not started | - |
