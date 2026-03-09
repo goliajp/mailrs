@@ -28,6 +28,7 @@ mod smtp_session;
 mod tls;
 mod users;
 mod valkey_store;
+mod mcp;
 mod web;
 mod webhook;
 
