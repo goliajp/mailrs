@@ -17,12 +17,12 @@
 
 ### Email Operations
 
-- [ ] **MAIL-01**: Agent can send email via API (to/cc/bcc, subject, text/html body)
-- [ ] **MAIL-02**: Agent can send email with attachments (multipart/form-data)
-- [ ] **MAIL-03**: Superadmin key can specify arbitrary from address
+- [x] **MAIL-01**: Agent can send email via API (to/cc/bcc, subject, text/html body)
+- [x] **MAIL-02**: Agent can send email with attachments (multipart/form-data)
+- [x] **MAIL-03**: Superadmin key can specify arbitrary from address
 - [x] **MAIL-04**: Agent can read full message content via API
 - [x] **MAIL-05**: Agent can list conversations and search messages via API
-- [ ] **MAIL-06**: Agent can reply to existing thread via API
+- [x] **MAIL-06**: Agent can reply to existing thread via API
 
 ### Webhook Subscriptions
 
@@ -83,12 +83,12 @@
 | AKEY-05 | Phase 1 | Complete |
 | AKEY-06 | Phase 1 | Complete |
 | AKEY-07 | Phase 1 | Complete |
-| MAIL-01 | Phase 2 | Pending |
-| MAIL-02 | Phase 2 | Pending |
-| MAIL-03 | Phase 2 | Pending |
+| MAIL-01 | Phase 2 | Complete |
+| MAIL-02 | Phase 2 | Complete |
+| MAIL-03 | Phase 2 | Complete |
 | MAIL-04 | Phase 2 | Complete |
 | MAIL-05 | Phase 2 | Complete |
-| MAIL-06 | Phase 2 | Pending |
+| MAIL-06 | Phase 2 | Complete |
 | HOOK-01 | Phase 3 | Pending |
 | HOOK-02 | Phase 3 | Pending |
 | HOOK-03 | Phase 3 | Pending |

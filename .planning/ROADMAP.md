@@ -13,7 +13,7 @@
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: API Key Authentication** - API key CRUD、哈希存储、Bearer 认证、权限继承 (completed 2026-03-09)
-- [ ] **Phase 2: Agent Email Operations** - 发送（含附件）、读取、搜索、回复邮件的 REST API
+- [x] **Phase 2: Agent Email Operations** - 发送（含附件）、读取、搜索、回复邮件的 REST API (completed 2026-03-09)
 - [ ] **Phase 3: Webhook Subscriptions** - 订阅管理、事件捕获（DB outbox）、异步投递、重试
 - [ ] **Phase 4: MCP Server** - rmcp 嵌入 Axum、Streamable HTTP、邮件工具集
 
@@ -88,6 +88,6 @@ Phases 1 → 2 → 3 and 4 (parallel). Phase 3 and 4 both depend on Phase 2, but
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. API Key Authentication | 2/2 | Complete    | 2026-03-09 |
-| 2. Agent Email Operations | 0/2 | In Progress | - |
+| 2. Agent Email Operations | 2/2 | Complete   | 2026-03-09 |
 | 3. Webhook Subscriptions | 0/? | Not started | - |
 | 4. MCP Server | 0/? | Not started | - |
