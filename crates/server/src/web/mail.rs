@@ -124,6 +124,8 @@ pub(super) struct SendMessageRequest {
     #[serde(default)]
     pub in_reply_to: Option<String>,
     #[serde(default)]
+    pub reply_to_thread_id: Option<String>,
+    #[serde(default)]
     pub list_unsubscribe: Option<String>,
 }
 
@@ -394,8 +396,63 @@ pub(super) async fn delete_message(
     })
 }
 
+/// check if a sender address is allowed for the authenticated user
+/// returns Ok(()) if allowed, Err(message) if not
+pub(crate) fn verify_sender(from: &str, user: &str, super_domains: &[String]) -> Result<(), &'static str> {
+    if from == user {
+        return Ok(());
+    }
+    // superadmin: check if from's domain is in super_domains
+    if !super_domains.is_empty() {
+        if let Some(domain) = from.rsplit_once('@').map(|(_, d)| d) {
+            if super_domains.iter().any(|sd| sd.eq_ignore_ascii_case(domain)) {
+                return Ok(());
+            }
+        }
+    }
+    Err("sender must match authenticated user")
+}
+
+/// resolve reply_to_thread_id into in_reply_to message-id and references
+/// returns (resolved_in_reply_to, references)
+async fn resolve_thread_reply(
+    reply_to_thread_id: Option<&str>,
+    in_reply_to: Option<&str>,
+    user: &str,
+    mb_store: Option<&mailrs_mailbox::MailboxStore>,
+) -> (Option<String>, Vec<String>) {
+    // explicit in_reply_to takes precedence
+    if let Some(reply_to) = in_reply_to {
+        if !reply_to.is_empty() {
+            let refs = match mb_store {
+                Some(store) => store
+                    .get_thread_references(user, reply_to)
+                    .await
+                    .unwrap_or_default(),
+                None => vec![],
+            };
+            return (Some(reply_to.to_string()), refs);
+        }
+    }
+
+    // resolve thread_id to last message's message-id
+    if let (Some(thread_id), Some(store)) = (reply_to_thread_id, mb_store) {
+        if !thread_id.is_empty() {
+            if let Ok(Some(last_msg_id)) = store.get_last_message_id_in_thread(user, thread_id).await {
+                let refs = store
+                    .get_thread_message_ids(user, thread_id)
+                    .await
+                    .unwrap_or_default();
+                return (Some(last_msg_id), refs);
+            }
+        }
+    }
+
+    (None, vec![])
+}
+
 pub(super) async fn send_message(
-    AuthUser { address: user, .. }: AuthUser,
+    AuthUser { address: user, super_domains, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SendMessageRequest>,
 ) -> impl IntoResponse {
@@ -435,11 +492,11 @@ pub(super) async fn send_message(
         &req.from
     };
 
-    // verify sender matches authenticated user
-    if from != &user {
+    // verify sender matches authenticated user (superadmin can use any address in super_domains)
+    if let Err(msg) = verify_sender(from, &user, &super_domains) {
         return Json(ApiResult {
             success: false,
-            message: Some("sender must match authenticated user".into()),
+            message: Some(msg.into()),
         });
     }
 
@@ -451,17 +508,18 @@ pub(super) async fn send_message(
         state.hostname
     );
 
-    // build full References chain from thread history
-    let references = match (req.in_reply_to.as_deref(), state.mailbox_store.as_ref()) {
-        (Some(reply_to), Some(mb_store)) if !reply_to.is_empty() => mb_store
-            .get_thread_references(from, reply_to)
-            .await
-            .unwrap_or_default(),
-        _ => vec![],
-    };
+    // resolve reply: thread_id -> in_reply_to, or use explicit in_reply_to
+    let (resolved_in_reply_to, references) = resolve_thread_reply(
+        req.reply_to_thread_id.as_deref(),
+        req.in_reply_to.as_deref(),
+        from,
+        state.mailbox_store.as_deref(),
+    )
+    .await;
 
     // append quoted text from original message for replies
-    let body_with_quote = match (req.in_reply_to.as_deref(), state.mailbox_store.as_ref()) {
+    let in_reply_to_ref = resolved_in_reply_to.as_deref();
+    let body_with_quote = match (in_reply_to_ref, state.mailbox_store.as_ref()) {
         (Some(reply_to), Some(mb_store)) if !reply_to.is_empty() => {
             if let Some(orig) = mb_store
                 .find_message_by_message_id(from, reply_to)
@@ -501,7 +559,7 @@ pub(super) async fn send_message(
         &body_with_quote,
         req.html_body.as_deref(),
         &message_id,
-        req.in_reply_to.as_deref(),
+        in_reply_to_ref,
         &references,
         &now,
         req.list_unsubscribe.as_deref(),
@@ -867,7 +925,7 @@ pub(super) fn build_rfc5322_with_attachments(
 }
 
 pub(super) async fn send_message_multipart(
-    AuthUser { address: user, .. }: AuthUser,
+    AuthUser { address: user, super_domains, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
@@ -878,6 +936,7 @@ pub(super) async fn send_message_multipart(
     let mut body = String::new();
     let mut html_body: Option<String> = None;
     let mut in_reply_to: Option<String> = None;
+    let mut reply_to_thread_id: Option<String> = None;
     let mut attachments: Vec<AttachmentData> = Vec::new();
 
     while let Ok(Some(field)) = multipart.next_field().await {
@@ -898,6 +957,12 @@ pub(super) async fn send_message_multipart(
                 let val = field.text().await.unwrap_or_default();
                 if !val.is_empty() {
                     in_reply_to = Some(val);
+                }
+            }
+            "reply_to_thread_id" => {
+                let val = field.text().await.unwrap_or_default();
+                if !val.is_empty() {
+                    reply_to_thread_id = Some(val);
                 }
             }
             "attachments" => {
@@ -922,10 +987,11 @@ pub(super) async fn send_message_multipart(
         from = user.clone();
     }
 
-    if from != user {
+    // verify sender matches authenticated user (superadmin can use any address in super_domains)
+    if let Err(msg) = verify_sender(&from, &user, &super_domains) {
         return Json(ApiResult {
             success: false,
-            message: Some("sender must match authenticated user".into()),
+            message: Some(msg.into()),
         });
     }
 
@@ -959,17 +1025,18 @@ pub(super) async fn send_message_multipart(
         state.hostname
     );
 
-    // build full References chain from thread history
-    let references = match (in_reply_to.as_deref(), state.mailbox_store.as_ref()) {
-        (Some(reply_to), Some(mb_store)) if !reply_to.is_empty() => mb_store
-            .get_thread_references(&from, reply_to)
-            .await
-            .unwrap_or_default(),
-        _ => vec![],
-    };
+    // resolve reply: thread_id -> in_reply_to, or use explicit in_reply_to
+    let (resolved_in_reply_to, references) = resolve_thread_reply(
+        reply_to_thread_id.as_deref(),
+        in_reply_to.as_deref(),
+        &from,
+        state.mailbox_store.as_deref(),
+    )
+    .await;
 
     // append quoted text from original message for replies
-    let body_with_quote = match (in_reply_to.as_deref(), state.mailbox_store.as_ref()) {
+    let in_reply_to_ref = resolved_in_reply_to.as_deref();
+    let body_with_quote = match (in_reply_to_ref, state.mailbox_store.as_ref()) {
         (Some(reply_to), Some(mb_store)) if !reply_to.is_empty() => {
             if let Some(orig) = mb_store
                 .find_message_by_message_id(&from, reply_to)
@@ -1019,7 +1086,7 @@ pub(super) async fn send_message_multipart(
         &body_with_quote,
         resolved_html.as_deref(),
         &message_id,
-        in_reply_to.as_deref(),
+        in_reply_to_ref,
         &references,
         &now,
         &attachments,
