@@ -13,7 +13,7 @@
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: API Key Authentication** - API key CRUD、哈希存储、Bearer 认证、权限继承 (completed 2026-03-09)
-- [x] **Phase 2: Agent Email Operations** - 发送（含附件）、读取、搜索、回复邮件的 REST API (completed 2026-03-09)
+- [x] **Phase 2: Agent Email Operations** - 发送（含附件）、读取、搜索、回复邮件的 REST API (completed 2026-03-09)
 - [ ] **Phase 3: Webhook Subscriptions** - 订阅管理、事件捕获（DB outbox）、异步投递、重试
 - [ ] **Phase 4: MCP Server** - rmcp 嵌入 Axum、Streamable HTTP、邮件工具集
 
@@ -59,11 +59,11 @@ Plans:
   2. 新邮件到达时，匹配的 webhook 被触发，payload 包含 message ID 和元数据（不含全文）
   3. Webhook payload 使用 HMAC-SHA256 签名，接收方可验证真实性
   4. 投递失败的 webhook 自动以指数退避重试，不因 EventBus lag 丢失事件（DB outbox 模式）
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md — DB schema + webhook store (CRUD/outbox) + HMAC signer
+- [ ] 03-02-PLAN.md — EventBus listener + delivery worker + API routes + server wiring
 
 ### Phase 4: MCP Server
 **Goal**: Claude Code 等 AI agent 可通过 MCP 协议直接收发邮件
@@ -89,5 +89,5 @@ Phases 1 → 2 → 3 and 4 (parallel). Phase 3 and 4 both depend on Phase 2, but
 |-------|----------------|--------|-----------|
 | 1. API Key Authentication | 2/2 | Complete    | 2026-03-09 |
 | 2. Agent Email Operations | 2/2 | Complete   | 2026-03-09 |
-| 3. Webhook Subscriptions | 0/? | Not started | - |
+| 3. Webhook Subscriptions | 0/2 | Planning complete | - |
 | 4. MCP Server | 0/? | Not started | - |
