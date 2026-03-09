@@ -2,7 +2,7 @@
 
 ## What This Is
 
-mailrs 的 AI agent 集成层 — 通过 API key 认证的 REST API 和 MCP server，让 AI agent（特别是 Claude Code）能够发送邮件（含附件）、读取邮件、订阅特定联系人或 thread 的新邮件通知。构建在 mailrs 现有的邮件基础设施之上。
+mailrs 的 AI agent 集成层 — 通过 API key 认证的 REST API 和 MCP server，让 AI agent（特别是 Claude Code）能够发送邮件（含附件）、读取邮件、搜索会话、回复 thread、订阅新邮件 webhook 通知。构建在 mailrs 现有的邮件基础设施之上，已投入生产使用。
 
 ## Core Value
 
@@ -12,59 +12,55 @@ AI agent 能通过简单的 API 调用收发邮件，像人类用邮箱一样自
 
 ### Validated
 
-<!-- 已有基础设施 -->
-
-- ✓ SMTP 收发邮件 — existing
-- ✓ IMAP 协议支持 — existing
-- ✓ Web UI 邮件管理 — existing
-- ✓ REST API 发送邮件 (`/api/mail/send`) — existing
-- ✓ REST API 读取邮件 (`/api/mail/messages/{uid}`) — existing
-- ✓ Conversations/thread 管理 — existing
-- ✓ PostgreSQL 账号/域名管理 — existing
-- ✓ Session-based auth (login + bearer token) — existing
+- ✓ API key CRUD + SHA-256 哈希 + Valkey 缓存 + 过期 + revoke — v1.0
+- ✓ Bearer mlrs_ 认证接入 auth extractor，权限继承账号角色 — v1.0
+- ✓ Superadmin key 可操控任意邮箱 — v1.0
+- ✓ Agent 发送邮件（含附件、from 指定、thread 回复） — v1.0
+- ✓ Agent 读取邮件全文、列出会话、搜索消息 — v1.0
+- ✓ Webhook 订阅（按联系人/thread 过滤）+ HMAC-SHA256 签名 + DB outbox + 指数退避 — v1.0
+- ✓ MCP server 嵌入 mailrs-server（rmcp 1.1 + Streamable HTTP /mcp） — v1.0
+- ✓ 5 个 MCP 工具（send/read/search/reply/list_conversations） — v1.0
 
 ### Active
 
-- [ ] API key 认证系统
-- [ ] API key 绑定账号，权限继承账号角色
-- [ ] Superadmin key 可操控任意邮箱
-- [ ] 通过 API 发送邮件（含附件，可指定 from 地址）
-- [ ] 通过 API 读取邮件全文
-- [ ] 创建 webhook 订阅（按联系人过滤）
-- [ ] 创建 webhook 订阅（按 thread/reply 过滤）
-- [ ] Webhook 推送通知（推送 message ID，agent 自行拉全文）
-- [ ] MCP server 包装 REST API
-- [ ] Claude Code 可通过 MCP 直接收发邮件
+(Empty — define next milestone requirements via `/gsd:new-milestone`)
 
 ### Out of Scope
 
-- OAuth 2.0 授权 — 当前场景是服务间调用，API key 足够，OAuth 复杂度不值得
-- 邮件内容的 AI 分析/摘要 — 已有 ai_assist 模块，不在本次范围
-- 第三方 MCP marketplace 发布 — 先满足自用
+- OAuth 2.0 授权 — 服务间调用场景，API key 足够，复杂度不值得
+- GraphQL API — REST 足够，维护成本高
+- Webhook 推邮件全文 — Payload 大、敏感数据暴露风险
+- MCP marketplace 发布 — 先满足自用，稳定后再考虑
+- 邮件 AI 分析/摘要 — 已有 ai_assist 模块，不在本次范围
+- Base64 附件 in JSON body — 内存爆炸风险，用 multipart/form-data
 
 ## Context
 
-- mailrs 已有完整的 web API（Axum），新 API 可以复用现有路由和中间件
-- 账号系统已有 role 概念（accounts 表），API key 权限可以直接继承
-- event_bus 已有 `SmtpEvent` 广播机制，webhook 可以订阅这个 bus
-- 现有 `/api/mail/send` 已支持发邮件，需要扩展支持附件和 from 指定
-- MCP server 是独立进程，通过 HTTP 调用 mailrs REST API
+v1.0 已上线。46,917 LOC Rust + 13,679 LOC TypeScript。
+Tech stack: Axum + Tokio + sqlx/PostgreSQL + Valkey + rmcp 1.1。
+Claude Code 已通过 MCP 实际收发邮件，验证端到端可用。
 
-## Constraints
-
-- **Tech stack**: Rust (server) + TypeScript (MCP server) — MCP SDK 生态 TypeScript 最成熟
-- **Auth**: API key 必须支持 revoke 和过期时间
-- **Security**: API key 存储必须 hash（类似密码），不能明文存数据库
-- **Compatibility**: 新 API 不能破坏现有 web UI 的 session auth
+v2 候选功能：per-key scopes、rate limiting per key、webhook delivery log、MCP stdio wrapper、MCP resources。
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| API key 而非 OAuth | 服务间调用场景，简单直接，接入成本低 | — Pending |
-| Webhook 只推 message ID | 减少 payload 大小，agent 按需拉全文，避免敏感数据在 webhook 中传输 | — Pending |
-| MCP server 用 TypeScript | MCP SDK 官方 TypeScript 支持最好，且 mailrs 已有 TypeScript 前端生态 | — Pending |
-| API key 权限继承账号角色 | 复用现有 accounts 表的权限模型，不另建权限系统 | — Pending |
+| API key 而非 OAuth | 服务间调用场景，简单直接 | ✓ Good — 接入成本极低 |
+| Webhook 只推 message ID | 减少 payload，agent 按需拉全文 | ✓ Good — 安全且灵活 |
+| MCP server 用 Rust (rmcp) 嵌入 | 避免 TypeScript 独立进程，减少运维复杂度 | ✓ Good — 单进程部署 |
+| API key 权限继承账号角色 | 复用现有 accounts 表权限 | ✓ Good — 零额外权限系统 |
+| DB outbox 而非 EventBus 直接推 | EventBus broadcast 会 lag 丢事件 | ✓ Good — 可靠不丢 |
+| MCP router 在 rate limiter 前合并 | 避免限流长连接 MCP session | ✓ Good — MCP 体验流畅 |
+| verify_sender 提取为 pub(crate) pure function | 可测性 + 复用性 | ✓ Good — MCP 复用 |
+| task-local 传播 auth identity 到 MCP service | factory 无法拿到 per-request auth | ✓ Good — 修复 v0.6.28 |
+
+## Constraints
+
+- **Tech stack**: Rust (server) — MCP 也用 Rust (rmcp 1.1)
+- **Auth**: API key 必须支持 revoke 和过期时间
+- **Security**: API key 存储必须 hash，不能明文存数据库；webhook signing_secret 明文存储（HMAC 需要原始密钥）
+- **Compatibility**: 新 API 不破坏现有 web UI 的 session auth
 
 ---
-*Last updated: 2026-03-09 after initialization*
+*Last updated: 2026-03-10 after v1.0 milestone*
