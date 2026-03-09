@@ -3,11 +3,27 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-09T18:52:37.154Z"
+last_activity: 2026-03-10 — Completed 03-02-PLAN.md
+progress:
+  total_phases: 4
+  completed_phases: 4
+  total_plans: 8
+  completed_plans: 8
+  percent: 100
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
 stopped_at: Completed 04-01-PLAN.md
 last_updated: "2026-03-09T18:41:36.095Z"
 last_activity: 2026-03-10 — Completed 03-02-PLAN.md
 progress:
-  total_phases: 4
+  [██████████] 100%
   completed_phases: 3
   total_plans: 8
   completed_plans: 7
@@ -70,6 +86,7 @@ Progress: [█████████░] 92%
 | Phase 03 P01 | 3min | 2 tasks | 6 files |
 | Phase 03 P02 | 4min | 2 tasks | 7 files |
 | Phase 04 P01 | 13min | 2 tasks | 8 files |
+| Phase 04 P02 | 4min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -94,6 +111,7 @@ Recent decisions affecting current work:
 - [Phase 03]: Worker uses tokio::Semaphore(10) for bounded concurrent delivery
 - [Phase 04]: rmcp 1.1 + axum 0.8 confirmed compatible, tools use Parameters<T> pattern
 - [Phase 04]: MCP auth: factory creates placeholder AuthUser, real auth via middleware layer (plan 02 wiring)
+- [Phase 04]: MCP router merged before rate limiter to avoid throttling long-lived MCP sessions
 
 ### Pending Todos
 
@@ -105,6 +123,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-09T18:41:36.093Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-03-09T18:52:37.152Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None

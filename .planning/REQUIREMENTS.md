@@ -36,7 +36,7 @@
 ### MCP Server
 
 - [x] **MCP-01**: MCP server embedded in mailrs-server using Rust rmcp
-- [ ] **MCP-02**: Streamable HTTP transport mounted at `/mcp` route
+- [x] **MCP-02**: Streamable HTTP transport mounted at `/mcp` route
 - [x] **MCP-03**: send_email tool available via MCP
 - [x] **MCP-04**: read_email tool available via MCP
 - [x] **MCP-05**: search_emails tool available via MCP
@@ -96,7 +96,7 @@
 | HOOK-05 | Phase 3 | Complete |
 | HOOK-06 | Phase 3 | Complete |
 | MCP-01 | Phase 4 | Complete |
-| MCP-02 | Phase 4 | Pending |
+| MCP-02 | Phase 4 | Complete |
 | MCP-03 | Phase 4 | Complete |
 | MCP-04 | Phase 4 | Complete |
 | MCP-05 | Phase 4 | Complete |
