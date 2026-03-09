@@ -62,7 +62,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — DB schema + webhook store (CRUD/outbox) + HMAC signer
+- [x] 03-01-PLAN.md — DB schema + webhook store (CRUD/outbox) + HMAC signer
 - [ ] 03-02-PLAN.md — EventBus listener + delivery worker + API routes + server wiring
 
 ### Phase 4: MCP Server
@@ -89,5 +89,5 @@ Phases 1 → 2 → 3 and 4 (parallel). Phase 3 and 4 both depend on Phase 2, but
 |-------|----------------|--------|-----------|
 | 1. API Key Authentication | 2/2 | Complete    | 2026-03-09 |
 | 2. Agent Email Operations | 2/2 | Complete   | 2026-03-09 |
-| 3. Webhook Subscriptions | 0/2 | Planning complete | - |
+| 3. Webhook Subscriptions | 1/2 | Executing | - |
 | 4. MCP Server | 0/? | Not started | - |
