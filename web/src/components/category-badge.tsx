@@ -39,7 +39,7 @@ const importanceStyles: Record<string, { bg: string; text: string; label: string
 }
 
 export function ImportanceBadge({ level }: { level: string }) {
-  if (!level || level === 'normal') return null
+  if (!level || level === 'normal' || level === 'low' || level === 'noise') return null
   const s = importanceStyles[level] ?? importanceStyles.normal
   return (
     <span className={`inline-flex select-none items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${s.bg} ${s.text}`}>
