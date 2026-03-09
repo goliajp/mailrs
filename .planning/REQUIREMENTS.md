@@ -35,13 +35,13 @@
 
 ### MCP Server
 
-- [ ] **MCP-01**: MCP server embedded in mailrs-server using Rust rmcp
+- [x] **MCP-01**: MCP server embedded in mailrs-server using Rust rmcp
 - [ ] **MCP-02**: Streamable HTTP transport mounted at `/mcp` route
-- [ ] **MCP-03**: send_email tool available via MCP
-- [ ] **MCP-04**: read_email tool available via MCP
-- [ ] **MCP-05**: search_emails tool available via MCP
-- [ ] **MCP-06**: reply_email tool available via MCP
-- [ ] **MCP-07**: list_conversations tool available via MCP
+- [x] **MCP-03**: send_email tool available via MCP
+- [x] **MCP-04**: read_email tool available via MCP
+- [x] **MCP-05**: search_emails tool available via MCP
+- [x] **MCP-06**: reply_email tool available via MCP
+- [x] **MCP-07**: list_conversations tool available via MCP
 
 ## v2 Requirements
 
@@ -95,13 +95,13 @@
 | HOOK-04 | Phase 3 | Complete |
 | HOOK-05 | Phase 3 | Complete |
 | HOOK-06 | Phase 3 | Complete |
-| MCP-01 | Phase 4 | Pending |
+| MCP-01 | Phase 4 | Complete |
 | MCP-02 | Phase 4 | Pending |
-| MCP-03 | Phase 4 | Pending |
-| MCP-04 | Phase 4 | Pending |
-| MCP-05 | Phase 4 | Pending |
-| MCP-06 | Phase 4 | Pending |
-| MCP-07 | Phase 4 | Pending |
+| MCP-03 | Phase 4 | Complete |
+| MCP-04 | Phase 4 | Complete |
+| MCP-05 | Phase 4 | Complete |
+| MCP-06 | Phase 4 | Complete |
+| MCP-07 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 26 total
