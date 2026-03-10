@@ -1,0 +1,88 @@
+# mailrs API — AI Agent Guide
+
+Base URL: https://mail.golia.ai
+Auth: `Authorization: Bearer <API_KEY>` (all requests)
+
+## Option A: MCP (recommended for Claude Code)
+
+Add to MCP config:
+```json
+{"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
+```
+Tools auto-discovered: send_email, read_email, search_emails, reply_email, list_conversations.
+
+## Option B: REST API
+
+### Send email
+```
+POST /api/mail/send
+Content-Type: application/json
+
+{"to":["recipient@example.com"],"subject":"Subject","text_body":"Plain text body","html_body":"<p>Optional HTML</p>"}
+```
+
+### Send email with attachments
+```
+POST /api/mail/send-multipart
+Content-Type: multipart/form-data
+
+Fields: to, cc, subject, text_body, html_body, from, reply_to_thread_id, attachments (file)
+```
+
+### List conversations
+```
+GET /api/conversations?limit=20&category=personal
+```
+Returns: `[{thread_id, subject, snippet, participants, message_count, unread_count, last_date, category}]`
+
+### Search emails
+```
+GET /api/conversations?q=search+keyword&limit=20
+```
+
+### Read a message
+```
+GET /api/mail/messages/{uid}
+```
+Returns: full message with sender, subject, text_body, html_body, attachments metadata.
+
+### Reply to a thread
+```
+POST /api/mail/send
+Content-Type: application/json
+
+{"to":["recipient@example.com"],"subject":"Re: Original subject","text_body":"Reply body","reply_to_thread_id":"<thread_id>"}
+```
+
+### Webhook: subscribe to new emails
+```
+POST /api/agent/webhooks
+Content-Type: application/json
+
+{"callback_url":"https://your-server/hook","event_type":"new_message","filter_contact":"specific@email.com","filter_thread_id":"optional-thread-id"}
+```
+Webhook payload is HMAC-SHA256 signed. Contains message ID + metadata (not full content). Your server verifies signature then calls GET /api/mail/messages/{uid} for full content.
+
+### List webhooks
+```
+GET /api/agent/webhooks
+```
+
+### Delete webhook
+```
+DELETE /api/agent/webhooks/{id}
+```
+
+## API Key Management
+
+```
+POST   /api/agent/keys          — create key (session auth only, not API key)
+GET    /api/agent/keys          — list keys
+DELETE /api/agent/keys/{id}     — revoke key
+```
+
+## Notes
+- Superadmin keys can specify `from` field to send as any address in managed domains.
+- Regular keys send as the associated account address only.
+- Rate limiting applies to all endpoints.
+- Webhook deliveries retry with exponential backoff (60s → 6h, max 8 attempts).
