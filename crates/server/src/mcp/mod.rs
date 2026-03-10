@@ -16,6 +16,8 @@ use rmcp::transport::streamable_http_server::StreamableHttpService;
 use rmcp::ErrorData as McpError;
 use rmcp::{tool, tool_handler, tool_router};
 
+use base64::Engine;
+
 use crate::web::{AuthMethod, AuthUser, WebState};
 
 tokio::task_local! {
@@ -90,7 +92,29 @@ impl MailMcpService {
             self.web_state.hostname,
         );
 
-        let raw = crate::web::mail::build_rfc5322_message(
+        // decode base64 attachments
+        let attachment_data: Vec<crate::web::mail::AttachmentData> = params
+            .attachments
+            .unwrap_or_default()
+            .into_iter()
+            .map(|a| {
+                let data = base64::engine::general_purpose::STANDARD
+                    .decode(&a.data)
+                    .map_err(|_| {
+                        McpError::invalid_params(
+                            format!("invalid base64 in attachment '{}'", a.filename),
+                            None,
+                        )
+                    })?;
+                Ok(crate::web::mail::AttachmentData {
+                    filename: a.filename,
+                    content_type: a.content_type,
+                    data,
+                })
+            })
+            .collect::<Result<Vec<_>, McpError>>()?;
+
+        let raw = crate::web::mail::build_rfc5322_with_attachments(
             from,
             &params.to,
             &cc,
@@ -101,7 +125,9 @@ impl MailMcpService {
             None,
             &[],
             &now,
+            &attachment_data,
             None,
+            &[],
         );
 
         let result = crate::web::mail::deliver_message(

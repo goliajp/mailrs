@@ -3,6 +3,16 @@ use serde::Deserialize;
 // --- parameter structs ---
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct Attachment {
+    /// filename (e.g. "photo.png")
+    pub filename: String,
+    /// MIME type (e.g. "image/png")
+    pub content_type: String,
+    /// base64-encoded file content
+    pub data: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(crate) struct SendEmailParams {
     /// sender email address (omit to use authenticated account)
     #[serde(default)]
@@ -19,6 +29,9 @@ pub(crate) struct SendEmailParams {
     /// optional HTML email body
     #[serde(default)]
     pub html_body: Option<String>,
+    /// optional file attachments (base64-encoded)
+    #[serde(default)]
+    pub attachments: Option<Vec<Attachment>>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]

@@ -129,7 +129,7 @@ pub(super) struct SendMessageRequest {
     pub list_unsubscribe: Option<String>,
 }
 
-pub(super) struct AttachmentData {
+pub(crate) struct AttachmentData {
     pub filename: String,
     pub content_type: String,
     pub data: Vec<u8>,
