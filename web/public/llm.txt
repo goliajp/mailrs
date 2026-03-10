@@ -1,4 +1,4 @@
-# mailrs API — AI Agent Guide
+# mailrs API - AI Agent Guide
 
 Base URL: https://mail.golia.ai
 Auth: `Authorization: Bearer <API_KEY>` (all requests)
@@ -76,13 +76,13 @@ DELETE /api/agent/webhooks/{id}
 ## API Key Management
 
 ```
-POST   /api/agent/keys          — create key (session auth only, not API key)
-GET    /api/agent/keys          — list keys
-DELETE /api/agent/keys/{id}     — revoke key
+POST   /api/agent/keys          - create key (session auth only, not API key)
+GET    /api/agent/keys          - list keys
+DELETE /api/agent/keys/{id}     - revoke key
 ```
 
 ## Notes
 - Superadmin keys can specify `from` field to send as any address in managed domains.
 - Regular keys send as the associated account address only.
 - Rate limiting applies to all endpoints.
-- Webhook deliveries retry with exponential backoff (60s → 6h, max 8 attempts).
+- Webhook deliveries retry with exponential backoff (60s -> 6h, max 8 attempts).
