@@ -1,0 +1,316 @@
+# mailrs API - Full Reference
+
+Base URL: https://mail.golia.ai
+Auth: All requests require `Authorization: Bearer <API_KEY>` header.
+
+---
+
+## 1. MCP Integration (recommended for AI agents)
+
+Endpoint: https://mail.golia.ai/mcp
+Transport: Streamable HTTP (MCP protocol 2025-03-26)
+
+Config for Claude Code or any MCP client:
+```json
+{
+  "mcpServers": {
+    "mailrs": {
+      "type": "streamable-http",
+      "url": "https://mail.golia.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer <API_KEY>"
+      }
+    }
+  }
+}
+```
+
+5 tools auto-discovered:
+
+| Tool | Description |
+|------|-------------|
+| send_email | Send email with optional attachments (base64) |
+| read_email | Read message by UID |
+| search_emails | Search by keyword, returns conversation summaries |
+| reply_email | Reply to a thread by thread_id |
+| list_conversations | List recent conversations with filters |
+
+### send_email parameters
+```json
+{
+  "to": ["recipient@example.com"],
+  "subject": "Subject line",
+  "body": "Plain text body",
+  "html_body": "<p>Optional HTML</p>",
+  "cc": ["cc@example.com"],
+  "from": "sender@golia.jp",
+  "attachments": [
+    {
+      "filename": "photo.png",
+      "content_type": "image/png",
+      "data": "<base64-encoded content>"
+    }
+  ]
+}
+```
+
+### reply_email parameters
+```json
+{
+  "thread_id": "<thread_id from list_conversations or search_emails>",
+  "body": "Reply text",
+  "from": "optional-sender@golia.jp"
+}
+```
+
+### search_emails parameters
+```json
+{
+  "query": "search keyword",
+  "limit": 20
+}
+```
+
+### read_email parameters
+```json
+{
+  "uid": 12345
+}
+```
+
+### list_conversations parameters
+```json
+{
+  "limit": 20,
+  "category": "personal"
+}
+```
+
+---
+
+## 2. REST API
+
+### Send email
+
+```
+curl -X POST https://mail.golia.ai/api/mail/send \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": ["recipient@example.com"],
+    "subject": "Hello",
+    "text_body": "Email body text",
+    "html_body": "<p>Optional HTML</p>",
+    "cc": ["cc@example.com"],
+    "reply_to_thread_id": "optional-thread-id"
+  }'
+```
+
+Response: `{"success": true}`
+
+### Send email with attachments
+
+```
+curl -X POST https://mail.golia.ai/api/mail/send-multipart \
+  -H "Authorization: Bearer mlrs_..." \
+  -F "to=recipient@example.com" \
+  -F "subject=Hello with attachment" \
+  -F "text_body=See attached file" \
+  -F "attachments=@/path/to/file.png;type=image/png"
+```
+
+Response: `{"success": true}`
+
+### List conversations
+
+```
+curl https://mail.golia.ai/api/conversations?limit=20 \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+Response:
+```json
+[
+  {
+    "thread_id": "abc123",
+    "subject": "Meeting tomorrow",
+    "snippet": "Let's meet at 3pm...",
+    "participants": ["alice@example.com", "bob@example.com"],
+    "message_count": 5,
+    "unread_count": 2,
+    "last_date": 1710000000,
+    "category": "personal"
+  }
+]
+```
+
+Query parameters:
+- `limit` (default 20, max 50)
+- `q` - search keyword
+- `category` - filter: personal, notification, promotion, general
+- `folder` - INBOX (default), Sent
+
+### Search emails
+
+```
+curl "https://mail.golia.ai/api/conversations?q=invoice&limit=10" \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+Same response format as list conversations.
+
+### Read a message
+
+```
+curl https://mail.golia.ai/api/mail/messages/12345 \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+Response:
+```json
+{
+  "uid": 12345,
+  "sender": "alice@example.com",
+  "subject": "Meeting tomorrow",
+  "text_body": "Let's meet at 3pm.",
+  "html_body": "<p>Let's meet at 3pm.</p>",
+  "internal_date": 1710000000,
+  "message_id": "abc@mail.example.com",
+  "thread_id": "abc123",
+  "attachments": [
+    {"filename": "doc.pdf", "content_type": "application/pdf", "size": 1024}
+  ]
+}
+```
+
+---
+
+## 3. Webhooks
+
+### Create webhook subscription
+
+```
+curl -X POST https://mail.golia.ai/api/agent/webhooks \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "callback_url": "https://your-server.com/webhook",
+    "event_type": "new_message",
+    "filter_contact": "important@example.com",
+    "filter_thread_id": "optional-thread-id"
+  }'
+```
+
+Response:
+```json
+{
+  "id": 1,
+  "signing_secret": "your-hmac-secret"
+}
+```
+
+### Webhook payload (POST to your callback_url)
+
+Headers:
+- `X-Mailrs-Signature`: HMAC-SHA256 hex digest
+- `X-Mailrs-Event`: event type
+- `Content-Type`: application/json
+
+Body:
+```json
+{
+  "event": "new_message",
+  "message_id": "abc@mail.golia.ai",
+  "uid": 12345,
+  "from": "sender@example.com",
+  "subject": "New email subject",
+  "timestamp": 1710000000
+}
+```
+
+Verify signature: `HMAC-SHA256(signing_secret, request_body) == X-Mailrs-Signature`
+Payload contains metadata only. Call `GET /api/mail/messages/{uid}` for full content.
+Failed deliveries retry with exponential backoff (60s -> 6h, max 8 attempts).
+
+### List webhooks
+
+```
+curl https://mail.golia.ai/api/agent/webhooks \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### Delete webhook
+
+```
+curl -X DELETE https://mail.golia.ai/api/agent/webhooks/1 \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+---
+
+## 4. API Key Management
+
+API keys must be created via session auth (web login), not via another API key.
+
+### Create key (requires session auth)
+
+```
+curl -X POST https://mail.golia.ai/api/agent/keys \
+  -H "Authorization: Bearer <session_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-agent", "expires_at": "2027-01-01T00:00:00Z"}'
+```
+
+Response:
+```json
+{
+  "id": 1,
+  "key": "mlrs_625735a4_631d4f9a29061c279419fb17b3939f9d7eebfba8",
+  "prefix": "625735a4",
+  "name": "my-agent",
+  "expires_at": "2027-01-01T00:00:00Z"
+}
+```
+
+### List keys
+
+```
+curl https://mail.golia.ai/api/agent/keys \
+  -H "Authorization: Bearer <session_token_or_api_key>"
+```
+
+### Revoke key
+
+```
+curl -X DELETE https://mail.golia.ai/api/agent/keys/1 \
+  -H "Authorization: Bearer <session_token>"
+```
+
+Revocation is immediate. Cached credentials are evicted from Valkey.
+
+---
+
+## 5. Auth Notes
+
+- API key format: `mlrs_{8-char prefix}_{40-char secret}` (54 chars total)
+- Keys are SHA-256 hashed in DB, cached in Valkey for fast lookup (5min TTL)
+- Superadmin keys can set `from` to any address in managed domains
+- Regular keys can only send as the associated account
+- Session tokens are obtained via `POST /api/auth/login` with `{"address":"...","password":"..."}`
+
+---
+
+## 6. Error Responses
+
+All errors return JSON:
+```json
+{"error": "description of the error"}
+```
+
+Common HTTP status codes:
+- 400 - bad request (invalid input)
+- 401 - authentication required or invalid credentials
+- 403 - forbidden (insufficient permissions)
+- 404 - not found
+- 429 - rate limited
+- 500 - server error
