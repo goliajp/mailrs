@@ -1332,6 +1332,7 @@ impl MailboxStore {
              WHERE {user_filter} AND thread_id != ''
                AND (m.subject ILIKE ${pattern_idx} OR m.sender ILIKE ${pattern_idx}
                     OR m.text_body ILIKE ${pattern_idx}
+                    OR m.clean_text ILIKE ${pattern_idx}
                     OR EXISTS (SELECT 1 FROM attachment_content ac WHERE ac.message_id = m.id AND ac.extracted_text ILIKE ${pattern_idx}))
                {category_filter}
              GROUP BY m.thread_id HAVING BOOL_OR(m.archived) = false

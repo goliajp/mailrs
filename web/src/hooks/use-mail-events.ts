@@ -16,24 +16,21 @@ export function useMailEvents(user: string) {
   const selectedThreadId = useAtomValue(selectedThreadIdAtom)
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedRef = useRef(selectedThreadId)
+  selectedRef.current = selectedThreadId
   const categoryRef = useRef(categoryFilter)
+  categoryRef.current = categoryFilter
   const searchQuery = useAtomValue(searchQueryAtom)
   const searchRef = useRef(searchQuery)
+  searchRef.current = searchQuery
   const selectedDomains = useAtomValue(selectedDomainsAtom)
   const domainsRef = useRef(selectedDomains)
+  domainsRef.current = selectedDomains
   const folder = useAtomValue(folderAtom)
   const folderRef = useRef(folder)
+  folderRef.current = folder
   const notificationsEnabled = useAtomValue(notificationsAtom)
   const notificationsRef = useRef(notificationsEnabled)
-
-  useEffect(() => {
-    selectedRef.current = selectedThreadId
-    categoryRef.current = categoryFilter
-    searchRef.current = searchQuery
-    domainsRef.current = selectedDomains
-    folderRef.current = folder
-    notificationsRef.current = notificationsEnabled
-  })
+  notificationsRef.current = notificationsEnabled
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(null)
