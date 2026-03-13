@@ -696,9 +696,15 @@ where
                                             let now = chrono::Utc::now().timestamp();
                                             let subject = extract_header(&full_message, "Subject");
 
+                                            // generate a synthetic message-id if missing
+                                            let effective_message_id = if msg_message_id.is_empty() {
+                                                format!("{}.{}@mailrs.local", now, id)
+                                            } else {
+                                                msg_message_id.clone()
+                                            };
+
                                             // resolve thread_id
-                                            let thread_id = if !msg_message_id.is_empty() {
-                                                // pre-fetch parent thread_id asynchronously
+                                            let thread_id = {
                                                 let parent_tid = if !msg_in_reply_to.is_empty() {
                                                     mb_store
                                                         .find_thread_id_by_message_id(
@@ -712,12 +718,10 @@ where
                                                     None
                                                 };
                                                 mailrs_mailbox::threading::resolve_thread_id(
-                                                    &msg_message_id,
+                                                    &effective_message_id,
                                                     &msg_in_reply_to,
                                                     |_| parent_tid.clone(),
                                                 )
-                                            } else {
-                                                String::new()
                                             };
 
                                             // ensure sieve target folder exists
@@ -737,7 +741,7 @@ where
                                                     &subject,
                                                     msg_size as u32,
                                                     now,
-                                                    &msg_message_id,
+                                                    &effective_message_id,
                                                     &msg_in_reply_to,
                                                     &thread_id,
                                                 )
