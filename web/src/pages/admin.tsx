@@ -3,7 +3,9 @@ import { Navigate, Route, Routes } from 'react-router'
 import { AdminSidebar } from '@/components/admin-sidebar'
 import { AdminAccounts } from '@/pages/admin-accounts'
 import { AdminAliases } from '@/pages/admin-aliases'
+import { AdminApps } from '@/pages/admin-apps'
 import { AdminDomains } from '@/pages/admin-domains'
+import { AdminGroups } from '@/pages/admin-groups'
 import { AdminOverview } from '@/pages/admin-overview'
 import { AdminQueues } from '@/pages/admin-queues'
 
@@ -17,6 +19,8 @@ export function Admin() {
         <Route path="domains" element={<AdminDomains />} />
         <Route path="accounts" element={<AdminAccounts />} />
         <Route path="aliases" element={<AdminAliases />} />
+        <Route path="groups" element={<AdminGroups />} />
+        <Route path="apps" element={<AdminApps />} />
         <Route path="queues" element={<AdminQueues />} />
         <Route path="*" element={<Navigate to="overview" replace />} />
       </Routes>
