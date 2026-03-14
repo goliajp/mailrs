@@ -1244,6 +1244,116 @@ impl MailMcpService {
             Err(McpError::invalid_params("message not found or not retryable", None))
         }
     }
+    // --- signature management (user-level, no admin required) ---
+
+    #[tool(description = "List your email signatures. Returns id, name, html, text_content, is_default, and created_at.")]
+    async fn list_signatures(
+        &self,
+        Parameters(_params): Parameters<ListSignaturesParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let pool = self.pool()?;
+        let rows = sqlx::query_as::<_, (i64, String, String, String, bool, String)>(
+            "SELECT id, name, html, text_content, is_default, \
+             to_char(created_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') \
+             FROM signatures WHERE account_address = $1 ORDER BY created_at",
+        )
+        .bind(&self.auth_user.address)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        let items: Vec<serde_json::Value> = rows.into_iter().map(|(id, name, html, text_content, is_default, created_at)| {
+            serde_json::json!({
+                "id": id,
+                "name": name,
+                "html": html,
+                "text_content": text_content,
+                "is_default": is_default,
+                "created_at": created_at,
+            })
+        }).collect();
+
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Create or update an email signature. Provide id to update an existing signature, omit to create new.")]
+    async fn save_signature(
+        &self,
+        Parameters(params): Parameters<SaveSignatureParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let pool = self.pool()?;
+
+        if params.name.len() > 200 {
+            return Err(McpError::invalid_params("signature name too long", None));
+        }
+        if params.html.len() > 100_000 || params.text_content.len() > 100_000 {
+            return Err(McpError::invalid_params("signature content too long", None));
+        }
+
+        // if setting as default, unset any existing default first
+        if params.is_default {
+            let _ = sqlx::query(
+                "UPDATE signatures SET is_default = false WHERE account_address = $1",
+            )
+            .bind(&self.auth_user.address)
+            .execute(pool)
+            .await;
+        }
+
+        let result = if let Some(id) = params.id {
+            sqlx::query(
+                "UPDATE signatures SET name = $1, html = $2, text_content = $3, is_default = $4 \
+                 WHERE id = $5 AND account_address = $6",
+            )
+            .bind(&params.name)
+            .bind(&params.html)
+            .bind(&params.text_content)
+            .bind(params.is_default)
+            .bind(id)
+            .bind(&self.auth_user.address)
+            .execute(pool)
+            .await
+        } else {
+            sqlx::query(
+                "INSERT INTO signatures (account_address, name, html, text_content, is_default) \
+                 VALUES ($1, $2, $3, $4, $5)",
+            )
+            .bind(&self.auth_user.address)
+            .bind(&params.name)
+            .bind(&params.html)
+            .bind(&params.text_content)
+            .bind(params.is_default)
+            .execute(pool)
+            .await
+        };
+
+        result
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        self.ok_result("saved", &params.name)
+    }
+
+    #[tool(description = "Delete an email signature by ID. Only deletes signatures owned by the authenticated user.")]
+    async fn delete_signature(
+        &self,
+        Parameters(params): Parameters<DeleteSignatureParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let pool = self.pool()?;
+        let result = sqlx::query(
+            "DELETE FROM signatures WHERE id = $1 AND account_address = $2",
+        )
+        .bind(params.id)
+        .bind(&self.auth_user.address)
+        .execute(pool)
+        .await
+        .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        if result.rows_affected() > 0 {
+            self.ok_result("deleted", &params.id.to_string())
+        } else {
+            Err(McpError::invalid_params("signature not found", None))
+        }
+    }
 }
 
 #[tool_handler]
