@@ -27,6 +27,7 @@ pub enum ImapCommand {
     Subscribe { mailbox: String },
     Unsubscribe { mailbox: String },
     Lsub { reference: String, pattern: String },
+    Namespace,
 }
 
 /// tagged IMAP command
@@ -164,6 +165,7 @@ pub fn parse_command(line: &str) -> Result<TaggedCommand, ParseError> {
             let (reference, pattern) = parse_list_args(args)?;
             ImapCommand::Lsub { reference, pattern }
         }
+        "NAMESPACE" => ImapCommand::Namespace,
         "GETQUOTA" => ImapCommand::GetQuota {
             quotaroot: unquote(args.trim()),
         },
