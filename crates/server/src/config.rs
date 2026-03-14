@@ -76,6 +76,8 @@ pub struct ServerConfig {
     pub auth_ip_base_lockout_secs: u64,
     pub auth_backoff_multiplier: f64,
     pub auth_max_lockout_secs: u64,
+    // SRS (Sender Rewriting Scheme)
+    pub srs_secret: Option<String>,
     // storage backends
     pub pg_url: Option<String>,
     pub valkey_url: Option<String>,
@@ -132,6 +134,7 @@ impl Default for ServerConfig {
             auth_ip_base_lockout_secs: 3600,
             auth_backoff_multiplier: 2.0,
             auth_max_lockout_secs: 86400,
+            srs_secret: None,
             pg_url: None,
             valkey_url: None,
         }
@@ -349,6 +352,11 @@ impl ServerConfig {
             }
         }
 
+        if let Ok(v) = std::env::var("MAILRS_SRS_SECRET") {
+            if !v.is_empty() {
+                cfg.srs_secret = Some(v);
+            }
+        }
         if let Ok(v) = std::env::var("MAILRS_PG_URL") {
             cfg.pg_url = Some(v);
         }

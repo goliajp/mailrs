@@ -388,6 +388,7 @@ async fn main() {
         } else {
             None
         },
+        srs_secret: cfg.srs_secret.clone(),
     });
 
     // port 25/2525: plain SMTP (STARTTLS optional)
