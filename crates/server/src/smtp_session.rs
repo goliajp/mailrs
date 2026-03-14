@@ -834,6 +834,7 @@ where
                                                 &full_message[..full_message.len().min(4096)]
                                             ).to_string();
                                             let full_msg_bg = full_message.clone();
+                                            let resolver_bg = ctx.resolver.clone();
                                             tokio::spawn(async move {
                                                 post_delivery_process(
                                                     &mb_store_bg,
@@ -843,6 +844,7 @@ where
                                                     &maildir_root_bg,
                                                     &raw_headers,
                                                     &full_msg_bg,
+                                                    resolver_bg.as_deref(),
                                                 ).await;
                                             });
                                         }
@@ -1209,7 +1211,7 @@ fn is_local_domain(domain: &str, local_domains: &[String]) -> bool {
     local_domains.contains(&domain_lower)
 }
 
-/// async post-delivery processing: contact upsert, content extraction, importance scoring
+/// async post-delivery processing: contact upsert, content extraction, importance scoring, BIMI
 async fn post_delivery_process(
     mb_store: &mailrs_mailbox::MailboxStore,
     user: &str,
@@ -1218,6 +1220,7 @@ async fn post_delivery_process(
     _maildir_root: &str,
     raw_headers: &str,
     full_message: &[u8],
+    resolver: Option<&TokioResolver>,
 ) {
     use crate::html_clean;
     use crate::importance::{self, ImportanceSignals};
@@ -1290,6 +1293,26 @@ async fn post_delivery_process(
             score,
         ).await {
             tracing::warn!("update_message_content failed for msg {msg_id}: {e}");
+        }
+
+        // 7. BIMI logo lookup
+        if let Some(resolver) = resolver {
+            let sender_domain = sender
+                .rsplit_once('@')
+                .or_else(|| {
+                    // handle "Name <user@domain>" format
+                    sender.rsplit_once('<').and_then(|(_, rest)| {
+                        rest.trim_end_matches('>').rsplit_once('@')
+                    })
+                })
+                .map(|(_, d)| d.trim_end_matches('>'));
+            if let Some(domain) = sender_domain {
+                if let Some(logo_url) = crate::domain_check::lookup_bimi_logo(resolver, domain).await {
+                    if let Err(e) = mb_store.update_bimi_logo(msg_id, &logo_url).await {
+                        tracing::warn!("BIMI update failed for msg {msg_id}: {e}");
+                    }
+                }
+            }
         }
     }
 }

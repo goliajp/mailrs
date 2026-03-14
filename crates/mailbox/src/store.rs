@@ -1861,6 +1861,20 @@ impl MailboxStore {
         Ok(())
     }
 
+    /// set the BIMI logo URL on a message
+    pub async fn update_bimi_logo(
+        &self,
+        message_id: i64,
+        logo_url: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE messages SET bimi_logo_url = $2 WHERE id = $1")
+            .bind(message_id)
+            .bind(logo_url)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     /// boost importance score when AI detects action items
     pub async fn boost_importance_for_action(&self, message_id: i64) -> Result<(), sqlx::Error> {
         // add 0.2 to importance_score and re-evaluate level
