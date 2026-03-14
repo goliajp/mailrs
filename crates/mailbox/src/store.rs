@@ -261,6 +261,99 @@ impl MailboxStore {
         Ok(row.map(row_to_message_meta))
     }
 
+    /// get a message by its database primary key (for JMAP global emailId)
+    pub async fn get_message_by_db_id(
+        &self,
+        user: &str,
+        id: i64,
+    ) -> Result<Option<MessageMeta>, sqlx::Error> {
+        let row = sqlx::query_as::<_, (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64)>(
+            "SELECT m.id, m.mailbox_id, m.uid, m.maildir_id, m.sender, m.recipients, m.subject, m.date_epoch, m.size, m.flags, m.internal_date, m.message_id, m.in_reply_to, m.thread_id, m.modseq
+             FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE m.id = $1 AND mb.user_address = $2",
+        )
+        .bind(id)
+        .bind(user)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(row_to_message_meta))
+    }
+
+    /// query messages for JMAP: flexible filter returning DB IDs + total count
+    pub async fn query_messages(
+        &self,
+        user: &str,
+        mailbox_id: Option<i64>,
+        text: Option<&str>,
+        has_flags: u32,
+        not_flags: u32,
+        sort_desc: bool,
+        limit: u32,
+        offset: u32,
+    ) -> Result<(Vec<i64>, u32), sqlx::Error> {
+        let mut conditions = vec!["mb.user_address = $1".to_string()];
+        let mut param_idx = 2u32;
+
+        let mut mailbox_bind = None;
+        if let Some(mb_id) = mailbox_id {
+            conditions.push(format!("m.mailbox_id = ${param_idx}"));
+            mailbox_bind = Some(mb_id);
+            param_idx += 1;
+        }
+
+        let mut text_bind = None;
+        if let Some(t) = text {
+            if !t.is_empty() {
+                conditions.push(format!(
+                    "(m.search_vector @@ plainto_tsquery('simple', ${param_idx}) \
+                     OR m.subject ILIKE ${param_idx} OR m.sender ILIKE ${param_idx})"
+                ));
+                text_bind = Some(format!("%{}%", t.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")));
+                param_idx += 1;
+            }
+        }
+
+        if has_flags != 0 {
+            conditions.push(format!("(m.flags & {has_flags}) = {has_flags}"));
+        }
+        if not_flags != 0 {
+            conditions.push(format!("(m.flags & {not_flags}) = 0"));
+        }
+
+        let where_clause = conditions.join(" AND ");
+        let order = if sort_desc { "DESC" } else { "ASC" };
+
+        // count total
+        let count_sql = format!(
+            "SELECT COUNT(*)::bigint FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id WHERE {where_clause}"
+        );
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql).bind(user);
+        if let Some(mb_id) = mailbox_bind {
+            count_q = count_q.bind(mb_id);
+        }
+        if let Some(ref t) = text_bind {
+            count_q = count_q.bind(t);
+        }
+        let total = count_q.fetch_one(&self.pool).await?.0 as u32;
+
+        // fetch ids
+        let ids_sql = format!(
+            "SELECT m.id FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id \
+             WHERE {where_clause} ORDER BY m.internal_date {order} LIMIT {limit} OFFSET {offset}"
+        );
+        let mut ids_q = sqlx::query_as::<_, (i64,)>(&ids_sql).bind(user);
+        if let Some(mb_id) = mailbox_bind {
+            ids_q = ids_q.bind(mb_id);
+        }
+        if let Some(ref t) = text_bind {
+            ids_q = ids_q.bind(t);
+        }
+        let ids: Vec<i64> = ids_q.fetch_all(&self.pool).await?.into_iter().map(|(id,)| id).collect();
+
+        Ok((ids, total))
+    }
+
     pub async fn update_flags(
         &self,
         mailbox_id: i64,
