@@ -342,6 +342,70 @@ pub(crate) struct RemoveEmailGroupMemberParams {
     pub address: String,
 }
 
+// --- scheduled send ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct SendScheduledEmailParams {
+    /// recipient email addresses
+    pub to: Vec<String>,
+    /// email subject
+    pub subject: String,
+    /// plain text email body
+    pub body: String,
+    /// sender email address (omit to use authenticated account)
+    #[serde(default)]
+    pub from: Option<String>,
+    /// ISO 8601 datetime when to send (e.g. "2026-03-16T09:00:00Z")
+    pub scheduled_at: String,
+}
+
+// --- audit log ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GetAuditLogParams {
+    /// max entries to return (default 50)
+    #[serde(default = "default_audit_limit")]
+    pub limit: u32,
+}
+
+fn default_audit_limit() -> u32 {
+    50
+}
+
+// --- signature management ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListSignaturesParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct SaveSignatureParams {
+    /// signature ID to update (omit to create new)
+    #[serde(default)]
+    pub id: Option<i64>,
+    /// signature name (e.g. "Work", "Personal")
+    #[serde(default = "default_signature_name")]
+    pub name: String,
+    /// HTML content of the signature
+    #[serde(default)]
+    pub html: String,
+    /// plain text content of the signature
+    #[serde(default)]
+    pub text_content: String,
+    /// set as default signature
+    #[serde(default)]
+    pub is_default: bool,
+}
+
+fn default_signature_name() -> String {
+    "Default".into()
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct DeleteSignatureParams {
+    /// signature ID to delete
+    pub id: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1117,6 +1117,91 @@ impl MailMcpService {
         }
     }
 
+    #[tool(description = "Schedule an email to be sent at a future time. Returns message ID on success.")]
+    async fn send_scheduled_email(
+        &self,
+        Parameters(params): Parameters<SendScheduledEmailParams>,
+    ) -> Result<CallToolResult, McpError> {
+        if params.to.is_empty() {
+            return Err(McpError::invalid_params("recipient list is empty", None));
+        }
+        if params.to.len() > 50 {
+            return Err(McpError::invalid_params("too many recipients (max 50)", None));
+        }
+
+        let scheduled_ts = chrono::DateTime::parse_from_rfc3339(&params.scheduled_at)
+            .map_err(|e| McpError::invalid_params(format!("invalid scheduled_at: {e}"), None))?
+            .timestamp();
+
+        let from = params
+            .from
+            .as_deref()
+            .unwrap_or(&self.auth_user.address);
+
+        if let Err(msg) = crate::web::mail::verify_sender(
+            from,
+            &self.auth_user.address,
+            &self.auth_user.permissions,
+        ) {
+            return Err(McpError::invalid_params(msg, None));
+        }
+
+        let now = chrono::Utc::now();
+        let message_id = format!(
+            "{}.{}@{}",
+            now.timestamp_millis(),
+            rand_core::OsRng.next_u32(),
+            self.web_state.hostname,
+        );
+
+        let raw = crate::web::mail::build_rfc5322_with_attachments(
+            from,
+            &params.to,
+            &[],
+            &params.subject,
+            &params.body,
+            None,
+            &message_id,
+            None,
+            &[],
+            &now,
+            &[],
+            None,
+            &[],
+            false,
+        );
+
+        let result = crate::web::mail::deliver_message_ex(
+            &self.web_state,
+            from,
+            &params.to,
+            &[],
+            &[],
+            &raw,
+            &message_id,
+            now.timestamp(),
+            Some(scheduled_ts),
+        )
+        .await;
+
+        let body = result.0;
+        if body.success {
+            Ok(CallToolResult::success(vec![Content::text(
+                serde_json::json!({
+                    "message_id": message_id,
+                    "status": "scheduled",
+                    "scheduled_at": params.scheduled_at,
+                })
+                .to_string(),
+            )]))
+        } else {
+            Err(McpError::internal_error(
+                body.message.unwrap_or_else(|| "scheduling failed".to_string()),
+                None,
+            ))
+        }
+    }
+
     #[tool(description = "Retry a failed outbound message. Requires admin.queue permission.")]
     async fn retry_queue_message(
         &self,
