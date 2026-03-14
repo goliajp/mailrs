@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Blocks, Globe, LayoutGrid, ListOrdered, Mail, Shield, Users } from 'lucide-react'
+import { ArrowLeftRight, Blocks, Globe, LayoutGrid, ListOrdered, Mail, ScrollText, Shield, Users } from 'lucide-react'
 import { NavLink } from 'react-router'
 
 const navItems = [
@@ -41,6 +41,11 @@ const navItems = [
     to: '/admin/queues',
     label: 'Queues',
     icon: <ListOrdered className="h-4 w-4" />,
+  },
+  {
+    to: '/admin/audit-log',
+    label: 'Audit Log',
+    icon: <ScrollText className="h-4 w-4" />,
   },
 ]
 
