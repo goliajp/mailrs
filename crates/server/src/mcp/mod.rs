@@ -1354,6 +1354,130 @@ impl MailMcpService {
             Err(McpError::invalid_params("signature not found", None))
         }
     }
+
+    // --- encryption key management ---
+
+    #[tool(description = "List your encryption keys (PGP and S/MIME). Returns key type, fingerprint, and creation time — not the raw key data.")]
+    async fn list_encryption_keys(
+        &self,
+        Parameters(_params): Parameters<ListEncryptionKeysParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let ds = self.ds()?;
+        let rows = ds
+            .list_encryption_keys(&self.auth_user.address)
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = rows
+            .into_iter()
+            .map(|(id, key_type, fingerprint, created_at)| {
+                serde_json::json!({
+                    "id": id,
+                    "key_type": key_type,
+                    "fingerprint": fingerprint,
+                    "created_at": created_at,
+                })
+            })
+            .collect();
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Upload or replace your PGP public key or S/MIME certificate. Key type must be 'pgp' or 'smime'.")]
+    async fn set_encryption_key(
+        &self,
+        Parameters(params): Parameters<SetEncryptionKeyParams>,
+    ) -> Result<CallToolResult, McpError> {
+        if params.key_type != "pgp" && params.key_type != "smime" {
+            return Err(McpError::invalid_params(
+                "key_type must be 'pgp' or 'smime'",
+                None,
+            ));
+        }
+        if params.public_key.is_empty() {
+            return Err(McpError::invalid_params("public_key is required", None));
+        }
+        if params.public_key.len() > 256 * 1024 {
+            return Err(McpError::invalid_params("public_key too large", None));
+        }
+        let ds = self.ds()?;
+        let id = ds
+            .set_encryption_key(
+                &self.auth_user.address,
+                &params.key_type,
+                &params.public_key,
+                &params.fingerprint,
+            )
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({
+                "status": "key_saved",
+                "id": id,
+                "key_type": params.key_type,
+            })
+            .to_string(),
+        )]))
+    }
+
+    #[tool(description = "Delete your PGP public key or S/MIME certificate. Key type must be 'pgp' or 'smime'.")]
+    async fn delete_encryption_key(
+        &self,
+        Parameters(params): Parameters<DeleteEncryptionKeyParams>,
+    ) -> Result<CallToolResult, McpError> {
+        if params.key_type != "pgp" && params.key_type != "smime" {
+            return Err(McpError::invalid_params(
+                "key_type must be 'pgp' or 'smime'",
+                None,
+            ));
+        }
+        let ds = self.ds()?;
+        let removed = ds
+            .delete_encryption_key(&self.auth_user.address, &params.key_type)
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        if removed {
+            self.ok_result("key_deleted", &params.key_type)
+        } else {
+            Err(McpError::invalid_params("key not found", None))
+        }
+    }
+
+    #[tool(description = "Look up a recipient's PGP public key or S/MIME certificate by email address. Use this before encrypting an email to someone.")]
+    async fn get_recipient_key(
+        &self,
+        Parameters(params): Parameters<GetRecipientKeyParams>,
+    ) -> Result<CallToolResult, McpError> {
+        if params.key_type != "pgp" && params.key_type != "smime" {
+            return Err(McpError::invalid_params(
+                "key_type must be 'pgp' or 'smime'",
+                None,
+            ));
+        }
+        if !params.address.contains('@') {
+            return Err(McpError::invalid_params("invalid email address", None));
+        }
+        let ds = self.ds()?;
+        match ds
+            .get_encryption_key(&params.address, &params.key_type)
+            .await
+        {
+            Ok(Some((_id, public_key, fingerprint))) => {
+                Ok(CallToolResult::success(vec![Content::text(
+                    serde_json::json!({
+                        "address": params.address,
+                        "key_type": params.key_type,
+                        "public_key": public_key,
+                        "fingerprint": fingerprint,
+                    })
+                    .to_string(),
+                )]))
+            }
+            Ok(None) => Err(McpError::invalid_params(
+                format!("no {} key found for {}", params.key_type, params.address),
+                None,
+            )),
+            Err(e) => Err(McpError::internal_error(format!("{e}"), None)),
+        }
+    }
 }
 
 #[tool_handler]
