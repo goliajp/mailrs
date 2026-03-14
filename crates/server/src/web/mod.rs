@@ -586,6 +586,10 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             post(mail::send_message_multipart),
         )
         .route(
+            "/api/mail/pending/{message_id}",
+            delete(mail::cancel_pending_send),
+        )
+        .route(
             "/api/mail/messages/{uid}/raw",
             get(mail::get_message_raw),
         )

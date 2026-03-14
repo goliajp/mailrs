@@ -220,6 +220,28 @@ pub async fn get_message(pool: &PgPool, id: i64) -> Result<Option<QueuedMessage>
     }))
 }
 
+/// cancel a pending outbound message (undo send)
+pub async fn cancel_pending(pool: &PgPool, id: i64) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "DELETE FROM outbound_queue WHERE id = $1 AND status = 'pending'",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// cancel a pending outbound message by message_id (undo send)
+pub async fn cancel_pending_by_message_id(pool: &PgPool, message_id: &str) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "DELETE FROM outbound_queue WHERE message_id = $1 AND status = 'pending'",
+    )
+    .bind(message_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 /// reset a bounced/failed message back to pending for retry
 pub async fn retry_message(pool: &PgPool, id: i64, now: i64) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
