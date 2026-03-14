@@ -559,6 +559,7 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/api/status", get(admin::get_status))
         .route("/api/health", get(admin::get_health))
         .route("/api/readiness", get(admin::get_readiness))
+        .route("/metrics", get(admin::prometheus_metrics))
         // websocket
         .route("/api/events", get(ws::ws_events))
         // queue

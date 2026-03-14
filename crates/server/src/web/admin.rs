@@ -596,6 +596,97 @@ pub(super) struct RetryResponse {
     pub message: String,
 }
 
+pub(super) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> impl IntoResponse {
+    use std::fmt::Write;
+    use std::sync::atomic::Ordering;
+
+    let uptime = state.started_at.elapsed().as_secs();
+    let total_connections = state.total_connections.load(Ordering::Relaxed);
+    let active_connections = state.active_connections.load(Ordering::Relaxed);
+    let total_messages = state.total_messages.load(Ordering::Relaxed);
+    let active_sessions = state.sessions.len() as u64;
+    let account_cache_size = state
+        .domain_store
+        .as_ref()
+        .map(|ds| ds.cache_size())
+        .unwrap_or(0) as u64;
+
+    let (pg_up, valkey_up) = match &state.health {
+        Some(h) => (h.pg_up(), h.valkey_up()),
+        None => (false, false),
+    };
+
+    let (pending, delivered, failed, bounced) = if let Some(ref pool) = state.outbound_queue {
+        match mailrs_outbound_queue::queue::queue_stats(pool).await {
+            Ok(stats) => {
+                let mut p = 0i64;
+                let mut d = 0i64;
+                let mut f = 0i64;
+                let mut b = 0i64;
+                for (status, count) in stats {
+                    match status.as_str() {
+                        "pending" | "inflight" => p += count,
+                        "delivered" => d = count,
+                        "failed" => f = count,
+                        "bounced" => b = count,
+                        _ => {}
+                    }
+                }
+                (p, d, f, b)
+            }
+            Err(_) => (0, 0, 0, 0),
+        }
+    } else {
+        (0, 0, 0, 0)
+    };
+
+    let mut body = String::with_capacity(1024);
+    let _ = writeln!(body, "# HELP mailrs_uptime_seconds Time since server start");
+    let _ = writeln!(body, "# TYPE mailrs_uptime_seconds gauge");
+    let _ = writeln!(body, "mailrs_uptime_seconds {uptime}");
+    let _ = writeln!(body, "# HELP mailrs_connections_total Total connections accepted");
+    let _ = writeln!(body, "# TYPE mailrs_connections_total counter");
+    let _ = writeln!(body, "mailrs_connections_total {total_connections}");
+    let _ = writeln!(body, "# HELP mailrs_connections_active Currently open connections");
+    let _ = writeln!(body, "# TYPE mailrs_connections_active gauge");
+    let _ = writeln!(body, "mailrs_connections_active {active_connections}");
+    let _ = writeln!(body, "# HELP mailrs_messages_total Total messages delivered locally");
+    let _ = writeln!(body, "# TYPE mailrs_messages_total counter");
+    let _ = writeln!(body, "mailrs_messages_total {total_messages}");
+    let _ = writeln!(body, "# HELP mailrs_active_sessions Active web sessions");
+    let _ = writeln!(body, "# TYPE mailrs_active_sessions gauge");
+    let _ = writeln!(body, "mailrs_active_sessions {active_sessions}");
+    let _ = writeln!(body, "# HELP mailrs_account_cache_size Domain store cache entries");
+    let _ = writeln!(body, "# TYPE mailrs_account_cache_size gauge");
+    let _ = writeln!(body, "mailrs_account_cache_size {account_cache_size}");
+    let _ = writeln!(body, "# HELP mailrs_queue_pending Pending outbound messages");
+    let _ = writeln!(body, "# TYPE mailrs_queue_pending gauge");
+    let _ = writeln!(body, "mailrs_queue_pending {pending}");
+    let _ = writeln!(body, "# HELP mailrs_queue_delivered Delivered outbound messages");
+    let _ = writeln!(body, "# TYPE mailrs_queue_delivered gauge");
+    let _ = writeln!(body, "mailrs_queue_delivered {delivered}");
+    let _ = writeln!(body, "# HELP mailrs_queue_failed Failed outbound messages");
+    let _ = writeln!(body, "# TYPE mailrs_queue_failed gauge");
+    let _ = writeln!(body, "mailrs_queue_failed {failed}");
+    let _ = writeln!(body, "# HELP mailrs_queue_bounced Bounced outbound messages");
+    let _ = writeln!(body, "# TYPE mailrs_queue_bounced gauge");
+    let _ = writeln!(body, "mailrs_queue_bounced {bounced}");
+    let _ = writeln!(body, "# HELP mailrs_health_pg_up PostgreSQL availability");
+    let _ = writeln!(body, "# TYPE mailrs_health_pg_up gauge");
+    let _ = writeln!(body, "mailrs_health_pg_up {}", if pg_up { 1 } else { 0 });
+    let _ = writeln!(body, "# HELP mailrs_health_valkey_up Valkey/Redis availability");
+    let _ = writeln!(body, "# TYPE mailrs_health_valkey_up gauge");
+    let _ = writeln!(body, "mailrs_health_valkey_up {}", if valkey_up { 1 } else { 0 });
+
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4",
+        )],
+        body,
+    )
+}
+
 pub(super) async fn get_status(State(state): State<Arc<WebState>>) -> impl IntoResponse {
     use std::sync::atomic::Ordering;
 
