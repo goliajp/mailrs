@@ -29,6 +29,8 @@ pub enum ImapCommand {
     Lsub { reference: String, pattern: String },
     Namespace,
     Sort { criteria: String, charset: String, search_criteria: String },
+    Enable(Vec<String>),
+    Unselect,
 }
 
 /// tagged IMAP command
@@ -167,6 +169,14 @@ pub fn parse_command(line: &str) -> Result<TaggedCommand, ParseError> {
             ImapCommand::Lsub { reference, pattern }
         }
         "NAMESPACE" => ImapCommand::Namespace,
+        "ENABLE" => {
+            let caps: Vec<String> = args.split_whitespace().map(|s| s.to_string()).collect();
+            if caps.is_empty() {
+                return Err(ParseError::MissingArgument("capabilities".into()));
+            }
+            ImapCommand::Enable(caps)
+        }
+        "UNSELECT" => ImapCommand::Unselect,
         "SORT" => {
             // SORT (criteria...) charset search-criteria
             // e.g.: (REVERSE DATE) UTF-8 ALL

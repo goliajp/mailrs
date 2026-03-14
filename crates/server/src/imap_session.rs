@@ -201,6 +201,8 @@ impl ImapSession {
             ImapCommand::Sort { criteria, search_criteria, .. } => {
                 self.handle_sort(tag, criteria, search_criteria, false).await
             }
+            ImapCommand::Enable(caps) => self.handle_enable(tag, caps),
+            ImapCommand::Unselect => self.handle_unselect(tag),
             _ => unreachable!(), // Fetch and Uid handled above
         };
         HandleResult::Responses(strs_to_bytes(responses))
@@ -208,7 +210,7 @@ impl ImapSession {
 
     fn handle_capability(&self, tag: &str) -> Vec<String> {
         vec![
-            format_capability(&["IMAP4rev1", "AUTH=PLAIN", "IDLE", "QUOTA", "CONDSTORE", "SPECIAL-USE", "NAMESPACE", "SORT"]),
+            format_capability(&["IMAP4rev1", "AUTH=PLAIN", "IDLE", "QUOTA", "CONDSTORE", "SPECIAL-USE", "NAMESPACE", "SORT", "ENABLE", "UNSELECT"]),
             format_ok(tag, "CAPABILITY completed"),
         ]
     }
@@ -1062,6 +1064,30 @@ impl ImapSession {
             };
         }
         vec![format_ok(tag, "CLOSE completed")]
+    }
+
+    fn handle_unselect(&mut self, tag: &str) -> Vec<String> {
+        // transition from Selected to Authenticated without expunging (RFC 3691)
+        if let ImapState::Selected { ref username, .. } = self.state {
+            self.state = ImapState::Authenticated {
+                username: username.clone(),
+            };
+            vec![format_ok(tag, "UNSELECT completed")]
+        } else {
+            vec![format_no(tag, "not in selected state")]
+        }
+    }
+
+    fn handle_enable(&self, tag: &str, capabilities: &[String]) -> Vec<String> {
+        // echo back the requested capabilities (RFC 5161)
+        if matches!(self.state, ImapState::NotAuthenticated) {
+            return vec![format_bad(tag, "ENABLE requires authentication")];
+        }
+        let caps = capabilities.join(" ");
+        vec![
+            format!("* ENABLED {caps}\r\n"),
+            format_ok(tag, "ENABLE completed"),
+        ]
     }
 
     async fn handle_getquota(&self, tag: &str, quotaroot: &str) -> Vec<String> {
