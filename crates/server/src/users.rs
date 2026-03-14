@@ -94,6 +94,14 @@ impl UserStore {
     }
 }
 
+/// validate password meets minimum complexity requirements
+pub fn validate_password(password: &str) -> Result<(), &'static str> {
+    if password.len() < 8 {
+        return Err("password must be at least 8 characters");
+    }
+    Ok(())
+}
+
 /// verify a password against an argon2 hash
 fn verify_argon2(password: &str, hash: &str) -> bool {
     let Ok(parsed) = PasswordHash::new(hash) else {

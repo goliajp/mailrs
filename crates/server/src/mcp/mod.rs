@@ -498,6 +498,9 @@ impl MailMcpService {
         let password_hash = if params.password.is_empty() {
             String::new()
         } else {
+            if let Err(e) = crate::users::validate_password(&params.password) {
+                return Err(McpError::invalid_params(e, None));
+            }
             crate::users::UserStore::hash_password(&params.password)
                 .unwrap_or_else(|_| params.password.clone())
         };

@@ -219,10 +219,16 @@ pub(super) async fn add_account(
         });
     };
 
-    // hash password
+    // validate and hash password
     let password_hash = if req.password.is_empty() {
         String::new()
     } else {
+        if let Err(e) = crate::users::validate_password(&req.password) {
+            return Json(ApiResult {
+                success: false,
+                message: Some(e.into()),
+            });
+        }
         crate::users::UserStore::hash_password(&req.password)
             .unwrap_or_else(|_| req.password.clone())
     };
