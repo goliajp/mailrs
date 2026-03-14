@@ -224,6 +224,12 @@ pub(super) async fn add_account(
             message: Some("display name too long".into()),
         });
     }
+    if let Err(e) = crate::users::validate_email(&req.address) {
+        return Json(ApiResult {
+            success: false,
+            message: Some(e.into()),
+        });
+    }
     let Some(ref ds) = state.domain_store else {
         return Json(ApiResult {
             success: false,
