@@ -197,6 +197,7 @@ impl ImapSession {
             ImapCommand::Lsub { reference, pattern } => {
                 self.handle_lsub(tag, reference, pattern).await
             }
+            ImapCommand::Namespace => self.handle_namespace(tag),
             _ => unreachable!(), // Fetch and Uid handled above
         };
         HandleResult::Responses(strs_to_bytes(responses))
@@ -204,8 +205,15 @@ impl ImapSession {
 
     fn handle_capability(&self, tag: &str) -> Vec<String> {
         vec![
-            format_capability(&["IMAP4rev1", "AUTH=PLAIN", "IDLE", "QUOTA", "CONDSTORE", "SPECIAL-USE"]),
+            format_capability(&["IMAP4rev1", "AUTH=PLAIN", "IDLE", "QUOTA", "CONDSTORE", "SPECIAL-USE", "NAMESPACE"]),
             format_ok(tag, "CAPABILITY completed"),
+        ]
+    }
+
+    fn handle_namespace(&self, tag: &str) -> Vec<String> {
+        vec![
+            "* NAMESPACE ((\"\" \"/\")) NIL NIL\r\n".to_string(),
+            format_ok(tag, "NAMESPACE completed"),
         ]
     }
 
