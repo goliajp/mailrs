@@ -1023,6 +1023,96 @@ impl MailMcpService {
         self.json_result(&items)
     }
 
+    // --- email group management ---
+
+    #[tool(description = "List all email groups (distribution lists). Returns group address, domain, name, member count.")]
+    async fn list_email_groups(
+        &self,
+        Parameters(_params): Parameters<ListEmailGroupsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let ds = self.ds()?;
+        let groups = ds.list_email_groups(None).await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let mut items = Vec::with_capacity(groups.len());
+        for g in &groups {
+            let members = ds.list_email_group_members(g.id).await.unwrap_or_default();
+            items.push(serde_json::json!({
+                "id": g.id, "address": g.address, "domain": g.domain,
+                "name": g.name, "description": g.description,
+                "member_count": members.len(), "members": members,
+            }));
+        }
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Create an email group (distribution list). All members receive copies of incoming mail and can reply as the group address. Requires admin.accounts permission.")]
+    async fn create_email_group(
+        &self,
+        Parameters(params): Parameters<CreateEmailGroupParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.ds()?;
+        let id = ds.create_email_group(&params.address, &params.domain, &params.name, &params.description).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({"status": "created", "id": id, "address": params.address}).to_string(),
+        )]))
+    }
+
+    #[tool(description = "Delete an email group by ID. Requires admin.accounts permission.")]
+    async fn delete_email_group(
+        &self,
+        Parameters(params): Parameters<DeleteEmailGroupParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.ds()?;
+        match ds.remove_email_group(params.id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?
+        {
+            Some(addr) => self.ok_result("deleted", &addr),
+            None => Err(McpError::invalid_params("email group not found", None)),
+        }
+    }
+
+    #[tool(description = "List members of an email group.")]
+    async fn list_email_group_members(
+        &self,
+        Parameters(params): Parameters<ListEmailGroupMembersParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let ds = self.ds()?;
+        let members = ds.list_email_group_members(params.id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = members.into_iter().map(|m| serde_json::json!(m)).collect();
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Add a member to an email group. The member will receive group emails and can reply as the group address. Requires admin.accounts permission.")]
+    async fn add_email_group_member(
+        &self,
+        Parameters(params): Parameters<AddEmailGroupMemberParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.ds()?;
+        ds.add_email_group_member(params.group_id, &params.address).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        self.ok_result("member_added", &params.address)
+    }
+
+    #[tool(description = "Remove a member from an email group. Requires admin.accounts permission.")]
+    async fn remove_email_group_member(
+        &self,
+        Parameters(params): Parameters<RemoveEmailGroupMemberParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.ds()?;
+        let removed = ds.remove_email_group_member(params.group_id, &params.address).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        if removed {
+            self.ok_result("member_removed", &params.address)
+        } else {
+            Err(McpError::invalid_params("member not found", None))
+        }
+    }
+
     #[tool(description = "Retry a failed outbound message. Requires admin.queue permission.")]
     async fn retry_queue_message(
         &self,

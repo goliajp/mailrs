@@ -1052,6 +1052,115 @@ pub(super) async fn get_all_permissions(
     Json(serde_json::json!(crate::permission::ALL_PERMISSIONS))
 }
 
+// ---------- email groups ----------
+
+#[derive(Deserialize)]
+pub(super) struct CreateEmailGroupRequest {
+    pub address: String,
+    pub domain: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+pub(super) async fn list_email_groups(
+    AuthUser { .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    let Some(ref ds) = state.domain_store else {
+        return Json(serde_json::json!([]));
+    };
+    let groups = ds.list_email_groups(None).await.unwrap_or_default();
+    Json(serde_json::to_value(groups).unwrap_or_default())
+}
+
+pub(super) async fn create_email_group(
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<CreateEmailGroupRequest>,
+) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.accounts") {
+        return err;
+    }
+    if req.address.is_empty() || req.address.len() > super::MAX_ADMIN_FIELD_LEN {
+        return Json(ApiResult { success: false, message: Some("invalid address".into()) });
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(ApiResult { success: false, message: Some("domain store not configured".into()) });
+    };
+    match ds.create_email_group(&req.address, &req.domain, &req.name, &req.description).await {
+        Ok(id) => Json(ApiResult { success: true, message: Some(id.to_string()) }),
+        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }),
+    }
+}
+
+pub(super) async fn delete_email_group(
+    Path(id): Path<i64>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.accounts") {
+        return err;
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(ApiResult { success: false, message: Some("domain store not configured".into()) });
+    };
+    match ds.remove_email_group(id).await {
+        Ok(Some(_)) => Json(ApiResult { success: true, message: None }),
+        Ok(None) => Json(ApiResult { success: false, message: Some("group not found".into()) }),
+        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }),
+    }
+}
+
+pub(super) async fn list_email_group_members(
+    Path(id): Path<i64>,
+    AuthUser { .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    let Some(ref ds) = state.domain_store else {
+        return Json(serde_json::json!([]));
+    };
+    let members = ds.list_email_group_members(id).await.unwrap_or_default();
+    Json(serde_json::json!(members))
+}
+
+pub(super) async fn add_email_group_member(
+    Path(id): Path<i64>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<AddMemberRequest>,
+) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.accounts") {
+        return err;
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(ApiResult { success: false, message: Some("domain store not configured".into()) });
+    };
+    match ds.add_email_group_member(id, &req.address).await {
+        Ok(()) => Json(ApiResult { success: true, message: None }),
+        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }),
+    }
+}
+
+pub(super) async fn remove_email_group_member(
+    Path((id, address)): Path<(i64, String)>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.accounts") {
+        return err;
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(ApiResult { success: false, message: Some("domain store not configured".into()) });
+    };
+    match ds.remove_email_group_member(id, &address).await {
+        Ok(true) => Json(ApiResult { success: true, message: None }),
+        Ok(false) => Json(ApiResult { success: false, message: Some("member not found".into()) }),
+        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }),
+    }
+}
+
 // ---------- apps CRUD ----------
 
 #[derive(Deserialize)]

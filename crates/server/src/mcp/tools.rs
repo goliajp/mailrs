@@ -295,6 +295,53 @@ pub(crate) struct RetryQueueMessageParams {
     pub id: i64,
 }
 
+// --- email group management ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListEmailGroupsParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct CreateEmailGroupParams {
+    /// group email address (e.g. "team@golia.jp")
+    pub address: String,
+    /// domain name (e.g. "golia.jp")
+    pub domain: String,
+    /// display name for the group
+    #[serde(default)]
+    pub name: String,
+    /// group description
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct DeleteEmailGroupParams {
+    /// email group ID from list_email_groups
+    pub id: i64,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListEmailGroupMembersParams {
+    /// email group ID
+    pub id: i64,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct AddEmailGroupMemberParams {
+    /// email group ID
+    pub group_id: i64,
+    /// account address to add
+    pub address: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct RemoveEmailGroupMemberParams {
+    /// email group ID
+    pub group_id: i64,
+    /// account address to remove
+    pub address: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

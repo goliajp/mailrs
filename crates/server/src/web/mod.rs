@@ -762,6 +762,23 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             get(admin::get_account_overrides).put(admin::set_account_overrides),
         )
         .route("/api/admin/permissions", get(admin::get_all_permissions))
+        // email groups
+        .route(
+            "/api/admin/email-groups",
+            get(admin::list_email_groups).post(admin::create_email_group),
+        )
+        .route(
+            "/api/admin/email-groups/{id}",
+            delete(admin::delete_email_group),
+        )
+        .route(
+            "/api/admin/email-groups/{id}/members",
+            get(admin::list_email_group_members).post(admin::add_email_group_member),
+        )
+        .route(
+            "/api/admin/email-groups/{id}/members/{address}",
+            delete(admin::remove_email_group_member),
+        )
         // apps
         .route(
             "/api/admin/apps",

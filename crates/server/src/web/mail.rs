@@ -635,7 +635,22 @@ pub(crate) async fn deliver_message(
 
     let mut errors = Vec::new();
 
+    // resolve group emails to individual members
+    let mut resolved_recipients = Vec::new();
     for rcpt in &all_recipients {
+        if let Some(ref ds) = state.domain_store {
+            match ds.resolve_recipient(rcpt).await {
+                crate::domain_store::ResolvedRecipient::Group(members) => {
+                    resolved_recipients.extend(members);
+                }
+                _ => resolved_recipients.push(rcpt.clone()),
+            }
+        } else {
+            resolved_recipients.push(rcpt.clone());
+        }
+    }
+
+    for rcpt in &resolved_recipients {
         let domain = rcpt.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
         let is_local = local_domains
             .iter()
