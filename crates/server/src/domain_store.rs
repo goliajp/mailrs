@@ -698,7 +698,21 @@ impl DomainStore {
                 .map(|(n,)| n)
                 .collect();
 
-        let perms = compute_effective_permissions(&groups, &override_rows, &all_domains);
+        // reverse alias lookup: addresses that alias TO this account
+        let send_as: Vec<String> = sqlx::query_as::<_, (String,)>(
+            "SELECT source_address FROM aliases \
+             WHERE target_address = $1 AND alias_type = 'alias' AND active = true \
+             ORDER BY source_address",
+        )
+        .bind(address)
+        .fetch_all(pool)
+        .await?
+        .into_iter()
+        .map(|(a,)| a)
+        .collect();
+
+        let perms =
+            compute_effective_permissions(&groups, &override_rows, &all_domains).with_send_as(send_as);
 
         // cache
         self.valkey_set(&cache_key, &perms, CACHE_TTL_SECS).await;
