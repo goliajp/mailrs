@@ -406,6 +406,36 @@ pub(crate) struct DeleteSignatureParams {
     pub id: i64,
 }
 
+// --- encryption key management ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListEncryptionKeysParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct SetEncryptionKeyParams {
+    /// key type: "pgp" or "smime"
+    pub key_type: String,
+    /// ASCII-armored PGP public key or PEM-encoded S/MIME certificate
+    pub public_key: String,
+    /// key fingerprint (hex string)
+    #[serde(default)]
+    pub fingerprint: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct DeleteEncryptionKeyParams {
+    /// key type: "pgp" or "smime"
+    pub key_type: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GetRecipientKeyParams {
+    /// email address to look up
+    pub address: String,
+    /// key type: "pgp" or "smime"
+    pub key_type: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -773,5 +803,59 @@ mod tests {
         let schema = schema_for!(DeleteSignatureParams);
         let json = serde_json::to_string_pretty(&schema).unwrap();
         assert!(json.contains("id"));
+    }
+
+    #[test]
+    fn list_encryption_keys_params_empty() {
+        let json = r#"{}"#;
+        let _params: ListEncryptionKeysParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn set_encryption_key_params_schema() {
+        let schema = schema_for!(SetEncryptionKeyParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("key_type"));
+        assert!(json.contains("public_key"));
+        assert!(json.contains("fingerprint"));
+    }
+
+    #[test]
+    fn set_encryption_key_params_deserialize() {
+        let json = r#"{"key_type": "pgp", "public_key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\n...", "fingerprint": "ABCD1234"}"#;
+        let params: SetEncryptionKeyParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.key_type, "pgp");
+        assert!(!params.public_key.is_empty());
+        assert_eq!(params.fingerprint, "ABCD1234");
+    }
+
+    #[test]
+    fn set_encryption_key_params_default_fingerprint() {
+        let json = r#"{"key_type": "smime", "public_key": "cert-data"}"#;
+        let params: SetEncryptionKeyParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.fingerprint, "");
+    }
+
+    #[test]
+    fn delete_encryption_key_params_schema() {
+        let schema = schema_for!(DeleteEncryptionKeyParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("key_type"));
+    }
+
+    #[test]
+    fn get_recipient_key_params_schema() {
+        let schema = schema_for!(GetRecipientKeyParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("address"));
+        assert!(json.contains("key_type"));
+    }
+
+    #[test]
+    fn get_recipient_key_params_deserialize() {
+        let json = r#"{"address": "alice@example.com", "key_type": "pgp"}"#;
+        let params: GetRecipientKeyParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.address, "alice@example.com");
+        assert_eq!(params.key_type, "pgp");
     }
 }

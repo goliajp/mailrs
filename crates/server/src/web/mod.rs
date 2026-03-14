@@ -633,6 +633,15 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             "/api/mail/signatures/{id}",
             delete(mail::delete_signature),
         )
+        // encryption keys API
+        .route("/api/mail/keys", get(mail::list_keys))
+        .route(
+            "/api/mail/keys/{key_type}",
+            get(mail::get_key).put(mail::set_key).delete(mail::delete_key),
+        )
+        // public key lookup (no auth required — placed before auth middleware)
+        .route("/api/keys/{address}/pgp", get(mail::get_public_pgp_key))
+        .route("/api/keys/{address}/smime", get(mail::get_public_smime_key))
         // templates API
         .route(
             "/api/mail/templates",
