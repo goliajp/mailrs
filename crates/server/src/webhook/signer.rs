@@ -13,6 +13,7 @@ pub fn sign_payload(secret: &[u8], payload: &[u8]) -> String {
 }
 
 /// verify a hex-encoded HMAC-SHA256 signature using timing-safe comparison
+#[allow(dead_code)]
 pub fn verify_signature(secret: &[u8], payload: &[u8], signature: &str) -> bool {
     let Ok(sig_bytes) = hex::decode(signature) else {
         return false;

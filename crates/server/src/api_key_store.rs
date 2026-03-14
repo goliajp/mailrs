@@ -15,6 +15,7 @@ pub(crate) struct ApiKeyRecord {
     pub full_key: Option<String>,
     pub expires_at: Option<DateTime<Utc>>,
     pub last_used_at: Option<DateTime<Utc>>,
+    #[allow(dead_code)]
     pub revoked_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub app_id: Option<i64>,

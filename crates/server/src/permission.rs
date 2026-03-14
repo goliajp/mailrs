@@ -53,6 +53,7 @@ impl EffectivePermissions {
     }
 
     /// check if the user has any admin permission
+    #[allow(dead_code)]
     pub fn has_any_admin(&self) -> bool {
         self.is_super
             || self

@@ -106,6 +106,7 @@ pub(crate) struct SetAccountPasswordParams {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(crate) struct ListGroupsParams {}
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(crate) struct GetAccountGroupsParams {
     /// email address

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Subscription {
     pub id: i64,
+    #[allow(dead_code)]
     pub account_address: String,
     pub url: String,
     pub event_type: String,
@@ -26,12 +27,17 @@ pub struct OutboxEntry {
     pub id: i64,
     pub subscription_id: i64,
     pub payload: serde_json::Value,
+    #[allow(dead_code)]
     pub status: String,
     pub attempts: i32,
     pub max_attempts: i32,
+    #[allow(dead_code)]
     pub next_retry: i64,
+    #[allow(dead_code)]
     pub last_error: Option<String>,
+    #[allow(dead_code)]
     pub created_at: i64,
+    #[allow(dead_code)]
     pub updated_at: i64,
 }
 

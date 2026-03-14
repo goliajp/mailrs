@@ -35,7 +35,7 @@ impl MailboxStore {
     pub async fn create_mailbox(&self, user: &str, name: &str) -> Result<Mailbox, sqlx::Error> {
         let uidvalidity = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs() as i32;
 
         sqlx::query(
@@ -328,7 +328,7 @@ impl MailboxStore {
                      OR m.subject ILIKE ${param_idx} OR m.sender ILIKE ${param_idx})"
                 ));
                 text_bind = Some(format!("%{}%", t.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")));
-                param_idx += 1;
+                let _ = param_idx;
             }
         }
 

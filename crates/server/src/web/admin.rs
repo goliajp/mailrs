@@ -1300,7 +1300,7 @@ pub(super) async fn create_app(
     State(state): State<Arc<WebState>>,
     Json(req): Json<CreateAppRequest>,
 ) -> impl IntoResponse {
-    if let Some(err) = require_permission(permissions, "admin.accounts") {
+    if require_permission(permissions, "admin.accounts").is_some() {
         return (StatusCode::FORBIDDEN, Json(serde_json::json!({"error": "insufficient permissions"}))).into_response();
     }
     if req.name.is_empty() || req.name.len() > super::MAX_ADMIN_FIELD_LEN {

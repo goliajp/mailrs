@@ -27,9 +27,9 @@ pub(super) struct LoginRequest {
 #[derive(Debug, Clone)]
 pub(crate) enum AuthMethod {
     Session,
-    ApiKey(i64),
+    ApiKey(#[allow(dead_code)] i64),
     /// app key: (api_key_id, app_internal_id)
-    AppKey(i64, i64),
+    AppKey(#[allow(dead_code)] i64, #[allow(dead_code)] i64),
 }
 
 /// extractor that validates bearer token and returns the authenticated user context
