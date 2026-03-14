@@ -10,7 +10,8 @@ const sampleAuth: AuthInfo = {
   token: 'tok-abc123',
   address: 'user@example.com',
   display_name: 'Test User',
-  super_domains: ['example.com'],
+  permissions: [],
+  accessible_domains: ['example.com'],
 }
 
 // localStorage mock that supports all needed methods

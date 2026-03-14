@@ -336,7 +336,7 @@ function FilterBar() {
   // whether any advanced filters are active
   const hasAdvancedFilters = sortOrder !== 'newest' || showArchived || activeCategory !== null || selectedDomains.length > 0 || section === 'important' || section === 'other'
 
-  const superDomains = auth?.super_domains ?? []
+  const superDomains = auth?.accessible_domains ?? []
 
   return (
     <div className="flex items-center gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">

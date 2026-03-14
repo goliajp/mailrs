@@ -141,7 +141,7 @@ pub(super) fn convos_to_response(
 }
 
 pub(super) async fn get_conversations(
-    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
+    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
     Query(q): Query<ConversationsQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -152,7 +152,7 @@ pub(super) async fn get_conversations(
     let _ = mb_store.ensure_default_mailboxes(user).await;
 
     let limit = super::clamp_limit(q.limit);
-    let domains = validate_domains(q.domains.as_deref(), super_domains);
+    let domains = validate_domains(q.domains.as_deref(), permissions);
 
     let convos = mb_store
         .list_conversations(
@@ -173,7 +173,7 @@ pub(super) async fn get_conversations(
 pub(super) async fn get_thread_messages(
     Path(thread_id): Path<String>,
     Query(dq): Query<DomainsQuery>,
-    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
+    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref mb_store) = state.mailbox_store else {
@@ -184,7 +184,7 @@ pub(super) async fn get_thread_messages(
         return Json(Vec::<ThreadMessageResponse>::new());
     }
 
-    let domains = validate_domains(dq.domains.as_deref(), super_domains);
+    let domains = validate_domains(dq.domains.as_deref(), permissions);
 
     let messages = mb_store
         .list_thread_messages(&user, &thread_id, domains.as_deref())
@@ -329,7 +329,7 @@ pub(super) async fn get_thread_messages(
 pub(super) async fn mark_thread_read(
     Path(thread_id): Path<String>,
     Query(dq): Query<DomainsQuery>,
-    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
+    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > super::MAX_PATH_LEN {
@@ -346,7 +346,7 @@ pub(super) async fn mark_thread_read(
         });
     };
 
-    let domains = validate_domains(dq.domains.as_deref(), super_domains);
+    let domains = validate_domains(dq.domains.as_deref(), permissions);
 
     match mb_store
         .mark_thread_read(&user, &thread_id, domains.as_deref())
@@ -444,7 +444,7 @@ pub(super) async fn delete_thread(
 }
 
 pub(super) async fn get_conversation_categories(
-    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
+    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
     Query(dq): Query<DomainsQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -452,7 +452,7 @@ pub(super) async fn get_conversation_categories(
         return Json(Vec::<CategoryCount>::new());
     };
 
-    let domains = validate_domains(dq.domains.as_deref(), super_domains);
+    let domains = validate_domains(dq.domains.as_deref(), permissions);
 
     let cats = mb_store
         .list_conversation_categories(&user, domains.as_deref())
@@ -468,7 +468,7 @@ pub(super) async fn get_conversation_categories(
 }
 
 pub(super) async fn search_conversations(
-    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
+    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
     Query(q): Query<SearchQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -481,7 +481,7 @@ pub(super) async fn search_conversations(
     }
 
     let limit = super::clamp_limit(q.limit);
-    let domains = validate_domains(q.domains.as_deref(), super_domains);
+    let domains = validate_domains(q.domains.as_deref(), permissions);
 
     let mut convos = mb_store
         .search_conversations(
@@ -589,7 +589,7 @@ async fn semantic_search_threads(
 }
 
 pub(super) async fn semantic_search(
-    AuthUser { address: ref user, ref super_domains, .. }: AuthUser,
+    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
     Query(q): Query<SearchQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -612,7 +612,7 @@ pub(super) async fn semantic_search(
         None => return Json(Vec::<SemanticSearchResult>::new()),
     };
 
-    let domains = validate_domains(q.domains.as_deref(), super_domains);
+    let domains = validate_domains(q.domains.as_deref(), permissions);
 
     let results = mb_store
         .semantic_search(&user, &embedding, limit as i64, domains.as_deref())
@@ -1543,26 +1543,42 @@ mod tests {
     #[test]
     fn superadmin_api_key_grants_domain_access() {
         use crate::api_key_store::{self, CachedApiKey};
-        use crate::web::auth::{AuthMethod, AuthUser};
+        use crate::permission::{compute_effective_permissions, AccountGroup, GroupInfo};
 
         let (full_key, _prefix, key_hash) = api_key_store::generate_api_key();
         let cached = CachedApiKey {
             key_hash,
             account_address: "admin@golia.jp".to_string(),
-            super_domains: vec!["golia.jp".to_string(), "example.com".to_string()],
             expires_at: None,
             id: 1,
         };
 
-        // verify key produces AuthUser with super_domains
+        // verify key hash matches
         let token_hash = api_key_store::sha256_hex(full_key.as_bytes());
         assert_eq!(token_hash, cached.key_hash);
 
-        // simulate what validate_domains does for cross-domain queries
-        let result = super::super::validate_domains(
-            Some("golia.jp,example.com"),
-            &cached.super_domains,
+        // simulate super user permissions
+        let groups = vec![AccountGroup {
+            group: GroupInfo {
+                id: 1,
+                name: "super".into(),
+                domain: None,
+                description: String::new(),
+                is_builtin: true,
+                created_at: 0,
+            },
+            permissions: crate::permission::ALL_PERMISSIONS
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+        }];
+        let perms = compute_effective_permissions(
+            &groups,
+            &[],
+            &["golia.jp".into(), "example.com".into()],
         );
+
+        let result = super::super::validate_domains(Some("golia.jp,example.com"), &perms);
         assert_eq!(
             result,
             Some(vec!["golia.jp".to_string(), "example.com".to_string()])
@@ -1571,10 +1587,8 @@ mod tests {
 
     #[test]
     fn non_superadmin_cannot_access_other_domains() {
-        let result = super::super::validate_domains(
-            Some("golia.jp"),
-            &[], // no super_domains
-        );
+        let perms = crate::permission::compute_effective_permissions(&[], &[], &[]);
+        let result = super::super::validate_domains(Some("golia.jp"), &perms);
         assert!(result.is_none());
     }
 

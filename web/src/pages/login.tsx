@@ -39,7 +39,8 @@ export function Login() {
         token: data.token,
         address: data.address,
         display_name: data.display_name,
-        super_domains: data.super_domains ?? [],
+        permissions: data.permissions ?? [],
+        accessible_domains: data.accessible_domains ?? [],
       }
       if (rememberMe) {
         localStorage.setItem('mailrs_saved_email', address)

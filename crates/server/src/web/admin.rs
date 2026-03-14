@@ -8,6 +8,21 @@ use serde::{Deserialize, Serialize};
 
 use super::{ApiResult, AuthUser, WebState};
 
+/// helper: check if user has a required permission, return error response if not
+fn require_permission(
+    permissions: &crate::permission::EffectivePermissions,
+    perm: &str,
+) -> Option<Json<ApiResult>> {
+    if permissions.has(perm) {
+        None
+    } else {
+        Some(Json(ApiResult {
+            success: false,
+            message: Some("insufficient permissions".into()),
+        }))
+    }
+}
+
 #[derive(Deserialize)]
 pub(super) struct AddDomainRequest {
     pub name: String,
@@ -69,10 +84,13 @@ pub(super) async fn list_domains(
 }
 
 pub(super) async fn add_domain(
-    AuthUser { .. }: AuthUser,
+    AuthUser { ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddDomainRequest>,
 ) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.domains") {
+        return err;
+    }
     if req.name.is_empty() || req.name.len() > super::MAX_ADMIN_FIELD_LEN {
         return Json(ApiResult {
             success: false,
@@ -100,9 +118,12 @@ pub(super) async fn add_domain(
 
 pub(super) async fn remove_domain(
     Path(name): Path<String>,
-    AuthUser { .. }: AuthUser,
+    AuthUser { ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.domains") {
+        return err;
+    }
     let Some(ref ds) = state.domain_store else {
         return Json(ApiResult {
             success: false,
@@ -153,9 +174,12 @@ pub(super) async fn check_domain_handler(
 }
 
 pub(super) async fn list_accounts(
-    AuthUser { .. }: AuthUser,
+    AuthUser { ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
+    if !permissions.has("admin.accounts") {
+        return Json(Vec::<crate::domain_store::Account>::new());
+    }
     let Some(ref ds) = state.domain_store else {
         return Json(Vec::<crate::domain_store::Account>::new());
     };
@@ -163,10 +187,13 @@ pub(super) async fn list_accounts(
 }
 
 pub(super) async fn add_account(
-    AuthUser { .. }: AuthUser,
+    AuthUser { ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddAccountRequest>,
 ) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.accounts") {
+        return err;
+    }
     if req.address.is_empty() || req.address.len() > super::MAX_ADMIN_FIELD_LEN {
         return Json(ApiResult {
             success: false,
@@ -224,9 +251,12 @@ pub(super) async fn add_account(
 
 pub(super) async fn remove_account(
     Path(address): Path<String>,
-    AuthUser { .. }: AuthUser,
+    AuthUser { ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.accounts") {
+        return err;
+    }
     let Some(ref ds) = state.domain_store else {
         return Json(ApiResult {
             success: false,
@@ -260,10 +290,13 @@ pub(super) async fn list_aliases(
 }
 
 pub(super) async fn add_alias(
-    AuthUser { .. }: AuthUser,
+    AuthUser { ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddAliasRequest>,
 ) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.aliases") {
+        return err;
+    }
     if req.source_address.is_empty() || req.source_address.len() > super::MAX_ADMIN_FIELD_LEN {
         return Json(ApiResult {
             success: false,
@@ -370,10 +403,13 @@ pub(super) async fn get_quota(
 
 pub(super) async fn set_quota(
     Path(address): Path<String>,
-    AuthUser { .. }: AuthUser,
+    AuthUser { ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetQuotaRequest>,
 ) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.accounts") {
+        return err;
+    }
     let Some(ref ds) = state.domain_store else {
         return Json(ApiResult {
             success: false,
@@ -420,10 +456,13 @@ pub(super) async fn get_sieve(
 
 pub(super) async fn set_sieve(
     Path(address): Path<String>,
-    AuthUser { .. }: AuthUser,
+    AuthUser { ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetSieveRequest>,
 ) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.sieve") {
+        return err;
+    }
     let Some(ref ds) = state.domain_store else {
         return Json(ApiResult {
             success: false,
@@ -697,4 +736,318 @@ pub(super) async fn get_smtp_config(
         )
             .into_response(),
     }
+}
+
+// ---------- groups CRUD ----------
+
+#[derive(Deserialize)]
+pub(super) struct CreateGroupRequest {
+    pub name: String,
+    pub domain: Option<String>,
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Deserialize)]
+pub(super) struct SetGroupPermissionsRequest {
+    pub permissions: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub(super) struct AddMemberRequest {
+    pub address: String,
+}
+
+#[derive(Deserialize)]
+pub(super) struct SetOverridesRequest {
+    pub overrides: Vec<OverrideEntry>,
+}
+
+#[derive(Deserialize)]
+pub(super) struct OverrideEntry {
+    pub permission: String,
+    pub granted: bool,
+}
+
+pub(super) async fn list_groups(
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if !permissions.has("admin.groups") {
+        return Json(serde_json::json!([]));
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(serde_json::json!([]));
+    };
+    let groups = ds.list_groups(None).await.unwrap_or_default();
+    Json(serde_json::to_value(groups).unwrap_or_default())
+}
+
+pub(super) async fn create_group(
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<CreateGroupRequest>,
+) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.groups") {
+        return err;
+    }
+    if req.name.is_empty() || req.name.len() > super::MAX_ADMIN_FIELD_LEN {
+        return Json(ApiResult {
+            success: false,
+            message: Some("invalid group name length".into()),
+        });
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("domain store not configured".into()),
+        });
+    };
+    match ds
+        .add_group(&req.name, req.domain.as_deref(), &req.description)
+        .await
+    {
+        Ok(id) => Json(ApiResult {
+            success: true,
+            message: Some(id.to_string()),
+        }),
+        Err(e) => Json(ApiResult {
+            success: false,
+            message: Some(e.to_string()),
+        }),
+    }
+}
+
+pub(super) async fn delete_group(
+    Path(id): Path<i64>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.groups") {
+        return err;
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("domain store not configured".into()),
+        });
+    };
+    match ds.remove_group(id).await {
+        Ok(true) => Json(ApiResult {
+            success: true,
+            message: None,
+        }),
+        Ok(false) => Json(ApiResult {
+            success: false,
+            message: Some("group not found or is builtin".into()),
+        }),
+        Err(e) => Json(ApiResult {
+            success: false,
+            message: Some(e.to_string()),
+        }),
+    }
+}
+
+pub(super) async fn get_group_permissions(
+    Path(id): Path<i64>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if !permissions.has("admin.groups") {
+        return Json(serde_json::json!([]));
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(serde_json::json!([]));
+    };
+    let perms = ds.get_group_permissions(id).await.unwrap_or_default();
+    Json(serde_json::json!(perms))
+}
+
+pub(super) async fn set_group_permissions(
+    Path(id): Path<i64>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<SetGroupPermissionsRequest>,
+) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.groups") {
+        return err;
+    }
+    // validate permissions
+    for perm in &req.permissions {
+        if !crate::permission::ALL_PERMISSIONS.contains(&perm.as_str()) {
+            return Json(ApiResult {
+                success: false,
+                message: Some(format!("unknown permission: {perm}")),
+            });
+        }
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("domain store not configured".into()),
+        });
+    };
+    match ds.set_group_permissions(id, &req.permissions).await {
+        Ok(()) => Json(ApiResult {
+            success: true,
+            message: None,
+        }),
+        Err(e) => Json(ApiResult {
+            success: false,
+            message: Some(e.to_string()),
+        }),
+    }
+}
+
+pub(super) async fn list_group_members(
+    Path(id): Path<i64>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if !permissions.has("admin.groups") {
+        return Json(serde_json::json!([]));
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(serde_json::json!([]));
+    };
+    let members = ds.list_group_members(id).await.unwrap_or_default();
+    Json(serde_json::json!(members))
+}
+
+pub(super) async fn add_group_member(
+    Path(id): Path<i64>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<AddMemberRequest>,
+) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.groups") {
+        return err;
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("domain store not configured".into()),
+        });
+    };
+    match ds.add_account_to_group(&req.address, id).await {
+        Ok(()) => Json(ApiResult {
+            success: true,
+            message: None,
+        }),
+        Err(e) => Json(ApiResult {
+            success: false,
+            message: Some(e.to_string()),
+        }),
+    }
+}
+
+pub(super) async fn remove_group_member(
+    Path((id, address)): Path<(i64, String)>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.groups") {
+        return err;
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("domain store not configured".into()),
+        });
+    };
+    match ds.remove_account_from_group(&address, id).await {
+        Ok(true) => Json(ApiResult {
+            success: true,
+            message: None,
+        }),
+        Ok(false) => Json(ApiResult {
+            success: false,
+            message: Some("membership not found".into()),
+        }),
+        Err(e) => Json(ApiResult {
+            success: false,
+            message: Some(e.to_string()),
+        }),
+    }
+}
+
+pub(super) async fn get_account_groups(
+    Path(address): Path<String>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if !permissions.has("admin.groups") {
+        return Json(serde_json::json!([]));
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(serde_json::json!([]));
+    };
+    let groups = ds.get_account_groups(&address).await.unwrap_or_default();
+    Json(serde_json::to_value(groups).unwrap_or_default())
+}
+
+pub(super) async fn get_account_overrides(
+    Path(address): Path<String>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if !permissions.has("admin.groups") {
+        return Json(serde_json::json!([]));
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(serde_json::json!([]));
+    };
+    let overrides = ds.get_account_overrides(&address).await.unwrap_or_default();
+    let entries: Vec<serde_json::Value> = overrides
+        .into_iter()
+        .map(|(perm, granted)| serde_json::json!({"permission": perm, "granted": granted}))
+        .collect();
+    Json(serde_json::json!(entries))
+}
+
+pub(super) async fn set_account_overrides(
+    Path(address): Path<String>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<SetOverridesRequest>,
+) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.groups") {
+        return err;
+    }
+    // validate permissions
+    for entry in &req.overrides {
+        if !crate::permission::ALL_PERMISSIONS.contains(&entry.permission.as_str()) {
+            return Json(ApiResult {
+                success: false,
+                message: Some(format!("unknown permission: {}", entry.permission)),
+            });
+        }
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("domain store not configured".into()),
+        });
+    };
+    let overrides: Vec<(String, bool)> = req
+        .overrides
+        .into_iter()
+        .map(|e| (e.permission, e.granted))
+        .collect();
+    match ds.set_account_overrides(&address, &overrides).await {
+        Ok(()) => Json(ApiResult {
+            success: true,
+            message: None,
+        }),
+        Err(e) => Json(ApiResult {
+            success: false,
+            message: Some(e.to_string()),
+        }),
+    }
+}
+
+pub(super) async fn get_all_permissions(
+    AuthUser { .. }: AuthUser,
+) -> impl IntoResponse {
+    Json(serde_json::json!(crate::permission::ALL_PERMISSIONS))
 }

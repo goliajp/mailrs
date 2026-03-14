@@ -38,7 +38,6 @@ pub struct Account {
     pub active: bool,
     pub created_at: i64,
     pub quota_bytes: i64,
-    pub super_domains: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -123,25 +122,17 @@ impl DomainStore {
     /// preload all accounts into process cache for L3 degradation
     pub async fn preload_accounts(&self) {
         let Ok(pool) = self.pg() else { return };
-        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String, String)>(
+        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String)>(
             "SELECT address, domain, display_name, active, \
-             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, super_domains \
+             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash \
              FROM accounts",
         )
         .fetch_all(pool)
         .await;
 
         if let Ok(rows) = rows {
-            for (
-                address,
-                domain,
-                display_name,
-                active,
-                created_at,
-                quota_bytes,
-                password_hash,
-                super_domains,
-            ) in rows
+            for (address, domain, display_name, active, created_at, quota_bytes, password_hash) in
+                rows
             {
                 let account = Account {
                     address: address.clone(),
@@ -150,7 +141,6 @@ impl DomainStore {
                     active,
                     created_at,
                     quota_bytes,
-                    super_domains,
                 };
                 self.account_cache.insert(
                     address,
@@ -253,9 +243,9 @@ impl DomainStore {
 
     pub async fn list_accounts(&self) -> Result<Vec<Account>> {
         let pool = self.pg()?;
-        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String)>(
+        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64)>(
             "SELECT address, domain, display_name, active, \
-             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, super_domains \
+             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes \
              FROM accounts ORDER BY address",
         )
         .fetch_all(pool)
@@ -264,22 +254,13 @@ impl DomainStore {
         Ok(rows
             .into_iter()
             .map(
-                |(
+                |(address, domain, display_name, active, created_at, quota_bytes)| Account {
                     address,
                     domain,
                     display_name,
                     active,
                     created_at,
                     quota_bytes,
-                    super_domains,
-                )| Account {
-                    address,
-                    domain,
-                    display_name,
-                    active,
-                    created_at,
-                    quota_bytes,
-                    super_domains,
                 },
             )
             .collect())
@@ -317,7 +298,6 @@ impl DomainStore {
             active,
             created_at: created_epoch,
             quota_bytes,
-            super_domains: String::new(),
         };
         self.account_cache.insert(
             address.to_string(),
@@ -342,26 +322,16 @@ impl DomainStore {
 
         // try PG
         if let Ok(pool) = self.pg() {
-            let row =
-                sqlx::query_as::<_, (String, String, String, bool, i64, i64, String, String)>(
-                    "SELECT address, domain, display_name, active, \
-                 EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, super_domains \
+            let row = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String)>(
+                "SELECT address, domain, display_name, active, \
+                 EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash \
                  FROM accounts WHERE address = $1",
-                )
-                .bind(address)
-                .fetch_optional(pool)
-                .await?;
+            )
+            .bind(address)
+            .fetch_optional(pool)
+            .await?;
 
-            if let Some((
-                addr,
-                domain,
-                display_name,
-                active,
-                created_at,
-                quota_bytes,
-                hash,
-                super_domains,
-            )) = row
+            if let Some((addr, domain, display_name, active, created_at, quota_bytes, hash)) = row
             {
                 let account = Account {
                     address: addr,
@@ -370,7 +340,6 @@ impl DomainStore {
                     active,
                     created_at,
                     quota_bytes,
-                    super_domains,
                 };
                 let cached = CachedAccount {
                     account: account.clone(),
@@ -658,6 +627,330 @@ impl DomainStore {
             ResolvedRecipient::Reject
         }
     }
+
+    // --- RBAC: groups & permissions ---
+
+    /// load effective permissions for an account
+    pub async fn load_account_permissions(
+        &self,
+        address: &str,
+    ) -> Result<crate::permission::EffectivePermissions> {
+        use crate::permission::{compute_effective_permissions, AccountGroup, GroupInfo};
+
+        // try valkey cache
+        let cache_key = format!("perms:{address}");
+        if let Some(cached) =
+            self.valkey_get::<crate::permission::EffectivePermissions>(&cache_key)
+                .await
+        {
+            return Ok(cached);
+        }
+
+        let pool = self.pg()?;
+
+        // load groups with their permissions
+        let rows = sqlx::query_as::<_, (i64, String, Option<String>, String, bool, i64, String)>(
+            "SELECT g.id, g.name, g.domain, g.description, g.is_builtin, \
+             EXTRACT(EPOCH FROM g.created_at)::bigint, gp.permission \
+             FROM account_groups ag \
+             JOIN groups g ON g.id = ag.group_id \
+             JOIN group_permissions gp ON gp.group_id = g.id \
+             WHERE ag.account_address = $1",
+        )
+        .bind(address)
+        .fetch_all(pool)
+        .await?;
+
+        // group rows by group id
+        let mut groups_map: std::collections::HashMap<i64, AccountGroup> =
+            std::collections::HashMap::new();
+        for (id, name, domain, description, is_builtin, created_at, permission) in rows {
+            let entry = groups_map.entry(id).or_insert_with(|| AccountGroup {
+                group: GroupInfo {
+                    id,
+                    name,
+                    domain,
+                    description,
+                    is_builtin,
+                    created_at,
+                },
+                permissions: Vec::new(),
+            });
+            entry.permissions.push(permission);
+        }
+        let groups: Vec<AccountGroup> = groups_map.into_values().collect();
+
+        // load overrides
+        let override_rows = sqlx::query_as::<_, (String, bool)>(
+            "SELECT permission, granted FROM account_permission_overrides \
+             WHERE account_address = $1",
+        )
+        .bind(address)
+        .fetch_all(pool)
+        .await?;
+
+        // get all domains for super user domain list
+        let all_domains: Vec<String> =
+            sqlx::query_as::<_, (String,)>("SELECT name FROM domains ORDER BY name")
+                .fetch_all(pool)
+                .await?
+                .into_iter()
+                .map(|(n,)| n)
+                .collect();
+
+        let perms = compute_effective_permissions(&groups, &override_rows, &all_domains);
+
+        // cache
+        self.valkey_set(&cache_key, &perms, CACHE_TTL_SECS).await;
+
+        Ok(perms)
+    }
+
+    /// invalidate permission cache for an account
+    pub async fn invalidate_permissions(&self, address: &str) {
+        self.valkey_del(&format!("perms:{address}")).await;
+    }
+
+    /// invalidate permission cache for all members of a group
+    pub async fn invalidate_group_permissions(&self, group_id: i64) {
+        let Ok(pool) = self.pg() else { return };
+        let members: Vec<(String,)> =
+            sqlx::query_as("SELECT account_address FROM account_groups WHERE group_id = $1")
+                .bind(group_id)
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default();
+        for (addr,) in members {
+            self.valkey_del(&format!("perms:{addr}")).await;
+        }
+    }
+
+    /// list all groups, optionally filtered by domain
+    pub async fn list_groups(&self, domain: Option<&str>) -> Result<Vec<crate::permission::GroupInfo>> {
+        let pool = self.pg()?;
+        let rows = if let Some(d) = domain {
+            sqlx::query_as::<_, (i64, String, Option<String>, String, bool, i64)>(
+                "SELECT id, name, domain, description, is_builtin, \
+                 EXTRACT(EPOCH FROM created_at)::bigint \
+                 FROM groups WHERE domain = $1 OR domain IS NULL ORDER BY domain NULLS FIRST, name",
+            )
+            .bind(d)
+            .fetch_all(pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, (i64, String, Option<String>, String, bool, i64)>(
+                "SELECT id, name, domain, description, is_builtin, \
+                 EXTRACT(EPOCH FROM created_at)::bigint \
+                 FROM groups ORDER BY domain NULLS FIRST, name",
+            )
+            .fetch_all(pool)
+            .await?
+        };
+
+        Ok(rows
+            .into_iter()
+            .map(|(id, name, domain, description, is_builtin, created_at)| {
+                crate::permission::GroupInfo {
+                    id,
+                    name,
+                    domain,
+                    description,
+                    is_builtin,
+                    created_at,
+                }
+            })
+            .collect())
+    }
+
+    /// get permissions for a group
+    pub async fn get_group_permissions(&self, group_id: i64) -> Result<Vec<String>> {
+        let pool = self.pg()?;
+        let rows = sqlx::query_as::<_, (String,)>(
+            "SELECT permission FROM group_permissions WHERE group_id = $1 ORDER BY permission",
+        )
+        .bind(group_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows.into_iter().map(|(p,)| p).collect())
+    }
+
+    /// create a new group
+    pub async fn add_group(
+        &self,
+        name: &str,
+        domain: Option<&str>,
+        description: &str,
+    ) -> Result<i64> {
+        let pool = self.pg()?;
+        let id = sqlx::query_as::<_, (i64,)>(
+            "INSERT INTO groups (name, domain, description) VALUES ($1, $2, $3) RETURNING id",
+        )
+        .bind(name)
+        .bind(domain)
+        .bind(description)
+        .fetch_one(pool)
+        .await?;
+        Ok(id.0)
+    }
+
+    /// remove a group (only non-builtin)
+    pub async fn remove_group(&self, id: i64) -> Result<bool> {
+        let pool = self.pg()?;
+        // protect builtin groups
+        let is_builtin = sqlx::query_as::<_, (bool,)>(
+            "SELECT is_builtin FROM groups WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+        if is_builtin == Some((true,)) {
+            return Ok(false);
+        }
+        self.invalidate_group_permissions(id).await;
+        let res = sqlx::query("DELETE FROM groups WHERE id = $1 AND NOT is_builtin")
+            .bind(id)
+            .execute(pool)
+            .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// set permissions for a group (replace all)
+    pub async fn set_group_permissions(
+        &self,
+        group_id: i64,
+        permissions: &[String],
+    ) -> Result<()> {
+        let pool = self.pg()?;
+        sqlx::query("DELETE FROM group_permissions WHERE group_id = $1")
+            .bind(group_id)
+            .execute(pool)
+            .await?;
+        for perm in permissions {
+            sqlx::query(
+                "INSERT INTO group_permissions (group_id, permission) VALUES ($1, $2) \
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(group_id)
+            .bind(perm)
+            .execute(pool)
+            .await?;
+        }
+        self.invalidate_group_permissions(group_id).await;
+        Ok(())
+    }
+
+    /// list members of a group
+    pub async fn list_group_members(&self, group_id: i64) -> Result<Vec<String>> {
+        let pool = self.pg()?;
+        let rows = sqlx::query_as::<_, (String,)>(
+            "SELECT account_address FROM account_groups WHERE group_id = $1 ORDER BY account_address",
+        )
+        .bind(group_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows.into_iter().map(|(a,)| a).collect())
+    }
+
+    /// add an account to a group
+    pub async fn add_account_to_group(&self, address: &str, group_id: i64) -> Result<()> {
+        let pool = self.pg()?;
+        sqlx::query(
+            "INSERT INTO account_groups (account_address, group_id) VALUES ($1, $2) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(address)
+        .bind(group_id)
+        .execute(pool)
+        .await?;
+        self.invalidate_permissions(address).await;
+        Ok(())
+    }
+
+    /// remove an account from a group
+    pub async fn remove_account_from_group(&self, address: &str, group_id: i64) -> Result<bool> {
+        let pool = self.pg()?;
+        let res = sqlx::query(
+            "DELETE FROM account_groups WHERE account_address = $1 AND group_id = $2",
+        )
+        .bind(address)
+        .bind(group_id)
+        .execute(pool)
+        .await?;
+        self.invalidate_permissions(address).await;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// get groups an account belongs to
+    pub async fn get_account_groups(
+        &self,
+        address: &str,
+    ) -> Result<Vec<crate::permission::GroupInfo>> {
+        let pool = self.pg()?;
+        let rows = sqlx::query_as::<_, (i64, String, Option<String>, String, bool, i64)>(
+            "SELECT g.id, g.name, g.domain, g.description, g.is_builtin, \
+             EXTRACT(EPOCH FROM g.created_at)::bigint \
+             FROM account_groups ag \
+             JOIN groups g ON g.id = ag.group_id \
+             WHERE ag.account_address = $1 \
+             ORDER BY g.domain NULLS FIRST, g.name",
+        )
+        .bind(address)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|(id, name, domain, description, is_builtin, created_at)| {
+                crate::permission::GroupInfo {
+                    id,
+                    name,
+                    domain,
+                    description,
+                    is_builtin,
+                    created_at,
+                }
+            })
+            .collect())
+    }
+
+    /// get permission overrides for an account
+    pub async fn get_account_overrides(&self, address: &str) -> Result<Vec<(String, bool)>> {
+        let pool = self.pg()?;
+        let rows = sqlx::query_as::<_, (String, bool)>(
+            "SELECT permission, granted FROM account_permission_overrides \
+             WHERE account_address = $1 ORDER BY permission",
+        )
+        .bind(address)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// set permission overrides for an account (replace all)
+    pub async fn set_account_overrides(
+        &self,
+        address: &str,
+        overrides: &[(String, bool)],
+    ) -> Result<()> {
+        let pool = self.pg()?;
+        sqlx::query("DELETE FROM account_permission_overrides WHERE account_address = $1")
+            .bind(address)
+            .execute(pool)
+            .await?;
+        for (perm, granted) in overrides {
+            sqlx::query(
+                "INSERT INTO account_permission_overrides (account_address, permission, granted) \
+                 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+            )
+            .bind(address)
+            .bind(perm)
+            .bind(granted)
+            .execute(pool)
+            .await?;
+        }
+        self.invalidate_permissions(address).await;
+        Ok(())
+    }
 }
 
 // --- cached resolution for valkey ---
@@ -745,7 +1038,6 @@ mod tests {
             active: true,
             created_at: 1700000000,
             quota_bytes: 1_073_741_824,
-            super_domains: String::new(),
         }
     }
 
@@ -802,33 +1094,18 @@ mod tests {
     // --- Account serde & defaults ---
 
     #[test]
-    fn account_deserialize_with_super_domains_default() {
-        // super_domains is marked #[serde(default)] in the Deserialize impl
-        let json = r#"{
-            "address": "nosuper@example.com",
-            "domain": "example.com",
-            "display_name": "No Super",
-            "active": true,
-            "created_at": 1700000000,
-            "quota_bytes": 0
-        }"#;
-        let account: Account = serde_json::from_str(json).unwrap();
-        assert_eq!(account.super_domains, "");
-    }
-
-    #[test]
-    fn account_deserialize_with_super_domains_present() {
+    fn account_deserialize_all_fields() {
         let json = r#"{
             "address": "admin@example.com",
             "domain": "example.com",
             "display_name": "Admin",
             "active": true,
             "created_at": 1700000000,
-            "quota_bytes": 1073741824,
-            "super_domains": "example.com,other.com"
+            "quota_bytes": 1073741824
         }"#;
         let account: Account = serde_json::from_str(json).unwrap();
-        assert_eq!(account.super_domains, "example.com,other.com");
+        assert_eq!(account.address, "admin@example.com");
+        assert_eq!(account.quota_bytes, 1073741824);
     }
 
     #[test]
@@ -840,7 +1117,6 @@ mod tests {
             active: false,
             created_at: 1234567890,
             quota_bytes: 500_000_000,
-            super_domains: "a.com".into(),
         };
         let json = serde_json::to_string(&account).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -851,7 +1127,6 @@ mod tests {
         assert_eq!(parsed["active"], false);
         assert_eq!(parsed["created_at"], 1234567890);
         assert_eq!(parsed["quota_bytes"], 500_000_000);
-        assert_eq!(parsed["super_domains"], "a.com");
     }
 
     #[test]
@@ -866,7 +1141,6 @@ mod tests {
         assert_eq!(deserialized.active, original.active);
         assert_eq!(deserialized.created_at, original.created_at);
         assert_eq!(deserialized.quota_bytes, original.quota_bytes);
-        assert_eq!(deserialized.super_domains, original.super_domains);
     }
 
     // --- DomainStore cache operations (no DB) ---
@@ -1104,8 +1378,6 @@ impl<'de> serde::Deserialize<'de> for Account {
             active: bool,
             created_at: i64,
             quota_bytes: i64,
-            #[serde(default)]
-            super_domains: String,
         }
         let h = Helper::deserialize(deserializer)?;
         Ok(Account {
@@ -1115,7 +1387,6 @@ impl<'de> serde::Deserialize<'de> for Account {
             active: h.active,
             created_at: h.created_at,
             quota_bytes: h.quota_bytes,
-            super_domains: h.super_domains,
         })
     }
 }

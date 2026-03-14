@@ -252,10 +252,12 @@ mod tests {
             }
         }
 
+        // permissions are loaded from domain_store at runtime, not from cache
+        let perms = crate::permission::compute_effective_permissions(&[], &[], &[]);
         Ok(AuthUser {
             address: cached.account_address.clone(),
             display_name: cached.account_address.clone(),
-            super_domains: cached.super_domains.clone(),
+            permissions: std::sync::Arc::new(perms),
             auth_method: AuthMethod::ApiKey(cached.id),
         })
     }
@@ -266,7 +268,6 @@ mod tests {
         let cached = CachedApiKey {
             key_hash,
             account_address: "user@example.com".to_string(),
-            super_domains: vec!["example.com".to_string()],
             expires_at: None,
             id: 42,
         };
@@ -285,7 +286,6 @@ mod tests {
         let cached = CachedApiKey {
             key_hash,
             account_address: "user@example.com".to_string(),
-            super_domains: vec![],
             expires_at: Some(Utc::now() - chrono::Duration::hours(1)),
             id: 1,
         };
@@ -303,7 +303,6 @@ mod tests {
         let cached = CachedApiKey {
             key_hash,
             account_address: "user@example.com".to_string(),
-            super_domains: vec![],
             expires_at: None,
             id: 1,
         };
@@ -336,12 +335,11 @@ mod tests {
     }
 
     #[test]
-    fn test_inherits_account_role() {
+    fn test_api_key_produces_auth_user() {
         let (full_key, _prefix, key_hash) = api_key_store::generate_api_key();
         let cached = CachedApiKey {
             key_hash,
             account_address: "admin@golia.jp".to_string(),
-            super_domains: vec!["golia.jp".to_string(), "golia.ai".to_string()],
             expires_at: None,
             id: 99,
         };
@@ -350,9 +348,8 @@ mod tests {
         assert!(result.is_ok());
 
         let user = result.unwrap();
-        assert!(user.super_domains.contains(&"golia.jp".to_string()));
-        assert!(user.super_domains.contains(&"golia.ai".to_string()));
-        assert_eq!(user.super_domains.len(), 2);
+        assert_eq!(user.address, "admin@golia.jp");
+        assert!(matches!(user.auth_method, AuthMethod::ApiKey(99)));
     }
 
     // revoke tested via manual integration: POST create -> DELETE revoke -> GET with key -> 401

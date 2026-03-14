@@ -24,7 +24,6 @@ pub(crate) struct ApiKeyRecord {
 pub(crate) struct CachedApiKey {
     pub key_hash: String,
     pub account_address: String,
-    pub super_domains: Vec<String>,
     pub expires_at: Option<DateTime<Utc>>,
     pub id: i64,
 }

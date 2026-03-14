@@ -75,7 +75,8 @@ function makeStore() {
     token: 'test-token',
     address: 'user@example.com',
     display_name: 'Test User',
-    super_domains: ['example.com', 'golia.jp'],
+    permissions: [],
+    accessible_domains: ['example.com', 'golia.jp'],
   })
   store.set(initialLoadingAtom, false)
   return store
@@ -106,7 +107,7 @@ describe('FilterBar — domain selector', () => {
     store.set(conversationsAtom, [makeConversation()])
   })
 
-  it('shows domain buttons in filter dropdown when super_domains are available', () => {
+  it('shows domain buttons in filter dropdown when accessible_domains are available', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
@@ -120,13 +121,14 @@ describe('FilterBar — domain selector', () => {
     expect(screen.getByText('golia.jp')).toBeDefined()
   })
 
-  it('does not show domain section when super_domains is empty', () => {
+  it('does not show domain section when accessible_domains is empty', () => {
     const noSuperStore = createStore()
     noSuperStore.set(authAtom, {
       token: 'test-token',
       address: 'user@example.com',
       display_name: 'Test User',
-      super_domains: [],
+      permissions: [],
+      accessible_domains: [],
     })
     noSuperStore.set(initialLoadingAtom, false)
     noSuperStore.set(conversationsAtom, [makeConversation()])

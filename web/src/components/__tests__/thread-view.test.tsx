@@ -112,7 +112,7 @@ function makeStore() {
   const store = createStore()
   store.set(authAtom, {
     token: 'test-token', address: 'user@example.com',
-    display_name: 'Test User', super_domains: [],
+    display_name: 'Test User', permissions: [], accessible_domains: [],
   })
   return store
 }

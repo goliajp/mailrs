@@ -10,6 +10,7 @@ mod content_worker;
 mod dmarc_report;
 mod domain_check;
 mod domain_store;
+pub(crate) mod permission;
 mod event_bus;
 mod health;
 mod html_clean;
