@@ -104,7 +104,7 @@ async fn backfill_loop(config: Arc<GeminiConfig>, store: Arc<MailboxStore>, mail
                 .await;
                 if success {
                     let done = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if done % 20 == 0 {
+                    if done.is_multiple_of(20) {
                         eprintln!("AI backfill: {done}/{total} analyzed");
                     }
                 } else {
@@ -175,6 +175,7 @@ async fn listen_new_messages(
 }
 
 /// analyze a single message with up to 5 retries and longer exponential backoff
+#[allow(clippy::too_many_arguments)]
 async fn analyze_with_retry(
     config: &GeminiConfig,
     store: &MailboxStore,
@@ -221,6 +222,7 @@ async fn analyze_with_retry(
 }
 
 /// returns true on success
+#[allow(clippy::too_many_arguments)]
 async fn analyze_single_message(
     config: &GeminiConfig,
     store: &MailboxStore,

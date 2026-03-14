@@ -620,6 +620,7 @@ pub(super) async fn send_message(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn deliver_message(
     state: &Arc<WebState>,
     from: &str,
@@ -633,6 +634,7 @@ pub(crate) async fn deliver_message(
     deliver_message_ex(state, from, to, cc, bcc, raw, message_id, ts, None).await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn deliver_message_ex(
     state: &Arc<WebState>,
     from: &str,
@@ -755,6 +757,7 @@ fn extract_address(s: &str) -> String {
     s.trim().to_string()
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_rfc5322_message(
     from: &str,
     to: &[String],
@@ -875,6 +878,7 @@ async fn resolve_inline_images(
     (rewritten, images)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_rfc5322_with_attachments(
     from: &str,
     to: &[String],

@@ -179,6 +179,7 @@ impl MailboxStore {
     }
 
     /// index a new message: assigns UID, inserts metadata, returns UID
+    #[allow(clippy::too_many_arguments)]
     pub async fn index_message(
         &self,
         user: &str,
@@ -299,6 +300,7 @@ impl MailboxStore {
     }
 
     /// query messages for JMAP: flexible filter returning DB IDs + total count
+    #[allow(clippy::too_many_arguments)]
     pub async fn query_messages(
         &self,
         user: &str,
@@ -716,6 +718,7 @@ impl MailboxStore {
 
     /// list conversations grouped by thread_id, ordered by most recent
     /// when `domains` is Some, query across all accounts in those domains instead of single user
+    #[allow(clippy::too_many_arguments)]
     pub async fn list_conversations(
         &self,
         user: &str,
@@ -755,9 +758,9 @@ impl MailboxStore {
         conditions.insert(0, user_condition);
 
         // exclude snoozed conversations (snooze still active)
-        conditions.push(format!(
-            "NOT EXISTS (SELECT 1 FROM snoozed_conversations sc WHERE sc.thread_id = m.thread_id AND sc.account_address = mb.user_address AND sc.snoozed_until > NOW())"
-        ));
+        conditions.push(
+            "NOT EXISTS (SELECT 1 FROM snoozed_conversations sc WHERE sc.thread_id = m.thread_id AND sc.account_address = mb.user_address AND sc.snoozed_until > NOW())".to_string()
+        );
 
         // folder filter (e.g. "Sent", "Drafts")
         if folder.is_some() {
@@ -1574,6 +1577,7 @@ impl MailboxStore {
     }
 
     /// upsert analysis result
+    #[allow(clippy::too_many_arguments)]
     pub async fn upsert_email_analysis(
         &self,
         message_id: i64,
@@ -1822,6 +1826,7 @@ impl MailboxStore {
     }
 
     /// update message content fields after deep cleaning
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_message_content(
         &self,
         message_id: i64,
@@ -2102,6 +2107,7 @@ async fn copy_message_inner(
 }
 
 /// convert a tuple row to MessageMeta
+#[allow(clippy::type_complexity)]
 fn row_to_message_meta(
     r: (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64),
 ) -> MessageMeta {

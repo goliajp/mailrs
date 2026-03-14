@@ -156,7 +156,7 @@ pub(super) async fn get_conversations(
 
     let convos = mb_store
         .list_conversations(
-            &user,
+            user,
             limit,
             q.before,
             q.category.as_deref(),
@@ -187,7 +187,7 @@ pub(super) async fn get_thread_messages(
     let domains = validate_domains(dq.domains.as_deref(), permissions);
 
     let messages = mb_store
-        .list_thread_messages(&user, &thread_id, domains.as_deref())
+        .list_thread_messages(user, &thread_id, domains.as_deref())
         .await
         .unwrap_or_default();
 
@@ -195,7 +195,7 @@ pub(super) async fn get_thread_messages(
     for msg in &messages {
         // in supermode, use the message owner's maildir; otherwise use current user
         let maildir_user = if msg.user_address.is_empty() {
-            &user
+            user
         } else {
             &msg.user_address
         };
@@ -316,7 +316,7 @@ pub(super) async fn get_thread_messages(
             importance_score: msg.importance_score,
             is_bulk_sender: msg.is_bulk_sender,
             has_tracking_pixel: msg.has_tracking_pixel,
-            requires_action: ai.as_ref().map_or(false, |a| a.requires_action),
+            requires_action: ai.as_ref().is_some_and(|a| a.requires_action),
             sender_intent: ai.as_ref().map_or_else(|| "inform".into(), |a| a.sender_intent.clone()),
             action_deadline: ai.as_ref().and_then(|a| a.action_deadline.clone()),
             structured_data,
@@ -349,7 +349,7 @@ pub(super) async fn mark_thread_read(
     let domains = validate_domains(dq.domains.as_deref(), permissions);
 
     match mb_store
-        .mark_thread_read(&user, &thread_id, domains.as_deref())
+        .mark_thread_read(user, &thread_id, domains.as_deref())
         .await
     {
         Ok(count) => Json(ApiResult {
@@ -455,7 +455,7 @@ pub(super) async fn get_conversation_categories(
     let domains = validate_domains(dq.domains.as_deref(), permissions);
 
     let cats = mb_store
-        .list_conversation_categories(&user, domains.as_deref())
+        .list_conversation_categories(user, domains.as_deref())
         .await
         .unwrap_or_default();
 
@@ -485,7 +485,7 @@ pub(super) async fn search_conversations(
 
     let mut convos = mb_store
         .search_conversations(
-            &user,
+            user,
             &q.q,
             limit,
             q.category.as_deref(),
@@ -498,7 +498,7 @@ pub(super) async fn search_conversations(
     if convos.len() < limit as usize {
         if let Some(extra) = semantic_search_threads(
             &state,
-            &user,
+            user,
             &q.q,
             limit as usize - convos.len(),
             q.category.as_deref(),
@@ -615,7 +615,7 @@ pub(super) async fn semantic_search(
     let domains = validate_domains(q.domains.as_deref(), permissions);
 
     let results = mb_store
-        .semantic_search(&user, &embedding, limit as i64, domains.as_deref())
+        .semantic_search(user, &embedding, limit as i64, domains.as_deref())
         .await
         .unwrap_or_default();
 

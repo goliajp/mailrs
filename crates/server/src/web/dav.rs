@@ -185,9 +185,9 @@ pub(super) async fn dav_principal(
 
     let mut props = String::new();
     if wants_current_user_principal || body.is_empty() {
-        props.push_str(&format!(
+        props.push_str(
             "<D:current-user-principal><D:href>/dav/</D:href></D:current-user-principal>\n"
-        ));
+        );
     }
     if wants_resourcetype || body.is_empty() {
         props.push_str("<D:resourcetype><D:collection/></D:resourcetype>\n");

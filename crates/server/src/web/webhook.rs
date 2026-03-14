@@ -60,9 +60,8 @@ fn is_valid_webhook_url(url: &str) -> bool {
     if url.starts_with("https://") {
         return true;
     }
-    if url.starts_with("http://") {
+    if let Some(after_scheme) = url.strip_prefix("http://") {
         // allow http only for localhost development
-        let after_scheme = &url[7..];
         return after_scheme.starts_with("localhost") || after_scheme.starts_with("127.0.0.1");
     }
     false

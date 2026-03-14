@@ -380,8 +380,8 @@ pub(crate) fn split_quoted_content(text: &str) -> (String, Vec<String>) {
         // only if it's a block (3+ consecutive lines)
         if trimmed.starts_with('>') {
             let mut count = 1;
-            for j in (i + 1)..lines.len() {
-                if lines[j].trim().starts_with('>') {
+            for line in lines.iter().skip(i + 1) {
+                if line.trim().starts_with('>') {
                     count += 1;
                 } else {
                     break;

@@ -480,7 +480,7 @@ impl Pop3Session {
 
     /// returns true if the session should be closed (QUIT received)
     pub fn should_close(&self, responses: &[String]) -> bool {
-        responses.last().map_or(false, |r| r.contains("bye"))
+        responses.last().is_some_and(|r| r.contains("bye"))
     }
 }
 

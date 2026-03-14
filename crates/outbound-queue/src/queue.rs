@@ -65,6 +65,7 @@ pub async fn enqueue(
 }
 
 /// enqueue a message for outbound delivery with forwarding flag
+#[allow(clippy::too_many_arguments)]
 pub async fn enqueue_ex(
     pool: &PgPool,
     sender: &str,
@@ -99,6 +100,7 @@ pub async fn notify(valkey: &mut redis::aio::ConnectionManager) {
 
 /// fetch pending messages ready for delivery
 pub async fn dequeue(pool: &PgPool, now: i64, limit: u32) -> Result<Vec<QueuedMessage>, sqlx::Error> {
+    #[allow(clippy::type_complexity)]
     let rows: Vec<(i64, String, String, String, Vec<u8>, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
         "SELECT id, sender, recipient, domain, message_data, status, attempts, max_attempts, next_retry, last_error, message_id, created_at, updated_at, is_forwarded
          FROM outbound_queue
@@ -194,6 +196,7 @@ pub async fn queue_stats(pool: &PgPool) -> Result<Vec<(String, i64)>, sqlx::Erro
 
 /// get a specific queued message by id
 pub async fn get_message(pool: &PgPool, id: i64) -> Result<Option<QueuedMessage>, sqlx::Error> {
+    #[allow(clippy::type_complexity)]
     let row: Option<(i64, String, String, String, Vec<u8>, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
         "SELECT id, sender, recipient, domain, message_data, status, attempts, max_attempts, next_retry, last_error, message_id, created_at, updated_at, is_forwarded
          FROM outbound_queue WHERE id = $1",
@@ -221,6 +224,7 @@ pub async fn get_message(pool: &PgPool, id: i64) -> Result<Option<QueuedMessage>
 }
 
 /// enqueue a message for scheduled delivery at a future time
+#[allow(clippy::too_many_arguments)]
 pub async fn enqueue_scheduled(
     pool: &PgPool,
     sender: &str,
@@ -406,6 +410,7 @@ mod tests {
 
 /// list recent queue entries for admin UI
 pub async fn list_recent(pool: &PgPool, limit: i32) -> Result<Vec<QueuedMessage>, sqlx::Error> {
+    #[allow(clippy::type_complexity)]
     let rows: Vec<(i64, String, String, String, Vec<u8>, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
         "SELECT id, sender, recipient, domain, message_data, status, attempts, max_attempts, next_retry, last_error, message_id, created_at, updated_at, is_forwarded
          FROM outbound_queue

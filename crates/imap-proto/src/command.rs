@@ -285,12 +285,12 @@ fn parse_append_args(args: &str) -> Result<ImapCommand, ParseError> {
     let before_literal = args[..literal_start].trim();
 
     // first token is the mailbox name
-    let (mailbox, rest) = if before_literal.starts_with('"') {
+    let (mailbox, rest) = if let Some(stripped) = before_literal.strip_prefix('"') {
         // quoted mailbox
-        let end = before_literal[1..].find('"')
+        let end = stripped.find('"')
             .ok_or(ParseError::MissingArgument("mailbox".into()))?;
-        let mb = before_literal[1..=end].to_string();
-        let rest = before_literal[end + 2..].trim();
+        let mb = stripped[..end].to_string();
+        let rest = stripped[end + 1..].trim();
         (mb, rest)
     } else {
         match before_literal.split_once(' ') {
@@ -515,8 +515,8 @@ fn parse_imap_date(s: &str) -> Option<i64> {
     // months in current year
     let days_in_months = [31, 28 + if is_leap_year(year) { 1 } else { 0 },
         31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    for m in 0..(month - 1) as usize {
-        days += days_in_months[m] as i64;
+    for d in days_in_months.iter().take((month - 1) as usize) {
+        days += *d as i64;
     }
     days += day as i64 - 1;
     Some(days * 86400)

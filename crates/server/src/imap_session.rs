@@ -1325,14 +1325,14 @@ impl ImapSession {
                     .unwrap_or(0);
                 uids.contains(&seq)
             };
-            if matches {
-                if let Err(_) = self
+            if matches
+                && self
                     .mailbox_store
                     .copy_message(&username, mailbox.id, msg.uid, dest_mailbox)
                     .await
-                {
-                    return vec![format_no(tag, "COPY failed")];
-                }
+                    .is_err()
+            {
+                return vec![format_no(tag, "COPY failed")];
             }
         }
 
@@ -1393,10 +1393,11 @@ impl ImapSession {
                 uids.contains(&seq)
             };
             if matches {
-                if let Err(_) = self
+                if self
                     .mailbox_store
                     .move_message(&username, mailbox.id, msg.uid, dest_mailbox)
                     .await
+                    .is_err()
                 {
                     return vec![format_no(tag, "MOVE failed")];
                 }
@@ -1544,7 +1545,7 @@ impl ImapSession {
             }
         }
 
-        let flag_bits = flags.map(|f| parse_imap_flags(f)).unwrap_or(0);
+        let flag_bits = flags.map(parse_imap_flags).unwrap_or(0);
 
         self.pending_append = Some(PendingAppend {
             tag: tag.to_string(),
