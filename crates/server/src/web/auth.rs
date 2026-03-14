@@ -20,6 +20,7 @@ use super::{ApiResult, SessionInfo, WebState};
 pub(super) struct LoginRequest {
     pub address: String,
     pub password: String,
+    pub totp_code: Option<String>,
 }
 
 /// how the user authenticated
@@ -297,6 +298,43 @@ pub(super) async fn login(
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({"error": "invalid credentials"})),
         );
+    }
+
+    // check TOTP 2FA
+    if let Some(ref ds) = state.domain_store {
+        if let Ok(Some((secret, true, _recovery_codes))) = ds.get_totp_secret(&req.address).await {
+            match &req.totp_code {
+                None => {
+                    // TOTP enabled but no code provided — ask client to provide one
+                    return (
+                        StatusCode::OK,
+                        Json(serde_json::json!({"requires_totp": true})),
+                    );
+                }
+                Some(code) => {
+                    let code_valid = crate::totp::verify_code(&secret, code);
+                    // if TOTP code invalid, try recovery code
+                    let recovery_valid = if !code_valid {
+                        ds.consume_recovery_code(&req.address, code).await.unwrap_or(false)
+                    } else {
+                        false
+                    };
+                    if !code_valid && !recovery_valid {
+                        if let Some(ref guard) = state.auth_guard {
+                            guard.record_failure(addr.ip(), &req.address);
+                        }
+                        ds.log_audit(&req.address, "totp_failed", "", &format!("ip={}", addr.ip())).await;
+                        return (
+                            StatusCode::UNAUTHORIZED,
+                            Json(serde_json::json!({"error": "invalid TOTP code"})),
+                        );
+                    }
+                    if recovery_valid {
+                        ds.log_audit(&req.address, "recovery_code_used", "", &format!("ip={}", addr.ip())).await;
+                    }
+                }
+            }
+        }
     }
 
     if let Some(ref guard) = state.auth_guard {
@@ -612,4 +650,163 @@ pub(super) async fn reset_password(
         StatusCode::OK,
         Json(serde_json::json!({"success": true})),
     )
+}
+
+// --- TOTP 2FA endpoints ---
+
+#[derive(Deserialize)]
+pub(super) struct TotpCodeRequest {
+    pub code: String,
+}
+
+/// set up TOTP: generate secret + recovery codes, save to DB (not yet enabled)
+pub(super) async fn totp_setup(
+    State(state): State<Arc<WebState>>,
+    AuthUser { address, .. }: AuthUser,
+) -> impl IntoResponse {
+    let Some(ref ds) = state.domain_store else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "auth backend unavailable"})),
+        );
+    };
+
+    let secret = crate::totp::generate_secret();
+    let recovery_codes = crate::totp::generate_recovery_codes();
+    let recovery_str = recovery_codes.join(",");
+
+    if let Err(e) = ds.save_totp_secret(&address, &secret, &recovery_str).await {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to save TOTP secret: {e}")})),
+        );
+    }
+
+    let otpauth_url = crate::totp::get_otpauth_url(&secret, &address, "mailrs");
+
+    ds.log_audit(&address, "totp_setup", "", "").await;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "secret": secret,
+            "otpauth_url": otpauth_url,
+            "recovery_codes": recovery_codes,
+        })),
+    )
+}
+
+/// enable TOTP after verifying the user can produce a valid code
+pub(super) async fn totp_enable(
+    State(state): State<Arc<WebState>>,
+    AuthUser { address, .. }: AuthUser,
+    Json(req): Json<TotpCodeRequest>,
+) -> impl IntoResponse {
+    let Some(ref ds) = state.domain_store else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "auth backend unavailable"})),
+        );
+    };
+
+    // get the saved (not yet enabled) secret
+    let secret = match ds.get_totp_secret(&address).await {
+        Ok(Some((secret, false, _))) => secret,
+        Ok(Some((_, true, _))) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "TOTP already enabled"})),
+            );
+        }
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "TOTP not set up, call /api/auth/totp/setup first"})),
+            );
+        }
+    };
+
+    if !crate::totp::verify_code(&secret, &req.code) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "invalid TOTP code"})),
+        );
+    }
+
+    if let Err(e) = ds.enable_totp(&address).await {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to enable TOTP: {e}")})),
+        );
+    }
+
+    ds.log_audit(&address, "totp_enabled", "", "").await;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"success": true})),
+    )
+}
+
+/// disable TOTP (requires a valid code to confirm)
+pub(super) async fn totp_disable(
+    State(state): State<Arc<WebState>>,
+    AuthUser { address, .. }: AuthUser,
+    Json(req): Json<TotpCodeRequest>,
+) -> impl IntoResponse {
+    let Some(ref ds) = state.domain_store else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "auth backend unavailable"})),
+        );
+    };
+
+    // verify current TOTP code before disabling
+    let secret = match ds.get_totp_secret(&address).await {
+        Ok(Some((secret, true, _))) => secret,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "TOTP not enabled"})),
+            );
+        }
+    };
+
+    if !crate::totp::verify_code(&secret, &req.code) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "invalid TOTP code"})),
+        );
+    }
+
+    if let Err(e) = ds.disable_totp(&address).await {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to disable TOTP: {e}")})),
+        );
+    }
+
+    ds.log_audit(&address, "totp_disabled", "", "").await;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"success": true})),
+    )
+}
+
+/// check whether TOTP is enabled for the current user
+pub(super) async fn totp_status(
+    State(state): State<Arc<WebState>>,
+    AuthUser { address, .. }: AuthUser,
+) -> impl IntoResponse {
+    let Some(ref ds) = state.domain_store else {
+        return Json(serde_json::json!({"enabled": false}));
+    };
+
+    let enabled = match ds.get_totp_secret(&address).await {
+        Ok(Some((_, true, _))) => true,
+        _ => false,
+    };
+
+    Json(serde_json::json!({"enabled": enabled}))
 }

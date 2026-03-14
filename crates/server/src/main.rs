@@ -29,6 +29,7 @@ mod ptr_check;
 mod sieve;
 mod smtp_session;
 mod tls;
+mod totp;
 mod users;
 mod valkey_store;
 mod mcp;
