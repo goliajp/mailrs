@@ -23,6 +23,7 @@ mod inline_image;
 mod message_util;
 mod structured_data;
 mod pg;
+mod pop3_session;
 mod ptr_check;
 mod sieve;
 mod smtp_session;
@@ -36,7 +37,7 @@ mod webhook;
 use std::sync::Arc;
 
 use hickory_resolver::TokioResolver;
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 
 use crate::config::{ServerConfig, TlsMode};
 use crate::event_bus::{EventBus, SmtpEvent};
@@ -585,6 +586,38 @@ async fn main() {
         }
     }
 
+    // POP3 listener
+    if let Some(ref mb_store) = mailbox_store {
+        let pop3_addr = format!("0.0.0.0:{}", cfg.pop3_port);
+        let pop3_listener = TcpListener::bind(&pop3_addr)
+            .await
+            .expect("failed to bind POP3 port");
+        eprintln!("mailrs POP3 on {pop3_addr}");
+
+        let pop3_mb_store = mb_store.clone();
+        let pop3_users = users.clone();
+        let pop3_maildir_root = cfg.maildir_root.clone();
+        let pop3_auth_guard = auth_guard.clone();
+        let pop3_domain_store = domain_store.clone();
+        tokio::spawn(async move {
+            loop {
+                match pop3_listener.accept().await {
+                    Ok((stream, addr)) => {
+                        let mb = pop3_mb_store.clone();
+                        let u = pop3_users.clone();
+                        let mr = pop3_maildir_root.clone();
+                        let ag = pop3_auth_guard.clone();
+                        let ds = pop3_domain_store.clone();
+                        tokio::spawn(async move {
+                            handle_pop3_connection(stream, addr, mb, u, ag, ds, &mr).await;
+                        });
+                    }
+                    Err(e) => eprintln!("pop3 accept error: {e}"),
+                }
+            }
+        });
+    }
+
     // delivery worker (outbound queue)
     if let Some(ref pool) = outbound_queue {
         if let Some(ref resolver) = ctx.resolver {
@@ -696,6 +729,59 @@ async fn main() {
         .expect("failed to listen for ctrl+c");
     eprintln!("\nshutting down");
     let _ = shutdown_tx.send(true);
+}
+
+async fn handle_pop3_connection(
+    stream: TcpStream,
+    addr: std::net::SocketAddr,
+    mailbox_store: Arc<MailboxStore>,
+    users: Arc<crate::users::UserStore>,
+    auth_guard: Arc<AuthGuard>,
+    domain_store: Option<Arc<domain_store::DomainStore>>,
+    maildir_root: &str,
+) {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+    let (reader, mut writer) = stream.into_split();
+    let mut reader = BufReader::new(reader);
+
+    let mut session = pop3_session::Pop3Session::new(mailbox_store, users)
+        .with_maildir_root(maildir_root)
+        .with_auth_guard(auth_guard, addr.ip());
+    if let Some(ds) = domain_store {
+        session = session.with_domain_store(ds);
+    }
+
+    // send greeting
+    let greeting = session.greeting();
+    if writer.write_all(greeting.as_bytes()).await.is_err() {
+        return;
+    }
+
+    let mut line = String::new();
+    loop {
+        line.clear();
+        match reader.read_line(&mut line).await {
+            Ok(0) | Err(_) => break, // eof or error
+            Ok(_) => {}
+        }
+
+        let responses = session.handle_line(&line).await;
+        let should_close = session.should_close(&responses);
+
+        for resp in &responses {
+            if writer.write_all(resp.as_bytes()).await.is_err() {
+                return;
+            }
+        }
+        if writer.flush().await.is_err() {
+            return;
+        }
+
+        if should_close {
+            break;
+        }
+    }
 }
 
 async fn handle_imap_connection<S>(
