@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Blocks, Globe, LayoutGrid, ListOrdered, Shield, Users } from 'lucide-react'
+import { ArrowLeftRight, Blocks, Globe, LayoutGrid, ListOrdered, Mail, Shield, Users } from 'lucide-react'
 import { NavLink } from 'react-router'
 
 const navItems = [
@@ -26,6 +26,11 @@ const navItems = [
     to: '/admin/groups',
     label: 'Groups',
     icon: <Shield className="h-4 w-4" />,
+  },
+  {
+    to: '/admin/email-groups',
+    label: 'Email Groups',
+    icon: <Mail className="h-4 w-4" />,
   },
   {
     to: '/admin/apps',
