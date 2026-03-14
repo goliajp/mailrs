@@ -5,6 +5,8 @@
 Base URL: https://mail.golia.ai
 Auth: Bearer API key on all requests
 Full API docs: https://mail.golia.ai/llm-full.txt
+Interactive docs: https://mail.golia.ai/docs.html
+OpenAPI spec: https://mail.golia.ai/openapi.json
 
 ## MCP (recommended)
 
