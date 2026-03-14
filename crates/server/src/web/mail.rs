@@ -1867,6 +1867,42 @@ pub(super) async fn delete_signature(
     }
 }
 
+/// cancel a pending outbound message (undo send)
+pub(super) async fn cancel_pending_send(
+    AuthUser { .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Path(message_id): Path<String>,
+) -> impl IntoResponse {
+    if message_id.is_empty() || message_id.len() > super::MAX_PATH_LEN {
+        return Json(ApiResult {
+            success: false,
+            message: Some("invalid message_id".into()),
+        });
+    }
+
+    let Some(ref pool) = state.outbound_queue else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("outbound queue not configured".into()),
+        });
+    };
+
+    match mailrs_outbound_queue::queue::cancel_pending_by_message_id(pool, &message_id).await {
+        Ok(true) => Json(ApiResult {
+            success: true,
+            message: None,
+        }),
+        Ok(false) => Json(ApiResult {
+            success: false,
+            message: Some("message not found or already sent".into()),
+        }),
+        Err(e) => Json(ApiResult {
+            success: false,
+            message: Some(format!("failed to cancel: {e}")),
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
