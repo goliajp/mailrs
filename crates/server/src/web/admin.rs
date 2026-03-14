@@ -112,10 +112,13 @@ pub(super) async fn add_domain(
                 message: None,
             })
         }
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -145,10 +148,13 @@ pub(super) async fn remove_domain(
             success: false,
             message: Some("domain not found".into()),
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -259,10 +265,13 @@ pub(super) async fn add_account(
                 message: None,
             })
         }
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -292,10 +301,13 @@ pub(super) async fn remove_account(
             success: false,
             message: Some("account not found".into()),
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -356,10 +368,13 @@ pub(super) async fn add_alias(
             success: true,
             message: None,
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -383,10 +398,13 @@ pub(super) async fn remove_alias(
             success: false,
             message: Some("alias not found".into()),
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -413,11 +431,14 @@ pub(super) async fn get_quota(
             Json(serde_json::json!({"error": "account not found"})),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": e.to_string()})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "operation failed"})),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -445,10 +466,13 @@ pub(super) async fn set_quota(
             success: false,
             message: Some("account not found".into()),
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -466,11 +490,14 @@ pub(super) async fn get_sieve(
     };
     match ds.get_sieve_script(&address).await {
         Ok(script) => Json(SieveResponse { address, script }).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": e.to_string()})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "operation failed"})),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -514,10 +541,13 @@ pub(super) async fn set_sieve(
             success: true,
             message: None,
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -541,10 +571,13 @@ pub(super) async fn delete_sieve(
             success: false,
             message: Some("no sieve script found".into()),
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -922,10 +955,13 @@ pub(super) async fn create_group(
             success: true,
             message: Some(id.to_string()),
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -952,10 +988,13 @@ pub(super) async fn delete_group(
             success: false,
             message: Some("group not found or is builtin".into()),
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -1003,10 +1042,13 @@ pub(super) async fn set_group_permissions(
             success: true,
             message: None,
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -1045,10 +1087,13 @@ pub(super) async fn add_group_member(
             success: true,
             message: None,
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -1075,10 +1120,13 @@ pub(super) async fn remove_group_member(
             success: false,
             message: Some("membership not found".into()),
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -1150,10 +1198,13 @@ pub(super) async fn set_account_overrides(
             success: true,
             message: None,
         }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+        })
+        },
     }
 }
 
@@ -1202,7 +1253,10 @@ pub(super) async fn create_email_group(
     };
     match ds.create_email_group(&req.address, &req.domain, &req.name, &req.description).await {
         Ok(id) => Json(ApiResult { success: true, message: Some(id.to_string()) }),
-        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult { success: false, message: Some("operation failed".into()) })
+        },
     }
 }
 
@@ -1220,7 +1274,10 @@ pub(super) async fn delete_email_group(
     match ds.remove_email_group(id).await {
         Ok(Some(_)) => Json(ApiResult { success: true, message: None }),
         Ok(None) => Json(ApiResult { success: false, message: Some("group not found".into()) }),
-        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult { success: false, message: Some("operation failed".into()) })
+        },
     }
 }
 
@@ -1250,7 +1307,10 @@ pub(super) async fn add_email_group_member(
     };
     match ds.add_email_group_member(id, &req.address).await {
         Ok(()) => Json(ApiResult { success: true, message: None }),
-        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult { success: false, message: Some("operation failed".into()) })
+        },
     }
 }
 
@@ -1268,7 +1328,10 @@ pub(super) async fn remove_email_group_member(
     match ds.remove_email_group_member(id, &address).await {
         Ok(true) => Json(ApiResult { success: true, message: None }),
         Ok(false) => Json(ApiResult { success: false, message: Some("member not found".into()) }),
-        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult { success: false, message: Some("operation failed".into()) })
+        },
     }
 }
 
@@ -1353,7 +1416,10 @@ pub(super) async fn create_app(
             }
         }
         Err(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response()
+            {
+                tracing::warn!(error = %e, "admin operation failed");
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "operation failed"})))
+            }.into_response()
         }
     }
 }
@@ -1372,7 +1438,10 @@ pub(super) async fn get_app(
     match ds.get_app(&app_id).await {
         Ok(Some(app)) => (StatusCode::OK, Json(serde_json::to_value(app).unwrap_or_default())).into_response(),
         Ok(None) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "app not found"}))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => {
+                tracing::warn!(error = %e, "admin operation failed");
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "operation failed"})))
+            }.into_response(),
     }
 }
 
@@ -1390,7 +1459,10 @@ pub(super) async fn delete_app(
     match ds.remove_app(&app_id).await {
         Ok(true) => Json(ApiResult { success: true, message: None }),
         Ok(false) => Json(ApiResult { success: false, message: Some("app not found".into()) }),
-        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult { success: false, message: Some("operation failed".into()) })
+        },
     }
 }
 
@@ -1447,6 +1519,9 @@ pub(super) async fn update_app_scopes(
     match ds.update_app_scopes(&app_id, &scopes.join(",")).await {
         Ok(true) => Json(ApiResult { success: true, message: None }),
         Ok(false) => Json(ApiResult { success: false, message: Some("app not found".into()) }),
-        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult { success: false, message: Some("operation failed".into()) })
+        },
     }
 }
