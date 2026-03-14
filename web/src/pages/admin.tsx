@@ -4,6 +4,7 @@ import { AdminSidebar } from '@/components/admin-sidebar'
 import { AdminAccounts } from '@/pages/admin-accounts'
 import { AdminAliases } from '@/pages/admin-aliases'
 import { AdminApps } from '@/pages/admin-apps'
+import { AdminAuditLog } from '@/pages/admin-audit-log'
 import { AdminDomains } from '@/pages/admin-domains'
 import { AdminEmailGroups } from '@/pages/admin-email-groups'
 import { AdminGroups } from '@/pages/admin-groups'
@@ -24,6 +25,7 @@ export function Admin() {
         <Route path="email-groups" element={<AdminEmailGroups />} />
         <Route path="apps" element={<AdminApps />} />
         <Route path="queues" element={<AdminQueues />} />
+        <Route path="audit-log" element={<AdminAuditLog />} />
         <Route path="*" element={<Navigate to="overview" replace />} />
       </Routes>
       </div>
