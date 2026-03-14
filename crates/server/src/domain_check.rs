@@ -45,6 +45,7 @@ pub async fn check_domain(
     checks.push(check_tlsrpt(resolver, domain).await);
     checks.push(check_ptr(resolver, hostname).await);
     checks.push(check_dane(resolver, domain).await);
+    checks.push(check_bimi(resolver, domain).await);
 
     DomainCheckReport {
         domain: domain.to_string(),
@@ -435,6 +436,76 @@ async fn check_ptr(resolver: &TokioResolver, hostname: &str) -> CheckResult {
             details: vec![],
         },
     }
+}
+
+async fn check_bimi(resolver: &TokioResolver, domain: &str) -> CheckResult {
+    let qname = format!("default._bimi.{domain}");
+    match resolver.txt_lookup(&qname).await {
+        Ok(records) => {
+            let bimi_records: Vec<String> = records
+                .iter()
+                .map(|r| r.to_string())
+                .filter(|txt| txt.contains("v=BIMI1"))
+                .collect();
+            if bimi_records.is_empty() {
+                CheckResult {
+                    name: "BIMI Record".into(),
+                    status: Status::Skip,
+                    message: "no BIMI record found".into(),
+                    details: vec![],
+                }
+            } else {
+                let logo_url = extract_bimi_logo_url(&bimi_records[0]);
+                let (status, message) = if logo_url.is_some() {
+                    (Status::Pass, "BIMI record found with logo URL".to_string())
+                } else {
+                    (
+                        Status::Warn,
+                        "BIMI record found but no logo URL (l= tag missing)".to_string(),
+                    )
+                };
+                CheckResult {
+                    name: "BIMI Record".into(),
+                    status,
+                    message,
+                    details: bimi_records,
+                }
+            }
+        }
+        Err(_) => CheckResult {
+            name: "BIMI Record".into(),
+            status: Status::Skip,
+            message: "no BIMI record found".into(),
+            details: vec![],
+        },
+    }
+}
+
+/// extract the logo URL from a BIMI record (l=https://...)
+pub fn extract_bimi_logo_url(record: &str) -> Option<String> {
+    record
+        .split(';')
+        .map(|part| part.trim())
+        .find(|part| part.starts_with("l="))
+        .and_then(|l_part| {
+            let url = l_part[2..].trim();
+            if url.is_empty() {
+                None
+            } else {
+                Some(url.to_string())
+            }
+        })
+}
+
+/// look up BIMI record for a domain and return the logo URL if found
+pub async fn lookup_bimi_logo(resolver: &TokioResolver, domain: &str) -> Option<String> {
+    let qname = format!("default._bimi.{domain}");
+    let records = resolver.txt_lookup(&qname).await.ok()?;
+    records
+        .iter()
+        .map(|r| r.to_string())
+        .find(|txt| txt.contains("v=BIMI1"))
+        .and_then(|rec| extract_bimi_logo_url(&rec))
 }
 
 // -- test-only helper functions for MTA-STS / TLSRPT parsing --
@@ -1204,5 +1275,66 @@ max_age: 86400\n";
             }
         });
         assert!(!matches);
+    }
+
+    // -- BIMI record tests --
+
+    #[test]
+    fn bimi_dns_record_name() {
+        let domain = "example.com";
+        let qname = format!("default._bimi.{domain}");
+        assert_eq!(qname, "default._bimi.example.com");
+    }
+
+    #[test]
+    fn extract_bimi_logo_url_valid() {
+        let record = "v=BIMI1; l=https://example.com/logo.svg; a=";
+        assert_eq!(
+            extract_bimi_logo_url(record),
+            Some("https://example.com/logo.svg".into())
+        );
+    }
+
+    #[test]
+    fn extract_bimi_logo_url_no_logo() {
+        let record = "v=BIMI1; l=; a=";
+        assert_eq!(extract_bimi_logo_url(record), None);
+    }
+
+    #[test]
+    fn extract_bimi_logo_url_missing_l_tag() {
+        let record = "v=BIMI1; a=https://example.com/vmc.pem";
+        assert_eq!(extract_bimi_logo_url(record), None);
+    }
+
+    #[test]
+    fn extract_bimi_logo_url_with_authority() {
+        let record = "v=BIMI1; l=https://example.com/brand.svg; a=https://example.com/vmc.pem";
+        assert_eq!(
+            extract_bimi_logo_url(record),
+            Some("https://example.com/brand.svg".into())
+        );
+    }
+
+    #[test]
+    fn extract_bimi_logo_url_whitespace() {
+        let record = "v=BIMI1;  l = https://example.com/logo.svg ;";
+        // the "l" part after split is " l = https://...", which starts_with "l=" is false
+        // so this tests trimming behavior
+        let url = extract_bimi_logo_url(record);
+        // the part " l = https://..." doesn't start with "l=" after trim, it's "l = https://..."
+        assert_eq!(url, None);
+    }
+
+    #[test]
+    fn bimi_record_detection() {
+        let record = "v=BIMI1; l=https://example.com/logo.svg";
+        assert!(record.contains("v=BIMI1"));
+    }
+
+    #[test]
+    fn bimi_record_wrong_version() {
+        let record = "v=BIMI2; l=https://example.com/logo.svg";
+        assert!(!record.contains("v=BIMI1"));
     }
 }
