@@ -11,7 +11,7 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-43 tools auto-discovered, grouped by category:
+52 tools auto-discovered, grouped by category:
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
