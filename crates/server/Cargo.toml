@@ -54,4 +54,4 @@ schemars = "1"
 uuid = { version = "1.22.0", features = ["v4"] }
 totp-rs = { version = "5.7.1", features = ["otpauth"] }
 data-encoding = "2.10.0"
-ldap3 = "0.12.1"
+ldap3 = { version = "0.12.1", default-features = false, features = ["tls-rustls-ring"] }
