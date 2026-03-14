@@ -93,6 +93,10 @@ pub fn spawn_session_cleanup(state: Arc<WebState>) {
             // purge rate-limit buckets not seen in the last hour
             let stale_before = Instant::now() - Duration::from_secs(3600);
             state.web_rate_limiter.cleanup(stale_before);
+            // clean up audit log entries older than 90 days
+            if let Some(ref ds) = state.domain_store {
+                ds.cleanup_audit_log(90).await;
+            }
         }
     });
 }
