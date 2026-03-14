@@ -127,6 +127,12 @@ pub(super) struct SendMessageRequest {
     pub reply_to_thread_id: Option<String>,
     #[serde(default)]
     pub list_unsubscribe: Option<String>,
+    /// optional ISO 8601 timestamp for scheduled delivery
+    #[serde(default)]
+    pub scheduled_at: Option<String>,
+    /// request a read receipt (MDN) from recipients
+    #[serde(default)]
+    pub request_read_receipt: bool,
 }
 
 pub(crate) struct AttachmentData {
@@ -592,7 +598,14 @@ pub(super) async fn send_message(
         &inline_images,
     );
 
-    deliver_message(
+    // parse optional scheduled_at for send-later
+    let scheduled_at = req.scheduled_at.as_deref().and_then(|s| {
+        chrono::DateTime::parse_from_rfc3339(s)
+            .ok()
+            .map(|dt| dt.timestamp())
+    });
+
+    deliver_message_ex(
         &state,
         from,
         &req.to,
@@ -601,6 +614,7 @@ pub(super) async fn send_message(
         &raw,
         &message_id,
         now.timestamp(),
+        scheduled_at,
     )
     .await
 }
@@ -614,6 +628,20 @@ pub(crate) async fn deliver_message(
     raw: &[u8],
     message_id: &str,
     ts: i64,
+) -> Json<ApiResult> {
+    deliver_message_ex(state, from, to, cc, bcc, raw, message_id, ts, None).await
+}
+
+pub(crate) async fn deliver_message_ex(
+    state: &Arc<WebState>,
+    from: &str,
+    to: &[String],
+    cc: &[String],
+    bcc: &[String],
+    raw: &[u8],
+    message_id: &str,
+    ts: i64,
+    scheduled_at: Option<i64>,
 ) -> Json<ApiResult> {
     let all_recipients: Vec<String> = to
         .iter()
@@ -667,17 +695,18 @@ pub(crate) async fn deliver_message(
                 }
             }
         } else if let Some(ref pool) = state.outbound_queue {
-            if let Err(e) = mailrs_outbound_queue::queue::enqueue(
-                pool,
-                from,
-                rcpt,
-                domain,
-                raw,
-                Some(message_id),
-                ts,
-            )
-            .await
-            {
+            let enqueue_result = if let Some(sched) = scheduled_at {
+                mailrs_outbound_queue::queue::enqueue_scheduled(
+                    pool, from, rcpt, domain, raw, Some(message_id), ts, sched,
+                )
+                .await
+            } else {
+                mailrs_outbound_queue::queue::enqueue(
+                    pool, from, rcpt, domain, raw, Some(message_id), ts,
+                )
+                .await
+            };
+            if let Err(e) = enqueue_result {
                 errors.push(format!("{rcpt}: {e}"));
             } else if let Some(ref vk) = state.valkey {
                 mailrs_outbound_queue::queue::notify(&mut vk.clone()).await;

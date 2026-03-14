@@ -220,6 +220,34 @@ pub async fn get_message(pool: &PgPool, id: i64) -> Result<Option<QueuedMessage>
     }))
 }
 
+/// enqueue a message for scheduled delivery at a future time
+pub async fn enqueue_scheduled(
+    pool: &PgPool,
+    sender: &str,
+    recipient: &str,
+    domain: &str,
+    message_data: &[u8],
+    message_id: Option<&str>,
+    created_at: i64,
+    scheduled_at: i64,
+) -> Result<i64, sqlx::Error> {
+    let row: (i64,) = sqlx::query_as(
+        "INSERT INTO outbound_queue (sender, recipient, domain, message_data, status, next_retry, message_id, created_at, updated_at, is_forwarded)
+         VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $7, false)
+         RETURNING id",
+    )
+    .bind(sender)
+    .bind(recipient)
+    .bind(domain)
+    .bind(message_data)
+    .bind(scheduled_at)
+    .bind(message_id)
+    .bind(created_at)
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0)
+}
+
 /// cancel a pending outbound message (undo send)
 pub async fn cancel_pending(pool: &PgPool, id: i64) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
