@@ -338,6 +338,7 @@ pub(super) async fn login(
             "display_name": account.display_name,
             "permissions": permissions.permission_list(),
             "accessible_domains": permissions.accessible_domains(),
+            "send_as": permissions.send_as(),
         })),
     )
 }
@@ -367,5 +368,6 @@ pub(super) async fn auth_me(
         "display_name": display_name,
         "permissions": permissions.permission_list(),
         "accessible_domains": permissions.accessible_domains(),
+        "send_as": permissions.send_as(),
     }))
 }

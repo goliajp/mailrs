@@ -406,6 +406,14 @@ pub(crate) fn verify_sender(
     if from == user {
         return Ok(());
     }
+    // check if from is an alias address owned by this user
+    if permissions
+        .send_as()
+        .iter()
+        .any(|a| a.eq_ignore_ascii_case(from))
+    {
+        return Ok(());
+    }
     // super user or user with accessible domains
     let accessible = permissions.accessible_domains();
     if !accessible.is_empty() {
