@@ -20,6 +20,7 @@ mod api_key;
 mod auth;
 mod autodiscover;
 mod conversations;
+mod jmap;
 pub(crate) mod mail;
 mod templates;
 mod webhook;
@@ -794,6 +795,9 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         )
         // smtp config
         .route("/api/admin/config/smtp", get(admin::get_smtp_config))
+        // JMAP
+        .route("/.well-known/jmap", get(jmap::jmap_session))
+        .route("/jmap", post(jmap::jmap_api))
         // MTA-STS policy
         .route("/.well-known/mta-sts.txt", get(admin::mta_sts_policy))
         // mail client autodiscover
