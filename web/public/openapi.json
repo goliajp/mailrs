@@ -1,0 +1,2972 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "mailrs API",
+    "version": "0.7.4",
+    "description": "Email server REST API for sending, reading, and managing email"
+  },
+  "servers": [
+    {
+      "url": "https://mail.golia.ai"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    { "name": "Status", "description": "Server health and status" },
+    { "name": "Auth", "description": "Authentication (login, logout, session info)" },
+    { "name": "Mail", "description": "Send, read, and manage email messages" },
+    { "name": "Drafts", "description": "Draft message management" },
+    { "name": "Conversations", "description": "Threaded conversation view and actions" },
+    { "name": "Contacts", "description": "Contact autocomplete" },
+    { "name": "Admin Domains", "description": "Domain management" },
+    { "name": "Admin Accounts", "description": "Account management" },
+    { "name": "Admin Aliases", "description": "Alias management" },
+    { "name": "Admin Groups", "description": "Group and permission management" },
+    { "name": "Admin Apps", "description": "Application management" },
+    { "name": "API Keys", "description": "API key management" },
+    { "name": "Webhooks", "description": "Webhook subscription management" },
+    { "name": "Queue", "description": "Outbound queue management" }
+  ],
+  "paths": {
+    "/api/status": {
+      "get": {
+        "operationId": "getStatus",
+        "summary": "Get server status and statistics",
+        "tags": ["Status"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Server status",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StatusResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Get detailed health check",
+        "tags": ["Status"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Health check result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/readiness": {
+      "get": {
+        "operationId": "getReadiness",
+        "summary": "Kubernetes-style readiness probe",
+        "tags": ["Status"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service is ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ready": { "type": "boolean" }
+                  },
+                  "required": ["ready"]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ready": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "login",
+        "summary": "Authenticate and get a session token",
+        "tags": ["Auth"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many auth failures",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "summary": "Invalidate the current session token",
+        "tags": ["Auth"],
+        "responses": {
+          "200": {
+            "description": "Logout successful",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "Get the current authenticated user info",
+        "tags": ["Auth"],
+        "responses": {
+          "200": {
+            "description": "Current user info",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MeResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          }
+        }
+      }
+    },
+    "/api/mail/folders": {
+      "get": {
+        "operationId": "getFolders",
+        "summary": "List all mail folders for the authenticated user",
+        "tags": ["Mail"],
+        "responses": {
+          "200": {
+            "description": "List of folders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/FolderInfo" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mail/folders/{name}/messages": {
+      "get": {
+        "operationId": "getFolderMessages",
+        "summary": "List messages in a folder",
+        "tags": ["Mail"],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Folder name (e.g. INBOX, Sent, Drafts)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50, "maximum": 100 }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of message summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/MessageSummary" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mail/messages/{uid}": {
+      "get": {
+        "operationId": "getMessage",
+        "summary": "Get full message details by UID",
+        "tags": ["Mail"],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Message details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageDetail" }
+              }
+            }
+          },
+          "404": {
+            "description": "Message not found"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMessage",
+        "summary": "Delete a message by UID",
+        "tags": ["Mail"],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deletion result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mail/messages/{uid}/flags": {
+      "post": {
+        "operationId": "updateMessageFlags",
+        "summary": "Update message flags (seen, flagged, etc.)",
+        "tags": ["Mail"],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/FlagUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Flag update result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mail/messages/{uid}/raw": {
+      "get": {
+        "operationId": "getMessageRaw",
+        "summary": "Get raw RFC 5322 message source",
+        "tags": ["Mail"],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raw message content",
+            "content": {
+              "text/plain": {
+                "schema": { "type": "string" }
+              }
+            }
+          },
+          "404": {
+            "description": "Message not found"
+          }
+        }
+      }
+    },
+    "/api/mail/messages/{uid}/attachments/{index}": {
+      "get": {
+        "operationId": "getAttachment",
+        "summary": "Download an attachment by index",
+        "tags": ["Mail"],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attachment binary data",
+            "content": {
+              "application/octet-stream": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "404": {
+            "description": "Attachment not found"
+          }
+        }
+      }
+    },
+    "/api/mail/messages/{uid}/attachments/{index}/content": {
+      "get": {
+        "operationId": "getAttachmentContent",
+        "summary": "Get extracted text content of an attachment (OCR/PDF)",
+        "tags": ["Mail"],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Extracted text content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "content": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mail/send": {
+      "post": {
+        "operationId": "sendMessage",
+        "summary": "Send an email message (JSON body)",
+        "tags": ["Mail"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SendMessageRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Message sent successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Not authorized to send from this address"
+          }
+        }
+      }
+    },
+    "/api/mail/send-multipart": {
+      "post": {
+        "operationId": "sendMessageMultipart",
+        "summary": "Send an email with attachments",
+        "tags": ["Mail"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "description": "Form fields: from, to, cc, bcc, subject, body, html_body, in_reply_to, reply_to_thread_id, list_unsubscribe (same as SendMessageRequest), plus one or more file attachments",
+                "properties": {
+                  "from": { "type": "string" },
+                  "to": { "type": "string" },
+                  "subject": { "type": "string" },
+                  "body": { "type": "string" },
+                  "attachments": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "binary" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Message sent successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mail/inline-upload": {
+      "post": {
+        "operationId": "uploadInlineImage",
+        "summary": "Upload an inline image for use in HTML email body",
+        "tags": ["Mail"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upload successful, returns image URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mail/inline/{id}": {
+      "get": {
+        "operationId": "serveInlineImage",
+        "summary": "Serve a previously uploaded inline image",
+        "tags": ["Mail"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image data",
+            "content": {
+              "image/*": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "404": {
+            "description": "Image not found"
+          }
+        }
+      }
+    },
+    "/api/mail/drafts": {
+      "get": {
+        "operationId": "listDrafts",
+        "summary": "List all drafts for the authenticated user",
+        "tags": ["Drafts"],
+        "responses": {
+          "200": {
+            "description": "List of drafts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/DraftInfo" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "saveDraft",
+        "summary": "Save or update a draft",
+        "tags": ["Drafts"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SaveDraftRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft saved",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SaveDraftResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mail/drafts/{id}": {
+      "delete": {
+        "operationId": "deleteDraft",
+        "summary": "Delete a draft by ID",
+        "tags": ["Drafts"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Draft deleted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mail/feedback": {
+      "post": {
+        "operationId": "recordFeedback",
+        "summary": "Record classification feedback for a sender",
+        "tags": ["Conversations"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/FeedbackRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Feedback recorded",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations": {
+      "get": {
+        "operationId": "getConversations",
+        "summary": "List conversations (threaded view)",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50, "maximum": 100 }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Unix timestamp cursor for pagination (return conversations older than this)",
+            "schema": { "type": "integer", "format": "int64" }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Filter by category (personal, notification, promotion, spam, scam, general)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "domains",
+            "in": "query",
+            "description": "Comma-separated domain filter",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "description": "If true, show archived conversations",
+            "schema": { "type": "boolean", "default": false }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "description": "Filter by folder name",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of conversations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ConversationResponse" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/batch": {
+      "post": {
+        "operationId": "batchConversations",
+        "summary": "Perform a batch action on multiple conversations",
+        "tags": ["Conversations"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BatchRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BatchResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/categories": {
+      "get": {
+        "operationId": "getConversationCategories",
+        "summary": "Get conversation counts grouped by category",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "domains",
+            "in": "query",
+            "description": "Comma-separated domain filter",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/CategoryCount" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/search": {
+      "get": {
+        "operationId": "searchConversations",
+        "summary": "Full-text search across conversations",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Search query string (max 500 chars)",
+            "schema": { "type": "string", "maxLength": 500 }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50, "maximum": 100 }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "domains",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results as conversations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ConversationResponse" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/semantic-search": {
+      "get": {
+        "operationId": "semanticSearch",
+        "summary": "Semantic (vector) search across conversations using AI embeddings",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "maxLength": 500 }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50, "maximum": 100 }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "domains",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Semantic search results with similarity scores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SemanticSearchResult" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}": {
+      "get": {
+        "operationId": "getThreadMessages",
+        "summary": "Get all messages in a conversation thread",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "domains",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of messages in the thread",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ThreadMessageResponse" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteThread",
+        "summary": "Delete an entire conversation thread",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deletion result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/read": {
+      "post": {
+        "operationId": "markThreadRead",
+        "summary": "Mark all messages in a thread as read",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/unread": {
+      "post": {
+        "operationId": "markThreadUnread",
+        "summary": "Mark a thread as unread",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/star": {
+      "post": {
+        "operationId": "starThread",
+        "summary": "Star (flag) a conversation thread",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/unstar": {
+      "post": {
+        "operationId": "unstarThread",
+        "summary": "Remove star from a conversation thread",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/pin": {
+      "post": {
+        "operationId": "pinThread",
+        "summary": "Pin a conversation thread",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/unpin": {
+      "post": {
+        "operationId": "unpinThread",
+        "summary": "Unpin a conversation thread",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/archive": {
+      "post": {
+        "operationId": "archiveThread",
+        "summary": "Archive a conversation thread",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/unarchive": {
+      "post": {
+        "operationId": "unarchiveThread",
+        "summary": "Unarchive a conversation thread",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/snooze": {
+      "put": {
+        "operationId": "snoozeThread",
+        "summary": "Snooze a thread until a specified time",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SnoozeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unsnoozeThread",
+        "summary": "Cancel a thread snooze",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/messages/{uid}/reactions": {
+      "put": {
+        "operationId": "toggleReaction",
+        "summary": "Toggle an emoji reaction on a message",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ToggleReactionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated reactions for the message",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ToggleReactionResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/reactions": {
+      "get": {
+        "operationId": "getThreadReactions",
+        "summary": "Get all reactions for messages in a thread",
+        "tags": ["Conversations"],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reactions grouped by message ID",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ThreadReactionsResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/contacts": {
+      "get": {
+        "operationId": "getContacts",
+        "summary": "Autocomplete contacts from message history",
+        "tags": ["Contacts"],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search query for contact name or address",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 20, "maximum": 100 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of matching contact addresses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/keys": {
+      "post": {
+        "operationId": "createApiKey",
+        "summary": "Create a new API key (session auth only)",
+        "tags": ["API Keys"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateApiKeyRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "API key created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateApiKeyResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "API keys cannot create other API keys"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listApiKeys",
+        "summary": "List all active API keys for the authenticated user",
+        "tags": ["API Keys"],
+        "responses": {
+          "200": {
+            "description": "List of API keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ApiKeyInfo" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/keys/{id}": {
+      "delete": {
+        "operationId": "revokeApiKey",
+        "summary": "Revoke an API key",
+        "tags": ["API Keys"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "API key revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "API key not found or already revoked"
+          }
+        }
+      }
+    },
+    "/api/agent/webhooks": {
+      "post": {
+        "operationId": "createWebhook",
+        "summary": "Create a new webhook subscription",
+        "tags": ["Webhooks"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateWebhookRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook created (includes signing secret — save it, cannot be retrieved again)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateWebhookResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid URL or event type"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listWebhooks",
+        "summary": "List all active webhook subscriptions",
+        "tags": ["Webhooks"],
+        "responses": {
+          "200": {
+            "description": "List of webhook subscriptions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/WebhookListItem" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/webhooks/{id}": {
+      "delete": {
+        "operationId": "deleteWebhook",
+        "summary": "Delete a webhook subscription",
+        "tags": ["Webhooks"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Webhook not found or already deleted"
+          }
+        }
+      }
+    },
+    "/api/queue": {
+      "get": {
+        "operationId": "getQueue",
+        "summary": "List recent outbound queue entries",
+        "tags": ["Queue"],
+        "responses": {
+          "200": {
+            "description": "List of queue entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/QueueEntry" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/queue/{id}/retry": {
+      "post": {
+        "operationId": "retryQueueMessage",
+        "summary": "Retry a failed outbound message",
+        "tags": ["Queue"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retry result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RetryResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/domains": {
+      "get": {
+        "operationId": "listDomains",
+        "summary": "List all domains",
+        "tags": ["Admin Domains"],
+        "responses": {
+          "200": {
+            "description": "List of domains",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Domain" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "addDomain",
+        "summary": "Add a new domain",
+        "tags": ["Admin Domains"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AddDomainRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/domains/{name}": {
+      "delete": {
+        "operationId": "removeDomain",
+        "summary": "Remove a domain",
+        "tags": ["Admin Domains"],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/domains/{name}/check": {
+      "post": {
+        "operationId": "checkDomain",
+        "summary": "Run DNS health check on a domain (MX, SPF, DKIM, DMARC)",
+        "tags": ["Admin Domains"],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Domain check report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Domain DNS health check report with MX, SPF, DKIM, and DMARC results"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/accounts": {
+      "get": {
+        "operationId": "listAccounts",
+        "summary": "List all accounts",
+        "tags": ["Admin Accounts"],
+        "responses": {
+          "200": {
+            "description": "List of accounts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Account" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "addAccount",
+        "summary": "Create a new account",
+        "tags": ["Admin Accounts"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AddAccountRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/accounts/{address}": {
+      "delete": {
+        "operationId": "removeAccount",
+        "summary": "Remove an account",
+        "tags": ["Admin Accounts"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/accounts/{address}/quota": {
+      "get": {
+        "operationId": "getQuota",
+        "summary": "Get account storage quota",
+        "tags": ["Admin Accounts"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quota info",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/QuotaResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Account not found"
+          }
+        }
+      },
+      "post": {
+        "operationId": "setQuota",
+        "summary": "Set account storage quota",
+        "tags": ["Admin Accounts"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetQuotaRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/accounts/{address}/sieve": {
+      "get": {
+        "operationId": "getSieve",
+        "summary": "Get account sieve filtering script",
+        "tags": ["Admin Accounts"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sieve script",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SieveResponse" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "setSieve",
+        "summary": "Set account sieve filtering script",
+        "tags": ["Admin Accounts"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetSieveRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSieve",
+        "summary": "Delete account sieve filtering script",
+        "tags": ["Admin Accounts"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/accounts/{address}/groups": {
+      "get": {
+        "operationId": "getAccountGroups",
+        "summary": "Get groups an account belongs to",
+        "tags": ["Admin Accounts"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of groups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/GroupInfo" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/accounts/{address}/overrides": {
+      "get": {
+        "operationId": "getAccountOverrides",
+        "summary": "Get per-account permission overrides",
+        "tags": ["Admin Accounts"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of permission overrides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/OverrideEntry" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setAccountOverrides",
+        "summary": "Set per-account permission overrides",
+        "tags": ["Admin Accounts"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetOverridesRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/aliases": {
+      "get": {
+        "operationId": "listAliases",
+        "summary": "List all aliases",
+        "tags": ["Admin Aliases"],
+        "responses": {
+          "200": {
+            "description": "List of aliases",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Alias" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "addAlias",
+        "summary": "Create a new alias",
+        "tags": ["Admin Aliases"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AddAliasRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/aliases/{id}": {
+      "delete": {
+        "operationId": "removeAlias",
+        "summary": "Remove an alias",
+        "tags": ["Admin Aliases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/groups": {
+      "get": {
+        "operationId": "listGroups",
+        "summary": "List all permission groups",
+        "tags": ["Admin Groups"],
+        "responses": {
+          "200": {
+            "description": "List of groups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/GroupInfo" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createGroup",
+        "summary": "Create a new permission group",
+        "tags": ["Admin Groups"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateGroupRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result (message contains the new group ID)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/groups/{id}": {
+      "delete": {
+        "operationId": "deleteGroup",
+        "summary": "Delete a permission group (non-builtin only)",
+        "tags": ["Admin Groups"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/groups/{id}/permissions": {
+      "get": {
+        "operationId": "getGroupPermissions",
+        "summary": "Get permissions assigned to a group",
+        "tags": ["Admin Groups"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of permission strings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setGroupPermissions",
+        "summary": "Set permissions for a group (replaces existing)",
+        "tags": ["Admin Groups"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetGroupPermissionsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/groups/{id}/members": {
+      "get": {
+        "operationId": "listGroupMembers",
+        "summary": "List members of a group",
+        "tags": ["Admin Groups"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of member addresses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "addGroupMember",
+        "summary": "Add a member to a group",
+        "tags": ["Admin Groups"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AddMemberRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/groups/{id}/members/{address}": {
+      "delete": {
+        "operationId": "removeGroupMember",
+        "summary": "Remove a member from a group",
+        "tags": ["Admin Groups"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/permissions": {
+      "get": {
+        "operationId": "getAllPermissions",
+        "summary": "List all available permission strings",
+        "tags": ["Admin Groups"],
+        "responses": {
+          "200": {
+            "description": "Array of all permission strings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "example": ["mail.send", "mail.read", "mail.read_domain", "admin.domains", "admin.accounts", "admin.aliases", "admin.groups", "admin.queue", "admin.sieve", "admin.impersonate", "internal.rpc"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/apps": {
+      "get": {
+        "operationId": "listApps",
+        "summary": "List all registered applications",
+        "tags": ["Admin Apps"],
+        "responses": {
+          "200": {
+            "description": "List of apps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/App" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createApp",
+        "summary": "Create a new application with an initial API key",
+        "tags": ["Admin Apps"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateAppRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "App created with initial API key",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateAppResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/apps/{app_id}": {
+      "get": {
+        "operationId": "getApp",
+        "summary": "Get application details",
+        "tags": ["Admin Apps"],
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/App" }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteApp",
+        "summary": "Delete an application",
+        "tags": ["Admin Apps"],
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/apps/{app_id}/scopes": {
+      "put": {
+        "operationId": "updateAppScopes",
+        "summary": "Update application scopes (permissions)",
+        "tags": ["Admin Apps"],
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateAppScopesRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/config/smtp": {
+      "get": {
+        "operationId": "getSmtpConfig",
+        "summary": "Get SMTP server configuration snapshot",
+        "tags": ["Admin Domains"],
+        "responses": {
+          "200": {
+            "description": "SMTP config",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SmtpConfigSnapshot" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Session token from /api/auth/login or API key (mlrs_...)"
+      }
+    },
+    "schemas": {
+      "ApiResult": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" }
+        },
+        "required": ["success"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        },
+        "required": ["error"]
+      },
+      "StatusResponse": {
+        "type": "object",
+        "properties": {
+          "uptime_secs": { "type": "integer", "format": "int64" },
+          "active_connections": { "type": "integer", "format": "int64" },
+          "total_connections": { "type": "integer", "format": "int64" },
+          "total_messages": { "type": "integer", "format": "int64" },
+          "queue": { "$ref": "#/components/schemas/QueueStats" }
+        },
+        "required": ["uptime_secs", "active_connections", "total_connections", "total_messages"]
+      },
+      "QueueStats": {
+        "type": "object",
+        "properties": {
+          "pending": { "type": "integer", "format": "int64" },
+          "inflight": { "type": "integer", "format": "int64" },
+          "delivered": { "type": "integer", "format": "int64" },
+          "failed": { "type": "integer", "format": "int64" },
+          "bounced": { "type": "integer", "format": "int64" }
+        },
+        "required": ["pending", "inflight", "delivered", "failed", "bounced"]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["healthy", "degraded", "unhealthy"] },
+          "level": { "type": "integer", "description": "0=healthy, 1=degraded-valkey, 2=degraded-pg, 3=unhealthy" },
+          "pg": { "type": "boolean" },
+          "valkey": { "type": "boolean" },
+          "uptime_secs": { "type": "integer", "format": "int64" },
+          "version": { "type": "string" },
+          "active_sessions": { "type": "integer" },
+          "account_cache_size": { "type": "integer" },
+          "total_connections": { "type": "integer", "format": "int64" },
+          "total_messages": { "type": "integer", "format": "int64" }
+        },
+        "required": ["status", "level", "pg", "valkey", "uptime_secs", "version"]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string", "description": "Email address" },
+          "password": { "type": "string" }
+        },
+        "required": ["address", "password"]
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string", "description": "Session bearer token" },
+          "address": { "type": "string" },
+          "display_name": { "type": "string" },
+          "permissions": { "type": "array", "items": { "type": "string" } },
+          "accessible_domains": { "type": "array", "items": { "type": "string" } },
+          "send_as": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["token", "address", "display_name", "permissions", "accessible_domains", "send_as"]
+      },
+      "MeResponse": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string" },
+          "display_name": { "type": "string" },
+          "permissions": { "type": "array", "items": { "type": "string" } },
+          "accessible_domains": { "type": "array", "items": { "type": "string" } },
+          "send_as": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["address", "display_name", "permissions", "accessible_domains", "send_as"]
+      },
+      "FolderInfo": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "total": { "type": "integer" },
+          "unseen": { "type": "integer" },
+          "uidnext": { "type": "integer" }
+        },
+        "required": ["name", "total", "unseen", "uidnext"]
+      },
+      "MessageSummary": {
+        "type": "object",
+        "properties": {
+          "uid": { "type": "integer" },
+          "sender": { "type": "string" },
+          "recipients": { "type": "string" },
+          "subject": { "type": "string" },
+          "size": { "type": "integer" },
+          "flags": { "type": "integer" },
+          "internal_date": { "type": "integer", "format": "int64" }
+        },
+        "required": ["uid", "sender", "recipients", "subject", "size", "flags", "internal_date"]
+      },
+      "MessageDetail": {
+        "type": "object",
+        "properties": {
+          "uid": { "type": "integer" },
+          "sender": { "type": "string" },
+          "recipients": { "type": "string" },
+          "subject": { "type": "string" },
+          "size": { "type": "integer" },
+          "flags": { "type": "integer" },
+          "internal_date": { "type": "integer", "format": "int64" },
+          "text_body": { "type": "string" },
+          "html_body": { "type": "string" },
+          "attachments": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AttachmentInfo" }
+          },
+          "category": { "type": "string" },
+          "risk_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "risk_reason": { "type": "string" },
+          "summary": { "type": "string" },
+          "people": { "type": "object" },
+          "dates": { "type": "object" },
+          "amounts": { "type": "object" },
+          "action_items": { "type": "object" },
+          "ai_analyzed": { "type": "boolean" },
+          "clean_text": { "type": "string" }
+        },
+        "required": ["uid", "sender", "recipients", "subject", "size", "flags", "internal_date", "category", "risk_score", "risk_reason", "ai_analyzed"]
+      },
+      "AttachmentInfo": {
+        "type": "object",
+        "properties": {
+          "index": { "type": "integer" },
+          "filename": { "type": "string" },
+          "content_type": { "type": "string" },
+          "size": { "type": "integer" }
+        },
+        "required": ["index", "filename", "content_type", "size"]
+      },
+      "FlagUpdate": {
+        "type": "object",
+        "properties": {
+          "action": { "type": "string", "enum": ["add", "remove", "set"], "description": "Flag operation" },
+          "flags": { "type": "integer", "description": "Bitmask of flags to modify" }
+        },
+        "required": ["action", "flags"]
+      },
+      "SendMessageRequest": {
+        "type": "object",
+        "properties": {
+          "from": { "type": "string", "description": "Sender email address" },
+          "to": { "type": "array", "items": { "type": "string" } },
+          "cc": { "type": "array", "items": { "type": "string" } },
+          "bcc": { "type": "array", "items": { "type": "string" } },
+          "subject": { "type": "string" },
+          "body": { "type": "string", "description": "Plain text body" },
+          "html_body": { "type": "string", "description": "Optional HTML body" },
+          "in_reply_to": { "type": "string", "description": "Message-ID being replied to" },
+          "reply_to_thread_id": { "type": "string", "description": "Thread ID for threading" },
+          "list_unsubscribe": { "type": "string", "description": "List-Unsubscribe header value" }
+        },
+        "required": ["from", "to", "subject", "body"]
+      },
+      "SaveDraftRequest": {
+        "type": "object",
+        "properties": {
+          "to": { "type": "string" },
+          "cc": { "type": "string" },
+          "bcc": { "type": "string" },
+          "subject": { "type": "string" },
+          "body": { "type": "string" },
+          "reply_to_thread_id": { "type": "string" }
+        }
+      },
+      "SaveDraftResult": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "id": { "type": "integer", "format": "int64" },
+          "message": { "type": "string" }
+        },
+        "required": ["success"]
+      },
+      "DraftInfo": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "to_addresses": { "type": "string" },
+          "cc_addresses": { "type": "string" },
+          "bcc_addresses": { "type": "string" },
+          "subject": { "type": "string" },
+          "body": { "type": "string" },
+          "reply_to_thread_id": { "type": "string" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" }
+        },
+        "required": ["id", "to_addresses", "cc_addresses", "bcc_addresses", "subject", "body", "created_at", "updated_at"]
+      },
+      "ConversationResponse": {
+        "type": "object",
+        "properties": {
+          "thread_id": { "type": "string" },
+          "subject": { "type": "string" },
+          "participants": { "type": "array", "items": { "type": "string" } },
+          "message_count": { "type": "integer" },
+          "unread_count": { "type": "integer" },
+          "last_date": { "type": "integer", "format": "int64" },
+          "category": { "type": "string" },
+          "flagged": { "type": "boolean" },
+          "snippet": { "type": "string" },
+          "pinned": { "type": "boolean" },
+          "archived": { "type": "boolean" },
+          "importance_level": { "type": "string" },
+          "importance_score": { "type": "number", "format": "float" }
+        },
+        "required": ["thread_id", "subject", "participants", "message_count", "unread_count", "last_date", "category", "flagged", "snippet", "pinned", "archived", "importance_level", "importance_score"]
+      },
+      "ThreadMessageResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "uid": { "type": "integer" },
+          "sender": { "type": "string" },
+          "recipients": { "type": "string" },
+          "subject": { "type": "string" },
+          "flags": { "type": "integer" },
+          "internal_date": { "type": "integer", "format": "int64" },
+          "message_id": { "type": "string" },
+          "text_body": { "type": "string" },
+          "html_body": { "type": "string" },
+          "attachments": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AttachmentInfo" }
+          },
+          "category": { "type": "string" },
+          "risk_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "risk_reason": { "type": "string" },
+          "summary": { "type": "string" },
+          "people": { "type": "object" },
+          "dates": { "type": "object" },
+          "amounts": { "type": "object" },
+          "action_items": { "type": "object" },
+          "ai_analyzed": { "type": "boolean" },
+          "clean_text": { "type": "string" },
+          "new_content": { "type": "string" },
+          "importance_level": { "type": "string" },
+          "importance_score": { "type": "number", "format": "float" },
+          "is_bulk_sender": { "type": "boolean" },
+          "has_tracking_pixel": { "type": "boolean" },
+          "requires_action": { "type": "boolean" },
+          "sender_intent": { "type": "string" },
+          "action_deadline": { "type": "string" },
+          "structured_data": { "type": "object" }
+        },
+        "required": ["id", "uid", "sender", "recipients", "subject", "flags", "internal_date", "message_id", "category", "risk_score", "risk_reason", "ai_analyzed", "importance_level", "importance_score", "is_bulk_sender", "has_tracking_pixel", "requires_action", "sender_intent"]
+      },
+      "CategoryCount": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string" },
+          "count": { "type": "integer", "format": "int64" }
+        },
+        "required": ["category", "count"]
+      },
+      "SemanticSearchResult": {
+        "type": "object",
+        "properties": {
+          "thread_id": { "type": "string" },
+          "similarity": { "type": "number", "format": "double" }
+        },
+        "required": ["thread_id", "similarity"]
+      },
+      "BatchRequest": {
+        "type": "object",
+        "properties": {
+          "thread_ids": {
+            "type": "array",
+            "items": { "type": "string" },
+            "maxItems": 100
+          },
+          "action": {
+            "type": "string",
+            "enum": ["Read", "Unread", "Delete", "Star", "Unstar", "Archive", "Unarchive"]
+          }
+        },
+        "required": ["thread_ids", "action"]
+      },
+      "BatchResult": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "processed": { "type": "integer" }
+        },
+        "required": ["success", "processed"]
+      },
+      "SnoozeRequest": {
+        "type": "object",
+        "properties": {
+          "until": { "type": "string", "description": "ISO 8601 datetime to snooze until" }
+        },
+        "required": ["until"]
+      },
+      "FeedbackRequest": {
+        "type": "object",
+        "properties": {
+          "sender_email": { "type": "string" },
+          "action": {
+            "type": "string",
+            "enum": ["mark_important", "mark_vip", "mark_spam", "mark_not_spam", "mark_promotion", "mark_personal"]
+          }
+        },
+        "required": ["sender_email", "action"]
+      },
+      "ToggleReactionRequest": {
+        "type": "object",
+        "properties": {
+          "emoji": { "type": "string" }
+        },
+        "required": ["emoji"]
+      },
+      "ReactionSummary": {
+        "type": "object",
+        "properties": {
+          "emoji": { "type": "string" },
+          "count": { "type": "integer", "format": "int64" },
+          "me": { "type": "boolean" }
+        },
+        "required": ["emoji", "count", "me"]
+      },
+      "ToggleReactionResponse": {
+        "type": "object",
+        "properties": {
+          "reactions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ReactionSummary" }
+          }
+        },
+        "required": ["reactions"]
+      },
+      "ThreadReactionsResponse": {
+        "type": "object",
+        "properties": {
+          "reactions": {
+            "type": "object",
+            "description": "Map of message ID to reaction summaries",
+            "additionalProperties": {
+              "type": "array",
+              "items": { "$ref": "#/components/schemas/ReactionSummary" }
+            }
+          }
+        },
+        "required": ["reactions"]
+      },
+      "Domain": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "created_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["name", "created_at"]
+      },
+      "Account": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string" },
+          "domain": { "type": "string" },
+          "display_name": { "type": "string" },
+          "active": { "type": "boolean" },
+          "created_at": { "type": "integer", "format": "int64" },
+          "quota_bytes": { "type": "integer", "format": "int64" }
+        },
+        "required": ["address", "domain", "display_name", "active", "created_at", "quota_bytes"]
+      },
+      "Alias": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "source_address": { "type": "string" },
+          "target_address": { "type": "string" },
+          "domain": { "type": "string" },
+          "alias_type": { "type": "string" },
+          "active": { "type": "boolean" },
+          "created_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "source_address", "target_address", "domain", "alias_type", "active", "created_at"]
+      },
+      "GroupInfo": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "name": { "type": "string" },
+          "domain": { "type": "string" },
+          "description": { "type": "string" },
+          "is_builtin": { "type": "boolean" },
+          "created_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "name", "description", "is_builtin", "created_at"]
+      },
+      "App": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "app_id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "owner_address": { "type": "string" },
+          "scopes": { "type": "string" },
+          "active": { "type": "boolean" },
+          "created_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "app_id", "name", "description", "owner_address", "scopes", "active", "created_at"]
+      },
+      "AddDomainRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "maxLength": 255 }
+        },
+        "required": ["name"]
+      },
+      "AddAccountRequest": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string", "maxLength": 255 },
+          "domain": { "type": "string", "maxLength": 255 },
+          "display_name": { "type": "string", "maxLength": 255 },
+          "password": { "type": "string" }
+        },
+        "required": ["address", "domain"]
+      },
+      "AddAliasRequest": {
+        "type": "object",
+        "properties": {
+          "source_address": { "type": "string", "maxLength": 255 },
+          "target_address": { "type": "string", "maxLength": 255 },
+          "domain": { "type": "string", "maxLength": 255 },
+          "alias_type": { "type": "string", "default": "alias" }
+        },
+        "required": ["source_address", "target_address", "domain"]
+      },
+      "QuotaResponse": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string" },
+          "quota_bytes": { "type": "integer", "format": "int64" }
+        },
+        "required": ["address", "quota_bytes"]
+      },
+      "SetQuotaRequest": {
+        "type": "object",
+        "properties": {
+          "quota_bytes": { "type": "integer", "format": "int64" }
+        },
+        "required": ["quota_bytes"]
+      },
+      "SieveResponse": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string" },
+          "script": { "type": "string" }
+        },
+        "required": ["address"]
+      },
+      "SetSieveRequest": {
+        "type": "object",
+        "properties": {
+          "script": { "type": "string", "maxLength": 65536 }
+        },
+        "required": ["script"]
+      },
+      "CreateGroupRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "maxLength": 255 },
+          "domain": { "type": "string" },
+          "description": { "type": "string" }
+        },
+        "required": ["name"]
+      },
+      "SetGroupPermissionsRequest": {
+        "type": "object",
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["permissions"]
+      },
+      "AddMemberRequest": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string" }
+        },
+        "required": ["address"]
+      },
+      "OverrideEntry": {
+        "type": "object",
+        "properties": {
+          "permission": { "type": "string" },
+          "granted": { "type": "boolean" }
+        },
+        "required": ["permission", "granted"]
+      },
+      "SetOverridesRequest": {
+        "type": "object",
+        "properties": {
+          "overrides": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/OverrideEntry" }
+          }
+        },
+        "required": ["overrides"]
+      },
+      "CreateAppRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string" },
+          "scopes": { "type": "string", "description": "Comma-separated permission scopes" }
+        },
+        "required": ["name", "scopes"]
+      },
+      "CreateAppResponse": {
+        "type": "object",
+        "properties": {
+          "app_id": { "type": "string" },
+          "name": { "type": "string" },
+          "scopes": { "type": "string" },
+          "api_key": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer", "format": "int64" },
+              "key": { "type": "string" },
+              "prefix": { "type": "string" }
+            },
+            "required": ["id", "key", "prefix"]
+          }
+        },
+        "required": ["app_id", "name", "scopes", "api_key"]
+      },
+      "UpdateAppScopesRequest": {
+        "type": "object",
+        "properties": {
+          "scopes": { "type": "string", "description": "Comma-separated permission scopes" }
+        },
+        "required": ["scopes"]
+      },
+      "SmtpConfigSnapshot": {
+        "type": "object",
+        "properties": {
+          "hostname": { "type": "string" },
+          "smtp_port": { "type": "integer" },
+          "submission_port": { "type": "integer" },
+          "imap_port": { "type": "integer" },
+          "local_domains": { "type": "array", "items": { "type": "string" } },
+          "max_message_size": { "type": "integer", "format": "int64" },
+          "tls_enabled": { "type": "boolean" }
+        },
+        "required": ["hostname", "smtp_port", "submission_port", "imap_port", "local_domains", "tls_enabled"]
+      },
+      "QueueEntry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "sender": { "type": "string" },
+          "recipient": { "type": "string" },
+          "domain": { "type": "string" },
+          "status": { "type": "string" },
+          "attempts": { "type": "integer" },
+          "last_error": { "type": "string" },
+          "created_at": { "type": "integer", "format": "int64" },
+          "updated_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "sender", "recipient", "domain", "status", "attempts", "created_at", "updated_at"]
+      },
+      "RetryResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" }
+        },
+        "required": ["success", "message"]
+      },
+      "CreateApiKeyRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "expires_at": { "type": "string", "format": "date-time", "description": "Optional expiration time" }
+        },
+        "required": ["name"]
+      },
+      "CreateApiKeyResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "key": { "type": "string", "description": "Full API key (only shown once)" },
+          "prefix": { "type": "string" },
+          "name": { "type": "string" },
+          "expires_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "key", "prefix", "name"]
+      },
+      "ApiKeyInfo": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "key": { "type": "string", "description": "Full key if recently created, null otherwise" },
+          "prefix": { "type": "string" },
+          "name": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "expires_at": { "type": "string", "format": "date-time" },
+          "last_used_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "prefix", "name", "created_at"]
+      },
+      "CreateWebhookRequest": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string", "description": "Webhook endpoint URL (must be https, or http for localhost)" },
+          "event_type": { "type": "string", "default": "new_message", "enum": ["new_message"] },
+          "filter_sender": { "type": "string", "description": "Optional sender email filter" },
+          "filter_thread_id": { "type": "string", "description": "Optional thread ID filter" }
+        },
+        "required": ["url"]
+      },
+      "CreateWebhookResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "url": { "type": "string" },
+          "event_type": { "type": "string" },
+          "filter_sender": { "type": "string" },
+          "filter_thread_id": { "type": "string" },
+          "signing_secret": { "type": "string", "description": "HMAC signing secret (save immediately, cannot be retrieved again)" },
+          "active": { "type": "boolean" },
+          "warning": { "type": "string" }
+        },
+        "required": ["id", "url", "event_type", "signing_secret", "active", "warning"]
+      },
+      "WebhookListItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "url": { "type": "string" },
+          "event_type": { "type": "string" },
+          "filter_sender": { "type": "string" },
+          "filter_thread_id": { "type": "string" },
+          "active": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "url", "event_type", "active", "created_at"]
+      }
+    }
+  }
+}
