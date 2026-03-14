@@ -54,7 +54,7 @@ ENV MAILRS_HOSTNAME=mx.mailrs.local \
     MAILRS_WEB_STATIC_DIR=/opt/mailrs/web \
     MAILRS_ACME_DIR=/data/acme
 
-EXPOSE 25 80 587 465 143 3100
+EXPOSE 25 80 110 587 465 143 993 995 3100 4190
 
 VOLUME ["/data", "/certs"]
 
