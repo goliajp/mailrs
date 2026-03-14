@@ -152,6 +152,24 @@ impl MailboxStore {
         Ok(result.rows_affected() > 0)
     }
 
+    pub async fn rename_mailbox(
+        &self,
+        user: &str,
+        old_name: &str,
+        new_name: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE mailboxes SET name = $3 WHERE user_address = $1 AND name = $2",
+        )
+        .bind(user)
+        .bind(old_name)
+        .bind(new_name)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
     /// create default mailboxes (INBOX, Sent, Drafts, Trash, Junk) if they don't exist
     pub async fn ensure_default_mailboxes(&self, user: &str) -> Result<(), sqlx::Error> {
         for name in &["INBOX", "Sent", "Drafts", "Trash", "Junk"] {
