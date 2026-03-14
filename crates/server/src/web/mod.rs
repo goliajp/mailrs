@@ -713,6 +713,11 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .merge(auth_routes)
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::auth_me))
+        // TOTP 2FA
+        .route("/api/auth/totp/setup", post(auth::totp_setup))
+        .route("/api/auth/totp/enable", post(auth::totp_enable))
+        .route("/api/auth/totp/disable", post(auth::totp_disable))
+        .route("/api/auth/totp/status", get(auth::totp_status))
         // API key management
         .route("/api/agent/keys", post(api_key::create_api_key).get(api_key::list_api_keys))
         .route("/api/agent/keys/{id}", delete(api_key::revoke_api_key))
