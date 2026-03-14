@@ -795,6 +795,8 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             "/api/admin/apps/{app_id}/scopes",
             put(admin::update_app_scopes),
         )
+        // audit log
+        .route("/api/admin/audit-log", get(admin::get_audit_log))
         // smtp config
         .route("/api/admin/config/smtp", get(admin::get_smtp_config))
         // JMAP

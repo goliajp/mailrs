@@ -290,6 +290,9 @@ pub(super) async fn login(
         if let Some(ref guard) = state.auth_guard {
             guard.record_failure(addr.ip(), &req.address);
         }
+        if let Some(ref ds) = state.domain_store {
+            ds.log_audit(&req.address, "login_failed", "", &format!("ip={}", addr.ip())).await;
+        }
         return (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({"error": "invalid credentials"})),
@@ -298,6 +301,11 @@ pub(super) async fn login(
 
     if let Some(ref guard) = state.auth_guard {
         guard.record_success(addr.ip(), &req.address);
+    }
+
+    // audit log successful login
+    if let Some(ref ds) = state.domain_store {
+        ds.log_audit(&req.address, "login", "", &format!("ip={}", addr.ip())).await;
     }
 
     // load permissions

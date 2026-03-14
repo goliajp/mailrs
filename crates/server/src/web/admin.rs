@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
@@ -84,7 +84,7 @@ pub(super) async fn list_domains(
 }
 
 pub(super) async fn add_domain(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser { ref address, ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddDomainRequest>,
 ) -> impl IntoResponse {
@@ -105,10 +105,13 @@ pub(super) async fn add_domain(
     };
     let now = chrono::Utc::now().timestamp();
     match ds.add_domain(&req.name, now).await {
-        Ok(()) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(()) => {
+            ds.log_audit(address, "domain_added", &req.name, "").await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Err(e) => Json(ApiResult {
             success: false,
             message: Some(e.to_string()),
@@ -118,7 +121,7 @@ pub(super) async fn add_domain(
 
 pub(super) async fn remove_domain(
     Path(name): Path<String>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser { ref address, ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Some(err) = require_permission(permissions, "admin.domains") {
@@ -131,10 +134,13 @@ pub(super) async fn remove_domain(
         });
     };
     match ds.remove_domain(&name).await {
-        Ok(true) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(true) => {
+            ds.log_audit(address, "domain_removed", &name, "").await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Ok(false) => Json(ApiResult {
             success: false,
             message: Some("domain not found".into()),
@@ -187,7 +193,7 @@ pub(super) async fn list_accounts(
 }
 
 pub(super) async fn add_account(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser { ref address, ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddAccountRequest>,
 ) -> impl IntoResponse {
@@ -244,10 +250,13 @@ pub(super) async fn add_account(
         )
         .await
     {
-        Ok(()) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(()) => {
+            ds.log_audit(address, "account_created", &req.address, &format!("domain={}", req.domain)).await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Err(e) => Json(ApiResult {
             success: false,
             message: Some(e.to_string()),
@@ -256,8 +265,8 @@ pub(super) async fn add_account(
 }
 
 pub(super) async fn remove_account(
-    Path(address): Path<String>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    Path(target_address): Path<String>,
+    AuthUser { ref address, ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Some(err) = require_permission(permissions, "admin.accounts") {
@@ -269,11 +278,14 @@ pub(super) async fn remove_account(
             message: Some("domain store not configured".into()),
         });
     };
-    match ds.remove_account(&address).await {
-        Ok(true) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+    match ds.remove_account(&target_address).await {
+        Ok(true) => {
+            ds.log_audit(address, "account_removed", &target_address, "").await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Ok(false) => Json(ApiResult {
             success: false,
             message: Some("account not found".into()),
@@ -1311,6 +1323,7 @@ pub(super) async fn create_app(
 
     match ds.create_app(&app_id, &req.name, &req.description, address, &scopes_str).await {
         Ok(id) => {
+            ds.log_audit(address, "app_created", &req.name, &format!("app_id={app_id}")).await;
             // generate an initial API key for the app
             let Some(ref pool) = state.pg_pool else {
                 return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "db unavailable"}))).into_response();
@@ -1382,6 +1395,32 @@ pub(super) async fn delete_app(
 #[derive(Deserialize)]
 pub(super) struct UpdateAppScopesRequest {
     pub scopes: String,
+}
+
+#[derive(Deserialize)]
+pub(super) struct AuditLogQuery {
+    #[serde(default = "default_audit_limit")]
+    pub limit: i64,
+}
+
+fn default_audit_limit() -> i64 {
+    100
+}
+
+pub(super) async fn get_audit_log(
+    Query(query): Query<AuditLogQuery>,
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if !permissions.has("admin.accounts") {
+        return Json(serde_json::json!([]));
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(serde_json::json!([]));
+    };
+    let limit = query.limit.clamp(1, 1000);
+    let entries = ds.list_audit_log(limit).await.unwrap_or_default();
+    Json(serde_json::to_value(entries).unwrap_or_default())
 }
 
 pub(super) async fn update_app_scopes(
