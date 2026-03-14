@@ -62,6 +62,7 @@ pub struct ConnectionContext {
     pub valkey: Option<redis::aio::ConnectionManager>,
     pub ai_config: Option<crate::ai_spam::AiSpamConfig>,
     pub srs_secret: Option<String>,
+    pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
 }
 
 /// rewrite envelope sender using SRS (Sender Rewriting Scheme)
@@ -88,19 +89,26 @@ fn srs_rewrite(sender: &str, local_domain: &str, secret: &str) -> String {
     format!("SRS0={hash}={tt}={original_domain}={local_part}@{local_domain}")
 }
 
-/// verify credentials against users.toml first, then PG accounts table
+/// verify credentials against users.toml first, then PG accounts table, then LDAP
 async fn verify_credentials(ctx: &ConnectionContext, username: &str, password: &str) -> bool {
     if ctx.users.verify(username, password) {
         return true;
     }
     if let Some(ref ds) = ctx.domain_store {
         if let Ok(Some((_account, hash))) = ds.get_account_with_hash(username).await {
-            return if hash.starts_with("$argon2") {
+            let valid = if hash.starts_with("$argon2") {
                 UserStore::verify_hash(password, &hash)
             } else {
                 hash == password
             };
+            if valid {
+                return true;
+            }
         }
+    }
+    // try LDAP as last fallback
+    if let Some(ref ldap) = ctx.ldap_config {
+        return ldap.authenticate(username, password).await;
     }
     false
 }

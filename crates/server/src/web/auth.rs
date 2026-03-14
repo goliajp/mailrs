@@ -281,11 +281,18 @@ pub(super) async fn login(
     }
 
     // verify password
-    let valid = if password_hash.starts_with("$argon2") {
+    let mut valid = if password_hash.starts_with("$argon2") {
         crate::users::UserStore::verify_hash(&req.password, &password_hash)
     } else {
         password_hash == req.password
     };
+
+    // try LDAP fallback if password verification failed
+    if !valid {
+        if let Some(ref ldap) = state.ldap_config {
+            valid = ldap.authenticate(&req.address, &req.password).await;
+        }
+    }
 
     if !valid {
         if let Some(ref guard) = state.auth_guard {

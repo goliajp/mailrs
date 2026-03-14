@@ -18,6 +18,7 @@ pub struct ManageSieveSession {
     auth_guard: Option<Arc<AuthGuard>>,
     peer_addr: Option<std::net::IpAddr>,
     state: SieveState,
+    ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
 }
 
 impl ManageSieveSession {
@@ -28,6 +29,7 @@ impl ManageSieveSession {
             auth_guard: None,
             peer_addr: None,
             state: SieveState::NotAuthenticated,
+            ldap_config: None,
         }
     }
 
@@ -39,6 +41,11 @@ impl ManageSieveSession {
     pub fn with_auth_guard(mut self, guard: Arc<AuthGuard>, addr: std::net::IpAddr) -> Self {
         self.auth_guard = Some(guard);
         self.peer_addr = Some(addr);
+        self
+    }
+
+    pub fn with_ldap_config(mut self, config: Arc<crate::ldap_auth::LdapConfig>) -> Self {
+        self.ldap_config = Some(config);
         self
     }
 
@@ -129,22 +136,45 @@ impl ManageSieveSession {
             }
         }
 
-        // authenticate: try domain store first, then users.toml
+        // authenticate: try domain store first, then users.toml, then LDAP
         let authenticated = if let Some(ref ds) = self.domain_store {
             match ds.get_account_with_hash(&username).await {
                 Ok(Some((account, hash))) => {
                     if !account.active {
                         false
                     } else if hash.starts_with("$argon2") {
-                        UserStore::verify_hash(&password, &hash)
+                        let valid = UserStore::verify_hash(&password, &hash);
+                        if valid {
+                            true
+                        } else if let Some(ref ldap) = self.ldap_config {
+                            ldap.authenticate(&username, &password).await
+                        } else {
+                            false
+                        }
+                    } else if hash == password {
+                        true
+                    } else if let Some(ref ldap) = self.ldap_config {
+                        ldap.authenticate(&username, &password).await
                     } else {
-                        hash == password
+                        false
                     }
                 }
-                _ => self.users.verify(&username, &password),
+                _ => {
+                    if self.users.verify(&username, &password) {
+                        true
+                    } else if let Some(ref ldap) = self.ldap_config {
+                        ldap.authenticate(&username, &password).await
+                    } else {
+                        false
+                    }
+                }
             }
+        } else if self.users.verify(&username, &password) {
+            true
+        } else if let Some(ref ldap) = self.ldap_config {
+            ldap.authenticate(&username, &password).await
         } else {
-            self.users.verify(&username, &password)
+            false
         };
 
         if !authenticated {

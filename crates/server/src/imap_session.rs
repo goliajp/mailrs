@@ -48,6 +48,7 @@ pub struct ImapSession {
     auth_guard: Option<Arc<AuthGuard>>,
     peer_addr: Option<std::net::IpAddr>,
     domain_store: Option<Arc<DomainStore>>,
+    ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
 }
 
 enum ImapState {
@@ -67,6 +68,7 @@ impl ImapSession {
             auth_guard: None,
             peer_addr: None,
             domain_store: None,
+            ldap_config: None,
         }
     }
 
@@ -83,6 +85,11 @@ impl ImapSession {
 
     pub fn with_domain_store(mut self, store: Arc<DomainStore>) -> Self {
         self.domain_store = Some(store);
+        self
+    }
+
+    pub fn with_ldap_config(mut self, config: Arc<crate::ldap_auth::LdapConfig>) -> Self {
+        self.ldap_config = Some(config);
         self
     }
 
@@ -239,20 +246,35 @@ impl ImapSession {
             }
         }
 
-        // try users.toml first, then PG accounts table
+        // try users.toml first, then PG accounts table, then LDAP
         let ok = if self.users.verify(username, password) {
             true
         } else if let Some(ref ds) = self.domain_store {
             match ds.get_account_with_hash(username).await {
                 Ok(Some((_account, hash))) => {
-                    if hash.starts_with("$argon2") {
+                    let valid = if hash.starts_with("$argon2") {
                         crate::users::UserStore::verify_hash(password, &hash)
                     } else {
                         hash == password
+                    };
+                    if valid {
+                        true
+                    } else if let Some(ref ldap) = self.ldap_config {
+                        ldap.authenticate(username, password).await
+                    } else {
+                        false
                     }
                 }
-                _ => false,
+                _ => {
+                    if let Some(ref ldap) = self.ldap_config {
+                        ldap.authenticate(username, password).await
+                    } else {
+                        false
+                    }
+                }
             }
+        } else if let Some(ref ldap) = self.ldap_config {
+            ldap.authenticate(username, password).await
         } else {
             false
         };
