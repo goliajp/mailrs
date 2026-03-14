@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use sieve::{Compiler, Event, Input, Recipient, Runtime, Sieve as CompiledSieve};
@@ -10,6 +11,8 @@ pub enum SieveAction {
     Discard,
     Redirect(String),
     Reject(String),
+    /// vacation auto-reply: (recipient, raw RFC 5322 message to send)
+    Vacation(String, Vec<u8>),
 }
 
 /// compile a Sieve script, returning the compiled form
@@ -23,8 +26,25 @@ pub fn compile_sieve(script: &str) -> Result<Arc<CompiledSieve>, String> {
 
 /// evaluate a compiled Sieve script against a message
 pub fn evaluate_sieve(compiled: &Arc<CompiledSieve>, message: &[u8]) -> Vec<SieveAction> {
+    evaluate_sieve_with_envelope(compiled, message, None, None)
+}
+
+/// evaluate a compiled Sieve script against a message with envelope information
+/// for vacation/auto-reply support
+pub fn evaluate_sieve_with_envelope(
+    compiled: &Arc<CompiledSieve>,
+    message: &[u8],
+    envelope_from: Option<&str>,
+    envelope_to: Option<&str>,
+) -> Vec<SieveAction> {
     let runtime = Runtime::new();
     let mut ctx = runtime.filter(message);
+    if let Some(from) = envelope_from {
+        ctx.set_envelope(sieve::Envelope::From, from);
+    }
+    if let Some(to) = envelope_to {
+        ctx.set_envelope(sieve::Envelope::To, to);
+    }
 
     let input = Input::Script {
         name: sieve::Script::Personal("main".into()),
@@ -32,6 +52,8 @@ pub fn evaluate_sieve(compiled: &Arc<CompiledSieve>, message: &[u8]) -> Vec<Siev
     };
 
     let mut actions = Vec::new();
+    // track messages created by vacation/notify actions
+    let mut created_messages: HashMap<usize, Vec<u8>> = HashMap::new();
     let mut result = ctx.run(input);
 
     loop {
@@ -48,18 +70,35 @@ pub fn evaluate_sieve(compiled: &Arc<CompiledSieve>, message: &[u8]) -> Vec<Siev
                 actions.push(SieveAction::FileInto(folder));
                 result = ctx.run(Input::True);
             }
-            Some(Ok(Event::SendMessage { recipient, .. })) => {
+            Some(Ok(Event::SendMessage {
+                recipient,
+                message_id,
+                ..
+            })) => {
                 let addr = match recipient {
                     Recipient::Address(a) => a,
                     Recipient::List(l) => l,
                     Recipient::Group(g) => g.into_iter().next().unwrap_or_default(),
                 };
-                actions.push(SieveAction::Redirect(addr));
+                // if the message_id references a created message (vacation/notify),
+                // emit Vacation with the generated reply body
+                if let Some(body) = created_messages.remove(&message_id) {
+                    actions.push(SieveAction::Vacation(addr, body));
+                } else {
+                    actions.push(SieveAction::Redirect(addr));
+                }
                 result = ctx.run(Input::True);
             }
             Some(Ok(Event::Reject { reason, .. })) => {
                 actions.push(SieveAction::Reject(reason));
                 break;
+            }
+            Some(Ok(Event::CreatedMessage {
+                message_id,
+                message,
+            })) => {
+                created_messages.insert(message_id, message);
+                result = ctx.run(Input::True);
             }
             Some(Ok(Event::ListContains { .. })) => {
                 result = ctx.run(Input::False);
@@ -77,9 +116,6 @@ pub fn evaluate_sieve(compiled: &Arc<CompiledSieve>, message: &[u8]) -> Vec<Siev
                 result = ctx.run(Input::True);
             }
             Some(Ok(Event::Function { .. })) => {
-                result = ctx.run(Input::True);
-            }
-            Some(Ok(Event::CreatedMessage { .. })) => {
                 result = ctx.run(Input::True);
             }
             Some(Ok(_)) => {
@@ -727,10 +763,17 @@ mod tests {
             vacation :days 7 :subject "Out of office" "I am on vacation until next week.";
         "#;
         let compiled = compile_sieve(script).unwrap();
-        let actions = evaluate_sieve(&compiled, MSG);
-        // vacation generates a SendMessage event which maps to Redirect
-        // or the runtime may emit Keep as default after vacation processing
-        assert!(!actions.is_empty());
+        let actions = evaluate_sieve_with_envelope(
+            &compiled,
+            MSG,
+            Some("sender@example.com"),
+            Some("rcpt@example.com"),
+        );
+        // vacation should produce a Vacation action with the auto-reply body
+        assert!(
+            actions.iter().any(|a| matches!(a, SieveAction::Vacation(_, body) if !body.is_empty())),
+            "expected Vacation action, got: {actions:?}"
+        );
     }
 
     #[test]
@@ -743,8 +786,16 @@ mod tests {
             fileinto "INBOX";
         "#;
         let compiled = compile_sieve(script).unwrap();
-        let actions = evaluate_sieve(&compiled, MSG);
-        assert!(!actions.is_empty());
+        let actions = evaluate_sieve_with_envelope(
+            &compiled,
+            MSG,
+            Some("sender@example.com"),
+            Some("rcpt@example.com"),
+        );
+        assert!(
+            actions.iter().any(|a| matches!(a, SieveAction::Vacation(_, _))),
+            "expected Vacation action, got: {actions:?}"
+        );
     }
 
     #[test]
@@ -757,8 +808,16 @@ mod tests {
                      "I am currently unavailable.";
         "#;
         let compiled = compile_sieve(script).unwrap();
-        let actions = evaluate_sieve(&compiled, MSG);
-        assert!(!actions.is_empty());
+        let actions = evaluate_sieve_with_envelope(
+            &compiled,
+            MSG,
+            Some("sender@example.com"),
+            Some("rcpt@example.com"),
+        );
+        assert!(
+            actions.iter().any(|a| matches!(a, SieveAction::Vacation(_, _))),
+            "expected Vacation action, got: {actions:?}"
+        );
     }
 
     // --- fileinto multiple folders ---
