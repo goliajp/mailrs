@@ -1202,6 +1202,31 @@ impl MailMcpService {
         }
     }
 
+    #[tool(description = "Query recent audit log entries. Requires admin.accounts permission. Returns actor, action, target, detail, and timestamp.")]
+    async fn get_audit_log(
+        &self,
+        Parameters(params): Parameters<GetAuditLogParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.ds()?;
+        let limit = params.limit.min(200) as i64;
+        let entries = ds.list_audit_log(limit).await
+            .map_err(|e| McpError::internal_error(format!("failed to query audit log: {e}"), None))?;
+
+        let items: Vec<serde_json::Value> = entries.into_iter().map(|e| {
+            serde_json::json!({
+                "id": e.id,
+                "timestamp": e.timestamp,
+                "actor": e.actor,
+                "action": e.action,
+                "target": e.target,
+                "detail": e.detail,
+            })
+        }).collect();
+
+        self.json_result(&items)
+    }
+
     #[tool(description = "Retry a failed outbound message. Requires admin.queue permission.")]
     async fn retry_queue_message(
         &self,
