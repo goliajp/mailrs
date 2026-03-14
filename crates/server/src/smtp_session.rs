@@ -31,7 +31,7 @@ use crate::inbound::greylist_db::GreylistDb;
 use crate::inbound::greylisting::GreylistConfig;
 use crate::inbound::pipeline::{self, DeliveryDecision};
 use crate::inbound::rate_limit::RateLimiter;
-use crate::sieve::{compile_sieve, evaluate_sieve, SieveAction};
+use crate::sieve::{compile_sieve, evaluate_sieve_with_envelope, SieveAction};
 use crate::tls::TlsState;
 use crate::users::UserStore;
 use crate::web::WebState;
@@ -598,7 +598,12 @@ where
                             if let Ok(Some(script)) = ds.get_sieve_script(rcpt).await {
                                 match compile_sieve(&script) {
                                     Ok(compiled) => {
-                                        let actions = evaluate_sieve(&compiled, &full_message);
+                                        let actions = evaluate_sieve_with_envelope(
+                                            &compiled,
+                                            &full_message,
+                                            Some(&reverse_path),
+                                            Some(rcpt),
+                                        );
                                         for action in &actions {
                                             match action {
                                                 SieveAction::Keep => {}
@@ -643,6 +648,38 @@ where
                                                         user = rcpt,
                                                         target = addr.as_str(),
                                                         "sieve redirected message"
+                                                    );
+                                                }
+                                                SieveAction::Vacation(addr, reply_body) => {
+                                                    if let Some(ref pool) = ctx.outbound_queue {
+                                                        let now = chrono::Utc::now().timestamp();
+                                                        let domain = addr
+                                                            .split_once('@')
+                                                            .map(|(_, d)| d)
+                                                            .unwrap_or("unknown");
+                                                        let _ =
+                                                            mailrs_outbound_queue::queue::enqueue(
+                                                                pool,
+                                                                rcpt,
+                                                                addr,
+                                                                domain,
+                                                                reply_body,
+                                                                None,
+                                                                now,
+                                                            )
+                                                            .await;
+                                                        if let Some(ref vk) = ctx.valkey {
+                                                            mailrs_outbound_queue::queue::notify(
+                                                                &mut vk.clone(),
+                                                            )
+                                                            .await;
+                                                        }
+                                                    }
+                                                    tracing::info!(
+                                                        event = "sieve_vacation",
+                                                        user = rcpt,
+                                                        target = addr.as_str(),
+                                                        "sieve vacation auto-reply sent"
                                                     );
                                                 }
                                                 SieveAction::Reject(reason) => {
