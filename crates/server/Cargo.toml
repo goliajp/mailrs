@@ -28,6 +28,7 @@ sqlx = { workspace = true }
 redis = { workspace = true }
 hickory-resolver = "0.25"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 mail-auth = "0.7"
 argon2 = "0.5"
 password-hash = "0.5"

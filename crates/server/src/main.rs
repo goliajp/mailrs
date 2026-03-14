@@ -52,6 +52,17 @@ use mailrs_mailbox::MailboxStore;
 
 #[tokio::main]
 async fn main() {
+    // initialize structured logging via tracing-subscriber
+    // respect RUST_LOG env var; default to info level
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .with_target(false)
+        .with_writer(std::io::stderr)
+        .init();
+
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("failed to install rustls crypto provider");
@@ -59,26 +70,30 @@ async fn main() {
     let cfg = ServerConfig::from_env();
 
     for warning in cfg.validate() {
-        eprintln!("CONFIG WARNING: {warning}");
+        tracing::warn!(warning, "config warning");
     }
 
-    eprintln!("mailrs v{}", env!("CARGO_PKG_VERSION"));
-    eprintln!("  hostname:    {}", cfg.hostname);
-    eprintln!("  maildir:     {}", cfg.maildir_root);
-    eprintln!("  domains:     {}", if cfg.local_domains.is_empty() { "(none)".into() } else { cfg.local_domains.join(", ") });
-    eprintln!("  tls:         {:?}", cfg.tls_mode());
-    eprintln!("  antispam:    {}", cfg.antispam_enabled);
-    eprintln!("  dkim:        {}", cfg.dkim_selector.as_deref().unwrap_or("(disabled)"));
+    let domains_str = if cfg.local_domains.is_empty() { "(none)".into() } else { cfg.local_domains.join(", ") };
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        hostname = cfg.hostname.as_str(),
+        maildir = cfg.maildir_root.as_str(),
+        domains = domains_str.as_str(),
+        tls = ?cfg.tls_mode(),
+        antispam = cfg.antispam_enabled,
+        dkim = cfg.dkim_selector.as_deref().unwrap_or("(disabled)"),
+        "mailrs starting"
+    );
 
     // PG + Valkey connections (optional, graceful degradation)
     let pg_pool = match &cfg.pg_url {
         Some(url) => match pg::create_pool(url).await {
             Ok(pool) => {
-                eprintln!("postgres connected");
+                tracing::info!("postgres connected");
                 Some(pool)
             }
             Err(e) => {
-                eprintln!("warning: postgres connection failed: {e} (running in degraded mode)");
+                tracing::warn!(error = %e, "postgres connection failed, running in degraded mode");
                 None
             }
         },
@@ -88,11 +103,11 @@ async fn main() {
     let valkey_conn = match &cfg.valkey_url {
         Some(url) => match valkey_store::create_connection(url).await {
             Ok(conn) => {
-                eprintln!("valkey connected");
+                tracing::info!("valkey connected");
                 Some(conn)
             }
             Err(e) => {
-                eprintln!("warning: valkey connection failed: {e} (running in degraded mode)");
+                tracing::warn!(error = %e, "valkey connection failed, running in degraded mode");
                 None
             }
         },
@@ -246,7 +261,7 @@ async fn main() {
             health_state.clone(),
         ));
         ds.preload_accounts().await;
-        eprintln!("domain store ready (PG-backed)");
+        tracing::info!("domain store ready (PG-backed)");
         Some(ds)
     } else {
         None
@@ -380,17 +395,14 @@ async fn main() {
     let smtp_listener = TcpListener::bind(&smtp_addr)
         .await
         .expect("failed to bind SMTP port");
-    eprintln!(
-        "mailrs SMTP on {smtp_addr} (hostname: {}, maildir: {})",
-        cfg.hostname, cfg.maildir_root
-    );
+    tracing::info!(addr = smtp_addr.as_str(), "SMTP listening");
 
     // port 587/2587: submission (STARTTLS optional)
     let sub_addr = format!("0.0.0.0:{}", cfg.submission_port);
     let sub_listener = TcpListener::bind(&sub_addr)
         .await
         .expect("failed to bind submission port");
-    eprintln!("mailrs submission on {sub_addr}");
+    tracing::info!(addr = sub_addr.as_str(), "submission listening");
 
     // spawn SMTP listener
     let ctx_smtp = ctx.clone();
@@ -430,7 +442,7 @@ async fn main() {
         let smtps_listener = TcpListener::bind(&smtps_addr)
             .await
             .expect("failed to bind SMTPS port");
-        eprintln!("mailrs SMTPS on {smtps_addr}");
+        tracing::info!(addr = smtps_addr.as_str(), "SMTPS listening");
 
         let ctx_tls = ctx.clone();
         tokio::spawn(async move {
@@ -453,7 +465,7 @@ async fn main() {
     let web_listener = TcpListener::bind(&web_addr)
         .await
         .expect("failed to bind web port");
-    eprintln!("mailrs web API on {web_addr}");
+    tracing::info!(addr = web_addr.as_str(), "web API listening");
 
     let static_dir = cfg
         .web_static_dir
@@ -503,7 +515,7 @@ async fn main() {
         let imap_listener = TcpListener::bind(&imap_addr)
             .await
             .expect("failed to bind IMAP port");
-        eprintln!("mailrs IMAP on {imap_addr}");
+        tracing::info!(addr = imap_addr.as_str(), "IMAP listening");
 
         let imap_mb_store = mb_store.clone();
         let imap_users = users.clone();
@@ -540,7 +552,7 @@ async fn main() {
             let imaps_listener = TcpListener::bind(&imaps_addr)
                 .await
                 .expect("failed to bind IMAPS port");
-            eprintln!("mailrs IMAPS on {imaps_addr}");
+            tracing::info!(addr = imaps_addr.as_str(), "IMAPS listening");
 
             // safe: outer `if tls_state.is_some()` guarantees this
             let Some(imaps_tls) = tls_state.clone() else {
@@ -592,7 +604,7 @@ async fn main() {
         let pop3_listener = TcpListener::bind(&pop3_addr)
             .await
             .expect("failed to bind POP3 port");
-        eprintln!("mailrs POP3 on {pop3_addr}");
+        tracing::info!(addr = pop3_addr.as_str(), "POP3 listening");
 
         let pop3_mb_store = mb_store.clone();
         let pop3_users = users.clone();
@@ -686,7 +698,7 @@ async fn main() {
             tokio::spawn(async move {
                 worker.run(rx).await;
             });
-            eprintln!("mailrs delivery worker started");
+            tracing::info!("delivery worker started");
         } else {
             eprintln!("warning: queue_db configured but no DNS resolver available, delivery worker disabled");
         }
@@ -727,7 +739,7 @@ async fn main() {
     tokio::signal::ctrl_c()
         .await
         .expect("failed to listen for ctrl+c");
-    eprintln!("\nshutting down");
+    tracing::info!("shutting down");
     let _ = shutdown_tx.send(true);
 }
 
