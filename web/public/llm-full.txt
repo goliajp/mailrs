@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-43 tools auto-discovered via MCP, grouped by category:
+52 tools auto-discovered via MCP, grouped by category:
 
 ### Email Operations
 
@@ -112,6 +112,35 @@ Config for Claude Code or any MCP client:
 | list_webhooks | any authenticated | List your webhook subscriptions |
 | create_webhook | any authenticated | Subscribe to new_message events. Returns signing secret (shown only once) |
 | delete_webhook | any authenticated | Delete a webhook subscription by ID |
+
+### Signature Management
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| list_signatures | any authenticated | List saved email signatures for the current account |
+| save_signature | any authenticated | Create or update an email signature |
+| delete_signature | any authenticated | Delete an email signature by ID |
+
+### Encryption Key Management
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| list_encryption_keys | any authenticated | List encryption keys for the current account |
+| set_encryption_key | any authenticated | Set or update an encryption key (PGP/S/MIME) |
+| delete_encryption_key | any authenticated | Delete an encryption key by ID |
+| get_recipient_key | any authenticated | Get a recipient's public encryption key |
+
+### Audit
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| get_audit_log | admin.accounts | Retrieve recent audit log entries with optional limit |
+
+### Scheduled Send
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| send_scheduled_email | any authenticated | Schedule an email for future delivery |
 
 ### Queue Management
 
