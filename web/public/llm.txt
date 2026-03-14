@@ -11,7 +11,7 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-37 tools auto-discovered, grouped by category:
+43 tools auto-discovered, grouped by category:
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
@@ -23,6 +23,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 **Permissions:** list_groups, get_account_permissions, add/remove_account_to/from_group
 **Domains:** list_domains, add_domain, remove_domain
 **Aliases:** list_aliases, add_alias, remove_alias
+**Email Groups:** list/create/delete_email_groups, list/add/remove_email_group_members
 **Apps:** list_apps, create_app, delete_app
 **Webhooks:** list_webhooks, create_webhook, delete_webhook
 **Queue:** get_queue, retry_queue_message
@@ -46,6 +47,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET/POST/DELETE /api/admin/domains — domain CRUD
 - GET/POST/DELETE /api/admin/accounts — account CRUD
 - GET/POST/DELETE /api/admin/aliases — alias CRUD
+- GET/POST/DELETE /api/admin/email-groups — email group CRUD + /members
 - GET/POST/DELETE /api/admin/groups — group CRUD + /permissions + /members
 - GET/POST/DELETE /api/admin/apps — app CRUD + /scopes
 - GET /api/admin/permissions — list all permissions
