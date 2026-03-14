@@ -379,3 +379,237 @@ pub(super) async fn auth_me(
         "send_as": permissions.send_as(),
     }))
 }
+
+#[derive(Deserialize)]
+pub(super) struct ForgotPasswordRequest {
+    pub address: String,
+}
+
+#[derive(Deserialize)]
+pub(super) struct ResetPasswordRequest {
+    pub token: String,
+    pub new_password: String,
+}
+
+pub(super) async fn forgot_password(
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<ForgotPasswordRequest>,
+) -> impl IntoResponse {
+    if req.address.is_empty() || req.address.len() > super::MAX_ADMIN_FIELD_LEN {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid address"})),
+        );
+    }
+
+    let Some(ref pool) = state.pg_pool else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "auth backend unavailable"})),
+        );
+    };
+
+    // verify account exists (but always return success to prevent enumeration)
+    let account_exists = if let Some(ref ds) = state.domain_store {
+        ds.get_account_with_hash(&req.address)
+            .await
+            .ok()
+            .flatten()
+            .is_some()
+    } else {
+        false
+    };
+
+    if account_exists {
+        // generate reset token
+        let mut bytes = [0u8; 32];
+        rand_core::OsRng.fill_bytes(&mut bytes);
+        let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+
+        let expires_at = Utc::now() + chrono::Duration::hours(1);
+
+        let inserted = sqlx::query(
+            "INSERT INTO password_reset_tokens (account_address, token, expires_at) \
+             VALUES ($1, $2, $3)",
+        )
+        .bind(&req.address)
+        .bind(&token)
+        .bind(expires_at)
+        .execute(pool)
+        .await;
+
+        if inserted.is_ok() {
+            // send reset email to the user's mailbox
+            let reset_link = format!("https://mail.golia.ai/reset-password?token={token}");
+            let subject = "Password Reset Request";
+            let body = format!(
+                "You requested a password reset.\n\n\
+                 Click the link below to reset your password:\n\
+                 {reset_link}\n\n\
+                 This link expires in 1 hour.\n\n\
+                 If you did not request this, please ignore this email."
+            );
+
+            let now = Utc::now();
+            let message_id = format!(
+                "{}.{}@{}",
+                now.timestamp_millis(),
+                rand_core::OsRng.next_u32(),
+                state.hostname
+            );
+            let from = format!("noreply@{}", state.hostname);
+            let to = vec![req.address.clone()];
+            let raw = super::mail::build_rfc5322_message(
+                &from,
+                &to,
+                &[],
+                subject,
+                &body,
+                None,
+                &message_id,
+                None,
+                &[],
+                &now,
+                None,
+            );
+
+            // deliver directly to local mailbox
+            if let Some(ref mb_store) = state.mailbox_store {
+                let _ = mb_store.ensure_default_mailboxes(&req.address).await;
+                let _ = mb_store
+                    .append_message(
+                        &req.address,
+                        "INBOX",
+                        &state.maildir_root,
+                        &raw,
+                        0,
+                        now.timestamp(),
+                    )
+                    .await;
+            }
+
+            if let Some(ref ds) = state.domain_store {
+                ds.log_audit(&req.address, "password_reset_requested", &req.address, "")
+                    .await;
+            }
+        }
+    }
+
+    // always return success to prevent account enumeration
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"success": true})),
+    )
+}
+
+pub(super) async fn reset_password(
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<ResetPasswordRequest>,
+) -> impl IntoResponse {
+    if req.token.is_empty() || req.token.len() > 128 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid token"})),
+        );
+    }
+
+    if let Err(e) = crate::users::validate_password(&req.new_password) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": e})),
+        );
+    }
+
+    let Some(ref pool) = state.pg_pool else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "auth backend unavailable"})),
+        );
+    };
+
+    // look up token
+    let row: Option<(i64, String, bool)> = sqlx::query_as(
+        "SELECT id, account_address, used FROM password_reset_tokens \
+         WHERE token = $1 AND expires_at > now()",
+    )
+    .bind(&req.token)
+    .fetch_optional(pool)
+    .await
+    .unwrap_or(None);
+
+    let Some((token_id, account_address, used)) = row else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid or expired token"})),
+        );
+    };
+
+    if used {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "token already used"})),
+        );
+    }
+
+    // hash new password
+    let password_hash = match crate::users::UserStore::hash_password(&req.new_password) {
+        Ok(h) => h,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "failed to hash password"})),
+            );
+        }
+    };
+
+    // update password via domain store
+    let Some(ref ds) = state.domain_store else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "auth backend unavailable"})),
+        );
+    };
+
+    // get current account to preserve domain and display_name
+    let (account, _) = match ds.get_account_with_hash(&account_address).await {
+        Ok(Some(pair)) => pair,
+        _ => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "account not found"})),
+            );
+        }
+    };
+
+    let now = Utc::now().timestamp();
+    if let Err(e) = ds
+        .add_account(
+            &account.address,
+            &account.domain,
+            &account.display_name,
+            &password_hash,
+            now,
+        )
+        .await
+    {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to update password: {e}")})),
+        );
+    }
+
+    // mark token as used
+    let _ = sqlx::query("UPDATE password_reset_tokens SET used = true WHERE id = $1")
+        .bind(token_id)
+        .execute(pool)
+        .await;
+
+    // audit log
+    ds.log_audit(&account_address, "password_reset", &account_address, "")
+        .await;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"success": true})),
+    )
+}
