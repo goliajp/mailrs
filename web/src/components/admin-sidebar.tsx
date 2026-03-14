@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Globe, LayoutGrid, ListOrdered, Users } from 'lucide-react'
+import { ArrowLeftRight, Blocks, Globe, LayoutGrid, ListOrdered, Shield, Users } from 'lucide-react'
 import { NavLink } from 'react-router'
 
 const navItems = [
@@ -21,6 +21,16 @@ const navItems = [
     to: '/admin/aliases',
     label: 'Aliases',
     icon: <ArrowLeftRight className="h-4 w-4" />,
+  },
+  {
+    to: '/admin/groups',
+    label: 'Groups',
+    icon: <Shield className="h-4 w-4" />,
+  },
+  {
+    to: '/admin/apps',
+    label: 'Apps',
+    icon: <Blocks className="h-4 w-4" />,
   },
   {
     to: '/admin/queues',
