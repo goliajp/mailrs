@@ -28,6 +28,7 @@ pub enum ImapCommand {
     Unsubscribe { mailbox: String },
     Lsub { reference: String, pattern: String },
     Namespace,
+    Sort { criteria: String, charset: String, search_criteria: String },
 }
 
 /// tagged IMAP command
@@ -166,6 +167,23 @@ pub fn parse_command(line: &str) -> Result<TaggedCommand, ParseError> {
             ImapCommand::Lsub { reference, pattern }
         }
         "NAMESPACE" => ImapCommand::Namespace,
+        "SORT" => {
+            // SORT (criteria...) charset search-criteria
+            // e.g.: (REVERSE DATE) UTF-8 ALL
+            let args = args.trim();
+            if !args.starts_with('(') {
+                return Err(ParseError::MissingArgument("sort criteria".into()));
+            }
+            let close = args.find(')').ok_or(ParseError::MissingArgument("sort criteria closing paren".into()))?;
+            let criteria = args[1..close].to_string();
+            let rest = args[close + 1..].trim();
+            let (charset, search) = rest.split_once(' ').unwrap_or((rest, "ALL"));
+            ImapCommand::Sort {
+                criteria,
+                charset: charset.to_string(),
+                search_criteria: search.to_string(),
+            }
+        }
         "GETQUOTA" => ImapCommand::GetQuota {
             quotaroot: unquote(args.trim()),
         },
