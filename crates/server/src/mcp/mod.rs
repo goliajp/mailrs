@@ -125,6 +125,7 @@ impl MailMcpService {
             &attachment_data,
             None,
             &[],
+            false,
         );
 
         let result = crate::web::mail::deliver_message(
