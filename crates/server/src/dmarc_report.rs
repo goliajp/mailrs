@@ -324,7 +324,7 @@ pub fn spawn_daily_report_task(
 
                                 // generate report
                                 let begin = chrono::NaiveDate::parse_from_str(&yesterday, "%Y-%m-%d")
-                                    .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp())
+                                    .map(|d| d.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc().timestamp())
                                     .unwrap_or(0);
                                 let end = begin + 86400;
                                 let report_id = format!("{}!{}!{}", hostname, domain, yesterday);

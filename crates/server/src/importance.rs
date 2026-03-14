@@ -49,6 +49,7 @@ pub(crate) struct ImportanceSignals {
     pub is_automated: bool,
     pub has_tracking_pixel: bool,
     pub is_template_heavy: bool,
+    #[allow(dead_code)]
     pub text_to_html_ratio: f32,
     pub link_count: usize,
     pub contact_importance_bias: f32,

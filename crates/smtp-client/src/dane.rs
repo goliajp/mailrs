@@ -1,4 +1,3 @@
-use std::io;
 use std::sync::Arc;
 
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
@@ -87,8 +86,6 @@ pub async fn resolve_tlsa(
     mx_host: &str,
 ) -> Vec<TlsaRecord> {
     use hickory_resolver::proto::rr::RecordType;
-    use hickory_resolver::proto::rr::rdata::TLSA;
-
     let qname = format!("_25._tcp.{mx_host}");
     let lookup = match resolver.lookup(&qname, RecordType::TLSA).await {
         Ok(l) => l,

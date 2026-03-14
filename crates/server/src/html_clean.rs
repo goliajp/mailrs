@@ -33,7 +33,9 @@ pub(crate) struct CleanResult {
     pub has_tracking_pixel: bool,
     pub is_template_heavy: bool,
     pub link_count: usize,
+    #[allow(dead_code)]
     pub image_count: usize,
+    #[allow(dead_code)]
     pub text_to_html_ratio: f32,
 }
 

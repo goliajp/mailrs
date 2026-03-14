@@ -25,6 +25,7 @@ pub fn compile_sieve(script: &str) -> Result<Arc<CompiledSieve>, String> {
 }
 
 /// evaluate a compiled Sieve script against a message
+#[allow(dead_code)]
 pub fn evaluate_sieve(compiled: &Arc<CompiledSieve>, message: &[u8]) -> Vec<SieveAction> {
     evaluate_sieve_with_envelope(compiled, message, None, None)
 }
