@@ -164,6 +164,42 @@ impl SmtpConnection {
         })
     }
 
+    /// upgrade to TLS via STARTTLS with DANE TLSA verification
+    pub async fn starttls_dane(
+        mut self,
+        hostname: &str,
+        tlsa_records: Vec<crate::dane::TlsaRecord>,
+    ) -> io::Result<Self> {
+        let resp = self.send_command("STARTTLS\r\n").await?;
+        if !resp.is_positive() {
+            return Err(io::Error::other(format!(
+                "STARTTLS rejected: {}",
+                resp.message()
+            )));
+        }
+
+        let config = crate::dane::dane_tls_config(tlsa_records);
+        let connector = TlsConnector::from(Arc::new(config));
+        let server_name: rustls::pki_types::ServerName<'static> =
+            hostname.to_string().try_into().map_err(|e| {
+                io::Error::new(io::ErrorKind::InvalidInput, format!("invalid SNI: {e}"))
+            })?;
+
+        let inner = self.stream.into_inner();
+        let tcp = match inner {
+            Transport::Plain(tcp) => tcp,
+            Transport::Tls(_) => {
+                return Err(io::Error::other("already using TLS"));
+            }
+        };
+
+        let tls_stream = connector.connect(server_name, tcp).await?;
+        Ok(Self {
+            stream: BufStream::new(Transport::Tls(Box::new(tls_stream))),
+            command_timeout: self.command_timeout,
+        })
+    }
+
     /// send MAIL FROM, RCPT TO, DATA, and message body
     pub async fn deliver(
         &mut self,
