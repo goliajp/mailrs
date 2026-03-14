@@ -35,18 +35,24 @@ React 19 + TypeScript + Vite + Tailwind CSS 4 + Jotai for state management. Real
 | Cache       | Valkey / Redis                                |
 | Storage     | Maildir                                       |
 | Frontend    | React 19, Vite 7, Tailwind CSS 4, Bun         |
-| Auth        | File-based (`users.toml`) with Argon2 hashing |
+| Auth        | PostgreSQL accounts + Argon2, TOTP 2FA, LDAP  |
 | TLS         | Let's Encrypt (ACME) with hot-reloadable certs|
 
 ## Features
 
 - **SMTP** — Full inbound and outbound with STARTTLS, DKIM signing, SPF/DMARC verification
 - **IMAP** — IMAP server with IDLE support for real-time notifications
+- **POP3** — POP3 server for legacy client support
+- **JMAP** — JMAP protocol support (RFC 8620)
+- **CalDAV/CardDAV** — Calendar and contact sync for Thunderbird, Apple Calendar/Contacts
+- **ManageSieve** — Remote Sieve script management (RFC 5804)
 - **Web UI** — Conversational email interface with real-time WebSocket updates
-- **Security** — Greylisting, DNSBL, rate limiting, MTA-STS
+- **MCP** — Model Context Protocol server with 52 tools for AI agent integration
+- **Security** — Greylisting, DNSBL, rate limiting, MTA-STS, TOTP 2FA
 - **Delivery** — Outbound queue with retry logic and DSN (bounce) generation
 - **Sieve** — Server-side mail filtering
 - **ACME** — Automatic TLS certificate provisioning via Let's Encrypt
+- **AI** — Email classification, AI-assisted drafting and reply suggestions (Gemini)
 
 ## Quick Start
 
@@ -66,13 +72,17 @@ docker compose up -d
 
 This starts PostgreSQL (with pgvector), Valkey, and the mailrs server. Ports exposed:
 
-| Port | Service        |
-|------|----------------|
-| 25   | SMTP           |
-| 587  | SMTP Submission|
-| 465  | SMTPS          |
-| 143  | IMAP           |
-| 3100 | Web UI / API   |
+| Port | Service         |
+|------|-----------------|
+| 25   | SMTP            |
+| 110  | POP3            |
+| 143  | IMAP            |
+| 465  | SMTPS           |
+| 587  | SMTP Submission |
+| 993  | IMAPS           |
+| 995  | POP3S           |
+| 3100 | Web UI / API    |
+| 4190 | ManageSieve     |
 
 ### Local Development
 
