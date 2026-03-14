@@ -25,32 +25,93 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-13 tools auto-discovered:
+37 tools auto-discovered via MCP, grouped by category:
 
-### Email Tools
+### Email Operations
 
-| Tool | Description |
-|------|-------------|
-| send_email | Send email with optional attachments (base64) |
-| read_email | Read message by UID |
-| search_emails | Search by keyword, returns conversation summaries |
-| reply_email | Reply to a thread by thread_id |
-| list_conversations | List recent conversations with filters |
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| send_email | any authenticated | Send email with optional CC, HTML body, and base64 attachments. Returns message ID |
+| read_email | any authenticated | Read a message by UID. Returns sender, subject, text body, metadata |
+| search_emails | any authenticated | Search by keyword. Returns conversation summaries (thread_id, subject, snippet, participants) |
+| reply_email | any authenticated | Reply to a thread by thread_id. Auto-sets In-Reply-To/References headers |
+| list_conversations | any authenticated | List recent conversations with optional category filter. Returns thread summaries |
+| get_folders | any authenticated | List mailbox folders with message counts (total, unseen) |
+| get_categories | any authenticated | Get email category counts (personal, notification, promotion, etc.) |
+| get_contacts | any authenticated | Search contacts from email history. Returns address, display name, counts |
 
-### Account & Permission Management Tools
+### Thread Management
 
-| Tool | Permission Required | Description |
-|------|-------------------|-------------|
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| mark_thread_read | any authenticated | Mark all messages in a thread as read |
+| mark_thread_unread | any authenticated | Mark a thread as unread |
+| star_thread | any authenticated | Star/flag a thread for importance |
+| unstar_thread | any authenticated | Remove star/flag from a thread |
+| archive_thread | any authenticated | Archive a thread (hide from inbox) |
+| unarchive_thread | any authenticated | Unarchive a thread (restore to inbox) |
+| delete_thread | any authenticated | Delete a thread and all its messages permanently |
+
+### Account Management
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
 | list_accounts | admin.accounts | List all email accounts (address, domain, display_name, active) |
-| create_account | admin.accounts | Create a new account (onboarding). Auto-joins domain's user group |
-| remove_account | admin.accounts | Remove an account (offboarding). Cascades group memberships |
+| create_account | admin.accounts | Create account (onboarding). Auto-joins domain's default user group |
+| remove_account | admin.accounts | Remove account (offboarding). Cascades group memberships, API keys, overrides |
 | set_account_password | admin.accounts | Reset an account's password (argon2 hashed) |
+
+### Permission Management
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
 | list_groups | admin.groups | List all permission groups (id, name, domain, builtin flag) |
 | get_account_permissions | admin.groups | Get account's groups and effective permissions |
 | add_account_to_group | admin.groups | Add account to a permission group |
 | remove_account_from_group | admin.groups | Remove account from a permission group |
 
-### send_email parameters
+### Domain Management
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| list_domains | any authenticated | List all managed domains (name, creation date) |
+| add_domain | admin.domains | Add a new domain |
+| remove_domain | admin.domains | Remove a domain and all its accounts/aliases |
+
+### Alias Management
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| list_aliases | any authenticated | List all email aliases and forwards (source, target, domain, type) |
+| add_alias | admin.aliases | Add alias ("alias" = local delivery) or forward ("forward" = remote relay) |
+| remove_alias | admin.aliases | Remove an email alias by ID |
+
+### App Management
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| list_apps | admin.accounts | List all registered apps with scopes and status |
+| create_app | admin.accounts | Register app and generate API key (key shown only once) |
+| delete_app | admin.accounts | Delete app and revoke all its API keys |
+
+### Webhook Management
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| list_webhooks | any authenticated | List your webhook subscriptions |
+| create_webhook | any authenticated | Subscribe to new_message events. Returns signing secret (shown only once) |
+| delete_webhook | any authenticated | Delete a webhook subscription by ID |
+
+### Queue Management
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| get_queue | admin.queue | List outbound delivery queue entries (sender, recipient, status, attempts) |
+| retry_queue_message | admin.queue | Retry a failed outbound message by queue ID |
+
+### Parameter Examples
+
+#### send_email
 ```json
 {
   "to": ["recipient@example.com"],
@@ -68,8 +129,9 @@ Config for Claude Code or any MCP client:
   ]
 }
 ```
+Optional: `from` (defaults to authenticated account), `cc`, `html_body`, `attachments`. Max 50 total recipients.
 
-### reply_email parameters
+#### reply_email
 ```json
 {
   "thread_id": "<thread_id from list_conversations or search_emails>",
@@ -78,30 +140,32 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-### search_emails parameters
+#### search_emails
 ```json
 {
   "query": "search keyword",
   "limit": 20
 }
 ```
+`limit` defaults to 20, max 20.
 
-### read_email parameters
-```json
-{
-  "uid": 12345
-}
-```
-
-### list_conversations parameters
+#### list_conversations
 ```json
 {
   "limit": 20,
   "category": "personal"
 }
 ```
+Categories: `personal`, `notification`, `promotion`, `general`.
 
-### create_account parameters
+#### read_email
+```json
+{
+  "uid": 12345
+}
+```
+
+#### create_account
 ```json
 {
   "address": "newuser@golia.jp",
@@ -111,22 +175,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-### remove_account parameters
-```json
-{
-  "address": "user@golia.jp"
-}
-```
-
-### set_account_password parameters
-```json
-{
-  "address": "user@golia.jp",
-  "password": "new-password"
-}
-```
-
-### get_account_permissions parameters
+#### get_account_permissions
 ```json
 {
   "address": "user@golia.jp"
@@ -134,7 +183,7 @@ Config for Claude Code or any MCP client:
 ```
 Response includes groups, effective permissions, accessible domains, and super status.
 
-### add_account_to_group / remove_account_from_group parameters
+#### add_account_to_group / remove_account_from_group
 ```json
 {
   "address": "user@golia.jp",
@@ -142,26 +191,72 @@ Response includes groups, effective permissions, accessible domains, and super s
 }
 ```
 
+#### add_alias
+```json
+{
+  "source_address": "team@golia.jp",
+  "target_address": "user@golia.jp",
+  "domain": "golia.jp",
+  "alias_type": "alias"
+}
+```
+`alias_type`: `"alias"` (local delivery, default) or `"forward"` (remote relay).
+
+#### create_app
+```json
+{
+  "name": "My Integration",
+  "description": "optional description",
+  "scopes": "mail.send,mail.read"
+}
+```
+
+#### create_webhook
+```json
+{
+  "url": "https://your-server.com/webhook",
+  "event_type": "new_message",
+  "filter_sender": "important@example.com",
+  "filter_thread_id": "optional-thread-id"
+}
+```
+`event_type` defaults to `"new_message"`. `filter_sender` and `filter_thread_id` are optional.
+
+#### Thread operations (mark_thread_read, star_thread, archive_thread, delete_thread, etc.)
+```json
+{
+  "thread_id": "<thread_id>"
+}
+```
+
+#### retry_queue_message
+```json
+{
+  "id": 42
+}
+```
+
 ---
 
 ## 2. Permission System
 
-mailrs uses group-based RBAC (role-based access control). This is essential infrastructure for employee onboarding/offboarding.
+mailrs uses group-based RBAC (role-based access control).
 
-### Permission List
+### All 11 Permissions
 
 | Permission | Description |
 |-----------|-------------|
 | mail.send | Send emails |
 | mail.read | Read own mailbox |
 | mail.read_domain | Read all mailboxes in a domain |
-| admin.domains | Manage domains |
-| admin.accounts | Manage accounts (create, remove, password reset) |
-| admin.aliases | Manage email aliases and forwarding |
+| admin.domains | Manage domains (add, remove) |
+| admin.accounts | Manage accounts (create, remove, password reset) and apps |
+| admin.aliases | Manage email aliases and forwarding rules |
 | admin.groups | Manage permission groups and memberships |
-| admin.queue | Manage outbound delivery queue |
+| admin.queue | Manage outbound delivery queue (view, retry) |
 | admin.sieve | Manage sieve filtering scripts |
-| admin.impersonate | Send as other users |
+| admin.impersonate | Send as other users (set arbitrary `from` address) |
+| internal.rpc | Internal RPC calls between services |
 
 ### Groups
 
@@ -175,23 +270,40 @@ mailrs uses group-based RBAC (role-based access control). This is essential infr
 effective = (union of all group permissions) + account grants - account revokes
 ```
 
-If account is in the `super` group → all permissions on all domains.
+If account is in the `super` group, all permissions on all domains are granted.
 
 ### Onboarding Workflow
 
-1. `create_account` — creates account with password, auto-joins domain's `user` group
-2. `add_account_to_group` — optionally add to admin or custom groups
+1. `create_account` -- creates account with password, auto-joins domain's `user` group
+2. `add_account_to_group` -- optionally add to admin or custom groups
 3. Account can now log in and send/receive email
 
 ### Offboarding Workflow
 
-1. `remove_account` — removes account, group memberships, API keys, and permission overrides cascade-deleted via FK
+1. `remove_account` -- removes account, group memberships, API keys, and permission overrides (cascade-deleted via FK)
 
 ---
 
 ## 3. REST API
 
-### Send email
+### Auth
+
+```
+# login (returns session token)
+curl -X POST https://mail.golia.ai/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"address": "user@golia.jp", "password": "..."}'
+
+# get current user info
+curl https://mail.golia.ai/api/auth/me \
+  -H "Authorization: Bearer <token>"
+
+# logout
+curl -X POST https://mail.golia.ai/api/auth/logout \
+  -H "Authorization: Bearer <token>"
+```
+
+### Send Email
 
 ```
 curl -X POST https://mail.golia.ai/api/mail/send \
@@ -209,7 +321,7 @@ curl -X POST https://mail.golia.ai/api/mail/send \
 
 Response: `{"success": true}`
 
-### Send email with attachments
+### Send Email with Attachments (multipart)
 
 ```
 curl -X POST https://mail.golia.ai/api/mail/send-multipart \
@@ -220,12 +332,10 @@ curl -X POST https://mail.golia.ai/api/mail/send-multipart \
   -F "attachments=@/path/to/file.png;type=image/png"
 ```
 
-Response: `{"success": true}`
-
-### List conversations
+### List Conversations
 
 ```
-curl https://mail.golia.ai/api/conversations?limit=20 \
+curl "https://mail.golia.ai/api/conversations?limit=20" \
   -H "Authorization: Bearer mlrs_..."
 ```
 
@@ -240,18 +350,23 @@ Response:
     "message_count": 5,
     "unread_count": 2,
     "last_date": 1710000000,
-    "category": "personal"
+    "category": "personal",
+    "flagged": false,
+    "pinned": false,
+    "archived": false,
+    "importance_level": "normal",
+    "importance_score": 0.5
   }
 ]
 ```
 
 Query parameters:
 - `limit` (default 20, max 50)
-- `q` - search keyword
-- `category` - filter: personal, notification, promotion, general
-- `folder` - INBOX (default), Sent
+- `q` -- search keyword
+- `category` -- filter: personal, notification, promotion, general
+- `folder` -- INBOX (default), Sent
 
-### Search emails
+### Search Emails
 
 ```
 curl "https://mail.golia.ai/api/conversations?q=invoice&limit=10" \
@@ -260,7 +375,7 @@ curl "https://mail.golia.ai/api/conversations?q=invoice&limit=10" \
 
 Same response format as list conversations.
 
-### Read a message
+### Read a Message
 
 ```
 curl https://mail.golia.ai/api/mail/messages/12345 \
@@ -284,6 +399,115 @@ Response:
 }
 ```
 
+### Delete a Message
+
+```
+curl -X DELETE https://mail.golia.ai/api/mail/messages/12345 \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### Folders
+
+```
+curl https://mail.golia.ai/api/mail/folders \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### Thread Operations
+
+```
+# get thread messages
+curl https://mail.golia.ai/api/conversations/threads/{thread_id} \
+  -H "Authorization: Bearer mlrs_..."
+
+# delete thread
+curl -X DELETE https://mail.golia.ai/api/conversations/threads/{thread_id} \
+  -H "Authorization: Bearer mlrs_..."
+
+# mark read/unread
+curl -X PUT https://mail.golia.ai/api/conversations/threads/{thread_id}/read \
+  -H "Authorization: Bearer mlrs_..."
+curl -X DELETE https://mail.golia.ai/api/conversations/threads/{thread_id}/read \
+  -H "Authorization: Bearer mlrs_..."
+
+# star/unstar
+curl -X PUT https://mail.golia.ai/api/conversations/threads/{thread_id}/star \
+  -H "Authorization: Bearer mlrs_..."
+curl -X DELETE https://mail.golia.ai/api/conversations/threads/{thread_id}/star \
+  -H "Authorization: Bearer mlrs_..."
+
+# archive/unarchive
+curl -X PUT https://mail.golia.ai/api/conversations/threads/{thread_id}/archive \
+  -H "Authorization: Bearer mlrs_..."
+curl -X DELETE https://mail.golia.ai/api/conversations/threads/{thread_id}/archive \
+  -H "Authorization: Bearer mlrs_..."
+
+# snooze/unsnooze
+curl -X PUT https://mail.golia.ai/api/conversations/threads/{thread_id}/snooze \
+  -H "Authorization: Bearer mlrs_..."
+curl -X DELETE https://mail.golia.ai/api/conversations/threads/{thread_id}/snooze \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### Contacts
+
+```
+curl https://mail.golia.ai/api/contacts \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### Drafts
+
+```
+# list drafts
+curl https://mail.golia.ai/api/mail/drafts \
+  -H "Authorization: Bearer mlrs_..."
+
+# save draft
+curl -X POST https://mail.golia.ai/api/mail/drafts \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"to": ["..."], "subject": "...", "text_body": "..."}'
+
+# delete draft
+curl -X DELETE https://mail.golia.ai/api/mail/drafts/{id} \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### Templates
+
+```
+# list templates
+curl https://mail.golia.ai/api/mail/templates \
+  -H "Authorization: Bearer mlrs_..."
+
+# save template
+curl -X POST https://mail.golia.ai/api/mail/templates \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"name": "...", "subject": "...", "body": "..."}'
+
+# delete template
+curl -X DELETE https://mail.golia.ai/api/mail/templates/{id} \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### AI Assist
+
+```
+# polish email text
+curl -X POST https://mail.golia.ai/api/mail/ai/polish \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"text": "draft text to polish"}'
+
+# suggest reply
+curl -X POST https://mail.golia.ai/api/mail/ai/reply-suggest \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"thread_id": "..."}'
+```
+
 ### Account Management (requires admin.accounts)
 
 ```
@@ -302,6 +526,42 @@ curl -X DELETE https://mail.golia.ai/api/admin/accounts/old@golia.jp \
   -H "Authorization: Bearer mlrs_..."
 ```
 
+### Domain Management (requires admin.domains)
+
+```
+# list domains
+curl https://mail.golia.ai/api/admin/domains \
+  -H "Authorization: Bearer mlrs_..."
+
+# add domain
+curl -X POST https://mail.golia.ai/api/admin/domains \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"name": "example.com"}'
+
+# remove domain
+curl -X DELETE https://mail.golia.ai/api/admin/domains/example.com \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### Alias Management (requires admin.aliases)
+
+```
+# list aliases
+curl https://mail.golia.ai/api/admin/aliases \
+  -H "Authorization: Bearer mlrs_..."
+
+# add alias
+curl -X POST https://mail.golia.ai/api/admin/aliases \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"source_address": "team@golia.jp", "target_address": "user@golia.jp", "domain": "golia.jp", "alias_type": "alias"}'
+
+# remove alias
+curl -X DELETE https://mail.golia.ai/api/admin/aliases/1 \
+  -H "Authorization: Bearer mlrs_..."
+```
+
 ### Group & Permission Management (requires admin.groups)
 
 ```
@@ -309,12 +569,27 @@ curl -X DELETE https://mail.golia.ai/api/admin/accounts/old@golia.jp \
 curl https://mail.golia.ai/api/admin/groups \
   -H "Authorization: Bearer mlrs_..."
 
-# list all available permissions
-curl https://mail.golia.ai/api/admin/permissions \
+# create group
+curl -X POST https://mail.golia.ai/api/admin/groups \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"name": "editors", "domain": "golia.jp"}'
+
+# delete group
+curl -X DELETE https://mail.golia.ai/api/admin/groups/1 \
   -H "Authorization: Bearer mlrs_..."
 
-# get account's groups
-curl https://mail.golia.ai/api/admin/accounts/user@golia.jp/groups \
+# get/set group permissions
+curl https://mail.golia.ai/api/admin/groups/1/permissions \
+  -H "Authorization: Bearer mlrs_..."
+
+curl -X PUT https://mail.golia.ai/api/admin/groups/1/permissions \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"permissions": ["mail.send", "mail.read"]}'
+
+# list group members
+curl https://mail.golia.ai/api/admin/groups/1/members \
   -H "Authorization: Bearer mlrs_..."
 
 # add account to group
@@ -327,6 +602,10 @@ curl -X POST https://mail.golia.ai/api/admin/groups/1/members \
 curl -X DELETE https://mail.golia.ai/api/admin/groups/1/members/user@golia.jp \
   -H "Authorization: Bearer mlrs_..."
 
+# list all available permissions
+curl https://mail.golia.ai/api/admin/permissions \
+  -H "Authorization: Bearer mlrs_..."
+
 # get/set account permission overrides
 curl https://mail.golia.ai/api/admin/accounts/user@golia.jp/overrides \
   -H "Authorization: Bearer mlrs_..."
@@ -335,7 +614,100 @@ curl -X PUT https://mail.golia.ai/api/admin/accounts/user@golia.jp/overrides \
   -H "Authorization: Bearer mlrs_..." \
   -H "Content-Type: application/json" \
   -d '{"overrides": [{"permission": "admin.aliases", "granted": true}]}'
+
+# get account's groups
+curl https://mail.golia.ai/api/admin/accounts/user@golia.jp/groups \
+  -H "Authorization: Bearer mlrs_..."
 ```
+
+### Quota & Sieve (requires admin.sieve / admin.accounts)
+
+```
+# get/set mailbox quota
+curl https://mail.golia.ai/api/admin/quota \
+  -H "Authorization: Bearer mlrs_..."
+
+curl -X POST https://mail.golia.ai/api/admin/quota \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"address": "user@golia.jp", "quota_mb": 1024}'
+
+# get/set/delete sieve script
+curl https://mail.golia.ai/api/admin/sieve \
+  -H "Authorization: Bearer mlrs_..."
+
+curl -X POST https://mail.golia.ai/api/admin/sieve \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"address": "user@golia.jp", "script": "require \"fileinto\"; ..."}'
+
+curl -X DELETE https://mail.golia.ai/api/admin/sieve \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### App Management (requires admin.accounts)
+
+```
+# list apps
+curl https://mail.golia.ai/api/admin/apps \
+  -H "Authorization: Bearer mlrs_..."
+
+# create app
+curl -X POST https://mail.golia.ai/api/admin/apps \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Integration", "scopes": "mail.send,mail.read"}'
+
+# get app details
+curl https://mail.golia.ai/api/admin/apps/{app_id} \
+  -H "Authorization: Bearer mlrs_..."
+
+# delete app
+curl -X DELETE https://mail.golia.ai/api/admin/apps/{app_id} \
+  -H "Authorization: Bearer mlrs_..."
+
+# rotate app API key
+curl -X POST https://mail.golia.ai/api/admin/apps/{app_id}/rotate-key \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### Queue Management (requires admin.queue)
+
+```
+# list queue
+curl https://mail.golia.ai/api/queue \
+  -H "Authorization: Bearer mlrs_..."
+
+# retry message
+curl -X POST https://mail.golia.ai/api/queue/{id}/retry \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### Server Status
+
+```
+# server status (authenticated)
+curl https://mail.golia.ai/api/status \
+  -H "Authorization: Bearer mlrs_..."
+
+# health check (no auth)
+curl https://mail.golia.ai/api/health
+
+# readiness check (no auth)
+curl https://mail.golia.ai/api/readiness
+
+# SMTP config summary
+curl https://mail.golia.ai/api/admin/config/smtp \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### WebSocket
+
+```
+wss://mail.golia.ai/api/events?token=<session_token>
+```
+
+Real-time events for new messages, SMTP activity. Used by the web UI for live updates.
 
 ---
 
@@ -382,7 +754,12 @@ Body:
 }
 ```
 
-Verify signature: `HMAC-SHA256(signing_secret, request_body) == X-Mailrs-Signature`
+### Verify signature
+
+```
+HMAC-SHA256(signing_secret, request_body) == X-Mailrs-Signature
+```
+
 Payload contains metadata only. Call `GET /api/mail/messages/{uid}` for full content.
 Failed deliveries retry with exponential backoff (60s -> 6h, max 8 attempts).
 
@@ -402,13 +779,14 @@ curl -X DELETE https://mail.golia.ai/api/agent/webhooks/1 \
 
 ---
 
-## 5. API Key Management
+## 5. API Keys & Apps
 
-API keys must be created via session auth (web login), not via another API key.
+### User API Keys
 
-### Create key (requires session auth)
+User API keys are bound to a specific account and inherit that account's permissions. They must be created via session auth (web login).
 
 ```
+# create key (requires session auth)
 curl -X POST https://mail.golia.ai/api/agent/keys \
   -H "Authorization: Bearer <session_token>" \
   -H "Content-Type: application/json" \
@@ -426,21 +804,27 @@ Response:
 }
 ```
 
-### List keys
-
 ```
+# list keys
 curl https://mail.golia.ai/api/agent/keys \
   -H "Authorization: Bearer <session_token_or_api_key>"
-```
 
-### Revoke key
-
-```
+# revoke key
 curl -X DELETE https://mail.golia.ai/api/agent/keys/1 \
   -H "Authorization: Bearer <session_token>"
 ```
 
 Revocation is immediate. Cached credentials are evicted from Valkey.
+
+### App API Keys
+
+App keys are created when registering an app via `POST /api/admin/apps` or the MCP `create_app` tool. They have explicit scopes (comma-separated permission names) rather than inheriting from a user account.
+
+Scopes use the same permission names as the RBAC system (e.g., `mail.send,mail.read,admin.aliases`).
+
+### internal.rpc
+
+The `internal.rpc` permission is reserved for service-to-service communication. It is not grantable to regular users. App keys with this scope can make internal RPC calls between mailrs components.
 
 ---
 
@@ -452,6 +836,7 @@ Revocation is immediate. Cached credentials are evicted from Valkey.
 - Super users can set `from` to any address across all managed domains
 - Regular keys can only send as the associated account
 - Session tokens are obtained via `POST /api/auth/login` with `{"address":"...","password":"..."}`
+- Both session tokens and API keys are accepted in the `Authorization: Bearer` header
 
 ---
 
@@ -462,10 +847,10 @@ All errors return JSON:
 {"error": "description of the error"}
 ```
 
-Common HTTP status codes:
-- 400 - bad request (invalid input)
-- 401 - authentication required or invalid credentials
-- 403 - forbidden (insufficient permissions)
-- 404 - not found
-- 429 - rate limited
-- 500 - server error
+HTTP status codes:
+- 400 -- bad request (invalid input, missing required fields)
+- 401 -- authentication required or invalid credentials
+- 403 -- forbidden (insufficient permissions for the requested operation)
+- 404 -- not found (message, account, domain, alias, or app does not exist)
+- 429 -- rate limited (back off and retry)
+- 500 -- server error (internal failure)

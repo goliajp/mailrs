@@ -1,9 +1,9 @@
 # mailrs - AI Email API
 
-> AI agents can send, read, search, and reply to emails, and manage accounts/permissions via MCP or REST API.
+> Full-featured email server API: send, read, search, reply, manage accounts/domains/aliases/groups/apps — via MCP or REST.
 
 Base URL: https://mail.golia.ai
-Auth: Bearer API key on all requests
+Auth: Bearer API key or session token on all requests
 Full API docs: https://mail.golia.ai/llm-full.txt
 Interactive docs: https://mail.golia.ai/docs.html
 OpenAPI spec: https://mail.golia.ai/openapi.json
@@ -11,37 +11,51 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-
-Email tools: send_email, read_email, search_emails, reply_email, list_conversations
-Admin tools: list_accounts, create_account, remove_account, set_account_password, list_groups, get_account_permissions, add_account_to_group, remove_account_from_group
+37 tools auto-discovered, grouped by category:
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
 ```
 
+**Email:** send_email, read_email, search_emails, reply_email, list_conversations, get_folders, get_categories, get_contacts
+**Threads:** mark_thread_read/unread, star/unstar_thread, archive/unarchive_thread, delete_thread
+**Accounts:** list_accounts, create_account, remove_account, set_account_password
+**Permissions:** list_groups, get_account_permissions, add/remove_account_to/from_group
+**Domains:** list_domains, add_domain, remove_domain
+**Aliases:** list_aliases, add_alias, remove_alias
+**Apps:** list_apps, create_app, delete_app
+**Webhooks:** list_webhooks, create_webhook, delete_webhook
+**Queue:** get_queue, retry_queue_message
+
 ## REST API
 
 ### Email
-- POST /api/mail/send - send email (JSON)
-- POST /api/mail/send-multipart - send with attachments (multipart/form-data)
-- GET /api/conversations - list conversations
-- GET /api/conversations?q=keyword - search
-- GET /api/mail/messages/{uid} - read message
+- POST /api/mail/send — send email (JSON)
+- POST /api/mail/send-multipart — send with attachments
+- GET /api/conversations — list conversations (?q=keyword, ?category=, ?limit=)
+- GET /api/conversations/{thread_id} — thread messages
+- GET /api/mail/messages/{uid} — read message
+- POST /api/conversations/{thread_id}/read — mark read
+- POST /api/conversations/{thread_id}/star — star
+- POST /api/conversations/{thread_id}/archive — archive
+- DELETE /api/conversations/{thread_id} — delete thread
+- GET /api/mail/folders — list folders
+- GET /api/contacts — search contacts
 
-### Account Management (requires admin.accounts permission)
-- GET /api/admin/accounts - list accounts
-- POST /api/admin/accounts - create account
-- DELETE /api/admin/accounts/{address} - remove account
+### Admin (requires permissions)
+- GET/POST/DELETE /api/admin/domains — domain CRUD
+- GET/POST/DELETE /api/admin/accounts — account CRUD
+- GET/POST/DELETE /api/admin/aliases — alias CRUD
+- GET/POST/DELETE /api/admin/groups — group CRUD + /permissions + /members
+- GET/POST/DELETE /api/admin/apps — app CRUD + /scopes
+- GET /api/admin/permissions — list all permissions
 
-### Permission Management (requires admin.groups permission)
-- GET /api/admin/groups - list groups
-- GET /api/admin/accounts/{address}/groups - account's groups
-- POST /api/admin/groups/{id}/members - add member
-- DELETE /api/admin/groups/{id}/members/{address} - remove member
-- GET /api/admin/permissions - list all available permissions
+### Agent
+- POST/GET/DELETE /api/agent/keys — API key management
+- POST/GET/DELETE /api/agent/webhooks — webhook subscriptions
 
-### Webhooks
-- POST /api/agent/webhooks - subscribe to new email events
+### Status
+- GET /api/status, /api/health, /api/readiness
 
 ## Contact
 

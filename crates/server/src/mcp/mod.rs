@@ -25,12 +25,7 @@ tokio::task_local! {
     pub(crate) static MCP_AUTH_USER: AuthUser;
 }
 
-use self::tools::{
-    AddAccountToGroupParams, CreateAccountParams, GetAccountPermissionsParams,
-    ListAccountsParams, ListConversationsParams, ListGroupsParams, ReadEmailParams,
-    RemoveAccountFromGroupParams, RemoveAccountParams, ReplyEmailParams, SearchEmailsParams,
-    SendEmailParams, SetAccountPasswordParams,
-};
+use self::tools::*;
 
 /// MCP service that exposes mailrs operations as MCP tools
 ///
@@ -425,7 +420,35 @@ impl MailMcpService {
 
     // --- admin / user management tools ---
 
-    /// helper: check permission and return MCP error if denied
+    // --- shared helpers ---
+
+    fn ds(&self) -> Result<&Arc<crate::domain_store::DomainStore>, McpError> {
+        self.web_state.domain_store.as_ref()
+            .ok_or_else(|| McpError::internal_error("domain store not available", None))
+    }
+
+    fn pool(&self) -> Result<&sqlx::PgPool, McpError> {
+        self.web_state.pg_pool.as_ref()
+            .ok_or_else(|| McpError::internal_error("database unavailable", None))
+    }
+
+    fn mb_store(&self) -> Result<&Arc<mailrs_mailbox::MailboxStore>, McpError> {
+        self.web_state.mailbox_store.as_ref()
+            .ok_or_else(|| McpError::internal_error("mailbox store not available", None))
+    }
+
+    fn json_result(&self, items: &[serde_json::Value]) -> Result<CallToolResult, McpError> {
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(items).unwrap_or_else(|_| "[]".into()),
+        )]))
+    }
+
+    fn ok_result(&self, status: &str, detail: &str) -> Result<CallToolResult, McpError> {
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({"status": status, "detail": detail}).to_string(),
+        )]))
+    }
+
     fn require_permission(&self, perm: &str) -> Result<(), McpError> {
         if self.auth_user.permissions.has(perm) {
             Ok(())
@@ -637,6 +660,384 @@ impl MailMcpService {
             )]))
         } else {
             Err(McpError::invalid_params("membership not found", None))
+        }
+    }
+
+    // --- domain management ---
+
+    #[tool(description = "List all managed domains. Returns domain name and creation date.")]
+    async fn list_domains(
+        &self,
+        Parameters(_params): Parameters<ListDomainsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let ds = self.ds()?;
+        let domains = ds.list_domains().await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = domains.into_iter()
+            .map(|d| serde_json::json!({"name": d.name, "created_at": d.created_at}))
+            .collect();
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Add a new domain. Requires admin.domains permission.")]
+    async fn add_domain(
+        &self,
+        Parameters(params): Parameters<AddDomainParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.domains")?;
+        let ds = self.ds()?;
+        ds.add_domain(&params.name, chrono::Utc::now().timestamp()).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        self.ok_result("domain_added", &params.name)
+    }
+
+    #[tool(description = "Remove a domain and all its accounts/aliases. Requires admin.domains permission.")]
+    async fn remove_domain(
+        &self,
+        Parameters(params): Parameters<RemoveDomainParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.domains")?;
+        let ds = self.ds()?;
+        let removed = ds.remove_domain(&params.name).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        if removed {
+            self.ok_result("domain_removed", &params.name)
+        } else {
+            Err(McpError::invalid_params("domain not found", None))
+        }
+    }
+
+    // --- alias management ---
+
+    #[tool(description = "List all email aliases and forwards. Returns source, target, domain, type.")]
+    async fn list_aliases(
+        &self,
+        Parameters(_params): Parameters<ListAliasesParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let ds = self.ds()?;
+        let aliases = ds.list_aliases().await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = aliases.into_iter()
+            .map(|a| serde_json::json!({
+                "id": a.id, "source_address": a.source_address,
+                "target_address": a.target_address, "domain": a.domain,
+                "alias_type": a.alias_type, "active": a.active,
+            }))
+            .collect();
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Add an email alias or forward. Type 'alias' delivers to local account, 'forward' relays externally. Requires admin.aliases permission.")]
+    async fn add_alias(
+        &self,
+        Parameters(params): Parameters<AddAliasParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.aliases")?;
+        let ds = self.ds()?;
+        let id = ds.add_alias(
+            &params.source_address, &params.target_address,
+            &params.domain, &params.alias_type, 0,
+        ).await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({"status": "alias_added", "id": id, "source": params.source_address, "target": params.target_address}).to_string(),
+        )]))
+    }
+
+    #[tool(description = "Remove an email alias by ID. Requires admin.aliases permission.")]
+    async fn remove_alias(
+        &self,
+        Parameters(params): Parameters<RemoveAliasParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.aliases")?;
+        let ds = self.ds()?;
+        let removed = ds.remove_alias(params.id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        if removed {
+            self.ok_result("alias_removed", &params.id.to_string())
+        } else {
+            Err(McpError::invalid_params("alias not found", None))
+        }
+    }
+
+    // --- app management ---
+
+    #[tool(description = "List all registered apps with their scopes and status.")]
+    async fn list_apps(
+        &self,
+        Parameters(_params): Parameters<ListAppsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.ds()?;
+        let apps = ds.list_apps(None).await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = apps.into_iter()
+            .map(|a| serde_json::json!({
+                "app_id": a.app_id, "name": a.name, "description": a.description,
+                "scopes": a.scopes, "owner": a.owner_address, "active": a.active,
+            }))
+            .collect();
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Register a new app and generate its API key. The key is only returned once. Requires admin.accounts permission.")]
+    async fn create_app(
+        &self,
+        Parameters(params): Parameters<CreateAppParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.ds()?;
+        let pool = self.web_state.pg_pool.as_ref()
+            .ok_or_else(|| McpError::internal_error("database unavailable", None))?;
+
+        let app_id = uuid::Uuid::new_v4().to_string();
+        let id = ds.create_app(&app_id, &params.name, &params.description, &self.auth_user.address, &params.scopes).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        let (full_key, prefix, key_hash) = crate::api_key_store::generate_api_key();
+        let key_id = crate::api_key_store::insert_app_api_key(
+            pool, &prefix, &key_hash, &full_key, &self.auth_user.address, &params.name, id, None,
+        ).await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({
+                "app_id": app_id, "name": params.name, "scopes": params.scopes,
+                "api_key": {"id": key_id, "key": full_key, "prefix": prefix},
+                "warning": "Save this API key now. It cannot be retrieved again.",
+            }).to_string(),
+        )]))
+    }
+
+    #[tool(description = "Delete an app and revoke all its API keys. Requires admin.accounts permission.")]
+    async fn delete_app(
+        &self,
+        Parameters(params): Parameters<DeleteAppParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.ds()?;
+        let removed = ds.remove_app(&params.app_id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        if removed {
+            self.ok_result("app_deleted", &params.app_id)
+        } else {
+            Err(McpError::invalid_params("app not found", None))
+        }
+    }
+
+    // --- webhook management ---
+
+    #[tool(description = "List your webhook subscriptions.")]
+    async fn list_webhooks(
+        &self,
+        Parameters(_params): Parameters<ListWebhooksParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let pool = self.pool()?;
+        let subs = crate::webhook::store::list_subscriptions(pool, &self.auth_user.address).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = subs.into_iter()
+            .map(|s| serde_json::json!({
+                "id": s.id, "url": s.url, "event_type": s.event_type,
+                "filter_sender": s.filter_sender, "filter_thread_id": s.filter_thread_id,
+                "active": s.active,
+            }))
+            .collect();
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Create a webhook subscription for new email events. Returns the signing secret (save it, shown only once).")]
+    async fn create_webhook(
+        &self,
+        Parameters(params): Parameters<CreateWebhookParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let pool = self.pool()?;
+        let signing_secret = crate::webhook::store::generate_signing_secret();
+        let id = crate::webhook::store::create_subscription(
+            pool, &self.auth_user.address, &params.url, &params.event_type,
+            params.filter_sender.as_deref(), params.filter_thread_id.as_deref(),
+            &signing_secret,
+        ).await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({
+                "id": id, "url": params.url, "event_type": params.event_type,
+                "signing_secret": signing_secret,
+                "warning": "Save this signing secret now. It cannot be retrieved again.",
+            }).to_string(),
+        )]))
+    }
+
+    #[tool(description = "Delete a webhook subscription by ID.")]
+    async fn delete_webhook(
+        &self,
+        Parameters(params): Parameters<DeleteWebhookParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let pool = self.pool()?;
+        let removed = crate::webhook::store::delete_subscription(pool, params.id, &self.auth_user.address).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        if removed {
+            self.ok_result("webhook_deleted", &params.id.to_string())
+        } else {
+            Err(McpError::invalid_params("webhook not found", None))
+        }
+    }
+
+    // --- mail operations ---
+
+    #[tool(description = "List mailbox folders with message counts (total, unseen).")]
+    async fn get_folders(
+        &self,
+        Parameters(_params): Parameters<GetFoldersParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mb_store = self.mb_store()?;
+        let _ = mb_store.ensure_default_mailboxes(&self.auth_user.address).await;
+        let mailboxes = mb_store.list_mailboxes(&self.auth_user.address).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let mut items = Vec::with_capacity(mailboxes.len());
+        for mb in &mailboxes {
+            let (total, unseen) = mb_store.mailbox_status(mb.id).await.unwrap_or((0, 0));
+            items.push(serde_json::json!({"name": mb.name, "total": total, "unseen": unseen}));
+        }
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Mark all messages in a thread as read.")]
+    async fn mark_thread_read(
+        &self,
+        Parameters(params): Parameters<MarkThreadReadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mb_store = self.mb_store()?;
+        mb_store.mark_thread_read(&self.auth_user.address, &params.thread_id, None).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        self.ok_result("marked_read", &params.thread_id)
+    }
+
+    #[tool(description = "Mark a thread as unread.")]
+    async fn mark_thread_unread(
+        &self,
+        Parameters(params): Parameters<MarkThreadUnreadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mb_store = self.mb_store()?;
+        mb_store.mark_thread_unread(&self.auth_user.address, &params.thread_id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        self.ok_result("marked_unread", &params.thread_id)
+    }
+
+    #[tool(description = "Star/flag a thread for importance.")]
+    async fn star_thread(
+        &self,
+        Parameters(params): Parameters<StarThreadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mb_store = self.mb_store()?;
+        mb_store.star_thread(&self.auth_user.address, &params.thread_id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        self.ok_result("starred", &params.thread_id)
+    }
+
+    #[tool(description = "Remove star/flag from a thread.")]
+    async fn unstar_thread(
+        &self,
+        Parameters(params): Parameters<UnstarThreadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mb_store = self.mb_store()?;
+        mb_store.unstar_thread(&self.auth_user.address, &params.thread_id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        self.ok_result("unstarred", &params.thread_id)
+    }
+
+    #[tool(description = "Archive a thread (hide from inbox).")]
+    async fn archive_thread(
+        &self,
+        Parameters(params): Parameters<ArchiveThreadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mb_store = self.mb_store()?;
+        mb_store.archive_thread(&self.auth_user.address, &params.thread_id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        self.ok_result("archived", &params.thread_id)
+    }
+
+    #[tool(description = "Unarchive a thread (restore to inbox).")]
+    async fn unarchive_thread(
+        &self,
+        Parameters(params): Parameters<UnarchiveThreadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mb_store = self.mb_store()?;
+        mb_store.unarchive_thread(&self.auth_user.address, &params.thread_id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        self.ok_result("unarchived", &params.thread_id)
+    }
+
+    #[tool(description = "Delete a thread and all its messages permanently.")]
+    async fn delete_thread(
+        &self,
+        Parameters(params): Parameters<DeleteThreadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mb_store = self.mb_store()?;
+        mb_store.delete_thread(&self.auth_user.address, &params.thread_id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        self.ok_result("deleted", &params.thread_id)
+    }
+
+    #[tool(description = "Get email category counts (personal, notification, promotion, etc.).")]
+    async fn get_categories(
+        &self,
+        Parameters(_params): Parameters<GetCategoriesParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mb_store = self.mb_store()?;
+        let cats = mb_store.list_conversation_categories(&self.auth_user.address, None).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = cats.into_iter()
+            .map(|(cat, count)| serde_json::json!({"category": cat, "count": count}))
+            .collect();
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Search contacts from email history. Returns address, display name, counts.")]
+    async fn get_contacts(
+        &self,
+        Parameters(_params): Parameters<GetContactsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mb_store = self.mb_store()?;
+        let contacts = mb_store.search_contacts(&self.auth_user.address, "", 100).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = contacts.into_iter()
+            .map(|c| serde_json::to_value(c).unwrap_or_default())
+            .collect();
+        self.json_result(&items)
+    }
+
+    // --- queue management ---
+
+    #[tool(description = "List outbound delivery queue entries. Requires admin.queue permission.")]
+    async fn get_queue(
+        &self,
+        Parameters(_params): Parameters<GetQueueParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.queue")?;
+        let pool = self.web_state.outbound_queue.as_ref()
+            .ok_or_else(|| McpError::internal_error("outbound queue not configured", None))?;
+        let entries = mailrs_outbound_queue::queue::list_recent(pool, 100).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = entries.into_iter()
+            .map(|m| serde_json::json!({
+                "id": m.id, "sender": m.sender, "recipient": m.recipient,
+                "domain": m.domain, "status": m.status.as_str(),
+                "attempts": m.attempts, "last_error": m.last_error,
+            }))
+            .collect();
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Retry a failed outbound message. Requires admin.queue permission.")]
+    async fn retry_queue_message(
+        &self,
+        Parameters(params): Parameters<RetryQueueMessageParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.queue")?;
+        let pool = self.web_state.outbound_queue.as_ref()
+            .ok_or_else(|| McpError::internal_error("outbound queue not configured", None))?;
+        let now = chrono::Utc::now().timestamp();
+        let retried = mailrs_outbound_queue::queue::retry_message(pool, params.id, now).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        if retried {
+            self.ok_result("retrying", &params.id.to_string())
+        } else {
+            Err(McpError::invalid_params("message not found or not retryable", None))
         }
     }
 }
