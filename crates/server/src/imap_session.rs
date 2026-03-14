@@ -185,15 +185,9 @@ impl ImapSession {
             ImapCommand::Status { mailbox, items } => {
                 self.handle_status(tag, mailbox, items).await
             }
-            ImapCommand::Create { mailbox: _ } => {
-                vec![format!("{tag} NO CREATE not supported")]
-            }
-            ImapCommand::Delete { mailbox: _ } => {
-                vec![format!("{tag} NO DELETE not supported")]
-            }
-            ImapCommand::Rename { from: _, to: _ } => {
-                vec![format!("{tag} NO RENAME not supported")]
-            }
+            ImapCommand::Create { mailbox } => self.handle_create(tag, mailbox).await,
+            ImapCommand::Delete { mailbox } => self.handle_delete(tag, mailbox).await,
+            ImapCommand::Rename { from, to } => self.handle_rename(tag, from, to).await,
             ImapCommand::Subscribe { mailbox: _ } => {
                 vec![format_ok(tag, "SUBSCRIBE completed")]
             }
@@ -300,6 +294,68 @@ impl ImapSession {
         }
         responses.push(format_ok(tag, "LIST completed"));
         responses
+    }
+
+    async fn handle_create(&self, tag: &str, mailbox: &str) -> Vec<String> {
+        let username = match &self.state {
+            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
+                username
+            }
+            ImapState::NotAuthenticated => {
+                return vec![format_no(tag, "not authenticated")];
+            }
+        };
+
+        match self.mailbox_store.create_mailbox(username, mailbox).await {
+            Ok(_) => vec![format_ok(tag, "CREATE completed")],
+            Err(e) => vec![format_no(tag, &format!("CREATE failed: {e}"))],
+        }
+    }
+
+    async fn handle_delete(&self, tag: &str, mailbox: &str) -> Vec<String> {
+        let username = match &self.state {
+            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
+                username
+            }
+            ImapState::NotAuthenticated => {
+                return vec![format_no(tag, "not authenticated")];
+            }
+        };
+
+        if mailbox.eq_ignore_ascii_case("INBOX") {
+            return vec![format_no(tag, "cannot delete INBOX")];
+        }
+
+        match self.mailbox_store.delete_mailbox(username, mailbox).await {
+            Ok(true) => vec![format_ok(tag, "DELETE completed")],
+            Ok(false) => vec![format_no(tag, "mailbox not found")],
+            Err(e) => vec![format_no(tag, &format!("DELETE failed: {e}"))],
+        }
+    }
+
+    async fn handle_rename(&self, tag: &str, from: &str, to: &str) -> Vec<String> {
+        let username = match &self.state {
+            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
+                username
+            }
+            ImapState::NotAuthenticated => {
+                return vec![format_no(tag, "not authenticated")];
+            }
+        };
+
+        if from.eq_ignore_ascii_case("INBOX") {
+            return vec![format_no(tag, "cannot rename INBOX")];
+        }
+
+        match self
+            .mailbox_store
+            .rename_mailbox(username, from, to)
+            .await
+        {
+            Ok(true) => vec![format_ok(tag, "RENAME completed")],
+            Ok(false) => vec![format_no(tag, "mailbox not found")],
+            Err(e) => vec![format_no(tag, &format!("RENAME failed: {e}"))],
+        }
     }
 
     async fn handle_select(&mut self, tag: &str, mailbox_name: &str) -> Vec<String> {
