@@ -198,6 +198,9 @@ impl ImapSession {
                 self.handle_lsub(tag, reference, pattern).await
             }
             ImapCommand::Namespace => self.handle_namespace(tag),
+            ImapCommand::Sort { criteria, search_criteria, .. } => {
+                self.handle_sort(tag, criteria, search_criteria, false).await
+            }
             _ => unreachable!(), // Fetch and Uid handled above
         };
         HandleResult::Responses(strs_to_bytes(responses))
@@ -205,7 +208,7 @@ impl ImapSession {
 
     fn handle_capability(&self, tag: &str) -> Vec<String> {
         vec![
-            format_capability(&["IMAP4rev1", "AUTH=PLAIN", "IDLE", "QUOTA", "CONDSTORE", "SPECIAL-USE", "NAMESPACE"]),
+            format_capability(&["IMAP4rev1", "AUTH=PLAIN", "IDLE", "QUOTA", "CONDSTORE", "SPECIAL-USE", "NAMESPACE", "SORT"]),
             format_ok(tag, "CAPABILITY completed"),
         ]
     }
@@ -966,6 +969,70 @@ impl ImapSession {
         ]
     }
 
+    async fn handle_sort(&self, tag: &str, criteria: &str, search_criteria: &str, uid_mode: bool) -> Vec<String> {
+        let mailbox = match &self.state {
+            ImapState::Selected { mailbox, .. } => mailbox,
+            _ => return vec![format_no(tag, "no mailbox selected")],
+        };
+
+        let (total, _) = self
+            .mailbox_store
+            .mailbox_status(mailbox.id)
+            .await
+            .unwrap_or((0, 0));
+
+        let messages = match self
+            .mailbox_store
+            .list_messages(mailbox.id, 0, total.max(1000))
+            .await
+        {
+            Ok(msgs) => msgs,
+            Err(_) => return vec![format_no(tag, "SORT failed")],
+        };
+
+        // filter by search criteria
+        let keys = parse_search_criteria(search_criteria);
+        let mut filtered: Vec<(usize, &mailrs_mailbox::MessageMeta)> = messages
+            .iter()
+            .enumerate()
+            .filter(|(_, msg)| message_matches_criteria(msg, &keys))
+            .collect();
+
+        // sort by criteria
+        let sort_keys = parse_sort_criteria(criteria);
+        filtered.sort_by(|a, b| {
+            for key in &sort_keys {
+                let ord = match key {
+                    SortCriterion::Arrival => a.1.internal_date.cmp(&b.1.internal_date),
+                    SortCriterion::Date => a.1.date.cmp(&b.1.date),
+                    SortCriterion::From => a.1.sender.to_lowercase().cmp(&b.1.sender.to_lowercase()),
+                    SortCriterion::Subject => a.1.subject.to_lowercase().cmp(&b.1.subject.to_lowercase()),
+                    SortCriterion::Size => a.1.size.cmp(&b.1.size),
+                    SortCriterion::ReverseArrival => b.1.internal_date.cmp(&a.1.internal_date),
+                    SortCriterion::ReverseDate => b.1.date.cmp(&a.1.date),
+                    SortCriterion::ReverseFrom => b.1.sender.to_lowercase().cmp(&a.1.sender.to_lowercase()),
+                    SortCriterion::ReverseSubject => b.1.subject.to_lowercase().cmp(&a.1.subject.to_lowercase()),
+                    SortCriterion::ReverseSize => b.1.size.cmp(&a.1.size),
+                };
+                if ord != std::cmp::Ordering::Equal {
+                    return ord;
+                }
+            }
+            std::cmp::Ordering::Equal
+        });
+
+        let ids: Vec<String> = if uid_mode {
+            filtered.iter().map(|(_, msg)| msg.uid.to_string()).collect()
+        } else {
+            filtered.iter().map(|(i, _)| (i + 1).to_string()).collect()
+        };
+
+        vec![
+            format!("* SORT {}\r\n", ids.join(" ")),
+            format_ok(tag, "SORT completed"),
+        ]
+    }
+
     async fn handle_expunge(&self, tag: &str) -> Vec<String> {
         let mailbox = match &self.state {
             ImapState::Selected { mailbox, .. } => mailbox,
@@ -1386,6 +1453,9 @@ impl ImapSession {
             ImapCommand::Move { sequence, mailbox } => {
                 strs_to_bytes(self.handle_move(tag, sequence, mailbox, true).await)
             }
+            ImapCommand::Sort { criteria, search_criteria, .. } => {
+                strs_to_bytes(self.handle_sort(tag, criteria, search_criteria, true).await)
+            }
             _ => strs_to_bytes(vec![format_bad(tag, "unsupported UID subcommand")]),
         }
     }
@@ -1491,6 +1561,53 @@ impl ImapSession {
 }
 
 /// check if a message matches all search criteria (AND semantics)
+/// sort criterion parsed from SORT command
+enum SortCriterion {
+    Arrival,
+    Date,
+    From,
+    Subject,
+    Size,
+    ReverseArrival,
+    ReverseDate,
+    ReverseFrom,
+    ReverseSubject,
+    ReverseSize,
+}
+
+/// parse sort criteria string like "REVERSE DATE" or "ARRIVAL"
+fn parse_sort_criteria(criteria: &str) -> Vec<SortCriterion> {
+    let tokens: Vec<&str> = criteria.split_whitespace().collect();
+    let mut result = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+        let token = tokens[i].to_uppercase();
+        if token == "REVERSE" && i + 1 < tokens.len() {
+            let next = tokens[i + 1].to_uppercase();
+            match next.as_str() {
+                "ARRIVAL" => result.push(SortCriterion::ReverseArrival),
+                "DATE" => result.push(SortCriterion::ReverseDate),
+                "FROM" => result.push(SortCriterion::ReverseFrom),
+                "SUBJECT" => result.push(SortCriterion::ReverseSubject),
+                "SIZE" | "RFC822.SIZE" => result.push(SortCriterion::ReverseSize),
+                _ => {}
+            }
+            i += 2;
+        } else {
+            match token.as_str() {
+                "ARRIVAL" => result.push(SortCriterion::Arrival),
+                "DATE" => result.push(SortCriterion::Date),
+                "FROM" => result.push(SortCriterion::From),
+                "SUBJECT" => result.push(SortCriterion::Subject),
+                "SIZE" | "RFC822.SIZE" => result.push(SortCriterion::Size),
+                _ => {}
+            }
+            i += 1;
+        }
+    }
+    result
+}
+
 fn message_matches_criteria(msg: &mailrs_mailbox::MessageMeta, keys: &[SearchKey]) -> bool {
     // seconds per day for date comparisons
     const DAY: i64 = 86400;
