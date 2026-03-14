@@ -596,6 +596,7 @@ pub(super) async fn send_message(
         &[],
         req.list_unsubscribe.as_deref(),
         &inline_images,
+        req.request_read_receipt,
     );
 
     // parse optional scheduled_at for send-later
@@ -781,6 +782,7 @@ pub(crate) fn build_rfc5322_message(
         &[],
         list_unsubscribe,
         &[],
+        false,
     )
 }
 
@@ -887,6 +889,7 @@ pub(crate) fn build_rfc5322_with_attachments(
     attachments: &[AttachmentData],
     list_unsubscribe: Option<&str>,
     inline_images: &[crate::inline_image::InlineImage],
+    request_read_receipt: bool,
 ) -> Vec<u8> {
     let date_str = date.format("%a, %d %b %Y %H:%M:%S %z").to_string();
     let mut msg = format!(
@@ -920,6 +923,9 @@ pub(crate) fn build_rfc5322_with_attachments(
     if let Some(unsub_url) = list_unsubscribe {
         msg.push_str(&format!("List-Unsubscribe: <{unsub_url}>\r\n"));
         msg.push_str("List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n");
+    }
+    if request_read_receipt {
+        msg.push_str(&format!("Disposition-Notification-To: {from}\r\n"));
     }
 
     // derive full html with email template wrapper
@@ -1163,6 +1169,7 @@ pub(super) async fn send_message_multipart(
         &attachments,
         None,
         &inline_images,
+        false,
     );
 
     deliver_message(
