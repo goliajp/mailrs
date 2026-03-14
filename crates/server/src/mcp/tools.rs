@@ -712,4 +712,66 @@ mod tests {
         let json = serde_json::to_string_pretty(&schema).unwrap();
         assert!(json.contains("id"));
     }
+
+    #[test]
+    fn send_scheduled_email_params_schema() {
+        let schema = schema_for!(SendScheduledEmailParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("to"));
+        assert!(json.contains("subject"));
+        assert!(json.contains("scheduled_at"));
+    }
+
+    #[test]
+    fn send_scheduled_email_params_deserialize() {
+        let json = r#"{"to": ["a@b.com"], "subject": "test", "body": "hi", "scheduled_at": "2026-03-16T09:00:00Z"}"#;
+        let params: SendScheduledEmailParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.to, vec!["a@b.com"]);
+        assert!(params.from.is_none());
+    }
+
+    #[test]
+    fn get_audit_log_params_defaults() {
+        let json = r#"{}"#;
+        let params: GetAuditLogParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.limit, 50);
+    }
+
+    #[test]
+    fn get_audit_log_params_custom_limit() {
+        let json = r#"{"limit": 10}"#;
+        let params: GetAuditLogParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.limit, 10);
+    }
+
+    #[test]
+    fn list_signatures_params_empty() {
+        let json = r#"{}"#;
+        let _params: ListSignaturesParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn save_signature_params_schema() {
+        let schema = schema_for!(SaveSignatureParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("name"));
+        assert!(json.contains("html"));
+        assert!(json.contains("is_default"));
+    }
+
+    #[test]
+    fn save_signature_params_defaults() {
+        let json = r#"{}"#;
+        let params: SaveSignatureParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.name, "Default");
+        assert!(params.id.is_none());
+        assert!(!params.is_default);
+    }
+
+    #[test]
+    fn delete_signature_params_schema() {
+        let schema = schema_for!(DeleteSignatureParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("id"));
+    }
 }
