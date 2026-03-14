@@ -135,13 +135,8 @@ impl DeliveryWorker {
                                 tracing::info!("delivery worker subscribed to queue:notify");
                                 use futures_util::StreamExt;
                                 let mut stream = pubsub.on_message();
-                                loop {
-                                    match stream.next().await {
-                                        Some(_msg) => {
-                                            let _ = tx.try_send(());
-                                        }
-                                        None => break,
-                                    }
+                                while let Some(_msg) = stream.next().await {
+                                    let _ = tx.try_send(());
                                 }
                             }
                             Err(e) => {

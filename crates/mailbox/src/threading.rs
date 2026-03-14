@@ -40,11 +40,10 @@ fn extract_header_raw(data: &[u8], name: &str) -> String {
     let text = String::from_utf8_lossy(data);
     let prefix_len = name.len() + 1; // "name:"
     for line in text.lines() {
-        if line.len() > prefix_len && line.as_bytes()[name.len()] == b':' {
-            if line[..name.len()].eq_ignore_ascii_case(name) {
+        if line.len() > prefix_len && line.as_bytes()[name.len()] == b':'
+            && line[..name.len()].eq_ignore_ascii_case(name) {
                 let val = line[prefix_len..].trim();
                 return normalize_message_id(val).to_string();
-            }
         }
         // empty line = end of headers
         if line.is_empty() {

@@ -85,6 +85,7 @@ pub(crate) async fn insert_api_key(
 }
 
 /// insert an API key for an app, returns the row id
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn insert_app_api_key(
     pool: &PgPool,
     prefix: &str,

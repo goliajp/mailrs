@@ -91,6 +91,7 @@ pub async fn check_dnsbl(
 /// cached DNSBL lookup to avoid repeated queries for known IPs
 /// caches both positive (listed) and negative (clean) results
 pub struct DnsblCache {
+    #[allow(clippy::type_complexity)]
     cache: Mutex<HashMap<IpAddr, (Option<(String, DnsblResult)>, Instant)>>,
     ttl: Duration,
 }

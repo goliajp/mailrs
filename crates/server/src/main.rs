@@ -793,6 +793,7 @@ async fn main() {
     let _ = shutdown_tx.send(true);
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_pop3_connection(
     stream: TcpStream,
     addr: std::net::SocketAddr,
@@ -904,6 +905,7 @@ async fn handle_managesieve_connection(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_imap_connection<S>(
     stream: S,
     addr: std::net::SocketAddr,
@@ -986,16 +988,13 @@ async fn handle_imap_connection<S>(
                                     }
                                 }
                                 frame = framed.next() => {
-                                    match frame {
-                                        Some(Ok(imap_codec::ImapInput::Line(done_line))) => {
-                                            if done_line.trim().eq_ignore_ascii_case("DONE") {
-                                                let resp = mailrs_imap_proto::format_ok(&tag, "IDLE terminated").into_bytes();
-                                                if framed.send(resp).await.is_err() {
-                                                    return;
-                                                }
+                                    if let Some(Ok(imap_codec::ImapInput::Line(done_line))) = frame {
+                                        if done_line.trim().eq_ignore_ascii_case("DONE") {
+                                            let resp = mailrs_imap_proto::format_ok(&tag, "IDLE terminated").into_bytes();
+                                            if framed.send(resp).await.is_err() {
+                                                return;
                                             }
                                         }
-                                        _ => {}
                                     }
                                     break;
                                 }

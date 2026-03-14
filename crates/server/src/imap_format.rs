@@ -141,7 +141,7 @@ pub(crate) fn parse_generic_body_sections(attributes: &str) -> Vec<String> {
                     && section
                         .as_bytes()
                         .first()
-                        .map_or(false, |b| b.is_ascii_digit())
+                        .is_some_and(|b| b.is_ascii_digit())
                 {
                     let s = section.to_string();
                     if !sections.contains(&s) {
@@ -301,8 +301,8 @@ pub(crate) fn parse_mime_headers(header: &str) -> MimeInfo {
             // extract name
             if let Some(pos) = val_lower.find("name=") {
                 let rest = &val[pos + 5..];
-                let n = if rest.starts_with('"') {
-                    rest[1..].split('"').next().unwrap_or("")
+                let n = if let Some(stripped) = rest.strip_prefix('"') {
+                    stripped.split('"').next().unwrap_or("")
                 } else {
                     rest.split(|c: char| c == ';' || c.is_whitespace())
                         .next()
@@ -315,8 +315,8 @@ pub(crate) fn parse_mime_headers(header: &str) -> MimeInfo {
             // extract boundary
             if let Some(pos) = val_lower.find("boundary=") {
                 let rest = &val[pos + 9..];
-                let b = if rest.starts_with('"') {
-                    rest[1..].split('"').next().unwrap_or("")
+                let b = if let Some(stripped) = rest.strip_prefix('"') {
+                    stripped.split('"').next().unwrap_or("")
                 } else {
                     rest.split(|c: char| c == ';' || c.is_whitespace())
                         .next()
@@ -348,8 +348,8 @@ pub(crate) fn parse_mime_headers(header: &str) -> MimeInfo {
             }
             if let Some(pos) = val_lower.find("filename=") {
                 let rest = &val[pos + 9..];
-                let f = if rest.starts_with('"') {
-                    rest[1..].split('"').next().unwrap_or("")
+                let f = if let Some(stripped) = rest.strip_prefix('"') {
+                    stripped.split('"').next().unwrap_or("")
                 } else {
                     rest.split(|c: char| c == ';' || c.is_whitespace())
                         .next()
@@ -508,7 +508,7 @@ fn build_part_bodystructure(part_data: &[u8]) -> String {
         .unwrap_or_else(|| "NIL".to_string());
 
     let dsp = if let Some(ref disp) = info.disposition {
-        if let Some(ref fname) = info.disposition_filename.as_ref().or(info.name.as_ref()) {
+        if let Some(fname) = info.disposition_filename.as_ref().or(info.name.as_ref()) {
             format!(
                 "(\"{}\" (\"filename\" \"{}\"))",
                 disp,
@@ -594,7 +594,7 @@ pub(crate) fn build_bodystructure(data: &[u8]) -> String {
         .map(|id| format!("\"<{}>\"", id))
         .unwrap_or_else(|| "NIL".to_string());
     let dsp = if let Some(ref disp) = info.disposition {
-        if let Some(ref fname) = info.disposition_filename.as_ref().or(info.name.as_ref()) {
+        if let Some(fname) = info.disposition_filename.as_ref().or(info.name.as_ref()) {
             format!(
                 "(\"{}\" (\"filename\" \"{}\"))",
                 disp,

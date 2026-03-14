@@ -444,7 +444,7 @@ fn build_email_object(
     let include_all = properties.is_none();
     let props = properties.as_ref();
 
-    let wants = |name: &str| include_all || props.map_or(false, |p| p.contains(&name));
+    let wants = |name: &str| include_all || props.is_some_and(|p| p.contains(&name));
 
     let mut obj = serde_json::Map::new();
     obj.insert("id".to_string(), Value::String(email_id.to_string()));

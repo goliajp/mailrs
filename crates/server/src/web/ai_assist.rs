@@ -101,7 +101,7 @@ pub(super) async fn ai_polish(
     let lang_hint = req
         .language
         .as_deref()
-        .and_then(|l| sanitize_language(l))
+        .and_then(sanitize_language)
         .map(|l| format!("Respond in {l}."))
         .unwrap_or_default();
 

@@ -37,7 +37,7 @@ impl LdapConfig {
         if let Err(e) = ldap
             .simple_bind(&self.bind_dn, &self.bind_password)
             .await
-            .and_then(|res| res.success().map_err(Into::into))
+            .and_then(|res| res.success())
         {
             tracing::warn!(error = %e, "ldap service account bind failed");
             let _ = ldap.unbind().await;

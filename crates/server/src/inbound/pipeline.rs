@@ -118,6 +118,7 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
     DeliveryDecision::Accept { auth_header }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_inbound_pipeline(
     authenticator: &MessageAuthenticator,
     hostname: &str,
@@ -269,8 +270,6 @@ pub async fn run_inbound_pipeline(
             .unwrap_or(ehlo_domain);
         let disposition = if dmarc_quarantine {
             "quarantine"
-        } else if dmarc_str == "fail" {
-            "none"
         } else {
             "none"
         };

@@ -256,10 +256,10 @@ impl ManageSieveSession {
         let args = args.trim();
 
         // extract script name
-        let (name, rest) = if args.starts_with('"') {
-            let end = args[1..].find('"').unwrap_or(args.len() - 1);
-            let n = &args[1..=end];
-            (n.to_string(), args[end + 2..].trim())
+        let (name, rest) = if let Some(stripped) = args.strip_prefix('"') {
+            let end = stripped.find('"').unwrap_or(args.len() - 1);
+            let n = &stripped[..end];
+            (n.to_string(), stripped[end + 1..].trim())
         } else {
             match args.split_once(' ') {
                 Some((n, r)) => (n.to_string(), r.trim()),
@@ -348,7 +348,7 @@ impl ManageSieveSession {
 
     /// returns true if the session should be closed
     pub fn should_close(&self, responses: &[String]) -> bool {
-        responses.last().map_or(false, |r| r.contains("Bye"))
+        responses.last().is_some_and(|r| r.contains("Bye"))
     }
 }
 

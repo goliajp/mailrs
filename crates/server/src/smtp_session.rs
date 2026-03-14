@@ -1026,14 +1026,14 @@ where
                         subject: 7,
                         detail: 0,
                     }),
-                    &format!("Too many auth failures, try again in {remaining_secs}s"),
+                    format!("Too many auth failures, try again in {remaining_secs}s"),
                 );
                 if framed.send(resp.format()).await.is_err() {
                     return SessionAction::Close;
                 }
                 return SessionAction::Continue;
             }
-            let ok = verify_credentials(&ctx, &username, &password).await;
+            let ok = verify_credentials(ctx, &username, &password).await;
             let resp = if ok {
                 ctx.auth_guard.record_success(addr.ip(), &username);
                 session.set_authenticated(username.clone());
@@ -1101,14 +1101,14 @@ where
                                 subject: 7,
                                 detail: 0,
                             }),
-                            &format!("Too many auth failures, try again in {remaining_secs}s"),
+                            format!("Too many auth failures, try again in {remaining_secs}s"),
                         );
                         if framed.send(resp.format()).await.is_err() {
                             return SessionAction::Close;
                         }
                         return SessionAction::Continue;
                     }
-                    let ok = verify_credentials(&ctx, &username, &password).await;
+                    let ok = verify_credentials(ctx, &username, &password).await;
                     let resp = if ok {
                         ctx.auth_guard.record_success(addr.ip(), &username);
                         session.set_authenticated(username.clone());
@@ -1220,6 +1220,7 @@ fn is_local_domain(domain: &str, local_domains: &[String]) -> bool {
 }
 
 /// async post-delivery processing: contact upsert, content extraction, importance scoring, BIMI
+#[allow(clippy::too_many_arguments)]
 async fn post_delivery_process(
     mb_store: &mailrs_mailbox::MailboxStore,
     user: &str,
@@ -1270,11 +1271,11 @@ async fn post_delivery_process(
     let is_reply = mb_store.has_sent_to(user, sender).await.unwrap_or(false);
 
     let signals = ImportanceSignals {
-        is_mutual_contact: contact_info.as_ref().map_or(false, |c| c.is_mutual),
+        is_mutual_contact: contact_info.as_ref().is_some_and(|c| c.is_mutual),
         is_direct_recipient: true, // inbound to this user = direct
         is_reply_to_my_email: is_reply,
         has_action_items: false, // will be updated by AI analysis later
-        is_vip_sender: contact_info.as_ref().map_or(false, |c| c.is_vip),
+        is_vip_sender: contact_info.as_ref().is_some_and(|c| c.is_vip),
         is_bulk_sender: is_bulk,
         is_mailing_list: contact_info.as_ref().map_or(is_bulk, |c| c.is_mailing_list),
         is_automated: is_auto,

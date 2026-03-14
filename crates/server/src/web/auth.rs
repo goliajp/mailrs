@@ -810,10 +810,7 @@ pub(super) async fn totp_status(
         return Json(serde_json::json!({"enabled": false}));
     };
 
-    let enabled = match ds.get_totp_secret(&address).await {
-        Ok(Some((_, true, _))) => true,
-        _ => false,
-    };
+    let enabled = matches!(ds.get_totp_secret(&address).await, Ok(Some((_, true, _))));
 
     Json(serde_json::json!({"enabled": enabled}))
 }
