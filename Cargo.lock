@@ -1955,11 +1955,11 @@ dependencies = [
 
 [[package]]
 name = "mailrs-imap-proto"
-version = "0.7.0"
+version = "0.7.1"
 
 [[package]]
 name = "mailrs-mailbox"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "chrono",
  "mailrs-storage-maildir",
@@ -1970,7 +1970,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "chrono",
  "futures-util",
@@ -1986,7 +1986,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-server"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "arc-swap",
  "argon2",
@@ -2033,12 +2033,13 @@ dependencies = [
  "tower-http",
  "tracing",
  "urlencoding",
+ "uuid",
  "x509-parser 0.16.0",
 ]
 
 [[package]]
 name = "mailrs-smtp-client"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "hickory-resolver 0.25.2",
  "rustls",
@@ -2049,14 +2050,14 @@ dependencies = [
 
 [[package]]
 name = "mailrs-smtp-proto"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "base64",
 ]
 
 [[package]]
 name = "mailrs-storage-maildir"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "filetime",
  "hostname",
@@ -4152,9 +4153,9 @@ checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 
 [[package]]
 name = "uuid"
-version = "1.21.0"
+version = "1.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b672338555252d43fd2240c714dc444b8c6fb0a5c5335e65a07bba7742735ddb"
+checksum = "a68d3c8f01c0cfa54a75291d83601161799e4a89a39e0929f4b0354d88757a37"
 dependencies = [
  "getrandom 0.4.1",
  "js-sys",

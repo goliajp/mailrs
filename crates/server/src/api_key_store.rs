@@ -17,6 +17,7 @@ pub(crate) struct ApiKeyRecord {
     pub last_used_at: Option<DateTime<Utc>>,
     pub revoked_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    pub app_id: Option<i64>,
 }
 
 /// lightweight struct cached in Valkey for fast auth lookups
@@ -26,6 +27,9 @@ pub(crate) struct CachedApiKey {
     pub account_address: String,
     pub expires_at: Option<DateTime<Utc>>,
     pub id: i64,
+    /// if set, this is an app key; value is the app's internal id
+    #[serde(default)]
+    pub app_id: Option<i64>,
 }
 
 /// hex-encode a SHA-256 digest
@@ -79,6 +83,35 @@ pub(crate) async fn insert_api_key(
     Ok(id)
 }
 
+/// insert an API key for an app, returns the row id
+pub(crate) async fn insert_app_api_key(
+    pool: &PgPool,
+    prefix: &str,
+    key_hash: &str,
+    full_key: &str,
+    account_address: &str,
+    name: &str,
+    app_id: i64,
+    expires_at: Option<DateTime<Utc>>,
+) -> Result<i64, sqlx::Error> {
+    let id = sqlx::query_scalar::<_, i64>(
+        "INSERT INTO api_keys (prefix, key_hash, full_key, account_address, name, app_id, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id",
+    )
+    .bind(prefix)
+    .bind(key_hash)
+    .bind(full_key)
+    .bind(account_address)
+    .bind(name)
+    .bind(app_id)
+    .bind(expires_at)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(id)
+}
+
 /// look up an active (non-revoked) API key by prefix
 pub(crate) async fn get_api_key_by_prefix(
     pool: &PgPool,
@@ -86,7 +119,7 @@ pub(crate) async fn get_api_key_by_prefix(
 ) -> Result<Option<ApiKeyRecord>, sqlx::Error> {
     sqlx::query_as::<_, ApiKeyRecord>(
         "SELECT id, prefix, key_hash, account_address, name, full_key, expires_at,
-                last_used_at, revoked_at, created_at
+                last_used_at, revoked_at, created_at, app_id
          FROM api_keys
          WHERE prefix = $1 AND revoked_at IS NULL",
     )
@@ -102,7 +135,7 @@ pub(crate) async fn list_api_keys(
 ) -> Result<Vec<ApiKeyRecord>, sqlx::Error> {
     sqlx::query_as::<_, ApiKeyRecord>(
         "SELECT id, prefix, key_hash, account_address, name, full_key, expires_at,
-                last_used_at, revoked_at, created_at
+                last_used_at, revoked_at, created_at, app_id
          FROM api_keys
          WHERE account_address = $1 AND revoked_at IS NULL
          ORDER BY created_at DESC",
