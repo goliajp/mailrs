@@ -503,7 +503,7 @@ impl MailMcpService {
                 return Err(McpError::invalid_params(e, None));
             }
             crate::users::UserStore::hash_password(&params.password)
-                .unwrap_or_else(|_| params.password.clone())
+                .map_err(|_| McpError::internal_error("failed to hash password", None))?
         };
 
         ds.add_account(&params.address, &params.domain, &params.display_name, &password_hash, 0)
