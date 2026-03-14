@@ -611,6 +611,15 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             post(mail::save_draft).get(mail::list_drafts),
         )
         .route("/api/mail/drafts/{id}", delete(mail::delete_draft))
+        // signatures API
+        .route(
+            "/api/mail/signatures",
+            post(mail::save_signature).get(mail::list_signatures),
+        )
+        .route(
+            "/api/mail/signatures/{id}",
+            delete(mail::delete_signature),
+        )
         // templates API
         .route(
             "/api/mail/templates",
