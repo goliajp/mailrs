@@ -553,6 +553,11 @@ where
                                 ResolvedRecipient::Account(addr) => {
                                     local_rcpts.push(addr);
                                 }
+                                ResolvedRecipient::Group(members) => {
+                                    for m in members {
+                                        local_rcpts.push(m);
+                                    }
+                                }
                                 ResolvedRecipient::Forward(addrs) => {
                                     for a in addrs {
                                         if a.split_once('@')

@@ -54,6 +54,8 @@ pub struct Alias {
 #[derive(Debug, Clone)]
 pub enum ResolvedRecipient {
     Account(String),
+    /// group email: deliver a copy to each member's mailbox
+    Group(Vec<String>),
     Forward(Vec<String>),
     Reject,
 }
@@ -554,7 +556,23 @@ impl DomainStore {
             return ResolvedRecipient::Account(address.to_string());
         }
 
-        // 2. exact alias match
+        // 2. email group match
+        let group_members: Vec<(String,)> = sqlx::query_as(
+            "SELECT m.member_address FROM email_group_members m \
+             JOIN email_groups g ON g.id = m.group_id \
+             WHERE g.address = $1",
+        )
+        .bind(address)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+
+        if !group_members.is_empty() {
+            let members: Vec<String> = group_members.into_iter().map(|(a,)| a).collect();
+            return ResolvedRecipient::Group(members);
+        }
+
+        // 3. exact alias match
         let targets: Vec<(String, String)> = sqlx::query_as(
             "SELECT target_address, alias_type FROM aliases \
              WHERE source_address = $1 AND active = true",
@@ -699,7 +717,7 @@ impl DomainStore {
                 .collect();
 
         // reverse alias lookup: addresses that alias TO this account
-        let send_as: Vec<String> = sqlx::query_as::<_, (String,)>(
+        let mut send_as: Vec<String> = sqlx::query_as::<_, (String,)>(
             "SELECT source_address FROM aliases \
              WHERE target_address = $1 AND alias_type = 'alias' AND active = true \
              ORDER BY source_address",
@@ -710,6 +728,22 @@ impl DomainStore {
         .into_iter()
         .map(|(a,)| a)
         .collect();
+
+        // email group memberships: member can send as group address
+        let group_addrs: Vec<(String,)> = sqlx::query_as(
+            "SELECT g.address FROM email_groups g \
+             JOIN email_group_members m ON m.group_id = g.id \
+             WHERE m.member_address = $1 \
+             ORDER BY g.address",
+        )
+        .bind(address)
+        .fetch_all(pool)
+        .await?;
+        for (ga,) in group_addrs {
+            if !send_as.contains(&ga) {
+                send_as.push(ga);
+            }
+        }
 
         let perms =
             compute_effective_permissions(&groups, &override_rows, &all_domains).with_send_as(send_as);
@@ -1103,6 +1137,148 @@ impl DomainStore {
             .await?;
         Ok(res.rows_affected() > 0)
     }
+
+    // --- email groups ---
+
+    pub async fn list_email_groups(&self, domain: Option<&str>) -> Result<Vec<EmailGroup>> {
+        let pool = self.pg()?;
+        let rows = if let Some(d) = domain {
+            sqlx::query_as::<_, (i64, String, String, String, String, i64)>(
+                "SELECT id, address, domain, name, description, \
+                 EXTRACT(EPOCH FROM created_at)::bigint \
+                 FROM email_groups WHERE domain = $1 ORDER BY address",
+            )
+            .bind(d)
+            .fetch_all(pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, (i64, String, String, String, String, i64)>(
+                "SELECT id, address, domain, name, description, \
+                 EXTRACT(EPOCH FROM created_at)::bigint \
+                 FROM email_groups ORDER BY address",
+            )
+            .fetch_all(pool)
+            .await?
+        };
+        Ok(rows
+            .into_iter()
+            .map(|(id, address, domain, name, description, created_at)| EmailGroup {
+                id, address, domain, name, description, created_at,
+            })
+            .collect())
+    }
+
+    pub async fn create_email_group(
+        &self,
+        address: &str,
+        domain: &str,
+        name: &str,
+        description: &str,
+    ) -> Result<i64> {
+        let pool = self.pg()?;
+        let (id,) = sqlx::query_as::<_, (i64,)>(
+            "INSERT INTO email_groups (address, domain, name, description) \
+             VALUES ($1, $2, $3, $4) RETURNING id",
+        )
+        .bind(address)
+        .bind(domain)
+        .bind(name)
+        .bind(description)
+        .fetch_one(pool)
+        .await?;
+        // invalidate recipient cache for this address
+        self.valkey_del(&format!("rcpt:{address}")).await;
+        Ok(id)
+    }
+
+    pub async fn remove_email_group(&self, id: i64) -> Result<Option<String>> {
+        let pool = self.pg()?;
+        let addr = sqlx::query_as::<_, (String,)>(
+            "DELETE FROM email_groups WHERE id = $1 RETURNING address",
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+        if let Some((ref address,)) = addr {
+            self.valkey_del(&format!("rcpt:{address}")).await;
+        }
+        Ok(addr.map(|(a,)| a))
+    }
+
+    pub async fn list_email_group_members(&self, group_id: i64) -> Result<Vec<String>> {
+        let pool = self.pg()?;
+        let rows = sqlx::query_as::<_, (String,)>(
+            "SELECT member_address FROM email_group_members \
+             WHERE group_id = $1 ORDER BY member_address",
+        )
+        .bind(group_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows.into_iter().map(|(a,)| a).collect())
+    }
+
+    pub async fn add_email_group_member(&self, group_id: i64, member: &str) -> Result<()> {
+        let pool = self.pg()?;
+        sqlx::query(
+            "INSERT INTO email_group_members (group_id, member_address) \
+             VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        )
+        .bind(group_id)
+        .bind(member)
+        .execute(pool)
+        .await?;
+        // invalidate group address cache + member's permissions (send_as)
+        let addr = sqlx::query_as::<_, (String,)>(
+            "SELECT address FROM email_groups WHERE id = $1",
+        )
+        .bind(group_id)
+        .fetch_optional(pool)
+        .await?;
+        if let Some((ref address,)) = addr {
+            self.valkey_del(&format!("rcpt:{address}")).await;
+        }
+        self.invalidate_permissions(member).await;
+        Ok(())
+    }
+
+    pub async fn remove_email_group_member(
+        &self,
+        group_id: i64,
+        member: &str,
+    ) -> Result<bool> {
+        let pool = self.pg()?;
+        let res = sqlx::query(
+            "DELETE FROM email_group_members WHERE group_id = $1 AND member_address = $2",
+        )
+        .bind(group_id)
+        .bind(member)
+        .execute(pool)
+        .await?;
+        // invalidate caches
+        let addr = sqlx::query_as::<_, (String,)>(
+            "SELECT address FROM email_groups WHERE id = $1",
+        )
+        .bind(group_id)
+        .fetch_optional(pool)
+        .await?;
+        if let Some((ref address,)) = addr {
+            self.valkey_del(&format!("rcpt:{address}")).await;
+        }
+        self.invalidate_permissions(member).await;
+        Ok(res.rows_affected() > 0)
+    }
+}
+
+// --- EmailGroup struct ---
+
+#[derive(Debug, Serialize, Clone)]
+pub struct EmailGroup {
+    pub id: i64,
+    pub address: String,
+    pub domain: String,
+    pub name: String,
+    pub description: String,
+    pub created_at: i64,
 }
 
 // --- App struct ---
@@ -1133,6 +1309,7 @@ impl From<CachedResolution> for ResolvedRecipient {
             "account" => {
                 ResolvedRecipient::Account(c.addresses.into_iter().next().unwrap_or_default())
             }
+            "group" => ResolvedRecipient::Group(c.addresses),
             "forward" => ResolvedRecipient::Forward(c.addresses),
             _ => ResolvedRecipient::Reject,
         }
@@ -1145,6 +1322,10 @@ impl From<&ResolvedRecipient> for CachedResolution {
             ResolvedRecipient::Account(a) => CachedResolution {
                 kind: "account".into(),
                 addresses: vec![a.clone()],
+            },
+            ResolvedRecipient::Group(members) => CachedResolution {
+                kind: "group".into(),
+                addresses: members.clone(),
             },
             ResolvedRecipient::Forward(addrs) => CachedResolution {
                 kind: "forward".into(),
