@@ -134,6 +134,167 @@ pub(crate) struct GetAccountPermissionsParams {
     pub address: String,
 }
 
+// --- domain management ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListDomainsParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct AddDomainParams {
+    /// domain name (e.g. "example.com")
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct RemoveDomainParams {
+    /// domain name to remove
+    pub name: String,
+}
+
+// --- alias management ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListAliasesParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct AddAliasParams {
+    /// source address (the alias, e.g. "team@golia.jp")
+    pub source_address: String,
+    /// target address (receives mail, e.g. "user@golia.jp")
+    pub target_address: String,
+    /// domain name
+    pub domain: String,
+    /// "alias" (local delivery) or "forward" (remote forward)
+    #[serde(default = "default_alias_type")]
+    pub alias_type: String,
+}
+
+fn default_alias_type() -> String {
+    "alias".into()
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct RemoveAliasParams {
+    /// alias ID from list_aliases
+    pub id: i64,
+}
+
+// --- app management ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListAppsParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct CreateAppParams {
+    /// app display name
+    pub name: String,
+    /// app description
+    #[serde(default)]
+    pub description: String,
+    /// comma-separated permission scopes
+    pub scopes: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct DeleteAppParams {
+    /// app_id (UUID) from list_apps
+    pub app_id: String,
+}
+
+// --- webhook management ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListWebhooksParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct CreateWebhookParams {
+    /// callback URL (must be https, or http for localhost)
+    pub url: String,
+    /// event type (default: "new_message")
+    #[serde(default = "default_event_type")]
+    pub event_type: String,
+    /// optional: only trigger for emails from this sender
+    #[serde(default)]
+    pub filter_sender: Option<String>,
+    /// optional: only trigger for this thread
+    #[serde(default)]
+    pub filter_thread_id: Option<String>,
+}
+
+fn default_event_type() -> String {
+    "new_message".into()
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct DeleteWebhookParams {
+    /// webhook ID from list_webhooks
+    pub id: i64,
+}
+
+// --- mail operations ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GetFoldersParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct MarkThreadReadParams {
+    /// thread ID
+    pub thread_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct MarkThreadUnreadParams {
+    /// thread ID
+    pub thread_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct StarThreadParams {
+    /// thread ID
+    pub thread_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct UnstarThreadParams {
+    /// thread ID
+    pub thread_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ArchiveThreadParams {
+    /// thread ID
+    pub thread_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct UnarchiveThreadParams {
+    /// thread ID
+    pub thread_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct DeleteThreadParams {
+    /// thread ID
+    pub thread_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GetCategoriesParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GetContactsParams {}
+
+// --- queue management ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GetQueueParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct RetryQueueMessageParams {
+    /// queue message ID
+    pub id: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,5 +412,193 @@ mod tests {
     fn list_groups_params_empty() {
         let json = r#"{}"#;
         let _params: ListGroupsParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn list_domains_params_empty() {
+        let json = r#"{}"#;
+        let _params: ListDomainsParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn add_domain_params_schema() {
+        let schema = schema_for!(AddDomainParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("name"));
+    }
+
+    #[test]
+    fn remove_domain_params_schema() {
+        let schema = schema_for!(RemoveDomainParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("name"));
+    }
+
+    #[test]
+    fn list_aliases_params_empty() {
+        let json = r#"{}"#;
+        let _params: ListAliasesParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn add_alias_params_schema() {
+        let schema = schema_for!(AddAliasParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("source_address"));
+        assert!(json.contains("target_address"));
+        assert!(json.contains("domain"));
+        assert!(json.contains("alias_type"));
+    }
+
+    #[test]
+    fn add_alias_params_default_type() {
+        let json = r#"{"source_address": "a@b.com", "target_address": "c@b.com", "domain": "b.com"}"#;
+        let params: AddAliasParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.alias_type, "alias");
+    }
+
+    #[test]
+    fn remove_alias_params_schema() {
+        let schema = schema_for!(RemoveAliasParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("id"));
+    }
+
+    #[test]
+    fn list_apps_params_empty() {
+        let json = r#"{}"#;
+        let _params: ListAppsParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn create_app_params_schema() {
+        let schema = schema_for!(CreateAppParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("name"));
+        assert!(json.contains("scopes"));
+    }
+
+    #[test]
+    fn create_app_params_default_description() {
+        let json = r#"{"name": "My App", "scopes": "read,write"}"#;
+        let params: CreateAppParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.description, "");
+    }
+
+    #[test]
+    fn delete_app_params_schema() {
+        let schema = schema_for!(DeleteAppParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("app_id"));
+    }
+
+    #[test]
+    fn list_webhooks_params_empty() {
+        let json = r#"{}"#;
+        let _params: ListWebhooksParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn create_webhook_params_schema() {
+        let schema = schema_for!(CreateWebhookParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("url"));
+        assert!(json.contains("event_type"));
+    }
+
+    #[test]
+    fn create_webhook_params_defaults() {
+        let json = r#"{"url": "https://example.com/hook"}"#;
+        let params: CreateWebhookParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.event_type, "new_message");
+        assert!(params.filter_sender.is_none());
+        assert!(params.filter_thread_id.is_none());
+    }
+
+    #[test]
+    fn delete_webhook_params_schema() {
+        let schema = schema_for!(DeleteWebhookParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("id"));
+    }
+
+    #[test]
+    fn get_folders_params_empty() {
+        let json = r#"{}"#;
+        let _params: GetFoldersParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn mark_thread_read_params_schema() {
+        let schema = schema_for!(MarkThreadReadParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("thread_id"));
+    }
+
+    #[test]
+    fn mark_thread_unread_params_schema() {
+        let schema = schema_for!(MarkThreadUnreadParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("thread_id"));
+    }
+
+    #[test]
+    fn star_thread_params_schema() {
+        let schema = schema_for!(StarThreadParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("thread_id"));
+    }
+
+    #[test]
+    fn unstar_thread_params_schema() {
+        let schema = schema_for!(UnstarThreadParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("thread_id"));
+    }
+
+    #[test]
+    fn archive_thread_params_schema() {
+        let schema = schema_for!(ArchiveThreadParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("thread_id"));
+    }
+
+    #[test]
+    fn unarchive_thread_params_schema() {
+        let schema = schema_for!(UnarchiveThreadParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("thread_id"));
+    }
+
+    #[test]
+    fn delete_thread_params_schema() {
+        let schema = schema_for!(DeleteThreadParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("thread_id"));
+    }
+
+    #[test]
+    fn get_categories_params_empty() {
+        let json = r#"{}"#;
+        let _params: GetCategoriesParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn get_contacts_params_empty() {
+        let json = r#"{}"#;
+        let _params: GetContactsParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn get_queue_params_empty() {
+        let json = r#"{}"#;
+        let _params: GetQueueParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn retry_queue_message_params_schema() {
+        let schema = schema_for!(RetryQueueMessageParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("id"));
     }
 }
