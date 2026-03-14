@@ -25,7 +25,9 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-5 tools auto-discovered:
+13 tools auto-discovered:
+
+### Email Tools
 
 | Tool | Description |
 |------|-------------|
@@ -34,6 +36,19 @@ Config for Claude Code or any MCP client:
 | search_emails | Search by keyword, returns conversation summaries |
 | reply_email | Reply to a thread by thread_id |
 | list_conversations | List recent conversations with filters |
+
+### Account & Permission Management Tools
+
+| Tool | Permission Required | Description |
+|------|-------------------|-------------|
+| list_accounts | admin.accounts | List all email accounts (address, domain, display_name, active) |
+| create_account | admin.accounts | Create a new account (onboarding). Auto-joins domain's user group |
+| remove_account | admin.accounts | Remove an account (offboarding). Cascades group memberships |
+| set_account_password | admin.accounts | Reset an account's password (argon2 hashed) |
+| list_groups | admin.groups | List all permission groups (id, name, domain, builtin flag) |
+| get_account_permissions | admin.groups | Get account's groups and effective permissions |
+| add_account_to_group | admin.groups | Add account to a permission group |
+| remove_account_from_group | admin.groups | Remove account from a permission group |
 
 ### send_email parameters
 ```json
@@ -86,9 +101,95 @@ Config for Claude Code or any MCP client:
 }
 ```
 
+### create_account parameters
+```json
+{
+  "address": "newuser@golia.jp",
+  "domain": "golia.jp",
+  "display_name": "New User",
+  "password": "initial-password"
+}
+```
+
+### remove_account parameters
+```json
+{
+  "address": "user@golia.jp"
+}
+```
+
+### set_account_password parameters
+```json
+{
+  "address": "user@golia.jp",
+  "password": "new-password"
+}
+```
+
+### get_account_permissions parameters
+```json
+{
+  "address": "user@golia.jp"
+}
+```
+Response includes groups, effective permissions, accessible domains, and super status.
+
+### add_account_to_group / remove_account_from_group parameters
+```json
+{
+  "address": "user@golia.jp",
+  "group_id": 1
+}
+```
+
 ---
 
-## 2. REST API
+## 2. Permission System
+
+mailrs uses group-based RBAC (role-based access control). This is essential infrastructure for employee onboarding/offboarding.
+
+### Permission List
+
+| Permission | Description |
+|-----------|-------------|
+| mail.send | Send emails |
+| mail.read | Read own mailbox |
+| mail.read_domain | Read all mailboxes in a domain |
+| admin.domains | Manage domains |
+| admin.accounts | Manage accounts (create, remove, password reset) |
+| admin.aliases | Manage email aliases and forwarding |
+| admin.groups | Manage permission groups and memberships |
+| admin.queue | Manage outbound delivery queue |
+| admin.sieve | Manage sieve filtering scripts |
+| admin.impersonate | Send as other users |
+
+### Groups
+
+- **Global groups** (domain = null): permissions apply across all domains
+- **Domain groups** (domain = "golia.jp"): permissions scoped to that domain
+- **Built-in groups**: `super` (global, all permissions) and `user` (per-domain, mail.send + mail.read)
+
+### Effective Permission Calculation
+
+```
+effective = (union of all group permissions) + account grants - account revokes
+```
+
+If account is in the `super` group → all permissions on all domains.
+
+### Onboarding Workflow
+
+1. `create_account` — creates account with password, auto-joins domain's `user` group
+2. `add_account_to_group` — optionally add to admin or custom groups
+3. Account can now log in and send/receive email
+
+### Offboarding Workflow
+
+1. `remove_account` — removes account, group memberships, API keys, and permission overrides cascade-deleted via FK
+
+---
+
+## 3. REST API
 
 ### Send email
 
@@ -183,9 +284,62 @@ Response:
 }
 ```
 
+### Account Management (requires admin.accounts)
+
+```
+# list accounts
+curl https://mail.golia.ai/api/admin/accounts \
+  -H "Authorization: Bearer mlrs_..."
+
+# create account
+curl -X POST https://mail.golia.ai/api/admin/accounts \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"address": "new@golia.jp", "domain": "golia.jp", "display_name": "New User", "password": "secret"}'
+
+# remove account
+curl -X DELETE https://mail.golia.ai/api/admin/accounts/old@golia.jp \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+### Group & Permission Management (requires admin.groups)
+
+```
+# list all groups
+curl https://mail.golia.ai/api/admin/groups \
+  -H "Authorization: Bearer mlrs_..."
+
+# list all available permissions
+curl https://mail.golia.ai/api/admin/permissions \
+  -H "Authorization: Bearer mlrs_..."
+
+# get account's groups
+curl https://mail.golia.ai/api/admin/accounts/user@golia.jp/groups \
+  -H "Authorization: Bearer mlrs_..."
+
+# add account to group
+curl -X POST https://mail.golia.ai/api/admin/groups/1/members \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"address": "user@golia.jp"}'
+
+# remove account from group
+curl -X DELETE https://mail.golia.ai/api/admin/groups/1/members/user@golia.jp \
+  -H "Authorization: Bearer mlrs_..."
+
+# get/set account permission overrides
+curl https://mail.golia.ai/api/admin/accounts/user@golia.jp/overrides \
+  -H "Authorization: Bearer mlrs_..."
+
+curl -X PUT https://mail.golia.ai/api/admin/accounts/user@golia.jp/overrides \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"overrides": [{"permission": "admin.aliases", "granted": true}]}'
+```
+
 ---
 
-## 3. Webhooks
+## 4. Webhooks
 
 ### Create webhook subscription
 
@@ -248,7 +402,7 @@ curl -X DELETE https://mail.golia.ai/api/agent/webhooks/1 \
 
 ---
 
-## 4. API Key Management
+## 5. API Key Management
 
 API keys must be created via session auth (web login), not via another API key.
 
@@ -290,17 +444,18 @@ Revocation is immediate. Cached credentials are evicted from Valkey.
 
 ---
 
-## 5. Auth Notes
+## 6. Auth Notes
 
 - API key format: `mlrs_{8-char prefix}_{40-char secret}` (54 chars total)
 - Keys are SHA-256 hashed in DB, cached in Valkey for fast lookup (5min TTL)
-- Superadmin keys can set `from` to any address in managed domains
+- Admin keys (with admin.accounts/admin.groups permissions) can manage accounts and groups
+- Super users can set `from` to any address across all managed domains
 - Regular keys can only send as the associated account
 - Session tokens are obtained via `POST /api/auth/login` with `{"address":"...","password":"..."}`
 
 ---
 
-## 6. Error Responses
+## 7. Error Responses
 
 All errors return JSON:
 ```json

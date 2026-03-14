@@ -70,6 +70,70 @@ pub(crate) struct ListConversationsParams {
     pub category: Option<String>,
 }
 
+// --- admin / user management parameter structs ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct CreateAccountParams {
+    /// email address (e.g. "user@golia.jp")
+    pub address: String,
+    /// domain name (e.g. "golia.jp")
+    pub domain: String,
+    /// display name
+    #[serde(default)]
+    pub display_name: String,
+    /// password (will be argon2-hashed)
+    #[serde(default)]
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct RemoveAccountParams {
+    /// email address to remove
+    pub address: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListAccountsParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct SetAccountPasswordParams {
+    /// email address
+    pub address: String,
+    /// new password (will be argon2-hashed)
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListGroupsParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GetAccountGroupsParams {
+    /// email address
+    pub address: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct AddAccountToGroupParams {
+    /// email address
+    pub address: String,
+    /// group ID
+    pub group_id: i64,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct RemoveAccountFromGroupParams {
+    /// email address
+    pub address: String,
+    /// group ID
+    pub group_id: i64,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GetAccountPermissionsParams {
+    /// email address
+    pub address: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +200,56 @@ mod tests {
         let params: ListConversationsParams = serde_json::from_str(json).unwrap();
         assert!(params.limit.is_none());
         assert!(params.category.is_none());
+    }
+
+    #[test]
+    fn create_account_params_schema_generation() {
+        let schema = schema_for!(CreateAccountParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("address"));
+        assert!(json.contains("domain"));
+    }
+
+    #[test]
+    fn create_account_params_deserialize() {
+        let json = r#"{"address": "new@golia.jp", "domain": "golia.jp", "display_name": "New", "password": "secret"}"#;
+        let params: CreateAccountParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.address, "new@golia.jp");
+        assert_eq!(params.domain, "golia.jp");
+    }
+
+    #[test]
+    fn create_account_params_defaults() {
+        let json = r#"{"address": "a@b.com", "domain": "b.com"}"#;
+        let params: CreateAccountParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.display_name, "");
+        assert_eq!(params.password, "");
+    }
+
+    #[test]
+    fn add_account_to_group_params_schema() {
+        let schema = schema_for!(AddAccountToGroupParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("address"));
+        assert!(json.contains("group_id"));
+    }
+
+    #[test]
+    fn get_account_permissions_params_schema() {
+        let schema = schema_for!(GetAccountPermissionsParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("address"));
+    }
+
+    #[test]
+    fn list_accounts_params_empty() {
+        let json = r#"{}"#;
+        let _params: ListAccountsParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn list_groups_params_empty() {
+        let json = r#"{}"#;
+        let _params: ListGroupsParams = serde_json::from_str(json).unwrap();
     }
 }

@@ -26,8 +26,10 @@ tokio::task_local! {
 }
 
 use self::tools::{
-    ListConversationsParams, ReadEmailParams, ReplyEmailParams, SearchEmailsParams,
-    SendEmailParams,
+    AddAccountToGroupParams, CreateAccountParams, GetAccountPermissionsParams,
+    ListAccountsParams, ListConversationsParams, ListGroupsParams, ReadEmailParams,
+    RemoveAccountFromGroupParams, RemoveAccountParams, ReplyEmailParams, SearchEmailsParams,
+    SendEmailParams, SetAccountPasswordParams,
 };
 
 /// MCP service that exposes mailrs operations as MCP tools
@@ -420,6 +422,223 @@ impl MailMcpService {
             serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string()),
         )]))
     }
+
+    // --- admin / user management tools ---
+
+    /// helper: check permission and return MCP error if denied
+    fn require_permission(&self, perm: &str) -> Result<(), McpError> {
+        if self.auth_user.permissions.has(perm) {
+            Ok(())
+        } else {
+            Err(McpError::invalid_params(
+                format!("insufficient permissions: requires {perm}"),
+                None,
+            ))
+        }
+    }
+
+    #[tool(description = "List all email accounts. Requires admin.accounts permission. Returns address, domain, display_name, active status.")]
+    async fn list_accounts(
+        &self,
+        Parameters(_params): Parameters<ListAccountsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.web_state.domain_store.as_ref()
+            .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
+
+        let accounts = ds.list_accounts().await
+            .map_err(|e| McpError::internal_error(format!("failed to list accounts: {e}"), None))?;
+
+        let items: Vec<serde_json::Value> = accounts.into_iter().map(|a| {
+            serde_json::json!({
+                "address": a.address,
+                "domain": a.domain,
+                "display_name": a.display_name,
+                "active": a.active,
+            })
+        }).collect();
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&items).unwrap_or_else(|_| "[]".into()),
+        )]))
+    }
+
+    #[tool(description = "Create a new email account (onboarding). Requires admin.accounts permission. Automatically adds account to the domain's default user group.")]
+    async fn create_account(
+        &self,
+        Parameters(params): Parameters<CreateAccountParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.web_state.domain_store.as_ref()
+            .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
+
+        let password_hash = if params.password.is_empty() {
+            String::new()
+        } else {
+            crate::users::UserStore::hash_password(&params.password)
+                .unwrap_or_else(|_| params.password.clone())
+        };
+
+        ds.add_account(&params.address, &params.domain, &params.display_name, &password_hash, 0)
+            .await
+            .map_err(|e| McpError::internal_error(format!("failed to create account: {e}"), None))?;
+
+        // auto-add to domain's user group
+        let groups = ds.list_groups(Some(&params.domain)).await.unwrap_or_default();
+        if let Some(user_group) = groups.iter().find(|g| g.name == "user" && g.domain.as_deref() == Some(&params.domain)) {
+            let _ = ds.add_account_to_group(&params.address, user_group.id).await;
+        }
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({"status": "created", "address": params.address}).to_string(),
+        )]))
+    }
+
+    #[tool(description = "Remove an email account (offboarding). Requires admin.accounts permission. Removes account, group memberships, and permission overrides.")]
+    async fn remove_account(
+        &self,
+        Parameters(params): Parameters<RemoveAccountParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.web_state.domain_store.as_ref()
+            .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
+
+        let removed = ds.remove_account(&params.address).await
+            .map_err(|e| McpError::internal_error(format!("failed to remove account: {e}"), None))?;
+
+        if removed {
+            Ok(CallToolResult::success(vec![Content::text(
+                serde_json::json!({"status": "removed", "address": params.address}).to_string(),
+            )]))
+        } else {
+            Err(McpError::invalid_params("account not found", None))
+        }
+    }
+
+    #[tool(description = "Reset an account's password. Requires admin.accounts permission.")]
+    async fn set_account_password(
+        &self,
+        Parameters(params): Parameters<SetAccountPasswordParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.accounts")?;
+        let ds = self.web_state.domain_store.as_ref()
+            .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
+
+        let password_hash = crate::users::UserStore::hash_password(&params.password)
+            .map_err(|e| McpError::internal_error(format!("failed to hash password: {e}"), None))?;
+
+        // re-add account with new password (upsert)
+        let existing = ds.get_account_with_hash(&params.address).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?
+            .ok_or_else(|| McpError::invalid_params("account not found", None))?;
+
+        ds.add_account(
+            &params.address,
+            &existing.0.domain,
+            &existing.0.display_name,
+            &password_hash,
+            0,
+        ).await
+            .map_err(|e| McpError::internal_error(format!("failed to update password: {e}"), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({"status": "password_updated", "address": params.address}).to_string(),
+        )]))
+    }
+
+    #[tool(description = "List all permission groups. Returns group id, name, domain (null=global), and builtin flag.")]
+    async fn list_groups(
+        &self,
+        Parameters(_params): Parameters<ListGroupsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.groups")?;
+        let ds = self.web_state.domain_store.as_ref()
+            .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
+
+        let groups = ds.list_groups(None).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        let items: Vec<serde_json::Value> = groups.into_iter().map(|g| {
+            serde_json::json!({
+                "id": g.id,
+                "name": g.name,
+                "domain": g.domain,
+                "is_builtin": g.is_builtin,
+                "description": g.description,
+            })
+        }).collect();
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&items).unwrap_or_else(|_| "[]".into()),
+        )]))
+    }
+
+    #[tool(description = "Get groups and effective permissions for an account. Returns the groups the account belongs to and computed permission list.")]
+    async fn get_account_permissions(
+        &self,
+        Parameters(params): Parameters<GetAccountPermissionsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.groups")?;
+        let ds = self.web_state.domain_store.as_ref()
+            .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
+
+        let groups = ds.get_account_groups(&params.address).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let perms = ds.load_account_permissions(&params.address).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        let group_items: Vec<serde_json::Value> = groups.into_iter().map(|g| {
+            serde_json::json!({"id": g.id, "name": g.name, "domain": g.domain})
+        }).collect();
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({
+                "address": params.address,
+                "groups": group_items,
+                "permissions": perms.permission_list(),
+                "accessible_domains": perms.accessible_domains(),
+                "is_super": perms.is_super(),
+            }).to_string(),
+        )]))
+    }
+
+    #[tool(description = "Add an account to a permission group. Use list_groups to find group IDs. Requires admin.groups permission.")]
+    async fn add_account_to_group(
+        &self,
+        Parameters(params): Parameters<AddAccountToGroupParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.groups")?;
+        let ds = self.web_state.domain_store.as_ref()
+            .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
+
+        ds.add_account_to_group(&params.address, params.group_id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({"status": "added", "address": params.address, "group_id": params.group_id}).to_string(),
+        )]))
+    }
+
+    #[tool(description = "Remove an account from a permission group. Requires admin.groups permission.")]
+    async fn remove_account_from_group(
+        &self,
+        Parameters(params): Parameters<RemoveAccountFromGroupParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.groups")?;
+        let ds = self.web_state.domain_store.as_ref()
+            .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
+
+        let removed = ds.remove_account_from_group(&params.address, params.group_id).await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        if removed {
+            Ok(CallToolResult::success(vec![Content::text(
+                serde_json::json!({"status": "removed", "address": params.address, "group_id": params.group_id}).to_string(),
+            )]))
+        } else {
+            Err(McpError::invalid_params("membership not found", None))
+        }
+    }
 }
 
 #[tool_handler]
@@ -429,7 +648,7 @@ impl ServerHandler for MailMcpService {
             .with_protocol_version(ProtocolVersion::V_2025_03_26)
             .with_server_info(Implementation::new("mailrs", env!("CARGO_PKG_VERSION")))
             .with_instructions(
-                "mailrs MCP server — tools for sending, reading, searching, and replying to emails.",
+                "mailrs MCP server — tools for email operations (send, read, search, reply) and account/permission management (create/remove accounts, manage group memberships). Admin tools require appropriate permissions.",
             )
     }
 }
