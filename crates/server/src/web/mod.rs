@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use axum::middleware;
-use axum::routing::{delete, get, post, put};
+use axum::routing::{any, delete, get, post, put};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use tower_http::cors::CorsLayer;
@@ -20,6 +20,7 @@ mod api_key;
 mod auth;
 mod autodiscover;
 mod conversations;
+mod dav;
 mod jmap;
 pub(crate) mod mail;
 mod templates;
@@ -857,6 +858,16 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             "/mail/config-v1.1.xml",
             get(autodiscover::autoconfig_mozilla),
         )
+        // CalDAV / CardDAV (well-known redirects + DAV endpoints)
+        .route("/.well-known/caldav", any(dav::well_known_caldav))
+        .route("/.well-known/carddav", any(dav::well_known_carddav))
+        .route("/dav/", any(dav::dav_principal))
+        .route("/dav/calendars/{user}/", any(dav::dav_calendar_home))
+        .route("/dav/calendars/{user}/{calendar}/", any(dav::dav_calendar_collection))
+        .route("/dav/calendars/{user}/{calendar}/{uid}", any(dav::dav_event))
+        .route("/dav/contacts/{user}/", any(dav::dav_contact_home))
+        .route("/dav/contacts/{user}/{book}/", any(dav::dav_contact_collection))
+        .route("/dav/contacts/{user}/{book}/{uid}", any(dav::dav_contact))
         .layer(axum::extract::DefaultBodyLimit::max(MAX_MULTIPART_BODY))
         .layer(middleware::from_fn(request_id::request_id_middleware))
         .layer(middleware::from_fn_with_state(
