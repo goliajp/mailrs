@@ -79,7 +79,7 @@ impl MailMcpService {
         if let Err(msg) = crate::web::mail::verify_sender(
             from,
             &self.auth_user.address,
-            &self.auth_user.super_domains,
+            &self.auth_user.permissions,
         ) {
             return Err(McpError::invalid_params(msg, None));
         }
@@ -271,7 +271,7 @@ impl MailMcpService {
         if let Err(msg) = crate::web::mail::verify_sender(
             from,
             &self.auth_user.address,
-            &self.auth_user.super_domains,
+            &self.auth_user.permissions,
         ) {
             return Err(McpError::invalid_params(msg, None));
         }
@@ -451,7 +451,9 @@ pub fn setup_mcp(state: Arc<WebState>) -> axum::Router<Arc<WebState>> {
                 .unwrap_or_else(|_| AuthUser {
                     address: String::new(),
                     display_name: String::new(),
-                    super_domains: vec![],
+                    permissions: std::sync::Arc::new(
+                        crate::permission::compute_effective_permissions(&[], &[], &[]),
+                    ),
                     auth_method: AuthMethod::Session,
                 });
             Ok(MailMcpService::new(state_clone.clone(), auth_user))

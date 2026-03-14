@@ -35,7 +35,7 @@ const SESSION_TTL: Duration = Duration::from_secs(7 * 24 * 3600);
 pub(crate) struct SessionInfo {
     address: String,
     display_name: String,
-    super_domains: Vec<String>,
+    permissions: Arc<crate::permission::EffectivePermissions>,
     created_at: Instant,
 }
 
@@ -261,17 +261,18 @@ pub(super) fn clamp_offset(offset: u32) -> u32 {
     offset.min(MAX_OFFSET)
 }
 
-/// parse and validate domains query parameter against user's super_domains permission
+/// parse and validate domains query parameter against user's accessible domains
 pub(super) fn validate_domains(
     domains_param: Option<&str>,
-    super_domains: &[String],
+    permissions: &crate::permission::EffectivePermissions,
 ) -> Option<Vec<String>> {
     let raw = domains_param?;
     if raw.is_empty() {
         return None;
     }
 
-    if super_domains.is_empty() {
+    let accessible = permissions.accessible_domains();
+    if accessible.is_empty() {
         return None;
     }
 
@@ -281,10 +282,19 @@ pub(super) fn validate_domains(
         .filter(|s| !s.is_empty())
         .collect();
 
+    // super users can access all requested domains
+    if permissions.is_super() {
+        return if requested.is_empty() {
+            None
+        } else {
+            Some(requested)
+        };
+    }
+
     // only allow domains the user has permission for
     let validated: Vec<String> = requested
         .into_iter()
-        .filter(|d| super_domains.contains(d))
+        .filter(|d| accessible.contains(d))
         .collect();
 
     if validated.is_empty() {
@@ -725,6 +735,33 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
                 .post(admin::set_sieve)
                 .delete(admin::delete_sieve),
         )
+        // groups CRUD
+        .route(
+            "/api/admin/groups",
+            get(admin::list_groups).post(admin::create_group),
+        )
+        .route("/api/admin/groups/{id}", delete(admin::delete_group))
+        .route(
+            "/api/admin/groups/{id}/permissions",
+            get(admin::get_group_permissions).put(admin::set_group_permissions),
+        )
+        .route(
+            "/api/admin/groups/{id}/members",
+            get(admin::list_group_members).post(admin::add_group_member),
+        )
+        .route(
+            "/api/admin/groups/{id}/members/{address}",
+            delete(admin::remove_group_member),
+        )
+        .route(
+            "/api/admin/accounts/{address}/groups",
+            get(admin::get_account_groups),
+        )
+        .route(
+            "/api/admin/accounts/{address}/overrides",
+            get(admin::get_account_overrides).put(admin::set_account_overrides),
+        )
+        .route("/api/admin/permissions", get(admin::get_all_permissions))
         // smtp config
         .route("/api/admin/config/smtp", get(admin::get_smtp_config))
         // MTA-STS policy
@@ -793,51 +830,69 @@ mod tests {
 
     // --- validate_domains ---
 
+    fn make_perms(domains: &[&str]) -> crate::permission::EffectivePermissions {
+        use crate::permission::{compute_effective_permissions, AccountGroup, GroupInfo};
+        let groups: Vec<AccountGroup> = domains
+            .iter()
+            .map(|d| AccountGroup {
+                group: GroupInfo {
+                    id: 1,
+                    name: "user".into(),
+                    domain: Some(d.to_string()),
+                    description: String::new(),
+                    is_builtin: false,
+                    created_at: 0,
+                },
+                permissions: vec!["mail.send".into(), "mail.read".into()],
+            })
+            .collect();
+        compute_effective_permissions(&groups, &[], &[])
+    }
+
+    fn make_empty_perms() -> crate::permission::EffectivePermissions {
+        crate::permission::compute_effective_permissions(&[], &[], &[])
+    }
+
     #[test]
     fn validate_domains_returns_none_when_param_is_none() {
-        assert!(validate_domains(None, &[]).is_none());
+        assert!(validate_domains(None, &make_empty_perms()).is_none());
     }
 
     #[test]
     fn validate_domains_returns_none_when_param_is_empty() {
-        assert!(validate_domains(Some(""), &[]).is_none());
+        assert!(validate_domains(Some(""), &make_empty_perms()).is_none());
     }
 
     #[test]
-    fn validate_domains_returns_none_when_no_super_domains() {
-        assert!(validate_domains(Some("example.com"), &[]).is_none());
-    }
-
-    #[test]
-    fn validate_domains_returns_none_when_user_has_no_super_domains() {
-        assert!(validate_domains(Some("example.com"), &[]).is_none());
+    fn validate_domains_returns_none_when_no_accessible_domains() {
+        assert!(validate_domains(Some("example.com"), &make_empty_perms()).is_none());
     }
 
     #[test]
     fn validate_domains_returns_allowed_domain() {
-        let domains = vec!["example.com".to_string()];
-        let result = validate_domains(Some("example.com"), &domains);
+        let perms = make_perms(&["example.com"]);
+        let result = validate_domains(Some("example.com"), &perms);
         assert_eq!(result, Some(vec!["example.com".to_string()]));
     }
 
     #[test]
     fn validate_domains_filters_unauthorized_domains() {
-        let domains = vec!["example.com".to_string()];
-        let result = validate_domains(Some("example.com,evil.com"), &domains);
+        let perms = make_perms(&["example.com"]);
+        let result = validate_domains(Some("example.com,evil.com"), &perms);
         assert_eq!(result, Some(vec!["example.com".to_string()]));
     }
 
     #[test]
     fn validate_domains_returns_none_when_all_domains_unauthorized() {
-        let domains = vec!["example.com".to_string()];
-        let result = validate_domains(Some("evil.com"), &domains);
+        let perms = make_perms(&["example.com"]);
+        let result = validate_domains(Some("evil.com"), &perms);
         assert!(result.is_none());
     }
 
     #[test]
     fn validate_domains_handles_multiple_allowed_domains() {
-        let domains = vec!["example.com".to_string(), "example.org".to_string()];
-        let result = validate_domains(Some("example.com,example.org"), &domains);
+        let perms = make_perms(&["example.com", "example.org"]);
+        let result = validate_domains(Some("example.com,example.org"), &perms);
         assert_eq!(
             result,
             Some(vec!["example.com".to_string(), "example.org".to_string()])
@@ -846,15 +901,15 @@ mod tests {
 
     #[test]
     fn validate_domains_trims_whitespace() {
-        let domains = vec!["example.com".to_string()];
-        let result = validate_domains(Some("  example.com  ,  "), &domains);
+        let perms = make_perms(&["example.com"]);
+        let result = validate_domains(Some("  example.com  ,  "), &perms);
         assert_eq!(result, Some(vec!["example.com".to_string()]));
     }
 
     #[test]
     fn validate_domains_skips_empty_segments() {
-        let domains = vec!["example.com".to_string()];
-        let result = validate_domains(Some(",example.com,,"), &domains);
+        let perms = make_perms(&["example.com"]);
+        let result = validate_domains(Some(",example.com,,"), &perms);
         assert_eq!(result, Some(vec!["example.com".to_string()]));
     }
 

@@ -62,29 +62,9 @@ pub(crate) async fn mcp_auth_middleware(
                 }
             };
 
-            // resolve super_domains
-            let super_domains = if let Some(ref ds) = state.domain_store {
-                match ds
-                    .get_account_with_hash(&record.account_address)
-                    .await
-                    .map(|opt| opt.map(|(acct, _)| acct))
-                {
-                    Ok(Some(account)) => account
-                        .super_domains
-                        .split(',')
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect(),
-                    _ => vec![],
-                }
-            } else {
-                vec![]
-            };
-
             let entry = api_key_store::CachedApiKey {
                 key_hash: record.key_hash,
                 account_address: record.account_address,
-                super_domains,
                 expires_at: record.expires_at,
                 id: record.id,
             };
@@ -120,20 +100,30 @@ pub(crate) async fn mcp_auth_middleware(
         });
     }
 
-    // resolve display_name
-    let display_name = if let Some(ref ds) = state.domain_store {
-        match ds.get_account_with_hash(&cached.account_address).await {
+    // resolve display_name and permissions
+    let (display_name, permissions) = if let Some(ref ds) = state.domain_store {
+        let dn = match ds.get_account_with_hash(&cached.account_address).await {
             Ok(Some((account, _))) => account.display_name,
             _ => cached.account_address.clone(),
-        }
+        };
+        let perms = ds
+            .load_account_permissions(&cached.account_address)
+            .await
+            .unwrap_or_else(|_| {
+                crate::permission::compute_effective_permissions(&[], &[], &[])
+            });
+        (dn, perms)
     } else {
-        cached.account_address.clone()
+        (
+            cached.account_address.clone(),
+            crate::permission::compute_effective_permissions(&[], &[], &[]),
+        )
     };
 
     let auth_user = AuthUser {
         address: cached.account_address,
         display_name,
-        super_domains: cached.super_domains,
+        permissions: std::sync::Arc::new(permissions),
         auth_method: AuthMethod::ApiKey(cached.id),
     };
 

@@ -398,14 +398,21 @@ pub(super) async fn delete_message(
 
 /// check if a sender address is allowed for the authenticated user
 /// returns Ok(()) if allowed, Err(message) if not
-pub(crate) fn verify_sender(from: &str, user: &str, super_domains: &[String]) -> Result<(), &'static str> {
+pub(crate) fn verify_sender(
+    from: &str,
+    user: &str,
+    permissions: &crate::permission::EffectivePermissions,
+) -> Result<(), &'static str> {
     if from == user {
         return Ok(());
     }
-    // superadmin: check if from's domain is in super_domains
-    if !super_domains.is_empty() {
+    // super user or user with accessible domains
+    let accessible = permissions.accessible_domains();
+    if !accessible.is_empty() {
         if let Some(domain) = from.rsplit_once('@').map(|(_, d)| d) {
-            if super_domains.iter().any(|sd| sd.eq_ignore_ascii_case(domain)) {
+            if permissions.is_super()
+                || accessible.iter().any(|sd| sd.eq_ignore_ascii_case(domain))
+            {
                 return Ok(());
             }
         }
@@ -452,7 +459,7 @@ pub(crate) async fn resolve_thread_reply(
 }
 
 pub(super) async fn send_message(
-    AuthUser { address: user, super_domains, .. }: AuthUser,
+    AuthUser { address: user, permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SendMessageRequest>,
 ) -> impl IntoResponse {
@@ -492,8 +499,8 @@ pub(super) async fn send_message(
         &req.from
     };
 
-    // verify sender matches authenticated user (superadmin can use any address in super_domains)
-    if let Err(msg) = verify_sender(from, &user, &super_domains) {
+    // verify sender matches authenticated user
+    if let Err(msg) = verify_sender(from, &user, &permissions) {
         return Json(ApiResult {
             success: false,
             message: Some(msg.into()),
@@ -937,7 +944,7 @@ pub(crate) fn build_rfc5322_with_attachments(
 }
 
 pub(super) async fn send_message_multipart(
-    AuthUser { address: user, super_domains, .. }: AuthUser,
+    AuthUser { address: user, permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
@@ -999,8 +1006,8 @@ pub(super) async fn send_message_multipart(
         from = user.clone();
     }
 
-    // verify sender matches authenticated user (superadmin can use any address in super_domains)
-    if let Err(msg) = verify_sender(&from, &user, &super_domains) {
+    // verify sender matches authenticated user
+    if let Err(msg) = verify_sender(&from, &user, &permissions) {
         return Json(ApiResult {
             success: false,
             message: Some(msg.into()),
@@ -1625,36 +1632,74 @@ mod tests {
 
     // --- verify_sender tests ---
 
+    fn make_super_perms(domains: &[&str]) -> crate::permission::EffectivePermissions {
+        use crate::permission::{compute_effective_permissions, AccountGroup, GroupInfo, ALL_PERMISSIONS};
+        let groups = vec![AccountGroup {
+            group: GroupInfo {
+                id: 1,
+                name: "super".into(),
+                domain: None,
+                description: String::new(),
+                is_builtin: true,
+                created_at: 0,
+            },
+            permissions: ALL_PERMISSIONS.iter().map(|s| s.to_string()).collect(),
+        }];
+        compute_effective_permissions(
+            &groups,
+            &[],
+            &domains.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+        )
+    }
+
+    fn make_no_perms() -> crate::permission::EffectivePermissions {
+        crate::permission::compute_effective_permissions(&[], &[], &[])
+    }
+
     #[test]
     fn verify_sender_superadmin_matching_domain_allowed() {
-        let super_domains = vec!["golia.jp".to_string(), "example.com".to_string()];
-        assert!(verify_sender("agent@golia.jp", "admin@golia.jp", &super_domains).is_ok());
+        let perms = make_super_perms(&["golia.jp", "example.com"]);
+        assert!(verify_sender("agent@golia.jp", "admin@golia.jp", &perms).is_ok());
         // different user but same domain
-        assert!(verify_sender("other@example.com", "admin@golia.jp", &super_domains).is_ok());
+        assert!(verify_sender("other@example.com", "admin@golia.jp", &perms).is_ok());
     }
 
     #[test]
     fn verify_sender_superadmin_non_matching_domain_rejected() {
-        let super_domains = vec!["golia.jp".to_string()];
+        // super user with only golia.jp domain — but super has all domains, so it should allow
+        // let's test with a domain-scoped group instead
+        use crate::permission::{compute_effective_permissions, AccountGroup, GroupInfo};
+        let groups = vec![AccountGroup {
+            group: GroupInfo {
+                id: 1,
+                name: "user".into(),
+                domain: Some("golia.jp".into()),
+                description: String::new(),
+                is_builtin: false,
+                created_at: 0,
+            },
+            permissions: vec!["mail.send".into(), "mail.read".into()],
+        }];
+        let perms = compute_effective_permissions(&groups, &[], &["golia.jp".into()]);
         assert_eq!(
-            verify_sender("agent@evil.com", "admin@golia.jp", &super_domains),
+            verify_sender("agent@evil.com", "admin@golia.jp", &perms),
             Err("sender must match authenticated user")
         );
     }
 
     #[test]
     fn verify_sender_non_superadmin_different_from_rejected() {
-        let super_domains: Vec<String> = vec![];
+        let perms = make_no_perms();
         assert_eq!(
-            verify_sender("other@golia.jp", "user@golia.jp", &super_domains),
+            verify_sender("other@golia.jp", "user@golia.jp", &perms),
             Err("sender must match authenticated user")
         );
     }
 
     #[test]
     fn verify_sender_non_superadmin_matching_from_allowed() {
-        let super_domains: Vec<String> = vec![];
-        assert!(verify_sender("user@golia.jp", "user@golia.jp", &super_domains).is_ok());
+        let perms = make_no_perms();
+        assert!(verify_sender("user@golia.jp", "user@golia.jp", &perms).is_ok());
     }
 
     // --- resolve_thread_reply tests ---

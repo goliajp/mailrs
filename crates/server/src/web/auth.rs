@@ -12,6 +12,7 @@ use serde::Deserialize;
 
 use crate::api_key_store;
 use crate::inbound::auth_guard::AuthCheck;
+use crate::permission::EffectivePermissions;
 
 use super::{ApiResult, SessionInfo, WebState};
 
@@ -33,7 +34,7 @@ pub(crate) enum AuthMethod {
 pub(crate) struct AuthUser {
     pub address: String,
     pub display_name: String,
-    pub super_domains: Vec<String>,
+    pub permissions: Arc<EffectivePermissions>,
     pub auth_method: AuthMethod,
 }
 
@@ -75,7 +76,7 @@ impl FromRequestParts<Arc<WebState>> for AuthUser {
                     return Ok(AuthUser {
                         address: session.address.clone(),
                         display_name: session.display_name.clone(),
-                        super_domains: session.super_domains.clone(),
+                        permissions: session.permissions.clone(),
                         auth_method: AuthMethod::Session,
                     });
                 }
@@ -121,25 +122,9 @@ async fn verify_api_key(
                 .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "auth backend unavailable"))?
                 .ok_or((StatusCode::UNAUTHORIZED, "invalid api key"))?;
 
-            // resolve super_domains from domain_store
-            let super_domains = if let Some(ref ds) = state.domain_store {
-                match ds.get_account_with_hash(&record.account_address).await.map(|opt| opt.map(|(acct, _)| acct)) {
-                    Ok(Some(account)) => account
-                        .super_domains
-                        .split(',')
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect(),
-                    _ => vec![],
-                }
-            } else {
-                vec![]
-            };
-
             let entry = api_key_store::CachedApiKey {
                 key_hash: record.key_hash,
                 account_address: record.account_address,
-                super_domains,
                 expires_at: record.expires_at,
                 id: record.id,
             };
@@ -175,20 +160,30 @@ async fn verify_api_key(
         });
     }
 
-    // resolve display_name
-    let display_name = if let Some(ref ds) = state.domain_store {
-        match ds.get_account_with_hash(&cached.account_address).await {
+    // resolve display_name and permissions
+    let (display_name, permissions) = if let Some(ref ds) = state.domain_store {
+        let dn = match ds.get_account_with_hash(&cached.account_address).await {
             Ok(Some((account, _))) => account.display_name,
             _ => cached.account_address.clone(),
-        }
+        };
+        let perms = ds
+            .load_account_permissions(&cached.account_address)
+            .await
+            .unwrap_or_else(|_| {
+                crate::permission::compute_effective_permissions(&[], &[], &[])
+            });
+        (dn, perms)
     } else {
-        cached.account_address.clone()
+        (
+            cached.account_address.clone(),
+            crate::permission::compute_effective_permissions(&[], &[], &[]),
+        )
     };
 
     Ok(AuthUser {
         address: cached.account_address,
         display_name,
-        super_domains: cached.super_domains,
+        permissions: Arc::new(permissions),
         auth_method: AuthMethod::ApiKey(cached.id),
     })
 }
@@ -265,24 +260,32 @@ pub(super) async fn login(
         guard.record_success(addr.ip(), &req.address);
     }
 
+    // load permissions
+    let permissions = if let Some(ref ds) = state.domain_store {
+        Arc::new(
+            ds.load_account_permissions(&account.address)
+                .await
+                .unwrap_or_else(|_| {
+                    crate::permission::compute_effective_permissions(&[], &[], &[])
+                }),
+        )
+    } else {
+        Arc::new(crate::permission::compute_effective_permissions(
+            &[], &[], &[],
+        ))
+    };
+
     // generate token
     let mut bytes = [0u8; 32];
     rand_core::OsRng.fill_bytes(&mut bytes);
     let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-
-    let super_domains: Vec<String> = account
-        .super_domains
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
 
     state.sessions.insert(
         token.clone(),
         SessionInfo {
             address: account.address.clone(),
             display_name: account.display_name.clone(),
-            super_domains: super_domains.clone(),
+            permissions: permissions.clone(),
             created_at: std::time::Instant::now(),
         },
     );
@@ -293,7 +296,8 @@ pub(super) async fn login(
             "token": token,
             "address": account.address,
             "display_name": account.display_name,
-            "super_domains": super_domains,
+            "permissions": permissions.permission_list(),
+            "accessible_domains": permissions.accessible_domains(),
         })),
     )
 }
@@ -316,11 +320,12 @@ pub(super) async fn logout(
 }
 
 pub(super) async fn auth_me(
-    AuthUser { address, display_name, super_domains, .. }: AuthUser,
+    AuthUser { address, display_name, permissions, .. }: AuthUser,
 ) -> impl IntoResponse {
     Json(serde_json::json!({
         "address": address,
         "display_name": display_name,
-        "super_domains": super_domains,
+        "permissions": permissions.permission_list(),
+        "accessible_domains": permissions.accessible_domains(),
     }))
 }
