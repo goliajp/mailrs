@@ -94,6 +94,16 @@ impl UserStore {
     }
 }
 
+/// validate email address format
+pub fn validate_email(email: &str) -> Result<(), &'static str> {
+    if email.len() > 255 { return Err("email too long"); }
+    let parts: Vec<&str> = email.split('@').collect();
+    if parts.len() != 2 { return Err("email must contain exactly one @"); }
+    if parts[0].is_empty() { return Err("local part cannot be empty"); }
+    if parts[1].is_empty() || !parts[1].contains('.') { return Err("invalid domain"); }
+    Ok(())
+}
+
 /// validate password meets minimum complexity requirements
 pub fn validate_password(password: &str) -> Result<(), &'static str> {
     if password.len() < 8 {

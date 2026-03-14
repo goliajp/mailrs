@@ -493,6 +493,9 @@ impl MailMcpService {
         Parameters(params): Parameters<CreateAccountParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.accounts")?;
+        if let Err(e) = crate::users::validate_email(&params.address) {
+            return Err(McpError::invalid_params(e, None));
+        }
         let ds = self.web_state.domain_store.as_ref()
             .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
 
