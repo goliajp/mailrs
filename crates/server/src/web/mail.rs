@@ -1626,6 +1626,77 @@ pub(super) async fn delete_draft(
     }
 }
 
+pub(super) async fn export_mbox(
+    AuthUser { address: user, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    let Some(ref mb_store) = state.mailbox_store else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            [
+                ("content-type", "text/plain".to_string()),
+                ("content-disposition", String::new()),
+            ],
+            b"mailbox not configured".to_vec(),
+        );
+    };
+
+    let mailboxes = mb_store.list_mailboxes(&user).await.unwrap_or_default();
+    let mut mbox = Vec::new();
+
+    for mb in &mailboxes {
+        let (total, _) = mb_store.mailbox_status(mb.id).await.unwrap_or((0, 0));
+        let mut offset = 0u32;
+        let page_size = 100u32;
+        while offset < total {
+            let messages = mb_store
+                .list_messages(mb.id, offset, page_size)
+                .await
+                .unwrap_or_default();
+            if messages.is_empty() {
+                break;
+            }
+            for msg in &messages {
+                if let Some(raw) = message_util::read_message_raw(
+                    &state.maildir_root,
+                    &user,
+                    &msg.maildir_id,
+                ) {
+                    // mbox "From " line: use sender and date_epoch
+                    let sender = msg.sender.trim();
+                    let sender_addr = extract_address(sender);
+                    let datetime = chrono::DateTime::from_timestamp(msg.date, 0)
+                        .unwrap_or_default();
+                    let from_line = format!(
+                        "From {} {}\n",
+                        sender_addr,
+                        datetime.format("%a %b %d %H:%M:%S %Y"),
+                    );
+                    mbox.extend_from_slice(from_line.as_bytes());
+                    mbox.extend_from_slice(&raw);
+                    if !raw.ends_with(b"\n") {
+                        mbox.push(b'\n');
+                    }
+                    mbox.push(b'\n');
+                }
+            }
+            offset += page_size;
+        }
+    }
+
+    (
+        StatusCode::OK,
+        [
+            ("content-type", "application/mbox".to_string()),
+            (
+                "content-disposition",
+                "attachment; filename=\"mailbox.mbox\"".to_string(),
+            ),
+        ],
+        mbox,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
