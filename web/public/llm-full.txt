@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-37 tools auto-discovered via MCP, grouped by category:
+43 tools auto-discovered via MCP, grouped by category:
 
 ### Email Operations
 
@@ -85,6 +85,17 @@ Config for Claude Code or any MCP client:
 | list_aliases | any authenticated | List all email aliases and forwards (source, target, domain, type) |
 | add_alias | admin.aliases | Add alias ("alias" = local delivery) or forward ("forward" = remote relay) |
 | remove_alias | admin.aliases | Remove an email alias by ID |
+
+### Email Group Management (Distribution Lists)
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| list_email_groups | any authenticated | List all email groups with members. Returns address, domain, name, member list |
+| create_email_group | admin.accounts | Create email group. All members receive incoming mail and can reply as group address |
+| delete_email_group | admin.accounts | Delete an email group by ID |
+| list_email_group_members | any authenticated | List members of an email group |
+| add_email_group_member | admin.accounts | Add a member to an email group |
+| remove_email_group_member | admin.accounts | Remove a member from an email group |
 
 ### App Management
 
@@ -233,6 +244,24 @@ Response includes groups, effective permissions, accessible domains, and super s
 ```json
 {
   "id": 42
+}
+```
+
+#### create_email_group
+```json
+{
+  "address": "team@golia.jp",
+  "domain": "golia.jp",
+  "name": "Team",
+  "description": "Engineering team distribution list"
+}
+```
+
+#### add_email_group_member
+```json
+{
+  "group_id": 1,
+  "address": "user@golia.jp"
 }
 ```
 
@@ -561,6 +590,40 @@ curl -X POST https://mail.golia.ai/api/admin/aliases \
 curl -X DELETE https://mail.golia.ai/api/admin/aliases/1 \
   -H "Authorization: Bearer mlrs_..."
 ```
+
+### Email Groups / Distribution Lists (requires admin.accounts)
+
+```
+# list email groups
+curl https://mail.golia.ai/api/admin/email-groups \
+  -H "Authorization: Bearer mlrs_..."
+
+# create email group
+curl -X POST https://mail.golia.ai/api/admin/email-groups \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"address": "team@golia.jp", "domain": "golia.jp", "name": "Team", "description": "Engineering team"}'
+
+# delete email group
+curl -X DELETE https://mail.golia.ai/api/admin/email-groups/1 \
+  -H "Authorization: Bearer mlrs_..."
+
+# list members
+curl https://mail.golia.ai/api/admin/email-groups/1/members \
+  -H "Authorization: Bearer mlrs_..."
+
+# add member
+curl -X POST https://mail.golia.ai/api/admin/email-groups/1/members \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"address": "user@golia.jp"}'
+
+# remove member
+curl -X DELETE https://mail.golia.ai/api/admin/email-groups/1/members/user@golia.jp \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+Email groups are distribution lists: all members receive copies of incoming mail and can reply as the group address. Different from aliases (1:1 mapping) — groups deliver to N members.
 
 ### Group & Permission Management (requires admin.groups)
 
