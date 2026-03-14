@@ -1,6 +1,6 @@
 # mailrs - AI Email API
 
-> AI agents can send, read, search, and reply to emails via MCP or REST API.
+> AI agents can send, read, search, and reply to emails, and manage accounts/permissions via MCP or REST API.
 
 Base URL: https://mail.golia.ai
 Auth: Bearer API key on all requests
@@ -9,7 +9,9 @@ Full API docs: https://mail.golia.ai/llm-full.txt
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-Tools: send_email, read_email, search_emails, reply_email, list_conversations
+
+Email tools: send_email, read_email, search_emails, reply_email, list_conversations
+Admin tools: list_accounts, create_account, remove_account, set_account_password, list_groups, get_account_permissions, add_account_to_group, remove_account_from_group
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
@@ -17,11 +19,26 @@ Tools: send_email, read_email, search_emails, reply_email, list_conversations
 
 ## REST API
 
+### Email
 - POST /api/mail/send - send email (JSON)
 - POST /api/mail/send-multipart - send with attachments (multipart/form-data)
 - GET /api/conversations - list conversations
 - GET /api/conversations?q=keyword - search
 - GET /api/mail/messages/{uid} - read message
+
+### Account Management (requires admin.accounts permission)
+- GET /api/admin/accounts - list accounts
+- POST /api/admin/accounts - create account
+- DELETE /api/admin/accounts/{address} - remove account
+
+### Permission Management (requires admin.groups permission)
+- GET /api/admin/groups - list groups
+- GET /api/admin/accounts/{address}/groups - account's groups
+- POST /api/admin/groups/{id}/members - add member
+- DELETE /api/admin/groups/{id}/members/{address} - remove member
+- GET /api/admin/permissions - list all available permissions
+
+### Webhooks
 - POST /api/agent/webhooks - subscribe to new email events
 
 ## Contact
