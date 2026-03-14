@@ -1278,30 +1278,17 @@ impl MailboxStore {
         category: Option<&str>,
         domains: Option<&[String]>,
     ) -> Result<Vec<ConversationSummary>, sqlx::Error> {
-        let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
-        let pattern = format!("%{escaped}%");
         let count_expr = "COUNT(DISTINCT CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END)";
         let unread_expr = "COUNT(DISTINCT CASE WHEN (m.flags & 1) = 0 THEN CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END END)";
 
-        // build param indices dynamically
         let mut param_idx = 1u32;
 
-        let user_filter = if let Some(doms) = domains {
-            if !doms.is_empty() {
-                let placeholders: Vec<String> = doms.iter().enumerate().map(|(i, _)| format!("${}", param_idx + i as u32)).collect();
-                param_idx += doms.len() as u32;
-                format!("mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))", placeholders.join(","))
-            } else {
-                let f = format!("mb.user_address = ${param_idx}");
-                param_idx += 1;
-                f
-            }
-        } else {
-            let f = format!("mb.user_address = ${param_idx}");
-            param_idx += 1;
-            f
-        };
+        let (user_filter, user_binds) = build_user_filter(user, domains, param_idx);
+        param_idx += user_binds.len() as u32;
 
+        // two query params: raw query for tsvector, %pattern% for ILIKE
+        let tsquery_idx = param_idx;
+        param_idx += 1;
         let pattern_idx = param_idx;
         param_idx += 1;
         let limit_idx = param_idx;
@@ -1312,6 +1299,23 @@ impl MailboxStore {
         } else {
             String::new()
         };
+
+        // use full-text search (tsvector) for relevance + ILIKE fallback for CJK/substring
+        let search_filter = format!(
+            "AND (m.search_vector @@ plainto_tsquery('simple', ${tsquery_idx})
+                  OR m.subject ILIKE ${pattern_idx}
+                  OR m.sender ILIKE ${pattern_idx}
+                  OR m.text_body ILIKE ${pattern_idx}
+                  OR m.clean_text ILIKE ${pattern_idx}
+                  OR EXISTS (SELECT 1 FROM attachment_content ac WHERE ac.message_id = m.id AND ac.extracted_text ILIKE ${pattern_idx}))"
+        );
+
+        // order by relevance (ts_rank) when tsvector matches, else by date
+        let order_expr = format!(
+            "MAX(CASE WHEN m.search_vector @@ plainto_tsquery('simple', ${tsquery_idx}) \
+             THEN ts_rank(m.search_vector, plainto_tsquery('simple', ${tsquery_idx})) ELSE 0 END) DESC, \
+             MAX(m.internal_date) DESC"
+        );
 
         let sql = format!(
             "SELECT m.thread_id, MAX(m.subject), string_agg(DISTINCT m.sender, ','),
@@ -1330,30 +1334,23 @@ impl MailboxStore {
                     COALESCE(MAX(m.importance_score), 0.0)
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {user_filter} AND thread_id != ''
-               AND (m.subject ILIKE ${pattern_idx} OR m.sender ILIKE ${pattern_idx}
-                    OR m.text_body ILIKE ${pattern_idx}
-                    OR m.clean_text ILIKE ${pattern_idx}
-                    OR EXISTS (SELECT 1 FROM attachment_content ac WHERE ac.message_id = m.id AND ac.extracted_text ILIKE ${pattern_idx}))
+               {search_filter}
                {category_filter}
              GROUP BY m.thread_id HAVING BOOL_OR(m.archived) = false
-             ORDER BY MAX(m.internal_date) DESC LIMIT ${limit_idx}"
+             ORDER BY {order_expr} LIMIT ${limit_idx}"
         );
+
+        // for ILIKE, wrap query with %
+        let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let pattern = format!("%{escaped}%");
 
         let mut q = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32)>(&sql);
 
-        if let Some(doms) = domains {
-            if !doms.is_empty() {
-                for d in doms {
-                    q = q.bind(d);
-                }
-            } else {
-                q = q.bind(user);
-            }
-        } else {
-            q = q.bind(user);
+        for b in &user_binds {
+            q = q.bind(b);
         }
 
-        q = q.bind(&pattern).bind(limit as i64);
+        q = q.bind(query).bind(&pattern).bind(limit as i64);
 
         if let Some(cat) = category {
             q = q.bind(cat);
