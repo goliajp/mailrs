@@ -34,6 +34,7 @@ pub struct Pop3Session {
     auth_guard: Option<Arc<AuthGuard>>,
     peer_addr: Option<std::net::IpAddr>,
     domain_store: Option<Arc<DomainStore>>,
+    ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
 }
 
 impl Pop3Session {
@@ -47,6 +48,7 @@ impl Pop3Session {
             auth_guard: None,
             peer_addr: None,
             domain_store: None,
+            ldap_config: None,
         }
     }
 
@@ -63,6 +65,11 @@ impl Pop3Session {
 
     pub fn with_domain_store(mut self, ds: Arc<DomainStore>) -> Self {
         self.domain_store = Some(ds);
+        self
+    }
+
+    pub fn with_ldap_config(mut self, config: Arc<crate::ldap_auth::LdapConfig>) -> Self {
+        self.ldap_config = Some(config);
         self
     }
 
@@ -135,22 +142,45 @@ impl Pop3Session {
             }
         }
 
-        // try domain store (PG accounts) first, then users.toml
+        // try domain store (PG accounts) first, then users.toml, then LDAP
         let authenticated = if let Some(ref ds) = self.domain_store {
             match ds.get_account_with_hash(username).await {
                 Ok(Some((account, hash))) => {
                     if !account.active {
                         false
                     } else if hash.starts_with("$argon2") {
-                        UserStore::verify_hash(password, &hash)
+                        let valid = UserStore::verify_hash(password, &hash);
+                        if valid {
+                            true
+                        } else if let Some(ref ldap) = self.ldap_config {
+                            ldap.authenticate(username, password).await
+                        } else {
+                            false
+                        }
+                    } else if hash == password {
+                        true
+                    } else if let Some(ref ldap) = self.ldap_config {
+                        ldap.authenticate(username, password).await
                     } else {
-                        hash == password
+                        false
                     }
                 }
-                _ => self.users.verify(username, password),
+                _ => {
+                    if self.users.verify(username, password) {
+                        true
+                    } else if let Some(ref ldap) = self.ldap_config {
+                        ldap.authenticate(username, password).await
+                    } else {
+                        false
+                    }
+                }
             }
+        } else if self.users.verify(username, password) {
+            true
+        } else if let Some(ref ldap) = self.ldap_config {
+            ldap.authenticate(username, password).await
         } else {
-            self.users.verify(username, password)
+            false
         };
 
         if !authenticated {
@@ -472,6 +502,7 @@ mod tests {
             auth_guard: None,
             peer_addr: None,
             domain_store: None,
+            ldap_config: None,
         }
     }
 

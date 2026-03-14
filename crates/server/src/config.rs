@@ -83,6 +83,12 @@ pub struct ServerConfig {
     // storage backends
     pub pg_url: Option<String>,
     pub valkey_url: Option<String>,
+    // LDAP authentication
+    pub ldap_url: Option<String>,
+    pub ldap_bind_dn: Option<String>,
+    pub ldap_bind_password: Option<String>,
+    pub ldap_base_dn: Option<String>,
+    pub ldap_user_filter: Option<String>,
 }
 
 impl Default for ServerConfig {
@@ -140,6 +146,11 @@ impl Default for ServerConfig {
             srs_secret: None,
             pg_url: None,
             valkey_url: None,
+            ldap_url: None,
+            ldap_bind_dn: None,
+            ldap_bind_password: None,
+            ldap_base_dn: None,
+            ldap_user_filter: None,
         }
     }
 }
@@ -371,6 +382,32 @@ impl ServerConfig {
         if let Ok(v) = std::env::var("MAILRS_VALKEY_URL") {
             cfg.valkey_url = Some(v);
         }
+        // LDAP
+        if let Ok(v) = std::env::var("MAILRS_LDAP_URL") {
+            if !v.is_empty() {
+                cfg.ldap_url = Some(v);
+            }
+        }
+        if let Ok(v) = std::env::var("MAILRS_LDAP_BIND_DN") {
+            if !v.is_empty() {
+                cfg.ldap_bind_dn = Some(v);
+            }
+        }
+        if let Ok(v) = std::env::var("MAILRS_LDAP_BIND_PASSWORD") {
+            if !v.is_empty() {
+                cfg.ldap_bind_password = Some(v);
+            }
+        }
+        if let Ok(v) = std::env::var("MAILRS_LDAP_BASE_DN") {
+            if !v.is_empty() {
+                cfg.ldap_base_dn = Some(v);
+            }
+        }
+        if let Ok(v) = std::env::var("MAILRS_LDAP_USER_FILTER") {
+            if !v.is_empty() {
+                cfg.ldap_user_filter = Some(v);
+            }
+        }
 
         cfg
     }
@@ -405,7 +442,36 @@ impl ServerConfig {
             }
         }
 
+        if self.ldap_url.is_some()
+            && (self.ldap_bind_dn.is_none()
+                || self.ldap_bind_password.is_none()
+                || self.ldap_base_dn.is_none())
+        {
+            warnings.push(
+                "MAILRS_LDAP_URL set but LDAP_BIND_DN, LDAP_BIND_PASSWORD, or LDAP_BASE_DN missing — LDAP auth disabled".into(),
+            );
+        }
+
         warnings
+    }
+
+    /// build an LdapConfig if all required LDAP env vars are set
+    pub fn ldap_config(&self) -> Option<crate::ldap_auth::LdapConfig> {
+        let url = self.ldap_url.as_ref()?;
+        let bind_dn = self.ldap_bind_dn.as_ref()?;
+        let bind_password = self.ldap_bind_password.as_ref()?;
+        let base_dn = self.ldap_base_dn.as_ref()?;
+        let user_filter = self
+            .ldap_user_filter
+            .clone()
+            .unwrap_or_else(|| "(&(objectClass=person)(mail={}))".into());
+        Some(crate::ldap_auth::LdapConfig {
+            url: url.clone(),
+            bind_dn: bind_dn.clone(),
+            bind_password: bind_password.clone(),
+            base_dn: base_dn.clone(),
+            user_filter,
+        })
     }
 
     pub fn has_tls(&self) -> bool {

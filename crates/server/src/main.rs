@@ -15,6 +15,7 @@ mod event_bus;
 mod health;
 mod html_clean;
 mod imap_codec;
+mod ldap_auth;
 mod importance;
 mod imap_format;
 mod imap_session;
@@ -305,6 +306,12 @@ async fn main() {
         content_worker::spawn_content_worker(pool.clone(), cfg.maildir_root.clone());
     }
 
+    // LDAP authentication backend (optional)
+    let ldap_config = cfg.ldap_config().map(Arc::new);
+    if ldap_config.is_some() {
+        tracing::info!("LDAP authentication enabled");
+    }
+
     let smtp_snapshot = crate::web::SmtpConfigSnapshot {
         hostname: cfg.hostname.clone(),
         smtp_port: cfg.smtp_port,
@@ -353,6 +360,9 @@ async fn main() {
     if let Some(ref sel) = cfg.dkim_selector {
         ws = ws.with_dkim_selector(sel.clone());
     }
+    if let Some(ref ldap) = ldap_config {
+        ws = ws.with_ldap_config(ldap.clone());
+    }
     let web_state = Arc::new(ws);
 
     let users = Arc::new(user_store);
@@ -391,6 +401,7 @@ async fn main() {
             None
         },
         srs_secret: cfg.srs_secret.clone(),
+        ldap_config: ldap_config.clone(),
     });
 
     // port 25/2525: plain SMTP (STARTTLS optional)
@@ -527,6 +538,7 @@ async fn main() {
         let imap_auth_guard = auth_guard.clone();
         let imap_domain_store = domain_store.clone();
         let imap_event_bus = event_bus.clone();
+        let imap_ldap = ldap_config.clone();
         tokio::spawn(async move {
             loop {
                 match imap_listener.accept().await {
@@ -538,8 +550,9 @@ async fn main() {
                         let ag = imap_auth_guard.clone();
                         let ds = imap_domain_store.clone();
                         let eb = imap_event_bus.clone();
+                        let ldap = imap_ldap.clone();
                         tokio::spawn(async move {
-                            handle_imap_connection(stream, addr, mb, u, ag, ds, eb, &h, &mr).await;
+                            handle_imap_connection(stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr).await;
                         });
                     }
                     Err(e) => eprintln!("imap accept error: {e}"),
@@ -568,6 +581,7 @@ async fn main() {
             let imaps_auth_guard = auth_guard.clone();
             let imaps_domain_store = domain_store.clone();
             let imaps_event_bus = event_bus.clone();
+            let imaps_ldap = ldap_config.clone();
             tokio::spawn(async move {
                 loop {
                     match imaps_listener.accept().await {
@@ -580,11 +594,12 @@ async fn main() {
                             let ag = imaps_auth_guard.clone();
                             let ds = imaps_domain_store.clone();
                             let eb = imaps_event_bus.clone();
+                            let ldap = imaps_ldap.clone();
                             tokio::spawn(async move {
                                 match tls.acceptor().accept(stream).await {
                                     Ok(tls_stream) => {
                                         handle_imap_connection(
-                                            tls_stream, addr, mb, u, ag, ds, eb, &h, &mr,
+                                            tls_stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr,
                                         )
                                         .await;
                                     }
@@ -614,6 +629,7 @@ async fn main() {
         let pop3_maildir_root = cfg.maildir_root.clone();
         let pop3_auth_guard = auth_guard.clone();
         let pop3_domain_store = domain_store.clone();
+        let pop3_ldap = ldap_config.clone();
         tokio::spawn(async move {
             loop {
                 match pop3_listener.accept().await {
@@ -623,8 +639,9 @@ async fn main() {
                         let mr = pop3_maildir_root.clone();
                         let ag = pop3_auth_guard.clone();
                         let ds = pop3_domain_store.clone();
+                        let ldap = pop3_ldap.clone();
                         tokio::spawn(async move {
-                            handle_pop3_connection(stream, addr, mb, u, ag, ds, &mr).await;
+                            handle_pop3_connection(stream, addr, mb, u, ag, ds, ldap, &mr).await;
                         });
                     }
                     Err(e) => eprintln!("pop3 accept error: {e}"),
@@ -644,6 +661,7 @@ async fn main() {
         let sieve_users = users.clone();
         let sieve_auth_guard = auth_guard.clone();
         let sieve_domain_store = domain_store.clone();
+        let sieve_ldap = ldap_config.clone();
         tokio::spawn(async move {
             loop {
                 match sieve_listener.accept().await {
@@ -651,8 +669,9 @@ async fn main() {
                         let u = sieve_users.clone();
                         let ag = sieve_auth_guard.clone();
                         let ds = sieve_domain_store.clone();
+                        let ldap = sieve_ldap.clone();
                         tokio::spawn(async move {
-                            handle_managesieve_connection(stream, addr, u, ag, ds).await;
+                            handle_managesieve_connection(stream, addr, u, ag, ds, ldap).await;
                         });
                     }
                     Err(e) => eprintln!("managesieve accept error: {e}"),
@@ -781,6 +800,7 @@ async fn handle_pop3_connection(
     users: Arc<crate::users::UserStore>,
     auth_guard: Arc<AuthGuard>,
     domain_store: Option<Arc<domain_store::DomainStore>>,
+    ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
     maildir_root: &str,
 ) {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -793,6 +813,9 @@ async fn handle_pop3_connection(
         .with_auth_guard(auth_guard, addr.ip());
     if let Some(ds) = domain_store {
         session = session.with_domain_store(ds);
+    }
+    if let Some(ldap) = ldap_config {
+        session = session.with_ldap_config(ldap);
     }
 
     // send greeting
@@ -833,6 +856,7 @@ async fn handle_managesieve_connection(
     users: Arc<crate::users::UserStore>,
     auth_guard: Arc<AuthGuard>,
     domain_store: Option<Arc<domain_store::DomainStore>>,
+    ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
 ) {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
@@ -843,6 +867,9 @@ async fn handle_managesieve_connection(
         .with_auth_guard(auth_guard, addr.ip());
     if let Some(ds) = domain_store {
         session = session.with_domain_store(ds);
+    }
+    if let Some(ldap) = ldap_config {
+        session = session.with_ldap_config(ldap);
     }
 
     // send greeting
@@ -884,6 +911,7 @@ async fn handle_imap_connection<S>(
     users: Arc<crate::users::UserStore>,
     auth_guard: Arc<AuthGuard>,
     domain_store: Option<Arc<domain_store::DomainStore>>,
+    ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
     event_bus: EventBus,
     hostname: &str,
     maildir_root: &str,
@@ -904,6 +932,9 @@ async fn handle_imap_connection<S>(
         .with_auth_guard(auth_guard, addr.ip());
     if let Some(ds) = domain_store {
         session = session.with_domain_store(ds);
+    }
+    if let Some(ldap) = ldap_config {
+        session = session.with_ldap_config(ldap);
     }
 
     while let Some(result) = framed.next().await {

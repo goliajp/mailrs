@@ -77,6 +77,7 @@ pub struct WebState {
     pub dkim_selector: Option<String>,
     pub smtp_config: Option<SmtpConfigSnapshot>,
     pub web_rate_limiter: Arc<rate_limit::WebRateLimiter>,
+    pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
 }
 
 /// spawn a background task to clean up expired sessions and stale rate-limit buckets every hour
@@ -122,6 +123,7 @@ impl WebState {
             dkim_selector: None,
             smtp_config: None,
             web_rate_limiter: Arc::new(rate_limit::WebRateLimiter::new()),
+            ldap_config: None,
         }
     }
 
@@ -175,6 +177,11 @@ impl WebState {
 
     pub fn with_maildir_root(mut self, root: String) -> Self {
         self.maildir_root = root;
+        self
+    }
+
+    pub fn with_ldap_config(mut self, config: Arc<crate::ldap_auth::LdapConfig>) -> Self {
+        self.ldap_config = Some(config);
         self
     }
 
