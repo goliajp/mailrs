@@ -270,6 +270,7 @@ mod tests {
             account_address: "user@example.com".to_string(),
             expires_at: None,
             id: 42,
+            app_id: None,
         };
 
         let result = verify_api_key_logic(&full_key, Some(&cached));
@@ -288,6 +289,7 @@ mod tests {
             account_address: "user@example.com".to_string(),
             expires_at: Some(Utc::now() - chrono::Duration::hours(1)),
             id: 1,
+            app_id: None,
         };
 
         let result = verify_api_key_logic(&full_key, Some(&cached));
@@ -305,6 +307,7 @@ mod tests {
             account_address: "user@example.com".to_string(),
             expires_at: None,
             id: 1,
+            app_id: None,
         };
 
         // use a different key (same format but different secret)
@@ -342,6 +345,7 @@ mod tests {
             account_address: "admin@golia.jp".to_string(),
             expires_at: None,
             id: 99,
+            app_id: None,
         };
 
         let result = verify_api_key_logic(&full_key, Some(&cached));

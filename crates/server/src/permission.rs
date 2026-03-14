@@ -14,6 +14,7 @@ pub const ALL_PERMISSIONS: &[&str] = &[
     "admin.queue",
     "admin.sieve",
     "admin.impersonate",
+    "internal.rpc",
 ];
 
 /// group info loaded from the database
@@ -76,6 +77,31 @@ impl EffectivePermissions {
             perms.sort();
             perms
         }
+    }
+}
+
+/// build EffectivePermissions from a flat list of scopes (for apps)
+pub fn from_scopes(scopes: &[String], all_domains: &[String]) -> EffectivePermissions {
+    let is_internal_rpc = scopes.iter().any(|s| s == "internal.rpc");
+    if is_internal_rpc {
+        return EffectivePermissions {
+            permissions: ALL_PERMISSIONS.iter().map(|s| (*s).to_string()).collect(),
+            is_super: true,
+            accessible_domains: all_domains.to_vec(),
+        };
+    }
+
+    let permissions: HashSet<String> = scopes
+        .iter()
+        .filter(|s| ALL_PERMISSIONS.contains(&s.as_str()))
+        .cloned()
+        .collect();
+
+    // app scopes grant access to all domains (they act cross-domain)
+    EffectivePermissions {
+        permissions,
+        is_super: false,
+        accessible_domains: all_domains.to_vec(),
     }
 }
 

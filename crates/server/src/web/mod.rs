@@ -762,6 +762,19 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             get(admin::get_account_overrides).put(admin::set_account_overrides),
         )
         .route("/api/admin/permissions", get(admin::get_all_permissions))
+        // apps
+        .route(
+            "/api/admin/apps",
+            get(admin::list_apps).post(admin::create_app),
+        )
+        .route(
+            "/api/admin/apps/{app_id}",
+            get(admin::get_app).delete(admin::delete_app),
+        )
+        .route(
+            "/api/admin/apps/{app_id}/scopes",
+            put(admin::update_app_scopes),
+        )
         // smtp config
         .route("/api/admin/config/smtp", get(admin::get_smtp_config))
         // MTA-STS policy
