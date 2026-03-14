@@ -204,7 +204,7 @@ impl ImapSession {
 
     fn handle_capability(&self, tag: &str) -> Vec<String> {
         vec![
-            format_capability(&["IMAP4rev1", "AUTH=PLAIN", "IDLE", "QUOTA", "CONDSTORE"]),
+            format_capability(&["IMAP4rev1", "AUTH=PLAIN", "IDLE", "QUOTA", "CONDSTORE", "SPECIAL-USE"]),
             format_ok(tag, "CAPABILITY completed"),
         ]
     }
@@ -288,8 +288,15 @@ impl ImapSession {
         for mb in &mailboxes {
             // simple pattern matching: "*" matches all, "%" matches non-hierarchy
             if pattern == "*" || pattern == "%" || mb.name == pattern {
-                let flags = "\\HasNoChildren";
-                responses.push(format_list(flags, "/", &mb.name));
+                let special_use = match mb.name.as_str() {
+                    "Sent" => " \\Sent",
+                    "Drafts" => " \\Drafts",
+                    "Trash" => " \\Trash",
+                    "Junk" => " \\Junk",
+                    _ => "",
+                };
+                let flags = format!("\\HasNoChildren{special_use}");
+                responses.push(format_list(&flags, "/", &mb.name));
             }
         }
         responses.push(format_ok(tag, "LIST completed"));
