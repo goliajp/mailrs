@@ -235,8 +235,10 @@ pub(super) async fn add_account(
                 message: Some(e.into()),
             });
         }
-        crate::users::UserStore::hash_password(&req.password)
-            .unwrap_or_else(|_| req.password.clone())
+        match crate::users::UserStore::hash_password(&req.password) {
+            Ok(hash) => hash,
+            Err(_) => return Json(ApiResult { success: false, message: Some("failed to hash password".into()) }),
+        }
     };
 
     let now = chrono::Utc::now().timestamp();
