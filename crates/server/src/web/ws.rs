@@ -19,12 +19,11 @@ pub(super) async fn ws_events(
     Query(query): Query<WsQuery>,
     State(state): State<Arc<WebState>>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    // validate token if provided
-    if let Some(token) = &query.token {
-        match state.sessions.get(token) {
-            Some(session) if session.created_at.elapsed() < super::SESSION_TTL => {}
-            _ => return Err(StatusCode::UNAUTHORIZED),
-        }
+    // authentication is mandatory
+    let token = query.token.as_deref().ok_or(StatusCode::UNAUTHORIZED)?;
+    match state.sessions.get(token) {
+        Some(session) if session.created_at.elapsed() < super::SESSION_TTL => {}
+        _ => return Err(StatusCode::UNAUTHORIZED),
     }
     Ok(ws.on_upgrade(move |socket| handle_ws(socket, state)))
 }
