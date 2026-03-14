@@ -29,6 +29,8 @@ pub struct ServerConfig {
     pub imaps_port: u16,
     // POP3
     pub pop3_port: u16,
+    // ManageSieve
+    pub managesieve_port: u16,
     // anti-spam
     pub local_domains: Vec<String>,
     pub dnsbl_zones: Vec<String>,
@@ -98,6 +100,7 @@ impl Default for ServerConfig {
             imap_port: 1143,
             imaps_port: 1993,
             pop3_port: 1110,
+            managesieve_port: 4190,
             local_domains: vec![],
             dnsbl_zones: vec![],
             rate_limit_capacity: 10,
@@ -193,6 +196,11 @@ impl ServerConfig {
         if let Ok(v) = std::env::var("MAILRS_POP3_PORT") {
             if let Ok(p) = v.parse() {
                 cfg.pop3_port = p;
+            }
+        }
+        if let Ok(v) = std::env::var("MAILRS_MANAGESIEVE_PORT") {
+            if let Ok(p) = v.parse() {
+                cfg.managesieve_port = p;
             }
         }
         if let Ok(v) = std::env::var("MAILRS_LOCAL_DOMAINS") {

@@ -23,6 +23,7 @@ mod inline_image;
 mod message_util;
 mod structured_data;
 mod pg;
+mod managesieve_session;
 mod pop3_session;
 mod ptr_check;
 mod sieve;
@@ -631,6 +632,34 @@ async fn main() {
         });
     }
 
+    // ManageSieve listener (RFC 5804)
+    {
+        let sieve_addr = format!("0.0.0.0:{}", cfg.managesieve_port);
+        let sieve_listener = TcpListener::bind(&sieve_addr)
+            .await
+            .expect("failed to bind ManageSieve port");
+        tracing::info!(addr = sieve_addr.as_str(), "ManageSieve listening");
+
+        let sieve_users = users.clone();
+        let sieve_auth_guard = auth_guard.clone();
+        let sieve_domain_store = domain_store.clone();
+        tokio::spawn(async move {
+            loop {
+                match sieve_listener.accept().await {
+                    Ok((stream, addr)) => {
+                        let u = sieve_users.clone();
+                        let ag = sieve_auth_guard.clone();
+                        let ds = sieve_domain_store.clone();
+                        tokio::spawn(async move {
+                            handle_managesieve_connection(stream, addr, u, ag, ds).await;
+                        });
+                    }
+                    Err(e) => eprintln!("managesieve accept error: {e}"),
+                }
+            }
+        });
+    }
+
     // delivery worker (outbound queue)
     if let Some(ref pool) = outbound_queue {
         if let Some(ref resolver) = ctx.resolver {
@@ -776,6 +805,56 @@ async fn handle_pop3_connection(
         line.clear();
         match reader.read_line(&mut line).await {
             Ok(0) | Err(_) => break, // eof or error
+            Ok(_) => {}
+        }
+
+        let responses = session.handle_line(&line).await;
+        let should_close = session.should_close(&responses);
+
+        for resp in &responses {
+            if writer.write_all(resp.as_bytes()).await.is_err() {
+                return;
+            }
+        }
+        if writer.flush().await.is_err() {
+            return;
+        }
+
+        if should_close {
+            break;
+        }
+    }
+}
+
+async fn handle_managesieve_connection(
+    stream: TcpStream,
+    addr: std::net::SocketAddr,
+    users: Arc<crate::users::UserStore>,
+    auth_guard: Arc<AuthGuard>,
+    domain_store: Option<Arc<domain_store::DomainStore>>,
+) {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+    let (reader, mut writer) = stream.into_split();
+    let mut reader = BufReader::new(reader);
+
+    let mut session = managesieve_session::ManageSieveSession::new(users)
+        .with_auth_guard(auth_guard, addr.ip());
+    if let Some(ds) = domain_store {
+        session = session.with_domain_store(ds);
+    }
+
+    // send greeting
+    let greeting = session.greeting();
+    if writer.write_all(greeting.as_bytes()).await.is_err() {
+        return;
+    }
+
+    let mut line = String::new();
+    loop {
+        line.clear();
+        match reader.read_line(&mut line).await {
+            Ok(0) | Err(_) => break,
             Ok(_) => {}
         }
 
