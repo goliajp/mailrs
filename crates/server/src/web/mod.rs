@@ -549,6 +549,8 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
     // auth routes with stricter rate limit (10 req/min per IP)
     let auth_routes = axum::Router::new()
         .route("/api/auth/login", post(auth::login))
+        .route("/api/auth/forgot-password", post(auth::forgot_password))
+        .route("/api/auth/reset-password", post(auth::reset_password))
         .route_layer(middleware::from_fn_with_state(
             rate_limiter.clone(),
             rate_limit::auth_rate_limit,
