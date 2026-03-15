@@ -420,7 +420,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       </Panel>
 
       {/* handle panel (conversation timeline + reply) */}
-      <Panel width={320}>
+      <Panel>
         {/* panel header */}
         <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] px-4 py-1.5">
           <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
