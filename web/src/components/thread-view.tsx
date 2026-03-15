@@ -12,7 +12,8 @@ import { StructuredDataCard } from '@/components/structured-data-card'
 import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import DOMPurify from 'dompurify'
-import { avatarColor, avatarInitial, extractEmail, extractName } from '@/lib/avatar'
+import { extractEmail, extractName } from '@/lib/avatar'
+import { SenderAvatar } from '@/components/sender-avatar'
 import { highlightMentions } from '@/lib/mention'
 import { deleteJson, fetchJson, postJson, recordFeedback, type FeedbackAction } from '@/lib/api'
 import { getToken } from '@/store/auth'
@@ -325,9 +326,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 {/* email header (sender info) */}
                 <div className="shrink-0 border-b border-[var(--color-border-default)] px-5 py-3">
                   <div className="flex items-center gap-3">
-                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white ${avatarColor(selectedMsg.sender)}`}>
-                      {avatarInitial(selectedMsg.sender)}
-                    </div>
+                    <SenderAvatar sender={selectedMsg.sender} size={32} />
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1 select-text text-sm font-medium text-[var(--color-text-primary)]">
                         {extractName(selectedMsg.sender)}
@@ -467,8 +466,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     {visibleMessages.map((msg) => {
                       const idx = messages.indexOf(msg)
                       const name = extractName(msg.sender)
-                      const initial = avatarInitial(msg.sender)
-                      const color = avatarColor(msg.sender)
                       const isSelected = selectedMsgIdx === idx
                       const fullText = bubbleText(msg)
                       const isLong = fullText.length > 300
@@ -491,11 +488,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                               isSelected ? 'bg-[var(--color-bg-selected)]' : 'hover:bg-[var(--color-hover)]'
                             }`}
                           >
-                            <div className="shrink-0">
-                              <div className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-medium text-white ${color}`}>
-                                {initial}
-                              </div>
-                            </div>
+                            <SenderAvatar sender={msg.sender} size={28} />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-semibold text-[var(--color-text-primary)]">{name}</span>
