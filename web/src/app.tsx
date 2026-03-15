@@ -45,18 +45,20 @@ function StatusBar() {
     : 'Mail'
 
   return (
-    <div className="flex h-6 shrink-0 items-center justify-between border-t border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 text-[11px] text-[var(--color-text-tertiary)]">
-      <div className="flex items-center gap-3">
+    <div className="flex h-7 shrink-0 items-center justify-between border-t border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 text-[11px] text-[var(--color-text-tertiary)]">
+      <div className="flex items-center gap-2">
         {health && (
           <span className="flex items-center gap-1">
             <span className={`inline-block h-2 w-2 rounded-full ${health.status === 'healthy' ? 'bg-[var(--color-status-success)]' : health.status === 'degraded' ? 'bg-[var(--color-status-warning)]' : 'bg-[var(--color-status-danger)]'}`} />
             {health.pg ? 'PG' : ''}{health.pg && health.valkey ? ' · ' : ''}{health.valkey ? 'Valkey' : ''}
           </span>
         )}
+        <span className="text-[var(--color-border-strong)]">·</span>
         <span>{section}</span>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         {auth && <span>{auth.address}</span>}
+        {auth && health && <span className="text-[var(--color-border-strong)]">·</span>}
         {health && <span>v{health.version}</span>}
       </div>
     </div>
@@ -67,7 +69,7 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
       <div className="flex h-screen flex-col bg-[var(--color-bg-sunken)] text-[var(--color-text-primary)]">
-        <div className="flex min-h-0 flex-1 gap-px p-px">
+        <div className="flex min-h-0 flex-1 gap-0.5 p-px">
           <AppSidebar />
           <div className="min-w-0 flex-1 overflow-hidden rounded-lg bg-[var(--color-bg-base)]">{children}</div>
         </div>

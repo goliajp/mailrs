@@ -161,8 +161,12 @@ const ConversationItem = memo(function ConversationItem({
       onContextMenu={ctx.open}
       aria-selected={selected && !batchMode}
       aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
-      className={`relative flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
-        hasUnread ? 'border-l-[3px] border-l-[var(--color-brand-primary)]' : 'border-l-[3px] border-l-transparent'
+      className={`relative flex w-full items-start gap-3 px-4 py-3 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
+        selected && !batchMode
+          ? 'border-l-[3px] border-l-[var(--color-brand-primary)]'
+          : hasUnread
+            ? 'border-l-[3px] border-l-[var(--color-brand-primary)]'
+            : 'border-l-[3px] border-l-transparent'
       } ${
         !hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''
       } ${
@@ -339,18 +343,18 @@ function FilterBar() {
   const superDomains = auth?.accessible_domains ?? []
 
   return (
-    <div className="flex items-center gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">
+    <div className="flex items-center gap-1 border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5">
       {/* main tabs */}
       {VIEW_TABS.map((t) => (
         <button
           key={t.value}
           onClick={() => handleTab(t.value)}
-          className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
             activeTab === t.value
               ? t.value === 'action'
                 ? 'bg-[var(--color-status-danger)] text-white'
                 : 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
-              : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
+              : 'bg-[var(--color-hover)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)]'
           }`}
         >
           {t.label}
@@ -364,7 +368,7 @@ function FilterBar() {
       <div className="relative ml-auto" ref={panelRef}>
         <button
           onClick={() => setFiltersOpen((prev) => !prev)}
-          className={`relative flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
+          className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150 ${
             filtersOpen || hasAdvancedFilters
               ? 'text-[var(--color-brand-primary)]'
               : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
@@ -857,7 +861,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
 
   return (
     <div className="relative flex h-full select-none flex-col">
-      <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] p-3">
+      <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-3">
         <div role="search" className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]" aria-hidden="true" />
           <input
@@ -882,7 +886,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
             }}
             aria-pressed={batchMode}
             aria-label={batchMode ? 'Exit batch select mode' : 'Enter batch select mode'}
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150 ${
               batchMode
                 ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
                 : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
@@ -899,7 +903,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
             setSelectedId(null)
           }}
           aria-label="New conversation"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-all duration-150 hover:bg-[var(--color-hover)]"
           title="New conversation"
         >
           <SquarePen className="h-5 w-5" aria-hidden="true" />

@@ -12,7 +12,7 @@ import { themeAtom } from '@/store/theme'
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
 const navBtnBase =
-  'flex h-9 w-9 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]'
+  'flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]'
 const navBtnInactive =
   'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
 const navBtnActive =
@@ -76,7 +76,7 @@ export function AppSidebar() {
         : 'mail'
 
   return (
-    <aside className="hidden h-full w-14 shrink-0 select-none flex-col items-center rounded-lg bg-[var(--color-bg-raised)] py-4 md:flex">
+    <aside className="hidden h-full w-14 shrink-0 select-none flex-col items-center rounded-lg bg-[var(--color-bg-raised)] py-4 shadow-sm md:flex" style={{ boxShadow: 'var(--shadow-sm), inset -1px 0 0 var(--color-border-default)' }}>
       {/* logo */}
       <div className="mb-4">
         <img src="/icon.svg" alt="mailrs" className="h-9 w-9 rounded-lg" />

@@ -70,7 +70,7 @@
   --color-bg-base: #1e1e1e;
   --color-bg-raised: #252526;
   --color-bg-overlay: #2d2d30;
-  --color-bg-sunken: #171717;
+  --color-bg-sunken: #111111;
 
   /* text — warm white, not #fff */
   --color-text-primary: #e4e4e8;
@@ -79,8 +79,8 @@
   --color-text-inverse: #161618;
 
   /* borders — visible but subtle */
-  --color-border-default: #333338;
-  --color-border-strong: #434348;
+  --color-border-default: #3c3c3c;
+  --color-border-strong: #4a4a50;
 
   /* brand — brighter for dark backgrounds */
   --color-brand-primary: #5b9aef;

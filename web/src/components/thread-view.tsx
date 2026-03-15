@@ -304,7 +304,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* header bar */}
-      <div className="flex shrink-0 select-none items-center gap-2 border-b border-[var(--color-border-default)] px-4 py-2">
+      <div className="flex shrink-0 select-none items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-4 py-2.5">
         {onBack && (
           <button onClick={onBack} className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] md:hidden" title="Back">
             <ArrowLeft className="h-5 w-5" />
@@ -457,6 +457,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
         {/* column 2: chat bubbles + reply editor */}
         <div className="flex w-1/2 flex-col overflow-hidden bg-[var(--color-bg-raised)]">
+          {/* panel header */}
+          <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-4 py-1.5">
+            <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
+              Conversation
+              {messages.length > 0 && <span className="ml-1.5 text-[var(--color-text-tertiary)]">({messages.length})</span>}
+            </span>
+          </div>
           {/* chat bubbles — scrollable, takes remaining space */}
           <div className="flex-1 overflow-y-auto px-4 py-3">
             {loadingThread && messages.length === 0 && (
@@ -573,7 +580,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           </div>
 
           {/* reply editor — large, ~40% of the column height */}
-          <div className="flex h-[42%] shrink-0 flex-col border-t border-[var(--color-border-default)] bg-[var(--color-bg-base)]">
+          <div className="flex h-[42%] shrink-0 flex-col border-t-2 border-[var(--color-border-strong)] bg-[var(--color-bg-sunken)]">
             <ReplyBox
               threadId={selectedId}
               lastMessageId={fwdLastMessageId}
@@ -739,7 +746,7 @@ function formatRecipients(recipients: string): string {
 
 function HdrBtn({ onClick, title, className, children }: { onClick: () => void; title: string; className?: string; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`rounded-md p-1.5 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] ${className ?? ''}`} title={title}>
+    <button onClick={onClick} className={`flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)] ${className ?? ''}`} title={title}>
       {children}
     </button>
   )
@@ -747,7 +754,7 @@ function HdrBtn({ onClick, title, className, children }: { onClick: () => void; 
 
 function SmBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]" title={title}>
+    <button onClick={onClick} className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-all duration-150 hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)]" title={title}>
       {children}
     </button>
   )
