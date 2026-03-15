@@ -167,7 +167,7 @@ export function Chat() {
   const showThread = mobileView === 'thread'
 
   return (
-    <div className="flex h-full gap-px">
+    <div className="flex h-full gap-0.5">
       {/* conversation list: full width on mobile when showing list, fixed width on desktop */}
       <div
         className={`${
