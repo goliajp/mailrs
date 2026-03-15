@@ -1,33 +1,26 @@
 use serde::{Deserialize, Serialize};
 
 /// current prompt version — bump this to trigger automatic reanalysis of all messages
-pub const PROMPT_VERSION: &str = "v3";
+pub const PROMPT_VERSION: &str = "v4";
 
-/// gemini API configuration
+/// self-hosted LLM configuration
 #[derive(Debug, Clone)]
-pub struct GeminiConfig {
-    pub api_key: String,
-    pub embedding_model: String,
-    pub analysis_model: String,
+pub struct LlmConfig {
+    pub url: String,
     pub client: reqwest::Client,
 }
 
-impl GeminiConfig {
-    pub fn new(api_key: String) -> Self {
+impl LlmConfig {
+    pub fn new(url: String) -> Self {
         Self {
-            api_key,
-            embedding_model: "gemini-embedding-001".into(),
-            analysis_model: "gemini-2.5-flash".into(),
+            url,
             client: reqwest::Client::new(),
         }
     }
 
     /// model_version string stored in DB — includes prompt version
     pub fn model_version(&self) -> String {
-        format!(
-            "{}/{}/{}",
-            self.analysis_model, self.embedding_model, PROMPT_VERSION
-        )
+        format!("qwen/{PROMPT_VERSION}")
     }
 }
 
@@ -93,36 +86,32 @@ fn truncate_str(s: &str, max_bytes: usize) -> &str {
     &s[..end]
 }
 
-/// generate a 768-dimensional embedding using Gemini text-embedding-004
-pub async fn generate_embedding(config: &GeminiConfig, text: &str) -> Option<Vec<f32>> {
-    let text = truncate_str(text, 8000);
-
-    let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/{}:embedContent?key={}",
-        config.embedding_model, config.api_key
-    );
-
+/// call the self-hosted LLM API
+pub async fn call_llm(
+    config: &LlmConfig,
+    system: &str,
+    user_message: &str,
+    temperature: f32,
+) -> Option<String> {
     let body = serde_json::json!({
-        "model": format!("models/{}", config.embedding_model),
-        "content": {
-            "parts": [{"text": text}]
-        },
-        "outputDimensionality": 768
+        "system": system,
+        "messages": [{"role": "user", "content": user_message}],
+        "temperature": temperature
     });
 
     let response = match tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        config.client.post(&url).json(&body).send(),
+        std::time::Duration::from_secs(60),
+        config.client.post(&config.url).json(&body).send(),
     )
     .await
     {
         Ok(Ok(resp)) => resp,
         Ok(Err(e)) => {
-            eprintln!("gemini embedding error: {e}");
+            eprintln!("LLM request error: {e}");
             return None;
         }
         Err(_) => {
-            eprintln!("gemini embedding timeout (10s)");
+            eprintln!("LLM request timeout (60s)");
             return None;
         }
     };
@@ -131,7 +120,7 @@ pub async fn generate_embedding(config: &GeminiConfig, text: &str) -> Option<Vec
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
         eprintln!(
-            "gemini embedding API error {status}: {}",
+            "LLM API error {status}: {}",
             &body[..body.len().min(200)]
         );
         return None;
@@ -140,44 +129,24 @@ pub async fn generate_embedding(config: &GeminiConfig, text: &str) -> Option<Vec
     let json: serde_json::Value = match response.json().await {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("gemini embedding parse error: {e}");
+            eprintln!("LLM response parse error: {e}");
             return None;
         }
     };
 
-    let values = json["embedding"]["values"].as_array()?;
-    let embedding: Vec<f32> = values
-        .iter()
-        .filter_map(|v| v.as_f64().map(|f| f as f32))
-        .collect();
-
-    if embedding.len() == 768 {
-        Some(embedding)
-    } else {
-        eprintln!(
-            "gemini embedding bad dim: {} (expected 768)",
-            embedding.len()
-        );
-        None
-    }
+    json["content"].as_str().map(|s| s.to_string())
 }
 
-/// analyze an email using Gemini for classification, summarization, and entity extraction
+/// analyze an email using self-hosted LLM for classification, summarization, and entity extraction
 pub async fn analyze_email(
-    config: &GeminiConfig,
+    config: &LlmConfig,
     sender: &str,
     subject: &str,
     body_text: &str,
 ) -> Option<EmailAnalysis> {
     let body_text = truncate_str(body_text, 8000);
 
-    let prompt = format!(
-        r#"You are an email analysis assistant. Analyze this email and respond with ONLY a JSON object. No markdown fences, no explanation.
-
-From: {sender}
-Subject: {subject}
-Body:
-{body_text}
+    let system = r#"You are an email analysis assistant. Analyze emails and respond with ONLY a JSON object. No markdown fences, no explanation.
 
 ## Category Definitions
 - personal: private messages from friends/family/acquaintances
@@ -200,100 +169,23 @@ Body:
 - 51-75: Dangerous — requests for passwords/credit cards/personal info, urgency tactics, domain spoofing
 - 76-100: Phishing/Scam — impersonation, fake login pages, malware links, advance-fee fraud
 
-## Promotion Detection Signals
-Look for: unsubscribe/配信停止/退会 links, tracking pixels, sale/discount language, coupon codes, bulk sender headers, marketing sender names
-
-## Phishing Detection Signals
-Look for: urgent calls to action (「至急」「今すぐ」「アカウントが停止」), sender domain mismatch, requests for credentials/payment info, suspicious shortened URLs, display name spoofing
-
-## clean_text Instructions
-Extract the main readable content from the email body. Remove all HTML tags, navigation, headers/footers, unsubscribe notices, tracking elements, and boilerplate. Preserve paragraph structure with blank lines. Convert links to markdown format [text](url). Keep the text natural and readable. Max 2000 characters. If the body is already plain text, clean up whitespace and formatting.
-
 ## Action Detection
 - requires_action: true if the recipient needs to do something (reply, review, approve, pay, sign, attend, etc.)
-- sender_intent: classify the sender's primary purpose:
-  - "request" — asking the recipient to do something
-  - "inform" — sharing information, no action needed
-  - "confirm" — confirming a transaction, booking, or agreement
-  - "social" — social greeting, introduction, or casual conversation
-  - "alert" — urgent notification requiring attention (security, system, billing)
-- action_deadline: if the email mentions a deadline or due date for the action, extract as ISO 8601 (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). null if none.
+- sender_intent: classify the sender's primary purpose: "request", "inform", "confirm", "social", "alert"
+- action_deadline: if the email mentions a deadline, extract as ISO 8601 (YYYY-MM-DD). null if none.
 
-JSON schema:
-{{
-  "category": "<one of the categories above>",
-  "risk_score": <0-100>,
-  "risk_reason": "<brief reason for risk score>",
-  "summary": "<2-3 sentence summary of the email content and purpose>",
-  "clean_text": "<extracted clean readable text from the email, max 2000 chars>",
-  "requires_action": <true|false>,
-  "sender_intent": "<request|inform|confirm|social|alert>",
-  "action_deadline": "<ISO 8601 date or null>",
-  "people": [{{"name": "...", "email": "...", "role": "..."}}],
-  "dates": [{{"text": "original text", "iso_date": "YYYY-MM-DD", "context": "..."}}],
-  "amounts": [{{"text": "original text", "value": 123.45, "currency": "USD", "context": "..."}}],
-  "action_items": ["<action required by recipient>"]
-}}"#
+## clean_text Instructions
+Extract the main readable content. Remove HTML tags, navigation, headers/footers, unsubscribe notices, tracking elements. Max 2000 characters.
+
+## JSON schema
+{"category": "<one of the categories above>", "risk_score": <0-100>, "risk_reason": "<brief reason>", "summary": "<2-3 sentence summary>", "clean_text": "<extracted clean text, max 2000 chars>", "requires_action": <true|false>, "sender_intent": "<request|inform|confirm|social|alert>", "action_deadline": "<ISO 8601 date or null>", "people": [{"name": "...", "email": "...", "role": "..."}], "dates": [{"text": "original text", "iso_date": "YYYY-MM-DD", "context": "..."}], "amounts": [{"text": "original text", "value": 123.45, "currency": "USD", "context": "..."}], "action_items": ["<action required by recipient>"]}"#;
+
+    let user_message = format!(
+        "Analyze this email:\n\nFrom: {sender}\nSubject: {subject}\nBody:\n{body_text}"
     );
 
-    let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
-        config.analysis_model, config.api_key
-    );
-
-    let body = serde_json::json!({
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 2048
-        }
-    });
-
-    let response = match tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        config.client.post(&url).json(&body).send(),
-    )
-    .await
-    {
-        Ok(Ok(resp)) => resp,
-        Ok(Err(e)) => {
-            eprintln!("gemini analysis error: {e}");
-            return None;
-        }
-        Err(_) => {
-            eprintln!("gemini analysis timeout (30s)");
-            return None;
-        }
-    };
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        eprintln!(
-            "gemini analysis API error {status}: {}",
-            &body[..body.len().min(200)]
-        );
-        return None;
-    }
-
-    let json: serde_json::Value = match response.json().await {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("gemini analysis parse error: {e}");
-            return None;
-        }
-    };
-
-    // extract text from Gemini response
-    let text = json["candidates"]
-        .as_array()
-        .and_then(|arr| arr.first())
-        .and_then(|c| c["content"]["parts"].as_array())
-        .and_then(|parts| parts.first())
-        .and_then(|p| p["text"].as_str())
-        .unwrap_or("");
-
-    parse_analysis_response(text)
+    let text = call_llm(config, system, &user_message, 0.1).await?;
+    parse_analysis_response(&text)
 }
 
 /// parse the JSON analysis response, handling markdown fences and extra text
@@ -354,7 +246,6 @@ mod tests {
         let json = r#"{"category":"personal","risk_score":5,"risk_reason":"safe","summary":"test","people":[],"dates":[],"amounts":[],"action_items":[]}"#;
         let result = parse_analysis_response(json).unwrap();
         assert_eq!(result.clean_text, "");
-        // defaults for new fields
         assert!(!result.requires_action);
         assert_eq!(result.sender_intent, "");
         assert_eq!(result.action_deadline, None);
@@ -401,24 +292,22 @@ mod tests {
 
     #[test]
     fn truncate_multibyte_safe() {
-        // 'あ' is 3 bytes in UTF-8
-        let s = "あいう"; // 9 bytes total
+        let s = "あいう";
         assert_eq!(truncate_str(s, 9), "あいう");
-        assert_eq!(truncate_str(s, 8), "あい"); // rounds down to 6
+        assert_eq!(truncate_str(s, 8), "あい");
         assert_eq!(truncate_str(s, 6), "あい");
         assert_eq!(truncate_str(s, 5), "あ");
         assert_eq!(truncate_str(s, 3), "あ");
         assert_eq!(truncate_str(s, 2), "");
         assert_eq!(truncate_str(s, 0), "");
-        // ASCII is fine
         assert_eq!(truncate_str("hello", 3), "hel");
     }
 
     #[test]
-    fn prompt_version_in_model_version() {
-        let config = GeminiConfig::new("test-key".into());
+    fn model_version_format() {
+        let config = LlmConfig::new("http://localhost".into());
         let mv = config.model_version();
         assert!(mv.contains(PROMPT_VERSION));
-        assert!(mv.contains("gemini-2.5-flash"));
+        assert!(mv.contains("qwen"));
     }
 }

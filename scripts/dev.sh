@@ -28,7 +28,6 @@ export MAILRS_LOCAL_DOMAINS=localhost,golia.jp
 export MAILRS_USERS_FILE=/tmp/mailrs/users.toml
 export MAILRS_DNSBL_ENABLED=false
 export MAILRS_ANTISPAM_ENABLED=false
-export MAILRS_GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 export MAILRS_AI_ANALYSIS_ENABLED=true
 
 mkdir -p /tmp/mailrs/maildir

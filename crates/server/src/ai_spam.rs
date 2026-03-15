@@ -2,14 +2,6 @@ use redis::AsyncCommands;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-/// AI spam classifier configuration
-#[derive(Debug, Clone)]
-pub struct AiSpamConfig {
-    pub api_url: String,
-    pub api_key: String,
-    pub model: String,
-}
-
 /// AI classification result
 #[derive(Debug, Clone)]
 pub struct AiSpamResult {
@@ -17,11 +9,11 @@ pub struct AiSpamResult {
     pub reason: String,
 }
 
-/// classify a message using an LLM API
+/// classify a message using the self-hosted LLM
 /// only called in the grey zone (1.0 < rule_score < threshold)
 /// returns additional score adjustment + reason, or None on failure/timeout
 pub async fn classify(
-    config: &AiSpamConfig,
+    llm_url: &str,
     valkey: Option<&redis::aio::ConnectionManager>,
     sender: &str,
     subject: &str,
@@ -38,27 +30,21 @@ pub async fn classify(
         }
     }
 
-    let prompt = format!(
-        "You are a spam classifier. Analyze this email and respond with ONLY a JSON object.\n\
-         Sender: {sender}\n\
-         Subject: {subject}\n\
-         Body preview: {body_preview}\n\n\
-         Respond with: {{\"score\": <0.0-10.0>, \"reason\": \"<brief reason>\"}}\n\
-         Score guide: 0=clearly legitimate, 5=suspicious, 10=obvious spam"
+    let system = "You are a spam classifier. Analyze emails and respond with ONLY a JSON object: {\"score\": <0.0-10.0>, \"reason\": \"<brief reason>\"}. Score guide: 0=clearly legitimate, 5=suspicious, 10=obvious spam";
+
+    let user_message = format!(
+        "Sender: {sender}\nSubject: {subject}\nBody preview: {body_preview}"
     );
 
     let client = reqwest::Client::new();
     let response = match tokio::time::timeout(
-        std::time::Duration::from_secs(3),
+        std::time::Duration::from_secs(10),
         client
-            .post(&config.api_url)
-            .header("x-api-key", &config.api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("content-type", "application/json")
+            .post(llm_url)
             .json(&serde_json::json!({
-                "model": config.model,
-                "max_tokens": 100,
-                "messages": [{"role": "user", "content": prompt}]
+                "system": system,
+                "messages": [{"role": "user", "content": user_message}],
+                "temperature": 0.1
             }))
             .send(),
     )
@@ -66,11 +52,11 @@ pub async fn classify(
     {
         Ok(Ok(resp)) => resp,
         Ok(Err(e)) => {
-            tracing::warn!(event = "ai_spam_error", error = %e, "AI API request failed");
+            tracing::warn!(event = "ai_spam_error", error = %e, "LLM request failed");
             return None;
         }
         Err(_) => {
-            tracing::warn!(event = "ai_spam_timeout", "AI API request timed out (3s)");
+            tracing::warn!(event = "ai_spam_timeout", "LLM request timed out (10s)");
             return None;
         }
     };
@@ -83,13 +69,7 @@ pub async fn classify(
         }
     };
 
-    // extract text from Anthropic response
-    let text = body["content"]
-        .as_array()
-        .and_then(|arr| arr.first())
-        .and_then(|block| block["text"].as_str())
-        .unwrap_or("");
-
+    let text = body["content"].as_str().unwrap_or("");
     let result = parse_ai_response(text)?;
 
     // cache result in Valkey (24h TTL)
@@ -125,7 +105,6 @@ fn parse_cached(s: &str) -> Option<AiSpamResult> {
 }
 
 fn parse_ai_response(text: &str) -> Option<AiSpamResult> {
-    // find JSON in response (may have surrounding text)
     let start = text.find('{')?;
     let end = text.rfind('}')? + 1;
     let json_str = &text[start..end];
@@ -171,7 +150,6 @@ mod tests {
     fn cache_key_format() {
         let key = make_cache_key("user@example.com", "Hello World", "body");
         assert!(key.starts_with("ai:"));
-        // different sender same subject → different key
         let key2 = make_cache_key("other@example.com", "Hello World", "body");
         assert_ne!(key, key2);
     }
