@@ -10,6 +10,30 @@ function extractDomain(sender: string): string | null {
 // in-memory cache for BIMI lookups: domain → logo URL or null (no record)
 const bimiCache = new Map<string, string | null>()
 
+// dedup in-flight requests: domain → promise
+const bimiInflight = new Map<string, Promise<string | null>>()
+
+function fetchBimi(domain: string): Promise<string | null> {
+  if (bimiCache.has(domain)) return Promise.resolve(bimiCache.get(domain)!)
+  const existing = bimiInflight.get(domain)
+  if (existing) return existing
+  const p = fetch(`/api/bimi/${domain}`)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      const url = data?.logo_url ?? null
+      bimiCache.set(domain, url)
+      bimiInflight.delete(domain)
+      return url
+    })
+    .catch(() => {
+      bimiCache.set(domain, null)
+      bimiInflight.delete(domain)
+      return null
+    })
+  bimiInflight.set(domain, p)
+  return p
+}
+
 // static logo sources as fallbacks (ordered by quality)
 const fallbackSources = [
   (domain: string) => `https://logo.clearbit.com/${domain}`,
@@ -21,7 +45,11 @@ export function SenderAvatar({ sender, size = 36, className }: {
   size?: number
   className?: string
 }) {
-  const [bimiUrl, setBimiUrl] = useState<string | null | undefined>(undefined) // undefined = loading
+  const [bimiUrl, setBimiUrl] = useState<string | null | undefined>(() => {
+    const domain = extractDomain(sender)
+    if (domain && bimiCache.has(domain)) return bimiCache.get(domain)!
+    return undefined
+  })
   const [fallbackIndex, setFallbackIndex] = useState(0)
   const domain = extractDomain(sender)
   const initial = avatarInitial(sender)
@@ -31,23 +59,13 @@ export function SenderAvatar({ sender, size = 36, className }: {
   useEffect(() => {
     if (!domain) return
     if (bimiCache.has(domain)) {
-      setBimiUrl(bimiCache.get(domain) ?? null)
+      setBimiUrl(bimiCache.get(domain)!)
       return
     }
     let cancelled = false
-    fetch(`/api/bimi/${domain}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (cancelled) return
-        const url = data?.logo_url ?? null
-        bimiCache.set(domain, url)
-        setBimiUrl(url)
-      })
-      .catch(() => {
-        if (cancelled) return
-        bimiCache.set(domain, null)
-        setBimiUrl(null)
-      })
+    fetchBimi(domain).then(url => {
+      if (!cancelled) setBimiUrl(url)
+    })
     return () => { cancelled = true }
   }, [domain])
 
