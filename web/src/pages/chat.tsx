@@ -2,6 +2,7 @@ import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { ConversationList } from '@/components/conversation-list'
+import { Panel, PanelRow } from '@/layouts/shell'
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { NewConversation } from '@/components/new-conversation'
 import { ThreadView } from '@/components/thread-view'
@@ -38,7 +39,7 @@ export function Chat() {
   const setHasMore = useSetAtom(hasMoreAtom)
   const setLoadingMore = useSetAtom(loadingMoreAtom)
   const setInitialLoading = useSetAtom(initialLoadingAtom)
-  const [mobileView, setMobileView] = useAtom(mobileViewAtom)
+  const [, setMobileView] = useAtom(mobileViewAtom)
   const [shortcutsOpen, setShortcutsOpen] = useAtom(shortcutsDialogOpenAtom)
   const showArchived = useAtomValue(showArchivedAtom)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
@@ -163,42 +164,27 @@ export function Chat() {
     }
   }, [searchQuery, categoryFilter, selectedDomains, showArchived, folder, loadConversations, setHasMore])
 
-  const showList = mobileView === 'list'
-  const showThread = mobileView === 'thread'
-
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 gap-1.5">
-      {/* list panel */}
-      <div
-        className={`${
-          showList ? 'flex' : 'hidden'
-        } w-[280px] shrink-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)] md:flex`}
-      >
+    <PanelRow>
+      <Panel width={280}>
         <ConversationList
           onLoadMore={loadMore}
           onSelectConversation={() => setMobileView('thread')}
         />
-      </div>
+      </Panel>
 
-      {/* detail area */}
-      <div
-        className={`${
-          showThread ? 'flex' : 'hidden'
-        } min-h-0 min-w-0 flex-1 gap-1.5 md:flex`}
-      >
+      <PanelRow>
         {composingNew ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
-            <NewConversation />
-          </div>
+          <Panel><NewConversation /></Panel>
         ) : (
           <ThreadView onBack={() => setMobileView('list')} />
         )}
-      </div>
+      </PanelRow>
 
       <KeyboardShortcutsDialog
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
       />
-    </div>
+    </PanelRow>
   )
 }
