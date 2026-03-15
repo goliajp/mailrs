@@ -658,10 +658,8 @@ function ReactionBar({
 
 function BubbleDateDivider({ label }: { label: string }) {
   return (
-    <div className="flex select-none items-center gap-3 py-2">
-      <div className="h-px flex-1 bg-[var(--color-border-default)]" />
-      <span className="shrink-0 text-[11px] font-medium text-[var(--color-text-tertiary)]">{label}</span>
-      <div className="h-px flex-1 bg-[var(--color-border-default)]" />
+    <div className="flex select-none justify-center py-2">
+      <span className="rounded-full bg-[var(--color-bg-sunken)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--color-text-tertiary)]">{label}</span>
     </div>
   )
 }
