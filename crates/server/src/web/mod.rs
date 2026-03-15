@@ -73,7 +73,7 @@ pub struct WebState {
     pub health: Option<HealthState>,
     pub pg_pool: Option<sqlx::PgPool>,
     pub valkey: Option<redis::aio::ConnectionManager>,
-    pub gemini_config: Option<crate::ai_email::GeminiConfig>,
+    pub llm_config: Option<crate::ai_email::LlmConfig>,
     pub resolver: Option<Arc<hickory_resolver::TokioResolver>>,
     pub dkim_selector: Option<String>,
     pub smtp_config: Option<SmtpConfigSnapshot>,
@@ -123,7 +123,7 @@ impl WebState {
             health: None,
             pg_pool: None,
             valkey: None,
-            gemini_config: None,
+            llm_config: None,
             resolver: None,
             dkim_selector: None,
             smtp_config: None,
@@ -137,8 +137,8 @@ impl WebState {
         self
     }
 
-    pub fn with_gemini(mut self, config: crate::ai_email::GeminiConfig) -> Self {
-        self.gemini_config = Some(config);
+    pub fn with_llm(mut self, config: crate::ai_email::LlmConfig) -> Self {
+        self.llm_config = Some(config);
         self
     }
 

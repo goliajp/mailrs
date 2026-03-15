@@ -284,20 +284,16 @@ async fn main() {
         }
     }
 
-    // AI email analyzer (background)
+    // AI email analyzer (background) — uses self-hosted LLM
     if cfg.ai_analysis_enabled {
-        if let (Some(api_key), Some(ref mb)) = (&cfg.gemini_api_key, &mailbox_store) {
-            let gemini_config = ai_email::GeminiConfig::new(api_key.clone());
+        if let Some(ref mb) = mailbox_store {
+            let llm_config = ai_email::LlmConfig::new(cfg.llm_url.clone());
             ai_analyzer::spawn_analyzer(
-                gemini_config,
+                llm_config,
                 mb.clone(),
                 event_bus.clone(),
                 cfg.maildir_root.clone(),
             );
-        } else {
-            if cfg.gemini_api_key.is_none() {
-                eprintln!("warning: AI analysis enabled but MAILRS_GEMINI_API_KEY not set");
-            }
         }
     }
 
@@ -351,8 +347,8 @@ async fn main() {
             cfg.mta_sts_id.clone(),
         );
     }
-    if let Some(ref api_key) = cfg.gemini_api_key {
-        ws = ws.with_gemini(ai_email::GeminiConfig::new(api_key.clone()));
+    if cfg.ai_analysis_enabled {
+        ws = ws.with_llm(ai_email::LlmConfig::new(cfg.llm_url.clone()));
     }
     if let Some(ref r) = resolver {
         ws = ws.with_resolver(r.clone());
@@ -391,12 +387,8 @@ async fn main() {
         dmarc_report_store: dmarc_report_store.clone(),
         clamav_addr: cfg.clamav_addr.clone(),
         valkey: valkey_conn.clone(),
-        ai_config: if cfg.ai_enabled {
-            cfg.ai_api_key.as_ref().map(|key| ai_spam::AiSpamConfig {
-                api_url: cfg.ai_api_url.clone(),
-                api_key: key.clone(),
-                model: cfg.ai_model.clone(),
-            })
+        llm_url: if cfg.ai_analysis_enabled {
+            Some(cfg.llm_url.clone())
         } else {
             None
         },

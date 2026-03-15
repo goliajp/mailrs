@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use tokio::sync::Semaphore;
 
-use crate::ai_email::{self, GeminiConfig};
+use crate::ai_email::{self, LlmConfig};
 use crate::event_bus::{EventBus, SmtpEvent};
 use crate::message_util;
 use mailrs_mailbox::MailboxStore;
@@ -11,7 +11,7 @@ use mailrs_mailbox::MailboxStore;
 /// spawn the background email analyzer
 /// runs backfill on startup, then listens for new messages
 pub fn spawn_analyzer(
-    config: GeminiConfig,
+    config: LlmConfig,
     mailbox_store: Arc<MailboxStore>,
     event_bus: EventBus,
     maildir_root: String,
@@ -36,7 +36,7 @@ pub fn spawn_analyzer(
     eprintln!("AI email analyzer started");
 }
 
-async fn backfill_loop(config: Arc<GeminiConfig>, store: Arc<MailboxStore>, maildir_root: String) {
+async fn backfill_loop(config: Arc<LlmConfig>, store: Arc<MailboxStore>, maildir_root: String) {
     let semaphore = Arc::new(Semaphore::new(2));
     let model_version = config.model_version();
     let analyzed_count = Arc::new(AtomicU64::new(0));
@@ -128,7 +128,7 @@ async fn backfill_loop(config: Arc<GeminiConfig>, store: Arc<MailboxStore>, mail
 }
 
 async fn listen_new_messages(
-    config: Arc<GeminiConfig>,
+    config: Arc<LlmConfig>,
     store: Arc<MailboxStore>,
     event_bus: EventBus,
     maildir_root: String,
@@ -177,7 +177,7 @@ async fn listen_new_messages(
 /// analyze a single message with up to 5 retries and longer exponential backoff
 #[allow(clippy::too_many_arguments)]
 async fn analyze_with_retry(
-    config: &GeminiConfig,
+    config: &LlmConfig,
     store: &MailboxStore,
     maildir_root: &str,
     message_id: i64,
@@ -224,7 +224,7 @@ async fn analyze_with_retry(
 /// returns true on success
 #[allow(clippy::too_many_arguments)]
 async fn analyze_single_message(
-    config: &GeminiConfig,
+    config: &LlmConfig,
     store: &MailboxStore,
     maildir_root: &str,
     message_id: i64,
@@ -264,16 +264,9 @@ async fn analyze_single_message(
         format!("{body_text}\n\n[Attachment content]\n{attachment_text}")
     };
 
-    // prepare text for embedding: combine subject + body + attachment text
-    let embedding_text = format!("{subject}\n\n{body_for_analysis}");
-
-    // run embedding and analysis concurrently
-    let (embedding_result, analysis_result) = tokio::join!(
-        ai_email::generate_embedding(config, &embedding_text),
-        ai_email::analyze_email(config, &sender, &subject, &body_for_analysis),
-    );
-
-    let analysis = match analysis_result {
+    let analysis = match ai_email::analyze_email(config, &sender, &subject, &body_for_analysis)
+        .await
+    {
         Some(a) => a,
         None => {
             tracing::debug!(event = "analyzer_no_result", message_id);
@@ -303,7 +296,7 @@ async fn analyze_single_message(
             &dates,
             &amounts,
             &action_items,
-            embedding_result.as_deref(),
+            None, // no embedding
             model_version,
             &analysis.clean_text,
             analysis.requires_action,
@@ -318,18 +311,16 @@ async fn analyze_single_message(
 
     // update importance score if action items were detected
     if analysis.requires_action {
-        // boost importance for messages requiring action
         let _ = store.boost_importance_for_action(message_id).await;
     }
 
     eprintln!(
-        "AI analyzed msg={} cat={} risk={} action={} intent={} embed={}",
+        "AI analyzed msg={} cat={} risk={} action={} intent={}",
         message_id,
         analysis.category,
         analysis.risk_score,
         analysis.requires_action,
         sender_intent,
-        embedding_result.is_some()
     );
 
     true

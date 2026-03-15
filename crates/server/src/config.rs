@@ -59,15 +59,10 @@ pub struct ServerConfig {
     pub mta_sts_id: String,
     // spam filtering
     pub spam_score_threshold: f64,
-    // AI spam classification
-    pub ai_enabled: bool,
-    pub ai_api_url: String,
-    pub ai_api_key: Option<String>,
-    pub ai_model: String,
     // ClamAV
     pub clamav_addr: Option<String>,
-    // AI email analysis (Gemini)
-    pub gemini_api_key: Option<String>,
+    // AI email analysis (self-hosted LLM)
+    pub llm_url: String,
     pub ai_analysis_enabled: bool,
     // auth guard (brute force protection)
     pub auth_max_failures_account: u32,
@@ -128,12 +123,8 @@ impl Default for ServerConfig {
             mta_sts_max_age: 604800,
             mta_sts_id: chrono::Utc::now().format("%Y%m%d%H%M%S").to_string(),
             spam_score_threshold: 5.0,
-            ai_enabled: false,
-            ai_api_url: "https://api.anthropic.com/v1/messages".into(),
-            ai_api_key: None,
-            ai_model: "claude-haiku-4-5-20251001".into(),
             clamav_addr: None,
-            gemini_api_key: None,
+            llm_url: "https://devops.golia.jp/api/llm/complete".into(),
             ai_analysis_enabled: false,
             auth_max_failures_account: 5,
             auth_account_window_secs: 900,
@@ -302,26 +293,11 @@ impl ServerConfig {
                 cfg.spam_score_threshold = n;
             }
         }
-        if std::env::var("MAILRS_AI_ENABLED")
-            .map(|v| v == "true" || v == "1")
-            .unwrap_or(false)
-        {
-            cfg.ai_enabled = true;
-        }
-        if let Ok(v) = std::env::var("MAILRS_AI_API_URL") {
-            cfg.ai_api_url = v;
-        }
-        if let Ok(v) = std::env::var("MAILRS_AI_API_KEY") {
-            cfg.ai_api_key = Some(v);
-        }
-        if let Ok(v) = std::env::var("MAILRS_AI_MODEL") {
-            cfg.ai_model = v;
-        }
         if let Ok(v) = std::env::var("MAILRS_CLAMAV_ADDR") {
             cfg.clamav_addr = Some(v);
         }
-        if let Ok(v) = std::env::var("MAILRS_GEMINI_API_KEY") {
-            cfg.gemini_api_key = Some(v);
+        if let Ok(v) = std::env::var("MAILRS_LLM_URL") {
+            cfg.llm_url = v;
         }
         if std::env::var("MAILRS_AI_ANALYSIS_ENABLED")
             .map(|v| v == "true" || v == "1")
@@ -960,8 +936,8 @@ mod tests {
     #[test]
     fn default_ai_is_disabled() {
         let cfg = ServerConfig::default();
-        assert!(!cfg.ai_enabled);
         assert!(!cfg.ai_analysis_enabled);
+        assert_eq!(cfg.llm_url, "https://devops.golia.jp/api/llm/complete");
     }
 
     #[test]
@@ -988,18 +964,6 @@ mod tests {
     fn default_spam_score_threshold() {
         let cfg = ServerConfig::default();
         assert!((cfg.spam_score_threshold - 5.0).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn default_ai_api_url() {
-        let cfg = ServerConfig::default();
-        assert_eq!(cfg.ai_api_url, "https://api.anthropic.com/v1/messages");
-    }
-
-    #[test]
-    fn default_ai_model() {
-        let cfg = ServerConfig::default();
-        assert_eq!(cfg.ai_model, "claude-haiku-4-5-20251001");
     }
 
     #[test]
@@ -1040,9 +1004,7 @@ mod tests {
         assert!(cfg.web_static_dir.is_none());
         assert!(cfg.acme_email.is_none());
         assert!(cfg.mta_sts_mode.is_none());
-        assert!(cfg.ai_api_key.is_none());
         assert!(cfg.clamav_addr.is_none());
-        assert!(cfg.gemini_api_key.is_none());
         assert!(cfg.pg_url.is_none());
         assert!(cfg.valkey_url.is_none());
     }
@@ -1416,36 +1378,6 @@ mod tests {
     }
 
     #[test]
-    fn from_env_ai_enabled_true() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        std::env::set_var("MAILRS_AI_ENABLED", "true");
-        let cfg = ServerConfig::from_env();
-        assert!(cfg.ai_enabled);
-        clear_mailrs_env();
-    }
-
-    #[test]
-    fn from_env_ai_enabled_one() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        std::env::set_var("MAILRS_AI_ENABLED", "1");
-        let cfg = ServerConfig::from_env();
-        assert!(cfg.ai_enabled);
-        clear_mailrs_env();
-    }
-
-    #[test]
-    fn from_env_ai_enabled_false_for_other_values() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        std::env::set_var("MAILRS_AI_ENABLED", "yes");
-        let cfg = ServerConfig::from_env();
-        assert!(!cfg.ai_enabled);
-        clear_mailrs_env();
-    }
-
-    #[test]
     fn from_env_ai_analysis_enabled() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
@@ -1706,36 +1638,16 @@ mod tests {
     }
 
     // =====================================================================
-    // from_env — AI fields
+    // from_env — LLM / ClamAV
     // =====================================================================
 
     #[test]
-    fn from_env_ai_api_url() {
+    fn from_env_llm_url() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        std::env::set_var("MAILRS_AI_API_URL", "https://custom.api/v1");
+        std::env::set_var("MAILRS_LLM_URL", "https://custom.llm/api");
         let cfg = ServerConfig::from_env();
-        assert_eq!(cfg.ai_api_url, "https://custom.api/v1");
-        clear_mailrs_env();
-    }
-
-    #[test]
-    fn from_env_ai_api_key() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        std::env::set_var("MAILRS_AI_API_KEY", "sk-test-key-123");
-        let cfg = ServerConfig::from_env();
-        assert_eq!(cfg.ai_api_key, Some("sk-test-key-123".into()));
-        clear_mailrs_env();
-    }
-
-    #[test]
-    fn from_env_ai_model() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        std::env::set_var("MAILRS_AI_MODEL", "gpt-4");
-        let cfg = ServerConfig::from_env();
-        assert_eq!(cfg.ai_model, "gpt-4");
+        assert_eq!(cfg.llm_url, "https://custom.llm/api");
         clear_mailrs_env();
     }
 
@@ -1746,16 +1658,6 @@ mod tests {
         std::env::set_var("MAILRS_CLAMAV_ADDR", "127.0.0.1:3310");
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.clamav_addr, Some("127.0.0.1:3310".into()));
-        clear_mailrs_env();
-    }
-
-    #[test]
-    fn from_env_gemini_api_key() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        std::env::set_var("MAILRS_GEMINI_API_KEY", "gemini-key-abc");
-        let cfg = ServerConfig::from_env();
-        assert_eq!(cfg.gemini_api_key, Some("gemini-key-abc".into()));
         clear_mailrs_env();
     }
 
@@ -1898,7 +1800,7 @@ mod tests {
         assert!(cfg.local_domains.is_empty());
         assert!(cfg.tls_cert.is_none());
         assert!(cfg.tls_key.is_none());
-        assert!(!cfg.ai_enabled);
+        assert!(!cfg.ai_analysis_enabled);
         clear_mailrs_env();
     }
 

@@ -60,7 +60,7 @@ pub struct ConnectionContext {
     pub dmarc_report_store: Option<Arc<DmarcReportStore>>,
     pub clamav_addr: Option<String>,
     pub valkey: Option<redis::aio::ConnectionManager>,
-    pub ai_config: Option<crate::ai_spam::AiSpamConfig>,
+    pub llm_url: Option<String>,
     pub srs_secret: Option<String>,
     pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
 }
@@ -496,7 +496,7 @@ where
                                 ctx.dmarc_report_store.as_ref(),
                                 ctx.resolver.as_ref(),
                                 ctx.clamav_addr.as_deref(),
-                                ctx.ai_config.as_ref(),
+                                ctx.llm_url.as_deref(),
                                 ctx.valkey.as_ref(),
                             )
                             .await;

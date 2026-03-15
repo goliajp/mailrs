@@ -519,124 +519,25 @@ pub(super) async fn search_conversations(
     Json(convos_to_response(convos))
 }
 
-/// run semantic search and build ConversationSummary for each matching thread
+/// semantic search is disabled — requires embedding model
 async fn semantic_search_threads(
-    state: &WebState,
-    user: &str,
-    query: &str,
-    max: usize,
-    category: Option<&str>,
-    domains: Option<&[String]>,
+    _state: &WebState,
+    _user: &str,
+    _query: &str,
+    _max: usize,
+    _category: Option<&str>,
+    _domains: Option<&[String]>,
 ) -> Option<Vec<mailrs_mailbox::ConversationSummary>> {
-    let gemini = state.gemini_config.as_ref()?;
-    let mb = state.mailbox_store.as_ref()?;
-
-    let embedding = crate::ai_email::generate_embedding(gemini, query).await?;
-    let results = mb
-        .semantic_search(user, &embedding, max.min(20) as i64, domains)
-        .await
-        .ok()?;
-
-    let mut out = Vec::new();
-    for (_, thread_id, _) in &results {
-        let msgs = mb
-            .list_thread_messages(user, thread_id, domains)
-            .await
-            .ok()?;
-        let first = msgs.first()?;
-        // safe: first() returned Some so vec is non-empty
-        let last = msgs.last()?;
-
-        let cat = mb
-            .get_email_analysis(last.id)
-            .await
-            .ok()
-            .flatten()
-            .map(|a| a.category)
-            .unwrap_or_else(|| "general".to_string());
-
-        if let Some(filter) = category {
-            if cat != filter {
-                continue;
-            }
-        }
-
-        let participants: Vec<String> = msgs
-            .iter()
-            .map(|m| m.sender.clone())
-            .collect::<std::collections::HashSet<_>>()
-            .into_iter()
-            .collect();
-
-        out.push(mailrs_mailbox::ConversationSummary {
-            thread_id: thread_id.clone(),
-            subject: first.subject.clone(),
-            participants: participants.join(","),
-            message_count: msgs.len() as u32,
-            unread_count: msgs.iter().filter(|m| m.flags & 1 == 0).count() as u32,
-            last_date: last.internal_date,
-            category: cat,
-            flagged: msgs.iter().any(|m| m.flags & 4 != 0),
-            snippet: String::new(),
-            pinned: false,
-            archived: false,
-            importance_level: msgs.iter().max_by(|a, b| a.importance_score.partial_cmp(&b.importance_score).unwrap_or(std::cmp::Ordering::Equal)).map(|m| m.importance_level.clone()).unwrap_or_else(|| "normal".into()),
-            importance_score: msgs.iter().map(|m| m.importance_score).fold(0.0f32, f32::max),
-        });
-    }
-
-    Some(out)
+    None
 }
 
 pub(super) async fn semantic_search(
-    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
-    Query(q): Query<SearchQuery>,
-    State(state): State<Arc<WebState>>,
+    AuthUser { .. }: AuthUser,
+    Query(_q): Query<SearchQuery>,
+    State(_state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
-    let Some(ref mb_store) = state.mailbox_store else {
-        return Json(Vec::<SemanticSearchResult>::new());
-    };
-    let Some(ref gemini_config) = state.gemini_config else {
-        return Json(Vec::<SemanticSearchResult>::new());
-    };
-
-    if q.q.len() > super::MAX_QUERY_LEN {
-        return Json(Vec::<SemanticSearchResult>::new());
-    }
-
-    let limit = super::clamp_limit(q.limit);
-
-    // generate embedding for the query
-    let embedding = match crate::ai_email::generate_embedding(gemini_config, &q.q).await {
-        Some(e) => e,
-        None => return Json(Vec::<SemanticSearchResult>::new()),
-    };
-
-    let domains = validate_domains(q.domains.as_deref(), permissions);
-
-    let results = mb_store
-        .semantic_search(user, &embedding, limit as i64, domains.as_deref())
-        .await
-        .unwrap_or_default();
-
-    // deduplicate by thread_id, keep highest similarity
-    let mut seen = std::collections::HashMap::new();
-    for (_, thread_id, similarity) in &results {
-        let entry = seen.entry(thread_id.clone()).or_insert(*similarity);
-        if *similarity > *entry {
-            *entry = *similarity;
-        }
-    }
-
-    let result: Vec<SemanticSearchResult> = seen
-        .into_iter()
-        .map(|(thread_id, similarity)| SemanticSearchResult {
-            thread_id,
-            similarity,
-        })
-        .collect();
-
-    Json(result)
+    // semantic search disabled — no embedding model available
+    Json(Vec::<SemanticSearchResult>::new())
 }
 
 // ---- snooze API ----
