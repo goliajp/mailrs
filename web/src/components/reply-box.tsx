@@ -368,7 +368,7 @@ export function ReplyBox({
       </div>
 
       {/* read receipt */}
-      <div className="flex shrink-0 items-center px-3 pt-1">
+      <div className="flex shrink-0 items-center px-4 pt-1">
         <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
           <input
             type="checkbox"
@@ -381,7 +381,7 @@ export function ReplyBox({
       </div>
 
       {/* action bar */}
-      <div className="flex shrink-0 select-none items-center gap-1 px-3 pb-2 pt-1.5">
+      <div className="flex shrink-0 select-none items-center gap-1.5 px-4 pb-3 pt-1.5">
         <button
           onClick={() => fileInputRef.current?.click()}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
