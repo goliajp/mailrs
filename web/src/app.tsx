@@ -83,7 +83,7 @@ function useDocumentTitle() {
   const unreadCount = useAtomValue(unreadCountAtom)
 
   useEffect(() => {
-    document.title = unreadCount > 0 ? `(${unreadCount}) mailrs` : 'mailrs'
+    document.title = unreadCount > 0 ? `(${unreadCount}) Mailrs` : 'Mailrs'
   }, [unreadCount])
 }
 

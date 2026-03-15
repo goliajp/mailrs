@@ -101,7 +101,7 @@ export function Login() {
         <div className="flex flex-col items-center">
           <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg" style={{ boxShadow: 'var(--shadow-sm)' }} />
           <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
-            mailrs
+            Mailrs
           </h1>
           <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
             {forgotMode ? 'Reset your password' : 'Sign in to your account'}
