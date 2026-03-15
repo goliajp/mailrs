@@ -133,7 +133,7 @@ function SmtpConfigPanel({ config }: { config: SmtpConfig }) {
   return (
     <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
       <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">SMTP Configuration</h3>
-      <div className="space-y-2 text-sm">
+      <div className="space-y-2">
         <Row label="Hostname" value={config.hostname} mono />
         <Row
           label="Ports"
@@ -150,13 +150,12 @@ function SmtpConfigPanel({ config }: { config: SmtpConfig }) {
   )
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Row({ label, value }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex items-baseline gap-2 text-xs">
       <span className="shrink-0 text-[var(--color-text-tertiary)]">{label}</span>
-      <span className={`text-right text-[var(--color-text-primary)] ${mono ? 'font-mono' : ''}`}>
-        {value}
-      </span>
+      <span className="min-w-0 flex-1 border-b border-dotted border-[var(--color-border-default)]" />
+      <span className="shrink-0 text-right text-[var(--color-text-primary)]">{value}</span>
     </div>
   )
 }
@@ -170,25 +169,28 @@ function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
       ) : (
         <table className="w-full text-xs">
           <tbody>
-            {entries.map((e) => (
-              <tr key={e.id} className="border-b border-[var(--color-border-default)] last:border-0">
-                <td className="whitespace-nowrap py-1.5 pr-3 text-[var(--color-text-tertiary)]">
-                  {formatRelativeTime(e.timestamp)}
-                </td>
-                <td className="whitespace-nowrap py-1.5 pr-3">
-                  <span className={`rounded px-1.5 py-0.5 font-medium ${
-                    e.action === 'login_failed' ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
-                    : e.action === 'login' ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
-                    : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)]'
-                  }`}>
-                    {e.action}
-                  </span>
-                </td>
-                <td className="truncate py-1.5 text-[var(--color-text-secondary)]">
-                  {e.target}{e.detail ? ` — ${e.detail}` : ''}
-                </td>
-              </tr>
-            ))}
+            {entries.map((e) => {
+              const ip = e.detail.replace(/^ip=/, '').trim()
+              return (
+                <tr key={e.id} className="border-b border-[var(--color-border-default)] last:border-0">
+                  <td className="whitespace-nowrap py-1.5 pr-2 text-[var(--color-text-tertiary)]">
+                    {formatRelativeTime(e.timestamp)}
+                  </td>
+                  <td className="whitespace-nowrap py-1.5 pr-2">
+                    <span className={`rounded px-1.5 py-0.5 font-medium ${
+                      e.action === 'login_failed' ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+                      : e.action === 'login' ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+                      : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)]'
+                    }`}>
+                      {e.action.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td className="py-1.5 text-right tabular-nums text-[var(--color-text-tertiary)]">
+                    {ip || e.target}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       )}
