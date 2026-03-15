@@ -10,7 +10,7 @@ export function Shell({ sidebar, statusBar, children }: {
     <div className="fixed inset-0 flex flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
       <div className="flex min-h-0 flex-1 gap-1.5 pl-1.5 pt-1.5 pb-1.5">
         <div className="w-14 shrink-0">{sidebar}</div>
-        <div className="flex min-h-0 min-w-0 flex-1 gap-1.5 overflow-hidden pr-1.5">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 gap-1.5 overflow-hidden pr-3">{children}</div>
       </div>
       <div className="h-7 shrink-0">{statusBar}</div>
     </div>
