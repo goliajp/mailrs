@@ -133,13 +133,12 @@ describe('ThreadView — no selection', () => {
     expect(screen.getByText('Select a conversation')).toBeDefined()
   })
 
-  it('renders mobile back button when onBack is provided', () => {
+  it('does not render back button in empty state (mobile nav handled by Chat)', () => {
     const store = makeStore()
     store.set(selectedThreadIdAtom, null)
     const onBack = vi.fn()
     render(<Wrapper store={store}><ThreadView onBack={onBack} /></Wrapper>)
-    fireEvent.click(screen.getByText('Back'))
-    expect(onBack).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Back')).toBeNull()
   })
 })
 
