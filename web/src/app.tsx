@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 
 import { AppSidebar } from '@/components/app-sidebar'
+import { CommandPalette } from '@/components/command-palette'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { Admin } from '@/pages/admin'
 import { Chat } from '@/pages/chat'
@@ -43,6 +44,7 @@ export function App() {
 
   return (
     <ErrorBoundary>
+      <CommandPalette />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/playground" element={<Playground />} />
