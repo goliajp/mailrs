@@ -45,7 +45,7 @@ function StatusBar() {
     : 'Mail'
 
   return (
-    <div className="flex h-7 shrink-0 items-center justify-between border-t border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 text-[11px] text-[var(--color-text-tertiary)]">
+    <div className="flex h-7 shrink-0 items-center justify-between px-3 text-[11px] text-[var(--color-text-tertiary)]">
       <div className="flex items-center gap-2">
         {health && (
           <span className="flex items-center gap-1">

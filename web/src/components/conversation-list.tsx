@@ -343,7 +343,7 @@ function FilterBar() {
   const superDomains = auth?.accessible_domains ?? []
 
   return (
-    <div className="flex items-center gap-1 border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5">
+    <div className="flex items-center gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">
       {/* main tabs */}
       {VIEW_TABS.map((t) => (
         <button
@@ -859,7 +859,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
 
   return (
     <div className="relative flex h-full select-none flex-col">
-      <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-3">
+      <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] p-3">
         <div role="search" className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]" aria-hidden="true" />
           <input
