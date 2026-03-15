@@ -320,9 +320,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         <div className="flex shrink-0 items-center gap-0.5">
           <HdrBtn onClick={isRead ? handleMarkUnread : handleMarkRead} title={isRead ? 'Mark unread' : 'Mark read'}>
             {isRead ? (
-              <MailOpen className="h-4 w-4" />
-            ) : (
               <Mail className="h-4 w-4" />
+            ) : (
+              <MailOpen className="h-4 w-4" />
             )}
           </HdrBtn>
           <HdrBtn onClick={isFlagged ? handleUnstar : handleStar} title={isFlagged ? 'Unstar' : 'Star'} className={isFlagged ? 'text-[var(--color-status-warning)] hover:text-[var(--color-status-warning)]' : undefined}>
