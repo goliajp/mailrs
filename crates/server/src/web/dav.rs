@@ -54,6 +54,20 @@ fn options_response() -> Response {
         .unwrap()
 }
 
+/// parse the Depth header from a request (defaults to 1 per RFC 4918)
+fn parse_depth(headers: &HeaderMap) -> u32 {
+    headers
+        .get("depth")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| match s.trim() {
+            "0" => Some(0),
+            "1" => Some(1),
+            "infinity" => Some(u32::MAX),
+            _ => None,
+        })
+        .unwrap_or(1)
+}
+
 fn require_basic_auth() -> Response {
     Response::builder()
         .status(StatusCode::UNAUTHORIZED)
@@ -262,13 +276,7 @@ pub(super) async fn dav_calendar_home(
 
     let _ = ensure_default_calendar(pool, &address).await;
 
-    let rows = sqlx::query_as::<_, (String, String, String)>(
-        "SELECT name, color, description FROM calendars WHERE account_address = $1 ORDER BY name",
-    )
-    .bind(&address)
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    let depth = parse_depth(&headers);
 
     let mut responses = format!(
         "<D:response>\n\
@@ -280,29 +288,40 @@ pub(super) async fn dav_calendar_home(
          </D:response>\n"
     );
 
-    for (name, color, description) in &rows {
-        let encoded_name = urlencoding::encode(name);
-        let href = format!("/dav/calendars/{user}/{encoded_name}/");
-        responses.push_str(&format!(
-            "<D:response>\n\
-             <D:href>{href}</D:href>\n\
-             <D:propstat>\n<D:prop>\n\
-             <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>\n\
-             <D:displayname>{}</D:displayname>\n\
-             <C:supported-calendar-component-set>\
-             <C:comp name=\"VEVENT\"/>\
-             </C:supported-calendar-component-set>\n\
-             <D:current-user-privilege-set>\
-             <D:privilege><D:all/></D:privilege>\
-             </D:current-user-privilege-set>\n\
-             <CS:getctag>{}</CS:getctag>\n\
-             <apple:calendar-color xmlns:apple=\"http://apple.com/ns/ical/\">{}</apple:calendar-color>\n\
-             </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
-             </D:response>\n",
-            xml_escape(name),
-            xml_escape(description),
-            xml_escape(color),
-        ));
+    // only include child calendars at Depth: 1 or higher
+    if depth >= 1 {
+        let rows = sqlx::query_as::<_, (String, String, String)>(
+            "SELECT name, color, description FROM calendars WHERE account_address = $1 ORDER BY name",
+        )
+        .bind(&address)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+
+        for (name, color, description) in &rows {
+            let encoded_name = urlencoding::encode(name);
+            let href = format!("/dav/calendars/{user}/{encoded_name}/");
+            responses.push_str(&format!(
+                "<D:response>\n\
+                 <D:href>{href}</D:href>\n\
+                 <D:propstat>\n<D:prop>\n\
+                 <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>\n\
+                 <D:displayname>{}</D:displayname>\n\
+                 <C:supported-calendar-component-set>\
+                 <C:comp name=\"VEVENT\"/>\
+                 </C:supported-calendar-component-set>\n\
+                 <D:current-user-privilege-set>\
+                 <D:privilege><D:all/></D:privilege>\
+                 </D:current-user-privilege-set>\n\
+                 <CS:getctag>{}</CS:getctag>\n\
+                 <apple:calendar-color xmlns:apple=\"http://apple.com/ns/ical/\">{}</apple:calendar-color>\n\
+                 </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
+                 </D:response>\n",
+                xml_escape(name),
+                xml_escape(description),
+                xml_escape(color),
+            ));
+        }
     }
 
     multistatus(&responses)
@@ -351,10 +370,11 @@ pub(super) async fn dav_calendar_collection(
         return StatusCode::NOT_FOUND.into_response();
     };
 
+    let depth = parse_depth(&headers);
     let method_str = method.as_str();
     match method_str {
         "PROPFIND" => {
-            calendar_propfind(pool, &user, &calendar, cal_id, &body).await
+            calendar_propfind(pool, &user, &calendar, cal_id, &body, depth).await
         }
         "REPORT" => {
             calendar_report(pool, &user, &calendar, cal_id, &body).await
@@ -369,15 +389,8 @@ async fn calendar_propfind(
     calendar: &str,
     cal_id: i64,
     _body: &str,
+    depth: u32,
 ) -> Response {
-    let events = sqlx::query_as::<_, (String, String)>(
-        "SELECT uid, etag FROM calendar_events WHERE calendar_id = $1",
-    )
-    .bind(cal_id)
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default();
-
     let href = format!("/dav/calendars/{user}/{calendar}/");
     let mut responses = format!(
         "<D:response>\n\
@@ -390,18 +403,29 @@ async fn calendar_propfind(
          </D:response>\n"
     );
 
-    for (uid, etag) in &events {
-        let event_href = format!("/dav/calendars/{user}/{calendar}/{uid}.ics");
-        responses.push_str(&format!(
-            "<D:response>\n\
-             <D:href>{}</D:href>\n\
-             <D:propstat>\n<D:prop>\n\
-             <D:getetag>\"{etag}\"</D:getetag>\n\
-             <D:getcontenttype>text/calendar; charset=utf-8</D:getcontenttype>\n\
-             </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
-             </D:response>\n",
-            xml_escape(&event_href),
-        ));
+    // only include child events at Depth: 1 or higher
+    if depth >= 1 {
+        let events = sqlx::query_as::<_, (String, String)>(
+            "SELECT uid, etag FROM calendar_events WHERE calendar_id = $1",
+        )
+        .bind(cal_id)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+
+        for (uid, etag) in &events {
+            let event_href = format!("/dav/calendars/{user}/{calendar}/{uid}.ics");
+            responses.push_str(&format!(
+                "<D:response>\n\
+                 <D:href>{}</D:href>\n\
+                 <D:propstat>\n<D:prop>\n\
+                 <D:getetag>\"{etag}\"</D:getetag>\n\
+                 <D:getcontenttype>text/calendar; charset=utf-8</D:getcontenttype>\n\
+                 </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
+                 </D:response>\n",
+                xml_escape(&event_href),
+            ));
+        }
     }
 
     multistatus(&responses)
@@ -715,13 +739,7 @@ pub(super) async fn dav_contact_home(
 
     let _ = ensure_default_addressbook(pool, &address).await;
 
-    let rows = sqlx::query_as::<_, (String, String)>(
-        "SELECT name, description FROM address_books WHERE account_address = $1 ORDER BY name",
-    )
-    .bind(&address)
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    let depth = parse_depth(&headers);
 
     let mut responses = format!(
         "<D:response>\n\
@@ -733,24 +751,35 @@ pub(super) async fn dav_contact_home(
          </D:response>\n"
     );
 
-    for (name, description) in &rows {
-        let encoded_name = urlencoding::encode(name);
-        let href = format!("/dav/contacts/{user}/{encoded_name}/");
-        responses.push_str(&format!(
-            "<D:response>\n\
-             <D:href>{href}</D:href>\n\
-             <D:propstat>\n<D:prop>\n\
-             <D:resourcetype><D:collection/><CR:addressbook/></D:resourcetype>\n\
-             <D:displayname>{}</D:displayname>\n\
-             <D:current-user-privilege-set>\
-             <D:privilege><D:all/></D:privilege>\
-             </D:current-user-privilege-set>\n\
-             <CS:getctag>{}</CS:getctag>\n\
-             </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
-             </D:response>\n",
-            xml_escape(name),
-            xml_escape(description),
-        ));
+    // only include child address books at Depth: 1 or higher
+    if depth >= 1 {
+        let rows = sqlx::query_as::<_, (String, String)>(
+            "SELECT name, description FROM address_books WHERE account_address = $1 ORDER BY name",
+        )
+        .bind(&address)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+
+        for (name, description) in &rows {
+            let encoded_name = urlencoding::encode(name);
+            let href = format!("/dav/contacts/{user}/{encoded_name}/");
+            responses.push_str(&format!(
+                "<D:response>\n\
+                 <D:href>{href}</D:href>\n\
+                 <D:propstat>\n<D:prop>\n\
+                 <D:resourcetype><D:collection/><CR:addressbook/></D:resourcetype>\n\
+                 <D:displayname>{}</D:displayname>\n\
+                 <D:current-user-privilege-set>\
+                 <D:privilege><D:all/></D:privilege>\
+                 </D:current-user-privilege-set>\n\
+                 <CS:getctag>{}</CS:getctag>\n\
+                 </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
+                 </D:response>\n",
+                xml_escape(name),
+                xml_escape(description),
+            ));
+        }
     }
 
     multistatus(&responses)
@@ -797,8 +826,9 @@ pub(super) async fn dav_contact_collection(
         return StatusCode::NOT_FOUND.into_response();
     };
 
+    let depth = parse_depth(&headers);
     match method.as_str() {
-        "PROPFIND" => addressbook_propfind(pool, &user, &book, book_id).await,
+        "PROPFIND" => addressbook_propfind(pool, &user, &book, book_id, depth).await,
         "REPORT" => addressbook_report(pool, &user, &book, book_id, &body).await,
         _ => StatusCode::METHOD_NOT_ALLOWED.into_response(),
     }
@@ -809,15 +839,8 @@ async fn addressbook_propfind(
     user: &str,
     book: &str,
     book_id: i64,
+    depth: u32,
 ) -> Response {
-    let contacts = sqlx::query_as::<_, (String, String)>(
-        "SELECT uid, etag FROM contacts WHERE address_book_id = $1",
-    )
-    .bind(book_id)
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default();
-
     let href = format!("/dav/contacts/{user}/{book}/");
     let mut responses = format!(
         "<D:response>\n\
@@ -829,18 +852,29 @@ async fn addressbook_propfind(
          </D:response>\n"
     );
 
-    for (uid, etag) in &contacts {
-        let contact_href = format!("/dav/contacts/{user}/{book}/{uid}.vcf");
-        responses.push_str(&format!(
-            "<D:response>\n\
-             <D:href>{}</D:href>\n\
-             <D:propstat>\n<D:prop>\n\
-             <D:getetag>\"{etag}\"</D:getetag>\n\
-             <D:getcontenttype>text/vcard; charset=utf-8</D:getcontenttype>\n\
-             </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
-             </D:response>\n",
-            xml_escape(&contact_href),
-        ));
+    // only include child contacts at Depth: 1 or higher
+    if depth >= 1 {
+        let contacts = sqlx::query_as::<_, (String, String)>(
+            "SELECT uid, etag FROM contacts WHERE address_book_id = $1",
+        )
+        .bind(book_id)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+
+        for (uid, etag) in &contacts {
+            let contact_href = format!("/dav/contacts/{user}/{book}/{uid}.vcf");
+            responses.push_str(&format!(
+                "<D:response>\n\
+                 <D:href>{}</D:href>\n\
+                 <D:propstat>\n<D:prop>\n\
+                 <D:getetag>\"{etag}\"</D:getetag>\n\
+                 <D:getcontenttype>text/vcard; charset=utf-8</D:getcontenttype>\n\
+                 </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
+                 </D:response>\n",
+                xml_escape(&contact_href),
+            ));
+        }
     }
 
     multistatus(&responses)

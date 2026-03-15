@@ -435,6 +435,7 @@ impl ImapSession {
                         "\\Draft",
                         "\\Recent",
                     ]),
+                    "* OK [PERMANENTFLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft \\*)] permanent flags\r\n".to_string(),
                     format_exists(total),
                     format_recent(0),
                     format!(
@@ -494,6 +495,7 @@ impl ImapSession {
                         "\\Draft",
                         "\\Recent",
                     ]),
+                    "* OK [PERMANENTFLAGS ()] no permanent flags in read-only mode\r\n".to_string(),
                     format_exists(total),
                     format_recent(0),
                     format!(
@@ -1187,13 +1189,18 @@ impl ImapSession {
             ImapState::NotAuthenticated => return vec![format_no(tag, "not authenticated")],
         };
 
-        if !mailbox.eq_ignore_ascii_case("INBOX") {
-            return vec![format!("* STATUS \"{}\" (MESSAGES 0 RECENT 0 UNSEEN 0)", mailbox),
-                        format_ok(tag, "STATUS completed")];
-        }
+        // look up the mailbox by name to get accurate counts
+        let mb = match self.mailbox_store.get_mailbox(username, mailbox).await {
+            Ok(Some(mb)) => mb,
+            Ok(None) => return vec![format_no(tag, "STATUS failed: mailbox not found")],
+            Err(_) => return vec![format_no(tag, "STATUS failed")],
+        };
 
-        let total = self.mailbox_store.count_messages(username).await;
-        let unseen = self.mailbox_store.count_unseen(username).await;
+        let (total, unseen) = self
+            .mailbox_store
+            .mailbox_status(mb.id)
+            .await
+            .unwrap_or((0, 0));
 
         let mut parts = Vec::new();
         let items_upper = items.to_uppercase();
@@ -1204,17 +1211,20 @@ impl ImapSession {
             parts.push("RECENT 0".to_string());
         }
         if items_upper.contains("UIDNEXT") {
-            parts.push(format!("UIDNEXT {}", total + 1));
+            parts.push(format!("UIDNEXT {}", mb.uidnext));
         }
         if items_upper.contains("UIDVALIDITY") {
-            parts.push("UIDVALIDITY 1".to_string());
+            parts.push(format!("UIDVALIDITY {}", mb.uidvalidity));
         }
         if items_upper.contains("UNSEEN") {
             parts.push(format!("UNSEEN {unseen}"));
         }
+        if items_upper.contains("HIGHESTMODSEQ") {
+            parts.push(format!("HIGHESTMODSEQ {}", mb.highest_modseq));
+        }
 
         vec![
-            format!("* STATUS \"INBOX\" ({})", parts.join(" ")),
+            format!("* STATUS \"{}\" ({})\r\n", mailbox, parts.join(" ")),
             format_ok(tag, "STATUS completed"),
         ]
     }
