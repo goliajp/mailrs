@@ -34,12 +34,11 @@ function fetchBimi(domain: string): Promise<string | null> {
   return p
 }
 
-// fallback image sources ordered by quality
+// fallback: apple-touch-icon (180x180 high-res PNG), most major sites have it.
+// no google favicon — it returns a blurry grey globe placeholder for missing favicons
+// (200 OK, so onError won't fire) which looks worse than colored initials.
 const fallbackSources = [
-  // apple-touch-icon: 180x180 high-res PNG, available on most major sites
   (domain: string) => `https://${domain}/apple-touch-icon.png`,
-  // google faviconV2: best available favicon, often SVG
-  (domain: string) => `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${domain}&size=128`,
 ]
 
 export function SenderAvatar({ sender, size = 36, className }: {
