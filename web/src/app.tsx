@@ -68,7 +68,7 @@ function StatusBar() {
 function AuthLayout({ children, raw }: { children: React.ReactNode; raw?: boolean }) {
   return (
     <RequireAuth>
-      <div className="flex h-screen flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
+      <div className="fixed inset-0 flex flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
         <div className="flex min-h-0 flex-1 gap-1 p-1">
           <AppSidebar />
           {raw ? children : (
