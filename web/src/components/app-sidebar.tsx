@@ -5,8 +5,10 @@ import type { LucideIcon } from 'lucide-react'
 import { useLocation } from 'react-router'
 import type { ThemeMode } from '@/lib/theme'
 
+import { cn } from '@/lib/cn'
 import { postJson } from '@/lib/api'
 import { authAtom } from '@/store/auth'
+import { selectedDomainsAtom } from '@/store/chat'
 import { themeAtom } from '@/store/theme'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
@@ -55,6 +57,8 @@ export function AppSidebar() {
   }
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
+  const domains = auth?.accessible_domains ?? []
 
   const doLogout = async () => {
     try {
@@ -82,12 +86,50 @@ export function AppSidebar() {
         <img src="/icon.svg" alt="mailrs" className="h-8 w-8 rounded-lg" style={{ boxShadow: 'var(--shadow-sm)' }} />
       </div>
 
-      {/* nav — mail / server / monitor are parallel top-level sections */}
-      <nav className="flex flex-1 flex-col items-center gap-1.5">
+      {/* nav */}
+      <nav className="flex flex-col items-center gap-1.5">
         <SidebarLink href="/" icon={Inbox} label="Mail" active={section === 'mail'} />
         <SidebarLink href="/admin" icon={Server} label="Server" active={section === 'server'} />
         <SidebarLink href="/protocol" icon={Activity} label="Monitor" active={section === 'monitor'} />
       </nav>
+
+      {/* domain switcher */}
+      {domains.length > 0 && (
+        <div className="mt-4 flex flex-1 flex-col items-center gap-1">
+          <button
+            onClick={() => setSelectedDomains([])}
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-md text-[10px] font-bold transition-all duration-150',
+              selectedDomains.length === 0
+                ? 'bg-[var(--color-brand-primary)] text-white'
+                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]',
+            )}
+            title="All domains"
+          >
+            All
+          </button>
+          {domains.map((d) => {
+            const active = selectedDomains.length === 1 && selectedDomains[0] === d
+            const label = d.split('.')[0]
+            const initial = label.charAt(0).toUpperCase()
+            return (
+              <button
+                key={d}
+                onClick={() => setSelectedDomains(active ? [] : [d])}
+                className={cn(
+                  'flex h-8 w-8 items-center justify-center rounded-md text-[10px] font-semibold transition-all duration-150',
+                  active
+                    ? 'bg-[var(--color-brand-primary)] text-white'
+                    : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]',
+                )}
+                title={d}
+              >
+                {initial}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* bottom actions */}
       <div className="flex flex-col items-center gap-2">

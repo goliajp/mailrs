@@ -11,13 +11,11 @@ import { fetchJson, postJson, snoozeConversation } from '@/lib/api'
 import { avatarColor, avatarInitial, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import type { CategoryCount, ConversationSummary } from '@/lib/types'
-import { authAtom } from '@/store/auth'
 import {
   batchModeAtom,
   categoryFilterAtom,
   composingNewAtom,
   conversationsAtom,
-  crossAccountReadAtom,
   hasMoreAtom,
   importanceSectionAtom,
   initialLoadingAtom,
@@ -271,8 +269,6 @@ function FilterBar() {
   const [showArchived, setShowArchived] = useAtom(showArchivedAtom)
   const [activeCategory, setActiveCategory] = useAtom(categoryFilterAtom)
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
-  const [crossAccountRead, setCrossAccountRead] = useAtom(crossAccountReadAtom)
-  const auth = useAtomValue(authAtom)
   const selectedDomainsVal = useAtomValue(selectedDomainsAtom)
   const conversations = useAtomValue(conversationsAtom)
   const [categories, setCategories] = useState<CategoryCount[]>([])
@@ -339,8 +335,6 @@ function FilterBar() {
 
   // whether any advanced filters are active
   const hasAdvancedFilters = sortOrder !== 'newest' || showArchived || activeCategory !== null || selectedDomains.length > 0 || section === 'important' || section === 'other'
-
-  const superDomains = auth?.accessible_domains ?? []
 
   return (
     <div className="flex items-center gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">
@@ -484,51 +478,6 @@ function FilterBar() {
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* domains (super-admin only) */}
-            {superDomains.length > 0 && (
-              <div>
-                <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">Domains</label>
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    onClick={() => setSelectedDomains([])}
-                    className={`rounded-md px-2 py-0.5 transition-colors ${
-                      selectedDomains.length === 0
-                        ? 'bg-[var(--color-brand-primary)] text-white'
-                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
-                    }`}
-                  >
-                    Mine
-                  </button>
-                  {superDomains.map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setSelectedDomains((prev) =>
-                        prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
-                      )}
-                      className={`rounded-md px-2 py-0.5 transition-colors ${
-                        selectedDomains.includes(d)
-                          ? 'bg-[var(--color-brand-primary)] text-white'
-                          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
-                      }`}
-                    >
-                      {d}
-                    </button>
-                  ))}
-                </div>
-                {selectedDomains.length > 0 && (
-                  <label className="mt-1.5 flex cursor-pointer items-center gap-1 text-[var(--color-text-tertiary)]">
-                    <input
-                      type="checkbox"
-                      checked={crossAccountRead}
-                      onChange={(e) => setCrossAccountRead(e.target.checked)}
-                      className="h-3 w-3 rounded border-[var(--color-border-default)] accent-[var(--color-brand-primary)]"
-                    />
-                    Cross-read
-                  </label>
-                )}
               </div>
             )}
 
