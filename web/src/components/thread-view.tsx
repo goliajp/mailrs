@@ -288,9 +288,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col gap-1 overflow-hidden">
       {/* header bar */}
-      <div className="flex shrink-0 select-none items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-4 py-2.5">
+      <div className="flex shrink-0 select-none items-center gap-2 rounded-lg bg-[var(--color-bg-raised)] px-4 py-2.5">
         {onBack && (
           <button onClick={onBack} className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] md:hidden" title="Back">
             <ArrowLeft className="h-5 w-5" />
@@ -338,9 +338,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       )}
 
       {/* main content: two columns */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* column 1: raw email (current message) */}
-        <div className="flex w-1/2 flex-col overflow-hidden border-r border-[var(--color-border-default)]">
+      <div className="flex flex-1 gap-1 overflow-hidden">
+        {/* column 1: raw email (content panel) */}
+        <div className="flex w-1/2 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
           {selectedMsg ? (
             <>
               {/* email header */}
@@ -442,7 +442,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         </div>
 
         {/* column 2: chat bubbles + reply editor */}
-        <div className="flex w-1/2 flex-col overflow-hidden bg-[var(--color-bg-raised)]">
+        <div className="flex w-1/2 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
           {/* panel header */}
           <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-4 py-1.5">
             <span className="text-xs font-medium text-[var(--color-text-tertiary)]">

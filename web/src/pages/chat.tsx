@@ -167,12 +167,12 @@ export function Chat() {
   const showThread = mobileView === 'thread'
 
   return (
-    <div className="flex h-full">
-      {/* conversation list: full width on mobile when showing list, fixed width on desktop */}
+    <div className="flex h-full gap-1">
+      {/* conversation list */}
       <div
         className={`${
           showList ? 'flex' : 'hidden'
-        } w-full shrink-0 flex-col overflow-hidden border-r border-[var(--color-border-default)] bg-[var(--color-bg-raised)] md:flex md:w-80`}
+        } w-full shrink-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)] md:flex md:w-80`}
       >
         <ConversationList
           onLoadMore={loadMore}
@@ -180,13 +180,19 @@ export function Chat() {
         />
       </div>
 
-      {/* main content: full width on mobile when showing thread, flex-1 on desktop */}
+      {/* content + handle */}
       <div
         className={`${
           showThread ? 'flex' : 'hidden'
-        } min-w-0 flex-1 flex-col overflow-hidden bg-[var(--color-bg-base)] md:flex`}
+        } min-w-0 flex-1 gap-1 overflow-hidden md:flex`}
       >
-        {composingNew ? <NewConversation /> : <ThreadView onBack={() => setMobileView('list')} />}
+        {composingNew ? (
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+            <NewConversation />
+          </div>
+        ) : (
+          <ThreadView onBack={() => setMobileView('list')} />
+        )}
       </div>
 
       <KeyboardShortcutsDialog
