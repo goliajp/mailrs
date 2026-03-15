@@ -78,8 +78,8 @@ export function AppSidebar() {
   return (
     <aside className="hidden h-full w-14 shrink-0 select-none flex-col items-center border-r border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-4 md:flex">
       {/* logo */}
-      <div className="mb-4">
-        <img src="/icon.svg" alt="mailrs" className="h-9 w-9 rounded-lg" />
+      <div className="mb-2">
+        <img src="/icon.svg" alt="mailrs" className="h-8 w-8 rounded-lg" style={{ boxShadow: 'var(--shadow-sm)' }} />
       </div>
 
       {/* nav — mail / server / monitor are parallel top-level sections */}
