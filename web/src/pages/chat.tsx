@@ -167,7 +167,7 @@ export function Chat() {
   const showThread = mobileView === 'thread'
 
   return (
-    <div className="flex h-full min-h-0 gap-1.5 overflow-hidden">
+    <div className="flex min-h-0 min-w-0 flex-1 gap-1.5 overflow-hidden">
       {/* conversation list */}
       <div
         className={`${
