@@ -14,11 +14,11 @@
 
 /* ===== design tokens: light mode (default) ===== */
 :root {
-  /* surfaces — clear 4-step hierarchy */
+  /* surfaces — IDE-style 4-step hierarchy with clear depth */
   --color-bg-base: #ffffff;
-  --color-bg-raised: #f8f9fa;
+  --color-bg-raised: #f4f5f7;
   --color-bg-overlay: #ffffff;
-  --color-bg-sunken: #f1f3f5;
+  --color-bg-sunken: #e8eaed;
 
   /* text — WCAG AA contrast on white */
   --color-text-primary: #1a1a2e;
@@ -66,11 +66,11 @@
 
 /* ===== design tokens: dark mode ===== */
 .dark {
-  /* surfaces — rich charcoal, not pure black */
-  --color-bg-base: #161618;
-  --color-bg-raised: #1e1e21;
-  --color-bg-overlay: #2a2a2e;
-  --color-bg-sunken: #111113;
+  /* surfaces — IDE-style depth: sunken(deepest) < base < raised < overlay */
+  --color-bg-base: #1e1e1e;
+  --color-bg-raised: #252526;
+  --color-bg-overlay: #2d2d30;
+  --color-bg-sunken: #171717;
 
   /* text — warm white, not #fff */
   --color-text-primary: #e4e4e8;
@@ -79,8 +79,8 @@
   --color-text-inverse: #161618;
 
   /* borders — visible but subtle */
-  --color-border-default: #2e2e33;
-  --color-border-strong: #3e3e44;
+  --color-border-default: #333338;
+  --color-border-strong: #434348;
 
   /* brand — brighter for dark backgrounds */
   --color-brand-primary: #5b9aef;
