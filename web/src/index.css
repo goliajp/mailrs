@@ -14,11 +14,11 @@
 
 /* ===== design tokens: light mode (default) ===== */
 :root {
-  /* surfaces — IDE-style: base=frame(gray), raised=panels(white) */
-  --color-bg-base: #e8eaed;
+  /* surfaces — IDE-style: base=frame(light gray), raised=panels(white), sunken=inputs */
+  --color-bg-base: #f0f0f0;
   --color-bg-raised: #ffffff;
   --color-bg-overlay: #ffffff;
-  --color-bg-sunken: #f1f3f5;
+  --color-bg-sunken: #e8e8e8;
 
   /* text — WCAG AA contrast on white */
   --color-text-primary: #1a1a2e;
@@ -27,8 +27,8 @@
   --color-text-inverse: #ffffff;
 
   /* borders */
-  --color-border-default: #dee2e6;
-  --color-border-strong: #ced4da;
+  --color-border-default: #d1d1d1;
+  --color-border-strong: #c0c0c0;
 
   /* brand — slightly softer blue, better with warm grays */
   --color-brand-primary: #3b7ddd;
@@ -66,21 +66,21 @@
 
 /* ===== design tokens: dark mode ===== */
 .dark {
-  /* surfaces — IDE-style: base=frame(lighter), raised=panels(darker) */
-  --color-bg-base: #2b2b2e;
-  --color-bg-raised: #1e1e1e;
-  --color-bg-overlay: #2d2d30;
-  --color-bg-sunken: #181818;
+  /* surfaces — IDE-style: base=frame(warm medium gray), raised=panels(darker), sunken=deepest */
+  --color-bg-base: #3c3f41;
+  --color-bg-raised: #2b2d30;
+  --color-bg-overlay: #2b2d30;
+  --color-bg-sunken: #1e1f22;
 
   /* text — warm white, not #fff */
   --color-text-primary: #e4e4e8;
   --color-text-secondary: #9898a0;
-  --color-text-tertiary: #606068;
+  --color-text-tertiary: #6e7078;
   --color-text-inverse: #161618;
 
   /* borders — visible but subtle */
-  --color-border-default: #3c3c3c;
-  --color-border-strong: #4a4a50;
+  --color-border-default: #4b4d50;
+  --color-border-strong: #5a5d61;
 
   /* brand — brighter for dark backgrounds */
   --color-brand-primary: #5b9aef;

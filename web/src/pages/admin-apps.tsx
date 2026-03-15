@@ -158,7 +158,7 @@ export function AdminApps() {
             Copy this key now. It will not be shown again.
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 rounded bg-[var(--color-bg-base)] px-3 py-1.5 font-mono text-sm">
+            <code className="flex-1 rounded bg-[var(--color-bg-sunken)] px-3 py-1.5 font-mono text-sm">
               {createdKey.key}
             </code>
             <button
@@ -184,13 +184,13 @@ export function AdminApps() {
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="App name"
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             />
             <input
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Description"
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             />
           </div>
           {permissions.length > 0 && (

@@ -135,7 +135,7 @@ function PasswordCell({
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="New password"
-        className="w-28 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-2 py-0.5 text-xs"
+        className="w-28 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 py-0.5 text-xs"
         onKeyDown={(e) => {
           if (e.key === 'Enter') handleSave()
           if (e.key === 'Escape') {
@@ -231,7 +231,7 @@ function SieveCell({ address }: { address: string }) {
         value={state.script}
         onChange={(e) => setState((prev) => ({ ...prev, script: e.target.value }))}
         rows={6}
-        className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-2 py-1.5 font-mono text-xs"
+        className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 py-1.5 font-mono text-xs"
         placeholder="require &quot;fileinto&quot;; ..."
         disabled={state.status === 'saving' || state.status === 'deleting'}
       />
@@ -468,13 +468,13 @@ export function AdminAccounts() {
               value={form.address}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
               placeholder="user@example.com"
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             />
             <input
               value={form.domain}
               onChange={(e) => setForm({ ...form, domain: e.target.value })}
               placeholder="example.com"
-              className="w-40 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="w-40 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             />
           </div>
           <div className="flex gap-2">
@@ -484,14 +484,14 @@ export function AdminAccounts() {
                 setForm({ ...form, displayName: e.target.value })
               }
               placeholder="Display Name"
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             />
             <input
               type="password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder="Password"
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             />
           </div>
           <div className="flex gap-2">

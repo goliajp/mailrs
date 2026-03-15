@@ -90,20 +90,20 @@ export function AdminAliases() {
               value={form.source_address}
               onChange={(e) => setForm({ ...form, source_address: e.target.value })}
               placeholder="admin@example.com"
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             />
             <input
               value={form.target_address}
               onChange={(e) => setForm({ ...form, target_address: e.target.value })}
               placeholder="user@example.com"
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             />
           </div>
           <div className="flex gap-2">
             <select
               value={form.domain}
               onChange={(e) => setForm({ ...form, domain: e.target.value })}
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             >
               <option value="">Select domain...</option>
               {domains.map((d) => (
@@ -115,7 +115,7 @@ export function AdminAliases() {
             <select
               value={form.alias_type}
               onChange={(e) => setForm({ ...form, alias_type: e.target.value })}
-              className="w-36 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="w-36 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             >
               <option value="alias">Alias</option>
               <option value="forward">Forward</option>

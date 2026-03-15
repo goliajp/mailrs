@@ -288,7 +288,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
       {/* header bar — on the frame, not inside panels */}
       <div className="flex shrink-0 select-none items-center gap-2 px-4 py-2">
         {onBack && (
@@ -338,7 +338,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       )}
 
       {/* main content: two columns */}
-      <div className="flex min-h-0 flex-1 gap-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 gap-1.5 overflow-hidden">
         {/* column 1: raw email (content panel) */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
           {selectedMsg ? (
@@ -527,7 +527,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   )}
                                 </span>
                               </div>
-                              <div className={`mt-1 select-text text-sm leading-relaxed text-[var(--color-text-primary)] ${isExpanded ? '' : 'line-clamp-5'}`}>
+                              <div className={`mt-1 select-text text-[13px] leading-relaxed text-[var(--color-text-primary)] ${isExpanded ? '' : 'line-clamp-5'}`}>
                                 {highlightMentions(isExpanded ? fullText : snippet, myEmail, auth?.display_name)}
                               </div>
                               {isLong && (

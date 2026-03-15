@@ -14,7 +14,7 @@ function StatusCard({
   color: string
 }) {
   return (
-    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3">
+    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-3">
       <div className="text-xs text-[var(--color-text-tertiary)]">{label}</div>
       <div className={`mt-1 text-2xl font-bold tabular-nums ${color}`}>
         {value}
@@ -37,7 +37,7 @@ function ConnectionRow({
       onClick={onClick}
       className={`flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm transition-colors ${
         selected
-          ? 'bg-[var(--color-bg-raised)] text-[var(--color-text-primary)]'
+          ? 'bg-[var(--color-bg-selected)] text-[var(--color-text-primary)]'
           : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
       }`}
     >
@@ -56,7 +56,7 @@ function ConnectionRow({
             {conn.authenticated}
           </span>
         )}
-        <span className="rounded bg-[var(--color-bg-raised)] px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)]">
+        <span className="rounded bg-[var(--color-bg-sunken)] px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)]">
           {conn.state}
         </span>
       </div>
@@ -103,8 +103,8 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
             <div
               className={`max-w-[80%] rounded-md px-3 py-1.5 font-mono text-xs leading-relaxed ${
                 isServer
-                  ? 'bg-[var(--color-bg-raised)] text-[var(--color-status-success)]'
-                  : 'bg-[var(--color-bg-raised)] text-[var(--color-brand-primary)]'
+                  ? 'bg-[var(--color-bg-sunken)] text-[var(--color-status-success)]'
+                  : 'bg-[var(--color-bg-sunken)] text-[var(--color-brand-primary)]'
               }`}
             >
               {line.text.split('\r\n').map((l, j) => (

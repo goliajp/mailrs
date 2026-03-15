@@ -135,7 +135,7 @@ function GroupDetail({
             value={newMember}
             onChange={(e) => setNewMember(e.target.value)}
             placeholder="user@example.com"
-            className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+            className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             onKeyDown={(e) => e.key === 'Enter' && handleAddMember()}
           />
           <button
@@ -267,12 +267,12 @@ export function AdminGroups() {
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Group name"
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             />
             <select
               value={form.domain}
               onChange={(e) => setForm({ ...form, domain: e.target.value })}
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             >
               <option value="">(Global)</option>
               {domains.map((d) => (
@@ -286,7 +286,7 @@ export function AdminGroups() {
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             placeholder="Description"
-            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm"
+            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
           />
           <div className="flex gap-2">
             <button
