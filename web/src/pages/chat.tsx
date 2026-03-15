@@ -172,7 +172,7 @@ export function Chat() {
       <div
         className={`${
           showList ? 'flex' : 'hidden'
-        } w-full shrink-0 flex-col border-r border-[var(--color-border-default)] md:flex md:w-80`}
+        } w-full shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-raised)] md:flex md:w-80`}
       >
         <ConversationList
           onLoadMore={loadMore}

@@ -456,7 +456,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         </div>
 
         {/* column 2: chat bubbles + reply editor */}
-        <div className="flex w-1/2 flex-col overflow-hidden">
+        <div className="flex w-1/2 flex-col overflow-hidden bg-[var(--color-bg-raised)]">
           {/* chat bubbles — scrollable, takes remaining space */}
           <div className="flex-1 overflow-y-auto px-4 py-3">
             {loadingThread && messages.length === 0 && (
