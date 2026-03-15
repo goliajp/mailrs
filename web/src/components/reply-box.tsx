@@ -58,6 +58,7 @@ export function ReplyBox({
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [error, setError] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  const [requestReadReceipt, setRequestReadReceipt] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editorRef = useRef<Editor | null>(null)
 
@@ -124,6 +125,7 @@ export function ReplyBox({
         if (inReplyTo) formData.append('in_reply_to', inReplyTo)
         for (const r of to) formData.append('to', r)
         for (const f of files) formData.append('attachments', f)
+        if (requestReadReceipt) formData.append('request_read_receipt', 'true')
 
         const res = await fetch('/api/mail/send-multipart', {
           method: 'POST',
@@ -148,6 +150,7 @@ export function ReplyBox({
           html_body: html,
         }
         if (inReplyTo) payload['in_reply_to'] = inReplyTo
+        if (requestReadReceipt) payload['request_read_receipt'] = true
 
         const result = await postJson<SendResult>('/mail/send', payload)
         if (!result.success) {
@@ -340,6 +343,19 @@ export function ReplyBox({
           minHeight="100%"
           getEditorRef={setEditorRef}
         />
+      </div>
+
+      {/* read receipt */}
+      <div className="flex shrink-0 items-center px-3 pt-1">
+        <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
+          <input
+            type="checkbox"
+            checked={requestReadReceipt}
+            onChange={(e) => setRequestReadReceipt(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-[var(--color-border-default)]"
+          />
+          Request read receipt
+        </label>
       </div>
 
       {/* action bar */}

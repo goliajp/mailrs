@@ -37,6 +37,9 @@ export function NewConversation() {
   const [error, setError] = useState('')
   const [templates, setTemplates] = useState<TemplateInfo[]>([])
   const [files, setFiles] = useState<File[]>([])
+  const [scheduledAt, setScheduledAt] = useState('')
+  const [showSchedulePicker, setShowSchedulePicker] = useState(false)
+  const [requestReadReceipt, setRequestReadReceipt] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editorRef = useRef<Editor | null>(null)
 
@@ -111,6 +114,8 @@ export function NewConversation() {
         for (const c of ccList) formData.append('cc', c)
         for (const b of bccList) formData.append('bcc', b)
         for (const f of files) formData.append('attachments', f)
+        if (scheduledAt) formData.append('scheduled_at', new Date(scheduledAt).toISOString())
+        if (requestReadReceipt) formData.append('request_read_receipt', 'true')
 
         const res = await fetch('/api/mail/send-multipart', {
           method: 'POST',
@@ -128,6 +133,8 @@ export function NewConversation() {
           body: text,
           html_body: html,
           in_reply_to: null,
+          ...(scheduledAt ? { scheduled_at: new Date(scheduledAt).toISOString() } : {}),
+          ...(requestReadReceipt ? { request_read_receipt: true } : {}),
         })
       }
 
@@ -262,6 +269,18 @@ export function NewConversation() {
         )}
       </div>
 
+      <div className="flex items-center gap-2 px-6 pb-1">
+        <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
+          <input
+            type="checkbox"
+            checked={requestReadReceipt}
+            onChange={(e) => setRequestReadReceipt(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-[var(--color-border-default)]"
+          />
+          Request read receipt
+        </label>
+      </div>
+
       <div className="flex items-center gap-2 border-t border-[var(--color-border-default)] p-4">
         <button
           onClick={send}
@@ -270,6 +289,36 @@ export function NewConversation() {
         >
           {sending ? 'Sending...' : 'Send'}
         </button>
+        <button
+          onClick={() => setShowSchedulePicker((v) => !v)}
+          className="rounded-md bg-[var(--color-bg-raised)] px-2 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+          title="Schedule send"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="10" />
+            <path strokeLinecap="round" d="M12 6v6l4 2" />
+          </svg>
+        </button>
+        {showSchedulePicker && (
+          <input
+            type="datetime-local"
+            value={scheduledAt}
+            onChange={(e) => setScheduledAt(e.target.value)}
+            min={new Date().toISOString().slice(0, 16)}
+            className="rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-2 py-1 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]"
+          />
+        )}
+        {scheduledAt && (
+          <span className="flex items-center gap-1 rounded-full bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]">
+            Scheduled: {new Date(scheduledAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            <button
+              onClick={() => { setScheduledAt(''); setShowSchedulePicker(false) }}
+              className="ml-0.5 hover:opacity-70"
+            >
+              &times;
+            </button>
+          </span>
+        )}
         <button
           onClick={() => fileInputRef.current?.click()}
           className="rounded-md bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
