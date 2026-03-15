@@ -433,6 +433,7 @@ pub(super) async fn auth_me(
 #[derive(Deserialize)]
 pub(super) struct ForgotPasswordRequest {
     pub address: String,
+    pub recovery_email: String,
 }
 
 #[derive(Deserialize)]
@@ -451,6 +452,12 @@ pub(super) async fn forgot_password(
             Json(serde_json::json!({"error": "invalid address"})),
         );
     }
+    if req.recovery_email.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "recovery email is required"})),
+        );
+    }
 
     let Some(ref pool) = state.pg_pool else {
         return (
@@ -459,31 +466,24 @@ pub(super) async fn forgot_password(
         );
     };
 
-    // verify account exists (but always return success to prevent enumeration)
-    let account_exists = if let Some(ref ds) = state.domain_store {
+    // look up account and verify recovery email matches
+    let recovery_match = if let Some(ref ds) = state.domain_store {
         ds.get_account_with_hash(&req.address)
             .await
             .ok()
             .flatten()
-            .is_some()
+            .map(|(acct, _)| {
+                !acct.recovery_email.is_empty()
+                    && acct.recovery_email.eq_ignore_ascii_case(&req.recovery_email)
+            })
+            .unwrap_or(false)
     } else {
         false
     };
 
-    if account_exists {
-        // look up recovery email
-        let recovery_email = if let Some(ref ds) = state.domain_store {
-            ds.get_account_with_hash(&req.address)
-                .await
-                .ok()
-                .flatten()
-                .map(|(acct, _)| acct.recovery_email.clone())
-                .unwrap_or_default()
-        } else {
-            String::new()
-        };
-
-        if !recovery_email.is_empty() {
+    if recovery_match {
+        let recovery_email = req.recovery_email.clone();
+        {
             // generate reset token
             let mut bytes = [0u8; 32];
             rand_core::OsRng.fill_bytes(&mut bytes);
@@ -571,13 +571,12 @@ pub(super) async fn forgot_password(
                 }
             }
         }
-        // if no recovery email configured, silently do nothing (prevent enumeration)
     }
 
-    // always return success to prevent account enumeration
+    // always return same response to prevent enumeration
     (
         StatusCode::OK,
-        Json(serde_json::json!({"success": true})),
+        Json(serde_json::json!({"success": true, "message": "If the account and recovery email match, a reset link has been sent."})),
     )
 }
 
