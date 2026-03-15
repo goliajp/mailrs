@@ -19,6 +19,7 @@ export function Login() {
   const [totpCode, setTotpCode] = useState('')
   const [forgotMode, setForgotMode] = useState(false)
   const [forgotAddress, setForgotAddress] = useState('')
+  const [forgotRecoveryEmail, setForgotRecoveryEmail] = useState('')
   const [forgotLoading, setForgotLoading] = useState(false)
   const [forgotMessage, setForgotMessage] = useState('')
 
@@ -30,11 +31,11 @@ export function Login() {
       await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: forgotAddress }),
+        body: JSON.stringify({ address: forgotAddress, recovery_email: forgotRecoveryEmail }),
       })
-      setForgotMessage('If a recovery email is configured for that account, a reset link has been sent')
+      setForgotMessage('If the account and recovery email match, a reset link has been sent.')
     } catch {
-      setForgotMessage('If a recovery email is configured for that account, a reset link has been sent')
+      setForgotMessage('If the account and recovery email match, a reset link has been sent.')
     } finally {
       setForgotLoading(false)
     }
@@ -250,7 +251,7 @@ export function Login() {
                 htmlFor="forgot-email"
                 className="block text-sm font-medium text-[var(--color-text-secondary)]"
               >
-                Email
+                Account Email
               </label>
               <input
                 id="forgot-email"
@@ -264,10 +265,31 @@ export function Login() {
               />
             </div>
 
+            <div className="space-y-1.5">
+              <label
+                htmlFor="forgot-recovery"
+                className="block text-sm font-medium text-[var(--color-text-secondary)]"
+              >
+                Recovery Email
+              </label>
+              <input
+                id="forgot-recovery"
+                type="email"
+                value={forgotRecoveryEmail}
+                onChange={(e) => setForgotRecoveryEmail(e.target.value)}
+                placeholder="your-recovery@gmail.com"
+                required
+                className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+              />
+              <p className="text-xs text-[var(--color-text-tertiary)]">
+                Enter the recovery email you configured in Settings. The reset link will be sent there.
+              </p>
+            </div>
+
             <button
               type="button"
               onClick={handleForgotPassword}
-              disabled={forgotLoading || !forgotAddress}
+              disabled={forgotLoading || !forgotAddress || !forgotRecoveryEmail}
               className="flex w-full items-center justify-center rounded-md bg-[var(--color-brand-primary)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
             >
               {forgotLoading && (
