@@ -65,18 +65,14 @@ function StatusBar() {
   )
 }
 
-function AuthLayout({ children, raw }: { children: React.ReactNode; raw?: boolean }) {
+function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
       <div className="fixed inset-0 flex flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
-        <div className="flex min-h-0 min-w-0 flex-1 gap-1.5 p-1.5">
+        <div className="flex min-h-0 flex-1 gap-1.5 p-1.5">
           <AppSidebar />
-          <div className="flex min-h-0 min-w-0 flex-1 gap-1.5 overflow-hidden">
-            {raw ? children : (
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
-                {children}
-              </div>
-            )}
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+            {children}
           </div>
         </div>
         <StatusBar />
@@ -107,7 +103,9 @@ export function App() {
           path="/protocol"
           element={
             <AuthLayout>
-              <Protocol />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+                <Protocol />
+              </div>
             </AuthLayout>
           }
         />
@@ -115,7 +113,9 @@ export function App() {
           path="/admin/*"
           element={
             <AuthLayout>
-              <Admin />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+                <Admin />
+              </div>
             </AuthLayout>
           }
         />
@@ -123,7 +123,9 @@ export function App() {
           path="/settings"
           element={
             <AuthLayout>
-              <Settings />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+                <Settings />
+              </div>
             </AuthLayout>
           }
         />
@@ -131,7 +133,7 @@ export function App() {
         <Route
           path="/*"
           element={
-            <AuthLayout raw>
+            <AuthLayout>
               <Chat />
             </AuthLayout>
           }

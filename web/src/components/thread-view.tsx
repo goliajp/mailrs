@@ -245,16 +245,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   if (!selectedId) {
     return (
       <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
-        {onBack && (
-          <div className="absolute left-0 top-0 flex items-center px-4 py-3 md:hidden">
-            <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </button>
-          </div>
-        )}
         <div className="text-center text-[var(--color-text-tertiary)]">
-          <Mail className="mx-auto mb-3 h-12 w-12 text-[var(--color-text-tertiary)]" strokeWidth={1} />
+          <Mail className="mx-auto mb-3 h-12 w-12" strokeWidth={1} />
           <p className="text-sm">Select a conversation</p>
         </div>
       </div>
@@ -286,7 +278,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   return (
-    <>
+    <div className="flex min-h-0 min-w-0 flex-1 gap-1.5">
       {/* content panel */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
         {/* header bar at top of content panel */}
@@ -580,7 +572,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }
 
