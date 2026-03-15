@@ -5,14 +5,14 @@ import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { RichEditor, getEditorContent } from '@/components/rich-editor'
-import { postJson, saveDraft } from '@/lib/api'
+import { deleteJson, postJson, saveDraft } from '@/lib/api'
 import { authAtom } from '@/store/auth'
 import { appendSignature, signatureAtom, signatureEnabledAtom } from '@/store/settings'
 import type { Editor } from '@tiptap/react'
 
 export type ReplyMode = 'reply' | 'reply-all' | 'forward'
 
-type SendResult = { success: boolean; message?: string }
+type SendResult = { success: boolean; message?: string; message_id?: string }
 type ReplySuggestResult = { success: boolean; suggestions: string[]; message?: string }
 type PolishResult = { success: boolean; polished?: string; message?: string }
 
@@ -116,6 +116,8 @@ export function ReplyBox({
     const inReplyTo = mode === 'forward' ? undefined : lastMessageId
 
     try {
+      let sentMessageId: string | undefined
+
       if (files.length > 0) {
         const formData = new FormData()
         formData.append('from', auth?.address ?? '')
@@ -139,6 +141,7 @@ export function ReplyBox({
           toast.error(msg)
           return
         }
+        sentMessageId = result.message_id
       } else {
         const payload: Record<string, unknown> = {
           from: auth?.address ?? '',
@@ -159,13 +162,32 @@ export function ReplyBox({
           toast.error(msg)
           return
         }
+        sentMessageId = result.message_id
       }
 
       // clear editor
       editorRef.current?.commands.clearContent()
       setForwardTo('')
       setFiles([])
-      toast.success(mode === 'forward' ? 'Forwarded' : 'Reply sent')
+      const label = mode === 'forward' ? 'Forwarded' : 'Reply sent'
+      toast.success(label, {
+        ...(sentMessageId
+          ? {
+              action: {
+                label: 'Undo',
+                onClick: async () => {
+                  try {
+                    await deleteJson(`/mail/pending/${encodeURIComponent(sentMessageId)}`)
+                    toast.success('Send cancelled')
+                  } catch {
+                    toast.error('Could not cancel — already delivered')
+                  }
+                },
+              },
+              duration: 8000,
+            }
+          : {}),
+      })
       onSent()
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Network error'
