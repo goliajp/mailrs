@@ -2175,6 +2175,55 @@ async fn get_public_key_inner(
     }
 }
 
+/// look up BIMI logo URL for a domain (cached in Valkey for 24h)
+pub(super) async fn get_bimi_logo(
+    Path(domain): Path<String>,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    // validate domain
+    if domain.len() > 253 || domain.contains('/') || !domain.contains('.') {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "invalid domain"})));
+    }
+
+    // check valkey cache
+    let cache_key = format!("bimi:{domain}");
+    if let Some(mut conn) = state.valkey.clone() {
+        if let Ok(Some(cached)) = redis::cmd("GET")
+            .arg(&cache_key)
+            .query_async::<Option<String>>(&mut conn)
+            .await
+        {
+            if cached.is_empty() {
+                return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "no BIMI record"})));
+            }
+            return (StatusCode::OK, Json(serde_json::json!({"logo_url": cached})));
+        }
+    }
+
+    // dns lookup
+    let Some(ref resolver) = state.resolver else {
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DNS resolver not available"})));
+    };
+    let logo_url = crate::domain_check::lookup_bimi_logo(resolver, &domain).await;
+
+    // cache result (24h), empty string = negative cache
+    if let Some(mut conn) = state.valkey.clone() {
+        let val = logo_url.as_deref().unwrap_or("");
+        let _: std::result::Result<(), _> = redis::cmd("SET")
+            .arg(&cache_key)
+            .arg(val)
+            .arg("EX")
+            .arg(86400u64)
+            .query_async(&mut conn)
+            .await;
+    }
+
+    match logo_url {
+        Some(url) => (StatusCode::OK, Json(serde_json::json!({"logo_url": url}))),
+        None => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "no BIMI record"}))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
