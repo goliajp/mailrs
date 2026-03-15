@@ -160,7 +160,7 @@ CREATE TABLE email_analysis (
     dates JSONB NOT NULL DEFAULT '[]',
     amounts JSONB NOT NULL DEFAULT '[]',
     action_items JSONB NOT NULL DEFAULT '[]',
-    embedding vector(768),
+    embedding vector(1024),
     model_version TEXT NOT NULL DEFAULT '',
     analyzed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
