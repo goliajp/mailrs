@@ -429,7 +429,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         </div>
         {/* timeline + reply box */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-4 py-3">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
             {loadingThread && messages.length === 0 && (
               <div className="animate-pulse space-y-4">
                 {Array.from({ length: 4 }).map((_, i) => (
@@ -486,8 +486,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                             tabIndex={0}
                             onClick={() => setSelectedMsgIdx(idx)}
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
-                            className={`flex cursor-pointer gap-3 border-b border-[var(--color-border-default)] py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
-                              isSelected ? 'bg-[var(--color-bg-selected)]' : ''
+                            className={`flex cursor-pointer gap-3 rounded-lg px-3 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
+                              isSelected ? 'bg-[var(--color-bg-selected)]' : 'hover:bg-[var(--color-hover)]'
                             }`}
                           >
                             <div className="shrink-0">
@@ -536,7 +536,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <div ref={bottomRef} />
             </div>
           </div>
-          <div className="shrink-0 border-t border-[var(--color-border-default)]">
+          <div className="min-h-[200px] shrink-0 border-t border-[var(--color-border-default)]">
             <ReplyBox
               threadId={selectedId}
               lastMessageId={fwdLastMessageId}
