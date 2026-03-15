@@ -1,5 +1,5 @@
 import { useAtomValue, useSetAtom } from 'jotai'
-import { ArrowLeft, Download, Forward, Mail, MailOpen, MoreVertical, Paperclip, Printer, SmilePlus, Star, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Download, Forward, Mail, MailOpen, MoreVertical, Paperclip, Printer, Star, Trash2, X } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -13,10 +13,10 @@ import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import DOMPurify from 'dompurify'
 import { avatarColor, avatarInitial, extractEmail, extractName } from '@/lib/avatar'
 import { highlightMentions } from '@/lib/mention'
-import { deleteJson, fetchJson, getThreadReactions, postJson, recordFeedback, toggleReaction, type FeedbackAction } from '@/lib/api'
+import { deleteJson, fetchJson, postJson, recordFeedback, type FeedbackAction } from '@/lib/api'
 import { getToken } from '@/store/auth'
 import { formatDate, formatFullDate } from '@/lib/format'
-import type { ConversationSummary, ReactionSummary, ThreadMessage } from '@/lib/types'
+import type { ConversationSummary, ThreadMessage } from '@/lib/types'
 import { categoryFilterAtom, conversationsAtom, crossAccountReadAtom, folderAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
 import { authAtom } from '@/store/auth'
 
@@ -64,7 +64,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const [loadingThread, setLoadingThread] = useState(false)
   const [expandedBubbles, setExpandedBubbles] = useState<Set<number>>(new Set())
   const [showAllMessages, setShowAllMessages] = useState(false)
-  const [reactions, setReactions] = useState<Record<number, ReactionSummary[]>>({})
 
   const loadMessages = useCallback(
     async (threadId: string) => {
@@ -83,7 +82,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         if (controller.signal.aborted) return
         setMessages(data)
         if (data.length > 0) setSelectedMsgIdx(data.length - 1)
-        getThreadReactions(threadId).then(setReactions).catch(() => {})
 
         const crossAll = crossAccountReadRef.current
         const readParam = crossAll && doms.length > 0
@@ -219,16 +217,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setReplyMode('forward')
   }, [])
 
-  const handleToggleReaction = useCallback(async (uid: number, emoji: string) => {
-    if (!selectedId) return
-    try {
-      const updated = await toggleReaction(selectedId, uid, emoji)
-      setReactions(prev => ({ ...prev, [uid]: updated }))
-    } catch {
-      // ignore
-    }
-  }, [selectedId])
-
   useEffect(() => {
     if (!selectedId) {
       setMessages([])
@@ -236,13 +224,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       setShowDeleteConfirm(false)
       setForwardSource(null)
       setExpandedBubbles(new Set())
-      setReactions({})
       return
     }
     setForwardSource(null)
     setReplyMode('reply')
     setExpandedBubbles(new Set())
-    setReactions({})
     setShowAllMessages(false)
     const existing = conversationsRef.current.find((c) => c.thread_id === selectedId)
     setIsRead(!existing || existing.unread_count === 0)
@@ -565,10 +551,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />
                                 )}
                               </p>
-                              <ReactionBar
-                                reactions={reactions[msg.uid] ?? []}
-                                onToggle={(emoji) => handleToggleReaction(msg.uid, emoji)}
-                              />
                             </div>
                           </div>
                         </Fragment>
@@ -603,55 +585,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               }}
             />
           </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ReactionBar({
-  reactions,
-  onToggle,
-}: {
-  reactions: ReactionSummary[]
-  onToggle: (emoji: string) => void
-}) {
-  const QUICK_EMOJIS = ['\u{1F44D}', '\u2705', '\u{1F440}', '\u2764\uFE0F', '\u{1F602}', '\u{1F64F}']
-
-  return (
-    <div className="mt-0.5 flex items-center gap-0.5">
-      {reactions.map((r) => (
-        <button
-          key={r.emoji}
-          onClick={(e) => { e.stopPropagation(); onToggle(r.emoji) }}
-          className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs transition-colors ${
-            r.me
-              ? 'border-[var(--color-brand-primary)] bg-[var(--color-brand-subtle)]'
-              : 'border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] hover:bg-[var(--color-hover)]'
-          }`}
-        >
-          <span>{r.emoji}</span>
-          <span className="text-[10px] text-[var(--color-text-tertiary)]">{r.count}</span>
-        </button>
-      ))}
-      <div className="group/react relative">
-        <button
-          className="flex h-5 w-5 items-center justify-center rounded-full text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-tertiary)]"
-          title="Add reaction"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <SmilePlus className="h-3.5 w-3.5" />
-        </button>
-        <div className="absolute bottom-full left-0 mb-1 hidden gap-0.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-1 group-hover/react:flex" style={{ boxShadow: 'var(--shadow-md)' }}>
-          {QUICK_EMOJIS.map((e) => (
-            <button
-              key={e}
-              onClick={(ev) => { ev.stopPropagation(); onToggle(e) }}
-              className="rounded-md p-0.5 text-sm hover:bg-[var(--color-hover)]"
-            >
-              {e}
-            </button>
-          ))}
         </div>
       </div>
     </div>
