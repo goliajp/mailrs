@@ -184,7 +184,7 @@ export function Chat() {
       <div
         className={`${
           showThread ? 'flex' : 'hidden'
-        } min-h-0 min-w-0 flex-1 overflow-hidden md:flex`}
+        } min-h-0 min-w-0 flex-1 gap-1.5 overflow-hidden md:flex`}
       >
         {composingNew ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
