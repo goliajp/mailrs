@@ -12,23 +12,20 @@
     'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
 }
 
-/* ===== design tokens: light mode (default) ===== */
+/* ===== design tokens: light mode (default) — Zinc palette ===== */
 :root {
-  /* surfaces — IDE-style: base=frame(light gray), raised=panels(white), sunken=inputs */
-  --color-bg-base: #f0f0f0;
+  --color-bg-base: #fafafa;
   --color-bg-raised: #ffffff;
   --color-bg-overlay: #ffffff;
-  --color-bg-sunken: #e8e8e8;
+  --color-bg-sunken: #f4f4f5;
 
-  /* text — WCAG AA contrast on white */
-  --color-text-primary: #1a1a2e;
-  --color-text-secondary: #495057;
-  --color-text-tertiary: #868e96;
-  --color-text-inverse: #ffffff;
+  --color-text-primary: #09090b;
+  --color-text-secondary: #3f3f46;
+  --color-text-tertiary: #71717a;
+  --color-text-inverse: #fafafa;
 
-  /* borders */
-  --color-border-default: #d1d1d1;
-  --color-border-strong: #c0c0c0;
+  --color-border-default: #e4e4e7;
+  --color-border-strong: #d4d4d8;
 
   /* brand — slightly softer blue, better with warm grays */
   --color-brand-primary: #3b7ddd;
@@ -64,54 +61,47 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
-/* ===== design tokens: dark mode ===== */
+/* ===== design tokens: dark mode — Zinc palette (like lucide.dev) ===== */
 .dark {
-  /* surfaces — IDE-style: base=frame(warm medium gray), raised=panels(darker), sunken=deepest */
-  --color-bg-base: #3c3f41;
-  --color-bg-raised: #2b2d30;
-  --color-bg-overlay: #2b2d30;
-  --color-bg-sunken: #1e1f22;
+  --color-bg-base: #09090b;
+  --color-bg-raised: #18181b;
+  --color-bg-overlay: #27272a;
+  --color-bg-sunken: #0a0a0a;
 
-  /* text — warm white, not #fff */
-  --color-text-primary: #e4e4e8;
-  --color-text-secondary: #9898a0;
-  --color-text-tertiary: #6e7078;
-  --color-text-inverse: #161618;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-tertiary: #71717a;
+  --color-text-inverse: #09090b;
 
-  /* borders — visible but subtle */
-  --color-border-default: #4b4d50;
-  --color-border-strong: #5a5d61;
+  --color-border-default: #27272a;
+  --color-border-strong: #3f3f46;
 
-  /* brand — brighter for dark backgrounds */
-  --color-brand-primary: #5b9aef;
-  --color-brand-primary-hover: #7db3f7;
+  --color-brand-primary: #3b82f6;
+  --color-brand-primary-hover: #60a5fa;
   --color-brand-primary-text: #ffffff;
-  --color-brand-subtle: rgba(91, 154, 239, 0.12);
+  --color-brand-subtle: rgba(59, 130, 246, 0.15);
 
-  /* status */
-  --color-status-success: #40c990;
-  --color-status-success-subtle: rgba(64, 201, 144, 0.12);
-  --color-status-warning: #ffa94d;
-  --color-status-warning-subtle: rgba(255, 169, 77, 0.12);
-  --color-status-danger: #ff6b6b;
-  --color-status-danger-subtle: rgba(255, 107, 107, 0.12);
-  --color-status-info: #5b9aef;
-  --color-status-info-subtle: rgba(91, 154, 239, 0.12);
+  --color-status-success: #22c55e;
+  --color-status-success-subtle: rgba(34, 197, 94, 0.15);
+  --color-status-warning: #f59e0b;
+  --color-status-warning-subtle: rgba(245, 158, 11, 0.15);
+  --color-status-danger: #ef4444;
+  --color-status-danger-subtle: rgba(239, 68, 68, 0.15);
+  --color-status-info: #3b82f6;
+  --color-status-info-subtle: rgba(59, 130, 246, 0.15);
 
-  /* interactive */
-  --color-hover: rgba(255, 255, 255, 0.05);
-  --color-active: rgba(255, 255, 255, 0.09);
-  --color-focus-ring: rgba(91, 154, 239, 0.5);
+  --color-hover: rgba(255, 255, 255, 0.06);
+  --color-active: rgba(255, 255, 255, 0.1);
+  --color-focus-ring: rgba(59, 130, 246, 0.5);
 
-  --color-bg-inverted: #d1d1d6;
-  --color-text-on-inverted: #161618;
+  --color-bg-inverted: #fafafa;
+  --color-text-on-inverted: #09090b;
 
-  /* selected — blue-tinted to stand out */
-  --color-bg-selected: rgba(91, 154, 239, 0.14);
+  --color-bg-selected: rgba(59, 130, 246, 0.15);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.7), 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
 /* thin scrollbar for webkit */
