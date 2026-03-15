@@ -76,7 +76,7 @@ export function AppSidebar() {
         : 'mail'
 
   return (
-    <aside className="hidden h-full w-14 shrink-0 select-none flex-col items-center border-r border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-4 md:flex">
+    <aside className="hidden h-full w-14 shrink-0 select-none flex-col items-center rounded-lg bg-[var(--color-bg-raised)] py-4 md:flex">
       {/* logo */}
       <div className="mb-4">
         <img src="/icon.svg" alt="mailrs" className="h-9 w-9 rounded-lg" />

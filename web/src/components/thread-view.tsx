@@ -304,7 +304,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* header bar */}
-      <div className="flex shrink-0 select-none items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-4 py-2">
+      <div className="flex shrink-0 select-none items-center gap-2 border-b border-[var(--color-border-default)] px-4 py-2">
         {onBack && (
           <button onClick={onBack} className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] md:hidden" title="Back">
             <ArrowLeft className="h-5 w-5" />
