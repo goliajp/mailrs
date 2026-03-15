@@ -244,20 +244,18 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // empty state
   if (!selectedId) {
     return (
-      <div className="flex flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+      <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
         {onBack && (
-          <div className="flex items-center border-b border-[var(--color-border-default)] px-4 py-3 md:hidden">
+          <div className="absolute left-0 top-0 flex items-center px-4 py-3 md:hidden">
             <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
               <ArrowLeft className="h-4 w-4" />
               Back
             </button>
           </div>
         )}
-        <div className="flex flex-1 items-center justify-center text-[var(--color-text-tertiary)]">
-          <div className="text-center">
-            <Mail className="mx-auto mb-3 h-12 w-12 text-[var(--color-text-tertiary)]" strokeWidth={1} />
-            <p className="text-sm">Select a conversation</p>
-          </div>
+        <div className="text-center text-[var(--color-text-tertiary)]">
+          <Mail className="mx-auto mb-3 h-12 w-12 text-[var(--color-text-tertiary)]" strokeWidth={1} />
+          <p className="text-sm">Select a conversation</p>
         </div>
       </div>
     )
@@ -288,137 +286,123 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
-      {/* header bar — on the frame, not inside panels */}
-      <div className="flex shrink-0 select-none items-center gap-2 px-4 py-2">
-        {onBack && (
-          <button onClick={onBack} className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] md:hidden" title="Back">
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-        )}
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h2 className="select-text truncate text-sm font-semibold text-[var(--color-text-primary)]">{subject || '(no subject)'}</h2>
-          <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">{messages.length}</span>
-          <CategoryBadge category={messages[0]?.category} />
-          <ImportanceBadge level={messages[0]?.importance_level} />
-          {messages.some((m) => m.requires_action) && <ActionBadge />}
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          <HdrBtn onClick={isRead ? handleMarkUnread : handleMarkRead} title={isRead ? 'Mark unread' : 'Mark read'}>
-            {isRead ? (
-              <Mail className="h-4 w-4" />
-            ) : (
-              <MailOpen className="h-4 w-4" />
-            )}
-          </HdrBtn>
-          <HdrBtn onClick={isFlagged ? handleUnstar : handleStar} title={isFlagged ? 'Unstar' : 'Star'} className={isFlagged ? 'text-[var(--color-status-warning)] hover:text-[var(--color-status-warning)]' : undefined}>
-            <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
-          </HdrBtn>
-          <HdrBtn onClick={() => setShowDeleteConfirm(true)} title="Delete" className="hover:text-[var(--color-status-danger)]">
-            <Trash2 className="h-4 w-4" />
-          </HdrBtn>
-          <HdrBtn onClick={() => setSelectedId(null)} title="Close">
-            <X className="h-4 w-4" />
-          </HdrBtn>
-        </div>
-      </div>
-
-      {/* delete dialog */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => setShowDeleteConfirm(false)} onKeyDown={(e) => { if (e.key === 'Escape') setShowDeleteConfirm(false) }}>
-          <div className="mx-4 w-full max-w-sm rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }} onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Delete conversation?</h3>
-            <p className="mt-1.5 text-sm text-[var(--color-text-tertiary)]">This will permanently delete all messages.</p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setShowDeleteConfirm(false)} className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]">Cancel</button>
-              <button onClick={handleDelete} className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90">Delete</button>
-            </div>
+    <>
+      {/* content panel */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+        {/* header bar at top of content panel */}
+        <div className="flex shrink-0 select-none items-center gap-2 border-b border-[var(--color-border-default)] px-4 py-2">
+          {onBack && (
+            <button onClick={onBack} className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] md:hidden" title="Back">
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+          )}
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <h2 className="select-text truncate text-sm font-semibold text-[var(--color-text-primary)]">{subject || '(no subject)'}</h2>
+            <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">{messages.length}</span>
+            <CategoryBadge category={messages[0]?.category} />
+            <ImportanceBadge level={messages[0]?.importance_level} />
+            {messages.some((m) => m.requires_action) && <ActionBadge />}
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <HdrBtn onClick={isRead ? handleMarkUnread : handleMarkRead} title={isRead ? 'Mark unread' : 'Mark read'}>
+              {isRead ? (
+                <Mail className="h-4 w-4" />
+              ) : (
+                <MailOpen className="h-4 w-4" />
+              )}
+            </HdrBtn>
+            <HdrBtn onClick={isFlagged ? handleUnstar : handleStar} title={isFlagged ? 'Unstar' : 'Star'} className={isFlagged ? 'text-[var(--color-status-warning)] hover:text-[var(--color-status-warning)]' : undefined}>
+              <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
+            </HdrBtn>
+            <HdrBtn onClick={() => setShowDeleteConfirm(true)} title="Delete" className="hover:text-[var(--color-status-danger)]">
+              <Trash2 className="h-4 w-4" />
+            </HdrBtn>
+            <HdrBtn onClick={() => setSelectedId(null)} title="Close">
+              <X className="h-4 w-4" />
+            </HdrBtn>
           </div>
         </div>
-      )}
 
-      {/* main content: two columns */}
-      <div className="flex min-h-0 flex-1 gap-1.5 overflow-hidden">
-        {/* column 1: raw email (content panel) */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
-          {selectedMsg ? (
-            <>
-              {/* email header */}
-              <div className="shrink-0 border-b border-[var(--color-border-default)] px-5 py-3">
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white ${avatarColor(selectedMsg.sender)}`}>
-                    {avatarInitial(selectedMsg.sender)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-1 select-text text-sm font-medium text-[var(--color-text-primary)]">
-                      {extractName(selectedMsg.sender)}
-                      {selectedMsg.bimi_logo_url && (
-                        <img
-                          src={selectedMsg.bimi_logo_url}
-                          alt="Verified brand"
-                          className="inline-block h-4 w-4 shrink-0"
-                          title="BIMI verified brand"
-                        />
+        {/* email body area */}
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="min-w-0 flex-1 overflow-y-auto">
+            {selectedMsg ? (
+              <>
+                {/* email header (sender info) */}
+                <div className="shrink-0 border-b border-[var(--color-border-default)] px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white ${avatarColor(selectedMsg.sender)}`}>
+                      {avatarInitial(selectedMsg.sender)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-1 select-text text-sm font-medium text-[var(--color-text-primary)]">
+                        {extractName(selectedMsg.sender)}
+                        {selectedMsg.bimi_logo_url && (
+                          <img
+                            src={selectedMsg.bimi_logo_url}
+                            alt="Verified brand"
+                            className="inline-block h-4 w-4 shrink-0"
+                            title="BIMI verified brand"
+                          />
+                        )}
+                        {' '}
+                        <Copyable value={extractEmail(selectedMsg.sender)}>
+                          <span className="max-w-[200px] truncate font-normal text-[var(--color-text-tertiary)]">&lt;{extractEmail(selectedMsg.sender)}&gt;</span>
+                        </Copyable>
+                      </p>
+                      <p className="select-text truncate text-xs text-[var(--color-text-tertiary)]">
+                        to {formatRecipients(selectedMsg.recipients)} · {formatFullDate(selectedMsg.internal_date)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <IntentBadge intent={selectedMsg.sender_intent} />
+                      {selectedMsg.action_deadline && (
+                        <span className="bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-status-warning)]">
+                          Due: {selectedMsg.action_deadline}
+                        </span>
                       )}
-                      {' '}
-                      <Copyable value={extractEmail(selectedMsg.sender)}>
-                        <span className="max-w-[200px] truncate font-normal text-[var(--color-text-tertiary)]">&lt;{extractEmail(selectedMsg.sender)}&gt;</span>
-                      </Copyable>
-                    </p>
-                    <p className="select-text truncate text-xs text-[var(--color-text-tertiary)]">
-                      to {formatRecipients(selectedMsg.recipients)} · {formatFullDate(selectedMsg.internal_date)}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-0.5">
-                    <IntentBadge intent={selectedMsg.sender_intent} />
-                    {selectedMsg.action_deadline && (
-                      <span className="bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-status-warning)]">
-                        Due: {selectedMsg.action_deadline}
-                      </span>
-                    )}
-                    {selectedMsg.is_bulk_sender && (
-                      <span className="bg-[var(--color-bg-raised)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-tertiary)]">
-                        Bulk
-                      </span>
-                    )}
-                    {selectedMsg.ai_analyzed && (
-                      <span className={`px-2 py-0.5 text-[11px] font-medium ${
-                        selectedMsg.risk_score >= 60
-                          ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
-                          : selectedMsg.risk_score >= 40
-                            ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
-                            : selectedMsg.risk_score >= 15
-                              ? 'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]'
-                              : 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
-                      }`}>
-                        {selectedMsg.risk_score >= 60 ? 'Dangerous' : selectedMsg.risk_score >= 40 ? 'Suspicious' : selectedMsg.risk_score >= 15 ? 'Caution' : 'Safe'}
-                        {selectedMsg.risk_score > 0 && ` ${selectedMsg.risk_score}`}
-                      </span>
-                    )}
-                    <SmBtn onClick={() => handleForwardMsg(selectedMsg)} title="Forward">
-                      <Forward className="h-3.5 w-3.5" />
-                    </SmBtn>
-                    <SmBtn onClick={() => handlePrint(selectedMsg)} title="Print">
-                      <Printer className="h-3.5 w-3.5" />
-                    </SmBtn>
-                    <SmBtn onClick={() => handleDownloadEml(selectedMsg.uid, selectedMsg.subject)} title="Download .eml">
-                      <Download className="h-3.5 w-3.5" />
-                    </SmBtn>
-                    <FeedbackMenu senderEmail={extractEmail(selectedMsg.sender)} />
+                      {selectedMsg.is_bulk_sender && (
+                        <span className="bg-[var(--color-bg-raised)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-tertiary)]">
+                          Bulk
+                        </span>
+                      )}
+                      {selectedMsg.ai_analyzed && (
+                        <span className={`px-2 py-0.5 text-[11px] font-medium ${
+                          selectedMsg.risk_score >= 60
+                            ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+                            : selectedMsg.risk_score >= 40
+                              ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
+                              : selectedMsg.risk_score >= 15
+                                ? 'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]'
+                                : 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+                        }`}>
+                          {selectedMsg.risk_score >= 60 ? 'Dangerous' : selectedMsg.risk_score >= 40 ? 'Suspicious' : selectedMsg.risk_score >= 15 ? 'Caution' : 'Safe'}
+                          {selectedMsg.risk_score > 0 && ` ${selectedMsg.risk_score}`}
+                        </span>
+                      )}
+                      <SmBtn onClick={() => handleForwardMsg(selectedMsg)} title="Forward">
+                        <Forward className="h-3.5 w-3.5" />
+                      </SmBtn>
+                      <SmBtn onClick={() => handlePrint(selectedMsg)} title="Print">
+                        <Printer className="h-3.5 w-3.5" />
+                      </SmBtn>
+                      <SmBtn onClick={() => handleDownloadEml(selectedMsg.uid, selectedMsg.subject)} title="Download .eml">
+                        <Download className="h-3.5 w-3.5" />
+                      </SmBtn>
+                      <FeedbackMenu senderEmail={extractEmail(selectedMsg.sender)} />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* structured data card */}
-              {selectedMsg.structured_data && (
-                <StructuredDataCard data={selectedMsg.structured_data} />
-              )}
+                {/* structured data card */}
+                {selectedMsg.structured_data && (
+                  <StructuredDataCard data={selectedMsg.structured_data} />
+                )}
 
-              {/* AI analysis */}
-              <AiAnalysisPanel message={selectedMsg} />
+                {/* AI analysis */}
+                <AiAnalysisPanel message={selectedMsg} />
 
-              {/* email body */}
-              <div className="flex-1 overflow-y-auto">
+                {/* email body */}
                 {selectedMsg.html_body && (
                   <div className="border-b border-[var(--color-border-default)]">
                     <MessageBubble uid={selectedMsg.uid} textBody={null} htmlBody={selectedMsg.html_body} attachments={[]} isOwn={false} />
@@ -432,25 +416,26 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                   </div>
                 )}
                 <AttachmentPreview attachments={selectedMsg.attachments} uid={selectedMsg.uid} />
+              </>
+            ) : (
+              <div className="flex h-full items-center justify-center text-[var(--color-text-tertiary)]">
+                <p className="text-sm">Select a message to preview</p>
               </div>
-            </>
-          ) : (
-            <div className="flex flex-1 items-center justify-center text-[var(--color-text-tertiary)]">
-              <p className="text-sm">Select a message to preview</p>
-            </div>
-          )}
-        </div>
-
-        {/* column 2: chat bubbles + reply editor (handle panel) */}
-        <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
-          {/* panel header */}
-          <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] px-4 py-1.5">
-            <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
-              Conversation
-              {messages.length > 0 && <span className="ml-1.5 text-[var(--color-text-tertiary)]">({messages.length})</span>}
-            </span>
+            )}
           </div>
-          {/* chat bubbles — scrollable, takes remaining space */}
+        </div>
+      </div>
+
+      {/* handle panel (conversation timeline + reply) */}
+      <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+        {/* panel header */}
+        <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] px-4 py-1.5">
+          <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
+            Conversation ({messages.length})
+          </span>
+        </div>
+        {/* timeline + reply box */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto px-4 py-3">
             {loadingThread && messages.length === 0 && (
               <div className="animate-pulse space-y-4">
@@ -558,9 +543,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <div ref={bottomRef} />
             </div>
           </div>
-
-          {/* reply editor — large, ~40% of the column height */}
-          <div className="flex h-[42%] shrink-0 flex-col border-t border-[var(--color-border-default)]">
+          <div className="shrink-0 border-t border-[var(--color-border-default)]">
             <ReplyBox
               threadId={selectedId}
               lastMessageId={fwdLastMessageId}
@@ -583,7 +566,21 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           </div>
         </div>
       </div>
-    </div>
+
+      {/* delete confirm dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => setShowDeleteConfirm(false)} onKeyDown={(e) => { if (e.key === 'Escape') setShowDeleteConfirm(false) }}>
+          <div className="mx-4 w-full max-w-sm rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Delete conversation?</h3>
+            <p className="mt-1.5 text-sm text-[var(--color-text-tertiary)]">This will permanently delete all messages.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setShowDeleteConfirm(false)} className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]">Cancel</button>
+              <button onClick={handleDelete} className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
