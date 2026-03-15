@@ -21,6 +21,7 @@ import {
   searchQueryAtom,
   selectedDomainsAtom,
   shortcutsDialogOpenAtom,
+  selectedThreadIdAtom,
   showArchivedAtom,
 } from '@/store/chat'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
@@ -42,6 +43,7 @@ export function Chat() {
   const [, setMobileView] = useAtom(mobileViewAtom)
   const [shortcutsOpen, setShortcutsOpen] = useAtom(shortcutsDialogOpenAtom)
   const showArchived = useAtomValue(showArchivedAtom)
+  const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const firstLoadDone = useRef(false)
 
@@ -163,6 +165,13 @@ export function Chat() {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [searchQuery, categoryFilter, selectedDomains, showArchived, folder, loadConversations, setHasMore])
+
+  // auto-select first conversation when list loads and nothing is selected
+  useEffect(() => {
+    if (!selectedThreadId && !composingNew && conversations.length > 0) {
+      setSelectedThreadId(conversations[0].thread_id)
+    }
+  }, [conversations, selectedThreadId, composingNew, setSelectedThreadId])
 
   return (
     <PanelRow>

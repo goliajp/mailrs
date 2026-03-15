@@ -247,8 +247,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     return (
       <Panel center>
         <div className="text-center text-[var(--color-text-tertiary)]">
-          <Mail className="mx-auto mb-3 h-12 w-12" strokeWidth={1} />
-          <p className="text-sm">Select a conversation</p>
+          <Mail className="mx-auto mb-3 h-10 w-10" strokeWidth={1.5} />
+          <p className="text-sm font-medium">No conversation selected</p>
+          <p className="mt-1 text-xs">Choose an email from the list to read it here</p>
         </div>
       </Panel>
     )
