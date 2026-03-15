@@ -343,12 +343,12 @@ function FilterBar() {
         <button
           key={t.value}
           onClick={() => handleTab(t.value)}
-          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+          className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
             activeTab === t.value
               ? t.value === 'action'
-                ? 'bg-[var(--color-status-danger)] text-white'
-                : 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
-              : 'bg-[var(--color-hover)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)]'
+                ? 'border-[var(--color-status-danger)] text-[var(--color-status-danger)]'
+                : 'border-[var(--color-text-secondary)] text-[var(--color-text-primary)]'
+              : 'border-transparent text-[var(--color-text-tertiary)] hover:border-[var(--color-border-default)] hover:text-[var(--color-text-secondary)]'
           }`}
         >
           {t.label}
