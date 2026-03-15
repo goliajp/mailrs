@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
 import type { ThemeMode } from '@/lib/theme'
-import { authAtom } from '@/store/auth'
+import { authAtom, getToken } from '@/store/auth'
 import { notificationsAtom, pageSizeAtom } from '@/store/settings'
 import { themeAtom } from '@/store/theme'
 
@@ -210,6 +210,19 @@ function AccountSection() {
             {saving ? 'Saving...' : 'Update Password'}
           </button>
         </div>
+      </div>
+
+      <div className={cardClass}>
+        <h3 className="mb-2 text-sm font-medium">Export Mailbox</h3>
+        <p className="mb-3 text-xs text-[var(--color-text-tertiary)]">
+          Download all your emails as an MBOX file
+        </p>
+        <button
+          onClick={() => window.open(`/api/mail/export?token=${getToken()}`, '_blank')}
+          className={btnPrimary}
+        >
+          Export as MBOX
+        </button>
       </div>
 
       <div className="border-t border-[var(--color-border-default)] pt-4">

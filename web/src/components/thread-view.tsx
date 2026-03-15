@@ -364,8 +364,17 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     {avatarInitial(selectedMsg.sender)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="select-text text-sm font-medium text-[var(--color-text-primary)]">
-                      {extractName(selectedMsg.sender)}{' '}
+                    <p className="flex items-center gap-1 select-text text-sm font-medium text-[var(--color-text-primary)]">
+                      {extractName(selectedMsg.sender)}
+                      {selectedMsg.bimi_logo_url && (
+                        <img
+                          src={selectedMsg.bimi_logo_url}
+                          alt="Verified brand"
+                          className="inline-block h-4 w-4 shrink-0"
+                          title="BIMI verified brand"
+                        />
+                      )}
+                      {' '}
                       <Copyable value={extractEmail(selectedMsg.sender)}>
                         <span className="max-w-[200px] truncate font-normal text-[var(--color-text-tertiary)]">&lt;{extractEmail(selectedMsg.sender)}&gt;</span>
                       </Copyable>

@@ -171,6 +171,7 @@ export type ThreadMessage = {
   sender_intent: string
   action_deadline: string | null
   structured_data?: StructuredData | null
+  bimi_logo_url?: string | null
 }
 
 export type StructuredData = {
