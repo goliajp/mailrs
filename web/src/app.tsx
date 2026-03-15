@@ -5,6 +5,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { Shell, Panel } from '@/layouts/shell'
 import { Admin } from '@/pages/admin'
 import { Chat } from '@/pages/chat'
 import { Login } from '@/pages/login'
@@ -45,7 +46,7 @@ function StatusBar() {
     : 'Mail'
 
   return (
-    <div className="flex h-7 shrink-0 items-center justify-between px-3 text-[11px] text-[var(--color-text-tertiary)]">
+    <div className="flex items-center justify-between px-3 text-[11px] text-[var(--color-text-tertiary)]" style={{ height: '100%' }}>
       <div className="flex items-center gap-2">
         {health && (
           <span className="flex items-center gap-1">
@@ -65,23 +66,22 @@ function StatusBar() {
   )
 }
 
-function AuthLayout({ children }: { children: React.ReactNode }) {
+function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
-      <div className="fixed inset-0 flex flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
-        <div className="flex min-h-0 flex-1 gap-1.5 p-1.5">
-          <AppSidebar />
-          {children}
-        </div>
-        <StatusBar />
-      </div>
+      <Shell sidebar={<AppSidebar />} statusBar={<StatusBar />}>
+        {children}
+      </Shell>
     </RequireAuth>
   )
 }
 
+function PagePanel({ children }: { children: React.ReactNode }) {
+  return <Panel>{children}</Panel>
+}
+
 function useDocumentTitle() {
   const unreadCount = useAtomValue(unreadCountAtom)
-
   useEffect(() => {
     document.title = unreadCount > 0 ? `(${unreadCount}) Mailrs` : 'Mailrs'
   }, [unreadCount])
@@ -97,45 +97,11 @@ export function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/playground" element={<Playground />} />
-        <Route
-          path="/protocol"
-          element={
-            <AuthLayout>
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
-                <Protocol />
-              </div>
-            </AuthLayout>
-          }
-        />
-        <Route
-          path="/admin/*"
-          element={
-            <AuthLayout>
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
-                <Admin />
-              </div>
-            </AuthLayout>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <AuthLayout>
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
-                <Settings />
-              </div>
-            </AuthLayout>
-          }
-        />
+        <Route path="/protocol" element={<AuthShell><PagePanel><Protocol /></PagePanel></AuthShell>} />
+        <Route path="/admin/*" element={<AuthShell><PagePanel><Admin /></PagePanel></AuthShell>} />
+        <Route path="/settings" element={<AuthShell><PagePanel><Settings /></PagePanel></AuthShell>} />
         <Route path="/mail/*" element={<Navigate to="/" replace />} />
-        <Route
-          path="/*"
-          element={
-            <AuthLayout>
-              <Chat />
-            </AuthLayout>
-          }
-        />
+        <Route path="/*" element={<AuthShell><Chat /></AuthShell>} />
       </Routes>
     </ErrorBoundary>
   )

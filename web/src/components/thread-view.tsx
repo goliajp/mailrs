@@ -1,4 +1,5 @@
 import { useAtomValue, useSetAtom } from 'jotai'
+import { Panel, PanelRow } from '@/layouts/shell'
 import { ArrowLeft, Download, Forward, Mail, MailOpen, MoreVertical, Paperclip, Printer, Star, Trash2, X } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -244,12 +245,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // empty state
   if (!selectedId) {
     return (
-      <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+      <Panel center>
         <div className="text-center text-[var(--color-text-tertiary)]">
           <Mail className="mx-auto mb-3 h-12 w-12" strokeWidth={1} />
           <p className="text-sm">Select a conversation</p>
         </div>
-      </div>
+      </Panel>
     )
   }
 
@@ -278,9 +279,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 gap-1.5">
+    <PanelRow>
       {/* content panel */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+      <Panel>
         {/* header bar at top of content panel */}
         <div className="flex shrink-0 select-none items-center gap-2 border-b border-[var(--color-border-default)] px-4 py-2">
           {onBack && (
@@ -416,10 +417,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             )}
           </div>
         </div>
-      </div>
+      </Panel>
 
       {/* handle panel (conversation timeline + reply) */}
-      <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+      <Panel width={320}>
         {/* panel header */}
         <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] px-4 py-1.5">
           <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
@@ -557,7 +558,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             />
           </div>
         </div>
-      </div>
+      </Panel>
 
       {/* delete confirm dialog */}
       {showDeleteConfirm && (
@@ -572,7 +573,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           </div>
         </div>
       )}
-    </div>
+    </PanelRow>
   )
 }
 
