@@ -288,7 +288,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   return (
-    <div className="flex flex-1 flex-col gap-1 overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
       {/* header bar — on the frame, not inside panels */}
       <div className="flex shrink-0 select-none items-center gap-2 px-4 py-2">
         {onBack && (
@@ -338,9 +338,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       )}
 
       {/* main content: two columns */}
-      <div className="flex flex-1 gap-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 gap-1 overflow-hidden">
         {/* column 1: raw email (content panel) */}
-        <div className="flex w-1/2 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
           {selectedMsg ? (
             <>
               {/* email header */}
@@ -441,8 +441,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           )}
         </div>
 
-        {/* column 2: chat bubbles + reply editor */}
-        <div className="flex w-1/2 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+        {/* column 2: chat bubbles + reply editor (handle panel) */}
+        <div className="flex w-[400px] shrink-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
           {/* panel header */}
           <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] px-4 py-1.5">
             <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
