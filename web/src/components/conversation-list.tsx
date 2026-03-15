@@ -574,10 +574,8 @@ function dateLabel(epoch: number): string {
 
 function DateDivider({ label }: { label: string }) {
   return (
-    <div className="flex select-none items-center gap-3 px-4 py-1.5">
-      <div className="h-px flex-1 bg-[var(--color-border-default)]" />
-      <span className="shrink-0 text-[11px] font-medium text-[var(--color-text-tertiary)]">{label}</span>
-      <div className="h-px flex-1 bg-[var(--color-border-default)]" />
+    <div className="sticky top-0 z-10 flex select-none justify-center py-1.5">
+      <span className="rounded-full bg-[var(--color-bg-sunken)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--color-text-tertiary)]">{label}</span>
     </div>
   )
 }
