@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-import { Copyable } from '@/components/copy-button'
 import { fetchJson } from '@/lib/api'
+
+// --- types ---
 
 type HealthInfo = {
   status: string
@@ -16,14 +17,40 @@ type HealthInfo = {
   total_messages: number
 }
 
+type StatusInfo = {
+  uptime_secs: number
+  active_connections: number
+  total_connections: number
+  total_messages: number
+  queue?: {
+    pending: number
+    inflight: number
+    delivered: number
+    failed: number
+    bounced: number
+  }
+}
+
 type SmtpConfig = {
   hostname: string
   smtp_port: number
   submission_port: number
   imap_port: number
   local_domains: string[]
+  max_message_size?: number
   tls_enabled: boolean
 }
+
+type AuditEntry = {
+  id: number
+  timestamp: number
+  actor: string
+  action: string
+  target: string
+  detail: string
+}
+
+// --- helpers ---
 
 function formatUptime(secs: number): string {
   const days = Math.floor(secs / 86400)
@@ -34,33 +61,152 @@ function formatUptime(secs: number): string {
   return `${mins}m`
 }
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function formatNumber(n: number): string {
+  return n.toLocaleString('en-US')
+}
+
+function formatRelativeTime(epochSecs: number): string {
+  const now = Math.floor(Date.now() / 1000)
+  const diff = now - epochSecs
+  if (diff < 60) return 'just now'
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
+}
+
+// --- sub-components ---
+
+function StatusBanner({ health }: { health: HealthInfo }) {
+  const statusColor =
+    health.status === 'healthy'
+      ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+      : health.status === 'degraded'
+        ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
+        : 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+
+  const dotColor =
+    health.status === 'healthy'
+      ? 'bg-[var(--color-status-success)]'
+      : health.status === 'degraded'
+        ? 'bg-[var(--color-status-warning)]'
+        : 'bg-[var(--color-status-danger)]'
+
   return (
-    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
-      <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">{label}</p>
-      <p className="mt-1 select-text text-2xl font-semibold text-[var(--color-text-primary)]">{value}</p>
-      {sub && <p className="mt-0.5 select-text text-xs text-[var(--color-text-tertiary)]">{sub}</p>}
+    <div className="flex items-center gap-4 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-5 py-3">
+      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}>
+        <span className={`h-2 w-2 rounded-full ${dotColor}`} />
+        {health.status.charAt(0).toUpperCase() + health.status.slice(1)}
+      </span>
+      <span className="text-sm text-[var(--color-text-tertiary)]">
+        v{health.version}
+      </span>
+      <span className="text-sm text-[var(--color-text-tertiary)]">
+        Uptime {formatUptime(health.uptime_secs)}
+      </span>
     </div>
   )
 }
 
-function StatusDot({ ok }: { ok: boolean }) {
+function MetricCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <span
-      className={`inline-block h-2.5 w-2.5 rounded-full ${ok ? 'bg-[var(--color-status-success)]' : 'bg-[var(--color-status-danger)]'}`}
-    />
+    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
+      <p className="text-sm text-[var(--color-text-tertiary)]">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">{value}</p>
+      {sub && <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">{sub}</p>}
+    </div>
   )
 }
 
+function ServicePill({ name, ok, detail }: { name: string; ok: boolean; detail?: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-4 py-3">
+      <span className={`h-2.5 w-2.5 rounded-full ${ok ? 'bg-[var(--color-status-success)]' : 'bg-[var(--color-status-danger)]'}`} />
+      <span className="text-sm font-medium text-[var(--color-text-primary)]">{name}</span>
+      {detail && (
+        <span className="text-xs text-[var(--color-text-tertiary)]">{detail}</span>
+      )}
+    </div>
+  )
+}
+
+function SmtpConfigPanel({ config }: { config: SmtpConfig }) {
+  return (
+    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
+      <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">SMTP Configuration</h3>
+      <div className="space-y-2 text-sm">
+        <Row label="Hostname" value={config.hostname} mono />
+        <Row
+          label="Ports"
+          value={`SMTP :${config.smtp_port} / Submission :${config.submission_port} / IMAP :${config.imap_port}`}
+          mono
+        />
+        <Row label="Domains" value={config.local_domains.join(', ')} mono />
+        <Row label="TLS" value={config.tls_enabled ? 'Enabled' : 'Disabled'} />
+        {config.max_message_size != null && (
+          <Row label="Max Size" value={`${Math.round(config.max_message_size / 1024 / 1024)}MB`} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="shrink-0 text-[var(--color-text-tertiary)]">{label}</span>
+      <span className={`text-right text-[var(--color-text-primary)] ${mono ? 'font-mono' : ''}`}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
+  return (
+    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
+      <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">Recent Audit Log</h3>
+      {entries.length === 0 ? (
+        <p className="text-sm text-[var(--color-text-tertiary)]">No entries</p>
+      ) : (
+        <div className="space-y-2">
+          {entries.map((e) => (
+            <div key={e.id} className="flex items-start gap-2 text-xs">
+              <span className="shrink-0 text-[var(--color-text-tertiary)]">
+                {formatRelativeTime(e.timestamp)}
+              </span>
+              <span className="font-medium text-[var(--color-text-primary)]">{e.action}</span>
+              <span className="truncate text-[var(--color-text-secondary)]">
+                {e.target}{e.detail ? ` — ${e.detail}` : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// --- main ---
+
 export function AdminOverview() {
   const [health, setHealth] = useState<HealthInfo | null>(null)
+  const [status, setStatus] = useState<StatusInfo | null>(null)
   const [smtp, setSmtp] = useState<SmtpConfig | null>(null)
+  const [audit, setAudit] = useState<AuditEntry[]>([])
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     fetchJson<HealthInfo>('/health').then(setHealth, () => setError('Failed to load health'))
+    fetchJson<StatusInfo>('/status').then(setStatus, () => {})
     fetchJson<SmtpConfig>('/admin/config/smtp').then(setSmtp, () => {})
+    fetchJson<AuditEntry[]>('/admin/audit-log?limit=10').then(setAudit, () => {})
   }, [])
+
+  useEffect(() => {
+    refresh()
+    const timer = setInterval(refresh, 10_000)
+    return () => clearInterval(timer)
+  }, [refresh])
 
   if (error) {
     return (
@@ -68,146 +214,72 @@ export function AdminOverview() {
     )
   }
 
+  const activeConns = status?.active_connections ?? health?.total_connections ?? 0
+  const totalMsgs = status?.total_messages ?? health?.total_messages ?? 0
+  const queuePending = status?.queue ? status.queue.pending + status.queue.inflight : 0
+  const queueFailed = status?.queue?.failed ?? 0
+  const activeSessions = health?.active_sessions ?? 0
+
   return (
     <div className="h-full overflow-y-auto p-6">
-      <h1 className="mb-6 text-lg font-semibold">Overview</h1>
+      <h1 className="mb-6 text-lg font-semibold">Dashboard</h1>
 
+      {/* status banner */}
       {health && (
-        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard
-            label="Status"
-            value={health.status}
-            sub={`Level ${health.level}`}
-          />
-          <StatCard
-            label="Uptime"
-            value={formatUptime(health.uptime_secs)}
-          />
-          <StatCard
-            label="Version"
-            value={health.version}
-          />
-          <StatCard
-            label="Services"
-            value={`${[health.pg, health.valkey].filter(Boolean).length}/2`}
-            sub={`PG ${health.pg ? 'OK' : 'DOWN'} / Valkey ${health.valkey ? 'OK' : 'DOWN'}`}
-          />
-          <StatCard
-            label="Total Messages"
-            value={health.total_messages.toLocaleString()}
-          />
-          <StatCard
-            label="Active Sessions"
-            value={health.active_sessions.toLocaleString()}
-          />
-          <StatCard
-            label="Total Connections"
-            value={health.total_connections.toLocaleString()}
-          />
-          <StatCard
-            label="Cache Size"
-            value={health.account_cache_size.toLocaleString()}
-            sub="accounts cached"
-          />
+        <div className="mb-6">
+          <StatusBanner health={health} />
         </div>
       )}
 
-      {/* service status */}
+      {/* key metrics */}
+      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <MetricCard
+          label="Active Connections"
+          value={formatNumber(activeConns)}
+          sub={`${formatNumber(health?.total_connections ?? 0)} total`}
+        />
+        <MetricCard
+          label="Total Messages"
+          value={formatNumber(totalMsgs)}
+        />
+        <MetricCard
+          label="Queue Pending"
+          value={formatNumber(queuePending)}
+          sub={queueFailed > 0 ? `${formatNumber(queueFailed)} failed` : '0 failed'}
+        />
+        <MetricCard
+          label="Active Users"
+          value={formatNumber(activeSessions)}
+          sub="sessions"
+        />
+      </div>
+
+      {/* service health */}
       {health && (
         <div className="mb-6">
           <h2 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">Services</h2>
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 rounded-md border border-[var(--color-border-default)] px-4 py-3">
-              <StatusDot ok={health.pg} />
-              <span className="text-sm font-medium">PostgreSQL</span>
-              <span className="ml-auto select-text text-xs text-[var(--color-text-tertiary)]">{health.pg ? 'Connected' : 'Unavailable'}</span>
-            </div>
-            <div className="flex items-center gap-3 rounded-md border border-[var(--color-border-default)] px-4 py-3">
-              <StatusDot ok={health.valkey} />
-              <span className="text-sm font-medium">Valkey / Redis</span>
-              <span className="ml-auto select-text text-xs text-[var(--color-text-tertiary)]">{health.valkey ? 'Connected' : 'Unavailable'}</span>
-            </div>
+          <div className="flex flex-wrap gap-3">
+            <ServicePill name="PostgreSQL" ok={health.pg} detail={health.pg ? 'up' : 'down'} />
+            <ServicePill name="Valkey" ok={health.valkey} detail={health.valkey ? 'up' : 'down'} />
+            <ServicePill
+              name="SMTP"
+              ok={health.pg}
+              detail={smtp ? `:${smtp.smtp_port}` : undefined}
+            />
+            <ServicePill
+              name="IMAP"
+              ok={health.pg}
+              detail={smtp ? `:${smtp.imap_port}` : undefined}
+            />
           </div>
         </div>
       )}
 
-      {/* sessions and traffic */}
-      {health && (
-        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
-            <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">Sessions</h3>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--color-text-tertiary)]">Active Sessions</span>
-                <span className="font-semibold text-[var(--color-text-primary)]">{health.active_sessions.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--color-text-tertiary)]">Total Connections</span>
-                <span className="font-semibold text-[var(--color-text-primary)]">{health.total_connections.toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
-            <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">Traffic</h3>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--color-text-tertiary)]">Total Messages</span>
-                <span className="font-semibold text-[var(--color-text-primary)]">{health.total_messages.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--color-text-tertiary)]">Cached Accounts</span>
-                <span className="font-semibold text-[var(--color-text-primary)]">{health.account_cache_size.toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SMTP config */}
-      {smtp && (
-        <div>
-          <h2 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">SMTP Configuration</h2>
-          <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
-            <table className="w-full text-sm">
-              <tbody className="divide-y divide-[var(--color-border-default)]">
-                <tr className="hover:bg-[var(--color-hover)]">
-                  <td className="px-4 py-2.5 font-medium text-[var(--color-text-secondary)]">Hostname</td>
-                  <td className="select-text px-4 py-2.5 font-mono text-[var(--color-text-primary)]"><Copyable value={smtp.hostname}>{smtp.hostname}</Copyable></td>
-                </tr>
-                <tr className="hover:bg-[var(--color-hover)]">
-                  <td className="px-4 py-2.5 font-medium text-[var(--color-text-secondary)]">Ports</td>
-                  <td className="select-text px-4 py-2.5 font-mono text-[var(--color-text-primary)]">
-                    SMTP {smtp.smtp_port} / Submission {smtp.submission_port} / IMAP {smtp.imap_port}
-                  </td>
-                </tr>
-                <tr className="hover:bg-[var(--color-hover)]">
-                  <td className="px-4 py-2.5 font-medium text-[var(--color-text-secondary)]">TLS</td>
-                  <td className="px-4 py-2.5 text-[var(--color-text-primary)]">
-                    <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium ${smtp.tls_enabled ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]' : 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'}`}>
-                      {smtp.tls_enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </td>
-                </tr>
-                <tr className="hover:bg-[var(--color-hover)]">
-                  <td className="px-4 py-2.5 font-medium text-[var(--color-text-secondary)]">Local Domains</td>
-                  <td className="px-4 py-2.5 text-[var(--color-text-primary)]">
-                    <div className="flex flex-wrap gap-1.5">
-                      {smtp.local_domains.map((d) => (
-                        <Copyable key={d} value={d}>
-                          <span className="rounded-md bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs font-mono">
-                            {d}
-                          </span>
-                        </Copyable>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* quick info: smtp config + audit log */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {smtp && <SmtpConfigPanel config={smtp} />}
+        <AuditLogPanel entries={audit} />
+      </div>
     </div>
   )
 }
