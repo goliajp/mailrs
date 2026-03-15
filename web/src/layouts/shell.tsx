@@ -28,6 +28,7 @@ export function Panel({ width, children, center, className }: {
       'flex min-h-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]',
       width === 280 && 'w-[280px] shrink-0',
       width === 320 && 'w-[320px] shrink-0',
+      width === 360 && 'w-[360px] shrink-0',
       !width && 'min-w-0 flex-1',
       center && 'items-center justify-center',
       className,
