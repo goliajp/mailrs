@@ -15,14 +15,12 @@
   </defs>
   <!-- rounded square background -->
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <!-- envelope body - slightly raised -->
+  <!-- envelope body -->
   <g filter="url(#shadow)">
-    <rect x="88" y="160" width="336" height="224" rx="20" fill="white" opacity="0.95"/>
+    <rect x="88" y="144" width="336" height="224" rx="20" fill="white" opacity="0.95"/>
   </g>
-  <!-- envelope flap - gradient overlay -->
-  <path d="M88 180 C88 167 97 160 108 160 L404 160 C415 160 424 167 424 180 L256 308 Z" fill="url(#flap)" opacity="0.9"/>
+  <!-- envelope flap -->
+  <path d="M88 164 C88 151 97 144 108 144 L404 144 C415 144 424 151 424 164 L256 292 Z" fill="url(#flap)" opacity="0.9"/>
   <!-- flap fold line -->
-  <path d="M88 180 L256 308 L424 180" fill="none" stroke="white" stroke-width="4" stroke-linejoin="round" opacity="0.6"/>
-  <!-- subtle R mark (for Rust) bottom-right -->
-  <text x="388" y="362" font-family="Georgia, serif" font-size="48" font-weight="bold" font-style="italic" fill="#dc2626" opacity="0.25">R</text>
+  <path d="M88 164 L256 292 L424 164" fill="none" stroke="white" stroke-width="4" stroke-linejoin="round" opacity="0.6"/>
 </svg>
