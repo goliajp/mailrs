@@ -10,6 +10,7 @@ export function AdminAliases() {
   const [aliases, setAliases] = useAtom(aliasesAtom)
   const [domains, setDomains] = useAtom(domainsAtom)
   const [adding, setAdding] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
   const [form, setForm] = useState({
     source_address: '',
     target_address: '',
@@ -62,9 +63,11 @@ export function AdminAliases() {
     try {
       await deleteJson(`/admin/aliases/${id}`)
       toast.success('Alias removed')
+      setDeleteTarget(null)
       loadAliases()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to remove alias')
+      setDeleteTarget(null)
     }
   }
 
@@ -168,7 +171,7 @@ export function AdminAliases() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <button
-                    onClick={() => handleDelete(alias.id)}
+                    onClick={() => setDeleteTarget(alias.id)}
                     className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
                   >
                     Delete
@@ -186,6 +189,22 @@ export function AdminAliases() {
           </tbody>
         </table>
       </div>
+
+      {deleteTarget !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }}>
+            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">Delete this alias? This cannot be undone.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]">
+                Cancel
+              </button>
+              <button onClick={() => handleDelete(deleteTarget)} className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

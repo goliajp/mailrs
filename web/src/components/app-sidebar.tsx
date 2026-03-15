@@ -1,4 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useEffect, useState } from 'react'
 import { Activity, Inbox, LogOut, Monitor, Moon, Server, Settings, Sun } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useLocation } from 'react-router'
@@ -53,7 +54,9 @@ export function AppSidebar() {
     setTheme(next)
   }
 
-  const handleLogout = async () => {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+
+  const doLogout = async () => {
     try {
       await postJson('/auth/logout', {})
     } catch {
@@ -106,7 +109,7 @@ export function AppSidebar() {
         <SidebarLink href="/settings" icon={Settings} label="Settings" active={section === 'settings'} />
 
         <button
-          onClick={handleLogout}
+          onClick={() => setShowLogoutConfirm(true)}
           className={`${navBtnBase} ${navBtnInactive}`}
           title={`Sign out (${auth?.address})`}
           aria-label={`Sign out (${auth?.address})`}
@@ -114,6 +117,43 @@ export function AppSidebar() {
           <LogOut className="h-5 w-5" />
         </button>
       </div>
+
+      {showLogoutConfirm && (
+        <LogoutConfirmDialog onCancel={() => setShowLogoutConfirm(false)} onConfirm={doLogout} />
+      )}
     </aside>
+  )
+}
+
+function LogoutConfirmDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onCancel}>
+      <div className="w-80 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Sign out?</h3>
+        <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+          You will need to sign in again to access your mailbox.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -174,7 +174,9 @@ function AccountSection() {
     }
   }
 
-  const handleLogout = async () => {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+
+  const doLogout = async () => {
     try {
       await postJson('/auth/logout', {})
     } catch {
@@ -243,13 +245,21 @@ function AccountSection() {
       </div>
 
       <div className="border-t border-[var(--color-border-default)] pt-4">
-        <button onClick={handleLogout} className={btnDanger}>
+        <button onClick={() => setShowLogoutConfirm(true)} className={btnDanger}>
           Sign out
         </button>
         {auth?.address && (
           <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">Signed in as {auth.address}</p>
         )}
       </div>
+
+      {showLogoutConfirm && (
+        <ConfirmDialog
+          message="Sign out? You will need to sign in again to access your mailbox."
+          onConfirm={doLogout}
+          onCancel={() => setShowLogoutConfirm(false)}
+        />
+      )}
     </div>
   )
 }
@@ -563,6 +573,7 @@ function EncryptionKeysSection() {
   const [pgpKey, setPgpKey] = useState('')
   const [smimeCert, setSmimeCert] = useState('')
   const [saving, setSaving] = useState<string | null>(null)
+  const [deleteKeyTarget, setDeleteKeyTarget] = useState<'pgp' | 'smime' | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -628,7 +639,7 @@ function EncryptionKeysSection() {
             {saving === 'pgp' ? 'Saving...' : 'Save PGP Key'}
           </button>
           {status?.pgp_fingerprint && (
-            <button onClick={() => handleDelete('pgp')} disabled={saving === 'pgp'} className={btnDanger}>
+            <button onClick={() => setDeleteKeyTarget('pgp')} disabled={saving === 'pgp'} className={btnDanger}>
               Delete
             </button>
           )}
@@ -654,12 +665,23 @@ function EncryptionKeysSection() {
             {saving === 'smime' ? 'Saving...' : 'Save S/MIME Cert'}
           </button>
           {status?.smime_fingerprint && (
-            <button onClick={() => handleDelete('smime')} disabled={saving === 'smime'} className={btnDanger}>
+            <button onClick={() => setDeleteKeyTarget('smime')} disabled={saving === 'smime'} className={btnDanger}>
               Delete
             </button>
           )}
         </div>
       </div>
+
+      {deleteKeyTarget && (
+        <ConfirmDialog
+          message={`Delete your ${deleteKeyTarget.toUpperCase()} key? This cannot be undone.`}
+          onConfirm={() => {
+            handleDelete(deleteKeyTarget)
+            setDeleteKeyTarget(null)
+          }}
+          onCancel={() => setDeleteKeyTarget(null)}
+        />
+      )}
     </div>
   )
 }
@@ -1121,9 +1143,17 @@ function ConfirmDialog({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onCancel])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
+      <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }} onClick={(e) => e.stopPropagation()}>
         <p className="mb-4 text-sm text-[var(--color-text-secondary)]">{message}</p>
         <div className="flex justify-end gap-2">
           <button onClick={onCancel} className={btnSecondary}>
