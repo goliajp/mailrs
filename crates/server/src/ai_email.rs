@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// current prompt version — bump this to trigger automatic reanalysis of all messages
-pub const PROMPT_VERSION: &str = "v4";
+pub const PROMPT_VERSION: &str = "v5";
 
 /// self-hosted LLM configuration
 #[derive(Debug, Clone)]
@@ -84,6 +84,73 @@ fn truncate_str(s: &str, max_bytes: usize) -> &str {
         end -= 1;
     }
     &s[..end]
+}
+
+/// generate a 1024-dimensional embedding using self-hosted qwen3-embedding
+pub async fn generate_embedding(config: &LlmConfig, text: &str) -> Option<Vec<f32>> {
+    // derive embed URL from LLM URL: replace /complete with /embed
+    let embed_url = config.url.replace("/complete", "/embed");
+
+    let body = serde_json::json!({
+        "input": text
+    });
+
+    let response = match tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        config.client.post(&embed_url).json(&body).send(),
+    )
+    .await
+    {
+        Ok(Ok(resp)) => resp,
+        Ok(Err(e)) => {
+            eprintln!("embedding request error: {e}");
+            return None;
+        }
+        Err(_) => {
+            eprintln!("embedding request timeout (30s)");
+            return None;
+        }
+    };
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        eprintln!(
+            "embedding API error {status}: {}",
+            &body[..body.len().min(200)]
+        );
+        return None;
+    }
+
+    let json: serde_json::Value = match response.json().await {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("embedding response parse error: {e}");
+            return None;
+        }
+    };
+
+    let values = json["embeddings"]
+        .as_array()
+        .and_then(|arr| arr.first())
+        .and_then(|v| v.as_array())?;
+
+    let embedding: Vec<f32> = values
+        .iter()
+        .filter_map(|v| v.as_f64().map(|f| f as f32))
+        .collect();
+
+    let dims = json["dimensions"].as_u64().unwrap_or(1024) as usize;
+    if embedding.len() == dims {
+        Some(embedding)
+    } else {
+        eprintln!(
+            "embedding bad dim: {} (expected {})",
+            embedding.len(),
+            dims
+        );
+        None
+    }
 }
 
 /// call the self-hosted LLM API

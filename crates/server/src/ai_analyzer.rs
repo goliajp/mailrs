@@ -264,9 +264,16 @@ async fn analyze_single_message(
         format!("{body_text}\n\n[Attachment content]\n{attachment_text}")
     };
 
-    let analysis = match ai_email::analyze_email(config, &sender, &subject, &body_for_analysis)
-        .await
-    {
+    // prepare text for embedding: combine subject + body + attachment text
+    let embedding_text = format!("{subject}\n\n{body_for_analysis}");
+
+    // run embedding and analysis concurrently
+    let (embedding_result, analysis_result) = tokio::join!(
+        ai_email::generate_embedding(config, &embedding_text),
+        ai_email::analyze_email(config, &sender, &subject, &body_for_analysis),
+    );
+
+    let analysis = match analysis_result {
         Some(a) => a,
         None => {
             tracing::debug!(event = "analyzer_no_result", message_id);
@@ -296,7 +303,7 @@ async fn analyze_single_message(
             &dates,
             &amounts,
             &action_items,
-            None, // no embedding
+            embedding_result.as_deref(),
             model_version,
             &analysis.clean_text,
             analysis.requires_action,
@@ -315,12 +322,13 @@ async fn analyze_single_message(
     }
 
     eprintln!(
-        "AI analyzed msg={} cat={} risk={} action={} intent={}",
+        "AI analyzed msg={} cat={} risk={} action={} intent={} embed={}",
         message_id,
         analysis.category,
         analysis.risk_score,
         analysis.requires_action,
         sender_intent,
+        embedding_result.is_some(),
     );
 
     true
