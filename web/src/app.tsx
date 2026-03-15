@@ -68,10 +68,10 @@ function StatusBar() {
 function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
-      <div className="flex h-screen flex-col bg-[var(--color-bg-sunken)] text-[var(--color-text-primary)]">
-        <div className="flex min-h-0 flex-1">
+      <div className="flex h-screen flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
+        <div className="flex min-h-0 flex-1 gap-1 p-1">
           <AppSidebar />
-          <div className="my-0.5 mr-0.5 min-w-0 flex-1 overflow-hidden rounded-md bg-[var(--color-bg-base)]">{children}</div>
+          {children}
         </div>
         <StatusBar />
       </div>
