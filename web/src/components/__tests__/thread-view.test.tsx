@@ -126,11 +126,11 @@ const { ThreadView } = await import('@/components/thread-view')
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 describe('ThreadView — no selection', () => {
-  it('shows "Select a conversation" when no thread is selected', () => {
+  it('shows empty state when no thread is selected', () => {
     const store = makeStore()
     store.set(selectedThreadIdAtom, null)
     render(<Wrapper store={store}><ThreadView /></Wrapper>)
-    expect(screen.getByText('Select a conversation')).toBeDefined()
+    expect(screen.getByText('No conversation selected')).toBeDefined()
   })
 
   it('does not render back button in empty state (mobile nav handled by Chat)', () => {
