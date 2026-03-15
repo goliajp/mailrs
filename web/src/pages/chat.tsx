@@ -167,12 +167,12 @@ export function Chat() {
   const showThread = mobileView === 'thread'
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 gap-1.5 overflow-hidden">
-      {/* conversation list */}
+    <>
+      {/* list panel */}
       <div
         className={`${
           showList ? 'flex' : 'hidden'
-        } w-full shrink-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)] md:flex md:w-80`}
+        } w-[280px] shrink-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)] md:flex`}
       >
         <ConversationList
           onLoadMore={loadMore}
@@ -180,14 +180,14 @@ export function Chat() {
         />
       </div>
 
-      {/* content + handle */}
+      {/* content area */}
       <div
         className={`${
           showThread ? 'flex' : 'hidden'
         } min-h-0 min-w-0 flex-1 gap-1.5 overflow-hidden md:flex`}
       >
         {composingNew ? (
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
             <NewConversation />
           </div>
         ) : (
@@ -199,6 +199,6 @@ export function Chat() {
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
       />
-    </div>
+    </>
   )
 }
