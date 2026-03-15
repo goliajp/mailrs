@@ -656,6 +656,8 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         // public key lookup (no auth required, rate-limited by general_rate_limit layer)
         .route("/api/keys/{address}/pgp", get(mail::get_public_pgp_key))
         .route("/api/keys/{address}/smime", get(mail::get_public_smime_key))
+        // BIMI logo lookup (cached DNS)
+        .route("/api/bimi/{domain}", get(mail::get_bimi_logo))
         // templates API
         .route(
             "/api/mail/templates",
