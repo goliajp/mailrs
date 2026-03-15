@@ -166,7 +166,7 @@ export function Chat() {
 
   return (
     <PanelRow>
-      <Panel width={280}>
+      <Panel width={320}>
         <ConversationList
           onLoadMore={loadMore}
           onSelectConversation={() => setMobileView('thread')}
