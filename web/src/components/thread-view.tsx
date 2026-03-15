@@ -442,7 +442,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         </div>
 
         {/* column 2: chat bubbles + reply editor (handle panel) */}
-        <div className="flex w-[400px] shrink-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+        <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
           {/* panel header */}
           <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] px-4 py-1.5">
             <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
