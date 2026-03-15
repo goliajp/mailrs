@@ -77,7 +77,7 @@ function AuthShell({ children }: { children: React.ReactNode }) {
 }
 
 function PagePanel({ children }: { children: React.ReactNode }) {
-  return <Panel>{children}</Panel>
+  return <Panel className="p-1">{children}</Panel>
 }
 
 function useDocumentTitle() {
