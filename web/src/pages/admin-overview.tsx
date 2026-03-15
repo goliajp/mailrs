@@ -168,19 +168,29 @@ function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
       {entries.length === 0 ? (
         <p className="text-sm text-[var(--color-text-tertiary)]">No entries</p>
       ) : (
-        <div className="space-y-2">
-          {entries.map((e) => (
-            <div key={e.id} className="flex items-start gap-2 text-xs">
-              <span className="shrink-0 text-[var(--color-text-tertiary)]">
-                {formatRelativeTime(e.timestamp)}
-              </span>
-              <span className="font-medium text-[var(--color-text-primary)]">{e.action}</span>
-              <span className="truncate text-[var(--color-text-secondary)]">
-                {e.target}{e.detail ? ` — ${e.detail}` : ''}
-              </span>
-            </div>
-          ))}
-        </div>
+        <table className="w-full text-xs">
+          <tbody>
+            {entries.map((e) => (
+              <tr key={e.id} className="border-b border-[var(--color-border-default)] last:border-0">
+                <td className="whitespace-nowrap py-1.5 pr-3 text-[var(--color-text-tertiary)]">
+                  {formatRelativeTime(e.timestamp)}
+                </td>
+                <td className="whitespace-nowrap py-1.5 pr-3">
+                  <span className={`rounded px-1.5 py-0.5 font-medium ${
+                    e.action === 'login_failed' ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+                    : e.action === 'login' ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+                    : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)]'
+                  }`}>
+                    {e.action}
+                  </span>
+                </td>
+                <td className="truncate py-1.5 text-[var(--color-text-secondary)]">
+                  {e.target}{e.detail ? ` — ${e.detail}` : ''}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   )
