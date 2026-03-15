@@ -7,7 +7,8 @@ import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ContextMenu, useContextMenu } from '@/components/context-menu'
 import type { ContextMenuItem } from '@/components/context-menu'
 import { fetchJson, postJson, snoozeConversation } from '@/lib/api'
-import { avatarColor, avatarInitial, extractName } from '@/lib/avatar'
+import { extractName } from '@/lib/avatar'
+import { SenderAvatar } from '@/components/sender-avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import type { CategoryCount, ConversationSummary } from '@/lib/types'
 import {
@@ -66,8 +67,6 @@ const ConversationItem = memo(function ConversationItem({
 }) {
   const firstParticipant = convo.participants[0] ?? ''
   const name = extractName(firstParticipant)
-  const initial = avatarInitial(firstParticipant)
-  const color = avatarColor(firstParticipant)
   const hasUnread = convo.unread_count > 0
   const isFlagged = convo.flagged
   const isPinned = convo.pinned
@@ -152,11 +151,7 @@ const ConversationItem = memo(function ConversationItem({
           </div>
         </div>
       )}
-      <div
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-medium text-white ${color}`}
-      >
-        {initial}
-      </div>
+      <SenderAvatar sender={firstParticipant} size={36} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span
