@@ -156,6 +156,13 @@ impl DeliveryWorker {
 
     async fn poll_and_deliver(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let now = chrono::Utc::now().timestamp();
+
+        // recover stale inflight messages (worker crash recovery)
+        let recovered = queue::recover_stale_inflight(&self.pool, now).await?;
+        if recovered > 0 {
+            tracing::warn!("recovered {recovered} stale inflight messages");
+        }
+
         let messages = queue::dequeue(&self.pool, now, self.config.batch_size).await?;
 
         if messages.is_empty() {
