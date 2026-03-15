@@ -1,7 +1,6 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Check, CheckCircle, Mail, Pin, Search, SlidersHorizontal, SquarePen, Star } from 'lucide-react'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
@@ -48,29 +47,6 @@ interface ApiResult {
   message?: string
 }
 
-function PreviewCard({ convo, style }: { convo: ConversationSummary; style: React.CSSProperties }) {
-  return (
-    <div
-      style={{ ...style, boxShadow: 'var(--shadow-lg)' }}
-      className="pointer-events-none fixed z-50 w-72 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3"
-    >
-      <p className="text-xs font-semibold text-[var(--color-text-primary)]">{convo.subject || '(no subject)'}</p>
-      <p className="mt-1 text-[11px] text-[var(--color-text-tertiary)]">
-        {convo.participants.slice(0, 3).map(p => extractName(p)).join(', ')}
-        {convo.participants.length > 3 && ` +${convo.participants.length - 3}`}
-      </p>
-      {convo.snippet && (
-        <p className="mt-1.5 line-clamp-4 text-xs leading-relaxed text-[var(--color-text-secondary)]">{convo.snippet}</p>
-      )}
-      <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--color-text-tertiary)]">
-        <span>{formatDate(convo.last_date)}</span>
-        {convo.unread_count > 0 && <span className="font-medium text-[var(--color-brand-primary)]">{convo.unread_count} unread</span>}
-        {convo.message_count > 1 && <span>{convo.message_count} messages</span>}
-      </div>
-    </div>
-  )
-}
-
 const ConversationItem = memo(function ConversationItem({
   convo,
   selected,
@@ -99,22 +75,8 @@ const ConversationItem = memo(function ConversationItem({
 
   const ctx = useContextMenu()
 
-  const [showPreview, setShowPreview] = useState(false)
-  const [previewPos, setPreviewPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const top = rect.top + 200 > window.innerHeight ? rect.bottom - 200 : rect.top
-    setPreviewPos({ top, left: rect.right + 8 })
-    hoverTimer.current = setTimeout(() => setShowPreview(true), 300)
-  }, [])
-
-  const handleMouseLeave = useCallback(() => {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current)
-    hoverTimer.current = null
-    setShowPreview(false)
-  }, [])
+  const handleMouseEnter = useCallback(() => {}, [])
+  const handleMouseLeave = useCallback(() => {}, [])
 
   const contextItems: ContextMenuItem[] = [
     {
@@ -244,10 +206,6 @@ const ConversationItem = memo(function ConversationItem({
       </div>
     </button>
     <ContextMenu position={ctx.position} items={contextItems} onClose={ctx.close} />
-    {showPreview && !batchMode && createPortal(
-      <PreviewCard convo={convo} style={{ top: previewPos.top, left: previewPos.left }} />,
-      document.body
-    )}
     </div>
   )
 })
@@ -339,24 +297,28 @@ function FilterBar() {
   return (
     <div className="flex items-center gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">
       {/* main tabs */}
-      {VIEW_TABS.map((t) => (
-        <button
-          key={t.value}
-          onClick={() => handleTab(t.value)}
-          className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-            activeTab === t.value
-              ? t.value === 'action'
-                ? 'border-[var(--color-status-danger)] text-[var(--color-status-danger)]'
-                : 'border-[var(--color-text-secondary)] text-[var(--color-text-primary)]'
-              : 'border-transparent text-[var(--color-text-tertiary)] hover:border-[var(--color-border-default)] hover:text-[var(--color-text-secondary)]'
-          }`}
-        >
-          {t.label}
-          {t.value === 'action' && actionCount > 0 && (
-            <span className="ml-1 opacity-70">{actionCount}</span>
-          )}
-        </button>
-      ))}
+      {VIEW_TABS.map((t) => {
+        const isActive = activeTab === t.value
+        const base = 'shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
+        const color = t.value === 'action'
+          ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+          : t.value === 'starred'
+            ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
+            : t.value === 'sent'
+              ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+              : t.value === 'unread'
+                ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
+                : 'bg-[var(--color-border-default)] text-[var(--color-text-secondary)]'
+        const ring = isActive ? 'ring-2 ring-offset-1 ring-[var(--color-border-default)] ring-offset-[var(--color-bg-base)]' : ''
+        return (
+          <button key={t.value} onClick={() => handleTab(t.value)} className={`${base} ${color} ${ring}`}>
+            {t.label}
+            {t.value === 'action' && actionCount > 0 && (
+              <span className="ml-1 opacity-70">{actionCount}</span>
+            )}
+          </button>
+        )
+      })}
 
       {/* filter dropdown toggle */}
       <div className="relative ml-auto" ref={panelRef}>
