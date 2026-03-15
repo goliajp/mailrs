@@ -656,8 +656,6 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         // public key lookup (no auth required, rate-limited by general_rate_limit layer)
         .route("/api/keys/{address}/pgp", get(mail::get_public_pgp_key))
         .route("/api/keys/{address}/smime", get(mail::get_public_smime_key))
-        // BIMI logo lookup (cached DNS)
-        .route("/api/bimi/{domain}", get(mail::get_bimi_logo))
         // templates API
         .route(
             "/api/mail/templates",
@@ -916,7 +914,13 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .with_state(state.clone());
 
     // merge MCP router after with_state so it bypasses the general rate limiter
-    app = app.merge(mcp_router.with_state(state));
+    app = app.merge(mcp_router.with_state(state.clone()));
+
+    // BIMI logo lookup — bypasses rate limiter (cached DNS, read-only)
+    let bimi_router = axum::Router::new()
+        .route("/api/bimi/{domain}", get(mail::get_bimi_logo))
+        .with_state(state);
+    app = app.merge(bimi_router);
 
     // serve frontend static files with SPA fallback
     if let Some(dir) = static_dir {
