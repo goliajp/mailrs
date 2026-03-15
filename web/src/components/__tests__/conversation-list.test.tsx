@@ -99,50 +99,7 @@ function openFilterPanel() {
   fireEvent.click(screen.getByLabelText('Toggle filters'))
 }
 
-describe('FilterBar — domain selector', () => {
-  let store: ReturnType<typeof createStore>
-
-  beforeEach(() => {
-    store = makeStore()
-    store.set(conversationsAtom, [makeConversation()])
-  })
-
-  it('shows domain buttons in filter dropdown when accessible_domains are available', () => {
-    render(
-      <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
-    )
-
-    openFilterPanel()
-    expect(screen.getByText('Domains')).toBeDefined()
-    expect(screen.getByText('Mine')).toBeDefined()
-    expect(screen.getByText('example.com')).toBeDefined()
-    expect(screen.getByText('golia.jp')).toBeDefined()
-  })
-
-  it('does not show domain section when accessible_domains is empty', () => {
-    const noSuperStore = createStore()
-    noSuperStore.set(authAtom, {
-      token: 'test-token',
-      address: 'user@example.com',
-      display_name: 'Test User',
-      permissions: [],
-      accessible_domains: [],
-    })
-    noSuperStore.set(initialLoadingAtom, false)
-    noSuperStore.set(conversationsAtom, [makeConversation()])
-
-    render(
-      <Wrapper store={noSuperStore}>
-        <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
-    )
-
-    openFilterPanel()
-    expect(screen.queryByText('Domains')).toBeNull()
-  })
-})
+// domain selector tests removed — domains moved to sidebar
 
 describe('FilterBar — sort', () => {
   let store: ReturnType<typeof createStore>
