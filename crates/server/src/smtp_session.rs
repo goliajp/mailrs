@@ -96,7 +96,9 @@ async fn verify_credentials(ctx: &ConnectionContext, username: &str, password: &
     }
     if let Some(ref ds) = ctx.domain_store {
         if let Ok(Some((_account, hash))) = ds.get_account_with_hash(username).await {
-            let valid = if hash.starts_with("$argon2") {
+            let valid = if hash.is_empty() {
+                false
+            } else if hash.starts_with("$argon2") {
                 UserStore::verify_hash(password, &hash)
             } else {
                 hash == password

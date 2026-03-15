@@ -295,6 +295,13 @@ pub(super) async fn remove_account(
     if let Some(err) = require_permission(permissions, "admin.accounts") {
         return err;
     }
+    // prevent admins from deleting their own account
+    if target_address == *address {
+        return Json(ApiResult {
+            success: false,
+            message: Some("cannot delete your own account".into()),
+        });
+    }
     let Some(ref ds) = state.domain_store else {
         return Json(ApiResult {
             success: false,
@@ -528,12 +535,6 @@ pub(super) async fn set_sieve(
             message: Some("domain store not configured".into()),
         });
     };
-    if req.script.len() > super::MAX_SIEVE_SCRIPT_LEN {
-        return Json(ApiResult {
-            success: false,
-            message: Some("sieve script too large".into()),
-        });
-    }
     if req.script.len() > super::MAX_SIEVE_SCRIPT_LEN {
         return Json(ApiResult {
             success: false,
@@ -1317,6 +1318,14 @@ pub(super) async fn add_email_group_member(
     let Some(ref ds) = state.domain_store else {
         return Json(ApiResult { success: false, message: Some("domain store not configured".into()) });
     };
+    // prevent adding the group's own address as a member (would cause infinite delivery)
+    if let Ok(groups) = ds.list_email_groups(None).await {
+        if let Some(group) = groups.iter().find(|g| g.id == id) {
+            if group.address == req.address {
+                return Json(ApiResult { success: false, message: Some("cannot add group as member of itself".into()) });
+            }
+        }
+    }
     match ds.add_email_group_member(id, &req.address).await {
         Ok(()) => Json(ApiResult { success: true, message: None }),
         Err(e) => {

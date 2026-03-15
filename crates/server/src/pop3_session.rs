@@ -148,6 +148,13 @@ impl Pop3Session {
                 Ok(Some((account, hash))) => {
                     if !account.active {
                         false
+                    } else if hash.is_empty() {
+                        // accounts with no password hash cannot log in
+                        if let Some(ref ldap) = self.ldap_config {
+                            ldap.authenticate(username, password).await
+                        } else {
+                            false
+                        }
                     } else if hash.starts_with("$argon2") {
                         let valid = UserStore::verify_hash(password, &hash);
                         if valid {

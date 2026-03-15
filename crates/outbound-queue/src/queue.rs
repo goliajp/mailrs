@@ -98,6 +98,21 @@ pub async fn notify(valkey: &mut redis::aio::ConnectionManager) {
     let _: Result<i32, _> = valkey.publish("queue:notify", "1").await;
 }
 
+/// recover messages stuck in inflight status for more than 10 minutes
+/// (worker crashed or was killed before marking them as delivered/failed)
+pub async fn recover_stale_inflight(pool: &PgPool, now: i64) -> Result<u64, sqlx::Error> {
+    let stale_threshold = now - 600; // 10 minutes
+    let result = sqlx::query(
+        "UPDATE outbound_queue SET status = 'pending', updated_at = $1 \
+         WHERE status = 'inflight' AND updated_at < $2",
+    )
+    .bind(now)
+    .bind(stale_threshold)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 /// fetch pending messages ready for delivery
 pub async fn dequeue(pool: &PgPool, now: i64, limit: u32) -> Result<Vec<QueuedMessage>, sqlx::Error> {
     #[allow(clippy::type_complexity)]

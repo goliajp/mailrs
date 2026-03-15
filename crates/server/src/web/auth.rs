@@ -283,7 +283,10 @@ pub(super) async fn login(
     }
 
     // verify password
-    let mut valid = if password_hash.starts_with("$argon2") {
+    let mut valid = if password_hash.is_empty() {
+        // accounts with no password hash cannot log in via password
+        false
+    } else if password_hash.starts_with("$argon2") {
         crate::users::UserStore::verify_hash(&req.password, &password_hash)
     } else {
         password_hash == req.password
@@ -735,7 +738,9 @@ pub(super) async fn change_password(
         }
     };
 
-    let valid = if password_hash.starts_with("$argon2") {
+    let valid = if password_hash.is_empty() {
+        false
+    } else if password_hash.starts_with("$argon2") {
         crate::users::UserStore::verify_hash(&req.current_password, &password_hash)
     } else {
         password_hash == req.current_password
