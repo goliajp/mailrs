@@ -13,6 +13,7 @@ export function AdminDomains() {
   const [adding, setAdding] = useState(false)
   const [newDomain, setNewDomain] = useState('')
   const [checking, setChecking] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [reports, setReports] = useState<Record<string, DomainCheckReport>>({})
 
   const loadDomains = useCallback(async () => {
@@ -45,9 +46,11 @@ export function AdminDomains() {
     try {
       await deleteJson(`/admin/domains/${encodeURIComponent(name)}`)
       toast.success(`Domain "${name}" removed`)
+      setDeleteTarget(null)
       loadDomains()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to remove domain')
+      setDeleteTarget(null)
     }
   }
 
@@ -144,7 +147,7 @@ export function AdminDomains() {
                           : 'Check'}
                     </button>
                     <button
-                      onClick={() => handleDelete(domain.name)}
+                      onClick={() => setDeleteTarget(domain.name)}
                       className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
                     >
                       Delete
@@ -174,6 +177,24 @@ export function AdminDomains() {
           </tbody>
         </table>
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }}>
+            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
+              Delete domain <span className="font-medium text-[var(--color-text-primary)]">{deleteTarget}</span>? This will also remove all associated accounts and aliases.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]">
+                Cancel
+              </button>
+              <button onClick={() => handleDelete(deleteTarget)} className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

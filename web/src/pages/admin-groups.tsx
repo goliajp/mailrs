@@ -77,6 +77,7 @@ function GroupDetail({
   }
 
   const handleRemoveMember = async (address: string) => {
+    if (!window.confirm(`Remove member "${address}" from this group?`)) return
     try {
       await deleteJson(
         `/admin/groups/${group.id}/members/${encodeURIComponent(address)}`,
@@ -177,6 +178,7 @@ export function AdminGroups() {
   const [allPermissions, setAllPermissions] = useState<string[]>([])
   const [adding, setAdding] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
   const [form, setForm] = useState({
     name: '',
     domain: '',
@@ -237,10 +239,12 @@ export function AdminGroups() {
     try {
       await deleteJson(`/admin/groups/${id}`)
       toast.success('Group removed')
+      setDeleteTarget(null)
       if (expandedId === id) setExpandedId(null)
       loadGroups()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to remove group')
+      setDeleteTarget(null)
     }
   }
 
@@ -341,7 +345,7 @@ export function AdminGroups() {
                     </button>
                     {!group.is_builtin && (
                       <button
-                        onClick={() => handleDelete(group.id)}
+                        onClick={() => setDeleteTarget(group.id)}
                         className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
                       >
                         Delete
@@ -375,6 +379,22 @@ export function AdminGroups() {
           </tbody>
         </table>
       </div>
+
+      {deleteTarget !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }}>
+            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">Delete this group? This cannot be undone.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]">
+                Cancel
+              </button>
+              <button onClick={() => handleDelete(deleteTarget)} className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -126,6 +126,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         icon: <LogOut size={16} />,
         category: 'Actions',
         action: () => {
+          if (!window.confirm('Sign out? You will need to sign in again to access your mailbox.')) return
           setAuth(null)
           navigate('/login')
           onClose()

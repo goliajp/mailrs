@@ -198,6 +198,7 @@ function SieveCell({ address }: { address: string }) {
   }
 
   const remove = async () => {
+    if (!window.confirm('Delete this sieve script? This cannot be undone.')) return
     setState((prev) => ({ ...prev, status: 'deleting', error: null }))
     try {
       await deleteJson(`/admin/accounts/${encodeURIComponent(address)}/sieve`)
@@ -330,9 +331,15 @@ function DeleteConfirmDialog({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
+      <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }} onClick={(e) => e.stopPropagation()}>
         <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
         <p className="mb-4 text-sm text-[var(--color-text-tertiary)]">
           Are you sure you want to delete{' '}
