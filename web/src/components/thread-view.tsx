@@ -244,7 +244,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // empty state
   if (!selectedId) {
     return (
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
         {onBack && (
           <div className="flex items-center border-b border-[var(--color-border-default)] px-4 py-3 md:hidden">
             <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
