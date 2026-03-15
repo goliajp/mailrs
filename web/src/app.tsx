@@ -65,13 +65,17 @@ function StatusBar() {
   )
 }
 
-function AuthLayout({ children }: { children: React.ReactNode }) {
+function AuthLayout({ children, raw }: { children: React.ReactNode; raw?: boolean }) {
   return (
     <RequireAuth>
       <div className="flex h-screen flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
         <div className="flex min-h-0 flex-1 gap-1 p-1">
           <AppSidebar />
-          {children}
+          {raw ? children : (
+            <div className="min-w-0 flex-1 overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
+              {children}
+            </div>
+          )}
         </div>
         <StatusBar />
       </div>
@@ -125,7 +129,7 @@ export function App() {
         <Route
           path="/*"
           element={
-            <AuthLayout>
+            <AuthLayout raw>
               <Chat />
             </AuthLayout>
           }
