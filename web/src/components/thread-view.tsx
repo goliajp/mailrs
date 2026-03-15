@@ -289,8 +289,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   return (
     <div className="flex flex-1 flex-col gap-1 overflow-hidden">
-      {/* header bar */}
-      <div className="flex shrink-0 select-none items-center gap-2 rounded-lg bg-[var(--color-bg-raised)] px-4 py-2.5">
+      {/* header bar — on the frame, not inside panels */}
+      <div className="flex shrink-0 select-none items-center gap-2 px-4 py-2">
         {onBack && (
           <button onClick={onBack} className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] md:hidden" title="Back">
             <ArrowLeft className="h-5 w-5" />
@@ -444,7 +444,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         {/* column 2: chat bubbles + reply editor */}
         <div className="flex w-1/2 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]">
           {/* panel header */}
-          <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-4 py-1.5">
+          <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] px-4 py-1.5">
             <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
               Conversation
               {messages.length > 0 && <span className="ml-1.5 text-[var(--color-text-tertiary)]">({messages.length})</span>}
@@ -560,7 +560,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           </div>
 
           {/* reply editor — large, ~40% of the column height */}
-          <div className="flex h-[42%] shrink-0 flex-col border-t-2 border-[var(--color-border-strong)] bg-[var(--color-bg-sunken)]">
+          <div className="flex h-[42%] shrink-0 flex-col border-t border-[var(--color-border-default)]">
             <ReplyBox
               threadId={selectedId}
               lastMessageId={fwdLastMessageId}

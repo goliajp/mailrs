@@ -76,7 +76,7 @@ export function AppSidebar() {
         : 'mail'
 
   return (
-    <aside className="hidden h-full w-14 shrink-0 select-none flex-col items-center bg-[var(--color-bg-sunken)] py-4 md:flex">
+    <aside className="hidden h-full w-14 shrink-0 select-none flex-col items-center py-4 md:flex">
       {/* logo */}
       <div className="mb-2">
         <img src="/icon.svg" alt="mailrs" className="h-8 w-8 rounded-lg" style={{ boxShadow: 'var(--shadow-sm)' }} />
