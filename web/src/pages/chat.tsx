@@ -104,7 +104,10 @@ export function Chat() {
         const data = await fetchJson<ConversationSummary[]>(path)
 
         if (append) {
-          setConversations((prev) => [...prev, ...data])
+          setConversations((prev) => {
+            const ids = new Set(prev.map((c) => c.thread_id))
+            return [...prev, ...data.filter((c) => !ids.has(c.thread_id))]
+          })
         } else {
           setConversations(data)
         }
