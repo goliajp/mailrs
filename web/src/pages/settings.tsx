@@ -147,6 +147,30 @@ function AccountSection() {
   const setAuth = useSetAtom(authAtom)
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
   const [saving, setSaving] = useState(false)
+  const [recoveryEmail, setRecoveryEmail] = useState('')
+  const [recoveryLoaded, setRecoveryLoaded] = useState(false)
+  const [savingRecovery, setSavingRecovery] = useState(false)
+
+  useEffect(() => {
+    fetchJson<{ recovery_email: string }>('/auth/recovery-email')
+      .then((data) => {
+        setRecoveryEmail(data.recovery_email)
+        setRecoveryLoaded(true)
+      })
+      .catch(() => setRecoveryLoaded(true))
+  }, [])
+
+  const handleRecoveryEmailSave = async () => {
+    setSavingRecovery(true)
+    try {
+      await postJson('/auth/recovery-email', { recovery_email: recoveryEmail })
+      toast.success('Recovery email updated')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update recovery email')
+    } finally {
+      setSavingRecovery(false)
+    }
+  }
 
   const handlePasswordChange = async () => {
     if (!pw.current || !pw.next) return
@@ -160,8 +184,7 @@ function AccountSection() {
     }
     setSaving(true)
     try {
-      await postJson('/admin/accounts', {
-        action: 'change_password',
+      await postJson('/auth/change-password', {
         current_password: pw.current,
         new_password: pw.next,
       })
@@ -202,29 +225,61 @@ function AccountSection() {
       </div>
 
       <div className={cardClass}>
+        <h3 className="mb-3 text-sm font-medium">Recovery Email</h3>
+        <p className="mb-2 text-xs text-[var(--color-text-tertiary)]">
+          Used to receive password reset links. Must be an external email address you can access independently.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            placeholder={recoveryLoaded ? 'Not configured' : 'Loading...'}
+            value={recoveryEmail}
+            onChange={(e) => setRecoveryEmail(e.target.value)}
+            disabled={!recoveryLoaded}
+            className={inputClass + ' flex-1'}
+          />
+          <button onClick={handleRecoveryEmailSave} disabled={savingRecovery || !recoveryLoaded} className={btnPrimary}>
+            {savingRecovery ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      <div className={cardClass}>
         <h3 className="mb-3 text-sm font-medium">Change Password</h3>
         <div className="space-y-2">
-          <input
-            type="password"
-            placeholder="Current password"
-            value={pw.current}
-            onChange={(e) => setPw({ ...pw, current: e.target.value })}
-            className={inputClass}
-          />
-          <input
-            type="password"
-            placeholder="New password"
-            value={pw.next}
-            onChange={(e) => setPw({ ...pw, next: e.target.value })}
-            className={inputClass}
-          />
-          <input
-            type="password"
-            placeholder="Confirm new password"
-            value={pw.confirm}
-            onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
-            className={inputClass}
-          />
+          <div>
+            <label htmlFor="settings-current-pw" className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Current password</label>
+            <input
+              id="settings-current-pw"
+              type="password"
+              placeholder="Current password"
+              value={pw.current}
+              onChange={(e) => setPw({ ...pw, current: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor="settings-new-pw" className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">New password</label>
+            <input
+              id="settings-new-pw"
+              type="password"
+              placeholder="New password"
+              value={pw.next}
+              onChange={(e) => setPw({ ...pw, next: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor="settings-confirm-pw" className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Confirm new password</label>
+            <input
+              id="settings-confirm-pw"
+              type="password"
+              placeholder="Confirm new password"
+              value={pw.confirm}
+              onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
+              className={inputClass}
+            />
+          </div>
           <button onClick={handlePasswordChange} disabled={saving} className={btnPrimary}>
             {saving ? 'Saving...' : 'Update Password'}
           </button>

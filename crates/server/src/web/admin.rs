@@ -36,6 +36,8 @@ pub(super) struct AddAccountRequest {
     pub display_name: String,
     #[serde(default)]
     pub password: String,
+    #[serde(default)]
+    pub recovery_email: String,
 }
 
 #[derive(Deserialize)]
@@ -265,6 +267,10 @@ pub(super) async fn add_account(
         .await
     {
         Ok(()) => {
+            // update recovery_email if provided
+            if !req.recovery_email.is_empty() {
+                let _ = ds.update_recovery_email(&req.address, &req.recovery_email).await;
+            }
             ds.log_audit(address, "account_created", &req.address, &format!("domain={}", req.domain)).await;
             Json(ApiResult {
                 success: true,

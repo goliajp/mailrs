@@ -466,78 +466,107 @@ pub(super) async fn forgot_password(
     };
 
     if account_exists {
-        // generate reset token
-        let mut bytes = [0u8; 32];
-        rand_core::OsRng.fill_bytes(&mut bytes);
-        let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        // look up recovery email
+        let recovery_email = if let Some(ref ds) = state.domain_store {
+            ds.get_account_with_hash(&req.address)
+                .await
+                .ok()
+                .flatten()
+                .map(|(acct, _)| acct.recovery_email.clone())
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
 
-        let expires_at = Utc::now() + chrono::Duration::hours(1);
+        if !recovery_email.is_empty() {
+            // generate reset token
+            let mut bytes = [0u8; 32];
+            rand_core::OsRng.fill_bytes(&mut bytes);
+            let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
 
-        let inserted = sqlx::query(
-            "INSERT INTO password_reset_tokens (account_address, token, expires_at) \
-             VALUES ($1, $2, $3)",
-        )
-        .bind(&req.address)
-        .bind(&token)
-        .bind(expires_at)
-        .execute(pool)
-        .await;
+            let expires_at = Utc::now() + chrono::Duration::hours(1);
 
-        if inserted.is_ok() {
-            // send reset email to the user's mailbox
-            let reset_link = format!("https://mail.golia.ai/reset-password?token={token}");
-            let subject = "Password Reset Request";
-            let body = format!(
-                "You requested a password reset.\n\n\
-                 Click the link below to reset your password:\n\
-                 {reset_link}\n\n\
-                 This link expires in 1 hour.\n\n\
-                 If you did not request this, please ignore this email."
-            );
+            let inserted = sqlx::query(
+                "INSERT INTO password_reset_tokens (account_address, token, expires_at) \
+                 VALUES ($1, $2, $3)",
+            )
+            .bind(&req.address)
+            .bind(&token)
+            .bind(expires_at)
+            .execute(pool)
+            .await;
 
-            let now = Utc::now();
-            let message_id = format!(
-                "{}.{}@{}",
-                now.timestamp_millis(),
-                rand_core::OsRng.next_u32(),
-                state.hostname
-            );
-            let from = format!("noreply@{}", state.hostname);
-            let to = vec![req.address.clone()];
-            let raw = super::mail::build_rfc5322_message(
-                &from,
-                &to,
-                &[],
-                subject,
-                &body,
-                None,
-                &message_id,
-                None,
-                &[],
-                &now,
-                None,
-            );
+            if inserted.is_ok() {
+                // send reset email to the RECOVERY email via outbound queue
+                let reset_link = format!("https://mail.golia.ai/reset-password?token={token}");
+                let subject = "Password Reset Request";
+                let text_body = format!(
+                    "You requested a password reset for {address}.\n\n\
+                     Click the link below to reset your password:\n\
+                     {reset_link}\n\n\
+                     This link expires in 1 hour.\n\n\
+                     If you did not request this, please ignore this email.",
+                    address = req.address,
+                );
+                let html_body = format!(
+                    "<p>You requested a password reset for <strong>{address}</strong>.</p>\
+                     <p>Click the link below to reset your password:</p>\
+                     <p><a href=\"{reset_link}\">Reset Password</a></p>\
+                     <p>This link expires in 1 hour.</p>\
+                     <p>If you did not request this, please ignore this email.</p>",
+                    address = req.address,
+                );
 
-            // deliver directly to local mailbox
-            if let Some(ref mb_store) = state.mailbox_store {
-                let _ = mb_store.ensure_default_mailboxes(&req.address).await;
-                let _ = mb_store
-                    .append_message(
-                        &req.address,
-                        "INBOX",
-                        &state.maildir_root,
+                let now = Utc::now();
+                let message_id = format!(
+                    "{}.{}@{}",
+                    now.timestamp_millis(),
+                    rand_core::OsRng.next_u32(),
+                    state.hostname
+                );
+                let from = format!("noreply@{}", state.hostname);
+                let to = vec![recovery_email];
+                let raw = super::mail::build_rfc5322_message(
+                    &from,
+                    &to,
+                    &[],
+                    subject,
+                    &text_body,
+                    Some(&html_body),
+                    &message_id,
+                    None,
+                    &[],
+                    &now,
+                    None,
+                );
+
+                // send via outbound queue so it reaches the external recovery email
+                if let Some(ref oq) = state.outbound_queue {
+                    let rcpt = &to[0];
+                    let domain = rcpt
+                        .rsplit_once('@')
+                        .map(|(_, d)| d)
+                        .unwrap_or("unknown");
+                    let ts = now.timestamp();
+                    let _ = mailrs_outbound_queue::queue::enqueue(
+                        oq,
+                        &from,
+                        rcpt,
+                        domain,
                         &raw,
-                        0,
-                        now.timestamp(),
+                        Some(&message_id),
+                        ts,
                     )
                     .await;
-            }
+                }
 
-            if let Some(ref ds) = state.domain_store {
-                ds.log_audit(&req.address, "password_reset_requested", &req.address, "")
-                    .await;
+                if let Some(ref ds) = state.domain_store {
+                    ds.log_audit(&req.address, "password_reset_requested", &req.address, "")
+                        .await;
+                }
             }
         }
+        // if no recovery email configured, silently do nothing (prevent enumeration)
     }
 
     // always return success to prevent account enumeration
@@ -657,6 +686,169 @@ pub(super) async fn reset_password(
         StatusCode::OK,
         Json(serde_json::json!({"success": true})),
     )
+}
+
+// --- change password (self-service) ---
+
+#[derive(Deserialize)]
+pub(super) struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+pub(super) async fn change_password(
+    State(state): State<Arc<WebState>>,
+    AuthUser { address, .. }: AuthUser,
+    Json(req): Json<ChangePasswordRequest>,
+) -> impl IntoResponse {
+    if req.current_password.is_empty() || req.new_password.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "current and new password are required"})),
+        );
+    }
+
+    if let Err(e) = crate::users::validate_password(&req.new_password) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": e})),
+        );
+    }
+
+    let Some(ref ds) = state.domain_store else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "auth backend unavailable"})),
+        );
+    };
+
+    // verify current password
+    let (account, password_hash) = match ds.get_account_with_hash(&address).await {
+        Ok(Some(pair)) => pair,
+        _ => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "account not found"})),
+            );
+        }
+    };
+
+    let valid = if password_hash.starts_with("$argon2") {
+        crate::users::UserStore::verify_hash(&req.current_password, &password_hash)
+    } else {
+        password_hash == req.current_password
+    };
+
+    if !valid {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "current password is incorrect"})),
+        );
+    }
+
+    // hash new password
+    let new_hash = match crate::users::UserStore::hash_password(&req.new_password) {
+        Ok(h) => h,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "failed to hash password"})),
+            );
+        }
+    };
+
+    let now = Utc::now().timestamp();
+    if let Err(e) = ds
+        .add_account(
+            &account.address,
+            &account.domain,
+            &account.display_name,
+            &new_hash,
+            now,
+        )
+        .await
+    {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to update password: {e}")})),
+        );
+    }
+
+    ds.log_audit(&address, "password_changed", &address, "").await;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"success": true})),
+    )
+}
+
+// --- recovery email ---
+
+#[derive(Deserialize)]
+pub(super) struct UpdateRecoveryEmailRequest {
+    pub recovery_email: String,
+}
+
+pub(super) async fn update_recovery_email(
+    State(state): State<Arc<WebState>>,
+    AuthUser { address, .. }: AuthUser,
+    Json(req): Json<UpdateRecoveryEmailRequest>,
+) -> impl IntoResponse {
+    if req.recovery_email.len() > super::MAX_ADMIN_FIELD_LEN {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid email length"})),
+        );
+    }
+
+    // basic email format validation (if not empty)
+    if !req.recovery_email.is_empty() && !req.recovery_email.contains('@') {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid email format"})),
+        );
+    }
+
+    let Some(ref ds) = state.domain_store else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "auth backend unavailable"})),
+        );
+    };
+
+    match ds.update_recovery_email(&address, &req.recovery_email).await {
+        Ok(true) => {
+            ds.log_audit(&address, "recovery_email_updated", &address, "").await;
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({"success": true})),
+            )
+        }
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "account not found"})),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to update recovery email: {e}")})),
+        ),
+    }
+}
+
+pub(super) async fn get_recovery_email(
+    State(state): State<Arc<WebState>>,
+    AuthUser { address, .. }: AuthUser,
+) -> impl IntoResponse {
+    let Some(ref ds) = state.domain_store else {
+        return Json(serde_json::json!({"recovery_email": ""}));
+    };
+
+    let recovery_email = match ds.get_account_with_hash(&address).await {
+        Ok(Some((acct, _))) => acct.recovery_email,
+        _ => String::new(),
+    };
+
+    Json(serde_json::json!({"recovery_email": recovery_email}))
 }
 
 // --- TOTP 2FA endpoints ---

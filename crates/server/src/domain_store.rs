@@ -38,6 +38,7 @@ pub struct Account {
     pub active: bool,
     pub created_at: i64,
     pub quota_bytes: i64,
+    pub recovery_email: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -280,16 +281,16 @@ impl DomainStore {
     /// preload all accounts into process cache for L3 degradation
     pub async fn preload_accounts(&self) {
         let Ok(pool) = self.pg() else { return };
-        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String)>(
+        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String, String)>(
             "SELECT address, domain, display_name, active, \
-             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash \
+             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, recovery_email \
              FROM accounts",
         )
         .fetch_all(pool)
         .await;
 
         if let Ok(rows) = rows {
-            for (address, domain, display_name, active, created_at, quota_bytes, password_hash) in
+            for (address, domain, display_name, active, created_at, quota_bytes, password_hash, recovery_email) in
                 rows
             {
                 let account = Account {
@@ -299,6 +300,7 @@ impl DomainStore {
                     active,
                     created_at,
                     quota_bytes,
+                    recovery_email,
                 };
                 self.account_cache.insert(
                     address,
@@ -401,9 +403,9 @@ impl DomainStore {
 
     pub async fn list_accounts(&self) -> Result<Vec<Account>> {
         let pool = self.pg()?;
-        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64)>(
+        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String)>(
             "SELECT address, domain, display_name, active, \
-             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes \
+             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, recovery_email \
              FROM accounts ORDER BY address",
         )
         .fetch_all(pool)
@@ -412,13 +414,14 @@ impl DomainStore {
         Ok(rows
             .into_iter()
             .map(
-                |(address, domain, display_name, active, created_at, quota_bytes)| Account {
+                |(address, domain, display_name, active, created_at, quota_bytes, recovery_email)| Account {
                     address,
                     domain,
                     display_name,
                     active,
                     created_at,
                     quota_bytes,
+                    recovery_email,
                 },
             )
             .collect())
@@ -433,13 +436,13 @@ impl DomainStore {
         _now: i64,
     ) -> Result<()> {
         let pool = self.pg()?;
-        let (active, created_epoch, quota_bytes): (bool, i64, i64) = sqlx::query_as(
+        let (active, created_epoch, quota_bytes, recovery_email): (bool, i64, i64, String) = sqlx::query_as(
             "INSERT INTO accounts (address, domain, display_name, password_hash) \
              VALUES ($1, $2, $3, $4) \
              ON CONFLICT (address) DO UPDATE SET \
              domain = EXCLUDED.domain, display_name = EXCLUDED.display_name, \
              password_hash = EXCLUDED.password_hash \
-             RETURNING active, EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes",
+             RETURNING active, EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, recovery_email",
         )
         .bind(address)
         .bind(domain)
@@ -456,6 +459,7 @@ impl DomainStore {
             active,
             created_at: created_epoch,
             quota_bytes,
+            recovery_email,
         };
         self.account_cache.insert(
             address.to_string(),
@@ -480,16 +484,16 @@ impl DomainStore {
 
         // try PG
         if let Ok(pool) = self.pg() {
-            let row = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String)>(
+            let row = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String, String)>(
                 "SELECT address, domain, display_name, active, \
-                 EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash \
+                 EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, recovery_email \
                  FROM accounts WHERE address = $1",
             )
             .bind(address)
             .fetch_optional(pool)
             .await?;
 
-            if let Some((addr, domain, display_name, active, created_at, quota_bytes, hash)) = row
+            if let Some((addr, domain, display_name, active, created_at, quota_bytes, hash, recovery_email)) = row
             {
                 let account = Account {
                     address: addr,
@@ -498,6 +502,7 @@ impl DomainStore {
                     active,
                     created_at,
                     quota_bytes,
+                    recovery_email,
                 };
                 let cached = CachedAccount {
                     account: account.clone(),
@@ -553,6 +558,21 @@ impl DomainStore {
         // invalidate caches
         if let Some(mut entry) = self.account_cache.get_mut(address) {
             entry.account.quota_bytes = quota_bytes;
+        }
+        self.valkey_del(&format!("acct:{address}")).await;
+        Ok(res.rows_affected() > 0)
+    }
+
+    pub async fn update_recovery_email(&self, address: &str, recovery_email: &str) -> Result<bool> {
+        let pool = self.pg()?;
+        let res = sqlx::query("UPDATE accounts SET recovery_email = $1 WHERE address = $2")
+            .bind(recovery_email)
+            .bind(address)
+            .execute(pool)
+            .await?;
+        // invalidate caches
+        if let Some(mut entry) = self.account_cache.get_mut(address) {
+            entry.account.recovery_email = recovery_email.to_string();
         }
         self.valkey_del(&format!("acct:{address}")).await;
         Ok(res.rows_affected() > 0)
@@ -1621,6 +1641,7 @@ mod tests {
             active: true,
             created_at: 1700000000,
             quota_bytes: 1_073_741_824,
+            recovery_email: String::new(),
         }
     }
 
@@ -1700,6 +1721,7 @@ mod tests {
             active: false,
             created_at: 1234567890,
             quota_bytes: 500_000_000,
+            recovery_email: String::new(),
         };
         let json = serde_json::to_string(&account).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -1961,6 +1983,8 @@ impl<'de> serde::Deserialize<'de> for Account {
             active: bool,
             created_at: i64,
             quota_bytes: i64,
+            #[serde(default)]
+            recovery_email: String,
         }
         let h = Helper::deserialize(deserializer)?;
         Ok(Account {
@@ -1970,6 +1994,7 @@ impl<'de> serde::Deserialize<'de> for Account {
             active: h.active,
             created_at: h.created_at,
             quota_bytes: h.quota_bytes,
+            recovery_email: h.recovery_email,
         })
     }
 }
