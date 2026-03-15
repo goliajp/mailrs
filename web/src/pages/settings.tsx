@@ -85,7 +85,7 @@ const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
 
 const inputClass =
-  'w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm focus:border-[var(--color-brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]'
+  'w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm focus:border-[var(--color-brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]'
 const btnPrimary =
   'rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90 disabled:opacity-50'
 const btnDanger =
@@ -424,7 +424,7 @@ function SecuritySection() {
               </p>
               <div className="grid grid-cols-2 gap-1">
                 {setup.recovery_codes.map((rc) => (
-                  <code key={rc} className="rounded bg-[var(--color-bg-base)] px-2 py-1 font-mono text-xs">
+                  <code key={rc} className="rounded bg-[var(--color-bg-sunken)] px-2 py-1 font-mono text-xs">
                     {rc}
                   </code>
                 ))}
@@ -813,7 +813,7 @@ function ApiKeysSection() {
             Copy this key now. It will not be shown again.
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 rounded bg-[var(--color-bg-base)] px-3 py-1.5 font-mono text-sm">
+            <code className="flex-1 rounded bg-[var(--color-bg-sunken)] px-3 py-1.5 font-mono text-sm">
               {createdKey.key}
             </code>
             <button onClick={() => copyToClipboard(createdKey.key)} className={btnPrimary}>
@@ -963,7 +963,7 @@ function WebhooksSection() {
             Copy this secret now. It will not be shown again.
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 rounded bg-[var(--color-bg-base)] px-3 py-1.5 font-mono text-sm">
+            <code className="flex-1 rounded bg-[var(--color-bg-sunken)] px-3 py-1.5 font-mono text-sm">
               {createdSecret}
             </code>
             <button onClick={() => copyToClipboard(createdSecret)} className={btnPrimary}>

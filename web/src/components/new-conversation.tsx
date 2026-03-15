@@ -323,7 +323,7 @@ export function NewConversation() {
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
             min={new Date().toISOString().slice(0, 16)}
-            className="rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-2 py-1 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]"
+            className="rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 py-1 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]"
           />
         )}
         {scheduledAt && (

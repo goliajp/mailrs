@@ -15,7 +15,7 @@ export function Admin() {
   return (
     <div className="flex h-full flex-col md:flex-row">
       <AdminSidebar />
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-auto">
       <Routes>
         <Route path="overview" element={<AdminOverview />} />
         <Route path="domains" element={<AdminDomains />} />
