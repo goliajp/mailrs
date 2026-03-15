@@ -71,9 +71,7 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
       <div className="fixed inset-0 flex flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
         <div className="flex min-h-0 flex-1 gap-1.5 p-1.5">
           <AppSidebar />
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-            {children}
-          </div>
+          {children}
         </div>
         <StatusBar />
       </div>
