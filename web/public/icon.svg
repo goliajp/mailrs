@@ -5,22 +5,13 @@
       <stop offset="50%" stop-color="#dc2626"/>
       <stop offset="100%" stop-color="#991b1b"/>
     </linearGradient>
-    <linearGradient id="flap" x1="0.5" y1="0" x2="0.5" y2="1">
-      <stop offset="0%" stop-color="#fca5a5"/>
-      <stop offset="100%" stop-color="#f87171"/>
-    </linearGradient>
-    <filter id="shadow" x="-4%" y="-4%" width="108%" height="112%">
-      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#000" flood-opacity="0.15"/>
-    </filter>
   </defs>
   <!-- rounded square background -->
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <!-- envelope body -->
-  <g filter="url(#shadow)">
-    <rect x="88" y="144" width="336" height="224" rx="20" fill="white" opacity="0.95"/>
-  </g>
-  <!-- envelope flap -->
-  <path d="M88 164 C88 151 97 144 108 144 L404 144 C415 144 424 151 424 164 L256 292 Z" fill="url(#flap)" opacity="0.9"/>
-  <!-- flap fold line -->
-  <path d="M88 164 L256 292 L424 164" fill="none" stroke="white" stroke-width="4" stroke-linejoin="round" opacity="0.6"/>
+  <!-- envelope body — centered and compact -->
+  <rect x="96" y="148" width="320" height="208" rx="18" fill="white" opacity="0.95"/>
+  <!-- envelope flap — solid white, no gradient for clarity at small sizes -->
+  <path d="M96 168 C96 155 105 148 116 148 L396 148 C407 148 416 155 416 168 L256 284 Z" fill="white" opacity="0.75"/>
+  <!-- flap V line — the defining envelope shape -->
+  <path d="M96 166 L256 284 L416 166" fill="none" stroke="#dc2626" stroke-width="6" stroke-linejoin="round" opacity="0.5"/>
 </svg>
