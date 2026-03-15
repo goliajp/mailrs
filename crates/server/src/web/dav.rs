@@ -86,7 +86,14 @@ async fn authenticate(headers: &HeaderMap, state: &Arc<WebState>) -> Option<Stri
     let (username, password) = decoded.split_once(':')?;
 
     let ds = state.domain_store.as_ref()?;
-    let (account, password_hash) = ds.get_account_with_hash(username).await.ok()??;
+    let (account, password_hash) = match ds.get_account_with_hash(username).await.ok()? {
+        Some(pair) => pair,
+        None => {
+            // constant-time: do dummy argon2 work even when account not found
+            crate::users::dummy_verify(password);
+            return None;
+        }
+    };
     if !account.active {
         return None;
     }

@@ -263,6 +263,8 @@ pub(super) async fn login(
     let (account, password_hash) = match ds.get_account_with_hash(&req.address).await {
         Ok(Some(pair)) => pair,
         _ => {
+            // constant-time rejection: spend the same time as a real argon2 verify
+            crate::users::dummy_verify(&req.password);
             if let Some(ref guard) = state.auth_guard {
                 guard.record_failure(addr.ip(), &req.address);
             }
