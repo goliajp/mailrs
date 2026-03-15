@@ -34,10 +34,12 @@ function fetchBimi(domain: string): Promise<string | null> {
   return p
 }
 
-// static logo sources as fallbacks (ordered by quality)
+// fallback image sources ordered by quality
 const fallbackSources = [
-  (domain: string) => `https://logo.clearbit.com/${domain}`,
-  (domain: string) => `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
+  // apple-touch-icon: 180x180 high-res PNG, available on most major sites
+  (domain: string) => `https://${domain}/apple-touch-icon.png`,
+  // google faviconV2: best available favicon, often SVG
+  (domain: string) => `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${domain}&size=128`,
 ]
 
 export function SenderAvatar({ sender, size = 36, className }: {
