@@ -104,6 +104,9 @@ async fn verify_credentials(ctx: &ConnectionContext, username: &str, password: &
             if valid {
                 return true;
             }
+        } else {
+            // constant-time: do dummy argon2 work even when account not found
+            crate::users::dummy_verify(password);
         }
     }
     // try LDAP as last fallback
@@ -612,6 +615,10 @@ where
                             local_rcpts.push(rcpt.to_string());
                         }
                     }
+
+                    // deduplicate local recipients (e.g. user both in a group and directly CC'd)
+                    local_rcpts.sort_unstable();
+                    local_rcpts.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
 
                     let mut ok = true;
 

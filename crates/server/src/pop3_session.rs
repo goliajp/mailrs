@@ -166,6 +166,8 @@ impl Pop3Session {
                     }
                 }
                 _ => {
+                    // constant-time: do dummy argon2 work even when account not found
+                    crate::users::dummy_verify(password);
                     if self.users.verify(username, password) {
                         true
                     } else if let Some(ref ldap) = self.ldap_config {
@@ -180,6 +182,8 @@ impl Pop3Session {
         } else if let Some(ref ldap) = self.ldap_config {
             ldap.authenticate(username, password).await
         } else {
+            // constant-time: do dummy argon2 work when no auth backend configured
+            crate::users::dummy_verify(password);
             false
         };
 

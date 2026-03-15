@@ -686,6 +686,10 @@ pub(crate) async fn deliver_message_ex(
         }
     }
 
+    // deduplicate recipients (e.g. user both in a group and directly CC'd)
+    resolved_recipients.sort_unstable();
+    resolved_recipients.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+
     for rcpt in &resolved_recipients {
         let domain = rcpt.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
         let is_local = local_domains

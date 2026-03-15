@@ -122,6 +122,18 @@ fn verify_argon2(password: &str, hash: &str) -> bool {
         .is_ok()
 }
 
+/// pre-computed dummy hash for constant-time rejection of non-existent users.
+/// prevents timing side-channel that reveals whether an account exists.
+const DUMMY_HASH: &str =
+    "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+/// perform a dummy argon2 verification to prevent timing attacks.
+/// when a user does not exist, call this to spend roughly the same time
+/// as a real password verification would, then return false.
+pub fn dummy_verify(password: &str) {
+    let _ = verify_argon2(password, DUMMY_HASH);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
