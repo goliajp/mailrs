@@ -743,6 +743,10 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .merge(auth_routes)
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::auth_me))
+        // self-service password change
+        .route("/api/auth/change-password", post(auth::change_password))
+        // recovery email
+        .route("/api/auth/recovery-email", get(auth::get_recovery_email).post(auth::update_recovery_email))
         // TOTP 2FA
         .route("/api/auth/totp/setup", post(auth::totp_setup))
         .route("/api/auth/totp/enable", post(auth::totp_enable))

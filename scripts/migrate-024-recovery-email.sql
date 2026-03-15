@@ -1,0 +1,1 @@
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS recovery_email TEXT NOT NULL DEFAULT '';

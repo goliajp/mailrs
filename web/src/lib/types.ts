@@ -101,6 +101,8 @@ export type AccountInfo = {
   display_name: string
   active: boolean
   created_at: number
+  quota_bytes: number
+  recovery_email: string
 }
 
 export type AliasInfo = {

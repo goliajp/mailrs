@@ -198,7 +198,7 @@ function SieveCell({ address }: { address: string }) {
   }
 
   const remove = async () => {
-    if (!window.confirm('Delete this sieve script? This cannot be undone.')) return
+    if (!confirm('Delete this sieve script? This cannot be undone.')) return
     setState((prev) => ({ ...prev, status: 'deleting', error: null }))
     try {
       await deleteJson(`/admin/accounts/${encodeURIComponent(address)}/sieve`)

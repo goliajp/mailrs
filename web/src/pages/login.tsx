@@ -15,6 +15,8 @@ export function Login() {
   const [loading, setLoading] = useState(false)
   const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('mailrs_saved_email'))
   const [showPassword, setShowPassword] = useState(false)
+  const [totpRequired, setTotpRequired] = useState(false)
+  const [totpCode, setTotpCode] = useState('')
   const [forgotMode, setForgotMode] = useState(false)
   const [forgotAddress, setForgotAddress] = useState('')
   const [forgotLoading, setForgotLoading] = useState(false)
@@ -30,9 +32,9 @@ export function Login() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: forgotAddress }),
       })
-      setForgotMessage('If that account exists, a reset link has been sent to your inbox')
+      setForgotMessage('If a recovery email is configured for that account, a reset link has been sent')
     } catch {
-      setForgotMessage('If that account exists, a reset link has been sent to your inbox')
+      setForgotMessage('If a recovery email is configured for that account, a reset link has been sent')
     } finally {
       setForgotLoading(false)
     }
@@ -47,13 +49,23 @@ export function Login() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, password }),
+        body: JSON.stringify({
+          address,
+          password,
+          ...(totpRequired && totpCode ? { totp_code: totpCode } : {}),
+        }),
       })
 
       const data = await res.json()
 
       if (!res.ok) {
         setError(data.error ?? 'Login failed')
+        return
+      }
+
+      // server asks for TOTP code
+      if (data.requires_totp) {
+        setTotpRequired(true)
         return
       }
 
@@ -161,17 +173,46 @@ export function Login() {
           </>
         )}
 
+        {!forgotMode && totpRequired && (
+          <div className="space-y-1.5">
+            <label
+              htmlFor="login-totp"
+              className="block text-sm font-medium text-[var(--color-text-secondary)]"
+            >
+              Two-Factor Code
+            </label>
+            <input
+              id="login-totp"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value)}
+              placeholder="Enter 6-digit code"
+              required
+              autoFocus
+              aria-label="Two-factor authentication code"
+              className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+            />
+            <p className="text-xs text-[var(--color-text-tertiary)]">
+              Enter the code from your authenticator app, or a recovery code
+            </p>
+          </div>
+        )}
+
         {!forgotMode && (
           <>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-[var(--color-border-default)] focus:ring-[var(--color-focus-ring)]"
-              />
-              <span className="text-sm text-[var(--color-text-secondary)]">Remember email</span>
-            </label>
+            {!totpRequired && (
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-[var(--color-border-default)] focus:ring-[var(--color-focus-ring)]"
+                />
+                <span className="text-sm text-[var(--color-text-secondary)]">Remember email</span>
+              </label>
+            )}
 
             <button
               type="submit"
@@ -181,7 +222,7 @@ export function Login() {
               {loading && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Signing in...' : totpRequired ? 'Verify' : 'Sign in'}
             </button>
 
             <div className="text-center">

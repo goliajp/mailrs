@@ -46,6 +46,8 @@ describe('admin atoms — writability', () => {
         display_name: 'Alice',
         active: true,
         created_at: 1000,
+        quota_bytes: 0,
+        recovery_email: '',
       },
     ]
     store.set(accountsAtom, accounts)

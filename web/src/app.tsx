@@ -8,6 +8,7 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import { Admin } from '@/pages/admin'
 import { Chat } from '@/pages/chat'
 import { Login } from '@/pages/login'
+import { ResetPassword } from '@/pages/reset-password'
 import { Playground } from '@/pages/playground'
 import { Protocol } from '@/pages/protocol'
 import { Settings } from '@/pages/settings'
@@ -47,6 +48,7 @@ export function App() {
       <CommandPalette />
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/playground" element={<Playground />} />
         <Route
           path="/protocol"
