@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/cn'
 
 export function Shell({ sidebar, statusBar, children }: {
   sidebar: ReactNode
@@ -6,44 +7,39 @@ export function Shell({ sidebar, statusBar, children }: {
   children: ReactNode
 }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: 'var(--color-bg-base)', color: 'var(--color-text-primary)' }}>
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 6, paddingTop: 6, paddingBottom: 6, paddingLeft: 6, paddingRight: 6 }}>
-        <div style={{ width: 56, flexShrink: 0 }}>{sidebar}</div>
-        <div style={{ display: 'flex', flex: 1, minWidth: 0, minHeight: 0, gap: 6, overflow: 'hidden' }}>{children}</div>
+    <div className="fixed inset-0 flex flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
+      <div className="flex min-h-0 flex-1 gap-1.5 p-1.5">
+        <div className="w-14 shrink-0">{sidebar}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 gap-1.5 overflow-hidden">{children}</div>
       </div>
-      <div style={{ height: 28, flexShrink: 0 }}>{statusBar}</div>
+      <div className="h-7 shrink-0">{statusBar}</div>
     </div>
   )
 }
 
-export function Panel({ width, children, center }: {
+export function Panel({ width, children, center, className }: {
   width?: number
   children: ReactNode
   center?: boolean
+  className?: string
 }) {
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      flex: width ? undefined : '1 1 0%',
-      width: width ? width : undefined,
-      minWidth: width ? undefined : 0,
-      minHeight: 0,
-      flexShrink: width ? 0 : undefined,
-      overflow: 'hidden',
-      borderRadius: 8,
-      background: 'var(--color-bg-raised)',
-      alignItems: center ? 'center' : undefined,
-      justifyContent: center ? 'center' : undefined,
-    }}>
+    <div className={cn(
+      'flex min-h-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]',
+      width === 280 && 'w-[280px] shrink-0',
+      width === 320 && 'w-[320px] shrink-0',
+      !width && 'min-w-0 flex-1',
+      center && 'items-center justify-center',
+      className,
+    )}>
       {children}
     </div>
   )
 }
 
-export function PanelRow({ children }: { children: ReactNode }) {
+export function PanelRow({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div style={{ display: 'flex', flex: 1, minWidth: 0, minHeight: 0, gap: 6 }}>
+    <div className={cn('flex min-h-0 min-w-0 flex-1 gap-1.5 overflow-hidden', className)}>
       {children}
     </div>
   )
@@ -51,7 +47,7 @@ export function PanelRow({ children }: { children: ReactNode }) {
 
 export function Scroll({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} className={className}>
+    <div className={cn('min-h-0 flex-1 overflow-y-auto', className)}>
       {children}
     </div>
   )
