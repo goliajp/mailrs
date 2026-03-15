@@ -523,17 +523,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                               <div
                                 role="button"
                                 tabIndex={0}
-                                onClick={() => {
-                                  setSelectedMsgIdx(idx)
-                                  if (isLong) {
-                                    setExpandedBubbles((prev) => {
-                                      const next = new Set(prev)
-                                      if (next.has(idx)) next.delete(idx)
-                                      else next.add(idx)
-                                      return next
-                                    })
-                                  }
-                                }}
+                                onClick={() => setSelectedMsgIdx(idx)}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
                                 className={`cursor-pointer overflow-hidden rounded-xl px-3.5 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
                                   isOwn
@@ -552,9 +542,21 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   {highlightMentions(isExpanded ? fullText : snippet, myEmail, auth?.display_name)}
                                 </p>
                                 {isLong && (
-                                  <span className={`mt-1.5 block select-none text-xs font-medium ${isOwn ? 'text-white/70' : 'text-[var(--color-brand-primary)]'}`}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setExpandedBubbles((prev) => {
+                                        const next = new Set(prev)
+                                        if (next.has(idx)) next.delete(idx)
+                                        else next.add(idx)
+                                        return next
+                                      })
+                                    }}
+                                    className={`mt-1.5 block select-none text-xs font-medium ${isOwn ? 'text-white/70 hover:text-white' : 'text-[var(--color-brand-primary)] hover:underline'}`}
+                                  >
                                     {isExpanded ? 'show less' : 'show more'}
-                                  </span>
+                                  </button>
                                 )}
                               </div>
                               <p className={`mt-0.5 select-none text-[11px] text-[var(--color-text-tertiary)] ${isOwn ? 'text-right' : ''}`}>
