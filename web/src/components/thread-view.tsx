@@ -455,9 +455,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             {loadingThread && messages.length === 0 && (
               <div className="animate-pulse space-y-4">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className={`flex gap-2 ${i % 2 === 0 ? '' : 'flex-row-reverse'}`}>
+                  <div key={i} className="flex gap-3 border-b border-[var(--color-border-default)] py-3">
                     <div className="h-7 w-7 shrink-0 rounded-full bg-[var(--color-border-default)]" />
-                    <div className="h-10 w-2/3 bg-[var(--color-border-default)]" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-3.5 w-20 rounded bg-[var(--color-border-default)]" />
+                        <div className="h-3 w-12 rounded bg-[var(--color-border-default)]" />
+                      </div>
+                      <div className="h-10 w-full rounded bg-[var(--color-border-default)]" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -481,8 +487,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     )}
                     {visibleMessages.map((msg) => {
                       const idx = messages.indexOf(msg)
-                      const senderEmail = extractEmail(msg.sender)
-                      const isOwn = senderEmail === myEmail
                       const name = extractName(msg.sender)
                       const initial = avatarInitial(msg.sender)
                       const color = avatarColor(msg.sender)
@@ -499,58 +503,50 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                       return (
                         <Fragment key={msg.id}>
                           {showDivider && <BubbleDateDivider label={bubbleDateLabel(msg.internal_date)} />}
-                          <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
-                            {!isOwn && (
-                              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium text-white ${color}`}>
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setSelectedMsgIdx(idx)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
+                            className={`flex cursor-pointer gap-3 border-b border-[var(--color-border-default)] py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
+                              isSelected ? 'bg-[var(--color-bg-selected)]' : ''
+                            }`}
+                          >
+                            <div className="shrink-0">
+                              <div className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-medium text-white ${color}`}>
                                 {initial}
                               </div>
-                            )}
-                            <div className={`min-w-0 max-w-[85%] ${isOwn ? 'items-end' : 'items-start'}`}>
-                              <div
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => setSelectedMsgIdx(idx)}
-                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
-                                className={`cursor-pointer overflow-hidden rounded-xl px-3.5 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
-                                  isOwn
-                                    ? isSelected
-                                      ? 'bg-[var(--color-brand-primary-hover)] text-white'
-                                      : 'bg-[var(--color-brand-primary)] text-white'
-                                    : isSelected
-                                      ? 'bg-[var(--color-bg-selected)] text-[var(--color-text-primary)]'
-                                      : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-primary)]'
-                                } ${isSelected ? 'ring-2 ring-[var(--color-focus-ring)]' : ''}`}
-                              >
-                                {!isOwn && (
-                                  <p className="mb-1 text-[13px] font-semibold text-[var(--color-text-secondary)]">{name}</p>
-                                )}
-                                <p className={`select-text break-words text-[13px] leading-relaxed ${isExpanded ? '' : 'line-clamp-5'}`}>
-                                  {highlightMentions(isExpanded ? fullText : snippet, myEmail, auth?.display_name)}
-                                </p>
-                                {isLong && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setExpandedBubbles((prev) => {
-                                        const next = new Set(prev)
-                                        if (next.has(idx)) next.delete(idx)
-                                        else next.add(idx)
-                                        return next
-                                      })
-                                    }}
-                                    className={`mt-1.5 block select-none text-xs font-medium ${isOwn ? 'text-white/70 hover:text-white' : 'text-[var(--color-brand-primary)] hover:underline'}`}
-                                  >
-                                    {isExpanded ? 'show less' : 'show more'}
-                                  </button>
-                                )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-[var(--color-text-primary)]">{name}</span>
+                                <span className="text-xs text-[var(--color-text-tertiary)]">
+                                  {formatDate(msg.internal_date)}
+                                  {msg.attachments.length > 0 && (
+                                    <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />
+                                  )}
+                                </span>
                               </div>
-                              <p className={`mt-0.5 select-none text-[11px] text-[var(--color-text-tertiary)] ${isOwn ? 'text-right' : ''}`}>
-                                {formatDate(msg.internal_date)}
-                                {msg.attachments.length > 0 && (
-                                  <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />
-                                )}
-                              </p>
+                              <div className={`mt-1 select-text text-sm leading-relaxed text-[var(--color-text-primary)] ${isExpanded ? '' : 'line-clamp-5'}`}>
+                                {highlightMentions(isExpanded ? fullText : snippet, myEmail, auth?.display_name)}
+                              </div>
+                              {isLong && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setExpandedBubbles((prev) => {
+                                      const next = new Set(prev)
+                                      if (next.has(idx)) next.delete(idx)
+                                      else next.add(idx)
+                                      return next
+                                    })
+                                  }}
+                                  className="mt-1.5 block select-none text-xs font-medium text-[var(--color-brand-primary)] hover:underline"
+                                >
+                                  {isExpanded ? 'show less' : 'show more'}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </Fragment>
