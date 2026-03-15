@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::message_util;
 
-use super::{ApiResult, AuthUser, WebState};
+use super::{ApiResult, AuthUser, SendResult, WebState};
 
 // --- draft types ---
 
@@ -478,31 +478,35 @@ pub(super) async fn send_message(
     Json(req): Json<SendMessageRequest>,
 ) -> impl IntoResponse {
     if req.to.is_empty() {
-        return Json(ApiResult {
+        return Json(SendResult {
             success: false,
             message: Some("to is required".into()),
+            message_id: None,
         });
     }
 
     let total_recipients = req.to.len() + req.cc.len() + req.bcc.len();
     if total_recipients > super::MAX_RECIPIENTS {
-        return Json(ApiResult {
+        return Json(SendResult {
             success: false,
             message: Some(format!("too many recipients (max {})", super::MAX_RECIPIENTS)),
+            message_id: None,
         });
     }
 
     if req.body.len() > super::MAX_EMAIL_BODY_LEN {
-        return Json(ApiResult {
+        return Json(SendResult {
             success: false,
             message: Some("message body too large".into()),
+            message_id: None,
         });
     }
 
     if req.subject.len() > super::MAX_ADMIN_FIELD_LEN {
-        return Json(ApiResult {
+        return Json(SendResult {
             success: false,
             message: Some("subject too long".into()),
+            message_id: None,
         });
     }
 
@@ -515,9 +519,10 @@ pub(super) async fn send_message(
 
     // verify sender matches authenticated user
     if let Err(msg) = verify_sender(from, &user, &permissions) {
-        return Json(ApiResult {
+        return Json(SendResult {
             success: false,
             message: Some(msg.into()),
+            message_id: None,
         });
     }
 
@@ -630,7 +635,7 @@ pub(crate) async fn deliver_message(
     raw: &[u8],
     message_id: &str,
     ts: i64,
-) -> Json<ApiResult> {
+) -> Json<SendResult> {
     deliver_message_ex(state, from, to, cc, bcc, raw, message_id, ts, None).await
 }
 
@@ -645,7 +650,7 @@ pub(crate) async fn deliver_message_ex(
     message_id: &str,
     ts: i64,
     scheduled_at: Option<i64>,
-) -> Json<ApiResult> {
+) -> Json<SendResult> {
     let all_recipients: Vec<String> = to
         .iter()
         .chain(cc.iter())
@@ -735,14 +740,16 @@ pub(crate) async fn deliver_message_ex(
     }
 
     if errors.is_empty() {
-        Json(ApiResult {
+        Json(SendResult {
             success: true,
             message: None,
+            message_id: Some(message_id.to_string()),
         })
     } else {
-        Json(ApiResult {
+        Json(SendResult {
             success: false,
             message: Some(errors.join("; ")),
+            message_id: None,
         })
     }
 }
@@ -1070,31 +1077,35 @@ pub(super) async fn send_message_multipart(
 
     // verify sender matches authenticated user
     if let Err(msg) = verify_sender(&from, &user, &permissions) {
-        return Json(ApiResult {
+        return Json(SendResult {
             success: false,
             message: Some(msg.into()),
+            message_id: None,
         });
     }
 
     if to.is_empty() {
-        return Json(ApiResult {
+        return Json(SendResult {
             success: false,
             message: Some("to is required".into()),
+            message_id: None,
         });
     }
 
     let total_recipients = to.len() + cc.len();
     if total_recipients > super::MAX_RECIPIENTS {
-        return Json(ApiResult {
+        return Json(SendResult {
             success: false,
             message: Some(format!("too many recipients (max {})", super::MAX_RECIPIENTS)),
+            message_id: None,
         });
     }
 
     if body.len() > super::MAX_EMAIL_BODY_LEN {
-        return Json(ApiResult {
+        return Json(SendResult {
             success: false,
             message: Some("message body too large".into()),
+            message_id: None,
         });
     }
 

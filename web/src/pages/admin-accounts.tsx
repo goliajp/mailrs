@@ -7,6 +7,18 @@ import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import type { AccountInfo, QuotaInfo } from '@/lib/types'
 import { accountsAtom } from '@/store/admin'
 
+interface GroupInfo {
+  id: number
+  name: string
+  description: string
+}
+
+interface SieveState {
+  status: 'idle' | 'loading' | 'loaded' | 'saving' | 'deleting'
+  script: string
+  error: string | null
+}
+
 const PAGE_SIZE = 20
 
 function formatBytes(bytes: number): string {
@@ -150,6 +162,160 @@ function PasswordCell({
         className="text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
       >
         Cancel
+      </button>
+    </div>
+  )
+}
+
+function SieveCell({ address }: { address: string }) {
+  const [state, setState] = useState<SieveState>({ status: 'idle', script: '', error: null })
+
+  const load = async () => {
+    setState({ status: 'loading', script: '', error: null })
+    try {
+      const data = await fetchJson<{ script: string }>(
+        `/admin/accounts/${encodeURIComponent(address)}/sieve`,
+      )
+      setState({ status: 'loaded', script: data.script ?? '', error: null })
+    } catch {
+      setState({ status: 'loaded', script: '', error: null })
+    }
+  }
+
+  const save = async () => {
+    setState((prev) => ({ ...prev, status: 'saving', error: null }))
+    try {
+      await postJson(`/admin/accounts/${encodeURIComponent(address)}/sieve`, {
+        script: state.script,
+      })
+      toast.success('Sieve script saved')
+      setState((prev) => ({ ...prev, status: 'loaded', error: null }))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to save'
+      toast.error(msg)
+      setState((prev) => ({ ...prev, status: 'loaded', error: msg }))
+    }
+  }
+
+  const remove = async () => {
+    setState((prev) => ({ ...prev, status: 'deleting', error: null }))
+    try {
+      await deleteJson(`/admin/accounts/${encodeURIComponent(address)}/sieve`)
+      toast.success('Sieve script deleted')
+      setState({ status: 'idle', script: '', error: null })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete')
+      setState((prev) => ({ ...prev, status: 'loaded' }))
+    }
+  }
+
+  if (state.status === 'idle') {
+    return (
+      <button
+        onClick={load}
+        className="text-xs text-[var(--color-brand-primary)] hover:opacity-80"
+      >
+        Sieve
+      </button>
+    )
+  }
+
+  if (state.status === 'loading') {
+    return <span className="text-xs text-[var(--color-text-tertiary)]">Loading...</span>
+  }
+
+  return (
+    <div className="space-y-2">
+      <textarea
+        value={state.script}
+        onChange={(e) => setState((prev) => ({ ...prev, script: e.target.value }))}
+        rows={6}
+        className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-2 py-1.5 font-mono text-xs"
+        placeholder="require &quot;fileinto&quot;; ..."
+        disabled={state.status === 'saving' || state.status === 'deleting'}
+      />
+      {state.error && (
+        <p className="text-xs text-[var(--color-status-danger)]">{state.error}</p>
+      )}
+      <div className="flex gap-1.5">
+        <button
+          onClick={save}
+          disabled={state.status === 'saving'}
+          className="text-xs text-[var(--color-status-success)] hover:opacity-80 disabled:opacity-50"
+        >
+          {state.status === 'saving' ? '...' : 'Save'}
+        </button>
+        <button
+          onClick={remove}
+          disabled={state.status === 'deleting'}
+          className="text-xs text-[var(--color-status-danger)] hover:opacity-80 disabled:opacity-50"
+        >
+          {state.status === 'deleting' ? '...' : 'Delete'}
+        </button>
+        <button
+          onClick={() => setState({ status: 'idle', script: '', error: null })}
+          className="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GroupsCell({ address }: { address: string }) {
+  const [groups, setGroups] = useState<GroupInfo[] | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const data = await fetchJson<GroupInfo[]>(
+        `/admin/accounts/${encodeURIComponent(address)}/groups`,
+      )
+      setGroups(data)
+    } catch {
+      setGroups([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (groups === null && !loading) {
+    return (
+      <button
+        onClick={load}
+        className="text-xs text-[var(--color-brand-primary)] hover:opacity-80"
+      >
+        Groups
+      </button>
+    )
+  }
+
+  if (loading) {
+    return <span className="text-xs text-[var(--color-text-tertiary)]">Loading...</span>
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {groups && groups.length > 0 ? (
+        groups.map((g) => (
+          <span
+            key={g.id}
+            className="rounded-full bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]"
+            title={g.description}
+          >
+            {g.name}
+          </span>
+        ))
+      ) : (
+        <span className="text-xs text-[var(--color-text-tertiary)]">No groups</span>
+      )}
+      <button
+        onClick={() => setGroups(null)}
+        className="ml-1 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+      >
+        Close
       </button>
     </div>
   )
@@ -379,12 +545,16 @@ export function AdminAccounts() {
                   />
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => setDeleteTarget(account.address)}
-                    className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex items-center justify-end gap-2">
+                    <GroupsCell address={account.address} />
+                    <SieveCell address={account.address} />
+                    <button
+                      onClick={() => setDeleteTarget(account.address)}
+                      className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

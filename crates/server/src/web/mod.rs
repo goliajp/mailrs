@@ -233,6 +233,15 @@ pub(crate) struct ApiResult {
     pub message: Option<String>,
 }
 
+#[derive(Serialize)]
+pub(crate) struct SendResult {
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
+}
+
 #[derive(Deserialize)]
 pub(super) struct DomainsQuery {
     #[serde(default)]

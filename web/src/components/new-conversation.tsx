@@ -4,13 +4,13 @@ import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { RichEditor, getEditorContent } from '@/components/rich-editor'
-import { fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import type { ConversationSummary } from '@/lib/types'
 import { authAtom } from '@/store/auth'
 import { composingNewAtom, conversationsAtom, selectedThreadIdAtom } from '@/store/chat'
 import type { Editor } from '@tiptap/react'
 
-type SendResult = { success: boolean; message?: string }
+type SendResult = { success: boolean; message?: string; message_id?: string }
 type TemplateInfo = {
   id: number
   name: string
@@ -139,7 +139,25 @@ export function NewConversation() {
       }
 
       if (result.success) {
-        toast.success('Message sent')
+        const sentMessageId = result.message_id
+        toast.success('Message sent', {
+          ...(sentMessageId
+            ? {
+                action: {
+                  label: 'Undo',
+                  onClick: async () => {
+                    try {
+                      await deleteJson(`/mail/pending/${encodeURIComponent(sentMessageId)}`)
+                      toast.success('Send cancelled')
+                    } catch {
+                      toast.error('Could not cancel — already delivered')
+                    }
+                  },
+                },
+                duration: 8000,
+              }
+            : {}),
+        })
         const convos = await fetchJson<ConversationSummary[]>(
           '/conversations?limit=50',
         )

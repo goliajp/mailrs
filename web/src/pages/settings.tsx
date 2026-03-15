@@ -10,7 +10,7 @@ import { themeAtom } from '@/store/theme'
 
 // --- types ---
 
-type Category = 'account' | 'security' | 'signatures' | 'keys' | 'api-keys' | 'appearance'
+type Category = 'account' | 'security' | 'signatures' | 'keys' | 'api-keys' | 'webhooks' | 'appearance'
 
 interface TotpStatus {
   enabled: boolean
@@ -49,6 +49,21 @@ interface CreatedAgentKey {
   prefix: string
 }
 
+interface Webhook {
+  id: string
+  url: string
+  event_type: string
+  filter_sender: string | null
+  filter_thread_id: string | null
+  active: boolean
+  created_at: string
+}
+
+interface CreatedWebhook {
+  id: string
+  signing_secret: string
+}
+
 // --- constants ---
 
 const CATEGORIES: { key: Category; label: string }[] = [
@@ -57,6 +72,7 @@ const CATEGORIES: { key: Category; label: string }[] = [
   { key: 'signatures', label: 'Signatures' },
   { key: 'keys', label: 'Encryption Keys' },
   { key: 'api-keys', label: 'API Keys' },
+  { key: 'webhooks', label: 'Webhooks' },
   { key: 'appearance', label: 'Appearance' },
 ]
 
@@ -115,6 +131,7 @@ export function Settings() {
             {active === 'signatures' && <SignaturesSection />}
             {active === 'keys' && <EncryptionKeysSection />}
             {active === 'api-keys' && <ApiKeysSection />}
+            {active === 'webhooks' && <WebhooksSection />}
             {active === 'appearance' && <AppearanceSection />}
           </div>
         </div>
@@ -789,6 +806,190 @@ function ApiKeysSection() {
         <ConfirmDialog
           message="Revoke this API key? This cannot be undone."
           onConfirm={() => handleRevoke(deleteTarget)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// --- webhooks section ---
+
+function WebhooksSection() {
+  const [webhooks, setWebhooks] = useState<Webhook[]>([])
+  const [adding, setAdding] = useState(false)
+  const [form, setForm] = useState({ url: '', event_type: 'new_message', filter_sender: '', filter_thread_id: '' })
+  const [createdSecret, setCreatedSecret] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const data = await fetchJson<Webhook[]>('/agent/webhooks')
+      setWebhooks(data)
+    } catch {
+      // keep current
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const handleCreate = async () => {
+    if (!form.url.trim()) return
+    try {
+      const data = await postJson<CreatedWebhook>('/agent/webhooks', {
+        url: form.url.trim(),
+        event_type: form.event_type,
+        ...(form.filter_sender.trim() ? { filter_sender: form.filter_sender.trim() } : {}),
+        ...(form.filter_thread_id.trim() ? { filter_thread_id: form.filter_thread_id.trim() } : {}),
+      })
+      toast.success('Webhook created')
+      setCreatedSecret(data.signing_secret)
+      setForm({ url: '', event_type: 'new_message', filter_sender: '', filter_thread_id: '' })
+      setAdding(false)
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to create webhook')
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteJson(`/agent/webhooks/${id}`)
+      toast.success('Webhook deleted')
+      setDeleteTarget(null)
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete webhook')
+      setDeleteTarget(null)
+    }
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => toast.success('Copied to clipboard'))
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Webhooks" />
+        <button onClick={() => setAdding(true)} className={btnPrimary}>
+          Add Webhook
+        </button>
+      </div>
+
+      {createdSecret && (
+        <div className="rounded-lg border border-[var(--color-status-warning)] bg-[var(--color-status-warning-subtle)] p-4">
+          <p className="mb-2 text-sm font-semibold">Signing Secret</p>
+          <p className="mb-2 text-xs text-[var(--color-text-secondary)]">
+            Copy this secret now. It will not be shown again.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded bg-[var(--color-bg-base)] px-3 py-1.5 font-mono text-sm">
+              {createdSecret}
+            </code>
+            <button onClick={() => copyToClipboard(createdSecret)} className={btnPrimary}>
+              Copy
+            </button>
+          </div>
+          <button
+            onClick={() => setCreatedSecret(null)}
+            className="mt-2 text-xs text-[var(--color-text-secondary)] transition-colors hover:opacity-70"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {adding && (
+        <div className={cardClass + ' space-y-3'}>
+          <input
+            value={form.url}
+            onChange={(e) => setForm({ ...form, url: e.target.value })}
+            placeholder="https://example.com/webhook"
+            className={inputClass}
+          />
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Event type</label>
+            <select
+              value={form.event_type}
+              onChange={(e) => setForm({ ...form, event_type: e.target.value })}
+              className={inputClass}
+            >
+              <option value="new_message">new_message</option>
+              <option value="message_read">message_read</option>
+              <option value="message_deleted">message_deleted</option>
+            </select>
+          </div>
+          <input
+            value={form.filter_sender}
+            onChange={(e) => setForm({ ...form, filter_sender: e.target.value })}
+            placeholder="Filter by sender (optional)"
+            className={inputClass}
+          />
+          <input
+            value={form.filter_thread_id}
+            onChange={(e) => setForm({ ...form, filter_thread_id: e.target.value })}
+            placeholder="Filter by thread ID (optional)"
+            className={inputClass}
+          />
+          <div className="flex gap-2">
+            <button onClick={handleCreate} className={btnPrimary}>
+              Create
+            </button>
+            <button onClick={() => setAdding(false)} className={btnSecondary}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {webhooks.length === 0 && !adding && (
+        <p className="text-sm text-[var(--color-text-tertiary)]">No webhooks configured</p>
+      )}
+
+      {webhooks.map((wh) => (
+        <div key={wh.id} className={cardClass}>
+          <div className="flex items-start justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium" title={wh.url}>{wh.url}</p>
+              <div className="mt-1 flex flex-wrap gap-2">
+                <span className="rounded-full bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]">
+                  {wh.event_type}
+                </span>
+                {wh.filter_sender && (
+                  <span className="rounded-full bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs text-[var(--color-text-tertiary)]">
+                    sender: {wh.filter_sender}
+                  </span>
+                )}
+                {wh.filter_thread_id && (
+                  <span className="rounded-full bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs text-[var(--color-text-tertiary)]">
+                    thread: {wh.filter_thread_id}
+                  </span>
+                )}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    wh.active
+                      ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+                      : 'bg-[var(--color-bg-raised)] text-[var(--color-text-tertiary)]'
+                  }`}
+                >
+                  {wh.active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+            </div>
+            <button onClick={() => setDeleteTarget(wh.id)} className="ml-3 text-xs text-[var(--color-status-danger)]">
+              Delete
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {deleteTarget !== null && (
+        <ConfirmDialog
+          message="Delete this webhook? This cannot be undone."
+          onConfirm={() => handleDelete(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
         />
       )}
