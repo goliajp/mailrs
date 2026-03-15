@@ -80,56 +80,45 @@ export function AppSidebar() {
         : 'mail'
 
   return (
-    <aside className="hidden h-full w-14 shrink-0 select-none flex-col items-center py-4 md:flex">
+    <aside className="hidden h-full w-14 shrink-0 select-none flex-col items-center pt-1.5 pb-4 md:flex">
       {/* logo */}
-      <div className="mb-2">
-        <img src="/icon.svg" alt="mailrs" className="h-8 w-8 rounded-lg" style={{ boxShadow: 'var(--shadow-sm)' }} />
+      <div className="mb-3">
+        <img src="/icon.svg" alt="Mailrs" className="h-7 w-7 rounded-md" />
       </div>
 
-      {/* nav */}
+      {/* inbox + domain group */}
+      <div className="flex flex-col items-center gap-0.5">
+        <SidebarLink href="/" icon={Inbox} label="Mail" active={section === 'mail' && selectedDomains.length === 0} />
+        {domains.length > 0 && domains.map((d) => {
+          const active = section === 'mail' && selectedDomains.length === 1 && selectedDomains[0] === d
+          const label = d.split('.')[0]
+          return (
+            <button
+              key={d}
+              onClick={() => setSelectedDomains(active ? [] : [d])}
+              className={cn(
+                navBtnBase,
+                active ? navBtnActive : navBtnInactive,
+                'h-7 w-7 text-[9px] font-semibold',
+              )}
+              title={d}
+            >
+              {label.slice(0, 3)}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* separator */}
+      <div className="my-2 h-px w-6 bg-[var(--color-border-default)]" />
+
+      {/* other nav */}
       <nav className="flex flex-col items-center gap-1.5">
-        <SidebarLink href="/" icon={Inbox} label="Mail" active={section === 'mail'} />
         <SidebarLink href="/admin" icon={Server} label="Server" active={section === 'server'} />
         <SidebarLink href="/protocol" icon={Activity} label="Monitor" active={section === 'monitor'} />
       </nav>
 
-      {/* domain switcher */}
-      {domains.length > 0 && (
-        <div className="mt-4 flex flex-1 flex-col items-center gap-1">
-          <button
-            onClick={() => setSelectedDomains([])}
-            className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-md text-[10px] font-bold transition-all duration-150',
-              selectedDomains.length === 0
-                ? 'bg-[var(--color-brand-primary)] text-white'
-                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]',
-            )}
-            title="All domains"
-          >
-            All
-          </button>
-          {domains.map((d) => {
-            const active = selectedDomains.length === 1 && selectedDomains[0] === d
-            const label = d.split('.')[0]
-            const initial = label.charAt(0).toUpperCase()
-            return (
-              <button
-                key={d}
-                onClick={() => setSelectedDomains(active ? [] : [d])}
-                className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-md text-[10px] font-semibold transition-all duration-150',
-                  active
-                    ? 'bg-[var(--color-brand-primary)] text-white'
-                    : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]',
-                )}
-                title={d}
-              >
-                {initial}
-              </button>
-            )
-          })}
-        </div>
-      )}
+      <div className="flex-1" />
 
       {/* bottom actions */}
       <div className="flex flex-col items-center gap-2">
