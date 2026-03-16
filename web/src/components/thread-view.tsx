@@ -56,6 +56,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const crossAccountReadRef = useRef(crossAccountRead)
   crossAccountReadRef.current = crossAccountRead
   const bottomRef = useRef<HTMLDivElement>(null)
+  const contentScrollRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const [selectedMsgIdx, setSelectedMsgIdx] = useState<number | null>(null)
   const [isRead, setIsRead] = useState(true)
@@ -84,6 +85,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         if (controller.signal.aborted) return
         setMessages(data)
         if (data.length > 0) setSelectedMsgIdx(data.length - 1)
+        contentScrollRef.current?.scrollTo(0, 0)
 
         const crossAll = crossAccountReadRef.current
         const readParam = crossAll && doms.length > 0
@@ -320,7 +322,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
         {/* email body area */}
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <div className="min-w-0 flex-1 overflow-y-auto">
+          <div ref={contentScrollRef} className="min-w-0 flex-1 overflow-y-auto">
             {selectedMsg ? (
               <>
                 {/* email header (sender info) */}
