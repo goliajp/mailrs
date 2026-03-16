@@ -329,7 +329,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     <SenderAvatar sender={selectedMsg.sender} size={32} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="min-w-0 select-text truncate text-sm font-medium text-[var(--color-text-primary)]">
+                        <p className="select-text text-sm font-medium text-[var(--color-text-primary)]">
                           {extractName(selectedMsg.sender)}
                           {selectedMsg.bimi_logo_url && (
                             <img
@@ -339,10 +339,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                               title="BIMI verified brand"
                             />
                           )}
-                          {' '}
-                          <Copyable value={extractEmail(selectedMsg.sender)}>
-                            <span className="font-normal text-[var(--color-text-tertiary)]">&lt;{extractEmail(selectedMsg.sender)}&gt;</span>
-                          </Copyable>
                         </p>
                         <div className="flex shrink-0 items-center gap-0.5">
                           <SmBtn onClick={() => handleForwardMsg(selectedMsg)} title="Forward">
@@ -358,8 +354,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <p className="select-text truncate text-xs text-[var(--color-text-tertiary)]">
-                          to {formatRecipients(selectedMsg.recipients)} · {formatFullDate(selectedMsg.internal_date)}
+                        <p className="min-w-0 select-text truncate text-xs text-[var(--color-text-tertiary)]">
+                          <Copyable value={extractEmail(selectedMsg.sender)}>
+                            <span>{extractEmail(selectedMsg.sender)}</span>
+                          </Copyable>
+                          {' · to '}
+                          {formatRecipients(selectedMsg.recipients)} · {formatFullDate(selectedMsg.internal_date)}
                         </p>
                         <div className="flex shrink-0 items-center gap-0.5">
                           <IntentBadge intent={selectedMsg.sender_intent} />
