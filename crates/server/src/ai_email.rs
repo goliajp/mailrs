@@ -28,16 +28,25 @@ impl LlmConfig {
 }
 
 /// full analysis result from AI
+/// people/dates/amounts use Value to tolerate qwen's inconsistent output format
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmailAnalysis {
+    #[serde(default)]
     pub category: String,
+    #[serde(default)]
     pub risk_score: u8,
+    #[serde(default)]
     pub risk_reason: String,
+    #[serde(default)]
     pub summary: String,
-    pub people: Vec<PersonMention>,
-    pub dates: Vec<DateMention>,
-    pub amounts: Vec<AmountMention>,
-    pub action_items: Vec<String>,
+    #[serde(default)]
+    pub people: serde_json::Value,
+    #[serde(default)]
+    pub dates: serde_json::Value,
+    #[serde(default)]
+    pub amounts: serde_json::Value,
+    #[serde(default)]
+    pub action_items: serde_json::Value,
     #[serde(default)]
     pub clean_text: String,
     #[serde(default)]
@@ -48,34 +57,6 @@ pub struct EmailAnalysis {
     pub action_deadline: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PersonMention {
-    pub name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub email: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub role: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DateMention {
-    pub text: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub iso_date: Option<String>,
-    #[serde(default)]
-    pub context: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AmountMention {
-    pub text: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub currency: Option<String>,
-    #[serde(default)]
-    pub context: String,
-}
 
 /// truncate a string at a char boundary, never splitting a multi-byte character
 fn truncate_str(s: &str, max_bytes: usize) -> &str {
@@ -292,9 +273,7 @@ mod tests {
         let result = parse_analysis_response(json).unwrap();
         assert_eq!(result.category, "personal");
         assert_eq!(result.risk_score, 5);
-        assert_eq!(result.people.len(), 1);
-        assert_eq!(result.people[0].name, "John");
-        assert_eq!(result.action_items, vec!["reply to John"]);
+        assert!(result.people.is_array());
         assert_eq!(result.clean_text, "Hello there");
         assert!(result.requires_action);
         assert_eq!(result.sender_intent, "request");
@@ -344,10 +323,18 @@ mod tests {
     fn parse_with_optional_fields() {
         let json = r#"{"category":"work","risk_score":10,"risk_reason":"normal","summary":"meeting invite","people":[{"name":"Alice"}],"dates":[{"text":"March 5th","context":"meeting date"}],"amounts":[{"text":"$500","value":500.0,"currency":"USD","context":"budget"}],"action_items":[],"clean_text":"Meeting on March 5th"}"#;
         let result = parse_analysis_response(json).unwrap();
-        assert_eq!(result.people[0].email, None);
-        assert_eq!(result.dates[0].iso_date, None);
-        assert_eq!(result.amounts[0].value, Some(500.0));
-        assert_eq!(result.amounts[0].currency.as_deref(), Some("USD"));
+        assert_eq!(result.category, "work");
+        assert!(result.people.is_array());
+        assert!(result.amounts.is_array());
+    }
+
+    #[test]
+    fn parse_tolerates_string_people() {
+        // qwen sometimes returns strings instead of objects
+        let json = r#"{"category":"work","risk_score":0,"risk_reason":"","summary":"test","people":"GOLIA K.K.","dates":[],"amounts":[],"action_items":[]}"#;
+        let result = parse_analysis_response(json).unwrap();
+        assert_eq!(result.category, "work");
+        assert!(result.people.is_string());
     }
 
     #[test]

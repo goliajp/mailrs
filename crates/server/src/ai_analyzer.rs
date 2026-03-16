@@ -199,16 +199,12 @@ async fn do_analyze(
     let embedding_text = format!("{subject}\n\n{body}");
     let embedding = ai_email::generate_embedding(config, &embedding_text).await;
 
-    let people = serde_json::to_value(&analysis.people).unwrap_or_default();
-    let dates = serde_json::to_value(&analysis.dates).unwrap_or_default();
-    let amounts = serde_json::to_value(&analysis.amounts).unwrap_or_default();
-    let action_items = serde_json::to_value(&analysis.action_items).unwrap_or_default();
     let intent = if analysis.sender_intent.is_empty() { "inform" } else { &analysis.sender_intent };
 
     if let Err(e) = store.upsert_email_analysis(
         message_id, &analysis.category, analysis.risk_score as i16,
         &analysis.risk_reason, &analysis.summary,
-        &people, &dates, &amounts, &action_items,
+        &analysis.people, &analysis.dates, &analysis.amounts, &analysis.action_items,
         embedding.as_deref(), model_version,
         &analysis.clean_text, analysis.requires_action,
         intent, analysis.action_deadline.as_deref(),
