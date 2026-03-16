@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// current prompt version — bump this to trigger automatic reanalysis of all messages
-pub const PROMPT_VERSION: &str = "v5";
+pub const PROMPT_VERSION: &str = "v6";
 
 /// self-hosted LLM configuration
 #[derive(Debug, Clone)]
@@ -86,74 +86,75 @@ fn truncate_str(s: &str, max_bytes: usize) -> &str {
     &s[..end]
 }
 
-/// generate a 1024-dimensional embedding using self-hosted qwen3-embedding
+/// generate a 1024-dimensional embedding using self-hosted qwen3-embedding (with 429 retry)
 pub async fn generate_embedding(config: &LlmConfig, text: &str) -> Option<Vec<f32>> {
-    // derive embed URL from LLM URL: replace /complete with /embed
     let embed_url = config.url.replace("/complete", "/embed");
+    let body = serde_json::json!({ "input": text });
 
-    let body = serde_json::json!({
-        "input": text
-    });
+    for attempt in 0..3u32 {
+        let response = match tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            config.client.post(&embed_url).json(&body).send(),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                eprintln!("embedding request error: {e}");
+                return None;
+            }
+            Err(_) => {
+                eprintln!("embedding request timeout (30s)");
+                return None;
+            }
+        };
 
-    let response = match tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        config.client.post(&embed_url).json(&body).send(),
-    )
-    .await
-    {
-        Ok(Ok(resp)) => resp,
-        Ok(Err(e)) => {
-            eprintln!("embedding request error: {e}");
+        if response.status().as_u16() == 429 {
+            let wait = if attempt < 2 { 15 } else { 30 };
+            eprintln!("embedding rate limited (429), retrying in {wait}s (attempt {})", attempt + 1);
+            tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+            continue;
+        }
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            eprintln!("embedding API error {status}: {}", &text[..text.len().min(200)]);
             return None;
         }
-        Err(_) => {
-            eprintln!("embedding request timeout (30s)");
-            return None;
-        }
-    };
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        eprintln!(
-            "embedding API error {status}: {}",
-            &body[..body.len().min(200)]
-        );
-        return None;
+        let json: serde_json::Value = match response.json().await {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("embedding response parse error: {e}");
+                return None;
+            }
+        };
+
+        let values = json["embeddings"]
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|v| v.as_array())?;
+
+        let embedding: Vec<f32> = values
+            .iter()
+            .filter_map(|v| v.as_f64().map(|f| f as f32))
+            .collect();
+
+        let dims = json["dimensions"].as_u64().unwrap_or(1024) as usize;
+        return if embedding.len() == dims {
+            Some(embedding)
+        } else {
+            eprintln!("embedding bad dim: {} (expected {})", embedding.len(), dims);
+            None
+        };
     }
 
-    let json: serde_json::Value = match response.json().await {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("embedding response parse error: {e}");
-            return None;
-        }
-    };
-
-    let values = json["embeddings"]
-        .as_array()
-        .and_then(|arr| arr.first())
-        .and_then(|v| v.as_array())?;
-
-    let embedding: Vec<f32> = values
-        .iter()
-        .filter_map(|v| v.as_f64().map(|f| f as f32))
-        .collect();
-
-    let dims = json["dimensions"].as_u64().unwrap_or(1024) as usize;
-    if embedding.len() == dims {
-        Some(embedding)
-    } else {
-        eprintln!(
-            "embedding bad dim: {} (expected {})",
-            embedding.len(),
-            dims
-        );
-        None
-    }
+    eprintln!("embedding rate limited after 3 retries, giving up");
+    None
 }
 
-/// call the self-hosted LLM API
+/// call the self-hosted LLM API (with 429 retry)
 pub async fn call_llm(
     config: &LlmConfig,
     system: &str,
@@ -166,42 +167,51 @@ pub async fn call_llm(
         "temperature": temperature
     });
 
-    let response = match tokio::time::timeout(
-        std::time::Duration::from_secs(120),
-        config.client.post(&config.url).json(&body).send(),
-    )
-    .await
-    {
-        Ok(Ok(resp)) => resp,
-        Ok(Err(e)) => {
-            eprintln!("LLM request error: {e}");
-            return None;
-        }
-        Err(_) => {
-            eprintln!("LLM request timeout (60s)");
-            return None;
-        }
-    };
+    for attempt in 0..3u32 {
+        let response = match tokio::time::timeout(
+            std::time::Duration::from_secs(120),
+            config.client.post(&config.url).json(&body).send(),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                eprintln!("LLM request error: {e}");
+                return None;
+            }
+            Err(_) => {
+                eprintln!("LLM request timeout (120s)");
+                return None;
+            }
+        };
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        eprintln!(
-            "LLM API error {status}: {}",
-            &body[..body.len().min(200)]
-        );
-        return None;
+        if response.status().as_u16() == 429 {
+            let wait = if attempt < 2 { 15 } else { 30 };
+            eprintln!("LLM rate limited (429), retrying in {wait}s (attempt {})", attempt + 1);
+            tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+            continue;
+        }
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            eprintln!("LLM API error {status}: {}", &text[..text.len().min(200)]);
+            return None;
+        }
+
+        let json: serde_json::Value = match response.json().await {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("LLM response parse error: {e}");
+                return None;
+            }
+        };
+
+        return json["content"].as_str().map(|s| s.to_string());
     }
 
-    let json: serde_json::Value = match response.json().await {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("LLM response parse error: {e}");
-            return None;
-        }
-    };
-
-    json["content"].as_str().map(|s| s.to_string())
+    eprintln!("LLM rate limited after 3 retries, giving up");
+    None
 }
 
 /// analyze an email using self-hosted LLM for classification, summarization, and entity extraction
