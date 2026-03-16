@@ -84,8 +84,8 @@ export function SenderAvatar({ sender, size = 36, className }: {
     )
   }
 
-  // fallback image sources (clearbit → google favicon)
-  if (domain && bimiUrl === null && fallbackIndex < fallbackSources.length) {
+  // fallback image sources (apple-touch-icon)
+  if (domain && bimiUrl !== undefined && !bimiUrl && fallbackIndex < fallbackSources.length) {
     return (
       <img
         src={fallbackSources[fallbackIndex](domain)}
