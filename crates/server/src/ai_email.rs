@@ -207,13 +207,14 @@ pub async fn analyze_email(
 ) -> Option<EmailAnalysis> {
     let body_text = truncate_str(body_text, 3000);
 
-    let system = r#"邮件分析助手。只返回JSON，不要代码块。中文输出summary/risk_reason/action_items。
+    let system = r#"邮件分析助手。只返回JSON，不要代码块。
+重要：所有文本字段必须用简体中文输出，即使原文是日语、英语或其他语言也必须翻译成中文。
 
 category: personal|work|notification|promotion|newsletter|receipt|shipping|travel|finance|spam|scam|general
 risk_score: 0-100 (0可信,25正常,50可疑,75危险,100诈骗)
 sender_intent: request|inform|confirm|social|alert
 
-{"category":"","risk_score":0,"risk_reason":"","summary":"","clean_text":"","requires_action":false,"sender_intent":"inform","action_deadline":null,"people":[],"dates":[],"amounts":[],"action_items":[]}"#;
+{"category":"","risk_score":0,"risk_reason":"中文","summary":"中文","clean_text":"中文","requires_action":false,"sender_intent":"inform","action_deadline":null,"people":[],"dates":[],"amounts":[],"action_items":["中文"]}"#;
 
     let user_message = format!(
         "Analyze this email:\n\nFrom: {sender}\nSubject: {subject}\nBody:\n{body_text}"
