@@ -1,5 +1,6 @@
 services:
   postgres:
+    container_name: mailrs-postgres
     image: pgvector/pgvector:pg18
     environment:
       POSTGRES_USER: mailrs
@@ -11,12 +12,14 @@ services:
     restart: unless-stopped
 
   valkey:
+    container_name: mailrs-valkey
     image: valkey/valkey:latest
     volumes:
       - valkey-data:/data
     restart: unless-stopped
 
   mailrs:
+    container_name: mailrs
     build: .
     ports:
       - "25:25"
@@ -42,8 +45,7 @@ services:
       MAILRS_ACME_DOMAINS: ${MAILRS_ACME_DOMAINS:-}
       MAILRS_ACME_DIR: /data/acme
       MAILRS_ACME_STAGING: ${MAILRS_ACME_STAGING:-false}
-      MAILRS_GEMINI_API_KEY: ${MAILRS_GEMINI_API_KEY:-}
-      MAILRS_AI_ANALYSIS_ENABLED: "${MAILRS_AI_ANALYSIS_ENABLED:-false}"
+      MAILRS_AI_ANALYSIS_ENABLED: "${MAILRS_AI_ANALYSIS_ENABLED:-true}"
       MAILRS_ANTISPAM_ENABLED: "false"
     volumes:
       - mailrs-data:/data

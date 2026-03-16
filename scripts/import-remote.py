@@ -20,7 +20,7 @@ SSH_KEY = os.environ.get("SSH_KEY", os.path.expanduser("~/keys/aws.pem"))
 SSH_HOST = os.environ.get("SSH_HOST", "root@t02.golia.jp")
 REMOTE_DIR = "/apps/mailrs"
 REMOTE_MAILDIR = "/data/maildir"
-PG_CONTAINER = "mailrs-postgres-1"
+PG_CONTAINER = "mailrs-postgres"
 
 SSH_OPTS = ["-i", SSH_KEY, "-o", "StrictHostKeyChecking=no"]
 
