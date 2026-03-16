@@ -37,7 +37,8 @@ pub fn spawn_analyzer(
 }
 
 async fn backfill_loop(config: Arc<LlmConfig>, store: Arc<MailboxStore>, maildir_root: String) {
-    let semaphore = Arc::new(Semaphore::new(2));
+    // serialize backfill — self-hosted qwen needs ~13s/short, 30-60s/long email
+    let semaphore = Arc::new(Semaphore::new(1));
     let model_version = config.model_version();
     let analyzed_count = Arc::new(AtomicU64::new(0));
     let failed_count = Arc::new(AtomicU64::new(0));
@@ -113,8 +114,8 @@ async fn backfill_loop(config: Arc<LlmConfig>, store: Arc<MailboxStore>, maildir
                 drop(permit);
             }));
 
-            // rate limiting: 1 request per second per slot
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            // throttle between messages to avoid overloading ollama
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         }
 
         // wait for all in batch to complete

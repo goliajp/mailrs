@@ -167,7 +167,7 @@ pub async fn call_llm(
     });
 
     let response = match tokio::time::timeout(
-        std::time::Duration::from_secs(60),
+        std::time::Duration::from_secs(120),
         config.client.post(&config.url).json(&body).send(),
     )
     .await
