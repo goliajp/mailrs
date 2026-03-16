@@ -212,6 +212,7 @@ const VIEW_TABS: { value: string; label: string }[] = [
   { value: 'starred', label: 'Starred' },
   { value: 'sent', label: 'Sent' },
   { value: 'action', label: 'Action' },
+  { value: 'spam', label: 'Spam' },
 ]
 
 function FilterBar() {
@@ -251,27 +252,41 @@ function FilterBar() {
     return () => document.removeEventListener('mousedown', handler)
   }, [filtersOpen])
 
-  // compute active tab from folder + quickFilter + importanceSection
-  const activeTab = folder === 'Sent' ? 'sent' : section === 'action' ? 'action' : quickFilter !== 'all' ? quickFilter : 'all'
+  // compute active tab from folder + quickFilter + importanceSection + category
+  const activeTab = activeCategory === 'spam' || activeCategory === 'scam' ? 'spam'
+    : folder === 'Sent' ? 'sent'
+    : section === 'action' ? 'action'
+    : quickFilter !== 'all' ? quickFilter
+    : 'all'
 
   const handleTab = (tab: string) => {
-    if (tab === 'sent') {
+    if (tab === 'spam') {
+      setFolder(null)
+      setQuickFilter('all')
+      setSection(null)
+      setActiveCategory(activeCategory === 'spam' ? null : 'spam')
+    } else if (tab === 'sent') {
+      setActiveCategory(null)
       setQuickFilter('all')
       setSection(null)
       setFolder(folder === 'Sent' ? null : 'Sent')
     } else if (tab === 'action') {
+      setActiveCategory(null)
       setFolder(null)
       setQuickFilter('all')
       setSection(section === 'action' ? null : 'action')
     } else if (tab === 'unread') {
+      setActiveCategory(null)
       setFolder(null)
       setSection(null)
       setQuickFilter(quickFilter === 'unread' ? 'all' : 'unread')
     } else if (tab === 'starred') {
+      setActiveCategory(null)
       setFolder(null)
       setSection(null)
       setQuickFilter(quickFilter === 'starred' ? 'all' : 'starred')
     } else {
+      setActiveCategory(null)
       setFolder(null)
       setQuickFilter('all')
       setSection(null)
@@ -287,7 +302,7 @@ function FilterBar() {
   )
 
   // whether any advanced filters are active
-  const hasAdvancedFilters = sortOrder !== 'newest' || showArchived || activeCategory !== null || selectedDomains.length > 0 || section === 'important' || section === 'other'
+  const hasAdvancedFilters = sortOrder !== 'newest' || showArchived || (activeCategory !== null && activeCategory !== 'spam' && activeCategory !== 'scam') || selectedDomains.length > 0 || section === 'important' || section === 'other'
 
   return (
     <div className="flex items-center gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">
@@ -295,7 +310,9 @@ function FilterBar() {
       {VIEW_TABS.map((t) => {
         const isActive = activeTab === t.value
         const base = 'shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
-        const color = t.value === 'action'
+        const color = t.value === 'spam'
+          ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+          : t.value === 'action'
           ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
           : t.value === 'starred'
             ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'

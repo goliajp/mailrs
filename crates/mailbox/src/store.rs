@@ -779,6 +779,11 @@ impl MailboxStore {
             conditions.push(format!(
                 "m.id IN (SELECT ea_inner.message_id FROM email_analysis ea_inner WHERE ea_inner.category = ${param_idx})"
             ));
+        } else {
+            // exclude spam/scam from default view — users must select the category explicitly
+            conditions.push(
+                "NOT EXISTS (SELECT 1 FROM email_analysis ea_ex WHERE ea_ex.message_id = m.id AND ea_ex.category IN ('spam', 'scam'))".to_string()
+            );
         }
 
         let where_clause = conditions.join(" AND ");
