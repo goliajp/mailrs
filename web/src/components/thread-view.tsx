@@ -325,64 +325,70 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <>
                 {/* email header (sender info) */}
                 <div className="shrink-0 border-b border-[var(--color-border-default)] px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <SenderAvatar sender={selectedMsg.sender} size={32} />
+                  <div className="flex items-start gap-3">
+                    <SenderAvatar sender={selectedMsg.sender} size={32} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-1 select-text text-sm font-medium text-[var(--color-text-primary)]">
-                        {extractName(selectedMsg.sender)}
-                        {selectedMsg.bimi_logo_url && (
-                          <img
-                            src={selectedMsg.bimi_logo_url}
-                            alt="Verified brand"
-                            className="inline-block h-4 w-4 shrink-0"
-                            title="BIMI verified brand"
-                          />
-                        )}
-                        {' '}
-                        <Copyable value={extractEmail(selectedMsg.sender)}>
-                          <span className="max-w-[200px] truncate font-normal text-[var(--color-text-tertiary)]">&lt;{extractEmail(selectedMsg.sender)}&gt;</span>
-                        </Copyable>
-                      </p>
-                      <p className="select-text truncate text-xs text-[var(--color-text-tertiary)]">
-                        to {formatRecipients(selectedMsg.recipients)} · {formatFullDate(selectedMsg.internal_date)}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      <IntentBadge intent={selectedMsg.sender_intent} />
-                      {selectedMsg.action_deadline && (
-                        <span className="bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-status-warning)]">
-                          Due: {selectedMsg.action_deadline}
-                        </span>
-                      )}
-                      {selectedMsg.is_bulk_sender && (
-                        <span className="bg-[var(--color-bg-raised)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-tertiary)]">
-                          Bulk
-                        </span>
-                      )}
-                      {selectedMsg.ai_analyzed && (
-                        <span className={`px-2 py-0.5 text-[11px] font-medium ${
-                          selectedMsg.risk_score >= 60
-                            ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
-                            : selectedMsg.risk_score >= 40
-                              ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
-                              : selectedMsg.risk_score >= 15
-                                ? 'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]'
-                                : 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
-                        }`}>
-                          {selectedMsg.risk_score >= 60 ? 'Dangerous' : selectedMsg.risk_score >= 40 ? 'Suspicious' : selectedMsg.risk_score >= 15 ? 'Caution' : 'Safe'}
-                          {selectedMsg.risk_score > 0 && ` ${selectedMsg.risk_score}`}
-                        </span>
-                      )}
-                      <SmBtn onClick={() => handleForwardMsg(selectedMsg)} title="Forward">
-                        <Forward className="h-3.5 w-3.5" />
-                      </SmBtn>
-                      <SmBtn onClick={() => handlePrint(selectedMsg)} title="Print">
-                        <Printer className="h-3.5 w-3.5" />
-                      </SmBtn>
-                      <SmBtn onClick={() => handleDownloadEml(selectedMsg.uid, selectedMsg.subject)} title="Download .eml">
-                        <Download className="h-3.5 w-3.5" />
-                      </SmBtn>
-                      <FeedbackMenu senderEmail={extractEmail(selectedMsg.sender)} />
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="min-w-0 select-text truncate text-sm font-medium text-[var(--color-text-primary)]">
+                          {extractName(selectedMsg.sender)}
+                          {selectedMsg.bimi_logo_url && (
+                            <img
+                              src={selectedMsg.bimi_logo_url}
+                              alt="Verified brand"
+                              className="ml-1 inline-block h-4 w-4 shrink-0"
+                              title="BIMI verified brand"
+                            />
+                          )}
+                          {' '}
+                          <Copyable value={extractEmail(selectedMsg.sender)}>
+                            <span className="font-normal text-[var(--color-text-tertiary)]">&lt;{extractEmail(selectedMsg.sender)}&gt;</span>
+                          </Copyable>
+                        </p>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <SmBtn onClick={() => handleForwardMsg(selectedMsg)} title="Forward">
+                            <Forward className="h-3.5 w-3.5" />
+                          </SmBtn>
+                          <SmBtn onClick={() => handlePrint(selectedMsg)} title="Print">
+                            <Printer className="h-3.5 w-3.5" />
+                          </SmBtn>
+                          <SmBtn onClick={() => handleDownloadEml(selectedMsg.uid, selectedMsg.subject)} title="Download .eml">
+                            <Download className="h-3.5 w-3.5" />
+                          </SmBtn>
+                          <FeedbackMenu senderEmail={extractEmail(selectedMsg.sender)} />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="select-text truncate text-xs text-[var(--color-text-tertiary)]">
+                          to {formatRecipients(selectedMsg.recipients)} · {formatFullDate(selectedMsg.internal_date)}
+                        </p>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <IntentBadge intent={selectedMsg.sender_intent} />
+                          {selectedMsg.action_deadline && (
+                            <span className="bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-status-warning)]">
+                              Due: {selectedMsg.action_deadline}
+                            </span>
+                          )}
+                          {selectedMsg.is_bulk_sender && (
+                            <span className="bg-[var(--color-bg-raised)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-tertiary)]">
+                              Bulk
+                            </span>
+                          )}
+                          {selectedMsg.ai_analyzed && (
+                            <span className={`px-2 py-0.5 text-[11px] font-medium ${
+                              selectedMsg.risk_score >= 60
+                                ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+                                : selectedMsg.risk_score >= 40
+                                  ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
+                                  : selectedMsg.risk_score >= 15
+                                    ? 'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]'
+                                    : 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+                            }`}>
+                              {selectedMsg.risk_score >= 60 ? 'Dangerous' : selectedMsg.risk_score >= 40 ? 'Suspicious' : selectedMsg.risk_score >= 15 ? 'Caution' : 'Safe'}
+                              {selectedMsg.risk_score > 0 && ` ${selectedMsg.risk_score}`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
