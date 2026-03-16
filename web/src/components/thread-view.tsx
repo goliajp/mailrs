@@ -326,7 +326,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 {/* email header (sender info) */}
                 <div className="shrink-0 border-b border-[var(--color-border-default)] px-5 py-3">
                   <div className="flex items-start gap-3">
-                    <SenderAvatar sender={selectedMsg.sender} size={32} className="mt-0.5" />
+                    <SenderAvatar sender={selectedMsg.sender} size={32} className="mt-0.5" bimi />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <p className="select-text text-sm font-medium text-[var(--color-text-primary)]">

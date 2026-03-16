@@ -34,15 +34,17 @@ function fetchBimi(domain: string): Promise<string | null> {
   return p
 }
 
-export function SenderAvatar({ sender, size = 36, className }: {
+export function SenderAvatar({ sender, size = 36, className, bimi = false }: {
   sender: string
   size?: number
   className?: string
+  bimi?: boolean
 }) {
-  const [bimiUrl, setBimiUrl] = useState<string | null | undefined>(() => {
+  const [bimiUrl, setBimiUrl] = useState<string | null>(() => {
+    if (!bimi) return null
     const domain = extractDomain(sender)
     if (domain && bimiCache.has(domain)) return bimiCache.get(domain)!
-    return undefined
+    return null
   })
   const domain = extractDomain(sender)
   const initial = avatarInitial(sender)
@@ -50,7 +52,7 @@ export function SenderAvatar({ sender, size = 36, className }: {
   const sizeClass = size <= 28 ? 'h-7 w-7 text-[11px]' : size <= 32 ? 'h-8 w-8 text-xs' : 'h-9 w-9 text-sm'
 
   useEffect(() => {
-    if (!domain) return
+    if (!bimi || !domain) return
     if (bimiCache.has(domain)) {
       setBimiUrl(bimiCache.get(domain)!)
       return
@@ -60,9 +62,9 @@ export function SenderAvatar({ sender, size = 36, className }: {
       if (!cancelled) setBimiUrl(url)
     })
     return () => { cancelled = true }
-  }, [domain])
+  }, [bimi, domain])
 
-  // bimi logo (only source that's guaranteed to be a real image via DNS TXT record)
+  // bimi logo (only when explicitly requested, e.g. detail view)
   if (bimiUrl) {
     return (
       <img
@@ -74,7 +76,7 @@ export function SenderAvatar({ sender, size = 36, className }: {
     )
   }
 
-  // colored initials — clean, consistent, always works
+  // colored initials — always renders, no loading state
   return (
     <div className={cn(`flex shrink-0 items-center justify-center rounded-full font-medium text-white ${sizeClass} ${color}`, className)}>
       {initial}
