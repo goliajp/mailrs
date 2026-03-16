@@ -353,41 +353,43 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           <FeedbackMenu senderEmail={extractEmail(selectedMsg.sender)} />
                         </div>
                       </div>
+                      <p className="select-text text-xs text-[var(--color-text-tertiary)]">
+                        <Copyable value={extractEmail(selectedMsg.sender)}>
+                          <span>{extractEmail(selectedMsg.sender)}</span>
+                        </Copyable>
+                      </p>
+                      <p className="select-text text-xs text-[var(--color-text-tertiary)]">
+                        to {formatRecipients(selectedMsg.recipients)}
+                      </p>
                       <div className="flex items-center gap-1.5">
-                        <p className="min-w-0 select-text truncate text-xs text-[var(--color-text-tertiary)]">
-                          <Copyable value={extractEmail(selectedMsg.sender)}>
-                            <span>{extractEmail(selectedMsg.sender)}</span>
-                          </Copyable>
-                          {' · to '}
-                          {formatRecipients(selectedMsg.recipients)} · {formatFullDate(selectedMsg.internal_date)}
-                        </p>
-                        <div className="flex shrink-0 items-center gap-0.5">
-                          <IntentBadge intent={selectedMsg.sender_intent} />
-                          {selectedMsg.action_deadline && (
-                            <span className="bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-status-warning)]">
-                              Due: {selectedMsg.action_deadline}
-                            </span>
-                          )}
-                          {selectedMsg.is_bulk_sender && (
-                            <span className="bg-[var(--color-bg-raised)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-tertiary)]">
-                              Bulk
-                            </span>
-                          )}
-                          {selectedMsg.ai_analyzed && (
-                            <span className={`px-2 py-0.5 text-[11px] font-medium ${
-                              selectedMsg.risk_score >= 60
-                                ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
-                                : selectedMsg.risk_score >= 40
-                                  ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
-                                  : selectedMsg.risk_score >= 15
-                                    ? 'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]'
-                                    : 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
-                            }`}>
-                              {selectedMsg.risk_score >= 60 ? 'Dangerous' : selectedMsg.risk_score >= 40 ? 'Suspicious' : selectedMsg.risk_score >= 15 ? 'Caution' : 'Safe'}
-                              {selectedMsg.risk_score > 0 && ` ${selectedMsg.risk_score}`}
-                            </span>
-                          )}
-                        </div>
+                        <span className="text-xs text-[var(--color-text-tertiary)]">
+                          {formatFullDate(selectedMsg.internal_date)}
+                        </span>
+                        <IntentBadge intent={selectedMsg.sender_intent} />
+                        {selectedMsg.action_deadline && (
+                          <span className="bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-status-warning)]">
+                            Due: {selectedMsg.action_deadline}
+                          </span>
+                        )}
+                        {selectedMsg.is_bulk_sender && (
+                          <span className="bg-[var(--color-bg-raised)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-tertiary)]">
+                            Bulk
+                          </span>
+                        )}
+                        {selectedMsg.ai_analyzed && (
+                          <span className={`px-2 py-0.5 text-[11px] font-medium ${
+                            selectedMsg.risk_score >= 60
+                              ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+                              : selectedMsg.risk_score >= 40
+                                ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
+                                : selectedMsg.risk_score >= 15
+                                  ? 'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]'
+                                  : 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+                          }`}>
+                            {selectedMsg.risk_score >= 60 ? 'Dangerous' : selectedMsg.risk_score >= 40 ? 'Suspicious' : selectedMsg.risk_score >= 15 ? 'Caution' : 'Safe'}
+                            {selectedMsg.risk_score > 0 && ` ${selectedMsg.risk_score}`}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
