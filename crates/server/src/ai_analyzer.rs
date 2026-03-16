@@ -67,6 +67,7 @@ async fn backfill_worker(
     let model_version = config.model_version();
     let mut done = 0u64;
     let mut failed = 0u64;
+    let mut consecutive_fails = 0u32;
 
     let total = store.count_unanalyzed_messages(&model_version).await.unwrap_or(0);
     if total == 0 {
@@ -97,11 +98,17 @@ async fn backfill_worker(
 
         if success {
             done += 1;
+            consecutive_fails = 0;
             if done % 20 == 0 {
                 eprintln!("AI backfill: {done}/{total} analyzed, {failed} failed");
             }
         } else {
             failed += 1;
+            consecutive_fails += 1;
+            // exponential backoff: 30s, 60s, 120s, 240s, ..., cap at 3600s (1h)
+            let wait = (30u64 << consecutive_fails.saturating_sub(1).min(6)).min(3600);
+            eprintln!("AI backfill: {consecutive_fails} consecutive failures, waiting {wait}s");
+            tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
         }
     }
 }
@@ -146,9 +153,9 @@ async fn analyze_with_retry(
     subject_raw: &str,
     model_version: &str,
 ) -> bool {
-    const BACKOFF: [u64; 3] = [15, 30, 60];
+    const BACKOFF: [u64; 2] = [15, 30];
 
-    for attempt in 0..3u32 {
+    for attempt in 0..2u32 {
         if attempt > 0 {
             let delay = BACKOFF[attempt as usize - 1];
             eprintln!("AI retry msg={message_id} attempt={} backoff={delay}s", attempt + 1);
@@ -160,7 +167,7 @@ async fn analyze_with_retry(
         }
     }
 
-    eprintln!("AI analyzer failed after 3 attempts: msg={message_id}");
+    eprintln!("AI analyzer failed after 2 attempts: msg={message_id}");
     false
 }
 
