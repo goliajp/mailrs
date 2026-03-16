@@ -34,13 +34,6 @@ function fetchBimi(domain: string): Promise<string | null> {
   return p
 }
 
-// fallback: apple-touch-icon (180x180 high-res PNG), most major sites have it.
-// no google favicon — it returns a blurry grey globe placeholder for missing favicons
-// (200 OK, so onError won't fire) which looks worse than colored initials.
-const fallbackSources = [
-  (domain: string) => `https://${domain}/apple-touch-icon.png`,
-]
-
 export function SenderAvatar({ sender, size = 36, className }: {
   sender: string
   size?: number
@@ -51,7 +44,6 @@ export function SenderAvatar({ sender, size = 36, className }: {
     if (domain && bimiCache.has(domain)) return bimiCache.get(domain)!
     return undefined
   })
-  const [fallbackIndex, setFallbackIndex] = useState(0)
   const domain = extractDomain(sender)
   const initial = avatarInitial(sender)
   const color = avatarColor(sender)
@@ -70,33 +62,19 @@ export function SenderAvatar({ sender, size = 36, className }: {
     return () => { cancelled = true }
   }, [domain])
 
-  const imgClass = cn(`shrink-0 rounded-full object-cover ${sizeClass}`, className)
-
-  // bimi logo (highest priority)
+  // bimi logo (only source that's guaranteed to be a real image via DNS TXT record)
   if (bimiUrl) {
     return (
       <img
         src={bimiUrl}
         alt={initial}
         onError={() => setBimiUrl(null)}
-        className={imgClass}
+        className={cn(`shrink-0 rounded-full object-cover ${sizeClass}`, className)}
       />
     )
   }
 
-  // fallback image sources (apple-touch-icon)
-  if (domain && bimiUrl !== undefined && !bimiUrl && fallbackIndex < fallbackSources.length) {
-    return (
-      <img
-        src={fallbackSources[fallbackIndex](domain)}
-        alt={initial}
-        onError={() => setFallbackIndex(i => i + 1)}
-        className={imgClass}
-      />
-    )
-  }
-
-  // colored initials
+  // colored initials — clean, consistent, always works
   return (
     <div className={cn(`flex shrink-0 items-center justify-center rounded-full font-medium text-white ${sizeClass} ${color}`, className)}>
       {initial}
