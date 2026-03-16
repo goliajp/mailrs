@@ -7,6 +7,19 @@ function extractDomain(sender: string): string | null {
   return match ? match[1] : null
 }
 
+// extract parent/registrable domain: mail.nvidia.cn → nvidia.cn, em.linkedin.com → linkedin.com
+const SECONDARY_TLDS = new Set(['co', 'com', 'net', 'org', 'ac', 'gov', 'edu', 'ne', 'or'])
+function getParentDomain(domain: string): string | null {
+  const parts = domain.split('.')
+  if (parts.length <= 2) return null
+  // handle multi-part TLDs like .co.jp, .co.uk
+  const sld = parts[parts.length - 2]
+  if (SECONDARY_TLDS.has(sld) && parts.length >= 3) {
+    return parts.length >= 4 ? parts.slice(-3).join('.') : null
+  }
+  return parts.slice(-2).join('.')
+}
+
 // unified icon cache: domain → verified image URL or null
 const iconCache = new Map<string, string | null>()
 const iconInflight = new Map<string, Promise<string | null>>()
@@ -41,12 +54,18 @@ function resolveIcon(domain: string): Promise<string | null> {
       }
     } catch { /* continue */ }
 
-    // 2. try apple-touch-icon (preload to verify it's a real image)
-    const touchIconUrl = `https://${domain}/apple-touch-icon.png`
-    if (await probeImage(touchIconUrl)) {
-      iconCache.set(domain, touchIconUrl)
-      iconInflight.delete(domain)
-      return touchIconUrl
+    // 2. try apple-touch-icon: exact domain first, then parent domain
+    const domains = [domain]
+    const parentDomain = getParentDomain(domain)
+    if (parentDomain && parentDomain !== domain) domains.push(parentDomain)
+
+    for (const d of domains) {
+      const url = `https://${d}/apple-touch-icon.png`
+      if (await probeImage(url)) {
+        iconCache.set(domain, url)
+        iconInflight.delete(domain)
+        return url
+      }
     }
 
     // 3. nothing found
