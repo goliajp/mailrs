@@ -188,16 +188,20 @@ async fn do_analyze(
         format!("{body_text}\n\n[Attachment content]\n{attachment_text}")
     };
 
-    let analysis = match ai_email::analyze_email(config, &sender, &subject, &body).await {
+    // run analysis and embedding concurrently (2 parallel requests to LLM)
+    let embedding_text = format!("{subject}\n\n{body}");
+    let (analysis_result, embedding) = tokio::join!(
+        ai_email::analyze_email(config, &sender, &subject, &body),
+        ai_email::generate_embedding(config, &embedding_text),
+    );
+
+    let analysis = match analysis_result {
         Some(a) => a,
         None => {
             eprintln!("AI analyze failed msg={message_id} (LLM returned no result)");
             return false;
         }
     };
-
-    let embedding_text = format!("{subject}\n\n{body}");
-    let embedding = ai_email::generate_embedding(config, &embedding_text).await;
 
     let intent = if analysis.sender_intent.is_empty() { "inform" } else { &analysis.sender_intent };
 
