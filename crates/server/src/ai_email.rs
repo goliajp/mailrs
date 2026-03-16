@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// current prompt version — bump this to trigger automatic reanalysis of all messages
-pub const PROMPT_VERSION: &str = "v6";
+pub const PROMPT_VERSION: &str = "v7";
 
 /// self-hosted LLM configuration
 #[derive(Debug, Clone)]
@@ -223,39 +223,42 @@ pub async fn analyze_email(
 ) -> Option<EmailAnalysis> {
     let body_text = truncate_str(body_text, 8000);
 
-    let system = r#"You are an email analysis assistant. Analyze emails and respond with ONLY a JSON object. No markdown fences, no explanation.
+    let system = r#"你是邮件分析助手。分析邮件并只返回一个JSON对象，不要markdown代码块，不要解释。
 
-## Category Definitions
-- personal: private messages from friends/family/acquaintances
-- work: business communications, internal memos, project discussions, meeting invites
-- notification: automated system alerts, account notifications, password resets, login alerts
-- promotion: marketing emails, sales, coupons, セール, キャンペーン, クーポン, 配信, お得, ポイント, ads
-- newsletter: periodic digest emails, blog updates, curated content, メルマガ, ニュースレター
-- receipt: purchase confirmations, invoices, order summaries, 注文確認, 領収書
-- shipping: delivery tracking, shipment updates, 配送, 発送, お届け
-- travel: flight/hotel/rental confirmations, itineraries, boarding passes
-- finance: bank statements, investment alerts, payment notices, 入金, 振込
-- spam: unsolicited bulk email, unwanted advertising
-- scam: phishing attempts, social engineering, credential theft, advance-fee fraud
-- general: anything that doesn't fit the above
+## 输出语言规则
+summary、risk_reason、action_items、context 等文本字段一律用中文输出。category、sender_intent 等枚举值用英文。
 
-## Risk Score Guidelines
-- 0-10: Trusted — from verified senders, expected content, no suspicious elements
-- 11-25: Normal — legitimate marketing/notifications, may have tracking pixels or unsubscribe links
-- 26-50: Suspicious — unknown sender, unusual requests, mismatched reply-to, suspicious links
-- 51-75: Dangerous — requests for passwords/credit cards/personal info, urgency tactics, domain spoofing
-- 76-100: Phishing/Scam — impersonation, fake login pages, malware links, advance-fee fraud
+## 分类定义 (category)
+- personal: 来自朋友/家人/熟人的私人邮件
+- work: 商务沟通、内部通知、项目讨论、会议邀请
+- notification: 系统通知、账户提醒、密码重置、登录警告
+- promotion: 营销邮件、促销、优惠券、セール、キャンペーン、広告
+- newsletter: 定期资讯、博客更新、内容推荐、メルマガ
+- receipt: 购买确认、发票、订单摘要
+- shipping: 物流追踪、发货通知
+- travel: 机票/酒店/租车确认、行程单
+- finance: 银行对账、投资提醒、付款通知
+- spam: 未经请求的批量邮件、垃圾广告
+- scam: 钓鱼、社会工程、凭据窃取、预付费欺诈
+- general: 不属于以上任何类别
 
-## Action Detection
-- requires_action: true if the recipient needs to do something (reply, review, approve, pay, sign, attend, etc.)
-- sender_intent: classify the sender's primary purpose: "request", "inform", "confirm", "social", "alert"
-- action_deadline: if the email mentions a deadline, extract as ISO 8601 (YYYY-MM-DD). null if none.
+## 风险评分 (risk_score)
+- 0-10: 可信 — 已验证发件人，预期内容
+- 11-25: 正常 — 合法营销/通知，可能有追踪像素
+- 26-50: 可疑 — 未知发件人，异常请求
+- 51-75: 危险 — 要求密码/银行卡/个人信息，紧迫感策略
+- 76-100: 钓鱼/诈骗 — 冒充身份、假登录页面、恶意链接
 
-## clean_text Instructions
-Extract the main readable content. Remove HTML tags, navigation, headers/footers, unsubscribe notices, tracking elements. Max 2000 characters.
+## 行为检测
+- requires_action: 收件人是否需要做某事（回复、审批、付款、签署、参加等）
+- sender_intent: 发件人主要意图: "request", "inform", "confirm", "social", "alert"
+- action_deadline: 如有截止日期，提取为 ISO 8601 (YYYY-MM-DD)，无则 null
+
+## clean_text
+提取邮件正文主要内容，去除HTML标签、导航、页眉页脚、退订链接、追踪元素。最多2000字符。
 
 ## JSON schema
-{"category": "<one of the categories above>", "risk_score": <0-100>, "risk_reason": "<brief reason>", "summary": "<2-3 sentence summary>", "clean_text": "<extracted clean text, max 2000 chars>", "requires_action": <true|false>, "sender_intent": "<request|inform|confirm|social|alert>", "action_deadline": "<ISO 8601 date or null>", "people": [{"name": "...", "email": "...", "role": "..."}], "dates": [{"text": "original text", "iso_date": "YYYY-MM-DD", "context": "..."}], "amounts": [{"text": "original text", "value": 123.45, "currency": "USD", "context": "..."}], "action_items": ["<action required by recipient>"]}"#;
+{"category": "<枚举值>", "risk_score": <0-100>, "risk_reason": "<中文简要原因>", "summary": "<中文2-3句摘要>", "clean_text": "<提取的正文，最多2000字>", "requires_action": <true|false>, "sender_intent": "<request|inform|confirm|social|alert>", "action_deadline": "<ISO 8601 or null>", "people": [{"name": "...", "email": "...", "role": "..."}], "dates": [{"text": "原文", "iso_date": "YYYY-MM-DD", "context": "中文说明"}], "amounts": [{"text": "原文", "value": 123.45, "currency": "USD", "context": "中文说明"}], "action_items": ["<中文：收件人需要做的事>"]}"#;
 
     let user_message = format!(
         "Analyze this email:\n\nFrom: {sender}\nSubject: {subject}\nBody:\n{body_text}"
