@@ -61,11 +61,39 @@ async fn worker(
                 &mut done, &mut failed, &mut consecutive_fails, total).await;
         }
 
-        // priority 2: one backfill message
-        let batch = store.list_unanalyzed_message_ids(1, &model_version).await.unwrap_or_default();
-        if let Some(job) = batch.into_iter().next() {
-            process_one(&config, &store, &maildir_root, job, &model_version,
-                &mut done, &mut failed, &mut consecutive_fails, total).await;
+        // priority 2: backfill — 2 messages concurrently
+        let batch = store.list_unanalyzed_message_ids(2, &model_version).await.unwrap_or_default();
+        if !batch.is_empty() {
+            let mut handles = Vec::new();
+            for job in batch {
+                let cfg = config.clone();
+                let st = store.clone();
+                let mr = maildir_root.clone();
+                let mv = model_version.clone();
+                handles.push(tokio::spawn(async move {
+                    analyze_with_retry(&cfg, &st, &mr, job.0, &job.1, &job.2, &job.3, &job.4, &mv).await
+                }));
+            }
+            for h in handles {
+                match h.await {
+                    Ok(true) => {
+                        done += 1;
+                        consecutive_fails = 0;
+                        if done % 20 == 0 {
+                            eprintln!("AI backfill: {done}/{total} analyzed, {failed} failed");
+                        }
+                    }
+                    _ => {
+                        failed += 1;
+                        consecutive_fails += 1;
+                    }
+                }
+            }
+            if consecutive_fails > 0 {
+                let wait = (30u64 << consecutive_fails.saturating_sub(1).min(6)).min(3600);
+                eprintln!("AI backfill: {consecutive_fails} consecutive failures, waiting {wait}s");
+                tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+            }
         } else {
             // backfill done — wait for new email
             if done > 0 || failed > 0 {
@@ -188,20 +216,17 @@ async fn do_analyze(
         format!("{body_text}\n\n[Attachment content]\n{attachment_text}")
     };
 
-    // run analysis and embedding concurrently (2 parallel requests to LLM)
-    let embedding_text = format!("{subject}\n\n{body}");
-    let (analysis_result, embedding) = tokio::join!(
-        ai_email::analyze_email(config, &sender, &subject, &body),
-        ai_email::generate_embedding(config, &embedding_text),
-    );
-
-    let analysis = match analysis_result {
+    // analysis first, then embedding (separate models, serial)
+    let analysis = match ai_email::analyze_email(config, &sender, &subject, &body).await {
         Some(a) => a,
         None => {
             eprintln!("AI analyze failed msg={message_id} (LLM returned no result)");
             return false;
         }
     };
+
+    let embedding_text = format!("{subject}\n\n{body}");
+    let embedding = ai_email::generate_embedding(config, &embedding_text).await;
 
     let intent = if analysis.sender_intent.is_empty() { "inform" } else { &analysis.sender_intent };
 
