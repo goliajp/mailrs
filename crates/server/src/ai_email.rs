@@ -151,47 +151,47 @@ pub async fn call_llm(
         "temperature": temperature
     });
 
+    // no `format` param — uses stream mode on devops side (no timeout as long as tokens flow)
+    // 900s safety timeout covers entire send+read cycle
     for attempt in 0..3u32 {
-        let response = match tokio::time::timeout(
-            std::time::Duration::from_secs(600),
-            config.client.post(&config.url).json(&body).send(),
-        )
-        .await
-        {
-            Ok(Ok(resp)) => resp,
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(900),
+            async {
+                let response = config.client.post(&config.url).json(&body).send().await?;
+
+                if response.status().as_u16() == 429 {
+                    return Ok::<Option<String>, reqwest::Error>(Some("__429__".into()));
+                }
+
+                if !response.status().is_success() {
+                    let status = response.status();
+                    let text = response.text().await.unwrap_or_default();
+                    eprintln!("LLM API error {status}: {}", &text[..text.len().min(200)]);
+                    return Ok(None);
+                }
+
+                let json: serde_json::Value = response.json().await?;
+                Ok(json["content"].as_str().map(|s| s.to_string()))
+            }
+        ).await;
+
+        match result {
+            Ok(Ok(Some(ref s))) if s == "__429__" => {
+                let wait = if attempt < 2 { 15 } else { 30 };
+                eprintln!("LLM rate limited (429), retrying in {wait}s (attempt {})", attempt + 1);
+                tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+                continue;
+            }
+            Ok(Ok(content)) => return content,
             Ok(Err(e)) => {
                 eprintln!("LLM request error: {e}");
                 return None;
             }
             Err(_) => {
-                eprintln!("LLM request timeout (600s)");
+                eprintln!("LLM request timeout (900s)");
                 return None;
             }
-        };
-
-        if response.status().as_u16() == 429 {
-            let wait = if attempt < 2 { 15 } else { 30 };
-            eprintln!("LLM rate limited (429), retrying in {wait}s (attempt {})", attempt + 1);
-            tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
-            continue;
         }
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            eprintln!("LLM API error {status}: {}", &text[..text.len().min(200)]);
-            return None;
-        }
-
-        let json: serde_json::Value = match response.json().await {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("LLM response parse error: {e}");
-                return None;
-            }
-        };
-
-        return json["content"].as_str().map(|s| s.to_string());
     }
 
     eprintln!("LLM rate limited after 3 retries, giving up");
