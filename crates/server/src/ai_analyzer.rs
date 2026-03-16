@@ -58,7 +58,7 @@ async fn backfill_loop(config: Arc<LlmConfig>, store: Arc<MailboxStore>, maildir
     eprintln!("AI backfill: {total} messages to analyze (version {model_version})");
 
     loop {
-        let batch = match store.list_unanalyzed_message_ids(10, &model_version).await {
+        let batch = match store.list_unanalyzed_message_ids(1, &model_version).await {
             Ok(b) => b,
             Err(e) => {
                 tracing::warn!(event = "backfill_query_error", error = %e);
@@ -114,8 +114,9 @@ async fn backfill_loop(config: Arc<LlmConfig>, store: Arc<MailboxStore>, maildir
                 drop(permit);
             }));
 
-            // throttle between messages to avoid overloading ollama
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            // throttle: wait for this message to finish before starting next
+            // qwen CPU inference is slow, avoid queuing up requests
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }
 
         // wait for all in batch to complete
@@ -123,8 +124,8 @@ async fn backfill_loop(config: Arc<LlmConfig>, store: Arc<MailboxStore>, maildir
             let _ = h.await;
         }
 
-        // pause between batches
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        // pause between batches to let ollama cool down
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
     }
 }
 
