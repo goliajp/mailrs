@@ -190,7 +190,10 @@ async fn do_analyze(
 
     let analysis = match ai_email::analyze_email(config, &sender, &subject, &body).await {
         Some(a) => a,
-        None => return false,
+        None => {
+            eprintln!("AI analyze failed msg={message_id} (LLM returned no result)");
+            return false;
+        }
     };
 
     let embedding_text = format!("{subject}\n\n{body}");

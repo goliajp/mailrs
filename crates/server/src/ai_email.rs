@@ -172,7 +172,7 @@ pub async fn call_llm(
 
     for attempt in 0..3u32 {
         let response = match tokio::time::timeout(
-            std::time::Duration::from_secs(120),
+            std::time::Duration::from_secs(600),
             config.client.post(&config.url).json(&body).send(),
         )
         .await
@@ -183,7 +183,7 @@ pub async fn call_llm(
                 return None;
             }
             Err(_) => {
-                eprintln!("LLM request timeout (120s)");
+                eprintln!("LLM request timeout (600s)");
                 return None;
             }
         };
@@ -259,7 +259,13 @@ fn parse_analysis_response(text: &str) -> Option<EmailAnalysis> {
     let end = text.rfind('}')? + 1;
     let json_str = &text[start..end];
 
-    let mut analysis: EmailAnalysis = serde_json::from_str(json_str).ok()?;
+    let mut analysis: EmailAnalysis = match serde_json::from_str(json_str) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("AI parse error: {e} — raw: {}", &json_str[..json_str.len().min(200)]);
+            return None;
+        }
+    };
 
     // clamp risk_score
     analysis.risk_score = analysis.risk_score.min(100);
