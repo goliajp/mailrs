@@ -1,5 +1,6 @@
 services:
   postgres:
+    container_name: mailrs-postgres
     image: pgvector/pgvector:pg18
     environment:
       POSTGRES_DB: mailrs
@@ -19,6 +20,7 @@ services:
     restart: unless-stopped
 
   valkey:
+    container_name: mailrs-valkey
     image: valkey/valkey:8
     ports:
       - "6379:6379"
@@ -33,6 +35,7 @@ services:
     restart: unless-stopped
 
   mailrs:
+    container_name: mailrs
     build: .
     ports:
       - "25:25"

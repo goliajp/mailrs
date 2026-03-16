@@ -17,7 +17,7 @@ MAILDIR_ROOT = Path("/tmp/mailrs/maildir")
 USER = "lihao@golia.jp"
 LOCAL, DOMAIN = USER.split("@")
 MAILDIR_PATH = MAILDIR_ROOT / DOMAIN / LOCAL
-PG_CONTAINER = "mailrs-postgres-1"
+PG_CONTAINER = "mailrs-postgres"
 USERS_FILE = Path("/tmp/mailrs/users.toml")
 
 # sequence counter for generating unique maildir filenames
