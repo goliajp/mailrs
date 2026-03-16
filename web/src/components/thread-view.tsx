@@ -373,11 +373,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                             Due: {selectedMsg.action_deadline}
                           </span>
                         )}
-                        {selectedMsg.is_bulk_sender && (
-                          <span className="bg-[var(--color-bg-raised)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-tertiary)]">
-                            Bulk
-                          </span>
-                        )}
                         {selectedMsg.ai_analyzed && (
                           <span className={`px-2 py-0.5 text-[11px] font-medium ${
                             selectedMsg.risk_score >= 60
