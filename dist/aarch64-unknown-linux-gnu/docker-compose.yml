@@ -45,7 +45,7 @@ services:
       MAILRS_ACME_DOMAINS: ${MAILRS_ACME_DOMAINS:-}
       MAILRS_ACME_DIR: /data/acme
       MAILRS_ACME_STAGING: ${MAILRS_ACME_STAGING:-false}
-      MAILRS_AI_ANALYSIS_ENABLED: "${MAILRS_AI_ANALYSIS_ENABLED:-true}"
+      MAILRS_AI_ANALYSIS_ENABLED: "${MAILRS_AI_ANALYSIS_ENABLED:-false}"
       MAILRS_ANTISPAM_ENABLED: "false"
     volumes:
       - mailrs-data:/data
