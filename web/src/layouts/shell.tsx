@@ -30,6 +30,7 @@ export function Panel({ width, children, center, className }: {
       width === 320 && 'w-[320px] shrink-0',
       width === 360 && 'w-[360px] shrink-0',
       width === 400 && 'w-[400px] shrink-0',
+      width === 480 && 'w-[480px] shrink-0',
       !width && 'min-w-0 flex-1',
       center && 'items-center justify-center',
       className,
