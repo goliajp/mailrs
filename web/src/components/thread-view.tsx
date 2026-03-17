@@ -562,7 +562,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       {/* delete confirm dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => setShowDeleteConfirm(false)} onKeyDown={(e) => { if (e.key === 'Escape') setShowDeleteConfirm(false) }}>
-          <div className="mx-4 w-full max-w-sm rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="mx-4 w-full max-w-sm rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Delete conversation?</h3>
             <p className="mt-1.5 text-sm text-[var(--color-text-tertiary)]">This will permanently delete all messages.</p>
             <div className="mt-4 flex justify-end gap-2">
@@ -727,7 +727,7 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
         <MoreVertical className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] py-1" style={{ boxShadow: 'var(--shadow-lg)' }}>
+        <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] py-1 shadow-lg">
           <p className="truncate px-3 py-1 text-[11px] text-[var(--color-text-tertiary)]">{senderEmail}</p>
           {FEEDBACK_ITEMS.map((item) => (
             <button
