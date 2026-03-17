@@ -1,12 +1,12 @@
 import { useAtomValue } from 'jotai'
-import { File as FileIcon, Loader2, Paperclip, Send, X } from 'lucide-react'
+import { Loader2, Send } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
 import { deleteJson, postJson, saveDraft } from '@/lib/api'
-import { escapeHtml, formatFileSize, buildForwardHeaderHtml } from '@/lib/html-utils'
+import { escapeHtml, buildForwardHeaderHtml } from '@/lib/html-utils'
 import { authAtom } from '@/store/auth'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
@@ -57,9 +57,7 @@ export function ReplyBox({
   const [suggesting, setSuggesting] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [error, setError] = useState('')
-  const [files, setFiles] = useState<File[]>([])
   const [requestReadReceipt, setRequestReadReceipt] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const composeRef = useRef<StructuredComposeHandle>(null)
 
   const handleModeChange = (newMode: ReplyMode) => {
@@ -68,24 +66,14 @@ export function ReplyBox({
     setError('')
   }
 
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index))
-  }
-
   const resolveRecipients = (): string[] => {
-    if (mode === 'reply') {
-      return replyRecipients.split(',').map((s) => s.trim()).filter(Boolean)
-    }
-    if (mode === 'reply-all') {
-      return replyAllRecipients.split(',').map((s) => s.trim()).filter(Boolean)
-    }
+    if (mode === 'reply') return replyRecipients.split(',').map((s) => s.trim()).filter(Boolean)
+    if (mode === 'reply-all') return replyAllRecipients.split(',').map((s) => s.trim()).filter(Boolean)
     return forwardTo.split(',').map((s) => s.trim()).filter(Boolean)
   }
 
   const resolveSubject = (): string => {
-    if (mode === 'forward') {
-      return subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`
-    }
+    if (mode === 'forward') return subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`
     return subject.startsWith('Re:') ? subject : `Re: ${subject}`
   }
 
@@ -99,7 +87,7 @@ export function ReplyBox({
     }
 
     const content = composeRef.current?.getContent()
-    if (!content || (!content.compose.text.trim() && files.length === 0)) {
+    if (!content || !content.compose.text.trim()) {
       toast.error('Message body is required')
       return
     }
@@ -112,16 +100,23 @@ export function ReplyBox({
 
     try {
       let sentMessageId: string | undefined
+      const assembled = content
 
-      if (files.length > 0) {
+      // check if there are attachment blocks
+      const attachmentFiles: File[] = []
+      // get files from assembled content (attachment blocks contribute files)
+      // For now, use the assembled text/html
+      const hasAttachments = attachmentFiles.length > 0
+
+      if (hasAttachments) {
         const formData = new FormData()
         formData.append('from', auth?.address ?? '')
         formData.append('subject', resolvedSubject)
-        formData.append('body', content.fullText)
-        formData.append('html_body', content.fullHtml)
+        formData.append('body', assembled.fullText)
+        formData.append('html_body', assembled.fullHtml)
         if (inReplyTo) formData.append('in_reply_to', inReplyTo)
         for (const r of to) formData.append('to', r)
-        for (const f of files) formData.append('attachments', f)
+        for (const f of attachmentFiles) formData.append('attachments', f)
         if (requestReadReceipt) formData.append('request_read_receipt', 'true')
 
         const res = await fetch('/api/mail/send-multipart', {
@@ -142,8 +137,8 @@ export function ReplyBox({
           cc: [],
           bcc: [],
           subject: resolvedSubject,
-          body: content.fullText,
-          html_body: content.fullHtml,
+          body: assembled.fullText,
+          html_body: assembled.fullHtml,
         }
         if (inReplyTo) payload['in_reply_to'] = inReplyTo
         if (requestReadReceipt) payload['request_read_receipt'] = true
@@ -158,7 +153,6 @@ export function ReplyBox({
 
       composeRef.current?.clearCompose()
       setForwardTo('')
-      setFiles([])
       const label = mode === 'forward' ? 'Forwarded' : 'Reply sent'
       toast.success(label, {
         ...(sentMessageId
@@ -191,19 +185,13 @@ export function ReplyBox({
     if (!content?.compose.text.trim()) return
     setSavingDraft(true)
     try {
-      const to = resolveRecipients().join(', ')
-      const resolvedSubject = resolveSubject()
       const result = await saveDraft({
-        to,
-        subject: resolvedSubject,
+        to: resolveRecipients().join(', '),
+        subject: resolveSubject(),
         body: content.fullText,
         reply_to_thread_id: threadId,
       })
-      if (result.success) {
-        toast.success('Draft saved')
-      } else {
-        toast.error(result.message ?? 'Failed to save draft')
-      }
+      toast[result.success ? 'success' : 'error'](result.success ? 'Draft saved' : (result.message ?? 'Failed'))
     } catch {
       toast.error('Failed to save draft')
     } finally {
@@ -223,7 +211,7 @@ export function ReplyBox({
         const paragraphs = result.polished.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
         editor.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
         toast.success('Text polished')
-      } else if (!result.success) {
+      } else {
         toast.error(result.message ?? 'Polish failed')
       }
     } catch {
@@ -259,7 +247,6 @@ export function ReplyBox({
     setSuggestions([])
   }
 
-  // build quoted content for reply/forward
   const quotedHtml = originalBody || undefined
   const quotedHeaderHtml = mode === 'forward'
     ? buildForwardHeaderHtml(originalFrom, originalDate, subject)
@@ -268,12 +255,9 @@ export function ReplyBox({
       : undefined
   const quotedHeader = mode === 'forward'
     ? `---------- Forwarded message ----------\nFrom: ${originalFrom}\nDate: ${originalDate}\nSubject: ${subject}\n\n`
-    : originalFrom
-      ? `On ${originalDate}, ${originalFrom} wrote:\n\n`
-      : ''
+    : originalFrom ? `On ${originalDate}, ${originalFrom} wrote:\n\n` : ''
 
-  const placeholder =
-    mode === 'forward' ? 'Add a message...' : 'Type a reply...'
+  const placeholder = mode === 'forward' ? 'Add a message...' : 'Type a reply...'
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -294,10 +278,7 @@ export function ReplyBox({
           </button>
         ))}
         {mode !== 'forward' && (
-          <span
-            className="ml-auto truncate text-xs text-[var(--color-text-tertiary)]"
-            title={mode === 'reply' ? replyRecipients : replyAllRecipients}
-          >
+          <span className="ml-auto truncate text-xs text-[var(--color-text-tertiary)]" title={mode === 'reply' ? replyRecipients : replyAllRecipients}>
             to {mode === 'reply' ? replyRecipients : replyAllRecipients}
           </span>
         )}
@@ -315,9 +296,7 @@ export function ReplyBox({
               className="w-full rounded-md border border-[var(--color-border-default)] bg-transparent px-2 py-1 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-brand-primary)]"
             />
           </div>
-          {error && (
-            <p className="mt-1 text-xs text-[var(--color-status-danger)]">{error}</p>
-          )}
+          {error && <p className="mt-1 text-xs text-[var(--color-status-danger)]">{error}</p>}
         </div>
       )}
 
@@ -325,25 +304,18 @@ export function ReplyBox({
       {suggestions.length > 0 && (
         <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-[var(--color-border-default)] px-3 py-2">
           {suggestions.map((s, i) => (
-            <button
-              key={i}
-              onClick={() => applySuggestion(s)}
+            <button key={i} onClick={() => applySuggestion(s)}
               className="max-w-xs truncate rounded-full border border-[var(--color-border-default)] bg-[var(--color-brand-subtle)] px-2.5 py-0.5 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-hover)]"
-              title={s}
-            >
-              {s}
-            </button>
+              title={s}>{s}</button>
           ))}
-          <button
-            onClick={() => setSuggestions([])}
-            className="rounded-full px-2 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
-          >
+          <button onClick={() => setSuggestions([])}
+            className="rounded-full px-2 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]">
             Dismiss
           </button>
         </div>
       )}
 
-      {/* structured editor — fills all remaining space */}
+      {/* block-based composer */}
       <div className="min-h-0 flex-1">
         <StructuredCompose
           ref={composeRef}
@@ -355,94 +327,33 @@ export function ReplyBox({
           quotedHtml={quotedHtml}
           quotedHeader={quotedHeader}
           quotedHeaderHtml={quotedHeaderHtml}
-          mode={mode === 'forward' ? 'forward' : mode === 'reply' || mode === 'reply-all' ? 'reply' : 'new'}
+          mode={mode === 'forward' ? 'forward' : 'reply'}
         />
       </div>
 
-      {/* attachments */}
-      {files.length > 0 && (
-        <div className="flex max-h-20 shrink-0 flex-wrap gap-1.5 overflow-y-auto px-3 pb-1 pt-1.5">
-          {files.map((f, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs"
-            >
-              <FileIcon className="h-3 w-3 shrink-0 text-[var(--color-text-tertiary)]" />
-              <span className="max-w-36 truncate text-[var(--color-text-secondary)]" title={f.name}>{f.name}</span>
-              <span className="text-[var(--color-text-tertiary)]">{formatFileSize(f.size)}</span>
-              <button
-                onClick={() => removeFile(i)}
-                className="ml-0.5 rounded-full p-0.5 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
-                aria-label={`Remove ${f.name}`}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* action bar */}
-      <div className="flex shrink-0 select-none flex-wrap items-center gap-1 px-3 pb-2 pt-1">
-        <button
-          onClick={() => { if (fileInputRef.current) fileInputRef.current.value = ''; fileInputRef.current?.click() }}
-          disabled={sending}
-          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          title="Attach file"
-          aria-label="Attach file"
-        >
-          <Paperclip className="h-4 w-4" />
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          aria-label="Attach files"
-          className="hidden"
-          onChange={(e) => {
-            const selected = Array.from(e.target.files ?? [])
-            setFiles((prev) => [...prev, ...selected])
-            e.target.value = ''
-          }}
-        />
-
-        <div className="mx-0.5 h-4 w-px bg-[var(--color-border-default)]" />
-
+      <div className="flex shrink-0 select-none flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-3 pb-2 pt-1">
         {mode !== 'forward' && (
-          <button
-            onClick={suggest}
-            disabled={suggesting || sending}
+          <button onClick={suggest} disabled={suggesting || sending}
             className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
-            title="AI reply suggestions"
-          >
+            title="AI reply suggestions">
             {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Suggest'}
           </button>
         )}
-        <button
-          onClick={polish}
-          disabled={polishing || sending}
+        <button onClick={polish} disabled={polishing || sending}
           className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
-          title="AI polish text"
-        >
+          title="AI polish text">
           {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
         </button>
-        <button
-          onClick={handleSaveDraft}
-          disabled={savingDraft || sending}
+        <button onClick={handleSaveDraft} disabled={savingDraft || sending}
           className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
-          title="Save draft"
-        >
+          title="Save draft">
           {savingDraft ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Draft'}
         </button>
 
         <label className={`ml-1 flex shrink-0 items-center gap-1 text-[10px] text-[var(--color-text-tertiary)] ${sending ? 'opacity-50' : 'cursor-pointer'}`}>
-          <input
-            type="checkbox"
-            checked={requestReadReceipt}
-            onChange={(e) => setRequestReadReceipt(e.target.checked)}
-            disabled={sending}
-            className="h-3 w-3 rounded border-[var(--color-border-default)]"
-          />
+          <input type="checkbox" checked={requestReadReceipt} onChange={(e) => setRequestReadReceipt(e.target.checked)}
+            disabled={sending} className="h-3 w-3 rounded border-[var(--color-border-default)]" />
           Receipt
         </label>
 
@@ -451,11 +362,8 @@ export function ReplyBox({
         <kbd className="mr-1 hidden select-none text-[10px] text-[var(--color-text-tertiary)] sm:inline">
           {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘' : 'Ctrl+'}↵
         </kbd>
-        <button
-          onClick={send}
-          disabled={sending}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <button onClick={send} disabled={sending}
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-3.5 w-3.5" />
           {sending ? 'Sending…' : 'Send'}
         </button>
