@@ -779,6 +779,14 @@ where
                                             let _ = mb_store.ensure_default_mailboxes(&user).await;
                                             let now = chrono::Utc::now().timestamp();
                                             let subject = extract_header(&full_message, "Subject");
+                                            // use From header for sender (includes display name);
+                                            // fall back to SMTP envelope reverse_path
+                                            let from_header = extract_header(&full_message, "from");
+                                            let sender = if from_header.is_empty() {
+                                                reverse_path.clone()
+                                            } else {
+                                                from_header
+                                            };
 
                                             // generate a synthetic message-id if missing
                                             let effective_message_id = if msg_message_id.is_empty() {
@@ -820,7 +828,7 @@ where
                                                     &user,
                                                     &rcpt_folder,
                                                     &id.to_string(),
-                                                    &reverse_path,
+                                                    &sender,
                                                     rcpt,
                                                     &subject,
                                                     msg_size as u32,
@@ -836,7 +844,7 @@ where
                                             ctx.event_bus.emit(SmtpEvent::NewMessage {
                                                 user: user.clone(),
                                                 thread_id,
-                                                sender: reverse_path.clone(),
+                                                sender: sender.clone(),
                                                 subject: subject.clone(),
                                                 snippet,
                                             });
@@ -844,7 +852,7 @@ where
                                             // async post-delivery: contact upsert + content extraction + importance scoring
                                             let mb_store_bg = Arc::clone(mb_store);
                                             let user_bg = user.clone();
-                                            let sender_bg = reverse_path.clone();
+                                            let sender_bg = sender.clone();
                                             let maildir_id_bg = id.to_string();
                                             let maildir_root_bg = ctx.maildir_root.clone();
                                             let raw_headers = String::from_utf8_lossy(
