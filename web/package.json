@@ -31,6 +31,7 @@
     "jotai": "^2.18.0",
     "lowlight": "^3.3.0",
     "lucide-react": "^0.577.0",
+    "marked": "^17.0.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
