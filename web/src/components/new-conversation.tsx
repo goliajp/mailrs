@@ -126,22 +126,22 @@ export function NewConversation() {
 
   return (
     <div className="flex flex-1 flex-col">
-      {/* header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border-default)] px-6 py-3">
-        <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">New Conversation</h2>
+      {/* header — subtle, not shouty */}
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border-default)] px-4 py-2">
+        <span className="text-xs font-medium text-[var(--color-text-tertiary)]">New message</span>
         <button onClick={() => setComposingNew(false)} className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]" aria-label="Close">
           <X className="h-4 w-4" />
         </button>
       </div>
 
       {error && (
-        <div className="mx-6 mt-3 rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-2 text-sm text-[var(--color-status-danger)]">{error}</div>
+        <div className="mx-4 mt-2 rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-1.5 text-xs text-[var(--color-status-danger)]">{error}</div>
       )}
 
-      {/* address fields */}
+      {/* address fields — consistent label width for alignment */}
       <div className="flex shrink-0 flex-col border-b border-[var(--color-border-default)]">
-        <div className="flex items-center border-b border-[var(--color-border-default)] px-6">
-          <label className="w-12 shrink-0 text-xs text-[var(--color-text-tertiary)]">To</label>
+        <div className="flex items-center border-b border-[var(--color-border-default)] px-4">
+          <label className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">To</label>
           <ContactAutocomplete value={to} onChange={setTo} placeholder="recipient@example.com" autoFocus />
           {!showCcBcc && (
             <button onClick={() => setShowCcBcc(true)} className="shrink-0 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]">
@@ -150,19 +150,19 @@ export function NewConversation() {
           )}
         </div>
         {showCcBcc && (<>
-          <div className="flex items-center border-b border-[var(--color-border-default)] px-6">
-            <label className="w-12 shrink-0 text-xs text-[var(--color-text-tertiary)]">Cc</label>
+          <div className="flex items-center border-b border-[var(--color-border-default)] px-4">
+            <label className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">Cc</label>
             <ContactAutocomplete value={cc} onChange={setCc} placeholder="cc@example.com" />
           </div>
-          <div className="flex items-center border-b border-[var(--color-border-default)] px-6">
-            <label className="w-12 shrink-0 text-xs text-[var(--color-text-tertiary)]">Bcc</label>
+          <div className="flex items-center border-b border-[var(--color-border-default)] px-4">
+            <label className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">Bcc</label>
             <ContactAutocomplete value={bcc} onChange={setBcc} placeholder="bcc@example.com" />
           </div>
         </>)}
-        <div className="flex items-center px-6">
-          <label htmlFor="new-conv-subject" className="w-12 shrink-0 text-xs text-[var(--color-text-tertiary)]">Subject</label>
+        <div className="flex items-center border-b border-[var(--color-border-default)] px-4">
+          <label htmlFor="new-conv-subject" className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">Subject</label>
           <input id="new-conv-subject" type="text" value={subject} onChange={(e) => setSubject(e.target.value)}
-            className="flex-1 bg-transparent py-2 text-sm text-[var(--color-text-primary)] outline-none focus-visible:underline focus-visible:decoration-[var(--color-brand-primary)]" />
+            className="flex-1 bg-transparent py-2 text-sm text-[var(--color-text-primary)] outline-none" />
           <button type="button" onClick={generateSubject} disabled={generatingSubject || sending} title="AI generate subject"
             className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-brand-subtle)] hover:text-[var(--color-brand-primary)] disabled:cursor-not-allowed disabled:opacity-50">
             {generatingSubject ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
