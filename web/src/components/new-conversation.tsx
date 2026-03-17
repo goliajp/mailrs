@@ -1,5 +1,5 @@
 import { useAtomValue, useSetAtom } from 'jotai'
-import { File as FileIcon, Loader2, Paperclip, Send, X } from 'lucide-react'
+import { File as FileIcon, Loader2, Paperclip, Send, Sparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -38,6 +38,7 @@ export function NewConversation() {
   const [subject, setSubject] = useState('')
   const [sending, setSending] = useState(false)
   const [polishing, setPolishing] = useState(false)
+  const [generatingSubject, setGeneratingSubject] = useState(false)
   const [error, setError] = useState('')
   const [templates, setTemplates] = useState<TemplateInfo[]>([])
   const [files, setFiles] = useState<File[]>([])
@@ -79,6 +80,31 @@ export function NewConversation() {
       toast.error('AI unavailable')
     } finally {
       setPolishing(false)
+    }
+  }
+
+  const generateSubject = async () => {
+    const content = composeRef.current?.getContent()
+    if (!content?.compose.text.trim()) {
+      toast.error('Write some content first')
+      return
+    }
+    setGeneratingSubject(true)
+    try {
+      const result = await postJson<{ success: boolean; subject?: string; message?: string }>('/mail/ai/generate-subject', {
+        body: content.compose.text,
+        context: to ? `To: ${to}` : undefined,
+      })
+      if (result.success && result.subject) {
+        setSubject(result.subject)
+        toast.success('Subject generated')
+      } else {
+        toast.error(result.message ?? 'Failed to generate subject')
+      }
+    } catch {
+      toast.error('AI unavailable')
+    } finally {
+      setGeneratingSubject(false)
     }
   }
 
@@ -260,6 +286,15 @@ export function NewConversation() {
             onChange={(e) => setSubject(e.target.value)}
             className="flex-1 bg-transparent py-2 text-sm text-[var(--color-text-primary)] outline-none focus-visible:underline focus-visible:decoration-[var(--color-brand-primary)]"
           />
+          <button
+            type="button"
+            onClick={generateSubject}
+            disabled={generatingSubject || sending}
+            title="AI generate subject"
+            className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-brand-subtle)] hover:text-[var(--color-brand-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {generatingSubject ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          </button>
         </div>
       </div>
 

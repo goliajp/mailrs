@@ -668,6 +668,7 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         // AI assist
         .route("/api/mail/ai/polish", post(ai_assist::ai_polish))
         .route("/api/mail/ai/reply-suggest", post(ai_assist::ai_reply_suggest))
+        .route("/api/mail/ai/generate-subject", post(ai_assist::ai_generate_subject))
         // conversations API
         .route("/api/conversations", get(conversations::get_conversations))
         .route(

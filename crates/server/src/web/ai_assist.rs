@@ -181,6 +181,76 @@ pub(super) async fn ai_reply_suggest(
     }
 }
 
+#[derive(Deserialize)]
+pub(super) struct SubjectGenerateRequest {
+    pub body: String,
+    #[serde(default)]
+    pub context: Option<String>,
+}
+
+#[derive(Serialize)]
+pub(super) struct SubjectGenerateResult {
+    pub success: bool,
+    pub subject: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+pub(super) async fn ai_generate_subject(
+    AuthUser { .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<SubjectGenerateRequest>,
+) -> impl IntoResponse {
+    let Some(ref config) = state.llm_config else {
+        return Json(SubjectGenerateResult {
+            success: false,
+            subject: None,
+            message: Some("AI not configured".into()),
+        });
+    };
+
+    let body = sanitize_prompt_input(&req.body, 2000);
+    let body = truncate(&body, 2000);
+    if body.trim().is_empty() {
+        return Json(SubjectGenerateResult {
+            success: false,
+            subject: None,
+            message: Some("body is empty".into()),
+        });
+    }
+
+    let context_hint = req
+        .context
+        .as_deref()
+        .map(|c| sanitize_prompt_input(c, 200))
+        .filter(|c| !c.is_empty())
+        .map(|c| format!(" Context: {c}."))
+        .unwrap_or_default();
+
+    let system = format!(
+        "You are an email writing assistant. Generate a concise, clear email subject line \
+         for the given email body.{context_hint} \
+         Detect the language of the body and use the same language for the subject. \
+         Return ONLY the subject line text, nothing else. No quotes, no prefix like 'Subject:'."
+    );
+
+    match crate::ai_email::call_llm(config, &system, body, 0.3).await {
+        Some(result) => {
+            let subject = result.trim().trim_matches('"').to_string();
+            Json(SubjectGenerateResult {
+                success: true,
+                subject: Some(subject),
+                message: None,
+            })
+        }
+        None => Json(SubjectGenerateResult {
+            success: false,
+            subject: None,
+            message: Some("AI request failed".into()),
+        }),
+    }
+}
+
 fn truncate(s: &str, max: usize) -> &str {
     if s.len() <= max {
         s
