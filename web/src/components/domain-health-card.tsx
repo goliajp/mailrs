@@ -144,7 +144,7 @@ export function DomainHealthCard({ report, checking, onRecheck }: DomainHealthCa
   const timeStr = checkedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)]" style={{ boxShadow: 'var(--shadow-sm)' }}>
+    <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] shadow-sm">
       {/* header */}
       <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-4 py-3">
         <div>
