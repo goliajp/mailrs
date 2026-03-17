@@ -13,12 +13,14 @@ import TaskItem from '@tiptap/extension-task-item'
 import Placeholder from '@tiptap/extension-placeholder'
 import Underline from '@tiptap/extension-underline'
 import { common, createLowlight } from 'lowlight'
+import type { Extensions } from '@tiptap/react'
 
 import { getToken } from '@/store/auth'
 
 const lowlight = createLowlight(common)
 
-async function uploadInlineImage(file: File): Promise<string | null> {
+// shared: upload inline image to server
+export async function uploadInlineImage(file: File): Promise<string | null> {
   const form = new FormData()
   form.append('image', file)
   const token = getToken()
@@ -37,6 +39,63 @@ async function uploadInlineImage(file: File): Promise<string | null> {
   }
   return null
 }
+
+// shared: create full editor extensions
+export function createEditorExtensions(placeholder?: string): Extensions {
+  return [
+    StarterKit.configure({
+      codeBlock: false,
+      link: false,
+      underline: false,
+    }),
+    CodeBlockLowlight.configure({
+      lowlight,
+      defaultLanguage: 'plaintext',
+    }),
+    Image.configure({
+      inline: true,
+      allowBase64: true,
+    }),
+    Link.configure({
+      openOnClick: false,
+      autolink: true,
+    }),
+    Table.configure({ resizable: false }),
+    TableRow,
+    TableCell,
+    TableHeader,
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    Placeholder.configure({
+      placeholder: placeholder ?? 'Write your message...',
+    }),
+    Underline,
+  ]
+}
+
+// shared: create minimal extensions for signature zone
+export function createMinimalExtensions(placeholder?: string): Extensions {
+  return [
+    StarterKit.configure({
+      codeBlock: false,
+      link: false,
+      underline: false,
+      heading: false,
+      blockquote: false,
+      horizontalRule: false,
+    }),
+    Link.configure({ openOnClick: false, autolink: true }),
+    Placeholder.configure({
+      placeholder: placeholder ?? '',
+    }),
+  ]
+}
+
+// shared: prose class for editor content
+export const PROSE_CLASS =
+  'prose prose-sm max-w-none px-3 py-2 outline-none prose-[var(--color-text-primary)] ' +
+  'prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-md ' +
+  'prose-code:before:content-none prose-code:after:content-none'
 
 type ToolbarButtonProps = {
   onClick: () => void
@@ -64,7 +123,8 @@ function ToolbarButton({ onClick, active, disabled, title, children }: ToolbarBu
   )
 }
 
-function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
+// shared: editor toolbar, binds to any editor instance
+export function EditorToolbar({ editor }: { editor: Editor | null }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   if (!editor) return null
@@ -207,6 +267,7 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   )
 }
 
+// legacy: standalone rich editor (still used if needed)
 export function RichEditor({
   onSubmit,
   placeholder,
@@ -224,42 +285,10 @@ export function RichEditor({
   const dragCountRef = useRef(0)
 
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        codeBlock: false,
-        link: false,
-        underline: false,
-      }),
-      CodeBlockLowlight.configure({
-        lowlight,
-        defaultLanguage: 'plaintext',
-      }),
-      Image.configure({
-        inline: true,
-        allowBase64: true,
-      }),
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-      }),
-      Table.configure({ resizable: false }),
-      TableRow,
-      TableCell,
-      TableHeader,
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Placeholder.configure({
-        placeholder: placeholder ?? 'Write your message...',
-      }),
-      Underline,
-    ],
+    extensions: createEditorExtensions(placeholder),
     editorProps: {
       attributes: {
-        class:
-          'prose prose-sm max-w-none px-3 py-2 outline-none prose-[var(--color-text-primary)] ' +
-          'prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-md ' +
-          'prose-code:before:content-none prose-code:after:content-none ' +
-          'min-h-[' + (minHeight ?? '3rem') + ']',
+        class: PROSE_CLASS + ' min-h-[' + (minHeight ?? '3rem') + ']',
       },
       handleKeyDown: (_view, event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -269,9 +298,7 @@ export function RichEditor({
         }
         if (event.key === 'Tab' && editor?.isActive('codeBlock')) {
           event.preventDefault()
-          if (event.shiftKey) {
-            return true
-          }
+          if (event.shiftKey) return true
           editor?.commands.insertContent('  ')
           return true
         }
@@ -348,7 +375,7 @@ export function RichEditor({
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
     >
-      <Toolbar editor={editor} />
+      <EditorToolbar editor={editor} />
       <div className={`min-h-0 flex-1 overflow-y-auto ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
         <EditorContent editor={editor} />
       </div>
@@ -363,7 +390,6 @@ export function RichEditor({
   )
 }
 
-// utility to get plain text and html from editor
 export function getEditorContent(editor: Editor | null): {
   text: string
   html: string
