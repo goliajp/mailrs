@@ -314,7 +314,7 @@ export function ReplyBox({
       )}
 
       {files.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-4 pt-2">
+        <div className="flex shrink-0 flex-wrap gap-2 px-4 pt-2">
           {files.map((f, i) => (
             <div
               key={i}
@@ -362,7 +362,6 @@ export function ReplyBox({
           onSubmit={send}
           placeholder={placeholder}
           disabled={sending}
-          minHeight="100%"
           getEditorRef={setEditorRef}
         />
       </div>
