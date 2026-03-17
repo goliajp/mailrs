@@ -1,4 +1,5 @@
 import { useAtomValue, useSetAtom } from 'jotai'
+import { File as FileIcon, Paperclip, Send, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -20,6 +21,12 @@ type TemplateInfo = {
   category: string
 }
 type PolishResult = { success: boolean; polished?: string; message?: string }
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+}
 
 export function NewConversation() {
   const auth = useAtomValue(authAtom)
@@ -178,25 +185,29 @@ export function NewConversation() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-6 py-3">
+      {/* header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border-default)] px-6 py-3">
         <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
           New Conversation
         </h2>
         <button
           onClick={() => setComposingNew(false)}
-          className="text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
+          className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
+          aria-label="Close"
         >
-          Cancel
+          <X className="h-4 w-4" />
         </button>
       </div>
 
+      {/* error */}
       {error && (
         <div className="mx-6 mt-3 rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-2 text-sm text-[var(--color-status-danger)]">
           {error}
         </div>
       )}
 
-      <div className="flex flex-col border-b border-[var(--color-border-default)]">
+      {/* address fields */}
+      <div className="flex shrink-0 flex-col border-b border-[var(--color-border-default)]">
         <div className="flex items-center border-b border-[var(--color-border-default)] px-6">
           <label className="w-12 shrink-0 text-xs text-[var(--color-text-tertiary)]">
             To
@@ -254,7 +265,8 @@ export function NewConversation() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      {/* editor */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <RichEditor
           onSubmit={send}
           placeholder="Write your message..."
@@ -262,54 +274,65 @@ export function NewConversation() {
           minHeight="12rem"
           getEditorRef={setEditorRef}
         />
+      </div>
 
-        {files.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {files.map((f, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-1.5 rounded-md bg-[var(--color-bg-raised)] px-2.5 py-1 text-xs"
+      {/* attachments — below editor, near action bar */}
+      {files.length > 0 && (
+        <div className="flex shrink-0 flex-wrap gap-1.5 px-4 pb-2">
+          {files.map((f, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs"
+            >
+              <FileIcon className="h-3 w-3 shrink-0 text-[var(--color-text-tertiary)]" />
+              <span className="max-w-32 truncate text-[var(--color-text-secondary)]">{f.name}</span>
+              <span className="text-[var(--color-text-tertiary)]">{formatFileSize(f.size)}</span>
+              <button
+                onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
+                className="ml-0.5 rounded-full p-0.5 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
+                aria-label={`Remove ${f.name}`}
               >
-                <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                </svg>
-                <span className="max-w-40 truncate text-[var(--color-text-secondary)]">{f.name}</span>
-                <span className="text-[var(--color-text-tertiary)]">({(f.size / 1024).toFixed(0)}KB)</span>
-                <button
-                  onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                  className="ml-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
-                >
-                  &times;
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
-      <div className="flex items-center gap-2 px-6 pb-1">
-        <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-          <input
-            type="checkbox"
-            checked={requestReadReceipt}
-            onChange={(e) => setRequestReadReceipt(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-[var(--color-border-default)]"
-          />
-          Request read receipt
-        </label>
-      </div>
+      {/* schedule badge */}
+      {scheduledAt && (
+        <div className="shrink-0 px-4 pb-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-brand-subtle)] px-2.5 py-0.5 text-xs text-[var(--color-brand-primary)]">
+            Scheduled: {new Date(scheduledAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            <button
+              onClick={() => { setScheduledAt(''); setShowSchedulePicker(false) }}
+              className="ml-0.5 rounded-full p-0.5 hover:opacity-70"
+              aria-label="Clear schedule"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        </div>
+      )}
 
-      <div className="flex items-center gap-2 border-t border-[var(--color-border-default)] p-4">
+      {/* action bar */}
+      <div className="flex shrink-0 select-none items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2">
         <button
           onClick={send}
           disabled={sending}
-          className="rounded-md bg-[var(--color-brand-primary)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-4 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
         >
-          {sending ? 'Sending...' : 'Send'}
+          <Send className="h-3.5 w-3.5" />
+          {sending ? 'Sending…' : 'Send'}
         </button>
+
         <button
           onClick={() => setShowSchedulePicker((v) => !v)}
-          className="rounded-md bg-[var(--color-bg-raised)] px-2 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
+            showSchedulePicker
+              ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
+              : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
+          }`}
           title="Schedule send"
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -323,26 +346,18 @@ export function NewConversation() {
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
             min={new Date().toISOString().slice(0, 16)}
-            className="rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 py-1 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]"
+            className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]"
           />
         )}
-        {scheduledAt && (
-          <span className="flex items-center gap-1 rounded-full bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]">
-            Scheduled: {new Date(scheduledAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-            <button
-              onClick={() => { setScheduledAt(''); setShowSchedulePicker(false) }}
-              className="ml-0.5 hover:opacity-70"
-            >
-              &times;
-            </button>
-          </span>
-        )}
+
+        <div className="mx-0.5 h-4 w-px bg-[var(--color-border-default)]" />
+
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-md bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
           title="Attach files"
         >
-          Attach
+          <Paperclip className="h-4 w-4" />
         </button>
         <input
           ref={fileInputRef}
@@ -356,14 +371,16 @@ export function NewConversation() {
             e.target.value = ''
           }}
         />
+
         <button
           onClick={polish}
           disabled={polishing || sending}
-          className="rounded-md bg-[var(--color-brand-subtle)] px-3 py-1.5 text-sm text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50"
+          className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:opacity-50"
           title="AI polish your text"
         >
-          {polishing ? 'Polishing...' : 'AI Polish'}
+          {polishing ? 'Polishing…' : 'Polish'}
         </button>
+
         {templates.length > 0 && (
           <select
             onChange={(e) => {
@@ -372,7 +389,7 @@ export function NewConversation() {
               e.target.value = ''
             }}
             defaultValue=""
-            className="rounded-md bg-[var(--color-bg-raised)] px-2 py-1.5 text-sm text-[var(--color-text-secondary)]"
+            className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-secondary)]"
           >
             <option value="" disabled>
               Templates
@@ -384,11 +401,24 @@ export function NewConversation() {
             ))}
           </select>
         )}
+
+        <label className="ml-1 flex shrink-0 cursor-pointer items-center gap-1 text-[10px] text-[var(--color-text-tertiary)]">
+          <input
+            type="checkbox"
+            checked={requestReadReceipt}
+            onChange={(e) => setRequestReadReceipt(e.target.checked)}
+            className="h-3 w-3 rounded border-[var(--color-border-default)]"
+          />
+          Receipt
+        </label>
+
         <div className="flex-1" />
+
+        <kbd className="mr-1 hidden select-none text-[10px] text-[var(--color-text-tertiary)] sm:inline">⌘↵</kbd>
         <button
           onClick={() => setComposingNew(false)}
           disabled={sending}
-          className="rounded-md bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50"
+          className="flex h-8 shrink-0 items-center rounded-md px-3 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:opacity-50"
         >
           Cancel
         </button>

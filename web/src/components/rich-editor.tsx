@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
@@ -65,7 +65,6 @@ function ToolbarButton({ onClick, active, disabled, title, children }: ToolbarBu
 }
 
 function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
-  // hooks must be called before any conditional returns
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   if (!editor) return null
@@ -90,7 +89,7 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-[var(--color-border-default)] px-2 py-1">
+    <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-[var(--color-border-default)] px-2 py-1">
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBold().run()}
         active={editor.isActive('bold')}
@@ -219,12 +218,15 @@ export function RichEditor({
   minHeight?: string
   getEditorRef?: (editor: Editor | null) => void
 }) {
+  const [isDragOver, setIsDragOver] = useState(false)
+  const dragCountRef = useRef(0)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        codeBlock: false, // replaced by CodeBlockLowlight
-        link: false, // configured separately below
-        underline: false, // configured separately below
+        codeBlock: false,
+        link: false,
+        underline: false,
       }),
       CodeBlockLowlight.configure({
         lowlight,
@@ -263,11 +265,9 @@ export function RichEditor({
           onSubmit()
           return true
         }
-        // tab indentation in code blocks
         if (event.key === 'Tab' && editor?.isActive('codeBlock')) {
           event.preventDefault()
           if (event.shiftKey) {
-            // naive outdent: we don't have a built-in for this
             return true
           }
           editor?.commands.insertContent('  ')
@@ -285,9 +285,10 @@ export function RichEditor({
     }
   }, [editor, getEditorRef])
 
-  // handle image paste/drop — upload to server
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
+      setIsDragOver(false)
+      dragCountRef.current = 0
       if (!editor) return
       const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
       if (files.length === 0) return
@@ -320,16 +321,40 @@ export function RichEditor({
     [editor],
   )
 
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCountRef.current += 1
+    if (dragCountRef.current === 1) setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCountRef.current -= 1
+    if (dragCountRef.current === 0) setIsDragOver(false)
+  }, [])
+
   return (
     <div
-      className={`flex h-full flex-col rounded-lg border ${
-        'border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]'
+      className={`flex h-full flex-col rounded-lg border transition-colors ${
+        isDragOver
+          ? 'border-[var(--color-brand-primary)] bg-[var(--color-brand-subtle)]'
+          : 'border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]'
       }`}
+      onDrop={handleDrop}
+      onPaste={handlePaste}
+      onDragOver={(e) => e.preventDefault()}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
     >
       <Toolbar editor={editor} />
-      <div className="min-h-0 flex-1 overflow-y-auto" onDrop={handleDrop} onPaste={handlePaste} onDragOver={(e) => e.preventDefault()}>
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <EditorContent editor={editor} />
       </div>
+      {isDragOver && (
+        <div className="flex items-center justify-center pb-3 text-xs text-[var(--color-brand-primary)]">
+          Drop image to insert
+        </div>
+      )}
     </div>
   )
 }

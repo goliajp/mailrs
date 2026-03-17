@@ -173,7 +173,7 @@ describe('ReplyBox', () => {
       </Wrapper>,
     )
 
-    const sendButton = screen.getByTitle('Send (Ctrl+Enter)')
+    const sendButton = screen.getByRole('button', { name: /send/i })
     expect(sendButton).toBeDefined()
   })
 

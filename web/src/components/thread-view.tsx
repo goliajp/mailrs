@@ -434,7 +434,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         </div>
         {/* timeline + reply box */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="min-h-0 flex-1 basis-1/2 overflow-y-auto px-3 py-3">
+          <div className="min-h-0 flex-[3] overflow-y-auto px-3 py-3">
             {loadingThread && messages.length === 0 && (
               <div className="animate-pulse space-y-4">
                 {Array.from({ length: 4 }).map((_, i) => (
@@ -535,7 +535,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <div ref={bottomRef} />
             </div>
           </div>
-          <div className="flex min-h-0 flex-1 basis-1/2 flex-col overflow-hidden border-t border-[var(--color-border-default)]">
+          <div className="flex min-h-[180px] flex-[2] flex-col overflow-hidden border-t border-[var(--color-border-default)]">
             <ReplyBox
               threadId={selectedId}
               lastMessageId={fwdLastMessageId}
