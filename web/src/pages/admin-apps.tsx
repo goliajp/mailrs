@@ -337,7 +337,7 @@ export function AdminApps() {
 
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDeleteTarget(null)}>
-          <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
             <p className="mb-4 text-sm text-[var(--color-text-tertiary)]">
               Are you sure you want to delete this app? This action cannot be undone.

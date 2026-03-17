@@ -108,11 +108,11 @@ export function MarkdownEditor({
               ) : a.icon === 'I' ? (
                 <span className="italic">{a.icon}</span>
               ) : a.icon === '</>' ? (
-                <span className="font-mono text-[10px]">{a.icon}</span>
+                <span className="font-mono text-xs">{a.icon}</span>
               ) : a.icon === '{ }' ? (
-                <span className="font-mono text-[10px]">{a.icon}</span>
+                <span className="font-mono text-xs">{a.icon}</span>
               ) : (
-                <span className="text-[10px]">{a.icon}</span>
+                <span className="text-xs">{a.icon}</span>
               )}
             </button>
           ))}
@@ -120,7 +120,7 @@ export function MarkdownEditor({
           <button
             type="button"
             onClick={togglePreview}
-            className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+            className={`rounded-md px-1.5 py-0.5 text-xs font-medium transition-colors ${
               previewing
                 ? 'bg-[var(--color-border-default)] text-[var(--color-text-secondary)]'
                 : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'

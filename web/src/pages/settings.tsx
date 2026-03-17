@@ -1213,7 +1213,7 @@ function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
-      <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }} onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
         <p className="mb-4 text-sm text-[var(--color-text-secondary)]">{message}</p>
         <div className="flex justify-end gap-2">
           <button onClick={onCancel} className={btnSecondary}>

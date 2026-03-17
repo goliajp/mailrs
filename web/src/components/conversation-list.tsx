@@ -353,8 +353,7 @@ function FilterBar() {
         {/* filter dropdown panel */}
         {filtersOpen && (
           <div
-            style={{ boxShadow: 'var(--shadow-lg)' }}
-            className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3 text-xs"
+            className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3 text-xs shadow-lg"
           >
             {/* sort */}
             <div className="mb-3">

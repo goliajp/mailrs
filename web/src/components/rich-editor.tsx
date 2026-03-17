@@ -186,14 +186,14 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
         active={editor.isActive('code')}
         title="Inline code"
       >
-        <span className="font-mono text-[10px]">&lt;/&gt;</span>
+        <span className="font-mono text-xs">&lt;/&gt;</span>
       </ToolbarButton>
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleCodeBlock().run()}
         active={editor.isActive('codeBlock')}
         title="Code block"
       >
-        <span className="font-mono text-[10px]">{'{ }'}</span>
+        <span className="font-mono text-xs">{'{ }'}</span>
       </ToolbarButton>
 
       <div className="mx-1 h-4 w-px bg-[var(--color-border-default)]" />
@@ -227,7 +227,7 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
         1.
       </ToolbarButton>
       <ToolbarButton onClick={addLink} active={editor.isActive('link')} title="Link">
-        <span className="text-[10px]">Link</span>
+        <span className="text-xs">Link</span>
       </ToolbarButton>
 
       {/* secondary tools — hidden on narrow screens */}
@@ -248,13 +248,13 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
           &#9744;
         </ToolbarButton>
         <ToolbarButton onClick={addImage} title="Image">
-          <span className="text-[10px]">Img</span>
+          <span className="text-xs">Img</span>
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3 }).run()}
           title="Table"
         >
-          <span className="text-[10px]">Table</span>
+          <span className="text-xs">Table</span>
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().setHorizontalRule().run()}

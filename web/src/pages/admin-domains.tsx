@@ -180,7 +180,7 @@ export function AdminDomains() {
 
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6" style={{ boxShadow: 'var(--shadow-lg)' }}>
+          <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg">
             <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
               Delete domain <span className="font-medium text-[var(--color-text-primary)]">{deleteTarget}</span>? This will also remove all associated accounts and aliases.
             </p>

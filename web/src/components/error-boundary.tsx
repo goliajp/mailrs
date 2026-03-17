@@ -32,7 +32,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-sunken)]">
-          <div className="w-full max-w-md rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-6 py-8" style={{ boxShadow: 'var(--shadow-lg)' }}>
+          <div className="w-full max-w-md rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-6 py-8 shadow-lg">
             <div className="text-center">
               <div className="mb-4 flex justify-center">
                 <div className="rounded-md bg-[var(--color-status-danger-subtle)] p-3">
