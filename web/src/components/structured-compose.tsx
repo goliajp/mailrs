@@ -6,6 +6,13 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 
+// codemirror
+import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/view'
+import { EditorState } from '@codemirror/state'
+import { markdown } from '@codemirror/lang-markdown'
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { oneDark } from '@codemirror/theme-one-dark'
+
 import {
   EditorToolbar,
   createEditorExtensions,
@@ -46,18 +53,6 @@ type Props = {
 
 const SIG_SEPARATOR_TEXT = '\n\n-- \n'
 
-type MdAction = { label: string; icon: string; prefix: string; suffix: string; block?: boolean }
-const MD_ACTIONS: MdAction[] = [
-  { label: 'Bold', icon: 'B', prefix: '**', suffix: '**' },
-  { label: 'Italic', icon: 'I', prefix: '_', suffix: '_' },
-  { label: 'Code', icon: '</>', prefix: '`', suffix: '`' },
-  { label: 'Code block', icon: '{ }', prefix: '```\n', suffix: '\n```', block: true },
-  { label: 'Link', icon: 'Link', prefix: '[', suffix: '](url)' },
-  { label: 'Heading', icon: 'H', prefix: '## ', suffix: '', block: true },
-  { label: 'List', icon: '•', prefix: '- ', suffix: '', block: true },
-  { label: 'Quote', icon: '"', prefix: '> ', suffix: '', block: true },
-]
-
 function assembleContent(
   composeText: string,
   composeHtml: string,
@@ -88,6 +83,18 @@ function markdownToHtml(md: string): string {
   return marked.parse(md, { async: false, gfm: true, breaks: true }) as string
 }
 
+// codemirror theme that matches our dark UI
+const cmTheme = EditorView.theme({
+  '&': { height: '100%', fontSize: '13px' },
+  '.cm-content': { fontFamily: '"SF Mono", Monaco, Consolas, monospace', padding: '8px 12px', caretColor: 'var(--color-text-primary)' },
+  '.cm-line': { padding: '0' },
+  '.cm-gutters': { display: 'none' },
+  '.cm-scroller': { overflow: 'auto' },
+  '.cm-focused': { outline: 'none' },
+  '&.cm-focused .cm-cursor': { borderLeftColor: 'var(--color-text-primary)' },
+  '.cm-placeholder': { color: 'var(--color-text-tertiary)' },
+})
+
 export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(function StructuredCompose(
   {
     onSubmit,
@@ -109,10 +116,16 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
   const dragCountRef = useRef(0)
   const sigInitializedRef = useRef(false)
   const quotedInitializedRef = useRef(false)
-  const mdTextareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-  // compose editor: full capabilities
+  // codemirror refs
+  const cmContainerRef = useRef<HTMLDivElement>(null)
+  const cmViewRef = useRef<EditorView | null>(null)
+  const onSubmitRef = useRef(onSubmit)
+  onSubmitRef.current = onSubmit
+  const onMarkdownChangeRef = useRef<(text: string) => void>((t) => setMarkdownText(t))
+
+  // compose editor: full tiptap
   const composeEditor = useEditor({
     extensions: createEditorExtensions(placeholder),
     editorProps: {
@@ -156,6 +169,50 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
     editable: false,
   })
 
+  // initialize codemirror when markdown mode is active
+  useEffect(() => {
+    if (editorMode !== 'markdown' || !cmContainerRef.current) return
+    if (cmViewRef.current) return // already created
+
+    const submitKeymap = keymap.of([{
+      key: 'Mod-Enter',
+      run: () => { onSubmitRef.current(); return true },
+    }])
+
+    const startState = EditorState.create({
+      doc: markdownText,
+      extensions: [
+        markdown(),
+        history(),
+        submitKeymap,
+        keymap.of([...defaultKeymap, ...historyKeymap]),
+        cmPlaceholder(placeholder ?? 'Write in Markdown...'),
+        oneDark,
+        cmTheme,
+        EditorView.lineWrapping,
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            onMarkdownChangeRef.current(update.state.doc.toString())
+          }
+        }),
+      ],
+    })
+
+    const view = new EditorView({
+      state: startState,
+      parent: cmContainerRef.current,
+    })
+    cmViewRef.current = view
+    view.focus()
+
+    return () => {
+      view.destroy()
+      cmViewRef.current = null
+    }
+    // only create once per mode switch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorMode])
+
   // initialize signature
   useEffect(() => {
     if (!sigEditor) return
@@ -184,32 +241,38 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
     quotedInitializedRef.current = false
   }, [quotedHtml])
 
-  // click anywhere in the empty space → focus editor
+  // click empty space → focus
   const handleAreaClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // only if clicking the scroll area itself, not a child element
     if (e.target !== scrollAreaRef.current) return
     if (editorMode === 'rich' && composeEditor) {
       composeEditor.commands.focus('end')
-    } else if (editorMode === 'markdown' && mdTextareaRef.current) {
-      mdTextareaRef.current.focus()
+    } else if (editorMode === 'markdown' && cmViewRef.current) {
+      cmViewRef.current.focus()
     }
   }, [editorMode, composeEditor])
 
   // mode switching
   const switchMode = useCallback((newMode: EditorMode) => {
     if (newMode === editorMode) return
-    if (editorMode === 'rich' && newMode === 'markdown') {
+    if (editorMode === 'rich' && (newMode === 'markdown' || newMode === 'preview')) {
       setMarkdownText(composeEditor?.getText() ?? '')
     } else if (editorMode === 'markdown' && newMode === 'rich') {
       const html = markdownToHtml(markdownText)
       composeEditor?.commands.setContent(html)
+    }
+    // destroy codemirror when leaving markdown mode
+    if (editorMode === 'markdown' && cmViewRef.current) {
+      setMarkdownText(cmViewRef.current.state.doc.toString())
+      cmViewRef.current.destroy()
+      cmViewRef.current = null
     }
     setEditorMode(newMode)
   }, [editorMode, composeEditor, markdownText])
 
   const getComposeContent = useCallback((): { text: string; html: string } => {
     if (editorMode === 'markdown') {
-      return { text: markdownText, html: markdownToHtml(markdownText) }
+      const text = cmViewRef.current?.state.doc.toString() ?? markdownText
+      return { text, html: markdownToHtml(text) }
     }
     return {
       text: composeEditor?.getText() ?? '',
@@ -226,10 +289,21 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
     clearCompose: () => {
       composeEditor?.commands.clearContent()
       setMarkdownText('')
+      if (cmViewRef.current) {
+        cmViewRef.current.dispatch({
+          changes: { from: 0, to: cmViewRef.current.state.doc.length, insert: '' },
+        })
+      }
     },
     setComposeContent: (html: string) => {
       if (editorMode === 'markdown') {
-        setMarkdownText(html.replace(/<[^>]*>/g, ''))
+        const text = html.replace(/<[^>]*>/g, '')
+        setMarkdownText(text)
+        if (cmViewRef.current) {
+          cmViewRef.current.dispatch({
+            changes: { from: 0, to: cmViewRef.current.state.doc.length, insert: text },
+          })
+        }
       } else {
         composeEditor?.commands.setContent(html)
       }
@@ -276,31 +350,6 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
     if (dragCountRef.current === 0) setIsDragOver(false)
   }, [])
 
-  // markdown formatting
-  const applyMdFormat = useCallback((action: MdAction) => {
-    const el = mdTextareaRef.current
-    if (!el) return
-    const start = el.selectionStart
-    const end = el.selectionEnd
-    const selected = markdownText.slice(start, end)
-    const replacement = `${action.prefix}${selected || action.label}${action.suffix}`
-    const updated = markdownText.slice(0, start) + replacement + markdownText.slice(end)
-    setMarkdownText(updated)
-    requestAnimationFrame(() => {
-      const selectStart = start + action.prefix.length
-      const selectEnd = selectStart + (selected || action.label).length
-      el.focus()
-      el.setSelectionRange(selectStart, selectEnd)
-    })
-  }, [markdownText])
-
-  const handleMdKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault()
-      onSubmit()
-    }
-  }, [onSubmit])
-
   const hasSignature = signatureEnabled && !!signature?.trim()
   const hasQuoted = !!quotedHtml
 
@@ -315,9 +364,8 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
     >
-      {/* toolbar — thin bar at top */}
+      {/* toolbar */}
       <div className="flex shrink-0 items-center border-b border-[var(--color-border-default)]">
-        {/* mode toggle */}
         <div className="flex items-center gap-0.5 border-r border-[var(--color-border-default)] px-1.5 py-1">
           {([
             { mode: 'rich' as const, icon: Type, title: 'Rich text' },
@@ -347,59 +395,57 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
         )}
 
         {editorMode === 'markdown' && (
-          <div className="flex flex-1 flex-wrap items-center gap-0.5 px-2 py-1">
-            {MD_ACTIONS.map((a) => (
-              <button
-                key={a.label}
-                type="button"
-                onClick={() => applyMdFormat(a)}
-                title={a.label}
-                className="rounded-md px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
-              >
-                {a.icon === 'B' ? <span className="font-bold">{a.icon}</span>
-                  : a.icon === 'I' ? <span className="italic">{a.icon}</span>
-                  : a.icon === '</>' || a.icon === '{ }' ? <span className="font-mono text-[10px]">{a.icon}</span>
-                  : <span className="text-[10px]">{a.icon}</span>
-                }
-              </button>
-            ))}
+          <div className="flex-1 px-3 py-1.5">
+            <span className="text-xs text-[var(--color-text-tertiary)]">Source | Preview</span>
           </div>
         )}
 
         {editorMode === 'preview' && (
           <div className="flex-1 px-3 py-1.5">
-            <span className="text-xs text-[var(--color-text-tertiary)]">Recipient preview</span>
+            <span className="text-xs text-[var(--color-text-tertiary)]">Recipient view</span>
           </div>
         )}
       </div>
 
-      {/* main content area — fills all remaining space, click anywhere to focus */}
+      {/* content area */}
       <div
         ref={scrollAreaRef}
         onClick={handleAreaClick}
-        className={`flex min-h-0 flex-1 cursor-text flex-col overflow-y-auto ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden ${disabled ? 'pointer-events-none opacity-50' : ''}`}
       >
-        {/* rich mode */}
+        {/* rich mode — single pane */}
         {editorMode === 'rich' && (
-          <EditorContent editor={composeEditor} />
+          <div className="flex-1 cursor-text overflow-y-auto">
+            <EditorContent editor={composeEditor} />
+          </div>
         )}
 
-        {/* markdown mode */}
+        {/* markdown mode — split pane: source | preview */}
         {editorMode === 'markdown' && (
-          <textarea
-            ref={mdTextareaRef}
-            value={markdownText}
-            onChange={(e) => setMarkdownText(e.target.value)}
-            onKeyDown={handleMdKeyDown}
-            placeholder={placeholder ?? 'Write in Markdown...'}
-            disabled={disabled}
-            className="h-full min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]"
-          />
+          <div className="flex min-h-0 flex-1">
+            {/* source pane: codemirror */}
+            <div
+              ref={cmContainerRef}
+              className="flex-1 overflow-y-auto border-r border-[var(--color-border-default)]"
+            />
+            {/* live preview pane */}
+            <div className="flex-1 overflow-y-auto bg-[var(--color-bg-base)] px-4 py-3">
+              <div className="prose prose-sm max-w-none text-[var(--color-text-primary)]">
+                {markdownText.trim() ? (
+                  <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                    {markdownText}
+                  </Markdown>
+                ) : (
+                  <p className="text-[var(--color-text-tertiary)]">Preview will appear here...</p>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
-        {/* preview mode */}
+        {/* preview mode — full width rendered */}
         {editorMode === 'preview' && (
-          <div className="cursor-default px-4 py-3">
+          <div className="flex-1 cursor-default overflow-y-auto px-4 py-3">
             <div className="prose prose-sm max-w-none text-[var(--color-text-primary)]">
               {markdownText ? (
                 <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
@@ -430,36 +476,38 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
             )}
           </div>
         )}
-
-        {/* signature zone (rich + markdown modes) */}
-        {editorMode !== 'preview' && hasSignature && (
-          <div className="cursor-default border-t border-dashed border-[var(--color-border-default)] opacity-60">
-            <EditorContent editor={sigEditor} />
-          </div>
-        )}
-
-        {/* quoted zone (rich + markdown modes) */}
-        {editorMode !== 'preview' && hasQuoted && (
-          <div className="cursor-default border-t border-[var(--color-border-default)]">
-            <button
-              type="button"
-              onClick={() => setQuotedExpanded((v) => !v)}
-              className="flex w-full cursor-pointer items-center gap-1 px-3 py-1.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
-            >
-              {quotedExpanded
-                ? <ChevronDown className="h-3 w-3" />
-                : <ChevronRight className="h-3 w-3" />
-              }
-              {quotedExpanded ? 'Hide original' : `Show original${mode === 'forward' ? ' (forwarded)' : ''}`}
-            </button>
-            {quotedExpanded && (
-              <div className="border-l-2 border-[var(--color-border-default)] opacity-50">
-                <EditorContent editor={quotedEditor} />
-              </div>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* signature + quoted (rich mode only, below compose) */}
+      {editorMode === 'rich' && (
+        <div className="shrink-0 overflow-y-auto" style={{ maxHeight: '30%' }}>
+          {hasSignature && (
+            <div className="cursor-default border-t border-dashed border-[var(--color-border-default)] opacity-60">
+              <EditorContent editor={sigEditor} />
+            </div>
+          )}
+          {hasQuoted && (
+            <div className="cursor-default border-t border-[var(--color-border-default)]">
+              <button
+                type="button"
+                onClick={() => setQuotedExpanded((v) => !v)}
+                className="flex w-full cursor-pointer items-center gap-1 px-3 py-1.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+              >
+                {quotedExpanded
+                  ? <ChevronDown className="h-3 w-3" />
+                  : <ChevronRight className="h-3 w-3" />
+                }
+                {quotedExpanded ? 'Hide original' : `Show original${mode === 'forward' ? ' (forwarded)' : ''}`}
+              </button>
+              {quotedExpanded && (
+                <div className="border-l-2 border-[var(--color-border-default)] opacity-50">
+                  <EditorContent editor={quotedEditor} />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* drag overlay */}
       {isDragOver && (
