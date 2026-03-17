@@ -74,6 +74,8 @@ export function ReplyBox({
 
   const handleModeChange = (newMode: ReplyMode) => {
     onModeChange(newMode)
+    setSuggestions([])
+    setError('')
     if (newMode === 'forward' && editorRef.current) {
       const { text } = getEditorContent(editorRef.current)
       if (!text.trim()) {
@@ -278,7 +280,8 @@ export function ReplyBox({
           <button
             key={m}
             onClick={() => handleModeChange(m)}
-            className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
+            aria-pressed={mode === m}
+            className={`cursor-pointer rounded px-2 py-0.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none ${
               mode === m
                 ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
                 : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
@@ -299,11 +302,12 @@ export function ReplyBox({
 
       {/* forward: to field */}
       {mode === 'forward' && (
-        <div className="shrink-0 border-b border-[var(--color-border-default)] px-3 py-1.5">
+        <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border-default)] px-3 py-1.5">
+          <label className="shrink-0 text-xs text-[var(--color-text-tertiary)]">To</label>
           <ContactAutocomplete
             value={forwardTo}
             onChange={setForwardTo}
-            placeholder="To: recipient@example.com, ..."
+            placeholder="recipient@example.com"
             className="w-full rounded-md border border-[var(--color-border-default)] bg-transparent px-2 py-1 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-brand-primary)]"
           />
           {error && (
@@ -346,7 +350,7 @@ export function ReplyBox({
 
       {/* attachments — below editor, near send */}
       {files.length > 0 && (
-        <div className="flex shrink-0 flex-wrap gap-1.5 px-3 pb-1 pt-1.5">
+        <div className="flex max-h-20 shrink-0 flex-wrap gap-1.5 overflow-y-auto px-3 pb-1 pt-1.5">
           {files.map((f, i) => (
             <div
               key={i}
@@ -371,8 +375,9 @@ export function ReplyBox({
       <div className="flex shrink-0 select-none items-center gap-1 px-3 pb-2 pt-1">
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none"
           title="Attach file"
+          aria-label="Attach file"
         >
           <Paperclip className="h-4 w-4" />
         </button>
@@ -395,7 +400,7 @@ export function ReplyBox({
           <button
             onClick={suggest}
             disabled={suggesting}
-            className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:opacity-40"
+            className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
             title="AI reply suggestions"
           >
             {suggesting ? '…' : 'Suggest'}
@@ -404,7 +409,7 @@ export function ReplyBox({
         <button
           onClick={polish}
           disabled={polishing}
-          className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:opacity-40"
+          className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
           title="AI polish text"
         >
           {polishing ? '…' : 'Polish'}
@@ -412,7 +417,7 @@ export function ReplyBox({
         <button
           onClick={handleSaveDraft}
           disabled={savingDraft}
-          className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:opacity-40"
+          className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
           title="Save draft"
         >
           {savingDraft ? 'Saving…' : 'Draft'}
@@ -434,7 +439,7 @@ export function ReplyBox({
         <button
           onClick={send}
           disabled={sending}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-40"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Send className="h-3.5 w-3.5" />
           {sending ? 'Sending…' : 'Send'}
