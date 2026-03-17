@@ -1,5 +1,5 @@
 import { useAtomValue } from 'jotai'
-import { File as FileIcon, Paperclip, Send } from 'lucide-react'
+import { File as FileIcon, Paperclip, Send, X } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -20,6 +20,12 @@ const MODE_LABELS: Record<ReplyMode, string> = {
   reply: 'Reply',
   'reply-all': 'Reply All',
   forward: 'Forward',
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
 
 export function ReplyBox({
@@ -136,9 +142,7 @@ export function ReplyBox({
         })
         const result: SendResult = await res.json()
         if (!result.success) {
-          const msg = result.message ?? 'Send failed'
-          setError(msg)
-          toast.error(msg)
+          toast.error(result.message ?? 'Send failed')
           return
         }
         sentMessageId = result.message_id
@@ -157,15 +161,12 @@ export function ReplyBox({
 
         const result = await postJson<SendResult>('/mail/send', payload)
         if (!result.success) {
-          const msg = result.message ?? 'Send failed'
-          setError(msg)
-          toast.error(msg)
+          toast.error(result.message ?? 'Send failed')
           return
         }
         sentMessageId = result.message_id
       }
 
-      // clear editor
       editorRef.current?.commands.clearContent()
       setForwardTo('')
       setFiles([])
@@ -190,9 +191,7 @@ export function ReplyBox({
       })
       onSent()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Network error'
-      setError(msg)
-      toast.error(msg)
+      toast.error(err instanceof Error ? err.message : 'Network error')
     } finally {
       setSending(false)
     }
@@ -273,13 +272,13 @@ export function ReplyBox({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* mode toggle */}
-      <div className="flex shrink-0 select-none items-center gap-1 px-3 pt-2">
+      {/* mode toggle + recipients */}
+      <div className="flex shrink-0 select-none items-center gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">
         {(Object.keys(MODE_LABELS) as ReplyMode[]).map((m) => (
           <button
             key={m}
             onClick={() => handleModeChange(m)}
-            className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+            className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
               mode === m
                 ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
                 : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
@@ -289,7 +288,10 @@ export function ReplyBox({
           </button>
         ))}
         {mode !== 'forward' && (
-          <span className="ml-1 truncate text-xs text-[var(--color-text-tertiary)]" title={mode === 'reply' ? replyRecipients : replyAllRecipients}>
+          <span
+            className="ml-auto truncate text-xs text-[var(--color-text-tertiary)]"
+            title={mode === 'reply' ? replyRecipients : replyAllRecipients}
+          >
             to {mode === 'reply' ? replyRecipients : replyAllRecipients}
           </span>
         )}
@@ -297,66 +299,42 @@ export function ReplyBox({
 
       {/* forward: to field */}
       {mode === 'forward' && (
-        <div className="px-3 pt-1.5">
+        <div className="shrink-0 border-b border-[var(--color-border-default)] px-3 py-1.5">
           <ContactAutocomplete
             value={forwardTo}
             onChange={setForwardTo}
             placeholder="To: recipient@example.com, ..."
             className="w-full rounded-md border border-[var(--color-border-default)] bg-transparent px-2 py-1 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-brand-primary)]"
           />
+          {error && (
+            <p className="mt-1 text-xs text-[var(--color-status-danger)]">{error}</p>
+          )}
         </div>
       )}
 
-      {error && (
-        <div className="mx-4 mt-2 rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-1.5 text-sm text-[var(--color-status-danger)]">
-          {error}
-        </div>
-      )}
-
-      {files.length > 0 && (
-        <div className="flex shrink-0 flex-wrap gap-2 px-4 pt-2">
-          {files.map((f, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-1.5 rounded-md bg-[var(--color-bg-raised)] px-2.5 py-1 text-xs"
-            >
-              <FileIcon className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
-              <span className="max-w-32 truncate text-[var(--color-text-secondary)]">{f.name}</span>
-              <span className="text-[var(--color-text-tertiary)]">({(f.size / 1024).toFixed(0)}KB)</span>
-              <button
-                onClick={() => removeFile(i)}
-                className="ml-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
-              >
-                &times;
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* AI reply suggestions */}
+      {/* AI suggestions */}
       {suggestions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-4 pb-1 pt-2">
+        <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-[var(--color-border-default)] px-3 py-2">
           {suggestions.map((s, i) => (
             <button
               key={i}
               onClick={() => applySuggestion(s)}
-              className="max-w-xs truncate rounded-md border border-[var(--color-border-default)] bg-[var(--color-brand-subtle)] px-2 py-1 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-hover)]"
+              className="max-w-xs truncate rounded-full border border-[var(--color-border-default)] bg-[var(--color-brand-subtle)] px-2.5 py-0.5 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-hover)]"
               title={s}
             >
-              {s.slice(0, 80)}{s.length > 80 ? '...' : ''}
+              {s.slice(0, 80)}{s.length > 80 ? '…' : ''}
             </button>
           ))}
           <button
             onClick={() => setSuggestions([])}
-            className="rounded-md px-1.5 py-1 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
+            className="rounded-full px-2 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
           >
             Dismiss
           </button>
         </div>
       )}
 
-      {/* editor — fills remaining space */}
+      {/* editor */}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2">
         <RichEditor
           onSubmit={send}
@@ -366,21 +344,31 @@ export function ReplyBox({
         />
       </div>
 
-      {/* read receipt */}
-      <div className="flex shrink-0 items-center px-4 pt-1">
-        <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-          <input
-            type="checkbox"
-            checked={requestReadReceipt}
-            onChange={(e) => setRequestReadReceipt(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-[var(--color-border-default)]"
-          />
-          Request read receipt
-        </label>
-      </div>
+      {/* attachments — below editor, near send */}
+      {files.length > 0 && (
+        <div className="flex shrink-0 flex-wrap gap-1.5 px-3 pb-1 pt-1.5">
+          {files.map((f, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs"
+            >
+              <FileIcon className="h-3 w-3 shrink-0 text-[var(--color-text-tertiary)]" />
+              <span className="max-w-28 truncate text-[var(--color-text-secondary)]">{f.name}</span>
+              <span className="text-[var(--color-text-tertiary)]">{formatFileSize(f.size)}</span>
+              <button
+                onClick={() => removeFile(i)}
+                className="ml-0.5 rounded-full p-0.5 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
+                aria-label={`Remove ${f.name}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* action bar */}
-      <div className="flex shrink-0 select-none items-center gap-1.5 px-4 pb-3 pt-1.5">
+      <div className="flex shrink-0 select-none items-center gap-1 px-3 pb-2 pt-1">
         <button
           onClick={() => fileInputRef.current?.click()}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
@@ -401,43 +389,55 @@ export function ReplyBox({
           }}
         />
 
+        <div className="mx-0.5 h-4 w-px bg-[var(--color-border-default)]" />
+
         {mode !== 'forward' && (
           <button
             onClick={suggest}
             disabled={suggesting}
-            className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:opacity-40"
+            className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:opacity-40"
             title="AI reply suggestions"
           >
-            {suggesting ? '...' : 'Suggest'}
+            {suggesting ? '…' : 'Suggest'}
           </button>
         )}
         <button
           onClick={polish}
           disabled={polishing}
-          className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:opacity-40"
+          className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:opacity-40"
           title="AI polish text"
         >
-          {polishing ? '...' : 'Polish'}
+          {polishing ? '…' : 'Polish'}
         </button>
         <button
           onClick={handleSaveDraft}
           disabled={savingDraft}
-          className="flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:opacity-40"
+          className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:opacity-40"
           title="Save draft"
         >
-          {savingDraft ? 'Saving...' : 'Draft'}
+          {savingDraft ? 'Saving…' : 'Draft'}
         </button>
+
+        <label className="ml-1 flex shrink-0 cursor-pointer items-center gap-1 text-[10px] text-[var(--color-text-tertiary)]">
+          <input
+            type="checkbox"
+            checked={requestReadReceipt}
+            onChange={(e) => setRequestReadReceipt(e.target.checked)}
+            className="h-3 w-3 rounded border-[var(--color-border-default)]"
+          />
+          Receipt
+        </label>
 
         <div className="flex-1" />
 
+        <kbd className="mr-1 hidden select-none text-[10px] text-[var(--color-text-tertiary)] sm:inline">⌘↵</kbd>
         <button
           onClick={send}
           disabled={sending}
           className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-40"
-          title="Send (Ctrl+Enter)"
         >
           <Send className="h-3.5 w-3.5" />
-          {sending ? 'Sending...' : 'Send'}
+          {sending ? 'Sending…' : 'Send'}
         </button>
       </div>
     </div>
