@@ -95,11 +95,10 @@ export function Login() {
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-base)]">
       <form
         onSubmit={forgotMode ? (e) => e.preventDefault() : handleSubmit}
-        className="w-full max-w-sm select-none space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8"
-        style={{ boxShadow: 'var(--shadow-lg)' }}
+        className="w-full max-w-sm select-none space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg"
       >
         <div className="flex flex-col items-center">
-          <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg" style={{ boxShadow: 'var(--shadow-sm)' }} />
+          <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" />
           <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
             Mailrs
           </h1>
@@ -122,7 +121,7 @@ export function Login() {
             <div className="space-y-1.5">
               <label
                 htmlFor="login-email"
-                className="block text-sm font-medium text-[var(--color-text-secondary)]"
+                className="block text-xs font-medium text-[var(--color-text-secondary)]"
               >
                 Email
               </label>
@@ -142,7 +141,7 @@ export function Login() {
             <div className="space-y-1.5">
               <label
                 htmlFor="login-password"
-                className="block text-sm font-medium text-[var(--color-text-secondary)]"
+                className="block text-xs font-medium text-[var(--color-text-secondary)]"
               >
                 Password
               </label>
@@ -178,7 +177,7 @@ export function Login() {
           <div className="space-y-1.5">
             <label
               htmlFor="login-totp"
-              className="block text-sm font-medium text-[var(--color-text-secondary)]"
+              className="block text-xs font-medium text-[var(--color-text-secondary)]"
             >
               Two-Factor Code
             </label>
@@ -249,7 +248,7 @@ export function Login() {
             <div className="space-y-1.5">
               <label
                 htmlFor="forgot-email"
-                className="block text-sm font-medium text-[var(--color-text-secondary)]"
+                className="block text-xs font-medium text-[var(--color-text-secondary)]"
               >
                 Account Email
               </label>
@@ -268,7 +267,7 @@ export function Login() {
             <div className="space-y-1.5">
               <label
                 htmlFor="forgot-recovery"
-                className="block text-sm font-medium text-[var(--color-text-secondary)]"
+                className="block text-xs font-medium text-[var(--color-text-secondary)]"
               >
                 Recovery Email
               </label>

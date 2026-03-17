@@ -268,7 +268,7 @@ export function ReplyBox({
             key={m}
             onClick={() => handleModeChange(m)}
             aria-pressed={mode === m}
-            className={`cursor-pointer rounded px-2 py-0.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none ${
+            className={`cursor-pointer rounded px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none ${
               mode === m
                 ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
                 : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
@@ -288,7 +288,7 @@ export function ReplyBox({
       {mode === 'forward' && (
         <div className="shrink-0 border-b border-[var(--color-border-default)] px-4 py-2">
           <div className="flex items-center gap-2">
-            <label className="shrink-0 text-xs text-[var(--color-text-tertiary)]">To</label>
+            <label className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">To</label>
             <ContactAutocomplete
               value={forwardTo}
               onChange={setForwardTo}

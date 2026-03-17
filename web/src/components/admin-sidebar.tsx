@@ -53,13 +53,13 @@ export function AdminSidebar() {
   return (
     <>
       {/* mobile: horizontal tab bar */}
-      <nav className="flex select-none items-center gap-1 overflow-x-auto border-b border-[var(--color-border-default)] px-3 py-2 md:hidden">
+      <nav className="flex select-none items-center gap-1.5 overflow-x-auto border-b border-[var(--color-border-default)] px-3 py-2 md:hidden">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             className={({ isActive }) =>
-              `flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ${
+              `flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors ${
                 isActive
                   ? 'bg-[var(--color-bg-selected)] font-medium text-[var(--color-text-primary)]'
                   : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'

@@ -18,14 +18,14 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
 
   return (
     <div className="border-b border-[var(--color-border-default)] px-5 py-3">
-      <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">
         Structured Data
       </p>
       <div className="space-y-2">
         {reservations.map((r, i) => (
           <div
             key={`res-${i}`}
-            className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-3"
+            className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
           >
             <div className="flex items-center gap-2">
               <ReservationIcon kind={r.type} />
@@ -65,7 +65,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         {orders.map((o, i) => (
           <div
             key={`ord-${i}`}
-            className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-3"
+            className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
           >
             <div className="flex items-center gap-2">
               <ShoppingBag className="h-4 w-4 text-[var(--color-status-success)]" />
@@ -109,7 +109,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         {events.map((e, i) => (
           <div
             key={`evt-${i}`}
-            className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-3"
+            className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
           >
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-[var(--color-brand-primary)]" />
@@ -140,7 +140,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         ))}
 
         {actions.map((a, i) => (
-          <div key={`act-${i}`} className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-3">
+          <div key={`act-${i}`} className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4">
             <div className="flex items-center gap-2">
               <ExternalLink className="h-4 w-4 text-[var(--color-brand-primary)]" />
               <span className="text-xs font-medium text-[var(--color-text-secondary)]">

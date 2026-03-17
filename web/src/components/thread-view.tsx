@@ -300,7 +300,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             <ImportanceBadge level={messages[0]?.importance_level} />
             {messages.some((m) => m.requires_action) && <ActionBadge />}
           </div>
-          <div className="flex shrink-0 items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-1">
             <HdrBtn onClick={isRead ? handleMarkUnread : handleMarkRead} title={isRead ? 'Mark unread' : 'Mark read'}>
               {isRead ? (
                 <Mail className="h-4 w-4" />
@@ -664,7 +664,7 @@ function formatRecipients(recipients: string): string {
 
 function HdrBtn({ onClick, title, className, children }: { onClick: () => void; title: string; className?: string; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)] ${className ?? ''}`} title={title}>
+    <button onClick={onClick} className={`flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)] ${className ?? ''}`} title={title}>
       {children}
     </button>
   )

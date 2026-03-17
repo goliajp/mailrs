@@ -178,7 +178,7 @@ export function AttachmentPreview({
 
       {/* image thumbnails grid */}
       {images.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-3">
+        <div className="mb-3 flex flex-wrap gap-2">
           {images.map(({ att, index }) => (
             <ImageThumbnail key={index} uid={uid} index={index} att={att} />
           ))}
@@ -187,7 +187,7 @@ export function AttachmentPreview({
 
       {/* non-image file list */}
       {others.length > 0 && (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {others.map(({ att, index }) => (
             <FileRow key={index} uid={uid} index={index} att={att} />
           ))}
