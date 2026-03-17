@@ -47,7 +47,7 @@ export function TaskBlock({ data, onChange }: Props) {
   return (
     <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)]">
       <div className="border-b border-[var(--color-border-default)] px-4 py-1.5">
-        <span className="text-[10px] font-medium text-[var(--color-text-tertiary)]">TASKS</span>
+        <span className="text-xs font-medium text-[var(--color-text-tertiary)]">TASKS</span>
       </div>
       <div className="px-3 py-1">
         {data.items.map((item) => (

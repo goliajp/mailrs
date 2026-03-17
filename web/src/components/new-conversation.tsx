@@ -183,20 +183,16 @@ export function NewConversation() {
         />
       </div>
 
-      {/* schedule badge */}
-      {scheduledAt && (
-        <div className="shrink-0 px-4 pb-2">
+      {/* action bar */}
+      <div className="flex shrink-0 select-none flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2">
+        {scheduledAt && (
           <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-brand-subtle)] px-2.5 py-0.5 text-xs text-[var(--color-brand-primary)]">
-            Scheduled: {new Date(scheduledAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-            <button onClick={() => { setScheduledAt(''); setShowSchedulePicker(false) }} className="ml-0.5 rounded-full p-0.5 hover:opacity-70" aria-label="Clear schedule">
+            {new Date(scheduledAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            <button onClick={() => { setScheduledAt(''); setShowSchedulePicker(false) }} className="rounded-full p-0.5 hover:opacity-70" aria-label="Clear schedule">
               <X className="h-3 w-3" />
             </button>
           </span>
-        </div>
-      )}
-
-      {/* action bar */}
-      <div className="flex shrink-0 select-none flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2">
+        )}
         <button onClick={send} disabled={sending}
           className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-4 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-3.5 w-3.5" />

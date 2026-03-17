@@ -58,7 +58,7 @@ export function CodeBlock({ data, onChange, disabled }: Props) {
   return (
     <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
       <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-4 py-1.5">
-        <span className="text-[10px] font-medium text-[var(--color-text-tertiary)]">CODE</span>
+        <span className="text-xs font-medium text-[var(--color-text-tertiary)]">CODE</span>
         <select
           value={data.language}
           onChange={(e) => onChange({ ...data, language: e.target.value })}

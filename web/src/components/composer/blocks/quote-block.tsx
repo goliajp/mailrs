@@ -30,7 +30,7 @@ export function QuoteBlock({ data, onChange, mode }: Props) {
   }, [editor, data.html, data.headerHtml])
 
   return (
-    <div className="border-t border-[var(--color-border-default)]">
+    <div className="border-l-2 border-t border-[var(--color-border-default)]">
       <button
         type="button"
         onClick={() => onChange({ ...data, collapsed: !collapsed })}

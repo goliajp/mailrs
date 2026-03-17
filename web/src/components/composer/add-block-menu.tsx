@@ -47,7 +47,7 @@ export function AddBlockMenu({ onAdd, onAddFile }: Props) {
               <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
               <div>
                 <p className="text-xs font-medium text-[var(--color-text-primary)]">{label}</p>
-                <p className="text-[10px] text-[var(--color-text-tertiary)]">{description}</p>
+                <p className="text-xs text-[var(--color-text-tertiary)]">{description}</p>
               </div>
             </button>
           ))}
@@ -59,7 +59,7 @@ export function AddBlockMenu({ onAdd, onAddFile }: Props) {
             <Paperclip className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
             <div>
               <p className="text-xs font-medium text-[var(--color-text-primary)]">Attachment</p>
-              <p className="text-[10px] text-[var(--color-text-tertiary)]">File or image</p>
+              <p className="text-xs text-[var(--color-text-tertiary)]">File or image</p>
             </div>
           </button>
         </div>

@@ -245,6 +245,7 @@ export function ReplyBox({
     const paragraphs = suggestion.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
     composeRef.current?.setComposeContent(paragraphs || `<p>${escapeHtml(suggestion)}</p>`)
     setSuggestions([])
+    toast.success('Suggestion applied')
   }
 
   const quotedHtml = originalBody || undefined
@@ -335,18 +336,18 @@ export function ReplyBox({
       <div className="flex shrink-0 select-none flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2">
         {mode !== 'forward' && (
           <button onClick={suggest} disabled={suggesting || sending}
-            className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
+            className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
             title="AI reply suggestions">
             {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Suggest'}
           </button>
         )}
         <button onClick={polish} disabled={polishing || sending}
-          className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
+          className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
           title="AI polish text">
           {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
         </button>
         <button onClick={handleSaveDraft} disabled={savingDraft || sending}
-          className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
           title="Save draft">
           {savingDraft ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Draft'}
         </button>
@@ -363,7 +364,7 @@ export function ReplyBox({
           {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘' : 'Ctrl+'}↵
         </kbd>
         <button onClick={send} disabled={sending}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50">
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-3.5 w-3.5" />
           {sending ? 'Sending…' : 'Send'}
         </button>
