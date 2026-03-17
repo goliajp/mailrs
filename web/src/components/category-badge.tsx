@@ -16,7 +16,7 @@ const styles: Record<string, { bg: string; text: string; label: string }> = {
 export function CategoryBadge({ category }: { category: string }) {
   const s = styles[category] ?? { bg: 'bg-[var(--color-bg-raised)]', text: 'text-[var(--color-text-tertiary)]', label: category }
   return (
-    <span className={`inline-flex select-none items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium capitalize ${s.bg} ${s.text}`}>
+    <span className={`inline-flex select-none items-center px-1.5 py-0.5 text-xs font-medium rounded-full capitalize ${s.bg} ${s.text}`}>
       {s.label}
     </span>
   )
@@ -42,7 +42,7 @@ export function ImportanceBadge({ level }: { level: string }) {
   if (!level || level === 'normal' || level === 'low' || level === 'noise') return null
   const s = importanceStyles[level] ?? importanceStyles.normal
   return (
-    <span className={`inline-flex select-none items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${s.bg} ${s.text}`}>
+    <span className={`inline-flex select-none items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded-full ${s.bg} ${s.text}`}>
       {s.icon && <span className="font-bold">{s.icon}</span>}
       {s.label}
     </span>
@@ -51,7 +51,7 @@ export function ImportanceBadge({ level }: { level: string }) {
 
 export function ActionBadge() {
   return (
-    <span className="inline-flex select-none items-center gap-0.5 rounded-md bg-[var(--color-brand-subtle)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-brand-primary)]">
+    <span className="inline-flex select-none items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded-full bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]">
       Action
     </span>
   )
@@ -67,7 +67,7 @@ export function IntentBadge({ intent }: { intent: string }) {
   }
   const s = intentStyles[intent] ?? { bg: 'bg-[var(--color-bg-raised)]', text: 'text-[var(--color-text-tertiary)]' }
   return (
-    <span className={`inline-flex select-none items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium capitalize ${s.bg} ${s.text}`}>
+    <span className={`inline-flex select-none items-center px-1.5 py-0.5 text-xs font-medium rounded-full capitalize ${s.bg} ${s.text}`}>
       {intent}
     </span>
   )

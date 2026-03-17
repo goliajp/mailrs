@@ -211,7 +211,7 @@ export function NewConversation() {
         {showSchedulePicker && (
           <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)}
             min={(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` })()}
-            aria-label="Schedule send time" className="h-8 w-44 shrink-0 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]" />
+            aria-label="Schedule send time" className="h-8 w-44 max-w-full shrink-0 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]" />
         )}
 
         <div className="mx-0.5 h-4 w-px bg-[var(--color-border-default)]" />

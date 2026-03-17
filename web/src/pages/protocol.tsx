@@ -216,7 +216,7 @@ export function Protocol() {
   return (
     <div className="flex h-full flex-col">
       {/* header */}
-      <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-6 py-4">
+      <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-4 py-3">
         <div>
           <h1 className="text-lg font-semibold">SMTP Live Monitor</h1>
           <p className="mt-0.5 text-sm text-[var(--color-text-tertiary)]">
@@ -234,7 +234,7 @@ export function Protocol() {
       </div>
 
       {/* status cards */}
-      <div className="grid grid-cols-4 gap-3 border-b border-[var(--color-border-default)] px-6 py-3">
+      <div className="grid grid-cols-2 gap-3 border-b border-[var(--color-border-default)] px-6 py-3 md:grid-cols-4">
         <StatusCard
           label="Active Connections"
           value={status?.active_connections ?? 0}

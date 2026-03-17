@@ -99,7 +99,7 @@ export function AppSidebar() {
               className={cn(
                 navBtnBase,
                 active ? navBtnActive : navBtnInactive,
-                'h-7 w-7 text-[9px] font-semibold',
+                'h-8 w-8 text-[9px] font-semibold',
               )}
               title={d}
             >
@@ -110,7 +110,7 @@ export function AppSidebar() {
       </div>
 
       {/* separator */}
-      <div className="my-2 h-px w-6 bg-[var(--color-border-default)]" />
+      <div className="my-2 h-px w-8 bg-[var(--color-border-default)]" />
 
       {/* other nav */}
       <nav className="flex flex-col items-center gap-1.5">
@@ -164,7 +164,7 @@ function LogoutConfirmDialog({ onCancel, onConfirm }: { onCancel: () => void; on
   }, [onCancel])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onCancel} role="dialog" aria-modal="true">
       <div className="w-80 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Sign out?</h3>
         <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
