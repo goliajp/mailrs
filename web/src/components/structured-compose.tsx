@@ -1,5 +1,6 @@
-import { useCallback, useImperativeHandle, useRef, forwardRef } from 'react'
+import { useCallback, useImperativeHandle, useRef, forwardRef, type ReactNode } from 'react'
 import type { Editor } from '@tiptap/react'
+import { X } from 'lucide-react'
 
 import { useBlockComposer } from '@/components/composer/use-block-composer'
 import { TextBlock } from '@/components/composer/blocks/text-block'
@@ -136,32 +137,61 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
     e.target.value = ''
   }, [addAttachment])
 
+  // wrapper that shows a delete button on hover for removable blocks
+  const Removable = useCallback(({ id, children, className = '' }: { id: string; children: ReactNode; className?: string }) => (
+    <div className={`group relative ${className}`}>
+      {children}
+      <button
+        type="button"
+        onClick={() => removeBlock(id)}
+        className="absolute -right-1 -top-1 z-10 rounded-full bg-[var(--color-bg-overlay)] p-0.5 text-[var(--color-text-tertiary)] opacity-0 shadow-sm transition-opacity hover:bg-[var(--color-status-danger-subtle)] hover:text-[var(--color-status-danger)] group-hover:opacity-100"
+        aria-label="Remove block"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  ), [removeBlock])
+
   const renderBlock = (block: AnyBlock, index: number) => {
     const key = block.id
+    // first text block and auto-managed blocks (signature, quote) are not removable
+    const isFirstText = block.type === 'text' && index === 0
+    const isAutoManaged = block.type === 'signature' || block.type === 'quote'
+    const canRemove = !isFirstText && !isAutoManaged
 
     switch (block.type) {
       case 'text':
-        return (
+        return canRemove ? (
+          <Removable key={key} id={block.id}>
+            <TextBlock
+              data={block.data as TextBlockData}
+              onChange={(data) => updateBlock(block.id, data)}
+              onSubmit={onSubmit}
+              disabled={disabled}
+              placeholder="Continue writing..."
+              />
+          </Removable>
+        ) : (
           <TextBlock
             key={key}
             data={block.data as TextBlockData}
             onChange={(data) => updateBlock(block.id, data)}
             onSubmit={onSubmit}
             disabled={disabled}
-            placeholder={index === 0 ? placeholder : 'Continue writing...'}
-            getEditorRef={index === 0 ? setTextEditorRef : undefined}
+            placeholder={placeholder}
+            getEditorRef={setTextEditorRef}
           />
         )
 
       case 'code':
         return (
-          <div key={key} className="px-3 py-1">
+          <Removable key={key} id={block.id} className="px-3 py-1">
             <CodeBlock
               data={block.data as CodeBlockData}
               onChange={(data) => updateBlock(block.id, data)}
               disabled={disabled}
             />
-          </div>
+          </Removable>
         )
 
       case 'signature':
@@ -186,29 +216,29 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
 
       case 'divider':
         return (
-          <div key={key} className="px-3">
+          <Removable key={key} id={block.id} className="px-3">
             <DividerBlock />
-          </div>
+          </Removable>
         )
 
       case 'attachment':
         return (
-          <div key={key} className="px-3 py-1">
+          <Removable key={key} id={block.id} className="px-3 py-1">
             <AttachmentBlock
               data={block.data as AttachmentBlockData}
               onRemove={() => removeBlock(block.id)}
             />
-          </div>
+          </Removable>
         )
 
       case 'task':
         return (
-          <div key={key} className="px-3 py-1">
+          <Removable key={key} id={block.id} className="px-3 py-1">
             <TaskBlock
               data={block.data as TaskBlockData}
               onChange={(data) => updateBlock(block.id, data)}
             />
-          </div>
+          </Removable>
         )
 
       default:
