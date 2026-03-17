@@ -144,7 +144,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
       <button
         type="button"
         onClick={() => removeBlock(id)}
-        className="absolute -right-1 -top-1 z-10 rounded-full bg-[var(--color-bg-overlay)] p-0.5 text-[var(--color-text-tertiary)] opacity-0 shadow-sm transition-opacity hover:bg-[var(--color-status-danger-subtle)] hover:text-[var(--color-status-danger)] group-hover:opacity-100"
+        className="absolute right-2 top-1 z-10 rounded-full bg-[var(--color-bg-overlay)] p-0.5 text-[var(--color-text-tertiary)] opacity-0 shadow-sm transition-opacity hover:bg-[var(--color-status-danger-subtle)] hover:text-[var(--color-status-danger)] group-hover:opacity-100"
         aria-label="Remove block"
       >
         <X className="h-3.5 w-3.5" />
@@ -185,7 +185,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
 
       case 'code':
         return (
-          <Removable key={key} id={block.id} className="px-3 py-1">
+          <Removable key={key} id={block.id} className="px-4 py-1">
             <CodeBlock
               data={block.data as CodeBlockData}
               onChange={(data) => updateBlock(block.id, data)}
@@ -216,14 +216,14 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
 
       case 'divider':
         return (
-          <Removable key={key} id={block.id} className="px-3">
+          <Removable key={key} id={block.id} className="px-4">
             <DividerBlock />
           </Removable>
         )
 
       case 'attachment':
         return (
-          <Removable key={key} id={block.id} className="px-3 py-1">
+          <Removable key={key} id={block.id} className="px-4 py-1">
             <AttachmentBlock
               data={block.data as AttachmentBlockData}
               onRemove={() => removeBlock(block.id)}
@@ -233,7 +233,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
 
       case 'task':
         return (
-          <Removable key={key} id={block.id} className="px-3 py-1">
+          <Removable key={key} id={block.id} className="px-4 py-1">
             <TaskBlock
               data={block.data as TaskBlockData}
               onChange={(data) => updateBlock(block.id, data)}
@@ -252,13 +252,13 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
       <div
         ref={scrollAreaRef}
         onClick={handleAreaClick}
-        className={`flex min-h-0 flex-1 cursor-text flex-col overflow-y-auto ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+        className={`flex min-h-0 flex-1 cursor-text flex-col overflow-y-auto overflow-x-hidden ${disabled ? 'pointer-events-none opacity-50' : ''}`}
       >
         {blocks.map((block, i) => renderBlock(block, i))}
       </div>
 
       {/* add block bar */}
-      <div className="flex shrink-0 items-center border-t border-[var(--color-border-default)] px-2 py-1">
+      <div className="flex shrink-0 items-center border-t border-[var(--color-border-default)] px-4 py-1.5">
         <AddBlockMenu
           onAdd={(type) => addBlock(type)}
           onAddFile={handleFileSelect}

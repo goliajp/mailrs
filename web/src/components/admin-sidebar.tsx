@@ -53,7 +53,7 @@ export function AdminSidebar() {
   return (
     <>
       {/* mobile: horizontal tab bar */}
-      <nav className="flex select-none items-center gap-1 overflow-x-auto border-b border-[var(--color-border-default)] px-2 py-1.5 md:hidden">
+      <nav className="flex select-none items-center gap-1 overflow-x-auto border-b border-[var(--color-border-default)] px-3 py-2 md:hidden">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
@@ -77,7 +77,7 @@ export function AdminSidebar() {
         <div className="px-3 py-4">
           <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">Server</p>
         </div>
-        <nav className="flex-1 px-2">
+        <nav className="flex-1 px-3">
           {navItems.map((item) => (
             <NavLink
               key={item.to}

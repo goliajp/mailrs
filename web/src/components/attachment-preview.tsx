@@ -78,7 +78,7 @@ function ImageLightbox({
       <img
         src={src}
         alt={alt}
-        className="max-h-[90vh] max-w-[90vw] rounded-md object-contain" style={{ boxShadow: 'var(--shadow-lg)' }}
+        className="max-h-[90vh] max-w-[90vw] rounded-md object-contain shadow-lg"
       />
     </div>
   )
@@ -91,7 +91,7 @@ function ImageThumbnail({ uid, index, att }: { uid: number; index: number; att: 
 
   return (
     <>
-      <div className="group relative">
+      <div className="group relative overflow-hidden">
         <button
           onClick={() => setLightboxOpen(true)}
           className="block overflow-hidden rounded-md border border-[var(--color-border-default)] transition-shadow hover:shadow-md"
@@ -168,7 +168,7 @@ export function AttachmentPreview({
     .filter(({ att }) => !isImageAttachment(att))
 
   return (
-    <div className="border-t border-[var(--color-border-default)] px-6 py-4">
+    <div className="border-t border-[var(--color-border-default)] px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
         <span className="select-none text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
           Attachments ({attachments.length})
