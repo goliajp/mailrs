@@ -235,6 +235,8 @@ export function ReplyBox({
         const paragraphs = result.polished.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
         editorRef.current.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
         toast.success('Text polished')
+      } else if (!result.success) {
+        toast.error(result.message ?? 'Polish failed')
       }
     } catch {
       toast.error('AI unavailable')
@@ -330,7 +332,7 @@ export function ReplyBox({
               className="max-w-xs truncate rounded-full border border-[var(--color-border-default)] bg-[var(--color-brand-subtle)] px-2.5 py-0.5 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-hover)]"
               title={s}
             >
-              {s.slice(0, 80)}{s.length > 80 ? '…' : ''}
+              {s}
             </button>
           ))}
           <button
