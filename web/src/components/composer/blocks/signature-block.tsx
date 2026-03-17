@@ -1,0 +1,40 @@
+import { useEditor, EditorContent } from '@tiptap/react'
+import { useEffect, useRef } from 'react'
+import { createMinimalExtensions } from '@/components/rich-editor'
+import type { SignatureBlockData } from '../types'
+
+type Props = {
+  data: SignatureBlockData
+  onChange: (data: SignatureBlockData) => void
+  disabled?: boolean
+}
+
+export function SignatureBlock({ data, onChange, disabled }: Props) {
+  const initializedRef = useRef(false)
+
+  const editor = useEditor({
+    extensions: createMinimalExtensions(),
+    editorProps: {
+      attributes: { class: 'prose prose-sm max-w-none px-3 py-1.5 outline-none text-[var(--color-text-tertiary)]' },
+    },
+    editable: !disabled,
+    onUpdate: ({ editor: e }) => {
+      onChange({ html: e.getHTML(), text: e.getText() })
+    },
+  })
+
+  useEffect(() => {
+    if (!editor || initializedRef.current) return
+    if (data.html) {
+      editor.commands.setContent(data.html)
+      initializedRef.current = true
+    }
+  }, [editor, data.html])
+
+  return (
+    <div className="border-t border-dashed border-[var(--color-border-default)] opacity-60">
+      <div className="px-3 pt-1.5 text-xs text-[var(--color-text-tertiary)]">-- </div>
+      <EditorContent editor={editor} />
+    </div>
+  )
+}

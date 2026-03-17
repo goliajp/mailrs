@@ -188,26 +188,14 @@ describe('ReplyBox', () => {
     expect(draftButton).toBeDefined()
   })
 
-  it('renders attach file button', () => {
+  it('renders add block button', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} />
       </Wrapper>,
     )
 
-    expect(screen.getByTitle('Attach file')).toBeDefined()
-  })
-
-  it('renders hidden file input for attachments', () => {
-    render(
-      <Wrapper store={store}>
-        <ReplyBox {...defaultProps} />
-      </Wrapper>,
-    )
-
-    const fileInput = screen.getByLabelText('Attach files')
-    expect(fileInput).toBeDefined()
-    expect((fileInput as HTMLInputElement).type).toBe('file')
+    expect(screen.getByText('Add block')).toBeDefined()
   })
 
   it('highlights forward mode button when forward is active', () => {
