@@ -316,7 +316,7 @@ export function NewConversation() {
       )}
 
       {/* action bar */}
-      <div className="flex shrink-0 select-none items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2">
+      <div className="flex shrink-0 select-none flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2">
         <button
           onClick={send}
           disabled={sending}

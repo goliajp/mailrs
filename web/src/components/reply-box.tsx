@@ -339,7 +339,7 @@ export function ReplyBox({
       )}
 
       {/* editor */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-1 pt-2">
         <RichEditor
           onSubmit={send}
           placeholder={placeholder}
@@ -372,7 +372,7 @@ export function ReplyBox({
       )}
 
       {/* action bar */}
-      <div className="flex shrink-0 select-none items-center gap-1 px-3 pb-2 pt-1">
+      <div className="flex shrink-0 select-none flex-wrap items-center gap-1 px-3 pb-2 pt-1">
         <button
           onClick={() => fileInputRef.current?.click()}
           className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none"
