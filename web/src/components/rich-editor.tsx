@@ -349,7 +349,7 @@ export function RichEditor({
       onDragLeave={handleDragLeave}
     >
       <Toolbar editor={editor} />
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className={`min-h-0 flex-1 overflow-y-auto ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
         <EditorContent editor={editor} />
       </div>
       {isDragOver && (
