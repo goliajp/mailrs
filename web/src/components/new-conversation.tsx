@@ -1,5 +1,5 @@
 import { useAtomValue, useSetAtom } from 'jotai'
-import { File as FileIcon, Paperclip, Send, X } from 'lucide-react'
+import { File as FileIcon, Loader2, Paperclip, Send, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -380,7 +380,7 @@ export function NewConversation() {
           className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
           title="AI polish your text"
         >
-          {polishing ? 'Polishing…' : 'Polish'}
+          {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
         </button>
 
         {templates.length > 0 && (

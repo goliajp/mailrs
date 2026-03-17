@@ -166,22 +166,12 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
       >
         1.
       </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleTaskList().run()}
-        active={editor.isActive('taskList')}
-        title="Task list"
-      >
-        &#9744;
-      </ToolbarButton>
-
-      <div className="mx-1 h-4 w-px bg-[var(--color-border-default)]" />
-
       <ToolbarButton onClick={addLink} active={editor.isActive('link')} title="Link">
         <span className="text-[10px]">Link</span>
       </ToolbarButton>
-      <ToolbarButton onClick={addImage} title="Image">
-        <span className="text-[10px]">Img</span>
-      </ToolbarButton>
+
+      {/* secondary tools — hidden on narrow screens */}
+      <div className="mx-1 hidden h-4 w-px bg-[var(--color-border-default)] sm:block" />
       <input
         ref={fileInputRef}
         type="file"
@@ -189,18 +179,30 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         className="hidden"
         onChange={handleImageFile}
       />
-      <ToolbarButton
-        onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3 }).run()}
-        title="Table"
-      >
-        <span className="text-[10px]">Table</span>
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().setHorizontalRule().run()}
-        title="Divider"
-      >
-        &mdash;
-      </ToolbarButton>
+      <div className="hidden items-center gap-0.5 sm:flex">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
+          active={editor.isActive('taskList')}
+          title="Task list"
+        >
+          &#9744;
+        </ToolbarButton>
+        <ToolbarButton onClick={addImage} title="Image">
+          <span className="text-[10px]">Img</span>
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3 }).run()}
+          title="Table"
+        >
+          <span className="text-[10px]">Table</span>
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          title="Divider"
+        >
+          &mdash;
+        </ToolbarButton>
+      </div>
     </div>
   )
 }

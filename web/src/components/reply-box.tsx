@@ -1,5 +1,5 @@
 import { useAtomValue } from 'jotai'
-import { File as FileIcon, Paperclip, Send, X } from 'lucide-react'
+import { File as FileIcon, Loader2, Paperclip, Send, X } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -405,7 +405,7 @@ export function ReplyBox({
             className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
             title="AI reply suggestions"
           >
-            {suggesting ? '…' : 'Suggest'}
+            {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Suggest'}
           </button>
         )}
         <button
@@ -414,7 +414,7 @@ export function ReplyBox({
           className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
           title="AI polish text"
         >
-          {polishing ? '…' : 'Polish'}
+          {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
         </button>
         <button
           onClick={handleSaveDraft}
