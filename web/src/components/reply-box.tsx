@@ -422,7 +422,7 @@ export function ReplyBox({
           className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
           title="Save draft"
         >
-          {savingDraft ? 'Saving…' : 'Draft'}
+          {savingDraft ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Draft'}
         </button>
 
         <label className="ml-1 flex shrink-0 cursor-pointer items-center gap-1 text-[10px] text-[var(--color-text-tertiary)]">
