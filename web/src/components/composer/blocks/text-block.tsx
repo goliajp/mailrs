@@ -153,7 +153,7 @@ export function TextBlock({ data, onChange, onSubmit, disabled, placeholder, get
     <div onDrop={handleDrop} onPaste={handlePaste} onDragOver={(e) => e.preventDefault()}>
       {/* format toggle + toolbar */}
       <div className="flex items-center border-b border-[var(--color-border-default)]">
-        <div className="flex items-center gap-0.5 border-r border-[var(--color-border-default)] px-1.5 py-1">
+        <div className="flex items-center gap-0.5 border-r border-[var(--color-border-default)] px-2 py-1.5">
           <button type="button" onClick={() => switchFormat('rich')} title="Rich text"
             className={`rounded-md p-1 transition-colors ${format === 'rich' ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}>
             <Type className="h-3.5 w-3.5" />
@@ -169,7 +169,7 @@ export function TextBlock({ data, onChange, onSubmit, disabled, placeholder, get
           </div>
         )}
         {format === 'markdown' && (
-          <div className="flex-1 px-3 py-1.5">
+          <div className="flex-1 px-4 py-1.5">
             <span className="text-xs text-[var(--color-text-tertiary)]">Source | Preview</span>
           </div>
         )}

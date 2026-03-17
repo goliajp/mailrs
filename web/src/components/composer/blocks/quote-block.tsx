@@ -34,7 +34,7 @@ export function QuoteBlock({ data, onChange, mode }: Props) {
       <button
         type="button"
         onClick={() => onChange({ ...data, collapsed: !collapsed })}
-        className="flex w-full cursor-pointer items-center gap-1 px-3 py-1.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+        className="flex w-full cursor-pointer items-center gap-1 px-4 py-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
       >
         {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         {collapsed ? `Show original${mode === 'forward' ? ' (forwarded)' : ''}` : 'Hide original'}

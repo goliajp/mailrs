@@ -326,7 +326,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             {selectedMsg ? (
               <>
                 {/* email header (sender info) */}
-                <div className="shrink-0 border-b border-[var(--color-border-default)] px-5 py-3">
+                <div className="shrink-0 border-b border-[var(--color-border-default)] px-4 py-3">
                   <div className="flex items-start gap-3">
                     <SenderAvatar sender={selectedMsg.sender} size={32} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
@@ -407,7 +407,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                   </div>
                 )}
                 {!selectedMsg.html_body && (
-                  <div className="select-text px-5 py-4">
+                  <div className="select-text px-4 py-3">
                     <div className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-[var(--color-text-primary)]">
                       {highlightMentions(selectedMsg.clean_text || selectedMsg.text_body || '(no text content)', myEmail, auth?.display_name)}
                     </div>
@@ -427,14 +427,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       {/* handle panel (conversation timeline + reply) */}
       <Panel>
         {/* panel header */}
-        <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] px-4 py-1.5">
+        <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] px-4 py-2">
           <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
             Conversation ({messages.length})
           </span>
         </div>
         {/* timeline + reply box */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="min-h-0 flex-[3] basis-0 overflow-y-auto px-3 py-3">
+          <div className="min-h-0 flex-[3] basis-0 overflow-y-auto px-4 py-3">
             {loadingThread && messages.length === 0 && (
               <div className="animate-pulse space-y-4">
                 {Array.from({ length: 4 }).map((_, i) => (

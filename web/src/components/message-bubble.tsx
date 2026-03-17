@@ -26,7 +26,7 @@ function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLE
   }
 
   return (
-    <div className="group relative">
+    <div className="group relative overflow-hidden">
       {lang && (
         <span className="absolute right-10 top-2 text-[11px] text-[var(--color-text-tertiary)] opacity-0 transition-opacity group-hover:opacity-100">
           {lang}

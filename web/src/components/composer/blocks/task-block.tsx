@@ -46,10 +46,10 @@ export function TaskBlock({ data, onChange }: Props) {
 
   return (
     <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)]">
-      <div className="border-b border-[var(--color-border-default)] px-3 py-1">
+      <div className="border-b border-[var(--color-border-default)] px-4 py-1.5">
         <span className="text-[10px] font-medium text-[var(--color-text-tertiary)]">TASKS</span>
       </div>
-      <div className="px-2 py-1">
+      <div className="px-3 py-1">
         {data.items.map((item) => (
           <div key={item.id} className="group flex items-center gap-2 py-0.5">
             <input
@@ -79,7 +79,7 @@ export function TaskBlock({ data, onChange }: Props) {
       </div>
       <button
         onClick={addItem}
-        className="flex w-full items-center gap-1 border-t border-[var(--color-border-default)] px-3 py-1 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+        className="flex w-full items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-1.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
       >
         <Plus className="h-3 w-3" /> Add task
       </button>

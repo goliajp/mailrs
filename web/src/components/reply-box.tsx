@@ -262,7 +262,7 @@ export function ReplyBox({
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* mode toggle + recipients */}
-      <div className="flex shrink-0 select-none items-center gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">
+      <div className="flex shrink-0 select-none items-center gap-1 border-b border-[var(--color-border-default)] px-4 py-2">
         {(Object.keys(MODE_LABELS) as ReplyMode[]).map((m) => (
           <button
             key={m}
@@ -286,7 +286,7 @@ export function ReplyBox({
 
       {/* forward: to field */}
       {mode === 'forward' && (
-        <div className="shrink-0 border-b border-[var(--color-border-default)] px-3 py-1.5">
+        <div className="shrink-0 border-b border-[var(--color-border-default)] px-4 py-2">
           <div className="flex items-center gap-2">
             <label className="shrink-0 text-xs text-[var(--color-text-tertiary)]">To</label>
             <ContactAutocomplete
@@ -302,7 +302,7 @@ export function ReplyBox({
 
       {/* AI suggestions */}
       {suggestions.length > 0 && (
-        <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-[var(--color-border-default)] px-3 py-2">
+        <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-[var(--color-border-default)] px-4 py-2">
           {suggestions.map((s, i) => (
             <button key={i} onClick={() => applySuggestion(s)}
               className="max-w-xs truncate rounded-full border border-[var(--color-border-default)] bg-[var(--color-brand-subtle)] px-2.5 py-0.5 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-hover)]"
@@ -332,7 +332,7 @@ export function ReplyBox({
       </div>
 
       {/* action bar */}
-      <div className="flex shrink-0 select-none flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-3 pb-2 pt-1">
+      <div className="flex shrink-0 select-none flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2">
         {mode !== 'forward' && (
           <button onClick={suggest} disabled={suggesting || sending}
             className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"

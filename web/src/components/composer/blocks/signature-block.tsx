@@ -33,7 +33,7 @@ export function SignatureBlock({ data, onChange, disabled }: Props) {
 
   return (
     <div className="border-t border-dashed border-[var(--color-border-default)] opacity-60">
-      <div className="px-3 pt-1.5 text-xs text-[var(--color-text-tertiary)]">-- </div>
+      <div className="px-4 pt-2 text-xs text-[var(--color-text-tertiary)]">-- </div>
       <EditorContent editor={editor} />
     </div>
   )
