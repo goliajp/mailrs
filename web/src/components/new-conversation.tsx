@@ -278,7 +278,7 @@ export function NewConversation() {
 
       {/* attachments — below editor, near action bar */}
       {files.length > 0 && (
-        <div className="flex max-h-24 shrink-0 flex-wrap gap-1.5 overflow-y-auto px-4 pb-2">
+        <div className="flex max-h-20 shrink-0 flex-wrap gap-1.5 overflow-y-auto px-4 pb-2">
           {files.map((f, i) => (
             <div
               key={i}
@@ -347,7 +347,7 @@ export function NewConversation() {
             onChange={(e) => setScheduledAt(e.target.value)}
             min={new Date().toISOString().slice(0, 16)}
             aria-label="Schedule send time"
-            className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]"
+            className="h-8 w-44 shrink-0 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]"
           />
         )}
 

@@ -335,7 +335,7 @@ export function RichEditor({
 
   return (
     <div
-      className={`flex h-full flex-col rounded-lg border transition-colors ${
+      className={`relative flex h-full flex-col rounded-lg border transition-colors ${
         isDragOver
           ? 'border-[var(--color-brand-primary)] bg-[var(--color-brand-subtle)]'
           : 'border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]'
@@ -351,8 +351,10 @@ export function RichEditor({
         <EditorContent editor={editor} />
       </div>
       {isDragOver && (
-        <div className="flex items-center justify-center pb-3 text-xs text-[var(--color-brand-primary)]">
-          Drop image to insert
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <span className="rounded-full bg-[var(--color-brand-primary)] px-3 py-1 text-xs font-medium text-white shadow-lg">
+            Drop image to insert
+          </span>
         </div>
       )}
     </div>

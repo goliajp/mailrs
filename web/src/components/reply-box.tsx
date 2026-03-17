@@ -302,14 +302,16 @@ export function ReplyBox({
 
       {/* forward: to field */}
       {mode === 'forward' && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border-default)] px-3 py-1.5">
-          <label className="shrink-0 text-xs text-[var(--color-text-tertiary)]">To</label>
-          <ContactAutocomplete
-            value={forwardTo}
-            onChange={setForwardTo}
-            placeholder="recipient@example.com"
-            className="w-full rounded-md border border-[var(--color-border-default)] bg-transparent px-2 py-1 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-brand-primary)]"
-          />
+        <div className="shrink-0 border-b border-[var(--color-border-default)] px-3 py-1.5">
+          <div className="flex items-center gap-2">
+            <label className="shrink-0 text-xs text-[var(--color-text-tertiary)]">To</label>
+            <ContactAutocomplete
+              value={forwardTo}
+              onChange={setForwardTo}
+              placeholder="recipient@example.com"
+              className="w-full rounded-md border border-[var(--color-border-default)] bg-transparent px-2 py-1 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-brand-primary)]"
+            />
+          </div>
           {error && (
             <p className="mt-1 text-xs text-[var(--color-status-danger)]">{error}</p>
           )}
