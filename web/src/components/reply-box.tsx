@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { RichEditor, getEditorContent } from '@/components/rich-editor'
 import { deleteJson, postJson, saveDraft } from '@/lib/api'
+import { escapeHtml, formatFileSize } from '@/lib/html-utils'
 import { authAtom } from '@/store/auth'
 import { appendSignature, signatureAtom, signatureEnabledAtom } from '@/store/settings'
 import type { Editor } from '@tiptap/react'
@@ -20,16 +21,6 @@ const MODE_LABELS: Record<ReplyMode, string> = {
   reply: 'Reply',
   'reply-all': 'Reply All',
   forward: 'Forward',
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
 
 export function ReplyBox({
@@ -388,7 +379,8 @@ export function ReplyBox({
       <div className="flex shrink-0 select-none flex-wrap items-center gap-1 px-3 pb-2 pt-1">
         <button
           onClick={() => { if (fileInputRef.current) fileInputRef.current.value = ''; fileInputRef.current?.click() }}
-          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none"
+          disabled={sending}
+          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           title="Attach file"
           aria-label="Attach file"
         >
@@ -412,7 +404,7 @@ export function ReplyBox({
         {mode !== 'forward' && (
           <button
             onClick={suggest}
-            disabled={suggesting}
+            disabled={suggesting || sending}
             className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
             title="AI reply suggestions"
           >
@@ -421,7 +413,7 @@ export function ReplyBox({
         )}
         <button
           onClick={polish}
-          disabled={polishing}
+          disabled={polishing || sending}
           className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
           title="AI polish text"
         >
@@ -429,18 +421,19 @@ export function ReplyBox({
         </button>
         <button
           onClick={handleSaveDraft}
-          disabled={savingDraft}
+          disabled={savingDraft || sending}
           className="flex h-7 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
           title="Save draft"
         >
           {savingDraft ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Draft'}
         </button>
 
-        <label className="ml-1 flex shrink-0 cursor-pointer items-center gap-1 text-[10px] text-[var(--color-text-tertiary)]">
+        <label className={`ml-1 flex shrink-0 items-center gap-1 text-[10px] text-[var(--color-text-tertiary)] ${sending ? 'opacity-50' : 'cursor-pointer'}`}>
           <input
             type="checkbox"
             checked={requestReadReceipt}
             onChange={(e) => setRequestReadReceipt(e.target.checked)}
+            disabled={sending}
             className="h-3 w-3 rounded border-[var(--color-border-default)]"
           />
           Receipt

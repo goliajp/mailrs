@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { RichEditor, getEditorContent } from '@/components/rich-editor'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { escapeHtml, formatFileSize } from '@/lib/html-utils'
 import type { ConversationSummary } from '@/lib/types'
 import { authAtom } from '@/store/auth'
 import { composingNewAtom, conversationsAtom, selectedThreadIdAtom } from '@/store/chat'
@@ -21,16 +22,6 @@ type TemplateInfo = {
   category: string
 }
 type PolishResult = { success: boolean; polished?: string; message?: string }
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
-}
 
 export function NewConversation() {
   const auth = useAtomValue(authAtom)
@@ -335,7 +326,8 @@ export function NewConversation() {
 
         <button
           onClick={() => setShowSchedulePicker((v) => !v)}
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
+          disabled={sending}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
             showSchedulePicker
               ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
               : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
@@ -362,7 +354,8 @@ export function NewConversation() {
 
         <button
           onClick={() => { if (fileInputRef.current) fileInputRef.current.value = ''; fileInputRef.current?.click() }}
-          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none"
+          disabled={sending}
+          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           title="Attach files"
           aria-label="Attach files"
         >
@@ -398,7 +391,8 @@ export function NewConversation() {
               e.target.value = ''
             }}
             defaultValue=""
-            className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-secondary)]"
+            disabled={sending}
+            className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <option value="" disabled>
               Templates
@@ -411,11 +405,12 @@ export function NewConversation() {
           </select>
         )}
 
-        <label className="ml-1 flex shrink-0 cursor-pointer items-center gap-1 text-[10px] text-[var(--color-text-tertiary)]">
+        <label className={`ml-1 flex shrink-0 items-center gap-1 text-[10px] text-[var(--color-text-tertiary)] ${sending ? 'opacity-50' : 'cursor-pointer'}`}>
           <input
             type="checkbox"
             checked={requestReadReceipt}
             onChange={(e) => setRequestReadReceipt(e.target.checked)}
+            disabled={sending}
             className="h-3 w-3 rounded border-[var(--color-border-default)]"
           />
           Receipt
