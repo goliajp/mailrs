@@ -1,15 +1,14 @@
 import { useAtomValue } from 'jotai'
 import { File as FileIcon, Loader2, Paperclip, Send, X } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
-import { RichEditor, getEditorContent } from '@/components/rich-editor'
+import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
 import { deleteJson, postJson, saveDraft } from '@/lib/api'
-import { escapeHtml, formatFileSize } from '@/lib/html-utils'
+import { escapeHtml, formatFileSize, buildForwardHeaderHtml } from '@/lib/html-utils'
 import { authAtom } from '@/store/auth'
-import { appendSignature, signatureAtom, signatureEnabledAtom } from '@/store/settings'
-import type { Editor } from '@tiptap/react'
+import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
 export type ReplyMode = 'reply' | 'reply-all' | 'forward'
 
@@ -61,23 +60,12 @@ export function ReplyBox({
   const [files, setFiles] = useState<File[]>([])
   const [requestReadReceipt, setRequestReadReceipt] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const editorRef = useRef<Editor | null>(null)
-
-  const setEditorRef = useCallback((editor: Editor | null) => {
-    editorRef.current = editor
-  }, [])
+  const composeRef = useRef<StructuredComposeHandle>(null)
 
   const handleModeChange = (newMode: ReplyMode) => {
     onModeChange(newMode)
     setSuggestions([])
     setError('')
-    if (newMode === 'forward' && editorRef.current) {
-      const { text } = getEditorContent(editorRef.current)
-      if (!text.trim()) {
-        const fwdHtml = `<br><br><p>---------- Forwarded message ----------</p><p>From: ${escapeHtml(originalFrom)}</p><p>Date: ${escapeHtml(originalDate)}</p><p>Subject: ${escapeHtml(subject)}</p><br>${originalBody}`
-        editorRef.current.commands.setContent(fwdHtml)
-      }
-    }
   }
 
   const removeFile = (index: number) => {
@@ -110,8 +98,8 @@ export function ReplyBox({
       return
     }
 
-    const { text, html } = getEditorContent(editorRef.current)
-    if (!text.trim() && files.length === 0) {
+    const content = composeRef.current?.getContent()
+    if (!content || (!content.compose.text.trim() && files.length === 0)) {
       toast.error('Message body is required')
       return
     }
@@ -120,7 +108,6 @@ export function ReplyBox({
     setSending(true)
 
     const resolvedSubject = resolveSubject()
-    const bodyWithSig = appendSignature(text, signature, signatureEnabled)
     const inReplyTo = mode === 'forward' ? undefined : lastMessageId
 
     try {
@@ -130,8 +117,8 @@ export function ReplyBox({
         const formData = new FormData()
         formData.append('from', auth?.address ?? '')
         formData.append('subject', resolvedSubject)
-        formData.append('body', bodyWithSig)
-        formData.append('html_body', html)
+        formData.append('body', content.fullText)
+        formData.append('html_body', content.fullHtml)
         if (inReplyTo) formData.append('in_reply_to', inReplyTo)
         for (const r of to) formData.append('to', r)
         for (const f of files) formData.append('attachments', f)
@@ -155,8 +142,8 @@ export function ReplyBox({
           cc: [],
           bcc: [],
           subject: resolvedSubject,
-          body: bodyWithSig,
-          html_body: html,
+          body: content.fullText,
+          html_body: content.fullHtml,
         }
         if (inReplyTo) payload['in_reply_to'] = inReplyTo
         if (requestReadReceipt) payload['request_read_receipt'] = true
@@ -169,7 +156,7 @@ export function ReplyBox({
         sentMessageId = result.message_id
       }
 
-      editorRef.current?.commands.clearContent()
+      composeRef.current?.clearCompose()
       setForwardTo('')
       setFiles([])
       const label = mode === 'forward' ? 'Forwarded' : 'Reply sent'
@@ -200,17 +187,16 @@ export function ReplyBox({
   }
 
   const handleSaveDraft = async () => {
-    const { text } = getEditorContent(editorRef.current)
-    if (!text.trim()) return
+    const content = composeRef.current?.getContent()
+    if (!content?.compose.text.trim()) return
     setSavingDraft(true)
     try {
       const to = resolveRecipients().join(', ')
       const resolvedSubject = resolveSubject()
-      const bodyWithSig = appendSignature(text, signature, signatureEnabled)
       const result = await saveDraft({
         to,
         subject: resolvedSubject,
-        body: bodyWithSig,
+        body: content.fullText,
         reply_to_thread_id: threadId,
       })
       if (result.success) {
@@ -226,14 +212,16 @@ export function ReplyBox({
   }
 
   const polish = async () => {
-    const { text } = getEditorContent(editorRef.current)
+    const editor = composeRef.current?.getComposeEditor()
+    if (!editor) return
+    const text = editor.getText()
     if (!text.trim()) return
     setPolishing(true)
     try {
       const result = await postJson<PolishResult>('/mail/ai/polish', { text })
-      if (result.success && result.polished && editorRef.current) {
+      if (result.success && result.polished) {
         const paragraphs = result.polished.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
-        editorRef.current.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
+        editor.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
         toast.success('Text polished')
       } else if (!result.success) {
         toast.error(result.message ?? 'Polish failed')
@@ -266,12 +254,23 @@ export function ReplyBox({
   }
 
   const applySuggestion = (suggestion: string) => {
-    if (editorRef.current) {
-      const paragraphs = suggestion.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
-      editorRef.current.commands.setContent(paragraphs || `<p>${escapeHtml(suggestion)}</p>`)
-    }
+    const paragraphs = suggestion.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
+    composeRef.current?.setComposeContent(paragraphs || `<p>${escapeHtml(suggestion)}</p>`)
     setSuggestions([])
   }
+
+  // build quoted content for reply/forward
+  const quotedHtml = originalBody || undefined
+  const quotedHeaderHtml = mode === 'forward'
+    ? buildForwardHeaderHtml(originalFrom, originalDate, subject)
+    : originalFrom
+      ? `<p style="color:#888">On ${escapeHtml(originalDate)}, ${escapeHtml(originalFrom)} wrote:</p>`
+      : undefined
+  const quotedHeader = mode === 'forward'
+    ? `---------- Forwarded message ----------\nFrom: ${originalFrom}\nDate: ${originalDate}\nSubject: ${subject}\n\n`
+    : originalFrom
+      ? `On ${originalDate}, ${originalFrom} wrote:\n\n`
+      : ''
 
   const placeholder =
     mode === 'forward' ? 'Add a message...' : 'Type a reply...'
@@ -344,17 +343,23 @@ export function ReplyBox({
         </div>
       )}
 
-      {/* editor */}
+      {/* structured editor */}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-1 pt-2">
-        <RichEditor
+        <StructuredCompose
+          ref={composeRef}
           onSubmit={send}
           placeholder={placeholder}
           disabled={sending}
-          getEditorRef={setEditorRef}
+          signature={signature}
+          signatureEnabled={signatureEnabled}
+          quotedHtml={quotedHtml}
+          quotedHeader={quotedHeader}
+          quotedHeaderHtml={quotedHeaderHtml}
+          mode={mode === 'forward' ? 'forward' : mode === 'reply' || mode === 'reply-all' ? 'reply' : 'new'}
         />
       </div>
 
-      {/* attachments — below editor, near send */}
+      {/* attachments */}
       {files.length > 0 && (
         <div className="flex max-h-20 shrink-0 flex-wrap gap-1.5 overflow-y-auto px-3 pb-1 pt-1.5">
           {files.map((f, i) => (

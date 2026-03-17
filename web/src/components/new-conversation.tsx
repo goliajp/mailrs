@@ -1,16 +1,16 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 import { File as FileIcon, Loader2, Paperclip, Send, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
-import { RichEditor, getEditorContent } from '@/components/rich-editor'
+import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { escapeHtml, formatFileSize } from '@/lib/html-utils'
 import type { ConversationSummary } from '@/lib/types'
 import { authAtom } from '@/store/auth'
 import { composingNewAtom, conversationsAtom, selectedThreadIdAtom } from '@/store/chat'
-import type { Editor } from '@tiptap/react'
+import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
 type SendResult = { success: boolean; message?: string; message_id?: string }
 type TemplateInfo = {
@@ -25,6 +25,8 @@ type PolishResult = { success: boolean; polished?: string; message?: string }
 
 export function NewConversation() {
   const auth = useAtomValue(authAtom)
+  const signature = useAtomValue(signatureAtom)
+  const signatureEnabled = useAtomValue(signatureEnabledAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const setSelectedThread = useSetAtom(selectedThreadIdAtom)
   const setConversations = useSetAtom(conversationsAtom)
@@ -43,7 +45,7 @@ export function NewConversation() {
   const [showSchedulePicker, setShowSchedulePicker] = useState(false)
   const [requestReadReceipt, setRequestReadReceipt] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const editorRef = useRef<Editor | null>(null)
+  const composeRef = useRef<StructuredComposeHandle>(null)
 
   useEffect(() => {
     fetchJson<TemplateInfo[]>('/mail/templates')
@@ -53,20 +55,22 @@ export function NewConversation() {
 
   const applyTemplate = (t: TemplateInfo) => {
     setSubject(t.subject)
-    if (editorRef.current && t.html_body) {
-      editorRef.current.commands.setContent(t.html_body)
+    if (t.html_body) {
+      composeRef.current?.setComposeContent(t.html_body)
     }
   }
 
   const polish = async () => {
-    const { text } = getEditorContent(editorRef.current)
+    const editor = composeRef.current?.getComposeEditor()
+    if (!editor) return
+    const text = editor.getText()
     if (!text.trim()) return
     setPolishing(true)
     try {
       const result = await postJson<PolishResult>('/mail/ai/polish', { text })
-      if (result.success && result.polished && editorRef.current) {
+      if (result.success && result.polished) {
         const paragraphs = result.polished.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
-        editorRef.current.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
+        editor.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
         toast.success('Text polished')
       } else {
         toast.error(result.message ?? 'Polish failed')
@@ -77,10 +81,6 @@ export function NewConversation() {
       setPolishing(false)
     }
   }
-
-  const setEditorRef = useCallback((editor: Editor | null) => {
-    editorRef.current = editor
-  }, [])
 
   const send = async () => {
     if (sending) return
@@ -94,8 +94,8 @@ export function NewConversation() {
       return
     }
 
-    const { text, html } = getEditorContent(editorRef.current)
-    if (!text.trim() && files.length === 0) {
+    const content = composeRef.current?.getContent()
+    if (!content || (!content.compose.text.trim() && files.length === 0)) {
       setError('Message body is required')
       return
     }
@@ -113,8 +113,8 @@ export function NewConversation() {
         const formData = new FormData()
         formData.append('from', auth?.address ?? '')
         formData.append('subject', subject)
-        formData.append('body', text)
-        formData.append('html_body', html)
+        formData.append('body', content.fullText)
+        formData.append('html_body', content.fullHtml)
         for (const r of recipients) formData.append('to', r)
         for (const c of ccList) formData.append('cc', c)
         for (const b of bccList) formData.append('bcc', b)
@@ -135,8 +135,8 @@ export function NewConversation() {
           cc: ccList,
           bcc: bccList,
           subject,
-          body: text,
-          html_body: html,
+          body: content.fullText,
+          html_body: content.fullHtml,
           in_reply_to: null,
           ...(scheduledAt ? { scheduled_at: new Date(scheduledAt).toISOString() } : {}),
           ...(requestReadReceipt ? { request_read_receipt: true } : {}),
@@ -263,18 +263,20 @@ export function NewConversation() {
         </div>
       </div>
 
-      {/* editor */}
+      {/* structured editor */}
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <RichEditor
+        <StructuredCompose
+          ref={composeRef}
           onSubmit={send}
           placeholder="Write your message..."
           disabled={sending}
-          minHeight="12rem"
-          getEditorRef={setEditorRef}
+          signature={signature}
+          signatureEnabled={signatureEnabled}
+          mode="new"
         />
       </div>
 
-      {/* attachments — below editor, near action bar */}
+      {/* attachments */}
       {files.length > 0 && (
         <div className="flex max-h-20 shrink-0 flex-wrap gap-1.5 overflow-y-auto px-4 pb-2">
           {files.map((f, i) => (
