@@ -416,8 +416,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 <AttachmentPreview attachments={selectedMsg.attachments} uid={selectedMsg.uid} />
               </>
             ) : (
-              <div className="flex h-full items-center justify-center text-[var(--color-text-tertiary)]">
-                <p className="text-sm">Select a message to preview</p>
+              <div className="flex h-full flex-col items-center justify-center gap-2 py-12 text-sm text-[var(--color-text-tertiary)]">
+                <Mail className="h-8 w-8" strokeWidth={1.5} />
+                <p>Select a message to preview</p>
               </div>
             )}
           </div>
@@ -504,8 +505,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   )}
                                 </span>
                               </div>
-                              <div className={`mt-1 select-text text-[13px] leading-relaxed text-[var(--color-text-primary)] ${isExpanded ? '' : 'line-clamp-5'}`}>
-                                {highlightMentions(isExpanded ? fullText : snippet, myEmail, auth?.display_name)}
+                              <div className="relative mt-1">
+                                <div className={`select-text text-[13px] leading-relaxed text-[var(--color-text-primary)] ${isExpanded ? '' : 'line-clamp-5'}`}>
+                                  {highlightMentions(isExpanded ? fullText : snippet, myEmail, auth?.display_name)}
+                                </div>
+                                {isLong && !isExpanded && (
+                                  <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-[var(--color-bg-raised)]" />
+                                )}
                               </div>
                               {isLong && (
                                 <button
