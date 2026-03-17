@@ -406,7 +406,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     <MessageBubble uid={selectedMsg.uid} textBody={null} htmlBody={selectedMsg.html_body} attachments={[]} isOwn={false} />
                   </div>
                 )}
-                {(selectedMsg.clean_text || selectedMsg.text_body || !selectedMsg.html_body) && (
+                {!selectedMsg.html_body && (
                   <div className="select-text px-5 py-4">
                     <div className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-[var(--color-text-primary)]">
                       {highlightMentions(selectedMsg.clean_text || selectedMsg.text_body || '(no text content)', myEmail, auth?.display_name)}
