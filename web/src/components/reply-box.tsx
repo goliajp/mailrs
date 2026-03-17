@@ -343,8 +343,8 @@ export function ReplyBox({
         </div>
       )}
 
-      {/* structured editor */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-1 pt-2">
+      {/* structured editor — fills all remaining space */}
+      <div className="min-h-0 flex-1">
         <StructuredCompose
           ref={composeRef}
           onSubmit={send}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, forwardRef } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
-import { ChevronDown, ChevronRight, Eye, Code2, Type } from 'lucide-react'
+import { ChevronDown, ChevronRight, Code2, Eye, Type } from 'lucide-react'
 import { marked } from 'marked'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -46,7 +46,6 @@ type Props = {
 
 const SIG_SEPARATOR_TEXT = '\n\n-- \n'
 
-// markdown formatting actions for the markdown toolbar
 type MdAction = { label: string; icon: string; prefix: string; suffix: string; block?: boolean }
 const MD_ACTIONS: MdAction[] = [
   { label: 'Bold', icon: 'B', prefix: '**', suffix: '**' },
@@ -111,12 +110,16 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
   const sigInitializedRef = useRef(false)
   const quotedInitializedRef = useRef(false)
   const mdTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-  // compose editor: full capabilities (rich mode)
+  // compose editor: full capabilities
   const composeEditor = useEditor({
     extensions: createEditorExtensions(placeholder),
     editorProps: {
-      attributes: { class: PROSE_CLASS + ' min-h-[3rem]' },
+      attributes: {
+        class: PROSE_CLASS + ' min-h-[3rem]',
+        style: 'cursor: text',
+      },
       handleKeyDown: (_view, event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
           event.preventDefault()
@@ -181,24 +184,29 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
     quotedInitializedRef.current = false
   }, [quotedHtml])
 
-  // mode switching: sync content between rich editor and markdown textarea
+  // click anywhere in the empty space → focus editor
+  const handleAreaClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // only if clicking the scroll area itself, not a child element
+    if (e.target !== scrollAreaRef.current) return
+    if (editorMode === 'rich' && composeEditor) {
+      composeEditor.commands.focus('end')
+    } else if (editorMode === 'markdown' && mdTextareaRef.current) {
+      mdTextareaRef.current.focus()
+    }
+  }, [editorMode, composeEditor])
+
+  // mode switching
   const switchMode = useCallback((newMode: EditorMode) => {
     if (newMode === editorMode) return
-
     if (editorMode === 'rich' && newMode === 'markdown') {
-      // rich → markdown: extract plain text from editor
       setMarkdownText(composeEditor?.getText() ?? '')
     } else if (editorMode === 'markdown' && newMode === 'rich') {
-      // markdown → rich: parse markdown to HTML and set in editor
       const html = markdownToHtml(markdownText)
       composeEditor?.commands.setContent(html)
     }
-    // preview mode: no content transformation needed
-
     setEditorMode(newMode)
   }, [editorMode, composeEditor, markdownText])
 
-  // get current compose content (handles both modes)
   const getComposeContent = useCallback((): { text: string; html: string } => {
     if (editorMode === 'markdown') {
       return { text: markdownText, html: markdownToHtml(markdownText) }
@@ -209,7 +217,6 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
     }
   }, [editorMode, markdownText, composeEditor])
 
-  // expose handle
   useImperativeHandle(ref, () => ({
     getContent: () => {
       const { text, html } = getComposeContent()
@@ -222,7 +229,6 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
     },
     setComposeContent: (html: string) => {
       if (editorMode === 'markdown') {
-        // for markdown mode, just set the text version
         setMarkdownText(html.replace(/<[^>]*>/g, ''))
       } else {
         composeEditor?.commands.setContent(html)
@@ -231,7 +237,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
     getEditorMode: () => editorMode,
   }), [composeEditor, sigEditor, quotedEditor, quotedHeader, editorMode, markdownText, getComposeContent])
 
-  // drag-drop for images (rich mode only)
+  // drag-drop
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     setIsDragOver(false)
     dragCountRef.current = 0
@@ -270,7 +276,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
     if (dragCountRef.current === 0) setIsDragOver(false)
   }, [])
 
-  // markdown toolbar action
+  // markdown formatting
   const applyMdFormat = useCallback((action: MdAction) => {
     const el = mdTextareaRef.current
     if (!el) return
@@ -300,10 +306,8 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
 
   return (
     <div
-      className={`relative flex h-full flex-col rounded-lg border transition-colors ${
-        isDragOver
-          ? 'border-[var(--color-brand-primary)] bg-[var(--color-brand-subtle)]'
-          : 'border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]'
+      className={`relative flex h-full flex-col transition-colors ${
+        isDragOver ? 'bg-[var(--color-brand-subtle)]' : ''
       }`}
       onDrop={handleDrop}
       onPaste={handlePaste}
@@ -311,56 +315,37 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
     >
-      {/* toolbar area */}
+      {/* toolbar — thin bar at top */}
       <div className="flex shrink-0 items-center border-b border-[var(--color-border-default)]">
         {/* mode toggle */}
         <div className="flex items-center gap-0.5 border-r border-[var(--color-border-default)] px-1.5 py-1">
-          <button
-            type="button"
-            onClick={() => switchMode('rich')}
-            title="Rich text"
-            className={`rounded-md p-1 transition-colors ${
-              editorMode === 'rich'
-                ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]'
-                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
-            }`}
-          >
-            <Type className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode('markdown')}
-            title="Markdown"
-            className={`rounded-md p-1 transition-colors ${
-              editorMode === 'markdown'
-                ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]'
-                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
-            }`}
-          >
-            <Code2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode('preview')}
-            title="Preview"
-            className={`rounded-md p-1 transition-colors ${
-              editorMode === 'preview'
-                ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]'
-                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
-            }`}
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </button>
+          {([
+            { mode: 'rich' as const, icon: Type, title: 'Rich text' },
+            { mode: 'markdown' as const, icon: Code2, title: 'Markdown' },
+            { mode: 'preview' as const, icon: Eye, title: 'Preview' },
+          ]).map(({ mode: m, icon: Icon, title }) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => switchMode(m)}
+              title={title}
+              className={`rounded-md p-1 transition-colors ${
+                editorMode === m
+                  ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+            </button>
+          ))}
         </div>
 
-        {/* formatting toolbar — rich mode only */}
         {editorMode === 'rich' && (
           <div className="flex-1 overflow-hidden">
             <EditorToolbar editor={composeEditor} />
           </div>
         )}
 
-        {/* markdown toolbar */}
         {editorMode === 'markdown' && (
           <div className="flex flex-1 flex-wrap items-center gap-0.5 px-2 py-1">
             {MD_ACTIONS.map((a) => (
@@ -381,7 +366,6 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
           </div>
         )}
 
-        {/* preview label */}
         {editorMode === 'preview' && (
           <div className="flex-1 px-3 py-1.5">
             <span className="text-xs text-[var(--color-text-tertiary)]">Recipient preview</span>
@@ -389,8 +373,12 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
         )}
       </div>
 
-      {/* scrollable content area */}
-      <div className={`min-h-0 flex-1 overflow-y-auto ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
+      {/* main content area — fills all remaining space, click anywhere to focus */}
+      <div
+        ref={scrollAreaRef}
+        onClick={handleAreaClick}
+        className={`flex min-h-0 flex-1 cursor-text flex-col overflow-y-auto ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+      >
         {/* rich mode */}
         {editorMode === 'rich' && (
           <EditorContent editor={composeEditor} />
@@ -405,28 +393,24 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
             onKeyDown={handleMdKeyDown}
             placeholder={placeholder ?? 'Write in Markdown...'}
             disabled={disabled}
-            className="w-full resize-none bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]"
-            style={{ minHeight: '3rem' }}
-            rows={8}
+            className="h-full min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]"
           />
         )}
 
         {/* preview mode */}
         {editorMode === 'preview' && (
-          <div className="px-4 py-3">
+          <div className="cursor-default px-4 py-3">
             <div className="prose prose-sm max-w-none text-[var(--color-text-primary)]">
-              {editorMode === 'preview' && markdownText && (
+              {markdownText ? (
                 <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
                   {markdownText}
                 </Markdown>
-              )}
-              {editorMode === 'preview' && !markdownText && composeEditor && (
+              ) : composeEditor ? (
                 <div dangerouslySetInnerHTML={{ __html: composeEditor.getHTML() }} />
-              )}
+              ) : null}
             </div>
 
-            {/* signature preview */}
-            {hasSignature && sigEditor && sigEditor.getText().trim() && (
+            {hasSignature && sigEditor?.getText().trim() && (
               <div className="mt-4 border-t border-dashed border-[var(--color-border-default)] pt-2 opacity-60">
                 <p className="text-sm text-[var(--color-text-tertiary)]">-- </p>
                 <div
@@ -436,8 +420,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
               </div>
             )}
 
-            {/* quoted preview */}
-            {hasQuoted && quotedEditor && quotedEditor.getText().trim() && (
+            {hasQuoted && quotedEditor?.getText().trim() && (
               <div className="mt-4 border-l-2 border-[var(--color-border-default)] pl-3 opacity-50">
                 <div
                   className="prose prose-sm max-w-none text-[var(--color-text-tertiary)]"
@@ -450,18 +433,18 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
 
         {/* signature zone (rich + markdown modes) */}
         {editorMode !== 'preview' && hasSignature && (
-          <div className="border-t border-dashed border-[var(--color-border-default)] opacity-60">
+          <div className="cursor-default border-t border-dashed border-[var(--color-border-default)] opacity-60">
             <EditorContent editor={sigEditor} />
           </div>
         )}
 
         {/* quoted zone (rich + markdown modes) */}
         {editorMode !== 'preview' && hasQuoted && (
-          <div className="border-t border-[var(--color-border-default)]">
+          <div className="cursor-default border-t border-[var(--color-border-default)]">
             <button
               type="button"
               onClick={() => setQuotedExpanded((v) => !v)}
-              className="flex w-full items-center gap-1 px-3 py-1.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+              className="flex w-full cursor-pointer items-center gap-1 px-3 py-1.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
             >
               {quotedExpanded
                 ? <ChevronDown className="h-3 w-3" />
