@@ -260,7 +260,7 @@ export function NewConversation() {
             type="text"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            className="flex-1 bg-transparent py-2 text-sm text-[var(--color-text-primary)] outline-none"
+            className="flex-1 bg-transparent py-2 text-sm text-[var(--color-text-primary)] outline-none focus-visible:underline focus-visible:decoration-[var(--color-brand-primary)]"
           />
         </div>
       </div>
@@ -278,7 +278,7 @@ export function NewConversation() {
 
       {/* attachments — below editor, near action bar */}
       {files.length > 0 && (
-        <div className="flex shrink-0 flex-wrap gap-1.5 px-4 pb-2">
+        <div className="flex max-h-24 shrink-0 flex-wrap gap-1.5 overflow-y-auto px-4 pb-2">
           {files.map((f, i) => (
             <div
               key={i}
@@ -320,7 +320,7 @@ export function NewConversation() {
         <button
           onClick={send}
           disabled={sending}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-4 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-4 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Send className="h-3.5 w-3.5" />
           {sending ? 'Sending…' : 'Send'}
@@ -346,6 +346,7 @@ export function NewConversation() {
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
             min={new Date().toISOString().slice(0, 16)}
+            aria-label="Schedule send time"
             className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]"
           />
         )}
@@ -354,8 +355,9 @@ export function NewConversation() {
 
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none"
           title="Attach files"
+          aria-label="Attach files"
         >
           <Paperclip className="h-4 w-4" />
         </button>
@@ -375,7 +377,7 @@ export function NewConversation() {
         <button
           onClick={polish}
           disabled={polishing || sending}
-          className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:opacity-50"
+          className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
           title="AI polish your text"
         >
           {polishing ? 'Polishing…' : 'Polish'}
@@ -418,7 +420,7 @@ export function NewConversation() {
         <button
           onClick={() => setComposingNew(false)}
           disabled={sending}
-          className="flex h-8 shrink-0 items-center rounded-md px-3 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:opacity-50"
+          className="flex h-8 shrink-0 items-center rounded-md px-3 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Cancel
         </button>

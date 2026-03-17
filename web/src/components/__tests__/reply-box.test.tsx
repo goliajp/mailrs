@@ -152,7 +152,7 @@ describe('ReplyBox', () => {
     )
 
     // forward mode should render the ContactAutocomplete input
-    const input = screen.getByPlaceholderText('To: recipient@example.com, ...')
+    const input = screen.getByPlaceholderText('recipient@example.com')
     expect(input).toBeDefined()
   })
 

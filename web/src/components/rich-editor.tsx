@@ -57,7 +57,7 @@ function ToolbarButton({ onClick, active, disabled, title, children }: ToolbarBu
         active
           ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]'
           : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
-      } disabled:opacity-30`}
+      } disabled:opacity-50`}
     >
       {children}
     </button>
