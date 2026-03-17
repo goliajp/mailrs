@@ -298,8 +298,8 @@ export function NewConversation() {
         </div>
       </div>
 
-      {/* structured editor */}
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      {/* structured editor — fills all remaining space, no padding */}
+      <div className="min-h-0 flex-1">
         <StructuredCompose
           ref={composeRef}
           onSubmit={send}
