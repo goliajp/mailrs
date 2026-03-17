@@ -22,6 +22,10 @@ const MODE_LABELS: Record<ReplyMode, string> = {
   forward: 'Forward',
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
@@ -79,7 +83,7 @@ export function ReplyBox({
     if (newMode === 'forward' && editorRef.current) {
       const { text } = getEditorContent(editorRef.current)
       if (!text.trim()) {
-        const fwdHtml = `<br><br><p>---------- Forwarded message ----------</p><p>From: ${originalFrom}</p><p>Date: ${originalDate}</p><p>Subject: ${subject}</p><br>${originalBody}`
+        const fwdHtml = `<br><br><p>---------- Forwarded message ----------</p><p>From: ${escapeHtml(originalFrom)}</p><p>Date: ${escapeHtml(originalDate)}</p><p>Subject: ${escapeHtml(subject)}</p><br>${originalBody}`
         editorRef.current.commands.setContent(fwdHtml)
       }
     }
@@ -107,6 +111,8 @@ export function ReplyBox({
   }
 
   const send = async () => {
+    if (sending) return
+
     const to = resolveRecipients()
     if (mode === 'forward' && to.length === 0) {
       setError('Please enter at least one recipient')
@@ -114,7 +120,10 @@ export function ReplyBox({
     }
 
     const { text, html } = getEditorContent(editorRef.current)
-    if (!text.trim() && files.length === 0) return
+    if (!text.trim() && files.length === 0) {
+      toast.error('Message body is required')
+      return
+    }
 
     setError('')
     setSending(true)
@@ -232,7 +241,8 @@ export function ReplyBox({
     try {
       const result = await postJson<PolishResult>('/mail/ai/polish', { text })
       if (result.success && result.polished && editorRef.current) {
-        editorRef.current.commands.setContent(`<p>${result.polished.replace(/\n/g, '</p><p>')}</p>`)
+        const paragraphs = result.polished.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
+        editorRef.current.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
         toast.success('Text polished')
       }
     } catch {
@@ -262,9 +272,10 @@ export function ReplyBox({
     }
   }
 
-  const applySuggestion = (text: string) => {
+  const applySuggestion = (suggestion: string) => {
     if (editorRef.current) {
-      editorRef.current.commands.setContent(`<p>${text.replace(/\n/g, '</p><p>')}</p>`)
+      const paragraphs = suggestion.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
+      editorRef.current.commands.setContent(paragraphs || `<p>${escapeHtml(suggestion)}</p>`)
     }
     setSuggestions([])
   }
@@ -359,7 +370,7 @@ export function ReplyBox({
               className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs"
             >
               <FileIcon className="h-3 w-3 shrink-0 text-[var(--color-text-tertiary)]" />
-              <span className="max-w-28 truncate text-[var(--color-text-secondary)]">{f.name}</span>
+              <span className="max-w-36 truncate text-[var(--color-text-secondary)]" title={f.name}>{f.name}</span>
               <span className="text-[var(--color-text-tertiary)]">{formatFileSize(f.size)}</span>
               <button
                 onClick={() => removeFile(i)}
@@ -376,7 +387,7 @@ export function ReplyBox({
       {/* action bar */}
       <div className="flex shrink-0 select-none flex-wrap items-center gap-1 px-3 pb-2 pt-1">
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => { if (fileInputRef.current) fileInputRef.current.value = ''; fileInputRef.current?.click() }}
           className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none"
           title="Attach file"
           aria-label="Attach file"

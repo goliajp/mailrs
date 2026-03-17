@@ -22,6 +22,10 @@ type TemplateInfo = {
 }
 type PolishResult = { success: boolean; polished?: string; message?: string }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
@@ -70,7 +74,8 @@ export function NewConversation() {
     try {
       const result = await postJson<PolishResult>('/mail/ai/polish', { text })
       if (result.success && result.polished && editorRef.current) {
-        editorRef.current.commands.setContent(`<p>${result.polished.replace(/\n/g, '</p><p>')}</p>`)
+        const paragraphs = result.polished.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
+        editorRef.current.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
         toast.success('Text polished')
       } else {
         toast.error(result.message ?? 'Polish failed')
@@ -87,6 +92,8 @@ export function NewConversation() {
   }, [])
 
   const send = async () => {
+    if (sending) return
+
     const recipients = to
       .split(/[,;]/)
       .map((s) => s.trim())
@@ -285,7 +292,7 @@ export function NewConversation() {
               className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs"
             >
               <FileIcon className="h-3 w-3 shrink-0 text-[var(--color-text-tertiary)]" />
-              <span className="max-w-32 truncate text-[var(--color-text-secondary)]">{f.name}</span>
+              <span className="max-w-36 truncate text-[var(--color-text-secondary)]" title={f.name}>{f.name}</span>
               <span className="text-[var(--color-text-tertiary)]">{formatFileSize(f.size)}</span>
               <button
                 onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
@@ -345,7 +352,7 @@ export function NewConversation() {
             type="datetime-local"
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
-            min={new Date().toISOString().slice(0, 16)}
+            min={(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` })()}
             aria-label="Schedule send time"
             className="h-8 w-44 shrink-0 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]"
           />
@@ -354,7 +361,7 @@ export function NewConversation() {
         <div className="mx-0.5 h-4 w-px bg-[var(--color-border-default)]" />
 
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => { if (fileInputRef.current) fileInputRef.current.value = ''; fileInputRef.current?.click() }}
           className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none"
           title="Attach files"
           aria-label="Attach files"
