@@ -112,7 +112,7 @@ function ToolbarButton({ onClick, active, disabled, title, children }: ToolbarBu
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`rounded-md px-1.5 py-0.5 text-xs transition-colors ${
+      className={`rounded-md px-1.5 py-1 text-xs transition-colors ${
         active
           ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]'
           : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
@@ -149,7 +149,7 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
   }
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-[var(--color-border-default)] px-2 py-1">
+    <div className="flex shrink-0 flex-wrap items-center gap-0.5 px-2 py-1">
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBold().run()}
         active={editor.isActive('bold')}

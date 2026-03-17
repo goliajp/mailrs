@@ -216,19 +216,27 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
 
       case 'divider':
         return (
-          <Removable key={key} id={block.id} className="px-4">
-            <DividerBlock />
-          </Removable>
+          <div key={key} className="group relative flex items-center px-4">
+            <div className="flex-1"><DividerBlock /></div>
+            <button
+              type="button"
+              onClick={() => removeBlock(block.id)}
+              className="ml-2 shrink-0 rounded-full bg-[var(--color-bg-overlay)] p-0.5 text-[var(--color-text-tertiary)] opacity-0 shadow-sm transition-opacity hover:bg-[var(--color-status-danger-subtle)] hover:text-[var(--color-status-danger)] group-hover:opacity-100"
+              aria-label="Remove divider"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         )
 
       case 'attachment':
         return (
-          <Removable key={key} id={block.id} className="px-4 py-1">
+          <div key={key} className="px-4 py-1">
             <AttachmentBlock
               data={block.data as AttachmentBlockData}
               onRemove={() => removeBlock(block.id)}
             />
-          </Removable>
+          </div>
         )
 
       case 'task':

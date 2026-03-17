@@ -200,6 +200,7 @@ body {
   float: left;
   color: var(--color-text-tertiary);
   pointer-events: none;
+  font-size: 0.875rem;
   height: 0;
 }
 
