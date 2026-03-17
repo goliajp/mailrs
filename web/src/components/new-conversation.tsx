@@ -377,7 +377,7 @@ export function NewConversation() {
         <button
           onClick={polish}
           disabled={polishing || sending}
-          className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
           title="AI polish your text"
         >
           {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
@@ -416,7 +416,9 @@ export function NewConversation() {
 
         <div className="flex-1" />
 
-        <kbd className="mr-1 hidden select-none text-[10px] text-[var(--color-text-tertiary)] sm:inline">⌘↵</kbd>
+        <kbd className="mr-1 hidden select-none text-[10px] text-[var(--color-text-tertiary)] sm:inline">
+          {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘' : 'Ctrl+'}↵
+        </kbd>
         <button
           onClick={() => setComposingNew(false)}
           disabled={sending}
