@@ -172,10 +172,10 @@ describe('ThreadView — with messages', () => {
     expect(screen.getByText('2')).toBeDefined()
   })
 
-  it('shows singular count for single message', () => {
+  it('hides count badge for single message', () => {
     store.set(threadMessagesAtom, [makeMessage()])
     render(<Wrapper store={store}><ThreadView /></Wrapper>)
-    expect(screen.getByText('1')).toBeDefined()
+    expect(screen.queryByText('1')).toBeNull()
   })
 
   it('renders sender name in chat bubble', () => {

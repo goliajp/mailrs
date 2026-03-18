@@ -287,15 +287,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       {/* content panel */}
       <Panel>
         {/* header bar at top of content panel */}
-        <div className="flex shrink-0 select-none items-center gap-2 border-b border-[var(--color-border-default)] px-4 py-2">
+        <div className="flex shrink-0 select-none items-center gap-2 border-b border-[var(--color-border-default)] px-3 py-1.5">
           {onBack && (
             <button onClick={onBack} className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] md:hidden" title="Back">
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-4 w-4" />
             </button>
           )}
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <h2 className="select-text truncate text-sm font-semibold text-[var(--color-text-primary)]">{subject || '(no subject)'}</h2>
-            <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">{messages.length}</span>
+            {messages.length > 1 && <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">{messages.length}</span>}
             <CategoryBadge category={messages[0]?.category} />
             <ImportanceBadge level={messages[0]?.importance_level} />
             {messages.some((m) => m.requires_action) && <ActionBadge />}
@@ -326,9 +326,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             {selectedMsg ? (
               <>
                 {/* email header (sender info) */}
-                <div className="shrink-0 border-b border-[var(--color-border-default)] px-4 py-3">
-                  <div className="flex items-start gap-3">
-                    <SenderAvatar sender={selectedMsg.sender} size={32} className="mt-0.5" />
+                <div className="shrink-0 border-b border-[var(--color-border-default)] px-4 py-2">
+                  <div className="flex items-start gap-2.5">
+                    <SenderAvatar sender={selectedMsg.sender} size={28} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <p className="select-text text-sm font-medium text-[var(--color-text-primary)]">
@@ -427,12 +427,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
       {/* handle panel (conversation timeline + reply) */}
       <Panel>
-        {/* panel header */}
-        <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] px-4 py-2">
-          <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
-            Conversation ({messages.length})
-          </span>
-        </div>
+        {/* panel header — only show when multiple messages */}
+        {messages.length > 1 && (
+          <div className="flex shrink-0 select-none items-center border-b border-[var(--color-border-default)] px-4 py-1.5">
+            <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
+              Conversation ({messages.length})
+            </span>
+          </div>
+        )}
         {/* timeline + reply box */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-[3] basis-0 overflow-y-auto px-4 py-3">
@@ -670,7 +672,7 @@ function formatRecipients(recipients: string): string {
 
 function HdrBtn({ onClick, title, className, children }: { onClick: () => void; title: string; className?: string; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)] ${className ?? ''}`} title={title}>
+    <button onClick={onClick} className={`flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)] ${className ?? ''}`} title={title}>
       {children}
     </button>
   )
