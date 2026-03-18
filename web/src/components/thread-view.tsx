@@ -502,7 +502,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                             tabIndex={0}
                             onClick={() => setSelectedMsgIdx(idx)}
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
-                            className={`flex cursor-pointer gap-3 rounded-lg px-3 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
+                            className={`flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
                               isSelected ? 'bg-[var(--color-bg-selected)]' : 'hover:bg-[var(--color-hover)]'
                             }`}
                           >
@@ -522,7 +522,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   {highlightMentions(isExpanded ? fullText : snippet, myEmail, auth?.display_name)}
                                 </div>
                                 {isLong && !isExpanded && (
-                                  <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-[var(--color-bg-raised)]" />
+                                  <div className={`absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t ${isSelected ? 'from-[var(--color-bg-selected)]' : 'from-[var(--color-bg-raised)]'}`} />
                                 )}
                               </div>
                               {isLong && (
