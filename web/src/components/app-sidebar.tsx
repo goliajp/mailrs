@@ -1,6 +1,6 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
-import { Activity, Inbox, LogOut, Monitor, Moon, Server, Settings, Sun } from 'lucide-react'
+import { Activity, Home, Inbox, LogOut, Monitor, Moon, Server, Settings, Sun } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useLocation } from 'react-router'
 import type { ThemeMode } from '@/lib/theme'
@@ -77,7 +77,9 @@ export function AppSidebar() {
       ? 'monitor'
       : pathname.startsWith('/settings')
         ? 'settings'
-        : 'mail'
+        : pathname.startsWith('/mail')
+          ? 'mail'
+          : 'home'
 
   return (
     <aside className="hidden h-full w-14 shrink-0 select-none flex-col items-center pt-1.5 pb-4 md:flex">
@@ -86,9 +88,12 @@ export function AppSidebar() {
         <img src="/icon.svg" alt="Mailrs" className="h-7 w-7 rounded-md" />
       </div>
 
+      {/* home */}
+      <SidebarLink href="/" icon={Home} label="Home" active={section === 'home'} />
+
       {/* inbox + domain group */}
-      <div className="flex flex-col items-center gap-0.5">
-        <SidebarLink href="/" icon={Inbox} label="Mail" active={section === 'mail' && selectedDomains.length === 0} />
+      <div className="mt-1 flex flex-col items-center gap-0.5">
+        <SidebarLink href="/mail" icon={Inbox} label="Mail" active={section === 'mail' && selectedDomains.length === 0} />
         {domains.length > 0 && domains.map((d) => {
           const active = section === 'mail' && selectedDomains.length === 1 && selectedDomains[0] === d
           const label = d.split('.')[0]
