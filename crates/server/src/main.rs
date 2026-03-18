@@ -359,6 +359,30 @@ async fn main() {
     if let Some(ref ldap) = ldap_config {
         ws = ws.with_ldap_config(ldap.clone());
     }
+    // OIDC client (Sign in with external IdP)
+    if let (Ok(client_id), Ok(client_secret), Ok(issuer)) = (
+        std::env::var("MAILRS_OIDC_CLIENT_ID"),
+        std::env::var("MAILRS_OIDC_CLIENT_SECRET"),
+        std::env::var("MAILRS_OIDC_ISSUER"),
+    ) {
+        let redirect_uri = std::env::var("MAILRS_OIDC_REDIRECT_URI")
+            .unwrap_or_else(|_| format!("https://{}/api/auth/oidc/callback", cfg.hostname));
+        let authorize_url = std::env::var("MAILRS_OIDC_AUTHORIZE_URL")
+            .unwrap_or_else(|_| format!("{issuer}/authorize"));
+        let token_url = std::env::var("MAILRS_OIDC_TOKEN_URL")
+            .unwrap_or_else(|_| format!("{issuer}/token"));
+        let userinfo_url = std::env::var("MAILRS_OIDC_USERINFO_URL")
+            .unwrap_or_else(|_| format!("{issuer}/userinfo"));
+        tracing::info!("OIDC client configured (issuer={})", issuer);
+        ws = ws.with_oidc(crate::web::OidcConfig {
+            client_id,
+            client_secret,
+            authorize_url,
+            token_url,
+            userinfo_url,
+            redirect_uri,
+        });
+    }
     let web_state = Arc::new(ws);
 
     let users = Arc::new(user_store);
