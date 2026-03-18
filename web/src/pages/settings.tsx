@@ -1096,6 +1096,10 @@ function AppearanceSection() {
 
   const handleNotificationToggle = useCallback(
     async (enabled: boolean) => {
+      if (typeof Notification === 'undefined') {
+        setNotificationError('Browser notifications are not supported on this device.')
+        return
+      }
       if (enabled && Notification.permission === 'default') {
         const result = await Notification.requestPermission()
         if (result === 'denied') {

@@ -121,7 +121,7 @@ export function useMailEvents(user: string) {
               if (notificationsRef.current) {
                 if (soundRef.current) playNotificationSound()
 
-                if (Notification.permission === 'granted' && document.hidden) {
+                if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
                   new Notification(msg.sender, {
                     body: msg.subject || msg.snippet,
                     tag: msg.thread_id,
