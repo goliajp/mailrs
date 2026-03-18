@@ -17,9 +17,16 @@ import { cn } from '@/lib/cn'
 
 type FolderInfo = { name: string; total: number; unseen: number }
 
+type MailStats = {
+  total_messages: number
+  unread_messages: number
+  storage_bytes: number
+  categories: CategoryCount[]
+}
+
 type DashboardData = {
   conversations: ConversationSummary[]
-  categories: CategoryCount[]
+  stats: MailStats | null
   folders: FolderInfo[]
 }
 
@@ -53,6 +60,14 @@ function extractEmail(sender: string): string {
   return m ? m[1] : sender
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  const value = bytes / Math.pow(1024, i)
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`
+}
+
 function todayStart(): number {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
@@ -76,12 +91,12 @@ export function Dashboard() {
     if (!silent) setLoading(true)
     else setRefreshing(true)
     try {
-      const [conversations, categories, folders] = await Promise.all([
+      const [conversations, stats, folders] = await Promise.all([
         fetchJson<ConversationSummary[]>('/conversations?limit=200'),
-        fetchJson<CategoryCount[]>('/conversations/categories'),
+        fetchJson<MailStats>('/mail/stats').catch(() => null),
         fetchJson<FolderInfo[]>('/mail/folders'),
       ])
-      setData({ conversations, categories, folders })
+      setData({ conversations, stats, folders })
     } catch {
       // ignore
     } finally {
@@ -114,8 +129,9 @@ export function Dashboard() {
     }
   }, [searchInput, setSearchQuery, navigate])
 
-  const inbox = data?.folders.find((f) => f.name === 'INBOX')
-  const totalUnread = inbox?.unseen ?? 0
+  const totalUnread = data?.stats?.unread_messages ?? data?.folders.find((f) => f.name === 'INBOX')?.unseen ?? 0
+  const totalMessages = data?.stats?.total_messages ?? 0
+  const storageBytes = data?.stats?.storage_bytes ?? 0
   const todayTs = todayStart()
   const todayCount = data?.conversations.filter((c) => c.last_date >= todayTs).length ?? 0
   const starredCount = data?.conversations.filter((c) => c.flagged).length ?? 0
@@ -158,10 +174,10 @@ export function Dashboard() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 6)
 
-  // category stats
-  const categoryData = data?.categories
+  // category stats (prefer stats endpoint, fallback to separate categories call)
+  const categoryData = (data?.stats?.categories ?? [])
     .filter((c) => c.count > 0)
-    .sort((a, b) => b.count - a.count) ?? []
+    .sort((a, b) => b.count - a.count)
   const totalCategorized = categoryData.reduce((s, c) => s + c.count, 0)
 
   const displayName = auth?.display_name || auth?.address?.split('@')[0] || ''
@@ -375,6 +391,22 @@ export function Dashboard() {
                         <span className="shrink-0 rounded-full bg-[var(--color-bg-sunken)] px-1.5 py-0.5 text-[10px] tabular-nums text-[var(--color-text-tertiary)]">{s.count}</span>
                       </div>
                     ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* mailbox overview */}
+              {totalMessages > 0 && (
+                <Section title="Mailbox" icon={Mail}>
+                  <div className="space-y-2 px-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[var(--color-text-tertiary)]">Total emails</span>
+                      <span className="tabular-nums font-medium text-[var(--color-text-primary)]">{totalMessages.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[var(--color-text-tertiary)]">Storage</span>
+                      <span className="tabular-nums font-medium text-[var(--color-text-primary)]">{formatBytes(storageBytes)}</span>
+                    </div>
                   </div>
                 </Section>
               )}

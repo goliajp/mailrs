@@ -736,6 +736,7 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             get(conversations::get_thread_reactions),
         )
         .route("/api/contacts", get(conversations::get_contacts))
+        .route("/api/mail/stats", get(conversations::get_mail_stats))
         .route(
             "/api/mail/feedback",
             post(conversations::record_feedback),
