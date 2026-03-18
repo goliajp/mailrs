@@ -141,7 +141,8 @@ function HtmlFrame({ html }: { html: string }) {
       ref={ref}
       srcDoc={srcdoc}
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-      style={{ width: '100%', height, border: 'none', display: 'block' }}
+      className="block w-full border-none"
+      style={{ height }}
       title="email content"
     />
   )

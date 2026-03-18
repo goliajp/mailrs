@@ -75,10 +75,7 @@ function QuotaCell({ address }: { address: string }) {
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[var(--color-border-default)]">
-        <div
-          className="h-full rounded-full bg-[var(--color-brand-primary)]"
-          style={{ width: '0%' }}
-        />
+        <div className="h-full w-0 rounded-full bg-[var(--color-brand-primary)]" />
       </div>
       <span className="text-xs text-[var(--color-text-secondary)]">{formatted}</span>
     </div>

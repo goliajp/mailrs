@@ -3,6 +3,20 @@ import Markdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 
+const MIN_HEIGHT_MAP: Record<number, string> = {
+  1: 'min-h-6',
+  2: 'min-h-12',
+  3: 'min-h-[4.5rem]',
+  4: 'min-h-24',
+  5: 'min-h-[7.5rem]',
+  6: 'min-h-36',
+  8: 'min-h-48',
+}
+
+function minHeightClass(rows: number): string {
+  return MIN_HEIGHT_MAP[rows] ?? `min-h-[${rows * 1.5}rem]`
+}
+
 type FormatAction = {
   label: string
   icon: string
@@ -135,8 +149,7 @@ export function MarkdownEditor({
       {/* preview pane */}
       {previewing ? (
         <div
-          className="prose prose-sm max-w-none px-4 py-2 prose-[var(--color-text-primary)]"
-          style={{ minHeight: `${(minRows ?? 1) * 1.5}rem` }}
+          className={`prose prose-sm max-w-none px-4 py-2 prose-[var(--color-text-primary)] ${minHeightClass(minRows ?? 1)}`}
         >
           {value.trim() ? (
             <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
@@ -157,8 +170,7 @@ export function MarkdownEditor({
           placeholder={placeholder}
           disabled={disabled}
           rows={minRows ?? 1}
-          className="max-h-[200px] w-full resize-none bg-transparent px-4 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]"
-          style={{ minHeight: `${(minRows ?? 1) * 1.5}rem` }}
+          className={`max-h-[200px] w-full resize-none bg-transparent px-4 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] ${minHeightClass(minRows ?? 1)}`}
         />
       )}
     </div>
