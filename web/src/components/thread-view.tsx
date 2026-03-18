@@ -369,7 +369,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                         </span>
                         <IntentBadge intent={selectedMsg.sender_intent} />
                         {selectedMsg.action_deadline && (
-                          <span className="bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-status-warning)]">
+                          <span className="rounded bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-status-warning)]">
                             Due: {selectedMsg.action_deadline}
                           </span>
                         )}

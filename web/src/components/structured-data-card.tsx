@@ -25,7 +25,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         {reservations.map((r, i) => (
           <div
             key={`res-${i}`}
-            className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
+            className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
           >
             <div className="flex items-center gap-2">
               <ReservationIcon kind={r.type} />
@@ -34,7 +34,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
               </span>
               {r.reservation_id && (
                 <Copyable value={r.reservation_id}>
-                  <span className="bg-[var(--color-border-default)] px-1.5 py-0.5 text-[11px] font-mono text-[var(--color-text-secondary)]">
+                  <span className="rounded bg-[var(--color-border-default)] px-1.5 py-0.5 text-[11px] font-mono text-[var(--color-text-secondary)]">
                     {r.reservation_id}
                   </span>
                 </Copyable>
@@ -65,7 +65,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         {orders.map((o, i) => (
           <div
             key={`ord-${i}`}
-            className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
+            className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
           >
             <div className="flex items-center gap-2">
               <ShoppingBag className="h-4 w-4 text-[var(--color-status-success)]" />
@@ -74,7 +74,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
               </span>
               {o.order_number && (
                 <Copyable value={o.order_number}>
-                  <span className="bg-[var(--color-border-default)] px-1.5 py-0.5 text-[11px] font-mono text-[var(--color-text-secondary)]">
+                  <span className="rounded bg-[var(--color-border-default)] px-1.5 py-0.5 text-[11px] font-mono text-[var(--color-text-secondary)]">
                     #{o.order_number}
                   </span>
                 </Copyable>
@@ -109,7 +109,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         {events.map((e, i) => (
           <div
             key={`evt-${i}`}
-            className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
+            className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
           >
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-[var(--color-brand-primary)]" />
@@ -140,7 +140,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         ))}
 
         {actions.map((a, i) => (
-          <div key={`act-${i}`} className="border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4">
+          <div key={`act-${i}`} className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4">
             <div className="flex items-center gap-2">
               <ExternalLink className="h-4 w-4 text-[var(--color-brand-primary)]" />
               <span className="text-xs font-medium text-[var(--color-text-secondary)]">
