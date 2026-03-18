@@ -437,6 +437,28 @@ pub(crate) struct GetRecipientKeyParams {
     pub key_type: String,
 }
 
+// --- mail audit ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct AuditListConversationsParams {
+    /// target user email address to audit
+    pub target_user: String,
+    /// max results (default 20, max 50)
+    #[serde(default)]
+    pub limit: Option<u32>,
+    /// filter by category
+    #[serde(default)]
+    pub category: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct AuditReadThreadParams {
+    /// target user email address to audit
+    pub target_user: String,
+    /// thread ID to read
+    pub thread_id: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -858,5 +880,36 @@ mod tests {
         let params: GetRecipientKeyParams = serde_json::from_str(json).unwrap();
         assert_eq!(params.address, "alice@example.com");
         assert_eq!(params.key_type, "pgp");
+    }
+
+    #[test]
+    fn audit_list_conversations_params_schema() {
+        let schema = schema_for!(AuditListConversationsParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("target_user"));
+    }
+
+    #[test]
+    fn audit_list_conversations_params_deserialize() {
+        let json = r#"{"target_user": "roro@golia.jp"}"#;
+        let params: AuditListConversationsParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.target_user, "roro@golia.jp");
+        assert!(params.limit.is_none());
+    }
+
+    #[test]
+    fn audit_read_thread_params_schema() {
+        let schema = schema_for!(AuditReadThreadParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("target_user"));
+        assert!(json.contains("thread_id"));
+    }
+
+    #[test]
+    fn audit_read_thread_params_deserialize() {
+        let json = r#"{"target_user": "roro@golia.jp", "thread_id": "abc123"}"#;
+        let params: AuditReadThreadParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.target_user, "roro@golia.jp");
+        assert_eq!(params.thread_id, "abc123");
     }
 }

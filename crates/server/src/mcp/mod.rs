@@ -461,6 +461,25 @@ impl MailMcpService {
         }
     }
 
+    fn validate_audit_target(&self, target_user: &str) -> Result<(), McpError> {
+        let domain = target_user
+            .split_once('@')
+            .map(|(_, d)| d)
+            .unwrap_or("");
+        if domain.is_empty() {
+            return Err(McpError::invalid_params("invalid target user address", None));
+        }
+        let perms = &self.auth_user.permissions;
+        let accessible = perms.accessible_domains();
+        if !perms.is_super() && !accessible.iter().any(|d| d == domain) {
+            return Err(McpError::invalid_params(
+                "target user not in accessible domains",
+                None,
+            ));
+        }
+        Ok(())
+    }
+
     #[tool(description = "List all email accounts. Requires admin.accounts permission. Returns address, domain, display_name, active status.")]
     async fn list_accounts(
         &self,
@@ -1480,6 +1499,119 @@ impl MailMcpService {
             )),
             Err(e) => Err(McpError::internal_error(format!("{e}"), None)),
         }
+    }
+
+    // --- mail audit ---
+
+    #[tool(description = "List email conversations for a target user (audit/compliance). Requires admin.impersonate permission. Target user must be in your accessible domains.")]
+    async fn audit_list_conversations(
+        &self,
+        Parameters(params): Parameters<AuditListConversationsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.impersonate")?;
+        self.validate_audit_target(&params.target_user)?;
+
+        let mb = self.mb_store()?;
+        let limit = params.limit.unwrap_or(20).min(50);
+        let convos = mb
+            .list_conversations(
+                &params.target_user,
+                limit,
+                None,
+                params.category.as_deref(),
+                None,
+                false,
+                None,
+            )
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        // audit log
+        if let Ok(ds) = self.ds() {
+            ds.log_audit(
+                &self.auth_user.address,
+                "audit.list_conversations",
+                &params.target_user,
+                "",
+            )
+            .await;
+        }
+
+        let items: Vec<serde_json::Value> = convos
+            .into_iter()
+            .map(|c| {
+                serde_json::json!({
+                    "thread_id": c.thread_id,
+                    "subject": c.subject,
+                    "participants": c.participants,
+                    "message_count": c.message_count,
+                    "last_date": c.last_date,
+                    "category": c.category,
+                    "snippet": c.snippet,
+                })
+            })
+            .collect();
+
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Read all messages in a thread for a target user (audit/compliance). Requires admin.impersonate permission. Target user must be in your accessible domains.")]
+    async fn audit_read_thread(
+        &self,
+        Parameters(params): Parameters<AuditReadThreadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.impersonate")?;
+        self.validate_audit_target(&params.target_user)?;
+
+        let mb = self.mb_store()?;
+        let messages = mb
+            .list_thread_messages(&params.target_user, &params.thread_id, None)
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+
+        // audit log
+        if let Ok(ds) = self.ds() {
+            ds.log_audit(
+                &self.auth_user.address,
+                "audit.read_thread",
+                &params.target_user,
+                &params.thread_id,
+            )
+            .await;
+        }
+
+        let items: Vec<serde_json::Value> = messages
+            .iter()
+            .map(|msg| {
+                let maildir_user = if msg.user_address.is_empty() {
+                    &params.target_user
+                } else {
+                    &msg.user_address
+                };
+                let raw = crate::message_util::read_message_raw(
+                    &self.web_state.maildir_root,
+                    maildir_user,
+                    &msg.maildir_id,
+                );
+                let parsed = raw
+                    .as_deref()
+                    .map(crate::message_util::parse_message)
+                    .unwrap_or_default();
+
+                serde_json::json!({
+                    "id": msg.id,
+                    "uid": msg.uid,
+                    "sender": msg.sender,
+                    "recipients": msg.recipients,
+                    "subject": msg.subject,
+                    "internal_date": msg.internal_date,
+                    "text_body": parsed.0,
+                    "attachments": parsed.2.iter().map(|a| serde_json::json!({"filename": a.filename, "content_type": a.content_type, "size": a.size})).collect::<Vec<_>>(),
+                })
+            })
+            .collect();
+
+        self.json_result(&items)
     }
 }
 

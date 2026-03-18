@@ -878,6 +878,17 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         )
         // audit log
         .route("/api/admin/audit-log", get(admin::get_audit_log))
+        // mail audit (admin impersonate)
+        .route("/api/admin/audit/accounts", get(admin::audit_list_accounts))
+        .route("/api/admin/audit/conversations", get(admin::audit_list_conversations))
+        .route(
+            "/api/admin/audit/conversations/{thread_id}/messages",
+            get(admin::audit_get_thread_messages),
+        )
+        .route(
+            "/api/admin/audit/messages/{uid}/raw",
+            get(admin::audit_get_raw_message),
+        )
         // smtp config
         .route("/api/admin/config/smtp", get(admin::get_smtp_config))
         // JMAP

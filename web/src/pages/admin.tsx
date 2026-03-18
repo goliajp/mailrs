@@ -5,6 +5,7 @@ import { AdminAccounts } from '@/pages/admin-accounts'
 import { AdminAliases } from '@/pages/admin-aliases'
 import { AdminApps } from '@/pages/admin-apps'
 import { AdminAuditLog } from '@/pages/admin-audit-log'
+import { AdminMailAudit } from '@/pages/admin-mail-audit'
 import { AdminDomains } from '@/pages/admin-domains'
 import { AdminEmailGroups } from '@/pages/admin-email-groups'
 import { AdminGroups } from '@/pages/admin-groups'
@@ -26,6 +27,7 @@ export function Admin() {
         <Route path="apps" element={<AdminApps />} />
         <Route path="queues" element={<AdminQueues />} />
         <Route path="audit-log" element={<AdminAuditLog />} />
+        <Route path="mail-audit" element={<AdminMailAudit />} />
         <Route path="*" element={<Navigate to="overview" replace />} />
       </Routes>
       </div>
