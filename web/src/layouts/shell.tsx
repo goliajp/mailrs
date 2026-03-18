@@ -8,11 +8,13 @@ export function Shell({ sidebar, statusBar, children }: {
 }) {
   return (
     <div className="fixed inset-0 flex flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
-      <div className="flex min-h-0 flex-1 gap-1.5 pl-1.5 pt-1.5 pb-1.5">
-        <div className="w-14 shrink-0">{sidebar}</div>
-        <div className="flex min-h-0 min-w-0 flex-1 gap-1.5 overflow-hidden pr-3">{children}</div>
+      <div className="flex min-h-0 flex-1 gap-0 pt-0 pb-0 pl-0 md:gap-1.5 md:pt-1.5 md:pb-1.5 md:pl-1.5">
+        <div className="hidden w-14 shrink-0 md:block">{sidebar}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 gap-0 overflow-hidden pr-0 md:gap-1.5 md:pr-3">{children}</div>
       </div>
-      <div className="h-7 shrink-0">{statusBar}</div>
+      {/* mobile bottom nav */}
+      <div className="shrink-0 md:hidden">{sidebar}</div>
+      <div className="hidden h-7 shrink-0 md:block">{statusBar}</div>
     </div>
   )
 }
@@ -25,12 +27,12 @@ export function Panel({ width, children, center, className }: {
 }) {
   return (
     <div className={cn(
-      'flex min-h-0 flex-col overflow-hidden rounded-lg bg-[var(--color-bg-raised)]',
-      width === 280 && 'w-[280px] shrink-0',
-      width === 320 && 'w-[320px] shrink-0',
-      width === 360 && 'w-[360px] shrink-0',
-      width === 400 && 'w-[400px] shrink-0',
-      width === 480 && 'w-[480px] shrink-0',
+      'flex min-h-0 flex-col overflow-hidden bg-[var(--color-bg-raised)] md:rounded-lg',
+      width === 280 && 'w-full shrink-0 md:w-[280px]',
+      width === 320 && 'w-full shrink-0 md:w-[320px]',
+      width === 360 && 'w-full shrink-0 md:w-[360px]',
+      width === 400 && 'w-full shrink-0 md:w-[400px]',
+      width === 480 && 'w-full shrink-0 md:w-[480px]',
       !width && 'min-w-0 flex-1',
       center && 'items-center justify-center',
       className,
@@ -42,7 +44,7 @@ export function Panel({ width, children, center, className }: {
 
 export function PanelRow({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('flex min-h-0 min-w-0 flex-1 gap-1.5 overflow-hidden', className)}>
+    <div className={cn('flex min-h-0 min-w-0 flex-1 gap-0 overflow-hidden md:gap-1.5', className)}>
       {children}
     </div>
   )
