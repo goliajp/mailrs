@@ -120,7 +120,7 @@ const ConversationItem = memo(function ConversationItem({
       onContextMenu={ctx.open}
       aria-selected={selected && !batchMode}
       aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
-      className={`relative flex w-full items-start gap-3 px-4 py-3 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
+      className={`relative flex w-full items-start gap-3 px-4 py-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
         selected && !batchMode
           ? 'border-l-[4px] border-l-[var(--color-brand-primary)]'
           : hasUnread
@@ -165,7 +165,12 @@ const ConversationItem = memo(function ConversationItem({
               </span>
             )}
           </span>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1.5">
+            {convo.message_count > 1 && (
+              <span className="rounded bg-[var(--color-bg-sunken)] px-1 py-px text-[10px] tabular-nums text-[var(--color-text-tertiary)]">
+                {convo.message_count}
+              </span>
+            )}
             {isPinned && (
               <Pin className="h-3 w-3 text-[var(--color-brand-primary)]" />
             )}
