@@ -37,12 +37,22 @@ function useCommands(query: string, onClose: () => void): Command[] {
   const staticCommands = useMemo<Command[]>(
     () => [
       {
+        id: 'nav-home',
+        label: 'Go to Home',
+        icon: <Mail size={16} />,
+        category: 'Navigation',
+        action: () => {
+          navigate('/')
+          onClose()
+        },
+      },
+      {
         id: 'nav-inbox',
         label: 'Go to Inbox',
         icon: <Mail size={16} />,
         category: 'Navigation',
         action: () => {
-          navigate('/')
+          navigate('/mail')
           onClose()
         },
       },
@@ -52,7 +62,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         icon: <Send size={16} />,
         category: 'Navigation',
         action: () => {
-          navigate('/?folder=Sent')
+          navigate('/mail?folder=Sent')
           onClose()
         },
       },
@@ -95,7 +105,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         shortcut: 'C',
         action: () => {
           setComposing(true)
-          navigate('/')
+          navigate('/mail')
           onClose()
         },
       },
