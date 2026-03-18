@@ -94,6 +94,21 @@ function CheckResultCard({ check }: { check: CheckResult }) {
   )
 }
 
+function pctToWidth(pct: number): string {
+  if (pct >= 95) return 'w-full'
+  if (pct >= 85) return 'w-[85%]'
+  if (pct >= 75) return 'w-3/4'
+  if (pct >= 65) return 'w-[65%]'
+  if (pct >= 55) return 'w-[55%]'
+  if (pct >= 45) return 'w-[45%]'
+  if (pct >= 35) return 'w-[35%]'
+  if (pct >= 25) return 'w-1/4'
+  if (pct >= 15) return 'w-[15%]'
+  if (pct >= 8) return 'w-[10%]'
+  if (pct > 0) return 'w-[5%]'
+  return 'w-0'
+}
+
 function SummaryBar({ checks }: { checks: CheckResult[] }) {
   const counts = checks.reduce(
     (acc, c) => ({ ...acc, [c.status]: (acc[c.status] ?? 0) + 1 }),
@@ -107,7 +122,7 @@ function SummaryBar({ checks }: { checks: CheckResult[] }) {
         {(['pass', 'warn', 'fail', 'skip'] as const).map((status) => {
           const count = counts[status] ?? 0
           if (count === 0) return null
-          const width = (count / total) * 100
+          const pct = Math.round((count / total) * 100)
           const colors: Record<CheckStatus, string> = {
             pass: 'bg-[var(--color-status-success)]',
             warn: 'bg-[var(--color-status-warning)]',
@@ -117,8 +132,7 @@ function SummaryBar({ checks }: { checks: CheckResult[] }) {
           return (
             <div
               key={status}
-              className={`${colors[status]} transition-all`}
-              style={{ width: `${width}%` }}
+              className={`${colors[status]} ${pctToWidth(pct)} transition-all`}
             />
           )
         })}
