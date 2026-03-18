@@ -136,7 +136,7 @@ export function Dashboard() {
   return (
     <PanelRow>
       <Panel>
-        <Scroll className="p-6">
+        <Scroll className="p-4 md:p-6">
           {/* greeting */}
           <div className="mb-6">
             <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">
@@ -148,7 +148,7 @@ export function Dashboard() {
           </div>
 
           {/* stat cards */}
-          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               icon={MailOpen}
               label="Unread"
@@ -408,17 +408,32 @@ function CategoryBar({ category, count, total }: {
   count: number
   total: number
 }) {
-  const pct = total > 0 ? (count / total) * 100 : 0
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
         <span className="capitalize text-[var(--color-text-secondary)]">{category}</span>
-        <span className="tabular-nums text-[var(--color-text-tertiary)]">{count}</span>
+        <span className="tabular-nums text-[var(--color-text-tertiary)]">{count} ({pct}%)</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-bg-sunken)]">
         <div
-          className={cn('h-full rounded-full transition-all', CATEGORY_COLORS[category] ?? 'bg-gray-400')}
-          style={{ width: `${pct}%` }}
+          className={cn(
+            'h-full rounded-full transition-all',
+            CATEGORY_COLORS[category] ?? 'bg-gray-400',
+            pct >= 100 && 'w-full',
+            pct >= 90 && pct < 100 && 'w-[90%]',
+            pct >= 80 && pct < 90 && 'w-4/5',
+            pct >= 70 && pct < 80 && 'w-[70%]',
+            pct >= 60 && pct < 70 && 'w-3/5',
+            pct >= 50 && pct < 60 && 'w-1/2',
+            pct >= 40 && pct < 50 && 'w-2/5',
+            pct >= 30 && pct < 40 && 'w-[30%]',
+            pct >= 20 && pct < 30 && 'w-1/5',
+            pct >= 10 && pct < 20 && 'w-[10%]',
+            pct >= 5 && pct < 10 && 'w-[5%]',
+            pct > 0 && pct < 5 && 'w-[3%]',
+            pct === 0 && 'w-0',
+          )}
         />
       </div>
     </div>
