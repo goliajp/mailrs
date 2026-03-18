@@ -40,7 +40,7 @@ export function Chat() {
   const setHasMore = useSetAtom(hasMoreAtom)
   const setLoadingMore = useSetAtom(loadingMoreAtom)
   const setInitialLoading = useSetAtom(initialLoadingAtom)
-  const [, setMobileView] = useAtom(mobileViewAtom)
+  const [mobileView, setMobileView] = useAtom(mobileViewAtom)
   const [shortcutsOpen, setShortcutsOpen] = useAtom(shortcutsDialogOpenAtom)
   const showArchived = useAtomValue(showArchivedAtom)
   const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
@@ -176,16 +176,20 @@ export function Chat() {
     }
   }, [conversations, selectedThreadId, composingNew, setSelectedThreadId])
 
+  // mobile: show list or thread exclusively; desktop: show both side by side
+  const showList = mobileView === 'list'
+  const showThread = mobileView === 'thread'
+
   return (
     <PanelRow>
-      <Panel width={480}>
+      <Panel width={480} className={showThread ? 'hidden md:flex' : ''}>
         <ConversationList
           onLoadMore={loadMore}
           onSelectConversation={() => setMobileView('thread')}
         />
       </Panel>
 
-      <PanelRow>
+      <PanelRow className={showList ? 'hidden md:flex' : ''}>
         {composingNew ? (
           <Panel><NewConversation /></Panel>
         ) : (

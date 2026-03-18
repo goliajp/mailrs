@@ -132,10 +132,10 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-base)]">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-base)] px-4">
       <form
         onSubmit={forgotMode ? (e) => e.preventDefault() : handleSubmit}
-        className="w-full max-w-sm select-none space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg"
+        className="w-full max-w-sm select-none space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-lg sm:p-8"
       >
         <div className="flex flex-col items-center">
           <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" />
