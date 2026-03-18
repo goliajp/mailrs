@@ -48,7 +48,7 @@ function StatusBar() {
     : 'Home'
 
   return (
-    <div className="flex items-center justify-between px-3 text-[11px] text-[var(--color-text-tertiary)]" style={{ height: '100%' }}>
+    <div className="flex h-full items-center justify-between px-3 text-[11px] text-[var(--color-text-tertiary)]">
       <div className="flex items-center gap-2">
         {health && (
           <span className="flex items-center gap-1">
