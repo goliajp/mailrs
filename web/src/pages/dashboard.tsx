@@ -2,7 +2,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Mail, MailOpen, Star, AlertTriangle, Clock, Plus, RefreshCw,
-  Shield, TrendingUp, Users, ChevronRight, Pin, Pen,
+  Shield, TrendingUp, Users, ChevronRight, Pin, Pen, Search, ShieldAlert,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
@@ -10,7 +10,7 @@ import { Panel, PanelRow, Scroll } from '@/layouts/shell'
 import { fetchJson } from '@/lib/api'
 import type { ConversationSummary, CategoryCount } from '@/lib/types'
 import { authAtom } from '@/store/auth'
-import { selectedThreadIdAtom, composingNewAtom } from '@/store/chat'
+import { selectedThreadIdAtom, composingNewAtom, searchQueryAtom } from '@/store/chat'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { CategoryBadge } from '@/components/category-badge'
 import { cn } from '@/lib/cn'
@@ -65,7 +65,9 @@ export function Dashboard() {
   const navigate = useNavigate()
   const setSelectedThread = useSetAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
+  const setSearchQuery = useSetAtom(searchQueryAtom)
   const [data, setData] = useState<DashboardData | null>(null)
+  const [searchInput, setSearchInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null)
@@ -104,12 +106,25 @@ export function Dashboard() {
     navigate('/mail')
   }, [navigate, setComposingNew])
 
+  const handleSearch = useCallback((e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchInput.trim()) {
+      setSearchQuery(searchInput.trim())
+      navigate('/mail')
+    }
+  }, [searchInput, setSearchQuery, navigate])
+
   const inbox = data?.folders.find((f) => f.name === 'INBOX')
   const totalUnread = inbox?.unseen ?? 0
   const todayTs = todayStart()
   const todayCount = data?.conversations.filter((c) => c.last_date >= todayTs).length ?? 0
   const starredCount = data?.conversations.filter((c) => c.flagged).length ?? 0
   const importantCount = data?.conversations.filter((c) => c.importance_level === 'high' && c.unread_count > 0).length ?? 0
+
+  // security: suspicious unread emails (spam/scam categories)
+  const securityAlerts = data?.conversations
+    .filter((c) => c.unread_count > 0 && (c.category === 'spam' || c.category === 'scam'))
+    .slice(0, 5) ?? []
 
   // derive lists
   const pinned = data?.conversations.filter((c) => c.pinned).slice(0, 5) ?? []
@@ -195,6 +210,20 @@ export function Dashboard() {
               </button>
             </div>
           </div>
+
+          {/* search bar */}
+          <form onSubmit={handleSearch} className="mb-6">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]" aria-hidden="true" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search emails..."
+                className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] py-2.5 pl-9 pr-4 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-brand-primary)]"
+              />
+            </div>
+          </form>
 
           {/* stat cards */}
           <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -293,6 +322,29 @@ export function Dashboard() {
 
             {/* right column: insights */}
             <div className="space-y-6">
+              {/* security alerts */}
+              {securityAlerts.length > 0 && (
+                <Section title="Security Alerts" icon={ShieldAlert}>
+                  <div className="space-y-0.5">
+                    {securityAlerts.map((c) => (
+                      <button
+                        key={c.thread_id}
+                        onClick={() => goToThread(c.thread_id)}
+                        className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-[var(--color-hover)]"
+                      >
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500/10">
+                          <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">{c.subject || '(no subject)'}</p>
+                          <p className="truncate text-xs text-[var(--color-status-danger)]">{c.category}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
               {/* category breakdown */}
               {categoryData.length > 0 && (
                 <Section title="Categories" icon={TrendingUp}>
