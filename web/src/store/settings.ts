@@ -2,6 +2,7 @@ import { atom } from 'jotai'
 
 const PAGE_SIZE_KEY = 'mailrs_page_size'
 const NOTIFICATIONS_KEY = 'mailrs_notifications'
+const NOTIFICATION_SOUND_KEY = 'mailrs_notification_sound'
 const SIGNATURE_KEY = 'mailrs_signature'
 const SIGNATURE_ENABLED_KEY = 'mailrs_signature_enabled'
 
@@ -47,6 +48,28 @@ export const notificationsAtom = atom(
   (_get, set, value: boolean) => {
     localStorage.setItem(NOTIFICATIONS_KEY, String(value))
     set(baseNotificationsAtom, value)
+  }
+)
+
+// --- notification sound ---
+
+function loadNotificationSound(): boolean {
+  try {
+    const raw = localStorage.getItem(NOTIFICATION_SOUND_KEY)
+    if (raw === null) return true
+    return raw === 'true'
+  } catch {
+    return true
+  }
+}
+
+const baseNotificationSoundAtom = atom<boolean>(loadNotificationSound())
+
+export const notificationSoundAtom = atom(
+  (get) => get(baseNotificationSoundAtom),
+  (_get, set, value: boolean) => {
+    localStorage.setItem(NOTIFICATION_SOUND_KEY, String(value))
+    set(baseNotificationSoundAtom, value)
   }
 )
 

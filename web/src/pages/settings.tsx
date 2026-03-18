@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
 import type { ThemeMode } from '@/lib/theme'
 import { authAtom, getToken } from '@/store/auth'
-import { notificationsAtom, pageSizeAtom } from '@/store/settings'
+import { notificationsAtom, notificationSoundAtom, pageSizeAtom } from '@/store/settings'
 import { themeAtom } from '@/store/theme'
 
 // --- types ---
@@ -220,6 +220,12 @@ function AccountSection() {
           </Field>
           <Field label="Display Name">
             <span className="text-sm text-[var(--color-text-secondary)]">{auth?.display_name || '-'}</span>
+          </Field>
+          <Field label="Permissions">
+            <span className="text-sm text-[var(--color-text-secondary)]">{auth?.permissions?.join(', ') || '-'}</span>
+          </Field>
+          <Field label="Domains">
+            <span className="text-sm text-[var(--color-text-secondary)]">{auth?.accessible_domains?.join(', ') || '-'}</span>
           </Field>
         </div>
       </div>
@@ -1085,6 +1091,7 @@ function AppearanceSection() {
   const [theme, setTheme] = useAtom(themeAtom)
   const [pageSize, setPageSize] = useAtom(pageSizeAtom)
   const [notifications, setNotifications] = useAtom(notificationsAtom)
+  const [notificationSound, setNotificationSound] = useAtom(notificationSoundAtom)
   const [notificationError, setNotificationError] = useState<string | null>(null)
 
   const handleNotificationToggle = useCallback(
@@ -1147,14 +1154,19 @@ function AppearanceSection() {
       </div>
 
       <div className={cardClass}>
-        <Field label="Browser notifications">
-          <div className="flex flex-col items-end gap-1">
-            <Toggle checked={notifications} onChange={(v) => handleNotificationToggle(v)} />
-            {notificationError && (
-              <p className="text-xs text-[var(--color-status-danger)]">{notificationError}</p>
-            )}
-          </div>
-        </Field>
+        <div className="space-y-3">
+          <Field label="Browser notifications">
+            <div className="flex flex-col items-end gap-1">
+              <Toggle checked={notifications} onChange={(v) => handleNotificationToggle(v)} />
+              {notificationError && (
+                <p className="text-xs text-[var(--color-status-danger)]">{notificationError}</p>
+              )}
+            </div>
+          </Field>
+          <Field label="Notification sound">
+            <Toggle checked={notificationSound} onChange={setNotificationSound} />
+          </Field>
+        </div>
       </div>
     </div>
   )

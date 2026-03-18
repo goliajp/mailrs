@@ -5,7 +5,7 @@ import { fetchJson } from '@/lib/api'
 import { playNotificationSound } from '@/lib/notification-sound'
 import type { ConversationSummary, NewMessageEvent, SmtpEvent, ThreadMessage } from '@/lib/types'
 import { categoryFilterAtom, conversationsAtom, folderAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
-import { notificationsAtom } from '@/store/settings'
+import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 
 const POLL_INTERVAL = 15_000
 const WS_PING_INTERVAL = 30_000
@@ -31,6 +31,9 @@ export function useMailEvents(user: string) {
   const notificationsEnabled = useAtomValue(notificationsAtom)
   const notificationsRef = useRef(notificationsEnabled)
   notificationsRef.current = notificationsEnabled
+  const soundEnabled = useAtomValue(notificationSoundAtom)
+  const soundRef = useRef(soundEnabled)
+  soundRef.current = soundEnabled
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(null)
@@ -116,7 +119,7 @@ export function useMailEvents(user: string) {
               }
 
               if (notificationsRef.current) {
-                playNotificationSound()
+                if (soundRef.current) playNotificationSound()
 
                 if (Notification.permission === 'granted' && document.hidden) {
                   new Notification(msg.sender, {
