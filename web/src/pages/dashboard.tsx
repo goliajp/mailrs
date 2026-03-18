@@ -401,6 +401,15 @@ export function Dashboard() {
               )}
             </div>
           </div>
+
+          {/* keyboard shortcuts hint */}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-[var(--color-text-tertiary)]">
+            <Shortcut keys="⌘K" label="Command palette" />
+            <Shortcut keys="C" label="Compose" />
+            <Shortcut keys="/" label="Search" />
+            <Shortcut keys="J/K" label="Navigate" />
+            <Shortcut keys="?" label="All shortcuts" />
+          </div>
         </Scroll>
       </Panel>
     </PanelRow>
@@ -408,6 +417,15 @@ export function Dashboard() {
 }
 
 // --- sub-components ---
+
+function Shortcut({ keys, label }: { keys: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <kbd className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-secondary)]">{keys}</kbd>
+      <span>{label}</span>
+    </span>
+  )
+}
 
 const COLOR_MAP = {
   brand: 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]',

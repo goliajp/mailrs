@@ -42,7 +42,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.people.map((p, i) => (
                   <span
                     key={i}
-                    className="inline-flex select-text items-center gap-1 bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]"
+                    className="inline-flex select-text items-center gap-1 rounded bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]"
                   >
                     {p.name}
                     {p.role && (
@@ -72,7 +72,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.dates.map((d, i) => (
                   <span
                     key={i}
-                    className="inline-flex select-text items-center gap-1 bg-[var(--color-status-success-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-success)]"
+                    className="inline-flex select-text items-center gap-1 rounded bg-[var(--color-status-success-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-success)]"
                     title={d.context}
                   >
                     {d.text}
@@ -92,7 +92,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.amounts.map((a, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1 bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-warning)]"
+                    className="inline-flex items-center gap-1 rounded bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-warning)]"
                     title={a.context}
                   >
                     <Copyable value={a.text}>{a.text}</Copyable>
