@@ -8,6 +8,7 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import { Shell, Panel } from '@/layouts/shell'
 import { Admin } from '@/pages/admin'
 import { Chat } from '@/pages/chat'
+import { Dashboard } from '@/pages/dashboard'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 import { Playground } from '@/pages/playground'
@@ -43,7 +44,8 @@ function StatusBar() {
   const section = location.pathname.startsWith('/admin') ? 'Admin'
     : location.pathname.startsWith('/protocol') ? 'Monitor'
     : location.pathname.startsWith('/settings') ? 'Settings'
-    : 'Mail'
+    : location.pathname.startsWith('/mail') ? 'Mail'
+    : 'Home'
 
   return (
     <div className="flex items-center justify-between px-3 text-[11px] text-[var(--color-text-tertiary)]" style={{ height: '100%' }}>
@@ -100,8 +102,8 @@ export function App() {
         <Route path="/protocol" element={<AuthShell><PagePanel><Protocol /></PagePanel></AuthShell>} />
         <Route path="/admin/*" element={<AuthShell><PagePanel><Admin /></PagePanel></AuthShell>} />
         <Route path="/settings" element={<AuthShell><PagePanel><Settings /></PagePanel></AuthShell>} />
-        <Route path="/mail/*" element={<Navigate to="/" replace />} />
-        <Route path="/*" element={<AuthShell><Chat /></AuthShell>} />
+        <Route path="/mail/*" element={<AuthShell><Chat /></AuthShell>} />
+        <Route path="/*" element={<AuthShell><PagePanel><Dashboard /></PagePanel></AuthShell>} />
       </Routes>
     </ErrorBoundary>
   )
