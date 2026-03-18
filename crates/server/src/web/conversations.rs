@@ -795,6 +795,53 @@ pub(super) async fn get_contacts(
     Json(contacts)
 }
 
+// ---- mail stats for dashboard ----
+
+#[derive(Serialize)]
+pub(super) struct MailStats {
+    pub total_messages: i64,
+    pub unread_messages: i64,
+    pub storage_bytes: u64,
+    pub categories: Vec<CategoryCount>,
+}
+
+pub(super) async fn get_mail_stats(
+    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
+    Query(dq): Query<DomainsQuery>,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    let Some(ref mb_store) = state.mailbox_store else {
+        return Json(MailStats {
+            total_messages: 0,
+            unread_messages: 0,
+            storage_bytes: 0,
+            categories: vec![],
+        });
+    };
+
+    let domains = validate_domains(dq.domains.as_deref(), permissions);
+
+    let total = mb_store.count_messages(user).await;
+    let unread = mb_store.count_unseen(user).await;
+    let storage = mb_store.user_storage_usage(user).await;
+
+    let cats = mb_store
+        .list_conversation_categories(user, domains.as_deref())
+        .await
+        .unwrap_or_default();
+    let categories: Vec<CategoryCount> = cats
+        .into_iter()
+        .map(|(category, count)| CategoryCount { category, count })
+        .collect();
+
+    Json(MailStats {
+        total_messages: total,
+        unread_messages: unread,
+        storage_bytes: storage,
+        categories,
+    })
+}
+
 /// batch action type
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
