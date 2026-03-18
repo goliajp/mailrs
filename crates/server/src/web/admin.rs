@@ -1554,29 +1554,29 @@ pub(super) async fn update_app_scopes(
 fn validate_audit_target(
     target_user: &str,
     permissions: &crate::permission::EffectivePermissions,
-) -> Result<(), Json<ApiResult>> {
+) -> Result<(), (StatusCode, Json<ApiResult>)> {
     if !permissions.has("admin.impersonate") {
-        return Err(Json(ApiResult {
+        return Err((StatusCode::FORBIDDEN, Json(ApiResult {
             success: false,
             message: Some("insufficient permissions".into()),
-        }));
+        })));
     }
     let domain = target_user
         .split_once('@')
         .map(|(_, d)| d)
         .unwrap_or("");
     if domain.is_empty() {
-        return Err(Json(ApiResult {
+        return Err((StatusCode::BAD_REQUEST, Json(ApiResult {
             success: false,
             message: Some("invalid target user address".into()),
-        }));
+        })));
     }
     let accessible = permissions.accessible_domains();
     if !permissions.is_super() && !accessible.iter().any(|d| d == domain) {
-        return Err(Json(ApiResult {
+        return Err((StatusCode::FORBIDDEN, Json(ApiResult {
             success: false,
             message: Some("target user not in accessible domains".into()),
-        }));
+        })));
     }
     Ok(())
 }
