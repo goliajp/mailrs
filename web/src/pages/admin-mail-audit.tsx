@@ -192,7 +192,7 @@ export function AdminMailAudit() {
       const data = await fetchJson<AuditConversation[]>(
         `/admin/audit/conversations?target_user=${encodeURIComponent(address)}&limit=50`
       )
-      setConversations(data)
+      setConversations(Array.isArray(data) ? data : [])
     } catch {
       setConversations([])
     } finally {
@@ -208,7 +208,7 @@ export function AdminMailAudit() {
       const data = await fetchJson<AuditMessage[]>(
         `/admin/audit/conversations/${encodeURIComponent(threadId)}/messages?target_user=${encodeURIComponent(selectedAccount)}`
       )
-      setMessages(data)
+      setMessages(Array.isArray(data) ? data : [])
       setSelectedThread(threadId)
     } catch {
       setMessages([])
