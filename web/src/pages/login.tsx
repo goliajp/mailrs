@@ -1,18 +1,22 @@
 import { useSetAtom } from 'jotai'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Eye, EyeOff, Loader2, ExternalLink } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router'
 
 import type { AuthInfo } from '@/store/auth'
 import { authAtom } from '@/store/auth'
 
+type OidcClientConfig = { enabled: boolean; login_url?: string; provider_name?: string }
+
 export function Login() {
   const setAuth = useSetAtom(authAtom)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [address, setAddress] = useState(() => localStorage.getItem('mailrs_saved_email') ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [oidcConfig, setOidcConfig] = useState<OidcClientConfig | null>(null)
   const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('mailrs_saved_email'))
   const [showPassword, setShowPassword] = useState(false)
   const [totpRequired, setTotpRequired] = useState(false)
@@ -22,6 +26,42 @@ export function Login() {
   const [forgotRecoveryEmail, setForgotRecoveryEmail] = useState('')
   const [forgotLoading, setForgotLoading] = useState(false)
   const [forgotMessage, setForgotMessage] = useState('')
+
+  // fetch OIDC config
+  useEffect(() => {
+    fetch('/api/auth/oidc/config').then((r) => r.json()).then(setOidcConfig).catch(() => {})
+  }, [])
+
+  // handle OIDC callback redirect
+  useEffect(() => {
+    const token = searchParams.get('oidc_token')
+    const addr = searchParams.get('address')
+    const displayName = searchParams.get('display_name')
+    if (token && addr) {
+      const auth: AuthInfo = {
+        token,
+        address: addr,
+        display_name: displayName ?? '',
+        permissions: [],
+        accessible_domains: [],
+      }
+      setAuth(auth)
+      // refresh permissions by calling /auth/me
+      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((me) => {
+          setAuth({
+            token,
+            address: me.address ?? addr,
+            display_name: me.display_name ?? displayName ?? '',
+            permissions: me.permissions ?? [],
+            accessible_domains: me.accessible_domains ?? [],
+          })
+        })
+        .catch(() => {})
+      navigate('/', { replace: true })
+    }
+  }, [searchParams, setAuth, navigate])
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -234,6 +274,23 @@ export function Login() {
                 Forgot password?
               </button>
             </div>
+
+            {oidcConfig?.enabled && (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1 bg-[var(--color-border-default)]" />
+                  <span className="text-xs text-[var(--color-text-tertiary)]">or</span>
+                  <div className="h-px flex-1 bg-[var(--color-border-default)]" />
+                </div>
+                <a
+                  href={oidcConfig.login_url}
+                  className="flex w-full items-center justify-center gap-2 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-hover)]"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Sign in with {oidcConfig.provider_name ?? 'SSO'}
+                </a>
+              </>
+            )}
           </>
         )}
 

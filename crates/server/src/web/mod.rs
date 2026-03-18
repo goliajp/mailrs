@@ -53,6 +53,17 @@ pub struct SmtpConfigSnapshot {
     pub tls_enabled: bool,
 }
 
+/// OIDC client configuration for "Sign in with GOLIA" (or any external IdP)
+#[derive(Clone)]
+pub struct OidcConfig {
+    pub client_id: String,
+    pub client_secret: String,
+    pub authorize_url: String,
+    pub token_url: String,
+    pub userinfo_url: String,
+    pub redirect_uri: String,
+}
+
 pub struct WebState {
     pub event_bus: EventBus,
     pub started_at: Instant,
@@ -79,6 +90,7 @@ pub struct WebState {
     pub smtp_config: Option<SmtpConfigSnapshot>,
     pub web_rate_limiter: Arc<rate_limit::WebRateLimiter>,
     pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
+    pub oidc_config: Option<OidcConfig>,
 }
 
 /// spawn a background task to clean up expired sessions and stale rate-limit buckets every hour
@@ -129,6 +141,7 @@ impl WebState {
             smtp_config: None,
             web_rate_limiter: Arc::new(rate_limit::WebRateLimiter::new()),
             ldap_config: None,
+            oidc_config: None,
         }
     }
 
@@ -187,6 +200,11 @@ impl WebState {
 
     pub fn with_ldap_config(mut self, config: Arc<crate::ldap_auth::LdapConfig>) -> Self {
         self.ldap_config = Some(config);
+        self
+    }
+
+    pub fn with_oidc(mut self, config: OidcConfig) -> Self {
+        self.oidc_config = Some(config);
         self
     }
 
@@ -749,6 +767,13 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/api/auth/change-password", post(auth::change_password))
         // recovery email
         .route("/api/auth/recovery-email", get(auth::get_recovery_email).post(auth::update_recovery_email))
+        // identity verification (for external IdPs)
+        .route("/api/auth/verify", post(auth::verify_credentials))
+        .route("/api/auth/verify-totp", post(auth::verify_totp))
+        // OIDC client (Sign in with GOLIA)
+        .route("/api/auth/oidc/login", get(auth::oidc_login))
+        .route("/api/auth/oidc/callback", get(auth::oidc_callback))
+        .route("/api/auth/oidc/config", get(auth::oidc_client_config))
         // TOTP 2FA
         .route("/api/auth/totp/setup", post(auth::totp_setup))
         .route("/api/auth/totp/enable", post(auth::totp_enable))
