@@ -184,11 +184,36 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <Panel>
-        <div className="flex h-full items-center justify-center">
-          <div className="animate-pulse text-sm text-[var(--color-text-tertiary)]">Loading...</div>
-        </div>
-      </Panel>
+      <PanelRow>
+        <Panel>
+          <Scroll className="p-4 md:p-6">
+            <div className="animate-pulse space-y-6">
+              <div className="space-y-2">
+                <div className="h-6 w-48 rounded bg-[var(--color-border-default)]" />
+                <div className="h-4 w-64 rounded bg-[var(--color-border-default)]" />
+              </div>
+              <div className="h-10 w-full rounded-lg bg-[var(--color-border-default)]" />
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-16 rounded-lg bg-[var(--color-border-default)]" />
+                ))}
+              </div>
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="space-y-3 lg:col-span-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-14 rounded-lg bg-[var(--color-border-default)]" />
+                  ))}
+                </div>
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-24 rounded-lg bg-[var(--color-border-default)]" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Scroll>
+        </Panel>
+      </PanelRow>
     )
   }
 
@@ -320,19 +345,35 @@ export function Dashboard() {
 
               {/* all caught up */}
               {needsAttention.length === 0 && recentUnread.length === 0 && pinned.length === 0 && (
-                <Section title="Inbox" icon={Mail}>
-                  <div className="flex flex-col items-center gap-2 py-8 text-[var(--color-text-tertiary)]">
-                    <Shield className="h-8 w-8" aria-hidden="true" />
-                    <p className="text-sm">All caught up — no unread emails</p>
-                    <button
-                      onClick={handleCompose}
-                      className="mt-2 flex items-center gap-1.5 rounded-md bg-[var(--color-brand-subtle)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-primary)] hover:text-white"
+                <>
+                  <Section title="Inbox" icon={Mail}>
+                    <div className="flex flex-col items-center gap-2 py-6 text-[var(--color-text-tertiary)]">
+                      <Shield className="h-8 w-8" aria-hidden="true" />
+                      <p className="text-sm">All caught up — no unread emails</p>
+                      <button
+                        onClick={handleCompose}
+                        className="mt-2 flex items-center gap-1.5 rounded-md bg-[var(--color-brand-subtle)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-primary)] hover:text-white"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Compose new email
+                      </button>
+                    </div>
+                  </Section>
+                  {/* show recent conversations even if all read */}
+                  {(data?.conversations.slice(0, 5).length ?? 0) > 0 && (
+                    <Section
+                      title="Recent Activity"
+                      icon={Clock}
+                      action={{ label: 'Open inbox', onClick: () => navigate('/mail') }}
                     >
-                      <Plus className="h-3.5 w-3.5" />
-                      Compose new email
-                    </button>
-                  </div>
-                </Section>
+                      <div className="space-y-0.5">
+                        {data!.conversations.slice(0, 5).map((c) => (
+                          <ConversationRow key={c.thread_id} conversation={c} onClick={() => goToThread(c.thread_id)} />
+                        ))}
+                      </div>
+                    </Section>
+                  )}
+                </>
               )}
             </div>
 
