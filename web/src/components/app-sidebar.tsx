@@ -8,7 +8,7 @@ import type { ThemeMode } from '@/lib/theme'
 import { cn } from '@/lib/cn'
 import { postJson } from '@/lib/api'
 import { authAtom } from '@/store/auth'
-import { selectedDomainsAtom } from '@/store/chat'
+import { selectedDomainsAtom, unreadCountAtom } from '@/store/chat'
 import { themeAtom } from '@/store/theme'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
@@ -25,21 +25,28 @@ function SidebarLink({
   icon: Icon,
   label,
   active,
+  badge,
 }: {
   href: string
   icon: LucideIcon
   label: string
   active: boolean
+  badge?: number
 }) {
   return (
     <a
       href={href}
-      className={`${navBtnBase} ${active ? navBtnActive : navBtnInactive}`}
+      className={cn('relative', navBtnBase, active ? navBtnActive : navBtnInactive)}
       title={label}
       aria-label={label}
       aria-current={active ? 'page' : undefined}
     >
       <Icon className="h-5 w-5" />
+      {badge != null && badge > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-status-danger)] px-0.5 text-[9px] font-bold leading-none text-white">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </a>
   )
 }
@@ -56,6 +63,7 @@ export function AppSidebar() {
     setTheme(next)
   }
 
+  const unreadCount = useAtomValue(unreadCountAtom)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
   const domains = auth?.accessible_domains ?? []
@@ -93,7 +101,7 @@ export function AppSidebar() {
 
       {/* inbox + domain group */}
       <div className="mt-1 flex flex-col items-center gap-0.5">
-        <SidebarLink href="/mail" icon={Inbox} label="Mail" active={section === 'mail' && selectedDomains.length === 0} />
+        <SidebarLink href="/mail" icon={Inbox} label="Mail" active={section === 'mail' && selectedDomains.length === 0} badge={unreadCount} />
         {domains.length > 0 && domains.map((d) => {
           const active = section === 'mail' && selectedDomains.length === 1 && selectedDomains[0] === d
           const label = d.split('.')[0]
