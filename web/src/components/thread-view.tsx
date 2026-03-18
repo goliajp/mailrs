@@ -374,7 +374,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           </span>
                         )}
                         {selectedMsg.ai_analyzed && (
-                          <span className={`px-2 py-0.5 text-[11px] font-medium ${
+                          <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${
                             selectedMsg.risk_score >= 60
                               ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
                               : selectedMsg.risk_score >= 40
@@ -385,6 +385,16 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           }`}>
                             {selectedMsg.risk_score >= 60 ? 'Dangerous' : selectedMsg.risk_score >= 40 ? 'Suspicious' : selectedMsg.risk_score >= 15 ? 'Caution' : 'Safe'}
                             {selectedMsg.risk_score > 0 && ` ${selectedMsg.risk_score}`}
+                          </span>
+                        )}
+                        {selectedMsg.has_tracking_pixel && (
+                          <span className="rounded bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600" title="This email contains a tracking pixel">
+                            Tracking
+                          </span>
+                        )}
+                        {selectedMsg.is_bulk_sender && (
+                          <span className="rounded bg-[var(--color-bg-sunken)] px-2 py-0.5 text-[11px] text-[var(--color-text-tertiary)]">
+                            Bulk
                           </span>
                         )}
                       </div>
