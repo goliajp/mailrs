@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.1.138"
+version = "1.1.139"
 
 [workspace]
 resolver = "2"
