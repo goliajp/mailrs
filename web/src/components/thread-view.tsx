@@ -722,23 +722,24 @@ const FEEDBACK_ITEMS: { action: FeedbackAction; label: string; icon: string }[] 
 
 function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
   const [open, setOpen] = useState(false)
+  const [confirming, setConfirming] = useState<FeedbackAction | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     const handle = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        setConfirming(null)
+      }
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [open])
 
-  const handleAction = async (action: FeedbackAction) => {
-    if (action === 'block' || action === 'mark_spam') {
-      const label = action === 'block' ? 'block this sender' : 'report this sender as spam'
-      if (!window.confirm(`Are you sure you want to ${label}?`)) return
-    }
+  const executeAction = async (action: FeedbackAction) => {
     setOpen(false)
+    setConfirming(null)
     if (!senderEmail) return
     try {
       const result = await recordFeedback(senderEmail, action)
@@ -752,6 +753,14 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
     }
   }
 
+  const handleAction = (action: FeedbackAction) => {
+    if (action === 'block' || action === 'mark_spam') {
+      setConfirming(action)
+    } else {
+      executeAction(action)
+    }
+  }
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -762,22 +771,36 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
         <MoreVertical className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] py-1 shadow-lg">
-          <p className="truncate px-3 py-1 text-[11px] text-[var(--color-text-tertiary)]">{senderEmail}</p>
-          {FEEDBACK_ITEMS.map((item) => (
-            <button
-              key={item.action}
-              onClick={() => handleAction(item.action)}
-              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
-                item.action === 'block' || item.action === 'mark_spam'
-                  ? 'text-[var(--color-status-danger)] hover:bg-[var(--color-status-danger-subtle)]'
-                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
-              }`}
-            >
-              <span className="w-4 text-center">{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
+        <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] py-1 shadow-lg">
+          {confirming ? (
+            <div className="px-3 py-2">
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                {confirming === 'block' ? 'Block this sender?' : 'Report as spam?'}
+              </p>
+              <div className="mt-2 flex gap-2">
+                <button onClick={() => setConfirming(null)} className="rounded px-2 py-1 text-xs text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]">Cancel</button>
+                <button onClick={() => executeAction(confirming)} className="rounded bg-[var(--color-status-danger)] px-2 py-1 text-xs text-white hover:opacity-90">Confirm</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="truncate px-3 py-1 text-[11px] text-[var(--color-text-tertiary)]">{senderEmail}</p>
+              {FEEDBACK_ITEMS.map((item) => (
+                <button
+                  key={item.action}
+                  onClick={() => handleAction(item.action)}
+                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
+                    item.action === 'block' || item.action === 'mark_spam'
+                      ? 'text-[var(--color-status-danger)] hover:bg-[var(--color-status-danger-subtle)]'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                  }`}
+                >
+                  <span className="w-4 text-center">{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
