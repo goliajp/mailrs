@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Check, CheckCircle, Mail, MailCheck, Pin, Search, SlidersHorizontal, SquarePen, Star } from 'lucide-react'
+import { Check, CheckCircle, Mail, MailCheck, Pin, Search, SlidersHorizontal, SquarePen, Star, X } from 'lucide-react'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -819,8 +819,17 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search..."
             aria-label="Search conversations"
-            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-2 pl-9 pr-3 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-border-strong)]"
+            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-2 pl-9 pr-8 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-border-strong)]"
           />
+          {isSearching && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         {/* batch select toggle — hidden during search */}
