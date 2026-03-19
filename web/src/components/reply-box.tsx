@@ -201,7 +201,9 @@ export function ReplyBox({
 
   const prePolishRef = useRef<string | null>(null)
 
-  const polish = async () => {
+  const [polishTone, setPolishTone] = useState('professional')
+
+  const polish = async (tone?: string) => {
     const editor = composeRef.current?.getComposeEditor()
     if (!editor) return
     const text = editor.getText()
@@ -209,7 +211,7 @@ export function ReplyBox({
     prePolishRef.current = editor.getHTML()
     setPolishing(true)
     try {
-      const result = await postJson<PolishResult>('/mail/ai/polish', { text })
+      const result = await postJson<PolishResult>('/mail/ai/polish', { text, tone: tone ?? polishTone })
       if (result.success && result.polished) {
         const paragraphs = result.polished.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
         editor.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
@@ -363,11 +365,25 @@ export function ReplyBox({
             {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Suggest'}
           </button>
         )}
-        <button onClick={polish} disabled={polishing || sending}
-          className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
-          title="AI polish text">
-          {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
-        </button>
+        <div className="relative flex shrink-0">
+          <button onClick={() => polish()} disabled={polishing || sending}
+            className="flex h-8 items-center rounded-l-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
+            title={`Polish (${polishTone})`}>
+            {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
+          </button>
+          <select
+            value={polishTone}
+            onChange={(e) => { setPolishTone(e.target.value); polish(e.target.value) }}
+            disabled={polishing || sending}
+            className="h-8 appearance-none rounded-r-md border-l border-[var(--color-border-default)] bg-transparent px-1 text-[10px] text-[var(--color-brand-primary)] outline-none hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="professional">Pro</option>
+            <option value="casual">Casual</option>
+            <option value="formal">Formal</option>
+            <option value="friendly">Friendly</option>
+            <option value="concise">Concise</option>
+          </select>
+        </div>
         <button onClick={handleSaveDraft} disabled={savingDraft || sending}
           className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
           title="Save draft">
