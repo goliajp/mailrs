@@ -42,7 +42,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.people.map((p, i) => (
                   <span
                     key={i}
-                    className="inline-flex select-text items-center gap-1 rounded bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]"
+                    className="inline-flex max-w-full select-text items-center gap-1 truncate rounded bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]"
                   >
                     {p.name}
                     {p.role && (
@@ -112,7 +112,7 @@ export function AiAnalysisPanel({ message }: Props) {
                 {message.action_items.map((item, i) => (
                   <li
                     key={i}
-                    className="flex select-text items-start gap-1.5 text-xs text-[var(--color-text-secondary)]"
+                    className="flex select-text items-start gap-1.5 break-words text-xs text-[var(--color-text-secondary)]"
                   >
                     <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-brand-primary)]" />
                     {item}
