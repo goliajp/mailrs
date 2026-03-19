@@ -598,7 +598,7 @@ function BatchActionBar({
 }
 
 export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadMore: () => void; onSelectConversation?: () => void }) {
-  const conversations = useAtomValue(conversationsAtom)
+  const [conversations, setConversations] = useAtom(conversationsAtom)
   const [selectedId, setSelectedId] = useAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
@@ -709,6 +709,14 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
         await snoozeConversation(threadId, tomorrow.toISOString())
         toast.success('Snoozed until tomorrow 9:00')
       } else if (action === 'pin' || action === 'unpin' || action === 'archive' || action === 'unarchive') {
+        // optimistic update
+        setConversations((prev) => prev.map((c) => {
+          if (c.thread_id !== threadId) return c
+          if (action === 'pin') return { ...c, pinned: true }
+          if (action === 'unpin') return { ...c, pinned: false }
+          if (action === 'archive') return { ...c, archived: true }
+          return { ...c, archived: false }
+        }))
         await postJson<ApiResult>(`/conversations/${encodeURIComponent(threadId)}/${action}`, {})
         const labels: Record<string, string> = { pin: 'Pinned', unpin: 'Unpinned', archive: 'Archived', unarchive: 'Unarchived' }
         toast.success(labels[action] ?? 'Updated')
@@ -722,6 +730,8 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
       onLoadMoreRef.current()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Action failed')
+      // revert optimistic update on failure
+      onLoadMoreRef.current()
     }
   }, [])
 
