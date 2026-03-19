@@ -567,7 +567,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <div ref={bottomRef} />
             </div>
           </div>
-          <div className="flex min-h-[160px] flex-[1] basis-0 flex-col overflow-hidden border-t border-[var(--color-border-default)]">
+          <div className="flex min-h-[160px] flex-[1] basis-0 flex-col border-t border-[var(--color-border-default)]">
             <ReplyBox
               threadId={selectedId}
               lastMessageId={fwdLastMessageId}
