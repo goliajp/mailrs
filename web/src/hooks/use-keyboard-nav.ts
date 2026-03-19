@@ -134,6 +134,12 @@ export function useKeyboardNav() {
                   c.thread_id === selectedThreadId ? { ...c, archived: action === 'archive' } : c
                 )
               )
+              // auto-advance to next thread after archive
+              if (action === 'archive') {
+                const archIdx = visibleIds.indexOf(selectedThreadId)
+                const nextId = visibleIds[archIdx + 1] ?? visibleIds[archIdx - 1] ?? null
+                if (nextId) setSelectedThreadId(nextId)
+              }
             })
             .catch(() => toast.error('Failed'))
           break
