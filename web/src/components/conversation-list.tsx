@@ -78,9 +78,7 @@ const ConversationItem = memo(function ConversationItem({
   const isArchived = convo.archived
 
   const ctx = useContextMenu()
-
-  const handleMouseEnter = useCallback(() => {}, [])
-  const handleMouseLeave = useCallback(() => {}, [])
+  const [hovered, setHovered] = useState(false)
 
   const contextItems: ContextMenuItem[] = [
     {
@@ -119,7 +117,7 @@ const ConversationItem = memo(function ConversationItem({
   }
 
   return (
-    <div role="listitem" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    <div role="listitem" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
     <button
       onClick={handleClick}
       onContextMenu={ctx.open}
@@ -179,9 +177,22 @@ const ConversationItem = memo(function ConversationItem({
             {isPinned && (
               <Pin className="h-3 w-3 text-[var(--color-brand-primary)]" />
             )}
-            <span className="text-xs text-[var(--color-text-tertiary)]" title={formatFullDate(convo.last_date)}>
-              {formatDate(convo.last_date)}
-            </span>
+            {hovered && !batchMode ? (
+              <span className="flex items-center gap-0.5">
+                <button onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive') }}
+                  className="rounded p-0.5 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]" title={isArchived ? 'Unarchive' : 'Archive'}>
+                  <Mail className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star') }}
+                  className={`rounded p-0.5 hover:bg-[var(--color-hover)] ${isFlagged ? 'text-[var(--color-status-warning)]' : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'}`} title={isFlagged ? 'Unstar' : 'Star'}>
+                  <Star className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
+                </button>
+              </span>
+            ) : (
+              <span className="text-xs text-[var(--color-text-tertiary)]" title={formatFullDate(convo.last_date)}>
+                {formatDate(convo.last_date)}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1.5">
