@@ -189,6 +189,7 @@ async fn do_analyze(
     };
 
     // analysis first, then embedding (separate models, serial)
+    let t0 = std::time::Instant::now();
     let analysis = match ai_email::analyze_email(config, &sender, &subject, &body).await {
         Some(a) => a,
         None => {
@@ -196,9 +197,12 @@ async fn do_analyze(
             return false;
         }
     };
+    let t_analysis = t0.elapsed();
 
+    let t1 = std::time::Instant::now();
     let embedding_text = format!("{subject}\n\n{body}");
     let embedding = ai_email::generate_embedding(config, &embedding_text).await;
+    let t_embed = t1.elapsed();
 
     let intent = if analysis.sender_intent.is_empty() { "inform" } else { &analysis.sender_intent };
 
@@ -225,8 +229,9 @@ async fn do_analyze(
     }
 
     eprintln!(
-        "AI analyzed msg={message_id} cat={} risk={} action={} intent={intent} embed={}",
+        "AI analyzed msg={message_id} cat={} risk={} action={} intent={intent} embed={} analysis={:.1}s embed={:.1}s",
         analysis.category, analysis.risk_score, analysis.requires_action, embedding.is_some(),
+        t_analysis.as_secs_f64(), t_embed.as_secs_f64(),
     );
     true
 }
