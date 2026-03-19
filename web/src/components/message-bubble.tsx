@@ -34,6 +34,7 @@ function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLE
       )}
       <button
         onClick={copy}
+        aria-label={copied ? 'Copied to clipboard' : 'Copy code'}
         className="absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[11px] text-[var(--color-text-tertiary)] opacity-0 transition-opacity hover:bg-[var(--color-active)] hover:text-[var(--color-text-primary)] group-hover:opacity-100"
       >
         {copied ? 'Copied!' : 'Copy'}
