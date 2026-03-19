@@ -300,9 +300,7 @@ function FilterBar() {
 
   // action count for badge
   const actionCount = useMemo(() =>
-    conversations.filter(
-      (c) => c.importance_level === 'critical' || c.importance_level === 'important'
-    ).length,
+    conversations.filter((c) => c.requires_action && !c.archived).length,
     [conversations]
   )
 
@@ -754,9 +752,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
 
     // importance section filter
     if (importanceSection === 'action') {
-      visible = visible.filter(
-        (c) => c.importance_level === 'critical' || c.importance_level === 'important'
-      )
+      visible = visible.filter((c) => c.requires_action)
     } else if (importanceSection === 'important') {
       visible = visible.filter(
         (c) => c.importance_level === 'critical' || c.importance_level === 'important'

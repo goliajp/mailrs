@@ -25,6 +25,7 @@ pub(super) struct ConversationResponse {
     pub archived: bool,
     pub importance_level: String,
     pub importance_score: f32,
+    pub requires_action: bool,
 }
 
 #[derive(Serialize)]
@@ -136,6 +137,7 @@ pub(super) fn convos_to_response(
             archived: c.archived,
             importance_level: c.importance_level,
             importance_score: c.importance_score,
+            requires_action: c.requires_action,
         })
         .collect()
 }
@@ -581,6 +583,7 @@ async fn semantic_search_threads(
             archived: false,
             importance_level: msgs.iter().max_by(|a, b| a.importance_score.partial_cmp(&b.importance_score).unwrap_or(std::cmp::Ordering::Equal)).map(|m| m.importance_level.clone()).unwrap_or_else(|| "normal".into()),
             importance_score: msgs.iter().map(|m| m.importance_score).fold(0.0f32, f32::max),
+            requires_action: false,
         });
     }
 
@@ -1352,6 +1355,7 @@ mod tests {
             archived: false,
             importance_level: "normal".to_string(),
             importance_score: 0.5,
+            requires_action: false,
         }
     }
 
@@ -1429,6 +1433,7 @@ mod tests {
             archived: false,
             importance_level: "high".to_string(),
             importance_score: 0.9,
+            requires_action: true,
         };
 
         let json = serde_json::to_value(&r).unwrap();

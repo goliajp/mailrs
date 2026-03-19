@@ -168,7 +168,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     try {
       await postJson(`/conversations/${encodeURIComponent(selectedId)}/dismiss-action`, {})
       setMessages((prev) => prev.map((m) => ({ ...m, requires_action: false })))
-      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, importance_level: 'normal', importance_score: Math.max(-0.5, c.importance_score - 0.2) } : c))
+      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, requires_action: false, importance_score: Math.max(-0.5, c.importance_score - 0.2) } : c))
       toast.success('Action dismissed')
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
   }, [selectedId, setMessages, setConversations])
