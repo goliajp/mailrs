@@ -1,5 +1,5 @@
 import { useAtomValue, useSetAtom } from 'jotai'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Mail, MailOpen, Star, AlertTriangle, Clock, Plus, RefreshCw,
   Shield, TrendingUp, Users, ChevronRight, Pin, Pen, Search, ShieldAlert,
@@ -132,47 +132,40 @@ export function Dashboard() {
   const totalUnread = data?.stats?.unread_messages ?? data?.folders.find((f) => f.name === 'INBOX')?.unseen ?? 0
   const totalMessages = data?.stats?.total_messages ?? 0
   const storageBytes = data?.stats?.storage_bytes ?? 0
-  const todayTs = todayStart()
-  const todayCount = data?.conversations.filter((c) => c.last_date >= todayTs).length ?? 0
-  const starredCount = data?.conversations.filter((c) => c.flagged).length ?? 0
-  const importantCount = data?.conversations.filter((c) => c.importance_level === 'high' && c.unread_count > 0).length ?? 0
+  const convos = data?.conversations ?? []
 
-  // security: suspicious unread emails (spam/scam categories)
-  const securityAlerts = data?.conversations
-    .filter((c) => c.unread_count > 0 && (c.category === 'spam' || c.category === 'scam'))
-    .slice(0, 5) ?? []
+  const { todayCount, starredCount, importantCount, securityAlerts, pinned, needsAttention, recentUnread, topSenders } = useMemo(() => {
+    const todayTs = todayStart()
+    const pinnedList = convos.filter((c) => c.pinned).slice(0, 5)
+    const pinnedIds = new Set(pinnedList.map((c) => c.thread_id))
 
-  // derive lists
-  const pinned = data?.conversations.filter((c) => c.pinned).slice(0, 5) ?? []
+    const attentionList = convos
+      .filter((c) => c.unread_count > 0 && (c.importance_level === 'high' || c.flagged) && !pinnedIds.has(c.thread_id))
+      .slice(0, 8)
+    const attentionIds = new Set(attentionList.map((c) => c.thread_id))
 
-  const needsAttention = data?.conversations
-    .filter((c) => c.unread_count > 0 && (c.importance_level === 'high' || c.flagged))
-    .filter((c) => !pinned.some((p) => p.thread_id === c.thread_id))
-    .slice(0, 8) ?? []
-
-  const recentUnread = data?.conversations
-    .filter((c) => c.unread_count > 0)
-    .filter((c) => !needsAttention.some((n) => n.thread_id === c.thread_id))
-    .filter((c) => !pinned.some((p) => p.thread_id === c.thread_id))
-    .slice(0, 8) ?? []
-
-  // top senders
-  const senderMap = new Map<string, { name: string; email: string; count: number }>()
-  for (const c of data?.conversations ?? []) {
-    for (const p of c.participants) {
-      if (p === auth?.address) continue
-      const email = extractEmail(p)
-      const existing = senderMap.get(email)
-      if (existing) {
-        existing.count++
-      } else {
-        senderMap.set(email, { name: extractName(p), email, count: 1 })
+    const senderMap = new Map<string, { name: string; email: string; count: number }>()
+    for (const c of convos) {
+      for (const p of c.participants) {
+        if (p === auth?.address) continue
+        const email = extractEmail(p)
+        const existing = senderMap.get(email)
+        if (existing) existing.count++
+        else senderMap.set(email, { name: extractName(p), email, count: 1 })
       }
     }
-  }
-  const topSenders = [...senderMap.values()]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 6)
+
+    return {
+      todayCount: convos.filter((c) => c.last_date >= todayTs).length,
+      starredCount: convos.filter((c) => c.flagged).length,
+      importantCount: convos.filter((c) => c.importance_level === 'high' && c.unread_count > 0).length,
+      securityAlerts: convos.filter((c) => c.unread_count > 0 && (c.category === 'spam' || c.category === 'scam')).slice(0, 5),
+      pinned: pinnedList,
+      needsAttention: attentionList,
+      recentUnread: convos.filter((c) => c.unread_count > 0 && !pinnedIds.has(c.thread_id) && !attentionIds.has(c.thread_id)).slice(0, 8),
+      topSenders: [...senderMap.values()].sort((a, b) => b.count - a.count).slice(0, 6),
+    }
+  }, [convos, auth?.address])
 
   // category stats (prefer stats endpoint, fallback to separate categories call)
   const categoryData = (data?.stats?.categories ?? [])
