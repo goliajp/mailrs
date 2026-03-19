@@ -75,9 +75,9 @@ pub async fn generate_embedding(config: &LlmConfig, text: &str) -> Option<Vec<f3
     let embed_url = config.url.replace("/complete", "/embed");
     let body = serde_json::json!({ "input": text });
 
-    for attempt in 0..3u32 {
+    for attempt in 0..2u32 {
         let response = match tokio::time::timeout(
-            std::time::Duration::from_secs(30),
+            std::time::Duration::from_secs(10),
             config.client.post(&embed_url).json(&body).send(),
         )
         .await
@@ -134,7 +134,7 @@ pub async fn generate_embedding(config: &LlmConfig, text: &str) -> Option<Vec<f3
         };
     }
 
-    eprintln!("embedding rate limited after 3 retries, giving up");
+    eprintln!("embedding failed after 2 retries, skipping");
     None
 }
 
