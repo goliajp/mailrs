@@ -61,39 +61,11 @@ async fn worker(
                 &mut done, &mut failed, &mut consecutive_fails, total).await;
         }
 
-        // priority 2: backfill — 2 concurrent
-        let batch = store.list_unanalyzed_message_ids(2, &model_version).await.unwrap_or_default();
-        if !batch.is_empty() {
-            let mut handles = Vec::new();
-            for job in batch {
-                let cfg = config.clone();
-                let st = store.clone();
-                let mr = maildir_root.clone();
-                let mv = model_version.clone();
-                handles.push(tokio::spawn(async move {
-                    analyze_with_retry(&cfg, &st, &mr, job.0, &job.1, &job.2, &job.3, &job.4, &mv).await
-                }));
-            }
-            for h in handles {
-                match h.await {
-                    Ok(true) => {
-                        done += 1;
-                        consecutive_fails = 0;
-                        if done % 20 == 0 {
-                            eprintln!("AI backfill: {done}/{total} analyzed, {failed} failed");
-                        }
-                    }
-                    _ => {
-                        failed += 1;
-                        consecutive_fails += 1;
-                    }
-                }
-            }
-            if consecutive_fails > 0 {
-                let wait = (30u64 << consecutive_fails.saturating_sub(1).min(6)).min(3600);
-                eprintln!("AI backfill: {consecutive_fails} consecutive failures, waiting {wait}s");
-                tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
-            }
+        // priority 2: backfill — serial, one at a time
+        let batch = store.list_unanalyzed_message_ids(1, &model_version).await.unwrap_or_default();
+        if let Some(job) = batch.into_iter().next() {
+            process_one(&config, &store, &maildir_root, job, &model_version,
+                &mut done, &mut failed, &mut consecutive_fails, total).await;
         } else {
             // backfill done — wait for new email
             if done > 0 || failed > 0 {
