@@ -138,6 +138,23 @@ export function useKeyboardNav() {
           break
         }
 
+        case 'u': {
+          // mark current thread unread
+          if (!selectedThreadId) break
+          e.preventDefault()
+          postJson(`/conversations/batch`, { thread_ids: [selectedThreadId], action: 'unread' })
+            .then(() => {
+              toast.success('Marked unread')
+              setConversations((prev) =>
+                prev.map((c) =>
+                  c.thread_id === selectedThreadId ? { ...c, unread_count: Math.max(1, c.unread_count) } : c
+                )
+              )
+            })
+            .catch(() => toast.error('Failed'))
+          break
+        }
+
         case 'r': {
           // focus reply box
           if (!selectedThreadId) break
@@ -149,6 +166,23 @@ export function useKeyboardNav() {
               ?? document.querySelector<HTMLElement>('[contenteditable="true"]')
             editor?.focus()
           }, 100)
+          break
+        }
+
+        case '#': {
+          // delete current thread
+          if (!selectedThreadId) break
+          e.preventDefault()
+          postJson(`/conversations/batch`, { thread_ids: [selectedThreadId], action: 'delete' })
+            .then(() => {
+              toast.success('Deleted')
+              setConversations((prev) => prev.filter((c) => c.thread_id !== selectedThreadId))
+              // move to next conversation
+              const idx = visibleIds.indexOf(selectedThreadId)
+              const next = visibleIds[idx + 1] ?? visibleIds[idx - 1] ?? null
+              setSelectedThreadId(next)
+            })
+            .catch(() => toast.error('Failed'))
           break
         }
 
