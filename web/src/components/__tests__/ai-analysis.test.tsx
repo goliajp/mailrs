@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import type { ThreadMessage } from '@/lib/types'
 import { AiAnalysisPanel } from '@/components/ai-analysis'
@@ -96,6 +96,8 @@ describe('AiAnalysisPanel', () => {
         })}
       />,
     )
+    // expand details
+    fireEvent.click(screen.getByRole('button'))
     expect(screen.getByText('People')).toBeDefined()
     expect(screen.getByText('John Doe')).toBeDefined()
     expect(screen.getByText('(Manager)')).toBeDefined()
@@ -111,6 +113,7 @@ describe('AiAnalysisPanel', () => {
         })}
       />,
     )
+    fireEvent.click(screen.getByRole('button'))
     expect(screen.getByText('Dates')).toBeDefined()
     expect(screen.getByText('March 15')).toBeDefined()
   })
@@ -124,6 +127,7 @@ describe('AiAnalysisPanel', () => {
         })}
       />,
     )
+    fireEvent.click(screen.getByRole('button'))
     expect(screen.getByText('Amounts')).toBeDefined()
     expect(screen.getByText('$500')).toBeDefined()
   })
@@ -137,6 +141,7 @@ describe('AiAnalysisPanel', () => {
         })}
       />,
     )
+    fireEvent.click(screen.getByRole('button'))
     expect(screen.getByText('Action Items')).toBeDefined()
     expect(screen.getByText('Review the proposal')).toBeDefined()
     expect(screen.getByText('Send feedback by Friday')).toBeDefined()

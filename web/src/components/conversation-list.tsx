@@ -123,12 +123,12 @@ const ConversationItem = memo(function ConversationItem({
       onContextMenu={ctx.open}
       aria-selected={selected && !batchMode}
       aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
-      className={`relative flex w-full items-start gap-3 px-4 py-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
+      className={`relative flex w-full items-start gap-3 border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
         selected && !batchMode
-          ? 'border-l-[4px] border-l-[var(--color-brand-primary)]'
+          ? 'border-l-[var(--color-brand-primary)]'
           : hasUnread
-            ? 'border-l-[3px] border-l-[var(--color-brand-primary)] opacity-70'
-            : 'border-l-[3px] border-l-transparent'
+            ? 'border-l-[var(--color-brand-primary)]'
+            : 'border-l-transparent'
       } ${
         !hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''
       } ${
