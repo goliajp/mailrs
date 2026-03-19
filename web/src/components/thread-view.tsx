@@ -210,13 +210,16 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       const blob = await res.blob()
       const safeName = subject.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u30ff _-]/g, '_').trim()
       const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = safeName ? `${safeName}.eml` : `message-${uid}.eml`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      try {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = safeName ? `${safeName}.eml` : `message-${uid}.eml`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+      }
     } catch { toast.error('Download failed') }
   }, [])
 
