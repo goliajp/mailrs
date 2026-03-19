@@ -1528,6 +1528,33 @@ impl MailboxStore {
         Ok(rows)
     }
 
+    /// count threads with requires_action = true (not archived)
+    pub async fn count_action_threads(
+        &self,
+        user: &str,
+        domains: Option<&[String]>,
+    ) -> Result<i64, sqlx::Error> {
+        let (user_filter, binds) = build_user_filter(user, domains, 1);
+
+        let sql = format!(
+            "SELECT COUNT(DISTINCT m.thread_id)
+             FROM email_analysis ea
+             JOIN messages m ON ea.message_id = m.id
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE {user_filter} AND ea.requires_action = true
+               AND NOT EXISTS (SELECT 1 FROM email_analysis ea_ex WHERE ea_ex.message_id = m.id AND ea_ex.category IN ('spam', 'scam'))
+               AND COALESCE(m.archived, false) = false"
+        );
+
+        let mut query = sqlx::query_as::<_, (i64,)>(&sql);
+        for b in &binds {
+            query = query.bind(b);
+        }
+
+        let (count,) = query.fetch_one(&self.pool).await?;
+        Ok(count)
+    }
+
     /// get distinct senders (contacts) matching a query
     pub async fn search_contacts(
         &self,

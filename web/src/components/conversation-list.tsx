@@ -299,10 +299,14 @@ function FilterBar() {
   }
 
   // action count for badge
-  const actionCount = useMemo(() =>
-    conversations.filter((c) => c.requires_action && !c.archived).length,
-    [conversations]
-  )
+  const [actionCount, setActionCount] = useState(0)
+  useEffect(() => {
+    const doms = selectedDomainsVal.length > 0 ? `?domains=${encodeURIComponent(selectedDomainsVal.join(','))}` : ''
+    fetchJson<{ count: number }>(`/conversations/action-count${doms}`).then(
+      (d) => setActionCount(d.count),
+      () => {}
+    )
+  }, [selectedDomainsVal, conversations])
 
   // whether any advanced filters are active
   const hasAdvancedFilters = sortOrder !== 'newest' || showArchived || (activeCategory !== null && activeCategory !== 'spam' && activeCategory !== 'scam') || selectedDomains.length > 0 || section === 'important' || section === 'other'

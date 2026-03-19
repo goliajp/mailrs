@@ -698,6 +698,10 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             get(conversations::get_conversation_categories),
         )
         .route(
+            "/api/conversations/action-count",
+            get(conversations::get_action_count),
+        )
+        .route(
             "/api/conversations/search",
             get(conversations::search_conversations),
         )
