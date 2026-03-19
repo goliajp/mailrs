@@ -602,7 +602,7 @@ impl ImapSession {
 
         // CHANGEDSINCE modifier (RFC 7162)
         let changedsince = if let Some(pos) = attrs_upper.find("CHANGEDSINCE") {
-            let after = &attributes[pos + "CHANGEDSINCE".len()..];
+            let after = attributes.get(pos + "CHANGEDSINCE".len()..).unwrap_or("");
             let after = after.trim_start();
             after.split_whitespace().next().and_then(|s| {
                 // strip trailing parenthesis if present
@@ -821,8 +821,8 @@ impl ImapSession {
             if action_upper.starts_with("(UNCHANGEDSINCE") {
                 // extract modseq from flags_str: "12345) +FLAGS (\Seen)"
                 if let Some(paren_end) = flags_str.find(')') {
-                    let modseq_str = flags_str[..paren_end].trim();
-                    let rest = flags_str[paren_end + 1..].trim();
+                    let modseq_str = flags_str.get(..paren_end).unwrap_or("").trim();
+                    let rest = flags_str.get(paren_end + 1..).unwrap_or("").trim();
                     let modseq = modseq_str.parse::<u64>().ok();
                     // rest is "+FLAGS (\Seen)" — split into action and flags
                     if let Some((act, flg)) = rest.split_once(' ') {
