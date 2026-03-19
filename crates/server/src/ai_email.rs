@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// current prompt version — bump this to trigger automatic reanalysis of all messages
-pub const PROMPT_VERSION: &str = "v7";
+pub const PROMPT_VERSION: &str = "v8";
 
 /// self-hosted LLM configuration
 #[derive(Debug, Clone)]
@@ -210,9 +210,28 @@ pub async fn analyze_email(
     let system = r#"邮件分析助手。只返回JSON，不要代码块。
 重要：所有文本字段必须用简体中文输出，即使原文是日语、英语或其他语言也必须翻译成中文。
 
-category: personal|work|notification|promotion|newsletter|receipt|shipping|travel|finance|spam|scam|general
+category 分类规则（严格按以下优先级判断）：
+- spam: 未经请求的广告、群发营销、钓鱼、欺诈、虚假中奖、不认识的推销
+- scam: 诈骗、钓鱼链接、冒充身份、勒索、虚假紧急通知
+- promotion: 商家促销、优惠券、打折活动、产品推广、平台活动推送（已订阅的商家）
+- newsletter: 定期订阅的资讯、周报、行业动态、博客更新
+- notification: 系统通知、账户变更、安全提醒、服务状态更新、CI/CD通知
+- receipt: 订单确认、付款收据、发票、电子票据
+- shipping: 物流跟踪、发货通知、配送状态更新
+- travel: 机票、酒店、行程确认、签证相关
+- finance: 银行对账单、投资报告、税务通知、转账确认
+- work: 同事/客户/合作方的工作邮件、会议邀请、项目讨论
+- personal: 亲友私信、个人事务
+- general: 以上都不符合时使用
+
+判断要点：
+1. 群发的商业邮件，如果收件人没有明确订阅关系 → spam
+2. "お知らせ"类日语营销邮件、产品推广 → spam 或 promotion（看是否有订阅关系）
+3. GitHub/GitLab/Jira 等开发工具通知 → notification
+4. 含 unsubscribe 链接的批量邮件，优先考虑 promotion/newsletter/spam
+
 risk_score: 0-100 (0可信,25正常,50可疑,75危险,100诈骗)
-sender_intent: request|inform|confirm|social|alert
+sender_intent: request|inform|confirm|social|alert|marketing
 
 {"category":"","risk_score":0,"risk_reason":"中文","summary":"中文","clean_text":"中文","requires_action":false,"sender_intent":"inform","action_deadline":null,"people":[],"dates":[],"amounts":[],"action_items":["中文"]}"#;
 
