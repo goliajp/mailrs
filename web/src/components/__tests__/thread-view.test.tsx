@@ -226,9 +226,9 @@ describe('ThreadView — selected message detail', () => {
     expect(screen.getByText(/Dangerous/)).toBeDefined()
   })
 
-  it('shows Safe badge for low risk', async () => {
-    await renderAndWait(makeMessage({ ai_analyzed: true, risk_score: 5 }))
-    expect(screen.getByText(/Safe/)).toBeDefined()
+  it('shows Suspicious badge for medium risk', async () => {
+    await renderAndWait(makeMessage({ ai_analyzed: true, risk_score: 50 }))
+    expect(screen.getByText(/Suspicious/)).toBeDefined()
   })
 })
 

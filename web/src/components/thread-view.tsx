@@ -6,7 +6,6 @@ import { toast } from 'sonner'
 
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
-import { ActionBadge, CategoryBadge, ImportanceBadge, IntentBadge } from '@/components/category-badge'
 import { Copyable } from '@/components/copy-button'
 import { StructuredDataCard } from '@/components/structured-data-card'
 import { MessageBubble } from '@/components/message-bubble'
@@ -171,16 +170,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
   }, [selectedId, setConversations])
 
-  const handleDismissAction = useCallback(async () => {
-    if (!selectedId) return
-    try {
-      await postJson(`/conversations/${encodeURIComponent(selectedId)}/dismiss-action`, {})
-      setMessages((prev) => prev.map((m) => ({ ...m, requires_action: false })))
-      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, requires_action: false, importance_score: Math.max(-0.5, c.importance_score - 0.2) } : c))
-      toast.success('Action dismissed')
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
-  }, [selectedId, setMessages, setConversations])
-
   const handleDelete = useCallback(async () => {
     if (!selectedId) return
     try {
@@ -321,13 +310,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 {selectedMsgIdx != null ? `${selectedMsgIdx + 1}/` : ''}{messages.length}
               </span>
             )}
-            <CategoryBadge category={messages[0]?.category} />
-            <ImportanceBadge level={messages[0]?.importance_level} />
-            {messages.some((m) => m.requires_action) && (
-              <button onClick={handleDismissAction} title="Click to dismiss action">
-                <ActionBadge />
-              </button>
-            )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <HdrBtn onClick={goToPrev} title="Previous conversation" className={hasPrev ? '' : 'opacity-30 pointer-events-none'}>
@@ -402,34 +384,18 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                         <span className="text-xs text-[var(--color-text-tertiary)]">
                           {formatFullDate(selectedMsg.internal_date)}
                         </span>
-                        <IntentBadge intent={selectedMsg.sender_intent} />
                         {selectedMsg.action_deadline && (
                           <span className="rounded bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-status-warning)]">
                             Due: {selectedMsg.action_deadline}
                           </span>
                         )}
-                        {selectedMsg.ai_analyzed && (
+                        {selectedMsg.risk_score >= 40 && (
                           <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${
                             selectedMsg.risk_score >= 60
                               ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
-                              : selectedMsg.risk_score >= 40
-                                ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
-                                : selectedMsg.risk_score >= 15
-                                  ? 'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]'
-                                  : 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+                              : 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
                           }`}>
-                            {selectedMsg.risk_score >= 60 ? 'Dangerous' : selectedMsg.risk_score >= 40 ? 'Suspicious' : selectedMsg.risk_score >= 15 ? 'Caution' : 'Safe'}
-                            {selectedMsg.risk_score > 0 && ` ${selectedMsg.risk_score}`}
-                          </span>
-                        )}
-                        {selectedMsg.has_tracking_pixel && (
-                          <span className="rounded bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600" title="This email contains a tracking pixel">
-                            Tracking
-                          </span>
-                        )}
-                        {selectedMsg.is_bulk_sender && (
-                          <span className="rounded bg-[var(--color-bg-sunken)] px-2 py-0.5 text-[11px] text-[var(--color-text-tertiary)]">
-                            Bulk
+                            {selectedMsg.risk_score >= 60 ? 'Dangerous' : 'Suspicious'}
                           </span>
                         )}
                       </div>
