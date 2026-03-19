@@ -18,6 +18,14 @@ const Settings = lazy(() => import('@/pages/settings').then((m) => ({ default: m
 import { authAtom } from '@/store/auth'
 import { unreadCountAtom } from '@/store/chat'
 
+function LoadingFallback() {
+  return (
+    <div className="flex flex-1 items-center justify-center p-8">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-border-default)] border-t-[var(--color-brand-primary)]" />
+    </div>
+  )
+}
+
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const auth = useAtomValue(authAtom)
   if (!auth) return <Navigate to="/login" replace />
@@ -99,10 +107,10 @@ export function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/playground" element={<Suspense><Playground /></Suspense>} />
-        <Route path="/protocol" element={<AuthShell><PagePanel><Suspense><Protocol /></Suspense></PagePanel></AuthShell>} />
-        <Route path="/admin/*" element={<AuthShell><PagePanel><Suspense><Admin /></Suspense></PagePanel></AuthShell>} />
-        <Route path="/settings" element={<AuthShell><PagePanel><Suspense><Settings /></Suspense></PagePanel></AuthShell>} />
+        <Route path="/playground" element={<Suspense fallback={<LoadingFallback />}><Playground /></Suspense>} />
+        <Route path="/protocol" element={<AuthShell><PagePanel><Suspense fallback={<LoadingFallback />}><Protocol /></Suspense></PagePanel></AuthShell>} />
+        <Route path="/admin/*" element={<AuthShell><PagePanel><Suspense fallback={<LoadingFallback />}><Admin /></Suspense></PagePanel></AuthShell>} />
+        <Route path="/settings" element={<AuthShell><PagePanel><Suspense fallback={<LoadingFallback />}><Settings /></Suspense></PagePanel></AuthShell>} />
         <Route path="/mail/*" element={<AuthShell><Chat /></AuthShell>} />
         <Route path="/*" element={<AuthShell><PagePanel><Dashboard /></PagePanel></AuthShell>} />
       </Routes>
