@@ -7,7 +7,7 @@ import type { ConversationSummary, NewMessageEvent, SmtpEvent, ThreadMessage } f
 import { categoryFilterAtom, conversationsAtom, folderAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
 import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 
-const POLL_INTERVAL = 15_000
+const POLL_INTERVAL = 60_000
 const WS_PING_INTERVAL = 30_000
 
 export function useMailEvents(user: string) {
@@ -168,8 +168,16 @@ export function useMailEvents(user: string) {
 
     connect()
 
-    // periodic polling as fallback for when WS is silently dead
-    pollTimer.current = setInterval(refreshAll, POLL_INTERVAL)
+    // periodic polling as fallback — only when WS is not connected and tab is visible
+    function startPolling() {
+      if (pollTimer.current) clearInterval(pollTimer.current)
+      pollTimer.current = setInterval(() => {
+        if (document.hidden) return
+        if (wsRef.current?.readyState === WebSocket.OPEN) return
+        refreshAll()
+      }, POLL_INTERVAL)
+    }
+    startPolling()
 
     // refresh on tab visibility change
     function onVisibilityChange() {
