@@ -261,7 +261,7 @@ export function ReplyBox({
   const placeholder = mode === 'forward' ? 'Add a message...' : 'Type a reply...'
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* mode toggle + recipients */}
       <div className="flex shrink-0 select-none items-center gap-1 border-b border-[var(--color-border-default)] px-4 py-2">
         {(Object.keys(MODE_LABELS) as ReplyMode[]).map((m) => (
@@ -317,7 +317,7 @@ export function ReplyBox({
       )}
 
       {/* block-based composer */}
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <StructuredCompose
           ref={composeRef}
           onSubmit={send}
