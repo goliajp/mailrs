@@ -123,6 +123,7 @@ export function ReplyBox({
           headers: { Authorization: `Bearer ${auth?.token ?? ''}` },
           body: formData,
         })
+        if (!res.ok) { toast.error(`Send failed (${res.status})`); return }
         const result: SendResult = await res.json()
         if (!result.success) {
           toast.error(result.message ?? 'Send failed')

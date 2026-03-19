@@ -117,6 +117,7 @@ export function NewConversation() {
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: formData,
         })
+        if (!res.ok) { setError(`Send failed (${res.status})`); setSending(false); return }
         result = await res.json()
       } else {
         result = await postJson<SendResult>('/mail/send', {
