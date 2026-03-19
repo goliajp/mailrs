@@ -30,6 +30,12 @@ export function useKeyboardNav() {
   const setShortcutsOpen = useSetAtom(shortcutsDialogOpenAtom)
 
   useEffect(() => {
+    function scrollToThread(_threadId: string) {
+      requestAnimationFrame(() => {
+        document.querySelector(`[aria-selected="true"]`)?.scrollIntoView({ block: 'nearest' })
+      })
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isEditableTarget(e.target)) return
 
@@ -40,11 +46,13 @@ export function useKeyboardNav() {
           if (visibleIds.length === 0) return
           if (selectedThreadId === null) {
             setSelectedThreadId(visibleIds[0])
+            scrollToThread(visibleIds[0])
             return
           }
           const idx = visibleIds.indexOf(selectedThreadId)
           if (idx < visibleIds.length - 1) {
             setSelectedThreadId(visibleIds[idx + 1])
+            scrollToThread(visibleIds[idx + 1])
           }
           break
         }
@@ -55,11 +63,13 @@ export function useKeyboardNav() {
           if (visibleIds.length === 0) return
           if (selectedThreadId === null) {
             setSelectedThreadId(visibleIds[0])
+            scrollToThread(visibleIds[0])
             return
           }
           const idx = visibleIds.indexOf(selectedThreadId)
           if (idx > 0) {
             setSelectedThreadId(visibleIds[idx - 1])
+            scrollToThread(visibleIds[idx - 1])
           }
           break
         }
