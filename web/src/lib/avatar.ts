@@ -62,8 +62,7 @@ export function avatarInitial(sender: string): string {
 export function extractEmail(sender: string): string {
   const decoded = decodeMimeHeader(sender)
   const match = decoded.match(/<([^>]+)>/)
-  if (match) return match[1]
-  return decoded
+  return (match ? match[1] : decoded).toLowerCase()
 }
 
 // check if a string looks machine-generated (tracking IDs, bounce addresses, hashes)

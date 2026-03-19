@@ -73,11 +73,13 @@ export function AiAnalysisPanel({ message }: Props) {
           expanded ? <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" /> : <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
         ) : null}
         <div className="min-w-0 flex-1">
-          {message.summary && (
+          {message.summary ? (
             <p className="select-text text-sm text-[var(--color-text-secondary)]">
               {message.summary}
             </p>
-      )}
+          ) : hasDetails ? (
+            <p className="text-xs text-[var(--color-text-tertiary)]">AI analysis details</p>
+          ) : null}
 
           {/* deadline */}
           {hasDeadline && (
