@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { getToken } from '@/store/auth'
 import { escapeHtml } from '@/lib/html-utils'
 import type { ConversationSummary } from '@/lib/types'
 import { authAtom } from '@/store/auth'
@@ -94,14 +95,39 @@ export function NewConversation() {
       const ccList = cc.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
       const bccList = bcc.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
 
-      const result = await postJson<SendResult>('/mail/send', {
-        from: auth?.address ?? '',
-        to: recipients, cc: ccList, bcc: bccList, subject,
-        body: content.fullText, html_body: content.fullHtml,
-        in_reply_to: null,
-        ...(scheduledAt ? { scheduled_at: new Date(scheduledAt).toISOString() } : {}),
-        ...(requestReadReceipt ? { request_read_receipt: true } : {}),
-      })
+      const attachmentFiles = content.attachments
+      let result: SendResult
+
+      if (attachmentFiles.length > 0) {
+        const formData = new FormData()
+        formData.append('from', auth?.address ?? '')
+        formData.append('subject', subject)
+        formData.append('body', content.fullText)
+        formData.append('html_body', content.fullHtml)
+        for (const r of recipients) formData.append('to', r)
+        for (const r of ccList) formData.append('cc', r)
+        for (const r of bccList) formData.append('bcc', r)
+        for (const f of attachmentFiles) formData.append('attachments', f)
+        if (scheduledAt) formData.append('scheduled_at', new Date(scheduledAt).toISOString())
+        if (requestReadReceipt) formData.append('request_read_receipt', 'true')
+
+        const token = getToken()
+        const res = await fetch('/api/mail/send-multipart', {
+          method: 'POST',
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: formData,
+        })
+        result = await res.json()
+      } else {
+        result = await postJson<SendResult>('/mail/send', {
+          from: auth?.address ?? '',
+          to: recipients, cc: ccList, bcc: bccList, subject,
+          body: content.fullText, html_body: content.fullHtml,
+          in_reply_to: null,
+          ...(scheduledAt ? { scheduled_at: new Date(scheduledAt).toISOString() } : {}),
+          ...(requestReadReceipt ? { request_read_receipt: true } : {}),
+        })
+      }
 
       if (result.success) {
         const sentMessageId = result.message_id
