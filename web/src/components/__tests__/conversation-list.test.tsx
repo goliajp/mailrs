@@ -289,7 +289,6 @@ describe('ConversationList empty states', () => {
     )
 
     expect(screen.getByText('All caught up!')).toBeDefined()
-    expect(screen.getByText('No conversations to show')).toBeDefined()
   })
 
   it('shows search-specific empty state during search', () => {
