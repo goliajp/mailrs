@@ -7,7 +7,7 @@ import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ContextMenu, useContextMenu } from '@/components/context-menu'
 import type { ContextMenuItem } from '@/components/context-menu'
 import { fetchJson, postJson, snoozeConversation } from '@/lib/api'
-import { extractName } from '@/lib/avatar'
+import { extractEmail, extractName } from '@/lib/avatar'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import type { CategoryCount, ConversationSummary } from '@/lib/types'
@@ -32,6 +32,7 @@ import {
   type ImportanceSection,
   type SortOrder,
 } from '@/store/chat'
+import { authAtom } from '@/store/auth'
 
 type BatchAction = 'read' | 'unread' | 'delete' | 'star' | 'unstar' | 'archive' | 'unarchive'
 type SingleAction = BatchAction | 'pin' | 'unpin' | 'snooze'
@@ -56,6 +57,7 @@ const ConversationItem = memo(function ConversationItem({
   onSelect,
   onToggleCheck,
   onContextAction,
+  myEmail,
 }: {
   convo: ConversationSummary
   selected: boolean
@@ -64,9 +66,12 @@ const ConversationItem = memo(function ConversationItem({
   onSelect: (threadId: string) => void
   onToggleCheck: (threadId: string) => void
   onContextAction: (threadId: string, action: SingleAction) => void
+  myEmail: string
 }) {
   const firstParticipant = convo.participants[0] ?? ''
-  const name = extractName(firstParticipant)
+  const firstEmail = extractEmail(firstParticipant)
+  const isOwn = firstEmail === myEmail
+  const name = isOwn ? 'Me' : extractName(firstParticipant)
   const hasUnread = convo.unread_count > 0
   const isFlagged = convo.flagged
   const isPinned = convo.pinned
@@ -155,7 +160,7 @@ const ConversationItem = memo(function ConversationItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span
-            className={`truncate text-sm ${hasUnread ? 'font-semibold text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'}`}
+            className={`truncate text-sm ${isOwn ? 'text-[var(--color-brand-primary)]' : ''} ${hasUnread ? 'font-semibold text-[var(--color-text-primary)]' : isOwn ? '' : 'text-[var(--color-text-secondary)]'}`}
           >
             {name}
             {convo.participants.length > 1 && (
@@ -600,6 +605,8 @@ function BatchActionBar({
 }
 
 export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadMore: () => void; onSelectConversation?: () => void }) {
+  const auth = useAtomValue(authAtom)
+  const myEmail = auth?.address ?? ''
   const [conversations, setConversations] = useAtom(conversationsAtom)
   const [selectedId, setSelectedId] = useAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
@@ -918,6 +925,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
                     onSelect={handleSelect}
                     onToggleCheck={toggleThreadCheck}
                     onContextAction={handleContextAction}
+                    myEmail={myEmail}
                   />
                 </Fragment>
               )
