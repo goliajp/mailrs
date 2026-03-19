@@ -37,7 +37,6 @@ export function NewConversation() {
   const [templates, setTemplates] = useState<TemplateInfo[]>([])
   const [scheduledAt, setScheduledAt] = useState('')
   const [showSchedulePicker, setShowSchedulePicker] = useState(false)
-  const [requestReadReceipt, setRequestReadReceipt] = useState(false)
   const composeRef = useRef<StructuredComposeHandle>(null)
 
   useEffect(() => {
@@ -109,7 +108,6 @@ export function NewConversation() {
         for (const r of bccList) formData.append('bcc', r)
         for (const f of attachmentFiles) formData.append('attachments', f)
         if (scheduledAt) formData.append('scheduled_at', new Date(scheduledAt).toISOString())
-        if (requestReadReceipt) formData.append('request_read_receipt', 'true')
 
         const token = getToken()
         const res = await fetch('/api/mail/send-multipart', {
@@ -126,7 +124,6 @@ export function NewConversation() {
           body: content.fullText, html_body: content.fullHtml,
           in_reply_to: null,
           ...(scheduledAt ? { scheduled_at: new Date(scheduledAt).toISOString() } : {}),
-          ...(requestReadReceipt ? { request_read_receipt: true } : {}),
         })
       }
 
@@ -254,11 +251,6 @@ export function NewConversation() {
           </select>
         )}
 
-        <label className={`ml-1 flex shrink-0 items-center gap-1 text-[10px] text-[var(--color-text-tertiary)] ${sending ? 'opacity-50' : 'cursor-pointer'}`}>
-          <input type="checkbox" checked={requestReadReceipt} onChange={(e) => setRequestReadReceipt(e.target.checked)}
-            disabled={sending} className="h-3 w-3 rounded border-[var(--color-border-default)]" />
-          Receipt
-        </label>
 
         <div className="flex-1" />
         <kbd className="mr-1 hidden select-none text-[10px] text-[var(--color-text-tertiary)] sm:inline">
