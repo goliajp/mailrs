@@ -202,13 +202,19 @@ async fn do_analyze(
 
     let intent = if analysis.sender_intent.is_empty() { "inform" } else { &analysis.sender_intent };
 
+    // validate action_deadline — LLM sometimes returns non-timestamp text like "30 分钟内"
+    let deadline = analysis.action_deadline.as_deref().filter(|d| {
+        chrono::DateTime::parse_from_rfc3339(d).is_ok()
+            || chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok()
+    });
+
     if let Err(e) = store.upsert_email_analysis(
         message_id, &analysis.category, analysis.risk_score as i16,
         &analysis.risk_reason, &analysis.summary,
         &analysis.people, &analysis.dates, &analysis.amounts, &analysis.action_items,
         embedding.as_deref(), model_version,
         &analysis.clean_text, analysis.requires_action,
-        intent, analysis.action_deadline.as_deref(),
+        intent, deadline,
     ).await {
         eprintln!("AI analyzer DB error msg={message_id}: {e}");
         return false;
