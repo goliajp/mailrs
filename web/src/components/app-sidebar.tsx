@@ -236,7 +236,7 @@ function LogoutConfirmDialog({ onCancel, onConfirm }: { onCancel: () => void; on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onCancel} role="dialog" aria-modal="true">
-      <div className="w-80 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="mx-4 w-full max-w-sm rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Sign out?</h3>
         <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
           You will need to sign in again to access your mailbox.
