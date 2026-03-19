@@ -1,6 +1,6 @@
 import { useAtomValue } from 'jotai'
 import { Loader2, Send } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
@@ -58,6 +58,37 @@ export function ReplyBox({
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [error, setError] = useState('')
   const composeRef = useRef<StructuredComposeHandle>(null)
+
+  // auto-save draft to localStorage every 3s
+  const draftKey = `mailrs_draft_${lastMessageId || 'new'}`
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>(null)
+
+  const saveDraftLocal = useCallback(() => {
+    const editor = composeRef.current?.getComposeEditor()
+    if (!editor) return
+    const html = editor.getHTML()
+    if (html && html !== '<p></p>') {
+      localStorage.setItem(draftKey, html)
+    }
+  }, [draftKey])
+
+  // restore draft on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(draftKey)
+    if (saved) {
+      setTimeout(() => {
+        composeRef.current?.setComposeContent(saved)
+        toast.info('Draft restored', { duration: 2000 })
+      }, 200)
+    }
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
+  }, [draftKey])
+
+  // periodic save while typing
+  useEffect(() => {
+    saveTimer.current = setInterval(saveDraftLocal, 3000)
+    return () => { if (saveTimer.current) clearInterval(saveTimer.current) }
+  }, [saveDraftLocal])
 
   const handleModeChange = (newMode: ReplyMode) => {
     onModeChange(newMode)
@@ -167,9 +198,14 @@ export function ReplyBox({
             }
           : {}),
       })
+      localStorage.removeItem(draftKey)
       onSent()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Network error')
+      saveDraftLocal()
+      toast.error(err instanceof Error ? err.message : 'Network error — draft saved', {
+        action: { label: 'Retry', onClick: () => send() },
+        duration: 10000,
+      })
     } finally {
       setSending(false)
     }

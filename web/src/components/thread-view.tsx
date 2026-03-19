@@ -338,7 +338,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         </div>
 
         {/* email body area */}
-        <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="relative flex min-h-0 flex-1 overflow-hidden">
+          {loadingThread && messages.length > 0 && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--color-bg-base)]/80">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-border-default)] border-t-[var(--color-brand-primary)]" />
+            </div>
+          )}
           <div ref={contentScrollRef} className="min-w-0 flex-1 overflow-y-auto">
             {selectedMsg ? (
               <>
