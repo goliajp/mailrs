@@ -1,4 +1,4 @@
-import { useCallback, useImperativeHandle, useRef, forwardRef, type ReactNode } from 'react'
+import { useCallback, useImperativeHandle, useRef, useState, forwardRef, type ReactNode } from 'react'
 import type { Editor } from '@tiptap/react'
 import { X } from 'lucide-react'
 
@@ -144,6 +144,28 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
     e.target.value = ''
   }, [addAttachment])
 
+  // drag-and-drop attachment support
+  const [dragging, setDragging] = useState(false)
+  const dragCounter = useRef(0)
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current++
+    if (e.dataTransfer.types.includes('Files')) setDragging(true)
+  }, [])
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current--
+    if (dragCounter.current === 0) setDragging(false)
+  }, [])
+  const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault() }, [])
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current = 0
+    setDragging(false)
+    const files = Array.from(e.dataTransfer.files)
+    for (const file of files) addAttachment(file)
+  }, [addAttachment])
+
   // wrapper that shows a delete button on hover for removable blocks
   const Removable = useCallback(({ id, children, className = '' }: { id: string; children: ReactNode; className?: string }) => (
     <div className={`group relative ${className}`}>
@@ -262,7 +284,17 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
   }
 
   return (
-    <div className="relative flex h-full flex-col">
+    <div className="relative flex h-full flex-col"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {dragging && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-[var(--color-brand-primary)] bg-[var(--color-brand-subtle)]">
+          <p className="text-sm font-medium text-[var(--color-brand-primary)]">Drop files to attach</p>
+        </div>
+      )}
       {/* block content area */}
       <div
         ref={scrollAreaRef}
