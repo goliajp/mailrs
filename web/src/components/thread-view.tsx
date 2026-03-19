@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Panel, PanelRow } from '@/layouts/shell'
-import { ArrowLeft, Download, Forward, Mail, MailOpen, MoreVertical, Paperclip, Printer, Star, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Download, Forward, Mail, MailOpen, MoreVertical, Paperclip, Printer, Star, Trash2, X } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -19,7 +19,7 @@ import { deleteJson, fetchJson, postJson, recordFeedback, type FeedbackAction } 
 import { getToken } from '@/store/auth'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
 import type { ConversationSummary, ThreadMessage } from '@/lib/types'
-import { categoryFilterAtom, conversationsAtom, crossAccountReadAtom, folderAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
+import { categoryFilterAtom, conversationsAtom, crossAccountReadAtom, folderAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom, visibleConversationIdsAtom } from '@/store/chat'
 import { authAtom } from '@/store/auth'
 
 type ForwardSource = {
@@ -40,6 +40,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const conversationsRef = useRef(conversations)
   conversationsRef.current = conversations
   const setConversations = useSetAtom(conversationsAtom)
+  const visibleIds = useAtomValue(visibleConversationIdsAtom)
+  const currentIdx = selectedId ? visibleIds.indexOf(selectedId) : -1
+  const hasPrev = currentIdx > 0
+  const hasNext = currentIdx >= 0 && currentIdx < visibleIds.length - 1
+  const goToPrev = useCallback(() => { if (hasPrev) setSelectedId(visibleIds[currentIdx - 1]) }, [hasPrev, visibleIds, currentIdx, setSelectedId])
+  const goToNext = useCallback(() => { if (hasNext) setSelectedId(visibleIds[currentIdx + 1]) }, [hasNext, visibleIds, currentIdx, setSelectedId])
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const categoryRef = useRef(categoryFilter)
   categoryRef.current = categoryFilter
@@ -324,6 +330,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            <HdrBtn onClick={goToPrev} title="Previous conversation" className={hasPrev ? '' : 'opacity-30 pointer-events-none'}>
+              <ChevronUp className="h-4 w-4" />
+            </HdrBtn>
+            <HdrBtn onClick={goToNext} title="Next conversation" className={hasNext ? '' : 'opacity-30 pointer-events-none'}>
+              <ChevronDown className="h-4 w-4" />
+            </HdrBtn>
             <HdrBtn onClick={isRead ? handleMarkUnread : handleMarkRead} title={isRead ? 'Mark unread' : 'Mark read'}>
               {isRead ? (
                 <Mail className="h-4 w-4" />
