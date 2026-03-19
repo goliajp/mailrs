@@ -28,10 +28,21 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['r'], description: 'Reply' },
       { keys: ['e'], description: 'Archive / Unarchive' },
       { keys: ['s'], description: 'Star / Unstar' },
+      { keys: ['p'], description: 'Pin / Unpin' },
       { keys: ['u'], description: 'Mark unread' },
+      { keys: ['Shift+I'], description: 'Mark read + next' },
+      { keys: ['f'], description: 'Forward' },
       { keys: ['#'], description: 'Delete' },
       { keys: ['/'], description: 'Focus search' },
       { keys: ['?'], description: 'Show shortcuts' },
+    ],
+  },
+  {
+    title: 'Go to',
+    shortcuts: [
+      { keys: ['g', 'i'], description: 'Go to Inbox' },
+      { keys: ['g', 's'], description: 'Go to Sent' },
+      { keys: ['g', 'a'], description: 'Go to Action' },
     ],
   },
 ]
