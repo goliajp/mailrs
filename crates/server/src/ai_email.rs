@@ -257,14 +257,34 @@ fn parse_analysis_response(text: &str) -> Option<EmailAnalysis> {
 
     // find JSON object boundaries
     let start = text.find('{')?;
-    let end = text.rfind('}')? + 1;
-    let json_str = &text[start..end];
+    let json_str = if let Some(end) = text.rfind('}') {
+        &text[start..end + 1]
+    } else {
+        // truncated response — no closing brace
+        &text[start..]
+    };
 
     let mut analysis: EmailAnalysis = match serde_json::from_str(json_str) {
         Ok(a) => a,
-        Err(e) => {
-            eprintln!("AI parse error: {e} — raw: {}", &json_str[..json_str.len().min(200)]);
-            return None;
+        Err(_) => {
+            // try to repair truncated JSON by closing open strings/objects
+            let mut repaired = json_str.to_string();
+            // close any open string value
+            let quote_count = repaired.chars().filter(|c| *c == '"').count();
+            if quote_count % 2 != 0 {
+                repaired.push('"');
+            }
+            // close the object
+            if !repaired.trim_end().ends_with('}') {
+                repaired.push('}');
+            }
+            match serde_json::from_str(&repaired) {
+                Ok(a) => a,
+                Err(e) => {
+                    eprintln!("AI parse error: {e} — raw: {}", &json_str[..json_str.len().min(200)]);
+                    return None;
+                }
+            }
         }
     };
 
@@ -330,6 +350,15 @@ mod tests {
         assert!(parse_analysis_response("no json here").is_none());
         assert!(parse_analysis_response("").is_none());
         assert!(parse_analysis_response("{invalid}").is_none());
+    }
+
+    #[test]
+    fn parse_truncated_response() {
+        // LLM output cut off mid-string — should repair and parse
+        let json = r#"{"category":"promotion","risk_score":25,"risk_reason":"营销邮件","summary":"推广活动","people":[],"dates":[],"amounts":[],"action_items":[],"clean_text":"这是一封营销"#;
+        let result = parse_analysis_response(json).unwrap();
+        assert_eq!(result.category, "promotion");
+        assert_eq!(result.risk_score, 25);
     }
 
     #[test]
