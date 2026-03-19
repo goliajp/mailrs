@@ -12,6 +12,7 @@ export function AiAnalysisPanel({ message }: Props) {
   const hasDates = message.dates?.length > 0
   const hasAmounts = message.amounts?.length > 0
   const hasActions = message.action_items?.length > 0
+  const hasDeadline = !!message.action_deadline
   const hasDetails = hasPeople || hasDates || hasAmounts || hasActions
 
   return (
@@ -20,6 +21,13 @@ export function AiAnalysisPanel({ message }: Props) {
       {message.summary && (
         <p className="select-text text-sm text-[var(--color-text-secondary)]">
           {message.summary}
+        </p>
+      )}
+
+      {/* deadline */}
+      {hasDeadline && (
+        <p className="mt-1 select-text text-xs font-medium text-[var(--color-status-danger)]">
+          Deadline: {message.action_deadline}
         </p>
       )}
 
