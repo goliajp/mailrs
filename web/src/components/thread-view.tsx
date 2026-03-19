@@ -310,7 +310,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           )}
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <h2 className="select-text truncate text-sm font-semibold text-[var(--color-text-primary)]">{subject || '(no subject)'}</h2>
-            {messages.length > 1 && <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">{messages.length}</span>}
+            {messages.length > 1 && (
+              <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">
+                {selectedMsgIdx != null ? `${selectedMsgIdx + 1}/` : ''}{messages.length}
+              </span>
+            )}
             <CategoryBadge category={messages[0]?.category} />
             <ImportanceBadge level={messages[0]?.importance_level} />
             {messages.some((m) => m.requires_action) && (
