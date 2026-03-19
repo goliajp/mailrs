@@ -469,6 +469,24 @@ pub(super) async fn get_conversation_categories(
     Json(result)
 }
 
+pub(super) async fn get_action_count(
+    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
+    Query(dq): Query<DomainsQuery>,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    let Some(ref mb_store) = state.mailbox_store else {
+        return Json(serde_json::json!({"count": 0}));
+    };
+
+    let domains = validate_domains(dq.domains.as_deref(), permissions);
+    let count = mb_store
+        .count_action_threads(user, domains.as_deref())
+        .await
+        .unwrap_or(0);
+
+    Json(serde_json::json!({"count": count}))
+}
+
 pub(super) async fn search_conversations(
     AuthUser { address: ref user, ref permissions, .. }: AuthUser,
     Query(q): Query<SearchQuery>,
