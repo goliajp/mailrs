@@ -349,7 +349,7 @@ export function ReplyBox({
           </button>
           <select
             value={polishTone}
-            onChange={(e) => { setPolishTone(e.target.value); polish(e.target.value) }}
+            onChange={(e) => setPolishTone(e.target.value)}
             disabled={polishing || sending}
             className="h-8 appearance-none rounded-r-md border-l border-[var(--color-border-default)] bg-transparent px-1 text-[10px] text-[var(--color-brand-primary)] outline-none hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
           >
