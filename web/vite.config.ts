@@ -15,6 +15,11 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
+          editor: [
+            '@tiptap/react',
+            '@tiptap/starter-kit',
+            '@tiptap/core',
+          ],
           markdown: [
             'react-markdown',
             'remark-gfm',
