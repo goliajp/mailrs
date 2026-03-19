@@ -48,15 +48,14 @@ if [ "$WEB_ONLY" = false ]; then
   $SCP "$DIST_DIR/docker-compose.yml" "$SSH_HOST:$REMOTE_DIR/docker-compose.yml"
   $SCP scripts/init-schema.sql "$SSH_HOST:$REMOTE_DIR/init-schema.sql"
 
-  # upload .env with secrets if present
-  if [ -f "$ROOT/.env.local" ]; then
-    echo "==> uploading .env secrets"
-    {
-      echo 'MAILRS_AI_ANALYSIS_ENABLED=false'
-    } > /tmp/mailrs-deploy-env
-    $SCP /tmp/mailrs-deploy-env "$SSH_HOST:$REMOTE_DIR/.env"
-    rm -f /tmp/mailrs-deploy-env
-  fi
+  # upload .env with secrets
+  echo "==> uploading .env"
+  {
+    echo 'MAILRS_AI_ANALYSIS_ENABLED=true'
+    echo 'MAILRS_LLM_URL=https://devops.golia.jp/api/llm/complete'
+  } > /tmp/mailrs-deploy-env
+  $SCP /tmp/mailrs-deploy-env "$SSH_HOST:$REMOTE_DIR/.env"
+  rm -f /tmp/mailrs-deploy-env
 
   # upload and run migration scripts
   echo "==> running database migrations"
