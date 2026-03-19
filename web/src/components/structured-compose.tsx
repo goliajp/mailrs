@@ -22,6 +22,7 @@ export type StructuredContent = {
   quoted: { text: string; html: string }
   fullText: string
   fullHtml: string
+  attachments: File[]
 }
 
 export type StructuredComposeHandle = {
@@ -92,6 +93,11 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
       const textBlock = blocks.find((b) => b.type === 'text')
       const sigBlock = blocks.find((b) => b.type === 'signature')
       const quoteBlock = blocks.find((b) => b.type === 'quote')
+      const attachments = blocks
+        .filter((b) => b.type === 'attachment')
+        .map((b) => (b.data as AttachmentBlockData).file)
+        .filter((f): f is File => f != null)
+
       return {
         compose: textBlock
           ? { text: (textBlock.data as TextBlockData).content, html: (textBlock.data as TextBlockData).html }
@@ -104,6 +110,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
           : { text: '', html: '' },
         fullText: assembled.text,
         fullHtml: assembled.html,
+        attachments,
       }
     },
     getComposeEditor: () => textEditorRef.current,
