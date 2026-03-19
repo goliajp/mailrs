@@ -1,5 +1,5 @@
 import { File as FileIcon, X } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { formatFileSize } from '@/lib/html-utils'
 import type { AttachmentBlockData } from '../types'
 
@@ -11,9 +11,16 @@ type Props = {
 export function AttachmentBlock({ data, onRemove }: Props) {
   const isImage = data.mimeType.startsWith('image/')
 
-  const previewUrl = useMemo(() => {
-    if (!isImage) return null
-    return URL.createObjectURL(data.file)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isImage) {
+      setPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(data.file)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
   }, [data.file, isImage])
 
   return (

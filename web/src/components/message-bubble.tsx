@@ -278,7 +278,7 @@ function AttachmentItem({
             src={url}
             className="h-96 w-full"
             title={att.filename}
-            sandbox="allow-scripts allow-same-origin"
+            sandbox="allow-same-origin"
           />
         </div>
       )}
