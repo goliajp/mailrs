@@ -582,6 +582,7 @@ pub(super) async fn verify_totp(
 pub(super) struct OidcCallbackQuery {
     pub code: String,
     #[serde(default)]
+    #[allow(dead_code)]
     pub state: Option<String>,
 }
 
