@@ -1996,11 +1996,11 @@ dependencies = [
 
 [[package]]
 name = "mailrs-imap-proto"
-version = "1.1.113"
+version = "1.1.114"
 
 [[package]]
 name = "mailrs-mailbox"
-version = "1.1.113"
+version = "1.1.114"
 dependencies = [
  "chrono",
  "mailrs-storage-maildir",
@@ -2011,7 +2011,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "1.1.113"
+version = "1.1.114"
 dependencies = [
  "chrono",
  "futures-util",
@@ -2027,7 +2027,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-server"
-version = "1.1.113"
+version = "1.1.114"
 dependencies = [
  "arc-swap",
  "argon2",
@@ -2084,7 +2084,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-smtp-client"
-version = "1.1.113"
+version = "1.1.114"
 dependencies = [
  "hickory-resolver 0.25.2",
  "rustls",
@@ -2096,14 +2096,14 @@ dependencies = [
 
 [[package]]
 name = "mailrs-smtp-proto"
-version = "1.1.113"
+version = "1.1.114"
 dependencies = [
  "base64",
 ]
 
 [[package]]
 name = "mailrs-storage-maildir"
-version = "1.1.113"
+version = "1.1.114"
 dependencies = [
  "filetime",
  "hostname",
