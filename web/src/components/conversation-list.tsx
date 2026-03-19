@@ -828,7 +828,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search..."
             aria-label="Search conversations"
-            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-2 pl-9 pr-8 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-border-strong)]"
+            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-2 pl-9 pr-8 text-sm text-[var(--color-text-primary)] outline-none transition-colors placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:bg-[var(--color-bg-base)]"
           />
           {isSearching && (
             <button
