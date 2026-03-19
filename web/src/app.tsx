@@ -1,19 +1,20 @@
 import { useAtomValue } from 'jotai'
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { Shell, Panel } from '@/layouts/shell'
-import { Admin } from '@/pages/admin'
 import { Chat } from '@/pages/chat'
 import { Dashboard } from '@/pages/dashboard'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
-import { Playground } from '@/pages/playground'
-import { Protocol } from '@/pages/protocol'
-import { Settings } from '@/pages/settings'
+
+const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
+const Playground = lazy(() => import('@/pages/playground').then((m) => ({ default: m.Playground })))
+const Protocol = lazy(() => import('@/pages/protocol').then((m) => ({ default: m.Protocol })))
+const Settings = lazy(() => import('@/pages/settings').then((m) => ({ default: m.Settings })))
 import { authAtom } from '@/store/auth'
 import { unreadCountAtom } from '@/store/chat'
 
@@ -98,10 +99,10 @@ export function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/playground" element={<Playground />} />
-        <Route path="/protocol" element={<AuthShell><PagePanel><Protocol /></PagePanel></AuthShell>} />
-        <Route path="/admin/*" element={<AuthShell><PagePanel><Admin /></PagePanel></AuthShell>} />
-        <Route path="/settings" element={<AuthShell><PagePanel><Settings /></PagePanel></AuthShell>} />
+        <Route path="/playground" element={<Suspense><Playground /></Suspense>} />
+        <Route path="/protocol" element={<AuthShell><PagePanel><Suspense><Protocol /></Suspense></PagePanel></AuthShell>} />
+        <Route path="/admin/*" element={<AuthShell><PagePanel><Suspense><Admin /></Suspense></PagePanel></AuthShell>} />
+        <Route path="/settings" element={<AuthShell><PagePanel><Suspense><Settings /></Suspense></PagePanel></AuthShell>} />
         <Route path="/mail/*" element={<AuthShell><Chat /></AuthShell>} />
         <Route path="/*" element={<AuthShell><PagePanel><Dashboard /></PagePanel></AuthShell>} />
       </Routes>
