@@ -795,9 +795,15 @@ impl MailboxStore {
                               WHERE m2.thread_id = m.thread_id
                               ORDER BY m2.internal_date DESC LIMIT 1), 'general'),
                     BOOL_OR((m.flags & 4) != 0),
-                    COALESCE((SELECT LEFT(m3.text_body, 120) FROM messages m3
-                              WHERE m3.thread_id = m.thread_id AND m3.text_body IS NOT NULL AND m3.text_body != ''
-                              ORDER BY m3.internal_date DESC LIMIT 1), ''),
+                    COALESCE(
+                      (SELECT ea_snip.summary FROM email_analysis ea_snip
+                       JOIN messages m_snip ON ea_snip.message_id = m_snip.id
+                       WHERE m_snip.thread_id = m.thread_id AND ea_snip.summary IS NOT NULL AND ea_snip.summary != ''
+                       ORDER BY m_snip.internal_date DESC LIMIT 1),
+                      (SELECT LEFT(m3.text_body, 120) FROM messages m3
+                       WHERE m3.thread_id = m.thread_id AND m3.text_body IS NOT NULL AND m3.text_body != ''
+                       ORDER BY m3.internal_date DESC LIMIT 1),
+                      ''),
                     BOOL_OR(m.pinned),
                     BOOL_OR(m.archived),
                     COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal'),
@@ -1446,9 +1452,15 @@ impl MailboxStore {
                               WHERE m2.thread_id = m.thread_id
                               ORDER BY m2.internal_date DESC LIMIT 1), 'general'),
                     BOOL_OR((m.flags & 4) != 0),
-                    COALESCE((SELECT LEFT(m3.text_body, 120) FROM messages m3
-                              WHERE m3.thread_id = m.thread_id AND m3.text_body IS NOT NULL AND m3.text_body != ''
-                              ORDER BY m3.internal_date DESC LIMIT 1), ''),
+                    COALESCE(
+                      (SELECT ea_snip.summary FROM email_analysis ea_snip
+                       JOIN messages m_snip ON ea_snip.message_id = m_snip.id
+                       WHERE m_snip.thread_id = m.thread_id AND ea_snip.summary IS NOT NULL AND ea_snip.summary != ''
+                       ORDER BY m_snip.internal_date DESC LIMIT 1),
+                      (SELECT LEFT(m3.text_body, 120) FROM messages m3
+                       WHERE m3.thread_id = m.thread_id AND m3.text_body IS NOT NULL AND m3.text_body != ''
+                       ORDER BY m3.internal_date DESC LIMIT 1),
+                      ''),
                     BOOL_OR(m.pinned),
                     BOOL_OR(m.archived),
                     COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal'),
