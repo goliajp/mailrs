@@ -23,7 +23,7 @@ impl LlmConfig {
 
     /// model_version string stored in DB — includes prompt version
     pub fn model_version(&self) -> String {
-        format!("qwen/{PROMPT_VERSION}")
+        format!("qwen3.5-9b/{PROMPT_VERSION}")
     }
 }
 
@@ -375,6 +375,6 @@ mod tests {
         let config = LlmConfig::new("http://localhost".into());
         let mv = config.model_version();
         assert!(mv.contains(PROMPT_VERSION));
-        assert!(mv.contains("qwen"));
+        assert!(mv.contains("qwen3.5-9b"));
     }
 }
