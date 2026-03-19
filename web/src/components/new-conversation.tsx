@@ -167,8 +167,8 @@ export function NewConversation() {
 
       {/* address fields — consistent label width for alignment */}
       <div className="flex shrink-0 flex-col border-b border-[var(--color-border-default)]">
-        <div className="flex items-center border-b border-[var(--color-border-default)] px-4">
-          <label className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">To</label>
+        <div className="flex h-9 items-center border-b border-[var(--color-border-default)] px-4">
+          <label className="w-14 shrink-0 text-xs text-[var(--color-text-tertiary)]">To</label>
           <ContactAutocomplete value={to} onChange={setTo} placeholder="recipient@example.com" autoFocus />
           {!showCcBcc && (
             <button onClick={() => setShowCcBcc(true)} className="shrink-0 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]">
@@ -177,17 +177,17 @@ export function NewConversation() {
           )}
         </div>
         {showCcBcc && (<>
-          <div className="flex items-center border-b border-[var(--color-border-default)] px-4">
-            <label className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">Cc</label>
+          <div className="flex h-9 items-center border-b border-[var(--color-border-default)] px-4">
+            <label className="w-14 shrink-0 text-xs text-[var(--color-text-tertiary)]">Cc</label>
             <ContactAutocomplete value={cc} onChange={setCc} placeholder="cc@example.com" />
           </div>
-          <div className="flex items-center border-b border-[var(--color-border-default)] px-4">
-            <label className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">Bcc</label>
+          <div className="flex h-9 items-center border-b border-[var(--color-border-default)] px-4">
+            <label className="w-14 shrink-0 text-xs text-[var(--color-text-tertiary)]">Bcc</label>
             <ContactAutocomplete value={bcc} onChange={setBcc} placeholder="bcc@example.com" />
           </div>
         </>)}
-        <div className="flex items-center border-b border-[var(--color-border-default)] px-4">
-          <label htmlFor="new-conv-subject" className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">Subject</label>
+        <div className="flex h-9 items-center border-b border-[var(--color-border-default)] px-4">
+          <label htmlFor="new-conv-subject" className="w-14 shrink-0 text-xs text-[var(--color-text-tertiary)]">Subject</label>
           <input id="new-conv-subject" type="text" value={subject} onChange={(e) => setSubject(e.target.value)}
             className="flex-1 bg-transparent py-2 text-sm text-[var(--color-text-primary)] outline-none" />
           <button type="button" onClick={generateSubject} disabled={generatingSubject || sending} title="AI generate subject"
