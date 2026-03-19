@@ -1907,6 +1907,46 @@ impl MailboxStore {
         Ok(())
     }
 
+    /// dismiss action for all messages in a thread: clear requires_action and reverse importance boost
+    pub async fn dismiss_thread_action(&self, user: &str, thread_id: &str) -> Result<u32, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE email_analysis SET requires_action = false
+             WHERE message_id IN (
+               SELECT m.id FROM messages m
+               JOIN mailboxes mb ON m.mailbox_id = mb.id
+               WHERE m.thread_id = $1 AND mb.user_address = $2
+             ) AND requires_action = true",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .execute(&self.pool)
+        .await?;
+
+        let affected = result.rows_affected() as u32;
+
+        if affected > 0 {
+            sqlx::query(
+                "UPDATE messages SET
+                   importance_score = GREATEST(-0.5, importance_score - 0.2),
+                   importance_level = CASE
+                     WHEN GREATEST(-0.5, importance_score - 0.2) >= 0.8 THEN 'critical'
+                     WHEN GREATEST(-0.5, importance_score - 0.2) >= 0.5 THEN 'important'
+                     WHEN GREATEST(-0.5, importance_score - 0.2) >= 0.2 THEN 'normal'
+                     WHEN GREATEST(-0.5, importance_score - 0.2) >= 0.0 THEN 'low'
+                     ELSE 'noise'
+                   END
+                 WHERE thread_id = $1
+                   AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $2)",
+            )
+            .bind(thread_id)
+            .bind(user)
+            .execute(&self.pool)
+            .await?;
+        }
+
+        Ok(affected)
+    }
+
     /// get message id by mailbox user and maildir_id
     pub async fn get_message_id_by_maildir(
         &self,

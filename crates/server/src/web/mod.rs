@@ -734,6 +734,10 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             post(conversations::unpin_thread),
         )
         .route(
+            "/api/conversations/{thread_id}/dismiss-action",
+            post(conversations::dismiss_action),
+        )
+        .route(
             "/api/conversations/{thread_id}/archive",
             post(conversations::archive_thread),
         )

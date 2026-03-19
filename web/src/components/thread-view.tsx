@@ -163,6 +163,16 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
   }, [selectedId, setConversations])
 
+  const handleDismissAction = useCallback(async () => {
+    if (!selectedId) return
+    try {
+      await postJson(`/conversations/${encodeURIComponent(selectedId)}/dismiss-action`, {})
+      setMessages((prev) => prev.map((m) => ({ ...m, requires_action: false })))
+      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, importance_level: 'normal', importance_score: Math.max(-0.5, c.importance_score - 0.2) } : c))
+      toast.success('Action dismissed')
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
+  }, [selectedId, setMessages, setConversations])
+
   const handleDelete = useCallback(async () => {
     if (!selectedId) return
     try {
@@ -298,7 +308,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             {messages.length > 1 && <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">{messages.length}</span>}
             <CategoryBadge category={messages[0]?.category} />
             <ImportanceBadge level={messages[0]?.importance_level} />
-            {messages.some((m) => m.requires_action) && <ActionBadge />}
+            {messages.some((m) => m.requires_action) && (
+              <button onClick={handleDismissAction} title="Click to dismiss action">
+                <ActionBadge />
+              </button>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <HdrBtn onClick={isRead ? handleMarkUnread : handleMarkRead} title={isRead ? 'Mark unread' : 'Mark read'}>
