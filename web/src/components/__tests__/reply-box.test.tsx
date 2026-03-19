@@ -177,17 +177,6 @@ describe('ReplyBox', () => {
     expect(sendButton).toBeDefined()
   })
 
-  it('renders draft button', () => {
-    render(
-      <Wrapper store={store}>
-        <ReplyBox {...defaultProps} />
-      </Wrapper>,
-    )
-
-    const draftButton = screen.getByTitle('Save draft')
-    expect(draftButton).toBeDefined()
-  })
-
   it('renders add block button', () => {
     render(
       <Wrapper store={store}>

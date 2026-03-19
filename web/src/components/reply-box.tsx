@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
-import { deleteJson, postJson, saveDraft } from '@/lib/api'
+import { deleteJson, postJson } from '@/lib/api'
 import { escapeHtml, buildForwardHeaderHtml } from '@/lib/html-utils'
 import { authAtom } from '@/store/auth'
 import { threadMessagesAtom } from '@/store/chat'
@@ -24,7 +24,6 @@ const MODE_LABELS: Record<ReplyMode, string> = {
 }
 
 export function ReplyBox({
-  threadId,
   lastMessageId,
   replyRecipients,
   replyAllRecipients,
@@ -54,12 +53,10 @@ export function ReplyBox({
   const threadMessages = useAtomValue(threadMessagesAtom)
   const [forwardTo, setForwardTo] = useState('')
   const [sending, setSending] = useState(false)
-  const [savingDraft, setSavingDraft] = useState(false)
   const [polishing, setPolishing] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [error, setError] = useState('')
-  const [requestReadReceipt, setRequestReadReceipt] = useState(false)
   const composeRef = useRef<StructuredComposeHandle>(null)
 
   const handleModeChange = (newMode: ReplyMode) => {
@@ -116,7 +113,6 @@ export function ReplyBox({
         if (inReplyTo) formData.append('in_reply_to', inReplyTo)
         for (const r of to) formData.append('to', r)
         for (const f of attachmentFiles) formData.append('attachments', f)
-        if (requestReadReceipt) formData.append('request_read_receipt', 'true')
 
         const res = await fetch('/api/mail/send-multipart', {
           method: 'POST',
@@ -141,7 +137,6 @@ export function ReplyBox({
           html_body: assembled.fullHtml,
         }
         if (inReplyTo) payload['in_reply_to'] = inReplyTo
-        if (requestReadReceipt) payload['request_read_receipt'] = true
 
         const result = await postJson<SendResult>('/mail/send', payload)
         if (!result.success) {
@@ -177,25 +172,6 @@ export function ReplyBox({
       toast.error(err instanceof Error ? err.message : 'Network error')
     } finally {
       setSending(false)
-    }
-  }
-
-  const handleSaveDraft = async () => {
-    const content = composeRef.current?.getContent()
-    if (!content?.compose.text.trim()) return
-    setSavingDraft(true)
-    try {
-      const result = await saveDraft({
-        to: resolveRecipients().join(', '),
-        subject: resolveSubject(),
-        body: content.fullText,
-        reply_to_thread_id: threadId,
-      })
-      toast[result.success ? 'success' : 'error'](result.success ? 'Draft saved' : (result.message ?? 'Failed'))
-    } catch {
-      toast.error('Failed to save draft')
-    } finally {
-      setSavingDraft(false)
     }
   }
 
@@ -384,23 +360,8 @@ export function ReplyBox({
             <option value="concise">Concise</option>
           </select>
         </div>
-        <button onClick={handleSaveDraft} disabled={savingDraft || sending}
-          className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
-          title="Save draft">
-          {savingDraft ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Draft'}
-        </button>
-
-        <label className={`ml-1 flex shrink-0 items-center gap-1 text-[10px] text-[var(--color-text-tertiary)] ${sending ? 'opacity-50' : 'cursor-pointer'}`}>
-          <input type="checkbox" checked={requestReadReceipt} onChange={(e) => setRequestReadReceipt(e.target.checked)}
-            disabled={sending} className="h-3 w-3 rounded border-[var(--color-border-default)]" />
-          Receipt
-        </label>
-
         <div className="flex-1" />
 
-        <kbd className="mr-1 hidden select-none text-[10px] text-[var(--color-text-tertiary)] sm:inline">
-          {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘' : 'Ctrl+'}↵
-        </kbd>
         <button onClick={send} disabled={sending}
           className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-3.5 w-3.5" />
