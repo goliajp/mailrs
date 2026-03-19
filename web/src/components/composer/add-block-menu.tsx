@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Type, Code2, Minus, CheckSquare, Paperclip } from 'lucide-react'
+import { Plus, Type, Minus, Paperclip } from 'lucide-react'
 import type { BlockType } from './types'
 
-const BLOCK_OPTIONS: { type: BlockType; label: string; icon: typeof Type; description: string }[] = [
-  { type: 'text', label: 'Text', icon: Type, description: 'Rich text or markdown' },
-  { type: 'code', label: 'Code', icon: Code2, description: 'Syntax-highlighted code' },
-  { type: 'task', label: 'Tasks', icon: CheckSquare, description: 'Checklist' },
-  { type: 'divider', label: 'Divider', icon: Minus, description: 'Visual separator' },
+const BLOCK_OPTIONS: { type: BlockType; label: string; icon: typeof Type }[] = [
+  { type: 'text', label: 'Text', icon: Type },
+  { type: 'divider', label: 'Divider', icon: Minus },
 ]
 
 type Props = {
@@ -37,30 +35,23 @@ export function AddBlockMenu({ onAdd, onAddFile }: Props) {
         <Plus className="h-3.5 w-3.5" /> Add block
       </button>
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-1 w-48 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] py-1 shadow-lg">
-          {BLOCK_OPTIONS.map(({ type, label, icon: Icon, description }) => (
+        <div className="absolute bottom-full left-0 z-50 mb-1 w-40 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] py-1 shadow-lg">
+          {BLOCK_OPTIONS.map(({ type, label, icon: Icon }) => (
             <button
               key={type}
               onClick={() => { onAdd(type); setOpen(false) }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-[var(--color-hover)]"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
             >
               <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
-              <div>
-                <p className="text-xs font-medium text-[var(--color-text-primary)]">{label}</p>
-                <p className="text-xs text-[var(--color-text-tertiary)]">{description}</p>
-              </div>
+              {label}
             </button>
           ))}
-          <hr className="my-1 border-[var(--color-border-default)]" />
           <button
             onClick={() => { onAddFile(); setOpen(false) }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-[var(--color-hover)]"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
           >
             <Paperclip className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
-            <div>
-              <p className="text-xs font-medium text-[var(--color-text-primary)]">Attachment</p>
-              <p className="text-xs text-[var(--color-text-tertiary)]">File or image</p>
-            </div>
+            Attachment
           </button>
         </div>
       )}

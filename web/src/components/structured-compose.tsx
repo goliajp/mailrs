@@ -4,14 +4,12 @@ import { X } from 'lucide-react'
 
 import { useBlockComposer } from '@/components/composer/use-block-composer'
 import { TextBlock } from '@/components/composer/blocks/text-block'
-import { CodeBlock } from '@/components/composer/blocks/code-block'
 import { SignatureBlock } from '@/components/composer/blocks/signature-block'
 import { QuoteBlock } from '@/components/composer/blocks/quote-block'
 import { DividerBlock } from '@/components/composer/blocks/divider-block'
 import { AttachmentBlock } from '@/components/composer/blocks/attachment-block'
-import { TaskBlock } from '@/components/composer/blocks/task-block'
 import { AddBlockMenu } from '@/components/composer/add-block-menu'
-import type { TextBlockData, CodeBlockData, SignatureBlockData, QuoteBlockData, AttachmentBlockData, TaskBlockData, AnyBlock } from '@/components/composer/types'
+import type { TextBlockData, SignatureBlockData, QuoteBlockData, AttachmentBlockData, AnyBlock } from '@/components/composer/types'
 
 // keep backward-compatible types
 export type EditorMode = 'rich' | 'markdown' | 'preview'
@@ -212,17 +210,6 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
           />
         )
 
-      case 'code':
-        return (
-          <Removable key={key} id={block.id} className="px-4 py-1">
-            <CodeBlock
-              data={block.data as CodeBlockData}
-              onChange={(data) => updateBlock(block.id, data)}
-              disabled={disabled}
-            />
-          </Removable>
-        )
-
       case 'signature':
         return (
           <SignatureBlock
@@ -266,16 +253,6 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(func
               onRemove={() => removeBlock(block.id)}
             />
           </div>
-        )
-
-      case 'task':
-        return (
-          <Removable key={key} id={block.id} className="px-4 py-1">
-            <TaskBlock
-              data={block.data as TaskBlockData}
-              onChange={(data) => updateBlock(block.id, data)}
-            />
-          </Removable>
         )
 
       default:
