@@ -363,7 +363,7 @@ export function ReplyBox({
         <div className="flex-1" />
 
         <button onClick={send} disabled={sending}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50">
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-all hover:bg-[var(--color-brand-primary-hover)] hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-3.5 w-3.5" />
           {sending ? 'Sending…' : 'Send'}
         </button>
