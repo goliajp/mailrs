@@ -6,10 +6,14 @@ import { postJson } from '@/lib/api'
 import {
   composingNewAtom,
   conversationsAtom,
+  folderAtom,
+  importanceSectionAtom,
   mobileViewAtom,
+  quickFilterAtom,
   selectedThreadIdAtom,
   shortcutsDialogOpenAtom,
   visibleConversationIdsAtom,
+  categoryFilterAtom,
 } from '@/store/chat'
 
 // ignore keypresses originating from editable elements
@@ -28,8 +32,13 @@ export function useKeyboardNav() {
   const setComposingNew = useSetAtom(composingNewAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
   const setShortcutsOpen = useSetAtom(shortcutsDialogOpenAtom)
+  const setFolder = useSetAtom(folderAtom)
+  const setSection = useSetAtom(importanceSectionAtom)
+  const setQuickFilter = useSetAtom(quickFilterAtom)
+  const setCategory = useSetAtom(categoryFilterAtom)
 
   useEffect(() => {
+    let gPending = false // for g+i, g+s chord sequences
     function scrollToThread(_threadId: string) {
       requestAnimationFrame(() => {
         document.querySelector(`[aria-selected="true"]`)?.scrollIntoView({ block: 'nearest' })
@@ -187,7 +196,6 @@ export function useKeyboardNav() {
             .then(() => {
               toast.success('Deleted')
               setConversations((prev) => prev.filter((c) => c.thread_id !== selectedThreadId))
-              // move to next conversation
               const idx = visibleIds.indexOf(selectedThreadId)
               const next = visibleIds[idx + 1] ?? visibleIds[idx - 1] ?? null
               setSelectedThreadId(next)
@@ -196,7 +204,75 @@ export function useKeyboardNav() {
           break
         }
 
+        case 'p': {
+          // pin/unpin current thread
+          if (!selectedThreadId) break
+          e.preventDefault()
+          const pinned = conversations.find((c) => c.thread_id === selectedThreadId)?.pinned
+          const pinAct = pinned ? 'unpin' : 'pin'
+          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${pinAct}`, {})
+            .then(() => {
+              toast.success(pinned ? 'Unpinned' : 'Pinned')
+              setConversations((prev) => prev.map((c) => c.thread_id === selectedThreadId ? { ...c, pinned: !pinned } : c))
+            })
+            .catch(() => toast.error('Failed'))
+          break
+        }
+
+        case 'f': {
+          // forward — focus reply box and switch to forward mode
+          if (!selectedThreadId) break
+          e.preventDefault()
+          setMobileView('thread')
+          setTimeout(() => {
+            document.querySelectorAll<HTMLButtonElement>('button[aria-pressed]').forEach((btn) => {
+              if (btn.textContent === 'Forward') btn.click()
+            })
+          }, 100)
+          break
+        }
+
+        case 'I': {
+          // Shift+I: mark read and go to next
+          if (!selectedThreadId) break
+          e.preventDefault()
+          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/read`, {}).catch(() => {})
+          setConversations((prev) => prev.map((c) => c.thread_id === selectedThreadId ? { ...c, unread_count: 0 } : c))
+          const readIdx = visibleIds.indexOf(selectedThreadId)
+          const nextThread = visibleIds[readIdx + 1] ?? visibleIds[readIdx - 1] ?? null
+          if (nextThread) setSelectedThreadId(nextThread)
+          break
+        }
+
+        case 'g': {
+          // start chord: g+i = inbox, g+s = sent, g+a = action
+          if (gPending) break
+          e.preventDefault()
+          gPending = true
+          setTimeout(() => { gPending = false }, 1000)
+          break
+        }
+
+        case 'i': {
+          if (!gPending) break
+          e.preventDefault()
+          gPending = false
+          setFolder(null); setSection(null); setQuickFilter('all'); setCategory(null)
+          break
+        }
+
         default:
+          if (gPending && e.key === 's') {
+            e.preventDefault()
+            gPending = false
+            setFolder('Sent'); setSection(null); setQuickFilter('all'); setCategory(null)
+          } else if (gPending && e.key === 'a') {
+            e.preventDefault()
+            gPending = false
+            setFolder(null); setSection('action'); setQuickFilter('all'); setCategory(null)
+          } else {
+            gPending = false
+          }
           break
       }
     }
