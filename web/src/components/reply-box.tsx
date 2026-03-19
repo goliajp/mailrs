@@ -198,23 +198,39 @@ export function ReplyBox({
     }
   }
 
+  const prePolishRef = useRef<string | null>(null)
+
   const polish = async () => {
     const editor = composeRef.current?.getComposeEditor()
     if (!editor) return
     const text = editor.getText()
     if (!text.trim()) return
+    prePolishRef.current = editor.getHTML()
     setPolishing(true)
     try {
       const result = await postJson<PolishResult>('/mail/ai/polish', { text })
       if (result.success && result.polished) {
         const paragraphs = result.polished.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
         editor.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
-        toast.success('Text polished')
+        toast.success('Text polished', {
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              if (prePolishRef.current) {
+                editor.commands.setContent(prePolishRef.current)
+                prePolishRef.current = null
+              }
+            },
+          },
+          duration: 8000,
+        })
       } else {
         toast.error(result.message ?? 'Polish failed')
+        prePolishRef.current = null
       }
     } catch {
       toast.error('AI unavailable')
+      prePolishRef.current = null
     } finally {
       setPolishing(false)
     }
