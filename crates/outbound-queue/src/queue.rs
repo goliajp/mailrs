@@ -279,11 +279,12 @@ pub async fn cancel_pending(pool: &PgPool, id: i64) -> Result<bool, sqlx::Error>
 }
 
 /// cancel a pending outbound message by message_id (undo send)
-pub async fn cancel_pending_by_message_id(pool: &PgPool, message_id: &str) -> Result<bool, sqlx::Error> {
+pub async fn cancel_pending_by_message_id(pool: &PgPool, message_id: &str, sender: &str) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
-        "DELETE FROM outbound_queue WHERE message_id = $1 AND status = 'pending'",
+        "DELETE FROM outbound_queue WHERE message_id = $1 AND status = 'pending' AND sender = $2",
     )
     .bind(message_id)
+    .bind(sender)
     .execute(pool)
     .await?;
     Ok(result.rows_affected() > 0)

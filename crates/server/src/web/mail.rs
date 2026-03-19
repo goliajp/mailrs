@@ -1024,6 +1024,7 @@ pub(super) async fn send_message_multipart(
     let mut from = String::new();
     let mut to: Vec<String> = Vec::new();
     let mut cc: Vec<String> = Vec::new();
+    let mut bcc: Vec<String> = Vec::new();
     let mut subject = String::new();
     let mut body = String::new();
     let mut html_body: Option<String> = None;
@@ -1037,6 +1038,7 @@ pub(super) async fn send_message_multipart(
             "from" => from = field.text().await.unwrap_or_default(),
             "to" => to.push(field.text().await.unwrap_or_default()),
             "cc" => cc.push(field.text().await.unwrap_or_default()),
+            "bcc" => bcc.push(field.text().await.unwrap_or_default()),
             "subject" => subject = field.text().await.unwrap_or_default(),
             "body" => body = field.text().await.unwrap_or_default(),
             "html_body" => {
@@ -1096,7 +1098,7 @@ pub(super) async fn send_message_multipart(
         });
     }
 
-    let total_recipients = to.len() + cc.len();
+    let total_recipients = to.len() + cc.len() + bcc.len();
     if total_recipients > super::MAX_RECIPIENTS {
         return Json(SendResult {
             success: false,
@@ -1196,7 +1198,7 @@ pub(super) async fn send_message_multipart(
         &from,
         &to,
         &cc,
-        &[],
+        &bcc,
         &raw,
         &message_id,
         now.timestamp(),
@@ -1924,7 +1926,7 @@ pub(super) async fn delete_signature(
 
 /// cancel a pending outbound message (undo send)
 pub(super) async fn cancel_pending_send(
-    AuthUser { .. }: AuthUser,
+    AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Path(message_id): Path<String>,
 ) -> impl IntoResponse {
@@ -1942,7 +1944,7 @@ pub(super) async fn cancel_pending_send(
         });
     };
 
-    match mailrs_outbound_queue::queue::cancel_pending_by_message_id(pool, &message_id).await {
+    match mailrs_outbound_queue::queue::cancel_pending_by_message_id(pool, &message_id, &user).await {
         Ok(true) => Json(ApiResult {
             success: true,
             message: None,
