@@ -104,10 +104,7 @@ export function ReplyBox({
       let sentMessageId: string | undefined
       const assembled = content
 
-      // check if there are attachment blocks
-      const attachmentFiles: File[] = []
-      // get files from assembled content (attachment blocks contribute files)
-      // For now, use the assembled text/html
+      const attachmentFiles = assembled.attachments
       const hasAttachments = attachmentFiles.length > 0
 
       if (hasAttachments) {
