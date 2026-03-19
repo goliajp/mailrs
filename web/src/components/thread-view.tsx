@@ -86,6 +86,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         setMessages(data)
         if (data.length > 0) setSelectedMsgIdx(data.length - 1)
         contentScrollRef.current?.scrollTo(0, 0)
+        // scroll timeline to latest message
+        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
 
         const crossAll = crossAccountReadRef.current
         const readParam = crossAll && doms.length > 0
