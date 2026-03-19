@@ -634,6 +634,7 @@ function bubbleDateLabel(dateStr: string | number): string {
 }
 
 // strip invisible unicode: ZWJ, ZWNJ, ZW space, BOM, soft hyphen, directional marks, etc.
+// eslint-disable-next-line no-misleading-character-class
 const INVISIBLE_RE = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF\u00AD\u034F\u061C\u180E]/g
 
 // box-drawing, table borders, repeated decorative lines
