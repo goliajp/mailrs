@@ -759,10 +759,19 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
   const showArchived = useAtomValue(showArchivedAtom)
   const importanceSection = useAtomValue(importanceSectionAtom)
   const quickFilter = useAtomValue(quickFilterAtom)
+  const folder = useAtomValue(folderAtom)
 
   // apply client-side filtering + sort
   const sortedConversations = useMemo(() => {
     let visible = showArchived ? conversations : conversations.filter((c) => !c.archived)
+
+    // hide sent-only threads from inbox view (show them only in Sent tab)
+    if (folder !== 'Sent' && myEmail) {
+      visible = visible.filter((c) => {
+        const firstEmail = extractEmail(c.participants[0] ?? '')
+        return firstEmail !== myEmail
+      })
+    }
 
     // quick filter
     if (quickFilter === 'unread') {
@@ -794,7 +803,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
       unpinned.sort((a, b) => b.unread_count - a.unread_count || b.last_date - a.last_date)
     }
     return [...pinned, ...unpinned]
-  }, [conversations, sortOrder, showArchived, importanceSection, quickFilter])
+  }, [conversations, sortOrder, showArchived, importanceSection, quickFilter, folder, myEmail])
 
   // sync visible conversation ids to store for keyboard nav
   const setVisibleIds = useSetAtom(visibleConversationIdsAtom)
