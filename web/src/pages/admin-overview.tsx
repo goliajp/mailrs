@@ -209,7 +209,7 @@ export function AdminOverview() {
 
   const refresh = useCallback(() => {
     fetchJson<HealthInfo>('/health').then(setHealth, () => setError('Failed to load health'))
-    fetchJson<StatusInfo>('/status').then(setStatus, () => {})
+    fetchJson<StatusInfo>('/status').then(setStatus, () => setError('Failed to load status'))
     fetchJson<SmtpConfig>('/admin/config/smtp').then(setSmtp, () => {})
     fetchJson<AuditEntry[]>('/admin/audit-log?limit=10').then(setAudit, () => {})
   }, [])
