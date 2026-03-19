@@ -135,6 +135,7 @@ export type ConversationSummary = {
   archived: boolean
   importance_level: string
   importance_score: number
+  requires_action: boolean
 }
 
 export type CategoryCount = {

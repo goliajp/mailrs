@@ -61,6 +61,8 @@ pub struct ConversationSummary {
     pub importance_level: String,
     /// highest importance score in the thread
     pub importance_score: f32,
+    /// whether any message in the thread requires action
+    pub requires_action: bool,
 }
 
 /// AI analysis result stored in email_analysis table

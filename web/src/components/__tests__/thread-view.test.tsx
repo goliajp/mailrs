@@ -104,7 +104,7 @@ function makeConversation(overrides: Partial<ConversationSummary> = {}): Convers
     unread_count: 0, last_date: Math.floor(Date.now() / 1000),
     category: 'general', flagged: false, snippet: 'A snippet',
     pinned: false, archived: false,
-    importance_level: 'normal', importance_score: 0.3, ...overrides,
+    importance_level: 'normal', importance_score: 0.3, requires_action: false, ...overrides,
   }
 }
 

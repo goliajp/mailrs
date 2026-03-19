@@ -38,6 +38,7 @@ function makeConversation(
     archived: false,
     importance_level: 'normal',
     importance_score: 0.3,
+    requires_action: false,
     ...overrides,
   }
 }
