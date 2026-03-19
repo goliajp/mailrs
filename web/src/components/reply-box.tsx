@@ -8,6 +8,7 @@ import { StructuredCompose, type StructuredComposeHandle } from '@/components/st
 import { deleteJson, postJson, saveDraft } from '@/lib/api'
 import { escapeHtml, buildForwardHeaderHtml } from '@/lib/html-utils'
 import { authAtom } from '@/store/auth'
+import { threadMessagesAtom } from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
 export type ReplyMode = 'reply' | 'reply-all' | 'forward'
@@ -50,6 +51,7 @@ export function ReplyBox({
   const auth = useAtomValue(authAtom)
   const signature = useAtomValue(signatureAtom)
   const signatureEnabled = useAtomValue(signatureEnabledAtom)
+  const threadMessages = useAtomValue(threadMessagesAtom)
   const [forwardTo, setForwardTo] = useState('')
   const [sending, setSending] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
@@ -224,10 +226,16 @@ export function ReplyBox({
   const suggest = async () => {
     setSuggesting(true)
     try {
+      // build thread context from prior messages (up to 3, excluding the latest)
+      const priorMessages = threadMessages.slice(0, -1).slice(-3)
+      const threadContext = priorMessages.length > 0
+        ? priorMessages.map((m) => `From: ${m.sender}\n${m.clean_text || m.text_body || ''}`).join('\n---\n')
+        : undefined
       const result = await postJson<ReplySuggestResult>('/mail/ai/reply-suggest', {
         original_sender: originalFrom,
         original_subject: subject,
         original_body: originalBody,
+        thread_context: threadContext,
       })
       if (result.success && result.suggestions.length > 0) {
         setSuggestions(result.suggestions)

@@ -63,6 +63,8 @@ pub(super) struct ReplySuggestRequest {
     pub original_body: String,
     #[serde(default = "default_tone")]
     pub tone: String,
+    #[serde(default)]
+    pub thread_context: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -144,17 +146,29 @@ pub(super) async fn ai_reply_suggest(
     let sender = sanitize_prompt_input(&req.original_sender, 200);
     let subject = sanitize_prompt_input(&req.original_subject, 500);
 
+    let thread_ctx = req.thread_context
+        .map(|ctx| sanitize_prompt_input(&ctx, 2000))
+        .unwrap_or_default();
+
+    let context_instruction = if thread_ctx.is_empty() {
+        String::new()
+    } else {
+        " Match the tone and style of the prior conversation.".into()
+    };
+
     let system = format!(
         "You are an email writing assistant. Generate 3 brief reply suggestions. \
          Each reply should be {tone} in tone. Keep replies concise (2-4 sentences each). \
-         Detect the language of the original email and reply in the same language. \
+         Detect the language of the original email and reply in the same language.{context_instruction} \
          Return ONLY a JSON array of 3 strings. No markdown fences, no explanation. \
          Example: [\"Reply 1 text\", \"Reply 2 text\", \"Reply 3 text\"]"
     );
 
-    let user_message = format!(
-        "From: {sender}\nSubject: {subject}\nBody:\n{body}"
-    );
+    let user_message = if thread_ctx.is_empty() {
+        format!("From: {sender}\nSubject: {subject}\nBody:\n{body}")
+    } else {
+        format!("Prior conversation:\n{thread_ctx}\n\n---\nLatest email to reply to:\nFrom: {sender}\nSubject: {subject}\nBody:\n{body}")
+    };
 
     match crate::ai_email::call_llm(config, &system, &user_message, 0.7).await {
         Some(result) => {
