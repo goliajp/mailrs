@@ -1,3 +1,5 @@
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
 import { Copyable } from '@/components/copy-button'
 import type { ThreadMessage } from '@/lib/types'
 
@@ -58,30 +60,42 @@ export function AiAnalysisPanel({ message }: Props) {
   const hasDeadline = !!message.action_deadline
   const hasDetails = people.length > 0 || dates.length > 0 || amounts.length > 0 || actions.length > 0
 
+  const [expanded, setExpanded] = useState(false)
+
   return (
-    <div className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-5 py-3">
-      {/* summary */}
-      {message.summary && (
-        <p className="select-text text-sm text-[var(--color-text-secondary)]">
-          {message.summary}
-        </p>
+    <div className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-5 py-2">
+      {/* summary — always visible, clickable to expand */}
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-start gap-1.5 text-left"
+      >
+        {hasDetails ? (
+          expanded ? <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" /> : <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
+        ) : null}
+        <div className="min-w-0 flex-1">
+          {message.summary && (
+            <p className="select-text text-sm text-[var(--color-text-secondary)]">
+              {message.summary}
+            </p>
       )}
 
-      {/* deadline */}
-      {hasDeadline && (
-        <p className="mt-1 select-text text-xs font-medium text-[var(--color-status-danger)]">
-          Deadline: {message.action_deadline}
-        </p>
-      )}
+          {/* deadline */}
+          {hasDeadline && (
+            <p className="mt-1 select-text text-xs font-medium text-[var(--color-status-danger)]">
+              Deadline: {message.action_deadline}
+            </p>
+          )}
 
-      {/* risk reason */}
-      {message.risk_score > 0 && message.risk_reason && (
-        <p className="mt-1 select-text text-xs text-[var(--color-status-warning)]">
-          Risk: {message.risk_reason}
-        </p>
-      )}
+          {/* risk reason */}
+          {message.risk_score > 0 && message.risk_reason && (
+            <p className="mt-1 select-text text-xs text-[var(--color-status-warning)]">
+              Risk: {message.risk_reason}
+            </p>
+          )}
+        </div>
+      </button>
 
-      {hasDetails && (
+      {expanded && hasDetails && (
         <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
           {people.length > 0 && (
             <div className="min-w-0">
