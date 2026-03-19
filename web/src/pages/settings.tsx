@@ -923,8 +923,10 @@ function WebhooksSection() {
     load()
   }, [load])
 
+  const [creating, setCreating] = useState(false)
   const handleCreate = async () => {
-    if (!form.url.trim()) return
+    if (!form.url.trim() || creating) return
+    setCreating(true)
     try {
       const data = await postJson<CreatedWebhook>('/agent/webhooks', {
         url: form.url.trim(),
@@ -939,6 +941,8 @@ function WebhooksSection() {
       load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to create webhook')
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -993,6 +997,7 @@ function WebhooksSection() {
       {adding && (
         <div className={cardClass + ' space-y-3'}>
           <input
+            type="url"
             value={form.url}
             onChange={(e) => setForm({ ...form, url: e.target.value })}
             placeholder="https://example.com/webhook"
@@ -1023,8 +1028,8 @@ function WebhooksSection() {
             className={inputClass}
           />
           <div className="flex gap-2">
-            <button onClick={handleCreate} className={btnPrimary}>
-              Create
+            <button onClick={handleCreate} disabled={creating} className={btnPrimary}>
+              {creating ? 'Creating…' : 'Create'}
             </button>
             <button onClick={() => setAdding(false)} className={btnSecondary}>
               Cancel
