@@ -57,7 +57,26 @@ export function useMailEvents(user: string) {
       path += `&folder=${encodeURIComponent(f)}`
     }
     fetchJson<ConversationSummary[]>(path).then(
-      (data) => setConversations(data),
+      (fresh) => setConversations((prev) => {
+        // merge: update existing, prepend new, keep loaded items beyond the fresh window
+        const merged: ConversationSummary[] = []
+        const seen = new Set<string>()
+
+        // fresh items first (preserves server order for top N)
+        for (const c of fresh) {
+          merged.push(c)
+          seen.add(c.thread_id)
+        }
+
+        // keep previously loaded items that aren't in the fresh batch
+        for (const c of prev) {
+          if (!seen.has(c.thread_id)) {
+            merged.push(c)
+          }
+        }
+
+        return merged
+      }),
       () => {}
     )
   }, [setConversations])

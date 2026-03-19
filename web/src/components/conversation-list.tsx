@@ -697,41 +697,52 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
     }
   }, [selectedThreadIds, exitBatchMode])
 
-  // single-thread context menu action: pin/unpin/archive/unarchive use dedicated endpoints, others use batch API
+  // single-thread context menu action with optimistic updates
   const handleContextAction = useCallback(async (threadId: string, action: SingleAction) => {
+    // save snapshot for rollback
+    const snapshot = conversations
+
+    // optimistic update for all actions
+    const optimistic: Record<string, (c: ConversationSummary) => ConversationSummary> = {
+      pin: (c) => ({ ...c, pinned: true }),
+      unpin: (c) => ({ ...c, pinned: false }),
+      archive: (c) => ({ ...c, archived: true }),
+      unarchive: (c) => ({ ...c, archived: false }),
+      star: (c) => ({ ...c, flagged: true }),
+      unstar: (c) => ({ ...c, flagged: false }),
+      read: (c) => ({ ...c, unread_count: 0 }),
+      unread: (c) => ({ ...c, unread_count: Math.max(1, c.unread_count) }),
+    }
+    if (optimistic[action]) {
+      setConversations((prev) => prev.map((c) => c.thread_id === threadId ? optimistic[action](c) : c))
+    }
+
     try {
       if (action === 'snooze') {
         const tomorrow = new Date()
         tomorrow.setDate(tomorrow.getDate() + 1)
         tomorrow.setHours(9, 0, 0, 0)
         await snoozeConversation(threadId, tomorrow.toISOString())
+        setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
         toast.success('Snoozed until tomorrow 9:00')
+      } else if (action === 'delete') {
+        await postJson<BatchResult>('/conversations/batch', { thread_ids: [threadId], action })
+        setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
+        toast.success('Deleted')
       } else if (action === 'pin' || action === 'unpin' || action === 'archive' || action === 'unarchive') {
-        // optimistic update
-        setConversations((prev) => prev.map((c) => {
-          if (c.thread_id !== threadId) return c
-          if (action === 'pin') return { ...c, pinned: true }
-          if (action === 'unpin') return { ...c, pinned: false }
-          if (action === 'archive') return { ...c, archived: true }
-          return { ...c, archived: false }
-        }))
         await postJson<ApiResult>(`/conversations/${encodeURIComponent(threadId)}/${action}`, {})
         const labels: Record<string, string> = { pin: 'Pinned', unpin: 'Unpinned', archive: 'Archived', unarchive: 'Unarchived' }
         toast.success(labels[action] ?? 'Updated')
       } else {
-        await postJson<BatchResult>('/conversations/batch', {
-          thread_ids: [threadId],
-          action,
-        })
-        toast.success(action === 'delete' ? 'Deleted' : 'Updated')
+        await postJson<BatchResult>('/conversations/batch', { thread_ids: [threadId], action })
+        toast.success('Updated')
       }
-      onLoadMoreRef.current()
     } catch (err) {
+      // rollback to snapshot on failure
+      setConversations(snapshot)
       toast.error(err instanceof Error ? err.message : 'Action failed')
-      // revert optimistic update on failure
-      onLoadMoreRef.current()
     }
-  }, [])
+  }, [conversations, setConversations])
 
   const sortOrder = useAtomValue(sortOrderAtom)
   const showArchived = useAtomValue(showArchivedAtom)
