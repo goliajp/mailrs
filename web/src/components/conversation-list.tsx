@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Check, CheckCircle, Mail, Pin, Search, SlidersHorizontal, SquarePen, Star } from 'lucide-react'
+import { Check, CheckCircle, Mail, MailCheck, Pin, Search, SlidersHorizontal, SquarePen, Star } from 'lucide-react'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -840,6 +840,25 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
             title="Batch select"
           >
             <CheckCircle className="h-5 w-5" aria-hidden="true" />
+          </button>
+        )}
+
+        {conversations.some((c) => c.unread_count > 0) && (
+          <button
+            onClick={async () => {
+              const unreadIds = conversations.filter((c) => c.unread_count > 0).map((c) => c.thread_id)
+              if (unreadIds.length === 0) return
+              try {
+                await postJson('/conversations/batch', { thread_ids: unreadIds, action: 'read' })
+                setConversations((prev) => prev.map((c) => ({ ...c, unread_count: 0 })))
+                toast.success(`Marked ${unreadIds.length} as read`)
+              } catch { toast.error('Failed') }
+            }}
+            aria-label="Mark all as read"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-all duration-150 hover:bg-[var(--color-hover)]"
+            title="Mark all as read"
+          >
+            <MailCheck className="h-5 w-5" aria-hidden="true" />
           </button>
         )}
 
