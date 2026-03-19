@@ -350,8 +350,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     <SenderAvatar sender={selectedMsg.sender} size={28} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="select-text text-sm font-medium text-[var(--color-text-primary)]">
-                          {extractName(selectedMsg.sender)}
+                        <p className={`select-text text-sm font-medium ${extractEmail(selectedMsg.sender) === myEmail ? 'text-[var(--color-brand-primary)]' : 'text-[var(--color-text-primary)]'}`}>
+                          {extractEmail(selectedMsg.sender) === myEmail ? 'Me' : extractName(selectedMsg.sender)}
                           {selectedMsg.bimi_logo_url && (
                             <img
                               src={selectedMsg.bimi_logo_url}
@@ -503,6 +503,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     {visibleMessages.map((msg) => {
                       const idx = messages.indexOf(msg)
                       const name = extractName(msg.sender)
+                      const senderEmail = extractEmail(msg.sender)
+                      const isOwn = senderEmail === myEmail
                       const isSelected = selectedMsgIdx === idx
                       const fullText = bubbleText(msg)
                       const isLong = fullText.length > 300
@@ -523,12 +525,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
                             className={`flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
                               isSelected ? 'bg-[var(--color-bg-selected)]' : 'hover:bg-[var(--color-hover)]'
-                            }`}
+                            } ${isOwn ? 'ml-6' : ''}`}
                           >
                             <SenderAvatar sender={msg.sender} size={28} />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-[var(--color-text-primary)]">{name}</span>
+                                <span className={`text-sm font-semibold ${isOwn ? 'text-[var(--color-brand-primary)]' : 'text-[var(--color-text-primary)]'}`}>
+                                  {isOwn ? 'Me' : name}
+                                </span>
                                 <span className="text-xs text-[var(--color-text-tertiary)]">
                                   {formatDate(msg.internal_date)}
                                   {msg.attachments.length > 0 && (
