@@ -9,7 +9,7 @@ import type { ContextMenuItem } from '@/components/context-menu'
 import { fetchJson, postJson, snoozeConversation } from '@/lib/api'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { SenderAvatar } from '@/components/sender-avatar'
-import { formatDate, formatFullDate } from '@/lib/format'
+import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
 import type { CategoryCount, ConversationSummary } from '@/lib/types'
 import {
   batchModeAtom,
@@ -489,22 +489,7 @@ function FilterBar() {
   )
 }
 
-function dateLabel(epoch: number): string {
-  const d = new Date(epoch * 1000)
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  const diffDays = Math.floor((today.getTime() - msgDate.getTime()) / 86400000)
-
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return d.toLocaleDateString(undefined, { weekday: 'long' })
-  return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: now.getFullYear() !== d.getFullYear() ? 'numeric' : undefined,
-  })
-}
+const dateLabel = dateGroupLabel
 
 function DateDivider({ label }: { label: string }) {
   return (
@@ -913,8 +898,17 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
         ) : conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-center text-[var(--color-text-tertiary)]">
             <Mail className="mb-3 h-10 w-10 text-[var(--color-text-tertiary)]" strokeWidth={1} aria-hidden="true" />
-            <p className="text-sm font-medium">{isSearching ? 'No results found' : 'All caught up!'}</p>
-            <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : 'No conversations to show'}</p>
+            <p className="text-sm font-medium">
+              {isSearching ? 'No results found'
+                : folder === 'Sent' ? 'No sent messages'
+                : folder === 'Drafts' ? 'No drafts'
+                : folder === 'Trash' ? 'Trash is empty'
+                : showArchived ? 'No archived conversations'
+                : 'All caught up!'}
+            </p>
+            <p className="mt-1 text-xs">
+              {isSearching ? 'Try a different search term' : ''}
+            </p>
           </div>
         ) : (
           (() => {

@@ -17,7 +17,7 @@ import { SenderAvatar } from '@/components/sender-avatar'
 import { highlightMentions } from '@/lib/mention'
 import { deleteJson, fetchJson, postJson, recordFeedback, type FeedbackAction } from '@/lib/api'
 import { getToken } from '@/store/auth'
-import { formatDate, formatFullDate } from '@/lib/format'
+import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
 import type { ConversationSummary, ThreadMessage } from '@/lib/types'
 import { categoryFilterAtom, conversationsAtom, crossAccountReadAtom, folderAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
 import { authAtom } from '@/store/auth'
@@ -625,17 +625,7 @@ function BubbleDateDivider({ label }: { label: string }) {
   )
 }
 
-function bubbleDateLabel(dateStr: string | number): string {
-  const d = new Date(typeof dateStr === 'number' ? dateStr * 1000 : dateStr)
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  const diffDays = Math.floor((today.getTime() - msgDate.getTime()) / 86400000)
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return d.toLocaleDateString(undefined, { weekday: 'long' })
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: now.getFullYear() !== d.getFullYear() ? 'numeric' : undefined })
-}
+const bubbleDateLabel = (ts: string | number) => dateGroupLabel(typeof ts === 'number' ? ts : Math.floor(new Date(ts).getTime() / 1000))
 
 // strip invisible unicode: ZWJ, ZWNJ, ZW space, BOM, soft hyphen, directional marks, etc.
 // eslint-disable-next-line no-misleading-character-class
