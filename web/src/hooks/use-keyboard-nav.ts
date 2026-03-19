@@ -143,11 +143,11 @@ export function useKeyboardNav() {
           if (!selectedThreadId) break
           e.preventDefault()
           setMobileView('thread')
-          // focus the reply textarea after a tick
+          // focus the reply editor after a tick
           setTimeout(() => {
-            const textarea = document.querySelector<HTMLTextAreaElement>('textarea[placeholder*="Reply"]')
-              ?? document.querySelector<HTMLTextAreaElement>('textarea')
-            textarea?.focus()
+            const editor = document.querySelector<HTMLElement>('.tiptap.ProseMirror')
+              ?? document.querySelector<HTMLElement>('[contenteditable="true"]')
+            editor?.focus()
           }, 100)
           break
         }
