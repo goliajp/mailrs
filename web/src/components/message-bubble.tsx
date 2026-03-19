@@ -185,6 +185,7 @@ function AttachmentItem({
       const headers: Record<string, string> = {}
       if (t) headers['Authorization'] = `Bearer ${t}`
       const res = await fetch(`/api/mail/messages/${uid}/attachments/${index}/content`, { headers })
+      if (!res.ok) { setExtractedText(''); setShowContent(false); return }
       const data = await res.json()
       if (data.success && data.extracted_text) {
         setExtractedText(data.extracted_text)
