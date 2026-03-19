@@ -185,9 +185,6 @@ const ConversationItem = memo(function ConversationItem({
           >
             {convo.subject || '(no subject)'}
           </p>
-          {convo.requires_action && (
-            <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--color-status-danger)]" title="Action required" />
-          )}
           {isFlagged && (
             <Star className="h-3.5 w-3.5 shrink-0 text-[var(--color-status-warning)]" fill="currentColor" />
           )}

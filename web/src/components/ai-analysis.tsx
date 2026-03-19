@@ -5,15 +5,58 @@ type Props = {
   message: ThreadMessage
 }
 
+// safely extract display text from potentially malformed AI data
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function safePeople(raw: any[]): { label: string; email?: string; role?: string }[] {
+  if (!Array.isArray(raw)) return []
+  const results: { label: string; email?: string; role?: string }[] = []
+  for (const p of raw) {
+    if (typeof p === 'string' && p.trim()) { results.push({ label: p }); continue }
+    if (p && typeof p === 'object') {
+      const label = p.name || p.email || ''
+      if (label) results.push({ label, email: p.email || undefined, role: p.role || undefined })
+    }
+  }
+  return results
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function safeDates(raw: any[]): { text: string; context?: string }[] {
+  if (!Array.isArray(raw)) return []
+  const results: { text: string; context?: string }[] = []
+  for (const d of raw) {
+    if (typeof d === 'string' && d.trim()) { results.push({ text: d }); continue }
+    if (d && typeof d === 'object') {
+      const text = d.text || d.iso_date || ''
+      if (text) results.push({ text, context: d.context || undefined })
+    }
+  }
+  return results
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function safeAmounts(raw: any[]): { text: string; context?: string }[] {
+  if (!Array.isArray(raw)) return []
+  const results: { text: string; context?: string }[] = []
+  for (const a of raw) {
+    if (typeof a === 'string' && a.trim()) { results.push({ text: a }); continue }
+    if (a && typeof a === 'object') {
+      const text = a.text || (a.value != null ? `${a.currency ?? ''}${a.value}` : '')
+      if (text) results.push({ text, context: a.context || undefined })
+    }
+  }
+  return results
+}
+
 export function AiAnalysisPanel({ message }: Props) {
   if (!message.ai_analyzed) return null
 
-  const hasPeople = message.people?.length > 0
-  const hasDates = message.dates?.length > 0
-  const hasAmounts = message.amounts?.length > 0
-  const hasActions = message.action_items?.length > 0
+  const people = safePeople(message.people)
+  const dates = safeDates(message.dates)
+  const amounts = safeAmounts(message.amounts)
+  const actions = Array.isArray(message.action_items) ? message.action_items.filter((s) => typeof s === 'string' && s.trim()) : []
   const hasDeadline = !!message.action_deadline
-  const hasDetails = hasPeople || hasDates || hasAmounts || hasActions
+  const hasDetails = people.length > 0 || dates.length > 0 || amounts.length > 0 || actions.length > 0
 
   return (
     <div className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-5 py-3">
@@ -40,49 +83,27 @@ export function AiAnalysisPanel({ message }: Props) {
 
       {hasDetails && (
         <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
-          {/* people */}
-          {hasPeople && (
+          {people.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
-                People
-              </span>
+              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">People</span>
               <div className="mt-0.5 flex flex-wrap gap-1">
-                {message.people.map((p, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex max-w-full select-text items-center gap-1 truncate rounded bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]"
-                  >
-                    {p.name}
-                    {p.role && (
-                      <span className="text-[var(--color-brand-primary)] opacity-70">
-                        ({p.role})
-                      </span>
-                    )}
-                    {p.email && (
-                      <>
-                        {' '}
-                        <Copyable value={p.email}>{p.email}</Copyable>
-                      </>
-                    )}
+                {people.map((p, i) => (
+                  <span key={i} className="inline-flex max-w-full select-text items-center gap-1 truncate rounded bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]">
+                    {p.label}
+                    {p.role && <span className="opacity-70">({p.role})</span>}
+                    {p.email && p.email !== p.label && <Copyable value={p.email}>{p.email}</Copyable>}
                   </span>
                 ))}
               </div>
             </div>
           )}
 
-          {/* dates */}
-          {hasDates && (
+          {dates.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
-                Dates
-              </span>
+              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Dates</span>
               <div className="mt-0.5 flex flex-wrap gap-1">
-                {message.dates.map((d, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex select-text items-center gap-1 rounded bg-[var(--color-status-success-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-success)]"
-                    title={d.context}
-                  >
+                {dates.map((d, i) => (
+                  <span key={i} className="inline-flex select-text items-center rounded bg-[var(--color-status-success-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-success)]" title={d.context}>
                     {d.text}
                   </span>
                 ))}
@@ -90,19 +111,12 @@ export function AiAnalysisPanel({ message }: Props) {
             </div>
           )}
 
-          {/* amounts */}
-          {hasAmounts && (
+          {amounts.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
-                Amounts
-              </span>
+              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Amounts</span>
               <div className="mt-0.5 flex flex-wrap gap-1">
-                {message.amounts.map((a, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-1 rounded bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-warning)]"
-                    title={a.context}
-                  >
+                {amounts.map((a, i) => (
+                  <span key={i} className="inline-flex select-text items-center rounded bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-warning)]" title={a.context}>
                     <Copyable value={a.text}>{a.text}</Copyable>
                   </span>
                 ))}
@@ -110,18 +124,12 @@ export function AiAnalysisPanel({ message }: Props) {
             </div>
           )}
 
-          {/* action items */}
-          {hasActions && (
+          {actions.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
-                Action Items
-              </span>
+              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Action Items</span>
               <ul className="mt-0.5 space-y-0.5">
-                {message.action_items.map((item, i) => (
-                  <li
-                    key={i}
-                    className="flex select-text items-start gap-1.5 break-words text-xs text-[var(--color-text-secondary)]"
-                  >
+                {actions.map((item, i) => (
+                  <li key={i} className="flex select-text items-start gap-1.5 break-words text-xs text-[var(--color-text-secondary)]">
                     <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-brand-primary)]" />
                     {item}
                   </li>
