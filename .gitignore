@@ -10,3 +10,4 @@ users.toml
 .idea/
 .claude/
 .env.local
+docs/
