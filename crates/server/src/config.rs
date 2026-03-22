@@ -63,6 +63,7 @@ pub struct ServerConfig {
     pub clamav_addr: Option<String>,
     // AI email analysis (self-hosted LLM)
     pub llm_url: String,
+    pub llm_api_key: Option<String>,
     pub ai_analysis_enabled: bool,
     // auth guard (brute force protection)
     pub auth_max_failures_account: u32,
@@ -125,6 +126,7 @@ impl Default for ServerConfig {
             spam_score_threshold: 5.0,
             clamav_addr: None,
             llm_url: "https://devops.golia.jp/api/llm/complete".into(),
+            llm_api_key: None,
             ai_analysis_enabled: false,
             auth_max_failures_account: 5,
             auth_account_window_secs: 900,
@@ -298,6 +300,11 @@ impl ServerConfig {
         }
         if let Ok(v) = std::env::var("MAILRS_LLM_URL") {
             cfg.llm_url = v;
+        }
+        if let Ok(v) = std::env::var("MAILRS_LLM_API_KEY") {
+            if !v.is_empty() {
+                cfg.llm_api_key = Some(v);
+            }
         }
         if std::env::var("MAILRS_AI_ANALYSIS_ENABLED")
             .map(|v| v == "true" || v == "1")

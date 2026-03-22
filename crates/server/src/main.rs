@@ -287,7 +287,7 @@ async fn main() {
     // AI email analyzer (background) — uses self-hosted LLM
     if cfg.ai_analysis_enabled {
         if let Some(ref mb) = mailbox_store {
-            let llm_config = ai_email::LlmConfig::new(cfg.llm_url.clone());
+            let llm_config = ai_email::LlmConfig::new(cfg.llm_url.clone(), cfg.llm_api_key.clone());
             ai_analyzer::spawn_analyzer(
                 llm_config,
                 mb.clone(),
@@ -348,7 +348,7 @@ async fn main() {
         );
     }
     if cfg.ai_analysis_enabled {
-        ws = ws.with_llm(ai_email::LlmConfig::new(cfg.llm_url.clone()));
+        ws = ws.with_llm(ai_email::LlmConfig::new(cfg.llm_url.clone(), cfg.llm_api_key.clone()));
     }
     if let Some(ref r) = resolver {
         ws = ws.with_resolver(r.clone());

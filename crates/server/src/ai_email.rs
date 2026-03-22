@@ -7,13 +7,15 @@ pub const PROMPT_VERSION: &str = "v8";
 #[derive(Debug, Clone)]
 pub struct LlmConfig {
     pub url: String,
+    pub api_key: Option<String>,
     pub client: reqwest::Client,
 }
 
 impl LlmConfig {
-    pub fn new(url: String) -> Self {
+    pub fn new(url: String, api_key: Option<String>) -> Self {
         Self {
             url,
+            api_key,
             client: reqwest::Client::builder()
                 .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
@@ -76,9 +78,13 @@ pub async fn generate_embedding(config: &LlmConfig, text: &str) -> Option<Vec<f3
     let body = serde_json::json!({ "input": text });
 
     for attempt in 0..2u32 {
+        let mut req = config.client.post(&embed_url).json(&body);
+        if let Some(ref key) = config.api_key {
+            req = req.header("x-api-key", key);
+        }
         let response = match tokio::time::timeout(
             std::time::Duration::from_secs(10),
-            config.client.post(&embed_url).json(&body).send(),
+            req.send(),
         )
         .await
         {
@@ -157,7 +163,11 @@ pub async fn call_llm(
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(900),
             async {
-                let response = config.client.post(&config.url).json(&body).send().await?;
+                let mut req = config.client.post(&config.url).json(&body);
+                if let Some(ref key) = config.api_key {
+                    req = req.header("x-api-key", key);
+                }
+                let response = req.send().await?;
 
                 if response.status().as_u16() == 429 {
                     return Ok::<Option<String>, reqwest::Error>(Some("__429__".into()));
@@ -401,7 +411,7 @@ mod tests {
 
     #[test]
     fn model_version_format() {
-        let config = LlmConfig::new("http://localhost".into());
+        let config = LlmConfig::new("http://localhost".into(), None);
         let mv = config.model_version();
         assert!(mv.contains(PROMPT_VERSION));
         assert!(mv.contains("qwen3.5-9b"));
