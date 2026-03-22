@@ -618,6 +618,7 @@ impl MailboxStore {
     }
 
     /// count (total, unseen) messages in a mailbox
+    /// unseen excludes spam/scam to stay consistent with conversation view
     pub async fn mailbox_status(&self, mailbox_id: i64) -> Result<(u32, u32), sqlx::Error> {
         let total: (i64,) =
             sqlx::query_as("SELECT COUNT(*) FROM messages WHERE mailbox_id = $1")
@@ -625,7 +626,8 @@ impl MailboxStore {
                 .fetch_one(&self.pool)
                 .await?;
         let unseen: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM messages WHERE mailbox_id = $1 AND (flags & 1) = 0",
+            "SELECT COUNT(*) FROM messages WHERE mailbox_id = $1 AND (flags & 1) = 0 \
+             AND NOT EXISTS (SELECT 1 FROM email_analysis ea WHERE ea.message_id = messages.id AND ea.category IN ('spam', 'scam'))",
         )
         .bind(mailbox_id)
         .fetch_one(&self.pool)
