@@ -53,7 +53,7 @@ if [ "$WEB_ONLY" = false ]; then
   {
     echo 'MAILRS_AI_ANALYSIS_ENABLED=true'
     echo 'MAILRS_LLM_URL=https://devops.golia.jp/api/llm/complete'
-    echo 'MAILRS_LLM_API_KEY=f76bdd30b9c4cb7ae8e53f73fa89ec1e8358b1f1da11bfc403d292eb14d52d4a'
+    echo "MAILRS_LLM_API_KEY=${MAILRS_LLM_API_KEY:-}"
   } > /tmp/mailrs-deploy-env
   $SCP /tmp/mailrs-deploy-env "$SSH_HOST:$REMOTE_DIR/.env"
   rm -f /tmp/mailrs-deploy-env
