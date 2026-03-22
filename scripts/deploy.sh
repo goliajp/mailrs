@@ -51,7 +51,7 @@ if [ "$WEB_ONLY" = false ]; then
   # upload .env with secrets
   echo "==> uploading .env"
   {
-    echo 'MAILRS_AI_ANALYSIS_ENABLED=true'
+    echo 'MAILRS_AI_ANALYSIS_ENABLED=false'
     echo 'MAILRS_LLM_URL=https://devops.golia.jp/api/llm/complete'
   } > /tmp/mailrs-deploy-env
   $SCP /tmp/mailrs-deploy-env "$SSH_HOST:$REMOTE_DIR/.env"
