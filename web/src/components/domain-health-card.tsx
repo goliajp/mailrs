@@ -3,7 +3,10 @@ import { useState } from 'react'
 
 import type { CheckResult, CheckStatus, DomainCheckReport } from '@/lib/types'
 
-const statusConfig: Record<CheckStatus, { bg: string; border: string; text: string; dot: string; label: string }> = {
+const statusConfig: Record<
+  CheckStatus,
+  { bg: string; border: string; text: string; dot: string; label: string }
+> = {
   pass: {
     bg: 'bg-[var(--color-status-success-subtle)]',
     border: 'border-[var(--color-status-success-subtle)]',
@@ -37,7 +40,9 @@ const statusConfig: Record<CheckStatus, { bg: string; border: string; text: stri
 function StatusBadge({ status }: { status: CheckStatus }) {
   const config = statusConfig[status]
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}
+    >
       <span className={`h-1.5 w-1.5 rounded-full ${config.dot}`} />
       {config.label}
     </span>
@@ -60,9 +65,7 @@ function CheckResultCard({ check }: { check: CheckResult }) {
           <span className="block text-sm font-medium text-[var(--color-text-primary)]">
             {check.name}
           </span>
-          <span className={`block text-xs ${config.text}`}>
-            {check.message}
-          </span>
+          <span className={`block text-xs ${config.text}`}>{check.message}</span>
         </span>
         {hasDetails && (
           <svg
@@ -130,18 +133,23 @@ function SummaryBar({ checks }: { checks: CheckResult[] }) {
             skip: 'bg-[var(--color-border-default)]',
           }
           return (
-            <div
-              key={status}
-              className={`${colors[status]} ${pctToWidth(pct)} transition-all`}
-            />
+            <div key={status} className={`${colors[status]} ${pctToWidth(pct)} transition-all`} />
           )
         })}
       </div>
       <div className="flex shrink-0 gap-3 text-xs text-[var(--color-text-secondary)]">
-        {counts.pass ? <span className="text-[var(--color-status-success)]">{counts.pass} pass</span> : null}
-        {counts.warn ? <span className="text-[var(--color-status-warning)]">{counts.warn} warn</span> : null}
-        {counts.fail ? <span className="text-[var(--color-status-danger)]">{counts.fail} fail</span> : null}
-        {counts.skip ? <span className="text-[var(--color-text-secondary)]">{counts.skip} skip</span> : null}
+        {counts.pass ? (
+          <span className="text-[var(--color-status-success)]">{counts.pass} pass</span>
+        ) : null}
+        {counts.warn ? (
+          <span className="text-[var(--color-status-warning)]">{counts.warn} warn</span>
+        ) : null}
+        {counts.fail ? (
+          <span className="text-[var(--color-status-danger)]">{counts.fail} fail</span>
+        ) : null}
+        {counts.skip ? (
+          <span className="text-[var(--color-text-secondary)]">{counts.skip} skip</span>
+        ) : null}
       </div>
     </div>
   )
@@ -162,12 +170,8 @@ export function DomainHealthCard({ report, checking, onRecheck }: DomainHealthCa
       {/* header */}
       <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-4 py-3">
         <div>
-          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
-            Health Check
-          </h3>
-          <p className="text-xs text-[var(--color-text-secondary)]">
-            Last checked at {timeStr}
-          </p>
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Health Check</h3>
+          <p className="text-xs text-[var(--color-text-secondary)]">Last checked at {timeStr}</p>
         </div>
         <button
           onClick={onRecheck}

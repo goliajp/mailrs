@@ -33,7 +33,11 @@ export type AttachmentBlockData = {
 }
 
 export type TaskBlockData = {
-  readonly items: ReadonlyArray<{ readonly id: string; readonly text: string; readonly checked: boolean }>
+  readonly items: ReadonlyArray<{
+    readonly id: string
+    readonly text: string
+    readonly checked: boolean
+  }>
 }
 
 export type BlockDataMap = {

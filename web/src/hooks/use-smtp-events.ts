@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type {
-  ConnectionInfo,
-  ConversationLine,
-  ServerStatus,
-  SmtpEvent,
-} from '@/lib/types'
+import type { ConnectionInfo, ConversationLine, ServerStatus, SmtpEvent } from '@/lib/types'
 
 function getWsUrl() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -17,9 +12,7 @@ function getWsUrl() {
 const STATUS_URL = '/api/status'
 
 export function useSmtpEvents() {
-  const [connections, setConnections] = useState<Map<number, ConnectionInfo>>(
-    new Map()
-  )
+  const [connections, setConnections] = useState<Map<number, ConnectionInfo>>(new Map())
   const [events, setEvents] = useState<SmtpEvent[]>([])
   const [status, setStatus] = useState<ServerStatus | null>(null)
   const [connected, setConnected] = useState(false)

@@ -1,8 +1,21 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Mail, MailOpen, Star, AlertTriangle, Clock, Plus, RefreshCw,
-  Shield, TrendingUp, Users, ChevronRight, Pin, Pen, Search, ShieldAlert,
+  Mail,
+  MailOpen,
+  Star,
+  AlertTriangle,
+  Clock,
+  Plus,
+  RefreshCw,
+  Shield,
+  TrendingUp,
+  Users,
+  ChevronRight,
+  Pin,
+  Pen,
+  Search,
+  ShieldAlert,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
@@ -108,39 +121,61 @@ export function Dashboard() {
   useEffect(() => {
     load()
     intervalRef.current = setInterval(() => load(true), REFRESH_INTERVAL)
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
   }, [load])
 
-  const goToThread = useCallback((threadId: string) => {
-    setSelectedThread(threadId)
-    navigate('/mail')
-  }, [navigate, setSelectedThread])
+  const goToThread = useCallback(
+    (threadId: string) => {
+      setSelectedThread(threadId)
+      navigate('/mail')
+    },
+    [navigate, setSelectedThread],
+  )
 
   const handleCompose = useCallback(() => {
     setComposingNew(true)
     navigate('/mail')
   }, [navigate, setComposingNew])
 
-  const handleSearch = useCallback((e: React.FormEvent) => {
-    e.preventDefault()
-    if (searchInput.trim()) {
-      setSearchQuery(searchInput.trim())
-      navigate('/mail')
-    }
-  }, [searchInput, setSearchQuery, navigate])
+  const handleSearch = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault()
+      if (searchInput.trim()) {
+        setSearchQuery(searchInput.trim())
+        navigate('/mail')
+      }
+    },
+    [searchInput, setSearchQuery, navigate],
+  )
 
-  const totalUnread = data?.stats?.unread_messages ?? data?.folders.find((f) => f.name === 'INBOX')?.unseen ?? 0
+  const totalUnread =
+    data?.stats?.unread_messages ?? data?.folders.find((f) => f.name === 'INBOX')?.unseen ?? 0
   const totalMessages = data?.stats?.total_messages ?? 0
   const storageBytes = data?.stats?.storage_bytes ?? 0
-  const convos = data?.conversations ?? []
-
-  const { todayCount, starredCount, importantCount, securityAlerts, pinned, needsAttention, recentUnread, topSenders } = useMemo(() => {
+  const {
+    todayCount,
+    starredCount,
+    importantCount,
+    securityAlerts,
+    pinned,
+    needsAttention,
+    recentUnread,
+    topSenders,
+  } = useMemo(() => {
+    const convos = data?.conversations ?? []
     const todayTs = todayStart()
     const pinnedList = convos.filter((c) => c.pinned).slice(0, 5)
     const pinnedIds = new Set(pinnedList.map((c) => c.thread_id))
 
     const attentionList = convos
-      .filter((c) => c.unread_count > 0 && (c.importance_level === 'high' || c.flagged) && !pinnedIds.has(c.thread_id))
+      .filter(
+        (c) =>
+          c.unread_count > 0 &&
+          (c.importance_level === 'high' || c.flagged) &&
+          !pinnedIds.has(c.thread_id),
+      )
       .slice(0, 8)
     const attentionIds = new Set(attentionList.map((c) => c.thread_id))
 
@@ -158,14 +193,22 @@ export function Dashboard() {
     return {
       todayCount: convos.filter((c) => c.last_date >= todayTs).length,
       starredCount: convos.filter((c) => c.flagged).length,
-      importantCount: convos.filter((c) => c.importance_level === 'high' && c.unread_count > 0).length,
-      securityAlerts: convos.filter((c) => c.unread_count > 0 && (c.category === 'spam' || c.category === 'scam')).slice(0, 5),
+      importantCount: convos.filter((c) => c.importance_level === 'high' && c.unread_count > 0)
+        .length,
+      securityAlerts: convos
+        .filter((c) => c.unread_count > 0 && (c.category === 'spam' || c.category === 'scam'))
+        .slice(0, 5),
       pinned: pinnedList,
       needsAttention: attentionList,
-      recentUnread: convos.filter((c) => c.unread_count > 0 && !pinnedIds.has(c.thread_id) && !attentionIds.has(c.thread_id)).slice(0, 8),
+      recentUnread: convos
+        .filter(
+          (c) =>
+            c.unread_count > 0 && !pinnedIds.has(c.thread_id) && !attentionIds.has(c.thread_id),
+        )
+        .slice(0, 8),
       topSenders: [...senderMap.values()].sort((a, b) => b.count - a.count).slice(0, 6),
     }
-  }, [convos, auth?.address])
+  }, [data?.conversations, auth?.address])
 
   // category stats (prefer stats endpoint, fallback to separate categories call)
   const categoryData = (data?.stats?.categories ?? [])
@@ -221,7 +264,12 @@ export function Dashboard() {
                 {greeting}, {displayName}
               </h1>
               <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
-                {new Date().toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                {new Date().toLocaleDateString('en', {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -248,7 +296,10 @@ export function Dashboard() {
           {/* search bar */}
           <form onSubmit={handleSearch} className="mb-6">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]" aria-hidden="true" />
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]"
+                aria-hidden="true"
+              />
               <input
                 type="text"
                 value={searchInput}
@@ -300,7 +351,11 @@ export function Dashboard() {
                 <Section title="Pinned" icon={Pin}>
                   <div className="space-y-0.5">
                     {pinned.map((c) => (
-                      <ConversationRow key={c.thread_id} conversation={c} onClick={() => goToThread(c.thread_id)} />
+                      <ConversationRow
+                        key={c.thread_id}
+                        conversation={c}
+                        onClick={() => goToThread(c.thread_id)}
+                      />
                     ))}
                   </div>
                 </Section>
@@ -315,7 +370,11 @@ export function Dashboard() {
                 >
                   <div className="space-y-0.5">
                     {needsAttention.map((c) => (
-                      <ConversationRow key={c.thread_id} conversation={c} onClick={() => goToThread(c.thread_id)} />
+                      <ConversationRow
+                        key={c.thread_id}
+                        conversation={c}
+                        onClick={() => goToThread(c.thread_id)}
+                      />
                     ))}
                   </div>
                 </Section>
@@ -330,7 +389,11 @@ export function Dashboard() {
                 >
                   <div className="space-y-0.5">
                     {recentUnread.map((c) => (
-                      <ConversationRow key={c.thread_id} conversation={c} onClick={() => goToThread(c.thread_id)} />
+                      <ConversationRow
+                        key={c.thread_id}
+                        conversation={c}
+                        onClick={() => goToThread(c.thread_id)}
+                      />
                     ))}
                   </div>
                 </Section>
@@ -361,7 +424,11 @@ export function Dashboard() {
                     >
                       <div className="space-y-0.5">
                         {data!.conversations.slice(0, 5).map((c) => (
-                          <ConversationRow key={c.thread_id} conversation={c} onClick={() => goToThread(c.thread_id)} />
+                          <ConversationRow
+                            key={c.thread_id}
+                            conversation={c}
+                            onClick={() => goToThread(c.thread_id)}
+                          />
                         ))}
                       </div>
                     </Section>
@@ -386,8 +453,12 @@ export function Dashboard() {
                           <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">{c.subject || '(no subject)'}</p>
-                          <p className="truncate text-xs text-[var(--color-status-danger)]">{c.category}</p>
+                          <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">
+                            {c.subject || '(no subject)'}
+                          </p>
+                          <p className="truncate text-xs text-[var(--color-status-danger)]">
+                            {c.category}
+                          </p>
                         </div>
                       </button>
                     ))}
@@ -416,13 +487,22 @@ export function Dashboard() {
                 <Section title="Top Contacts" icon={Users}>
                   <div className="space-y-0.5">
                     {topSenders.map((s) => (
-                      <div key={s.email} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--color-hover)]">
+                      <div
+                        key={s.email}
+                        className="flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--color-hover)]"
+                      >
                         <SenderAvatar sender={`${s.name} <${s.email}>`} size={28} />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">{s.name}</p>
-                          <p className="truncate text-xs text-[var(--color-text-tertiary)]">{s.email}</p>
+                          <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">
+                            {s.name}
+                          </p>
+                          <p className="truncate text-xs text-[var(--color-text-tertiary)]">
+                            {s.email}
+                          </p>
                         </div>
-                        <span className="shrink-0 rounded-full bg-[var(--color-bg-sunken)] px-1.5 py-0.5 text-[10px] tabular-nums text-[var(--color-text-tertiary)]">{s.count}</span>
+                        <span className="shrink-0 rounded-full bg-[var(--color-bg-sunken)] px-1.5 py-0.5 text-[10px] tabular-nums text-[var(--color-text-tertiary)]">
+                          {s.count}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -435,11 +515,15 @@ export function Dashboard() {
                   <div className="space-y-2 px-2 text-sm">
                     <div className="flex items-center justify-between">
                       <span className="text-[var(--color-text-tertiary)]">Total emails</span>
-                      <span className="tabular-nums font-medium text-[var(--color-text-primary)]">{totalMessages.toLocaleString()}</span>
+                      <span className="tabular-nums font-medium text-[var(--color-text-primary)]">
+                        {totalMessages.toLocaleString()}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[var(--color-text-tertiary)]">Storage</span>
-                      <span className="tabular-nums font-medium text-[var(--color-text-primary)]">{formatBytes(storageBytes)}</span>
+                      <span className="tabular-nums font-medium text-[var(--color-text-primary)]">
+                        {formatBytes(storageBytes)}
+                      </span>
                     </div>
                   </div>
                 </Section>
@@ -449,19 +533,27 @@ export function Dashboard() {
               {data && data.folders.length > 0 && (
                 <Section title="Folders" icon={Mail}>
                   <div className="space-y-0.5">
-                    {data.folders.filter((f) => f.total > 0).slice(0, 8).map((f) => (
-                      <div key={f.name} className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-[var(--color-hover)]">
-                        <span className="text-[var(--color-text-secondary)]">{f.name}</span>
-                        <div className="flex items-center gap-2">
-                          {f.unseen > 0 && (
-                            <span className="rounded-full bg-[var(--color-brand-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-brand-primary)]">
-                              {f.unseen}
+                    {data.folders
+                      .filter((f) => f.total > 0)
+                      .slice(0, 8)
+                      .map((f) => (
+                        <div
+                          key={f.name}
+                          className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-[var(--color-hover)]"
+                        >
+                          <span className="text-[var(--color-text-secondary)]">{f.name}</span>
+                          <div className="flex items-center gap-2">
+                            {f.unseen > 0 && (
+                              <span className="rounded-full bg-[var(--color-brand-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-brand-primary)]">
+                                {f.unseen}
+                              </span>
+                            )}
+                            <span className="tabular-nums text-xs text-[var(--color-text-tertiary)]">
+                              {f.total}
                             </span>
-                          )}
-                          <span className="tabular-nums text-xs text-[var(--color-text-tertiary)]">{f.total}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </Section>
               )}
@@ -487,7 +579,9 @@ export function Dashboard() {
 function Shortcut({ keys, label }: { keys: string; label: string }) {
   return (
     <span className="flex items-center gap-1.5">
-      <kbd className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-secondary)]">{keys}</kbd>
+      <kbd className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-secondary)]">
+        {keys}
+      </kbd>
       <span>{label}</span>
     </span>
   )
@@ -500,7 +594,13 @@ const COLOR_MAP = {
   danger: 'bg-red-500/10 text-red-500',
 } as const
 
-function StatCard({ icon: Icon, label, value, color, onClick }: {
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  color,
+  onClick,
+}: {
   icon: typeof Mail
   label: string
   value: number
@@ -519,14 +619,21 @@ function StatCard({ icon: Icon, label, value, color, onClick }: {
         <Icon className="h-4.5 w-4.5" aria-hidden="true" />
       </div>
       <div>
-        <p className="text-2xl font-semibold tabular-nums text-[var(--color-text-primary)]">{value}</p>
+        <p className="text-2xl font-semibold tabular-nums text-[var(--color-text-primary)]">
+          {value}
+        </p>
         <p className="text-xs text-[var(--color-text-tertiary)]">{label}</p>
       </div>
     </button>
   )
 }
 
-function Section({ title, icon: Icon, action, children }: {
+function Section({
+  title,
+  icon: Icon,
+  action,
+  children,
+}: {
   title: string
   icon: typeof Mail
   action?: { label: string; onClick: () => void }
@@ -549,14 +656,15 @@ function Section({ title, icon: Icon, action, children }: {
           </button>
         )}
       </div>
-      <div className="p-2">
-        {children}
-      </div>
+      <div className="p-2">{children}</div>
     </div>
   )
 }
 
-function ConversationRow({ conversation: c, onClick }: {
+function ConversationRow({
+  conversation: c,
+  onClick,
+}: {
   conversation: ConversationSummary
   onClick: () => void
 }) {
@@ -570,20 +678,33 @@ function ConversationRow({ conversation: c, onClick }: {
       <SenderAvatar sender={sender} size={32} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className={cn(
-            'truncate text-sm text-[var(--color-text-primary)]',
-            isUnread ? 'font-semibold' : 'font-medium',
-          )}>
+          <span
+            className={cn(
+              'truncate text-sm text-[var(--color-text-primary)]',
+              isUnread ? 'font-semibold' : 'font-medium',
+            )}
+          >
             {extractName(sender)}
           </span>
           <CategoryBadge category={c.category} />
-          {c.flagged && <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" aria-label="Starred" />}
-          {c.pinned && <Pin className="h-3 w-3 shrink-0 text-[var(--color-text-tertiary)]" aria-label="Pinned" />}
+          {c.flagged && (
+            <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" aria-label="Starred" />
+          )}
+          {c.pinned && (
+            <Pin
+              className="h-3 w-3 shrink-0 text-[var(--color-text-tertiary)]"
+              aria-label="Pinned"
+            />
+          )}
         </div>
-        <p className={cn(
-          'truncate text-xs',
-          isUnread ? 'font-medium text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]',
-        )}>
+        <p
+          className={cn(
+            'truncate text-xs',
+            isUnread
+              ? 'font-medium text-[var(--color-text-primary)]'
+              : 'text-[var(--color-text-secondary)]',
+          )}
+        >
           {c.subject || '(no subject)'}
         </p>
         {c.snippet && (
@@ -591,7 +712,9 @@ function ConversationRow({ conversation: c, onClick }: {
         )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className="text-xs tabular-nums text-[var(--color-text-tertiary)]">{formatRelative(c.last_date)}</span>
+        <span className="text-xs tabular-nums text-[var(--color-text-tertiary)]">
+          {formatRelative(c.last_date)}
+        </span>
         {isUnread && (
           <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-1 text-[10px] font-medium text-white">
             {c.unread_count}
@@ -627,7 +750,11 @@ function pctToWidth(pct: number): string {
   return 'w-0'
 }
 
-function CategoryBar({ category, count, total }: {
+function CategoryBar({
+  category,
+  count,
+  total,
+}: {
   category: string
   count: number
   total: number
@@ -637,10 +764,18 @@ function CategoryBar({ category, count, total }: {
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
         <span className="capitalize text-[var(--color-text-secondary)]">{category}</span>
-        <span className="tabular-nums text-[var(--color-text-tertiary)]">{count} ({pct}%)</span>
+        <span className="tabular-nums text-[var(--color-text-tertiary)]">
+          {count} ({pct}%)
+        </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-bg-sunken)]">
-        <div className={cn('h-full rounded-full transition-all', CATEGORY_COLORS[category] ?? 'bg-gray-400', pctToWidth(pct))} />
+        <div
+          className={cn(
+            'h-full rounded-full transition-all',
+            CATEGORY_COLORS[category] ?? 'bg-gray-400',
+            pctToWidth(pct),
+          )}
+        />
       </div>
     </div>
   )

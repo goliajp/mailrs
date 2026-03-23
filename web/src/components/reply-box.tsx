@@ -81,13 +81,17 @@ export function ReplyBox({
         toast.info('Draft restored', { duration: 2000 })
       }, 200)
     }
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+    }
   }, [draftKey])
 
   // periodic save while typing
   useEffect(() => {
     saveTimer.current = setInterval(saveDraftLocal, 3000)
-    return () => { if (saveTimer.current) clearInterval(saveTimer.current) }
+    return () => {
+      if (saveTimer.current) clearInterval(saveTimer.current)
+    }
   }, [saveDraftLocal])
 
   const handleModeChange = (newMode: ReplyMode) => {
@@ -97,9 +101,20 @@ export function ReplyBox({
   }
 
   const resolveRecipients = (): string[] => {
-    if (mode === 'reply') return replyRecipients.split(',').map((s) => s.trim()).filter(Boolean)
-    if (mode === 'reply-all') return replyAllRecipients.split(',').map((s) => s.trim()).filter(Boolean)
-    return forwardTo.split(',').map((s) => s.trim()).filter(Boolean)
+    if (mode === 'reply')
+      return replyRecipients
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    if (mode === 'reply-all')
+      return replyAllRecipients
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    return forwardTo
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
   }
 
   const resolveSubject = (): string => {
@@ -150,7 +165,10 @@ export function ReplyBox({
           headers: { Authorization: `Bearer ${auth?.token ?? ''}` },
           body: formData,
         })
-        if (!res.ok) { toast.error(`Send failed (${res.status})`); return }
+        if (!res.ok) {
+          toast.error(`Send failed (${res.status})`)
+          return
+        }
         const result: SendResult = await res.json()
         if (!result.success) {
           toast.error(result.message ?? 'Send failed')
@@ -223,9 +241,16 @@ export function ReplyBox({
     prePolishRef.current = editor.getHTML()
     setPolishing(true)
     try {
-      const result = await postJson<PolishResult>('/mail/ai/polish', { text, tone: tone ?? polishTone })
+      const result = await postJson<PolishResult>('/mail/ai/polish', {
+        text,
+        tone: tone ?? polishTone,
+      })
       if (result.success && result.polished) {
-        const paragraphs = result.polished.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
+        const paragraphs = result.polished
+          .split(/\n+/)
+          .filter(Boolean)
+          .map((p) => `<p>${escapeHtml(p)}</p>`)
+          .join('')
         editor.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
         toast.success('Text polished', {
           action: {
@@ -256,9 +281,12 @@ export function ReplyBox({
     try {
       // build thread context from prior messages (up to 3, excluding the latest)
       const priorMessages = threadMessages.slice(0, -1).slice(-3)
-      const threadContext = priorMessages.length > 0
-        ? priorMessages.map((m) => `From: ${m.sender}\n${m.clean_text || m.text_body || ''}`).join('\n---\n')
-        : undefined
+      const threadContext =
+        priorMessages.length > 0
+          ? priorMessages
+              .map((m) => `From: ${m.sender}\n${m.clean_text || m.text_body || ''}`)
+              .join('\n---\n')
+          : undefined
       const result = await postJson<ReplySuggestResult>('/mail/ai/reply-suggest', {
         original_sender: originalFrom,
         original_subject: subject,
@@ -278,21 +306,29 @@ export function ReplyBox({
   }
 
   const applySuggestion = (suggestion: string) => {
-    const paragraphs = suggestion.split(/\n+/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join('')
+    const paragraphs = suggestion
+      .split(/\n+/)
+      .filter(Boolean)
+      .map((p) => `<p>${escapeHtml(p)}</p>`)
+      .join('')
     composeRef.current?.setComposeContent(paragraphs || `<p>${escapeHtml(suggestion)}</p>`)
     setSuggestions([])
     toast.success('Suggestion applied')
   }
 
   const quotedHtml = originalBody || undefined
-  const quotedHeaderHtml = mode === 'forward'
-    ? buildForwardHeaderHtml(originalFrom, originalDate, subject)
-    : originalFrom
-      ? `<p style="color:#888">On ${escapeHtml(originalDate)}, ${escapeHtml(originalFrom)} wrote:</p>`
-      : undefined
-  const quotedHeader = mode === 'forward'
-    ? `---------- Forwarded message ----------\nFrom: ${originalFrom}\nDate: ${originalDate}\nSubject: ${subject}\n\n`
-    : originalFrom ? `On ${originalDate}, ${originalFrom} wrote:\n\n` : ''
+  const quotedHeaderHtml =
+    mode === 'forward'
+      ? buildForwardHeaderHtml(originalFrom, originalDate, subject)
+      : originalFrom
+        ? `<p style="color:#888">On ${escapeHtml(originalDate)}, ${escapeHtml(originalFrom)} wrote:</p>`
+        : undefined
+  const quotedHeader =
+    mode === 'forward'
+      ? `---------- Forwarded message ----------\nFrom: ${originalFrom}\nDate: ${originalDate}\nSubject: ${subject}\n\n`
+      : originalFrom
+        ? `On ${originalDate}, ${originalFrom} wrote:\n\n`
+        : ''
 
   const placeholder = mode === 'forward' ? 'Add a message...' : 'Type a reply...'
 
@@ -315,7 +351,10 @@ export function ReplyBox({
           </button>
         ))}
         {mode !== 'forward' && (
-          <span className="ml-auto truncate text-xs text-[var(--color-text-tertiary)]" title={mode === 'reply' ? replyRecipients : replyAllRecipients}>
+          <span
+            className="ml-auto truncate text-xs text-[var(--color-text-tertiary)]"
+            title={mode === 'reply' ? replyRecipients : replyAllRecipients}
+          >
             to {mode === 'reply' ? replyRecipients : replyAllRecipients}
           </span>
         )}
@@ -341,12 +380,19 @@ export function ReplyBox({
       {suggestions.length > 0 && (
         <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-[var(--color-border-default)] px-4 py-2">
           {suggestions.map((s, i) => (
-            <button key={i} onClick={() => applySuggestion(s)}
+            <button
+              key={i}
+              onClick={() => applySuggestion(s)}
               className="max-w-xs truncate rounded-full border border-[var(--color-border-default)] bg-[var(--color-brand-subtle)] px-2.5 py-0.5 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-hover)]"
-              title={s}>{s}</button>
+              title={s}
+            >
+              {s}
+            </button>
           ))}
-          <button onClick={() => setSuggestions([])}
-            className="rounded-full px-2 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]">
+          <button
+            onClick={() => setSuggestions([])}
+            className="rounded-full px-2 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
+          >
             Dismiss
           </button>
         </div>
@@ -371,16 +417,22 @@ export function ReplyBox({
       {/* action bar */}
       <div className="flex shrink-0 select-none flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2">
         {mode !== 'forward' && (
-          <button onClick={suggest} disabled={suggesting || sending}
+          <button
+            onClick={suggest}
+            disabled={suggesting || sending}
             className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
-            title="AI reply suggestions">
+            title="AI reply suggestions"
+          >
             {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Suggest'}
           </button>
         )}
         <div className="relative flex shrink-0">
-          <button onClick={() => polish()} disabled={polishing || sending}
+          <button
+            onClick={() => polish()}
+            disabled={polishing || sending}
             className="flex h-8 items-center rounded-l-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
-            title={`Polish (${polishTone})`}>
+            title={`Polish (${polishTone})`}
+          >
             {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
           </button>
           <select
@@ -398,8 +450,11 @@ export function ReplyBox({
         </div>
         <div className="flex-1" />
 
-        <button onClick={send} disabled={sending}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-all hover:bg-[var(--color-brand-primary-hover)] hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50">
+        <button
+          onClick={send}
+          disabled={sending}
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-all hover:bg-[var(--color-brand-primary-hover)] hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+        >
           <Send className="h-3.5 w-3.5" />
           {sending ? 'Sending…' : 'Send'}
         </button>

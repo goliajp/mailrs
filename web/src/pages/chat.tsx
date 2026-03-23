@@ -76,12 +76,20 @@ export function Chat() {
 
   // build API path helper
   const buildPath = useCallback(
-    (opts?: { query?: string; before?: number; category?: string | null; domains?: string[]; archived?: boolean; folder?: string | null }) => {
+    (opts?: {
+      query?: string
+      before?: number
+      category?: string | null
+      domains?: string[]
+      archived?: boolean
+      folder?: string | null
+    }) => {
       const { query, before, category, domains, archived, folder: f } = opts ?? {}
       if (query) {
         let path = `/conversations/search?q=${encodeURIComponent(query)}&limit=${PAGE_SIZE}`
         if (category) path += `&category=${encodeURIComponent(category)}`
-        if (domains && domains.length > 0) path += `&domains=${encodeURIComponent(domains.join(','))}`
+        if (domains && domains.length > 0)
+          path += `&domains=${encodeURIComponent(domains.join(','))}`
         return path
       }
       let path = `/conversations?limit=${PAGE_SIZE}`
@@ -92,12 +100,20 @@ export function Chat() {
       if (f) path += `&folder=${encodeURIComponent(f)}`
       return path
     },
-    []
+    [],
   )
 
   // load conversations with optional append mode
   const loadConversations = useCallback(
-    async (opts?: { query?: string; before?: number; category?: string | null; domains?: string[]; archived?: boolean; folder?: string | null; append?: boolean }) => {
+    async (opts?: {
+      query?: string
+      before?: number
+      category?: string | null
+      domains?: string[]
+      archived?: boolean
+      folder?: string | null
+      append?: boolean
+    }) => {
       const { append } = opts ?? {}
       try {
         const path = buildPath(opts)
@@ -122,7 +138,7 @@ export function Chat() {
         }
       }
     },
-    [setConversations, setHasMore, setInitialLoading, buildPath]
+    [setConversations, setHasMore, setInitialLoading, buildPath],
   )
 
   // load more (infinite scroll callback) with reentry guard
@@ -167,7 +183,15 @@ export function Chat() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [searchQuery, categoryFilter, selectedDomains, showArchived, folder, loadConversations, setHasMore])
+  }, [
+    searchQuery,
+    categoryFilter,
+    selectedDomains,
+    showArchived,
+    folder,
+    loadConversations,
+    setHasMore,
+  ])
 
   // auto-select first conversation when list loads and nothing is selected
   useEffect(() => {
@@ -191,16 +215,15 @@ export function Chat() {
 
       <PanelRow className={showList ? 'hidden md:flex' : ''}>
         {composingNew ? (
-          <Panel><NewConversation /></Panel>
+          <Panel>
+            <NewConversation />
+          </Panel>
         ) : (
           <ThreadView onBack={() => setMobileView('list')} />
         )}
       </PanelRow>
 
-      <KeyboardShortcutsDialog
-        open={shortcutsOpen}
-        onClose={() => setShortcutsOpen(false)}
-      />
+      <KeyboardShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </PanelRow>
   )
 }

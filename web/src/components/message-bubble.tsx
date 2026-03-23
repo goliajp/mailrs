@@ -50,27 +50,33 @@ const markdownComponents = {
   code: ({ className, children, ...props }: React.HTMLAttributes<HTMLElement>) => {
     const isBlock = className?.startsWith('language-') || String(children).includes('\n')
     if (isBlock) {
-      return <CodeBlock className={className} {...props}>{children}</CodeBlock>
+      return (
+        <CodeBlock className={className} {...props}>
+          {children}
+        </CodeBlock>
+      )
     }
-    return <code className={className} {...props}>{children}</code>
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    )
   },
 }
 
-const CJK_FONTS = "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji'"
+const CJK_FONTS =
+  "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji'"
 
 // inject CJK fallback fonts into all font-family declarations so kana
 // renders correctly on non-Japanese locale systems
 function injectCjkFonts(html: string): string {
-  return html.replace(
-    /font-family\s*:\s*([^;}"]+)/gi,
-    (match, fonts: string) => {
-      if (fonts.includes('Hiragino')) return match
-      const trimmed = fonts.trimEnd()
-      const endsWithSemiLike = trimmed.endsWith(',')
-      const base = endsWithSemiLike ? trimmed.slice(0, -1) : trimmed
-      return `font-family: ${base}, ${CJK_FONTS}`
-    },
-  )
+  return html.replace(/font-family\s*:\s*([^;}"]+)/gi, (match, fonts: string) => {
+    if (fonts.includes('Hiragino')) return match
+    const trimmed = fonts.trimEnd()
+    const endsWithSemiLike = trimmed.endsWith(',')
+    const base = endsWithSemiLike ? trimmed.slice(0, -1) : trimmed
+    return `font-family: ${base}, ${CJK_FONTS}`
+  })
 }
 
 // dedicated DOMPurify instance avoids global hook race conditions in concurrent renders
@@ -151,21 +157,10 @@ function HtmlFrame({ html }: { html: string }) {
 
 // check if content type supports OCR/text extraction
 function isExtractable(contentType: string): boolean {
-  return (
-    contentType.startsWith('image/') ||
-    contentType === 'application/pdf'
-  )
+  return contentType.startsWith('image/') || contentType === 'application/pdf'
 }
 
-function AttachmentItem({
-  att,
-  uid,
-  index,
-}: {
-  att: AttachmentInfo
-  uid: number
-  index: number
-}) {
+function AttachmentItem({ att, uid, index }: { att: AttachmentInfo; uid: number; index: number }) {
   const isImage = att.content_type.startsWith('image/')
   const isPdf = att.content_type === 'application/pdf'
   const token = getToken() ?? ''
@@ -186,7 +181,11 @@ function AttachmentItem({
       const headers: Record<string, string> = {}
       if (t) headers['Authorization'] = `Bearer ${t}`
       const res = await fetch(`/api/mail/messages/${uid}/attachments/${index}/content`, { headers })
-      if (!res.ok) { setExtractedText(''); setShowContent(false); return }
+      if (!res.ok) {
+        setExtractedText('')
+        setShowContent(false)
+        return
+      }
       const data = await res.json()
       if (data.success && data.extracted_text) {
         setExtractedText(data.extracted_text)
@@ -298,7 +297,11 @@ function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
             : 'prose-[var(--color-text-primary)]'
         }`}
       >
-        <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
+        <Markdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeHighlight]}
+          components={markdownComponents}
+        >
           {body}
         </Markdown>
       </div>
@@ -330,10 +333,7 @@ export function MessageBubble({
   isOwn: boolean
 }) {
   const hasAttachments = attachments.length > 0
-  const { parts, isHtml } = useMemo(
-    () => splitEmail(textBody, htmlBody),
-    [textBody, htmlBody],
-  )
+  const { parts, isHtml } = useMemo(() => splitEmail(textBody, htmlBody), [textBody, htmlBody])
 
   return (
     <div>

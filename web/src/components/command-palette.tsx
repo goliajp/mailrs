@@ -136,14 +136,15 @@ function useCommands(query: string, onClose: () => void): Command[] {
         icon: <LogOut size={16} />,
         category: 'Actions',
         action: () => {
-          if (!window.confirm('Sign out? You will need to sign in again to access your mailbox.')) return
+          if (!window.confirm('Sign out? You will need to sign in again to access your mailbox.'))
+            return
           setAuth(null)
           navigate('/login')
           onClose()
         },
       },
     ],
-    [navigate, onClose, setAuth, setComposing, setTheme, theme]
+    [navigate, onClose, setAuth, setComposing, setTheme, theme],
   )
 
   return useMemo(() => {
@@ -266,7 +267,7 @@ export function CommandPalette() {
         commands[selectedIndex]?.action()
       }
     },
-    [commands, selectedIndex, close]
+    [commands, selectedIndex, close],
   )
 
   if (!open) return null
@@ -324,9 +325,7 @@ export function CommandPalette() {
                       onClick={() => cmd.action()}
                       onMouseEnter={() => setSelectedIndex(idx)}
                     >
-                      <span className="shrink-0 text-[var(--color-text-tertiary)]">
-                        {cmd.icon}
-                      </span>
+                      <span className="shrink-0 text-[var(--color-text-tertiary)]">{cmd.icon}</span>
                       <span className="flex-1 text-sm">{cmd.label}</span>
                       {cmd.shortcut && (
                         <kbd className="rounded border border-[var(--color-border-default)] px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)]">

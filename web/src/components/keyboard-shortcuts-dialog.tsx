@@ -129,7 +129,15 @@ export function KeyboardShortcutsDialog({ open, onClose }: Props) {
         </div>
 
         <p className="mt-5 text-center text-xs text-[var(--color-text-tertiary)]">
-          Press <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1 font-mono text-xs text-[var(--color-text-secondary)]">?</kbd> or <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1 font-mono text-xs text-[var(--color-text-secondary)]">Esc</kbd> to close
+          Press{' '}
+          <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1 font-mono text-xs text-[var(--color-text-secondary)]">
+            ?
+          </kbd>{' '}
+          or{' '}
+          <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1 font-mono text-xs text-[var(--color-text-secondary)]">
+            Esc
+          </kbd>{' '}
+          to close
         </p>
       </div>
     </div>

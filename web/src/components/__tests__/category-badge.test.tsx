@@ -39,8 +39,18 @@ describe('CategoryBadge', () => {
 
   it('renders all known categories without error', () => {
     const categories = [
-      'personal', 'general', 'notification', 'promotion', 'newsletter',
-      'receipt', 'shipping', 'travel', 'finance', 'work', 'spam', 'scam',
+      'personal',
+      'general',
+      'notification',
+      'promotion',
+      'newsletter',
+      'receipt',
+      'shipping',
+      'travel',
+      'finance',
+      'work',
+      'spam',
+      'scam',
     ]
     for (const cat of categories) {
       cleanup()

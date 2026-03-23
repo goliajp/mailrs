@@ -35,34 +35,50 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 function StatusBar() {
   const auth = useAtomValue(authAtom)
   const location = useLocation()
-  const [health, setHealth] = useState<{ status: string; version: string; pg: boolean; valkey: boolean } | null>(null)
+  const [health, setHealth] = useState<{
+    status: string
+    version: string
+    pg: boolean
+    valkey: boolean
+  } | null>(null)
 
   const fetchHealth = useCallback(async () => {
     try {
       const res = await fetch('/api/health')
       if (res.ok) setHealth(await res.json())
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   useEffect(() => {
-    fetchHealth()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch
+    void fetchHealth()
     const id = setInterval(fetchHealth, 30000)
     return () => clearInterval(id)
   }, [fetchHealth])
 
-  const section = location.pathname.startsWith('/admin') ? 'Admin'
-    : location.pathname.startsWith('/protocol') ? 'Monitor'
-    : location.pathname.startsWith('/settings') ? 'Settings'
-    : location.pathname.startsWith('/mail') ? 'Mail'
-    : 'Home'
+  const section = location.pathname.startsWith('/admin')
+    ? 'Admin'
+    : location.pathname.startsWith('/protocol')
+      ? 'Monitor'
+      : location.pathname.startsWith('/settings')
+        ? 'Settings'
+        : location.pathname.startsWith('/mail')
+          ? 'Mail'
+          : 'Home'
 
   return (
     <div className="flex h-full items-center justify-between px-3 text-[11px] text-[var(--color-text-tertiary)]">
       <div className="flex items-center gap-2">
         {health && (
           <span className="flex items-center gap-1">
-            <span className={`inline-block h-2 w-2 rounded-full ${health.status === 'healthy' ? 'bg-[var(--color-status-success)]' : health.status === 'degraded' ? 'bg-[var(--color-status-warning)]' : 'bg-[var(--color-status-danger)]'}`} />
-            {health.pg ? 'PG' : ''}{health.pg && health.valkey ? ' · ' : ''}{health.valkey ? 'Valkey' : ''}
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${health.status === 'healthy' ? 'bg-[var(--color-status-success)]' : health.status === 'degraded' ? 'bg-[var(--color-status-warning)]' : 'bg-[var(--color-status-danger)]'}`}
+            />
+            {health.pg ? 'PG' : ''}
+            {health.pg && health.valkey ? ' · ' : ''}
+            {health.valkey ? 'Valkey' : ''}
           </span>
         )}
         <span className="text-[var(--color-border-strong)]">·</span>
@@ -107,12 +123,68 @@ export function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/playground" element={<Suspense fallback={<LoadingFallback />}><Playground /></Suspense>} />
-        <Route path="/protocol" element={<AuthShell><PagePanel><Suspense fallback={<LoadingFallback />}><Protocol /></Suspense></PagePanel></AuthShell>} />
-        <Route path="/admin/*" element={<AuthShell><PagePanel><Suspense fallback={<LoadingFallback />}><Admin /></Suspense></PagePanel></AuthShell>} />
-        <Route path="/settings" element={<AuthShell><PagePanel><Suspense fallback={<LoadingFallback />}><Settings /></Suspense></PagePanel></AuthShell>} />
-        <Route path="/mail/*" element={<AuthShell><Chat /></AuthShell>} />
-        <Route path="/*" element={<AuthShell><PagePanel><Dashboard /></PagePanel></AuthShell>} />
+        <Route
+          path="/playground"
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <Playground />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/protocol"
+          element={
+            <AuthShell>
+              <PagePanel>
+                <Suspense fallback={<LoadingFallback />}>
+                  <Protocol />
+                </Suspense>
+              </PagePanel>
+            </AuthShell>
+          }
+        />
+        <Route
+          path="/admin/*"
+          element={
+            <AuthShell>
+              <PagePanel>
+                <Suspense fallback={<LoadingFallback />}>
+                  <Admin />
+                </Suspense>
+              </PagePanel>
+            </AuthShell>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <AuthShell>
+              <PagePanel>
+                <Suspense fallback={<LoadingFallback />}>
+                  <Settings />
+                </Suspense>
+              </PagePanel>
+            </AuthShell>
+          }
+        />
+        <Route
+          path="/mail/*"
+          element={
+            <AuthShell>
+              <Chat />
+            </AuthShell>
+          }
+        />
+        <Route
+          path="/*"
+          element={
+            <AuthShell>
+              <PagePanel>
+                <Dashboard />
+              </PagePanel>
+            </AuthShell>
+          }
+        />
       </Routes>
     </ErrorBoundary>
   )

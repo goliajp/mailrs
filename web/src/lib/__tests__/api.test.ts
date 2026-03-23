@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  deleteJson,
-  fetchBlob,
-  fetchJson,
-  postJson,
-  putJson,
-} from '../api'
+import { deleteJson, fetchBlob, fetchJson, postJson, putJson } from '../api'
 
 // mock getToken from auth store
 vi.mock('@/store/auth', () => ({
@@ -17,11 +11,7 @@ import { getToken } from '@/store/auth'
 
 const mockGetToken = vi.mocked(getToken)
 
-function makeFetchMock(
-  status: number,
-  body: unknown,
-  isJson = true,
-): typeof fetch {
+function makeFetchMock(status: number, body: unknown, isJson = true): typeof fetch {
   return vi.fn().mockResolvedValue({
     status,
     ok: status >= 200 && status < 300,
@@ -47,9 +37,7 @@ describe('authHeaders', () => {
     await fetchJson('/test')
     const call = vi.mocked(fetch).mock.calls[0]
     const opts = call[1] as RequestInit
-    expect((opts.headers as Record<string, string>)['Authorization']).toBe(
-      'Bearer test-token-abc',
-    )
+    expect((opts.headers as Record<string, string>)['Authorization']).toBe('Bearer test-token-abc')
   })
 
   it('omits Authorization header when token is null', async () => {
@@ -57,9 +45,7 @@ describe('authHeaders', () => {
     await fetchJson('/test')
     const call = vi.mocked(fetch).mock.calls[0]
     const opts = call[1] as RequestInit
-    expect(
-      (opts.headers as Record<string, string>)['Authorization'],
-    ).toBeUndefined()
+    expect((opts.headers as Record<string, string>)['Authorization']).toBeUndefined()
   })
 })
 
@@ -131,9 +117,7 @@ describe('postJson', () => {
     const call = vi.mocked(fetch).mock.calls[0]
     const opts = call[1] as RequestInit
     expect(opts.method).toBe('POST')
-    expect((opts.headers as Record<string, string>)['Content-Type']).toBe(
-      'application/json',
-    )
+    expect((opts.headers as Record<string, string>)['Content-Type']).toBe('application/json')
     expect(opts.body).toBe(JSON.stringify(payload))
   })
 
@@ -142,9 +126,7 @@ describe('postJson', () => {
     vi.stubGlobal('fetch', makeFetchMock(200, {}))
     await postJson('/test', {})
     const opts = vi.mocked(fetch).mock.calls[0][1] as RequestInit
-    expect((opts.headers as Record<string, string>)['Authorization']).toBe(
-      'Bearer my-token',
-    )
+    expect((opts.headers as Record<string, string>)['Authorization']).toBe('Bearer my-token')
   })
 })
 
@@ -161,9 +143,7 @@ describe('putJson', () => {
     expect(result).toEqual({ updated: true })
     const opts = vi.mocked(fetch).mock.calls[0][1] as RequestInit
     expect(opts.method).toBe('PUT')
-    expect((opts.headers as Record<string, string>)['Content-Type']).toBe(
-      'application/json',
-    )
+    expect((opts.headers as Record<string, string>)['Content-Type']).toBe('application/json')
   })
 })
 
@@ -208,11 +188,14 @@ describe('fetchBlob', () => {
     const removeItem = vi.fn()
     vi.stubGlobal('localStorage', { removeItem, getItem: vi.fn(), setItem: vi.fn() })
     vi.stubGlobal('window', { ...globalThis.window, location: { href: '' } })
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      status: 401,
-      ok: false,
-      blob: vi.fn(),
-    } as unknown as Response))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 401,
+        ok: false,
+        blob: vi.fn(),
+      } as unknown as Response),
+    )
     await expect(fetchBlob('/attachment/1')).rejects.toThrow('unauthorized')
     expect(removeItem).toHaveBeenCalledWith('mailrs_auth')
     expect(window.location.href).toBe('/login')
@@ -220,11 +203,14 @@ describe('fetchBlob', () => {
 
   it('throws on non-200 non-401 status', async () => {
     mockGetToken.mockReturnValue(null)
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      status: 404,
-      ok: false,
-      blob: vi.fn(),
-    } as unknown as Response))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 404,
+        ok: false,
+        blob: vi.fn(),
+      } as unknown as Response),
+    )
     await expect(fetchBlob('/attachment/99')).rejects.toThrow('Download failed: 404')
   })
 })

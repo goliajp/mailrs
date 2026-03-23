@@ -26,11 +26,19 @@ function makeLocalStorageMock(): Storage {
   const store: Record<string, string> = {}
   return {
     getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => { store[k] = v },
-    removeItem: (k: string) => { delete store[k] },
-    clear: () => { for (const k in store) delete store[k] },
+    setItem: (k: string, v: string) => {
+      store[k] = v
+    },
+    removeItem: (k: string) => {
+      delete store[k]
+    },
+    clear: () => {
+      for (const k in store) delete store[k]
+    },
     key: (n: number) => Object.keys(store)[n] ?? null,
-    get length() { return Object.keys(store).length },
+    get length() {
+      return Object.keys(store).length
+    },
   } as Storage
 }
 vi.stubGlobal('localStorage', makeLocalStorageMock())
@@ -47,7 +55,13 @@ function makeStore() {
   return store
 }
 
-function Wrapper({ store, children }: { store: ReturnType<typeof createStore>; children: ReactNode }) {
+function Wrapper({
+  store,
+  children,
+}: {
+  store: ReturnType<typeof createStore>
+  children: ReactNode
+}) {
   return <Provider store={store}>{children}</Provider>
 }
 

@@ -35,15 +35,7 @@ function FileIcon({ className }: { className?: string }) {
 }
 
 // lightbox modal for full-size image preview
-function ImageLightbox({
-  src,
-  alt,
-  onClose,
-}: {
-  src: string
-  alt: string
-  onClose: () => void
-}) {
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
       if (e.target === e.currentTarget) onClose()
@@ -97,26 +89,15 @@ function ImageThumbnail({ uid, index, att }: { uid: number; index: number; att: 
           className="block overflow-hidden rounded-md border border-[var(--color-border-default)] transition-shadow hover:shadow-md"
           title={`${att.filename} - click to enlarge`}
         >
-          <img
-            src={url}
-            alt={att.filename}
-            className="max-h-32 object-contain"
-            loading="lazy"
-          />
+          <img src={url} alt={att.filename} className="max-h-32 object-contain" loading="lazy" />
         </button>
         <p className="mt-1 truncate text-xs text-[var(--color-text-tertiary)]">
           <Copyable value={att.filename}>{att.filename}</Copyable>
-          <span className="ml-1 text-[var(--color-text-tertiary)]">
-            ({formatSize(att.size)})
-          </span>
+          <span className="ml-1 text-[var(--color-text-tertiary)]">({formatSize(att.size)})</span>
         </p>
       </div>
       {lightboxOpen && (
-        <ImageLightbox
-          src={url}
-          alt={att.filename}
-          onClose={() => setLightboxOpen(false)}
-        />
+        <ImageLightbox src={url} alt={att.filename} onClose={() => setLightboxOpen(false)} />
       )}
     </>
   )

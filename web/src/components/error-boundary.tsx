@@ -51,9 +51,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
                   </svg>
                 </div>
               </div>
-              <h1 className="mb-2 text-2xl font-bold text-[var(--color-text-primary)]">
-                出错了
-              </h1>
+              <h1 className="mb-2 text-2xl font-bold text-[var(--color-text-primary)]">出错了</h1>
               <p className="mb-4 text-[var(--color-text-secondary)]">
                 应用程序遇到了一个意外错误。请尝试重新加载页面。
               </p>

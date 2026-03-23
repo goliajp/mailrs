@@ -35,7 +35,7 @@ describe('avatarInitial edge cases', () => {
   })
 
   it('handles display name with special chars', () => {
-    expect(avatarInitial('O\'Brien <obrien@example.com>')).toBe('O')
+    expect(avatarInitial("O'Brien <obrien@example.com>")).toBe('O')
   })
 
   it('handles display name with unicode', () => {

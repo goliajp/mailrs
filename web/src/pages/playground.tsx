@@ -64,7 +64,14 @@ export function Playground() {
         {/* color tokens */}
         <Section title="Color Tokens">
           <Row label="Surfaces">
-            {(['--color-bg-base', '--color-bg-raised', '--color-bg-overlay', '--color-bg-sunken'] as const).map((v) => (
+            {(
+              [
+                '--color-bg-base',
+                '--color-bg-raised',
+                '--color-bg-overlay',
+                '--color-bg-sunken',
+              ] as const
+            ).map((v) => (
               <div key={v} className="flex flex-col items-center gap-1">
                 <div
                   className="h-12 w-12 border border-[var(--color-border-default)]"
@@ -77,11 +84,11 @@ export function Playground() {
             ))}
           </Row>
           <Row label="Text">
-            {([
+            {[
               { v: '--color-text-primary', label: 'primary' },
               { v: '--color-text-secondary', label: 'secondary' },
               { v: '--color-text-tertiary', label: 'tertiary' },
-            ]).map(({ v, label }) => (
+            ].map(({ v, label }) => (
               <span key={v} className="text-sm font-medium" style={{ color: `var(${v})` }}>
                 {label}
               </span>
@@ -140,33 +147,63 @@ export function Playground() {
             <Button variant="danger">Danger</Button>
           </Row>
           <Row label="Sizes">
-            <Button size="xs" variant="primary">XS</Button>
-            <Button size="sm" variant="primary">Small</Button>
-            <Button size="md" variant="primary">Medium</Button>
-            <Button size="lg" variant="primary">Large</Button>
+            <Button size="xs" variant="primary">
+              XS
+            </Button>
+            <Button size="sm" variant="primary">
+              Small
+            </Button>
+            <Button size="md" variant="primary">
+              Medium
+            </Button>
+            <Button size="lg" variant="primary">
+              Large
+            </Button>
           </Row>
           <Row label="States">
-            <Button variant="primary" disabled>Disabled</Button>
-            <Button variant="secondary" disabled>Disabled</Button>
+            <Button variant="primary" disabled>
+              Disabled
+            </Button>
+            <Button variant="secondary" disabled>
+              Disabled
+            </Button>
           </Row>
           <Row label="With icons">
-            <Button variant="primary" size="sm"><Plus className="h-3.5 w-3.5" /> New</Button>
-            <Button variant="danger" size="sm"><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
-            <Button variant="ghost" size="sm"><Search className="h-3.5 w-3.5" /> Search</Button>
+            <Button variant="primary" size="sm">
+              <Plus className="h-3.5 w-3.5" /> New
+            </Button>
+            <Button variant="danger" size="sm">
+              <Trash2 className="h-3.5 w-3.5" /> Delete
+            </Button>
+            <Button variant="ghost" size="sm">
+              <Search className="h-3.5 w-3.5" /> Search
+            </Button>
           </Row>
         </Section>
 
         {/* icon buttons */}
         <Section title="IconButton">
           <Row label="Sizes">
-            <IconButton label="Extra small" size="xs"><Star className="h-3 w-3" /></IconButton>
-            <IconButton label="Small" size="sm"><Star className="h-3.5 w-3.5" /></IconButton>
-            <IconButton label="Medium" size="md"><Star className="h-4 w-4" /></IconButton>
-            <IconButton label="Large" size="lg"><Star className="h-4.5 w-4.5" /></IconButton>
+            <IconButton label="Extra small" size="xs">
+              <Star className="h-3 w-3" />
+            </IconButton>
+            <IconButton label="Small" size="sm">
+              <Star className="h-3.5 w-3.5" />
+            </IconButton>
+            <IconButton label="Medium" size="md">
+              <Star className="h-4 w-4" />
+            </IconButton>
+            <IconButton label="Large" size="lg">
+              <Star className="h-4.5 w-4.5" />
+            </IconButton>
           </Row>
           <Row label="States">
-            <IconButton label="Normal"><X className="h-4 w-4" /></IconButton>
-            <IconButton label="Disabled" disabled><X className="h-4 w-4" /></IconButton>
+            <IconButton label="Normal">
+              <X className="h-4 w-4" />
+            </IconButton>
+            <IconButton label="Disabled" disabled>
+              <X className="h-4 w-4" />
+            </IconButton>
           </Row>
         </Section>
 
@@ -232,9 +269,15 @@ export function Playground() {
         {/* card */}
         <Section title="Card">
           <Row label="Padding sizes">
-            <Card padding="sm" className="w-40"><p className="text-sm">Small padding</p></Card>
-            <Card padding="md" className="w-40"><p className="text-sm">Medium padding</p></Card>
-            <Card padding="lg" className="w-40"><p className="text-sm">Large padding</p></Card>
+            <Card padding="sm" className="w-40">
+              <p className="text-sm">Small padding</p>
+            </Card>
+            <Card padding="md" className="w-40">
+              <p className="text-sm">Medium padding</p>
+            </Card>
+            <Card padding="lg" className="w-40">
+              <p className="text-sm">Large padding</p>
+            </Card>
           </Row>
         </Section>
 
@@ -263,21 +306,48 @@ export function Playground() {
         {/* typography scale */}
         <Section title="Typography">
           <div className="space-y-2">
-            <p className="text-2xl font-bold text-[var(--color-text-primary)]">Heading 2XL (20px)</p>
-            <p className="text-xl font-semibold text-[var(--color-text-primary)]">Heading XL (18px)</p>
-            <p className="text-lg font-semibold text-[var(--color-text-primary)]">Heading LG (16px)</p>
-            <p className="text-sm text-[var(--color-text-primary)]">Body base (14px) — The quick brown fox jumps over the lazy dog.</p>
-            <p className="text-[13px] text-[var(--color-text-secondary)]">Body SM (13px) — Secondary text for descriptions and metadata.</p>
-            <p className="text-[11px] text-[var(--color-text-tertiary)]">Caption XS (11px) — Timestamps, counts, and fine print.</p>
+            <p className="text-2xl font-bold text-[var(--color-text-primary)]">
+              Heading 2XL (20px)
+            </p>
+            <p className="text-xl font-semibold text-[var(--color-text-primary)]">
+              Heading XL (18px)
+            </p>
+            <p className="text-lg font-semibold text-[var(--color-text-primary)]">
+              Heading LG (16px)
+            </p>
+            <p className="text-sm text-[var(--color-text-primary)]">
+              Body base (14px) — The quick brown fox jumps over the lazy dog.
+            </p>
+            <p className="text-[13px] text-[var(--color-text-secondary)]">
+              Body SM (13px) — Secondary text for descriptions and metadata.
+            </p>
+            <p className="text-[11px] text-[var(--color-text-tertiary)]">
+              Caption XS (11px) — Timestamps, counts, and fine print.
+            </p>
           </div>
         </Section>
 
         {/* shadows */}
         <Section title="Shadows">
           <Row label="Elevation levels">
-            <div className="h-16 w-24 border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-2 text-xs text-[var(--color-text-secondary)]" style={{ boxShadow: 'var(--shadow-sm)' }}>sm</div>
-            <div className="h-16 w-24 border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-2 text-xs text-[var(--color-text-secondary)]" style={{ boxShadow: 'var(--shadow-md)' }}>md</div>
-            <div className="h-16 w-24 border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-2 text-xs text-[var(--color-text-secondary)]" style={{ boxShadow: 'var(--shadow-lg)' }}>lg</div>
+            <div
+              className="h-16 w-24 border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-2 text-xs text-[var(--color-text-secondary)]"
+              style={{ boxShadow: 'var(--shadow-sm)' }}
+            >
+              sm
+            </div>
+            <div
+              className="h-16 w-24 border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-2 text-xs text-[var(--color-text-secondary)]"
+              style={{ boxShadow: 'var(--shadow-md)' }}
+            >
+              md
+            </div>
+            <div
+              className="h-16 w-24 border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-2 text-xs text-[var(--color-text-secondary)]"
+              style={{ boxShadow: 'var(--shadow-lg)' }}
+            >
+              lg
+            </div>
           </Row>
         </Section>
 
@@ -297,7 +367,8 @@ export function Playground() {
         </Section>
 
         <footer className="border-t border-[var(--color-border-default)] pt-4 text-xs text-[var(--color-text-tertiary)]">
-          mailrs design system &middot; Tokens auto-switch between light/dark via CSS custom properties
+          mailrs design system &middot; Tokens auto-switch between light/dark via CSS custom
+          properties
         </footer>
       </div>
     </div>

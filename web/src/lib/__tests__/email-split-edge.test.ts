@@ -81,13 +81,15 @@ describe('splitHtmlEmail edge cases', () => {
   })
 
   it('handles multiple gmail_signature elements (takes first)', () => {
-    const html = '<div><p>Body</p><div class="gmail_signature">Sig1</div><div class="gmail_signature">Sig2</div></div>'
+    const html =
+      '<div><p>Body</p><div class="gmail_signature">Sig1</div><div class="gmail_signature">Sig2</div></div>'
     const result = splitHtmlEmail(html)
     expect(result.signature).toContain('Sig1')
   })
 
   it('handles nested blockquotes in gmail_quote', () => {
-    const html = '<div><p>Reply</p><div class="gmail_quote"><blockquote><blockquote>Nested</blockquote></blockquote></div></div>'
+    const html =
+      '<div><p>Reply</p><div class="gmail_quote"><blockquote><blockquote>Nested</blockquote></blockquote></div></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Reply')
     expect(result.quoted).toContain('Nested')

@@ -42,7 +42,8 @@ function GroupDetail({
   }, [group.id])
 
   useEffect(() => {
-    load()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch
+    void load()
   }, [load])
 
   const handleTogglePermission = async (perm: string, checked: boolean) => {
@@ -79,9 +80,7 @@ function GroupDetail({
   const handleRemoveMember = async (address: string) => {
     if (!window.confirm(`Remove member "${address}" from this group?`)) return
     try {
-      await deleteJson(
-        `/admin/groups/${group.id}/members/${encodeURIComponent(address)}`,
-      )
+      await deleteJson(`/admin/groups/${group.id}/members/${encodeURIComponent(address)}`)
       toast.success(`Member "${address}" removed`)
       load()
       onChanged()
@@ -91,19 +90,13 @@ function GroupDetail({
   }
 
   if (!data) {
-    return (
-      <div className="px-4 py-3 text-sm text-[var(--color-text-tertiary)]">
-        Loading...
-      </div>
-    )
+    return <div className="px-4 py-3 text-sm text-[var(--color-text-tertiary)]">Loading...</div>
   }
 
   return (
     <div className="space-y-4 px-4 pb-4 pt-1">
       <div>
-        <h4 className="mb-2 text-xs font-medium text-[var(--color-text-secondary)]">
-          Permissions
-        </h4>
+        <h4 className="mb-2 text-xs font-medium text-[var(--color-text-secondary)]">Permissions</h4>
         <div className="flex flex-wrap gap-2">
           {allPermissions.map((perm) => (
             <label
@@ -127,9 +120,7 @@ function GroupDetail({
       </div>
 
       <div>
-        <h4 className="mb-2 text-xs font-medium text-[var(--color-text-secondary)]">
-          Members
-        </h4>
+        <h4 className="mb-2 text-xs font-medium text-[var(--color-text-secondary)]">Members</h4>
         <div className="mb-2 flex gap-2">
           <input
             value={newMember}
@@ -163,9 +154,7 @@ function GroupDetail({
             ))}
           </div>
         ) : (
-          <span className="text-xs text-[var(--color-text-tertiary)]">
-            No members
-          </span>
+          <span className="text-xs text-[var(--color-text-tertiary)]">No members</span>
         )}
       </div>
     </div>
@@ -213,9 +202,10 @@ export function AdminGroups() {
   }, [])
 
   useEffect(() => {
-    loadGroups()
-    loadDomains()
-    loadPermissions()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch
+    void loadGroups()
+    void loadDomains()
+    void loadPermissions()
   }, [loadGroups, loadDomains, loadPermissions])
 
   const handleAdd = async () => {
@@ -336,9 +326,7 @@ export function AdminGroups() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
-                      onClick={() =>
-                        setExpandedId(expandedId === group.id ? null : group.id)
-                      }
+                      onClick={() => setExpandedId(expandedId === group.id ? null : group.id)}
                       className="mr-3 text-xs text-[var(--color-brand-primary)] hover:opacity-80"
                     >
                       {expandedId === group.id ? 'Hide' : 'Manage'}
@@ -368,10 +356,7 @@ export function AdminGroups() {
             ))}
             {groups.length === 0 && (
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
-                >
+                <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
                   No groups configured
                 </td>
               </tr>
@@ -383,12 +368,20 @@ export function AdminGroups() {
       {deleteTarget !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg">
-            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">Delete this group? This cannot be undone.</p>
+            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
+              Delete this group? This cannot be undone.
+            </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleteTarget(null)} className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              >
                 Cancel
               </button>
-              <button onClick={() => handleDelete(deleteTarget)} className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90">
+              <button
+                onClick={() => handleDelete(deleteTarget)}
+                className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+              >
                 Delete
               </button>
             </div>

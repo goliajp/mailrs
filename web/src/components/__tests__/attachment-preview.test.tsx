@@ -36,7 +36,9 @@ describe('AttachmentPreview', () => {
   })
 
   it('renders file names', () => {
-    const attachments = [makeAttachment({ filename: 'report.pdf', content_type: 'application/pdf' })]
+    const attachments = [
+      makeAttachment({ filename: 'report.pdf', content_type: 'application/pdf' }),
+    ]
 
     render(<AttachmentPreview attachments={attachments} uid={1} />)
     expect(screen.getByText('report.pdf')).toBeDefined()
@@ -98,9 +100,7 @@ describe('AttachmentPreview', () => {
   })
 
   it('opens lightbox when image thumbnail is clicked', () => {
-    const attachments = [
-      makeAttachment({ filename: 'photo.jpg', content_type: 'image/jpeg' }),
-    ]
+    const attachments = [makeAttachment({ filename: 'photo.jpg', content_type: 'image/jpeg' })]
 
     render(<AttachmentPreview attachments={attachments} uid={1} />)
 
@@ -115,9 +115,7 @@ describe('AttachmentPreview', () => {
   })
 
   it('closes lightbox when close button is clicked', () => {
-    const attachments = [
-      makeAttachment({ filename: 'photo.jpg', content_type: 'image/jpeg' }),
-    ]
+    const attachments = [makeAttachment({ filename: 'photo.jpg', content_type: 'image/jpeg' })]
 
     render(<AttachmentPreview attachments={attachments} uid={1} />)
 

@@ -1,4 +1,12 @@
-import { Building2, Calendar, Car, ExternalLink, Plane, ShoppingBag, UtensilsCrossed } from 'lucide-react'
+import {
+  Building2,
+  Calendar,
+  Car,
+  ExternalLink,
+  Plane,
+  ShoppingBag,
+  UtensilsCrossed,
+} from 'lucide-react'
 import { Copyable } from '@/components/copy-button'
 import type { StructuredData } from '@/lib/types'
 
@@ -9,10 +17,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
   const actions = data.actions ?? []
 
   const hasContent =
-    reservations.length > 0 ||
-    orders.length > 0 ||
-    events.length > 0 ||
-    actions.length > 0
+    reservations.length > 0 || orders.length > 0 || events.length > 0 || actions.length > 0
 
   if (!hasContent) return null
 
@@ -47,7 +52,10 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
                 <p className="font-medium">
                   {r.departure_airport} → {r.arrival_airport}
                   {r.flight_number && (
-                    <> (<Copyable value={r.flight_number}>{r.flight_number}</Copyable>)</>
+                    <>
+                      {' '}
+                      (<Copyable value={r.flight_number}>{r.flight_number}</Copyable>)
+                    </>
                   )}
                 </p>
               )}
@@ -69,9 +77,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
           >
             <div className="flex items-center gap-2">
               <ShoppingBag className="h-4 w-4 text-[var(--color-status-success)]" />
-              <span className="text-xs font-medium text-[var(--color-text-secondary)]">
-                Order
-              </span>
+              <span className="text-xs font-medium text-[var(--color-text-secondary)]">Order</span>
               {o.order_number && (
                 <Copyable value={o.order_number}>
                   <span className="rounded bg-[var(--color-border-default)] px-1.5 py-0.5 text-[11px] font-mono text-[var(--color-text-secondary)]">
@@ -100,7 +106,8 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
             )}
             {o.total && (
               <p className="mt-1.5 select-text text-xs font-medium text-[var(--color-text-secondary)]">
-                Total: {o.currency && `${o.currency} `}{o.total}
+                Total: {o.currency && `${o.currency} `}
+                {o.total}
               </p>
             )}
           </div>
@@ -140,7 +147,10 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         ))}
 
         {actions.map((a, i) => (
-          <div key={`act-${i}`} className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4">
+          <div
+            key={`act-${i}`}
+            className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
+          >
             <div className="flex items-center gap-2">
               <ExternalLink className="h-4 w-4 text-[var(--color-brand-primary)]" />
               <span className="text-xs font-medium text-[var(--color-text-secondary)]">
@@ -148,8 +158,12 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
               </span>
             </div>
             {a.url && isSafeUrl(a.url) && (
-              <a href={a.url} target="_blank" rel="noopener noreferrer"
-                className="mt-1 inline-block text-xs text-[var(--color-brand-primary)] hover:underline">
+              <a
+                href={a.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-xs text-[var(--color-brand-primary)] hover:underline"
+              >
                 {a.name || 'Open'}
               </a>
             )}

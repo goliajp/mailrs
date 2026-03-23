@@ -1,5 +1,16 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Check, CheckCircle, Mail, MailCheck, Pin, Search, SlidersHorizontal, SquarePen, Star, X } from 'lucide-react'
+import {
+  Check,
+  CheckCircle,
+  Mail,
+  MailCheck,
+  Pin,
+  Search,
+  SlidersHorizontal,
+  SquarePen,
+  Star,
+  X,
+} from 'lucide-react'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -117,111 +128,125 @@ const ConversationItem = memo(function ConversationItem({
   }
 
   return (
-    <div role="listitem" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-    <button
-      onClick={handleClick}
-      onContextMenu={ctx.open}
-      aria-selected={selected && !batchMode}
-      aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
-      className={`relative flex w-full items-start gap-3 border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
-        selected && !batchMode
-          ? 'border-l-[var(--color-brand-primary)]'
-          : hasUnread
-            ? 'border-l-[var(--color-brand-primary)]'
-            : 'border-l-transparent'
-      } ${
-        !hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''
-      } ${
-        selected && !batchMode
-          ? 'bg-[var(--color-brand-subtle)]'
-          : checked
-            ? 'bg-[var(--color-brand-subtle)]'
-            : 'hover:bg-[var(--color-hover)]'
-      }`}
+    <div
+      role="listitem"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      {batchMode && (
-        <div className="mt-0.5 flex shrink-0 items-center">
-          <div
-            className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-colors ${
-              checked
-                ? 'border-[var(--color-brand-primary)] bg-[var(--color-brand-primary)]'
-                : 'border-[var(--color-border-default)] bg-[var(--color-bg-base)]'
-            }`}
-          >
-            {checked && (
-              <Check className="h-3 w-3 text-white" />
-            )}
+      <button
+        onClick={handleClick}
+        onContextMenu={ctx.open}
+        aria-selected={selected && !batchMode}
+        aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
+        className={`relative flex w-full items-start gap-3 border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
+          selected && !batchMode
+            ? 'border-l-[var(--color-brand-primary)]'
+            : hasUnread
+              ? 'border-l-[var(--color-brand-primary)]'
+              : 'border-l-transparent'
+        } ${!hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''} ${
+          selected && !batchMode
+            ? 'bg-[var(--color-brand-subtle)]'
+            : checked
+              ? 'bg-[var(--color-brand-subtle)]'
+              : 'hover:bg-[var(--color-hover)]'
+        }`}
+      >
+        {batchMode && (
+          <div className="mt-0.5 flex shrink-0 items-center">
+            <div
+              className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-colors ${
+                checked
+                  ? 'border-[var(--color-brand-primary)] bg-[var(--color-brand-primary)]'
+                  : 'border-[var(--color-border-default)] bg-[var(--color-bg-base)]'
+              }`}
+            >
+              {checked && <Check className="h-3 w-3 text-white" />}
+            </div>
           </div>
-        </div>
-      )}
-      <SenderAvatar sender={firstParticipant} size={36} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span
-            className={`truncate text-sm ${isOwn ? 'text-[var(--color-brand-primary)]' : ''} ${hasUnread ? 'font-semibold text-[var(--color-text-primary)]' : isOwn ? '' : 'text-[var(--color-text-secondary)]'}`}
-          >
-            {name}
-            {convo.participants.length > 1 && (
-              <span className="text-[var(--color-text-tertiary)]">
-                {' '}
-                +{convo.participants.length - 1}
-              </span>
-            )}
-          </span>
-          <div className="flex shrink-0 items-center gap-1.5">
-            {convo.message_count > 1 && (
-              <span className="rounded bg-[var(--color-bg-sunken)] px-1 py-px text-[10px] tabular-nums text-[var(--color-text-tertiary)]">
-                {convo.message_count}
-              </span>
-            )}
-            {isPinned && (
-              <Pin className="h-3 w-3 text-[var(--color-brand-primary)]" />
-            )}
-            {hovered && !batchMode ? (
-              <span className="flex items-center gap-0.5">
-                <button onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive') }}
-                  className="rounded p-0.5 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]" title={isArchived ? 'Unarchive' : 'Archive'}>
-                  <Mail className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={(e) => { e.stopPropagation(); onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star') }}
-                  className={`rounded p-0.5 hover:bg-[var(--color-hover)] ${isFlagged ? 'text-[var(--color-status-warning)]' : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'}`} title={isFlagged ? 'Unstar' : 'Star'}>
-                  <Star className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
-                </button>
-              </span>
-            ) : (
-              <span className="text-xs text-[var(--color-text-tertiary)]" title={formatFullDate(convo.last_date)}>
-                {formatDate(convo.last_date)}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <p
-            className={`min-w-0 flex-1 truncate text-sm ${hasUnread ? 'font-medium text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'}`}
-          >
-            {convo.subject || '(no subject)'}
-          </p>
-          {isFlagged && (
-            <Star className="h-3.5 w-3.5 shrink-0 text-[var(--color-status-warning)]" fill="currentColor" />
-          )}
-          <ImportanceBadge level={convo.importance_level} />
-          {convo.category && convo.category !== 'general' && (
-            <CategoryBadge category={convo.category} />
-          )}
-          {hasUnread && (
-            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-1.5 text-xs font-medium text-white">
-              {convo.unread_count}
-            </span>
-          )}
-        </div>
-        {convo.snippet && (
-          <p className="truncate text-xs text-[var(--color-text-tertiary)]">
-            {convo.snippet}
-          </p>
         )}
-      </div>
-    </button>
-    <ContextMenu position={ctx.position} items={contextItems} onClose={ctx.close} />
+        <SenderAvatar sender={firstParticipant} size={36} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span
+              className={`truncate text-sm ${isOwn ? 'text-[var(--color-brand-primary)]' : ''} ${hasUnread ? 'font-semibold text-[var(--color-text-primary)]' : isOwn ? '' : 'text-[var(--color-text-secondary)]'}`}
+            >
+              {name}
+              {convo.participants.length > 1 && (
+                <span className="text-[var(--color-text-tertiary)]">
+                  {' '}
+                  +{convo.participants.length - 1}
+                </span>
+              )}
+            </span>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {convo.message_count > 1 && (
+                <span className="rounded bg-[var(--color-bg-sunken)] px-1 py-px text-[10px] tabular-nums text-[var(--color-text-tertiary)]">
+                  {convo.message_count}
+                </span>
+              )}
+              {isPinned && <Pin className="h-3 w-3 text-[var(--color-brand-primary)]" />}
+              {hovered && !batchMode ? (
+                <span className="flex items-center gap-0.5">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive')
+                    }}
+                    className="rounded p-0.5 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
+                    title={isArchived ? 'Unarchive' : 'Archive'}
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star')
+                    }}
+                    className={`rounded p-0.5 hover:bg-[var(--color-hover)] ${isFlagged ? 'text-[var(--color-status-warning)]' : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'}`}
+                    title={isFlagged ? 'Unstar' : 'Star'}
+                  >
+                    <Star className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
+                  </button>
+                </span>
+              ) : (
+                <span
+                  className="text-xs text-[var(--color-text-tertiary)]"
+                  title={formatFullDate(convo.last_date)}
+                >
+                  {formatDate(convo.last_date)}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <p
+              className={`min-w-0 flex-1 truncate text-sm ${hasUnread ? 'font-medium text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'}`}
+            >
+              {convo.subject || '(no subject)'}
+            </p>
+            {isFlagged && (
+              <Star
+                className="h-3.5 w-3.5 shrink-0 text-[var(--color-status-warning)]"
+                fill="currentColor"
+              />
+            )}
+            <ImportanceBadge level={convo.importance_level} />
+            {convo.category && convo.category !== 'general' && (
+              <CategoryBadge category={convo.category} />
+            )}
+            {hasUnread && (
+              <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-1.5 text-xs font-medium text-white">
+                {convo.unread_count}
+              </span>
+            )}
+          </div>
+          {convo.snippet && (
+            <p className="truncate text-xs text-[var(--color-text-tertiary)]">{convo.snippet}</p>
+          )}
+        </div>
+      </button>
+      <ContextMenu position={ctx.position} items={contextItems} onClose={ctx.close} />
     </div>
   )
 })
@@ -252,12 +277,13 @@ function FilterBar() {
 
   // fetch categories
   useEffect(() => {
-    const domainsParam = selectedDomainsVal.length > 0
-      ? `?domains=${encodeURIComponent(selectedDomainsVal.join(','))}`
-      : ''
+    const domainsParam =
+      selectedDomainsVal.length > 0
+        ? `?domains=${encodeURIComponent(selectedDomainsVal.join(','))}`
+        : ''
     fetchJson<CategoryCount[]>(`/conversations/categories${domainsParam}`).then(
       (data) => setCategories(data),
-      () => {}
+      () => {},
     )
   }, [selectedDomainsVal])
 
@@ -274,11 +300,16 @@ function FilterBar() {
   }, [filtersOpen])
 
   // compute active tab from folder + quickFilter + importanceSection + category
-  const activeTab = activeCategory === 'spam' || activeCategory === 'scam' ? 'spam'
-    : folder === 'Sent' ? 'sent'
-    : section === 'action' ? 'action'
-    : quickFilter !== 'all' ? quickFilter
-    : 'all'
+  const activeTab =
+    activeCategory === 'spam' || activeCategory === 'scam'
+      ? 'spam'
+      : folder === 'Sent'
+        ? 'sent'
+        : section === 'action'
+          ? 'action'
+          : quickFilter !== 'all'
+            ? quickFilter
+            : 'all'
 
   const handleTab = (tab: string) => {
     if (tab === 'spam') {
@@ -317,36 +348,53 @@ function FilterBar() {
   // action count for badge
   const [actionCount, setActionCount] = useState(0)
   useEffect(() => {
-    const doms = selectedDomainsVal.length > 0 ? `?domains=${encodeURIComponent(selectedDomainsVal.join(','))}` : ''
+    const doms =
+      selectedDomainsVal.length > 0
+        ? `?domains=${encodeURIComponent(selectedDomainsVal.join(','))}`
+        : ''
     fetchJson<{ count: number }>(`/conversations/action-count${doms}`).then(
       (d) => setActionCount(d.count),
-      () => {}
+      () => {},
     )
   }, [selectedDomainsVal, conversations])
 
   // whether any advanced filters are active
-  const hasAdvancedFilters = sortOrder !== 'newest' || showArchived || (activeCategory !== null && activeCategory !== 'spam' && activeCategory !== 'scam') || selectedDomains.length > 0 || section === 'important' || section === 'other'
+  const hasAdvancedFilters =
+    sortOrder !== 'newest' ||
+    showArchived ||
+    (activeCategory !== null && activeCategory !== 'spam' && activeCategory !== 'scam') ||
+    selectedDomains.length > 0 ||
+    section === 'important' ||
+    section === 'other'
 
   return (
     <div className="flex items-center gap-1 border-b border-[var(--color-border-default)] px-3 py-1.5">
       {/* main tabs */}
       {VIEW_TABS.map((t) => {
         const isActive = activeTab === t.value
-        const base = 'shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
-        const color = t.value === 'spam'
-          ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
-          : t.value === 'action'
-          ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
-          : t.value === 'starred'
-            ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
-            : t.value === 'sent'
-              ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
-              : t.value === 'unread'
-                ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
-                : 'bg-[var(--color-border-default)] text-[var(--color-text-secondary)]'
-        const ring = isActive ? 'ring-2 ring-offset-1 ring-[var(--color-border-default)] ring-offset-[var(--color-bg-base)]' : ''
+        const base =
+          'shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
+        const color =
+          t.value === 'spam'
+            ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+            : t.value === 'action'
+              ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+              : t.value === 'starred'
+                ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
+                : t.value === 'sent'
+                  ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+                  : t.value === 'unread'
+                    ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
+                    : 'bg-[var(--color-border-default)] text-[var(--color-text-secondary)]'
+        const ring = isActive
+          ? 'ring-2 ring-offset-1 ring-[var(--color-border-default)] ring-offset-[var(--color-bg-base)]'
+          : ''
         return (
-          <button key={t.value} onClick={() => handleTab(t.value)} className={`${base} ${color} ${ring}`}>
+          <button
+            key={t.value}
+            onClick={() => handleTab(t.value)}
+            className={`${base} ${color} ${ring}`}
+          >
             {t.label}
             {t.value === 'action' && actionCount > 0 && (
               <span className="ml-1 opacity-70">{actionCount}</span>
@@ -375,12 +423,12 @@ function FilterBar() {
 
         {/* filter dropdown panel */}
         {filtersOpen && (
-          <div
-            className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3 text-xs shadow-lg"
-          >
+          <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3 text-xs shadow-lg">
             {/* sort */}
             <div className="mb-3">
-              <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">Sort</label>
+              <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">
+                Sort
+              </label>
               <div className="flex gap-1">
                 {(['newest', 'oldest', 'unread'] as SortOrder[]).map((s) => (
                   <button
@@ -400,7 +448,9 @@ function FilterBar() {
 
             {/* view: active / archived */}
             <div className="mb-3">
-              <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">View</label>
+              <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">
+                View
+              </label>
               <div className="flex gap-1">
                 <button
                   onClick={() => setShowArchived(false)}
@@ -427,7 +477,9 @@ function FilterBar() {
 
             {/* priority */}
             <div className="mb-3">
-              <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">Priority</label>
+              <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">
+                Priority
+              </label>
               <div className="flex flex-wrap gap-1">
                 {([null, 'important', 'other'] as ImportanceSection[]).map((s) => (
                   <button
@@ -448,7 +500,9 @@ function FilterBar() {
             {/* categories */}
             {categories.length > 0 && (
               <div className="mb-3">
-                <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">Category</label>
+                <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">
+                  Category
+                </label>
                 <div className="flex flex-wrap gap-1">
                   <button
                     onClick={() => setActiveCategory(null)}
@@ -463,7 +517,9 @@ function FilterBar() {
                   {categories.map((cat) => (
                     <button
                       key={cat.category}
-                      onClick={() => setActiveCategory(activeCategory === cat.category ? null : cat.category)}
+                      onClick={() =>
+                        setActiveCategory(activeCategory === cat.category ? null : cat.category)
+                      }
                       className={`rounded-md px-2 py-0.5 capitalize transition-colors ${
                         activeCategory === cat.category
                           ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
@@ -505,7 +561,9 @@ const dateLabel = dateGroupLabel
 function DateDivider({ label }: { label: string }) {
   return (
     <div className="sticky top-0 z-10 flex select-none justify-center py-1.5">
-      <span className="rounded-full bg-[var(--color-bg-sunken)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--color-text-tertiary)]">{label}</span>
+      <span className="rounded-full bg-[var(--color-bg-sunken)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--color-text-tertiary)]">
+        {label}
+      </span>
     </div>
   )
 }
@@ -528,7 +586,6 @@ function ConversationSkeleton() {
     </div>
   )
 }
-
 
 // floating action bar at bottom of list during batch mode
 function BatchActionBar({
@@ -600,7 +657,13 @@ function BatchActionBar({
   )
 }
 
-export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadMore: () => void; onSelectConversation?: () => void }) {
+export function ConversationList({
+  onLoadMore,
+  onSelectConversation,
+}: {
+  onLoadMore: () => void
+  onSelectConversation?: () => void
+}) {
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
   const [conversations, setConversations] = useAtom(conversationsAtom)
@@ -645,7 +708,7 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
       {
         root: scrollContainerRef.current,
         rootMargin: '300px',
-      }
+      },
     )
     observer.observe(node)
     observerRef.current = observer
@@ -665,91 +728,112 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
   }, [setBatchMode, setSelectedThreadIds])
 
   // toggle individual thread in selection set
-  const toggleThreadCheck = useCallback((threadId: string) => {
-    setSelectedThreadIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(threadId)) {
-        next.delete(threadId)
-      } else {
-        next.add(threadId)
-      }
-      return next
-    })
-  }, [setSelectedThreadIds])
+  const toggleThreadCheck = useCallback(
+    (threadId: string) => {
+      setSelectedThreadIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(threadId)) {
+          next.delete(threadId)
+        } else {
+          next.add(threadId)
+        }
+        return next
+      })
+    },
+    [setSelectedThreadIds],
+  )
 
   // execute batch action against API then refresh
-  const handleBatchAction = useCallback(async (action: BatchAction) => {
-    const ids = Array.from(selectedThreadIds)
-    if (ids.length === 0) return
+  const handleBatchAction = useCallback(
+    async (action: BatchAction) => {
+      const ids = Array.from(selectedThreadIds)
+      if (ids.length === 0) return
 
-    setBatchLoading(true)
-    try {
-      const result = await postJson<BatchResult>('/conversations/batch', {
-        thread_ids: ids,
-        action,
-      })
-      const msg = result.message ?? (result.success ? 'Done' : 'Some operations failed')
-      if (result.success) {
-        toast.success(msg)
-      } else {
-        toast.error(msg)
+      setBatchLoading(true)
+      try {
+        const result = await postJson<BatchResult>('/conversations/batch', {
+          thread_ids: ids,
+          action,
+        })
+        const msg = result.message ?? (result.success ? 'Done' : 'Some operations failed')
+        if (result.success) {
+          toast.success(msg)
+        } else {
+          toast.error(msg)
+        }
+        exitBatchMode()
+        // trigger list refresh
+        onLoadMoreRef.current()
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Batch operation failed')
+      } finally {
+        setBatchLoading(false)
       }
-      exitBatchMode()
-      // trigger list refresh
-      onLoadMoreRef.current()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Batch operation failed')
-    } finally {
-      setBatchLoading(false)
-    }
-  }, [selectedThreadIds, exitBatchMode])
+    },
+    [selectedThreadIds, exitBatchMode],
+  )
 
   // single-thread context menu action with optimistic updates
-  const handleContextAction = useCallback(async (threadId: string, action: SingleAction) => {
-    // save snapshot for rollback
-    const snapshot = conversations
+  const handleContextAction = useCallback(
+    async (threadId: string, action: SingleAction) => {
+      // save snapshot for rollback
+      const snapshot = conversations
 
-    // optimistic update for all actions
-    const optimistic: Record<string, (c: ConversationSummary) => ConversationSummary> = {
-      pin: (c) => ({ ...c, pinned: true }),
-      unpin: (c) => ({ ...c, pinned: false }),
-      archive: (c) => ({ ...c, archived: true }),
-      unarchive: (c) => ({ ...c, archived: false }),
-      star: (c) => ({ ...c, flagged: true }),
-      unstar: (c) => ({ ...c, flagged: false }),
-      read: (c) => ({ ...c, unread_count: 0 }),
-      unread: (c) => ({ ...c, unread_count: Math.max(1, c.unread_count) }),
-    }
-    if (optimistic[action]) {
-      setConversations((prev) => prev.map((c) => c.thread_id === threadId ? optimistic[action](c) : c))
-    }
-
-    try {
-      if (action === 'snooze') {
-        const tomorrow = new Date()
-        tomorrow.setDate(tomorrow.getDate() + 1)
-        tomorrow.setHours(9, 0, 0, 0)
-        await snoozeConversation(threadId, tomorrow.toISOString())
-        setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
-        toast.success('Snoozed until tomorrow 9:00')
-      } else if (action === 'delete') {
-        await postJson<BatchResult>('/conversations/batch', { thread_ids: [threadId], action })
-        setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
-        toast.success('Deleted')
-      } else if (action === 'pin' || action === 'unpin' || action === 'archive' || action === 'unarchive') {
-        await postJson<ApiResult>(`/conversations/${encodeURIComponent(threadId)}/${action}`, {})
-        const labels: Record<string, string> = { pin: 'Pinned', unpin: 'Unpinned', archive: 'Archived', unarchive: 'Unarchived' }
-        toast.success(labels[action] ?? 'Updated')
-      } else {
-        await postJson<BatchResult>('/conversations/batch', { thread_ids: [threadId], action })
-        toast.success('Updated')
+      // optimistic update for all actions
+      const optimistic: Record<string, (c: ConversationSummary) => ConversationSummary> = {
+        pin: (c) => ({ ...c, pinned: true }),
+        unpin: (c) => ({ ...c, pinned: false }),
+        archive: (c) => ({ ...c, archived: true }),
+        unarchive: (c) => ({ ...c, archived: false }),
+        star: (c) => ({ ...c, flagged: true }),
+        unstar: (c) => ({ ...c, flagged: false }),
+        read: (c) => ({ ...c, unread_count: 0 }),
+        unread: (c) => ({ ...c, unread_count: Math.max(1, c.unread_count) }),
       }
-    } catch (err) {
-      // rollback to snapshot on failure
-      setConversations(snapshot)
-      toast.error(err instanceof Error ? err.message : 'Action failed')
-    }
-  }, [conversations, setConversations])
+      if (optimistic[action]) {
+        setConversations((prev) =>
+          prev.map((c) => (c.thread_id === threadId ? optimistic[action](c) : c)),
+        )
+      }
+
+      try {
+        if (action === 'snooze') {
+          const tomorrow = new Date()
+          tomorrow.setDate(tomorrow.getDate() + 1)
+          tomorrow.setHours(9, 0, 0, 0)
+          await snoozeConversation(threadId, tomorrow.toISOString())
+          setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
+          toast.success('Snoozed until tomorrow 9:00')
+        } else if (action === 'delete') {
+          await postJson<BatchResult>('/conversations/batch', { thread_ids: [threadId], action })
+          setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
+          toast.success('Deleted')
+        } else if (
+          action === 'pin' ||
+          action === 'unpin' ||
+          action === 'archive' ||
+          action === 'unarchive'
+        ) {
+          await postJson<ApiResult>(`/conversations/${encodeURIComponent(threadId)}/${action}`, {})
+          const labels: Record<string, string> = {
+            pin: 'Pinned',
+            unpin: 'Unpinned',
+            archive: 'Archived',
+            unarchive: 'Unarchived',
+          }
+          toast.success(labels[action] ?? 'Updated')
+        } else {
+          await postJson<BatchResult>('/conversations/batch', { thread_ids: [threadId], action })
+          toast.success('Updated')
+        }
+      } catch (err) {
+        // rollback to snapshot on failure
+        setConversations(snapshot)
+        toast.error(err instanceof Error ? err.message : 'Action failed')
+      }
+    },
+    [conversations, setConversations],
+  )
 
   const sortOrder = useAtomValue(sortOrderAtom)
   const showArchived = useAtomValue(showArchivedAtom)
@@ -782,11 +866,11 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
       visible = visible.filter((c) => c.requires_action)
     } else if (importanceSection === 'important') {
       visible = visible.filter(
-        (c) => c.importance_level === 'critical' || c.importance_level === 'important'
+        (c) => c.importance_level === 'critical' || c.importance_level === 'important',
       )
     } else if (importanceSection === 'other') {
       visible = visible.filter(
-        (c) => c.importance_level === 'low' || c.importance_level === 'noise'
+        (c) => c.importance_level === 'low' || c.importance_level === 'noise',
       )
     }
 
@@ -808,11 +892,14 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
   }, [sortedConversations, setVisibleIds])
 
   // stable callbacks that accept threadId to avoid inline closures in the map
-  const handleSelect = useCallback((threadId: string) => {
-    setSelectedId(threadId)
-    setComposingNew(false)
-    onSelectConversation?.()
-  }, [setSelectedId, setComposingNew, onSelectConversation])
+  const handleSelect = useCallback(
+    (threadId: string) => {
+      setSelectedId(threadId)
+      setComposingNew(false)
+      onSelectConversation?.()
+    },
+    [setSelectedId, setComposingNew, onSelectConversation],
+  )
 
   const isSearching = searchQuery.trim().length > 0
   const hasBatchBar = batchMode && selectedThreadIds.size > 0
@@ -821,7 +908,10 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
     <div className="relative flex h-full select-none flex-col">
       <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] px-3 py-2">
         <div role="search" className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]" aria-hidden="true" />
+          <Search
+            className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]"
+            aria-hidden="true"
+          />
           <input
             type="text"
             value={searchQuery}
@@ -867,13 +957,17 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
         {conversations.some((c) => c.unread_count > 0) && (
           <button
             onClick={async () => {
-              const unreadIds = conversations.filter((c) => c.unread_count > 0).map((c) => c.thread_id)
+              const unreadIds = conversations
+                .filter((c) => c.unread_count > 0)
+                .map((c) => c.thread_id)
               if (unreadIds.length === 0) return
               try {
                 await postJson('/conversations/batch', { thread_ids: unreadIds, action: 'read' })
                 setConversations((prev) => prev.map((c) => ({ ...c, unread_count: 0 })))
                 toast.success(`Marked ${unreadIds.length} as read`)
-              } catch { toast.error('Failed') }
+              } catch {
+                toast.error('Failed')
+              }
             }}
             aria-label="Mark all as read"
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-all duration-150 hover:bg-[var(--color-hover)]"
@@ -908,18 +1002,25 @@ export function ConversationList({ onLoadMore, onSelectConversation }: { onLoadM
           <ConversationSkeleton />
         ) : conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-center text-[var(--color-text-tertiary)]">
-            <Mail className="mb-3 h-10 w-10 text-[var(--color-text-tertiary)]" strokeWidth={1} aria-hidden="true" />
+            <Mail
+              className="mb-3 h-10 w-10 text-[var(--color-text-tertiary)]"
+              strokeWidth={1}
+              aria-hidden="true"
+            />
             <p className="text-sm font-medium">
-              {isSearching ? 'No results found'
-                : folder === 'Sent' ? 'No sent messages'
-                : folder === 'Drafts' ? 'No drafts'
-                : folder === 'Trash' ? 'Trash is empty'
-                : showArchived ? 'No archived conversations'
-                : 'All caught up!'}
+              {isSearching
+                ? 'No results found'
+                : folder === 'Sent'
+                  ? 'No sent messages'
+                  : folder === 'Drafts'
+                    ? 'No drafts'
+                    : folder === 'Trash'
+                      ? 'Trash is empty'
+                      : showArchived
+                        ? 'No archived conversations'
+                        : 'All caught up!'}
             </p>
-            <p className="mt-1 text-xs">
-              {isSearching ? 'Try a different search term' : ''}
-            </p>
+            <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : ''}</p>
           </div>
         ) : (
           (() => {

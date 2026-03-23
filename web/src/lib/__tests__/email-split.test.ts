@@ -28,18 +28,18 @@ describe('splitTextEmail', () => {
   })
 
   it('extracts quoted text with "On ... wrote:" attribution', () => {
-    const text = 'Thanks!\n\nOn Mon, Jan 1, 2024 at 10:00 AM Alice <alice@example.com> wrote:\n> Original message\n> continues here'
+    const text =
+      'Thanks!\n\nOn Mon, Jan 1, 2024 at 10:00 AM Alice <alice@example.com> wrote:\n> Original message\n> continues here'
     const result = splitTextEmail(text)
     expect(result.body).toBe('Thanks!')
     expect(result.signature).toBeNull()
     expect(result.quoted).toBe(
-      'On Mon, Jan 1, 2024 at 10:00 AM Alice <alice@example.com> wrote:\n> Original message\n> continues here'
+      'On Mon, Jan 1, 2024 at 10:00 AM Alice <alice@example.com> wrote:\n> Original message\n> continues here',
     )
   })
 
   it('extracts both signature and quoted text', () => {
-    const text =
-      'Reply body\n\n-- \nSig line\n\nOn Tue, Feb 2 wrote:\n> quoted line'
+    const text = 'Reply body\n\n-- \nSig line\n\nOn Tue, Feb 2 wrote:\n> quoted line'
     const result = splitTextEmail(text)
     expect(result.body).toBe('Reply body')
     expect(result.signature).toBe('Sig line')
@@ -47,14 +47,11 @@ describe('splitTextEmail', () => {
   })
 
   it('does not treat "-- " inside quoted text as signature', () => {
-    const text =
-      'My reply\n\nOn Mon wrote:\n> some text\n> -- \n> Their sig'
+    const text = 'My reply\n\nOn Mon wrote:\n> some text\n> -- \n> Their sig'
     const result = splitTextEmail(text)
     expect(result.body).toBe('My reply')
     expect(result.signature).toBeNull()
-    expect(result.quoted).toBe(
-      'On Mon wrote:\n> some text\n> -- \n> Their sig'
-    )
+    expect(result.quoted).toBe('On Mon wrote:\n> some text\n> -- \n> Their sig')
   })
 
   it('handles Outlook "-------- Original Message --------"', () => {
@@ -64,18 +61,15 @@ describe('splitTextEmail', () => {
     expect(result.body).toBe('My reply')
     expect(result.signature).toBeNull()
     expect(result.quoted).toBe(
-      '-------- Original Message --------\nSubject: Test\nFrom: bob@example.com\n\nOriginal body'
+      '-------- Original Message --------\nSubject: Test\nFrom: bob@example.com\n\nOriginal body',
     )
   })
 
   it('handles multi-level quoting', () => {
-    const text =
-      'My reply\n\nOn Mon wrote:\n> First level\n>> Second level\n>>> Third level'
+    const text = 'My reply\n\nOn Mon wrote:\n> First level\n>> Second level\n>>> Third level'
     const result = splitTextEmail(text)
     expect(result.body).toBe('My reply')
-    expect(result.quoted).toBe(
-      'On Mon wrote:\n> First level\n>> Second level\n>>> Third level'
-    )
+    expect(result.quoted).toBe('On Mon wrote:\n> First level\n>> Second level\n>>> Third level')
   })
 
   it('handles "wrote:" on same line without "On" prefix', () => {
@@ -103,8 +97,7 @@ describe('splitHtmlEmail', () => {
   })
 
   it('extracts Gmail signature (.gmail_signature)', () => {
-    const html =
-      '<div><p>Body text</p><div class="gmail_signature">-- <br>John</div></div>'
+    const html = '<div><p>Body text</p><div class="gmail_signature">-- <br>John</div></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Body text')
     expect(result.body).not.toContain('gmail_signature')
@@ -139,24 +132,21 @@ describe('splitHtmlEmail', () => {
   })
 
   it('extracts Apple Mail blockquote[type="cite"]', () => {
-    const html =
-      '<div><p>My reply</p><blockquote type="cite"><p>Quoted text</p></blockquote></div>'
+    const html = '<div><p>My reply</p><blockquote type="cite"><p>Quoted text</p></blockquote></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('My reply')
     expect(result.quoted).toContain('Quoted text')
   })
 
   it('extracts trailing blockquote as quoted text', () => {
-    const html =
-      '<div><p>Reply</p><blockquote><p>Quoted at end</p></blockquote></div>'
+    const html = '<div><p>Reply</p><blockquote><p>Quoted at end</p></blockquote></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Reply')
     expect(result.quoted).toContain('Quoted at end')
   })
 
   it('does not extract blockquote in middle of content', () => {
-    const html =
-      '<div><p>Before</p><blockquote><p>Middle quote</p></blockquote><p>After</p></div>'
+    const html = '<div><p>Before</p><blockquote><p>Middle quote</p></blockquote><p>After</p></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Before')
     expect(result.body).toContain('Middle quote')
@@ -165,24 +155,21 @@ describe('splitHtmlEmail', () => {
   })
 
   it('extracts #Signature', () => {
-    const html =
-      '<div><p>Body</p><div id="Signature"><p>My Sig</p></div></div>'
+    const html = '<div><p>Body</p><div id="Signature"><p>My Sig</p></div></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Body')
     expect(result.signature).toContain('My Sig')
   })
 
   it('extracts #appendonsend and following siblings', () => {
-    const html =
-      '<div><p>Reply</p><div id="appendonsend"></div><div>Forwarded content</div></div>'
+    const html = '<div><p>Reply</p><div id="appendonsend"></div><div>Forwarded content</div></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Reply')
     expect(result.quoted).toContain('Forwarded content')
   })
 
   it('extracts Yahoo quote (.yahoo_quoted)', () => {
-    const html =
-      '<div><p>Reply</p><div class="yahoo_quoted">Quoted</div></div>'
+    const html = '<div><p>Reply</p><div class="yahoo_quoted">Quoted</div></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Reply')
     expect(result.quoted).toContain('Quoted')
@@ -193,7 +180,7 @@ describe('splitEmail', () => {
   it('prefers HTML when both are available', () => {
     const result = splitEmail(
       'plain text',
-      '<div><p>HTML body</p><div class="gmail_quote">Quoted</div></div>'
+      '<div><p>HTML body</p><div class="gmail_quote">Quoted</div></div>',
     )
     expect(result.isHtml).toBe(true)
     expect(result.parts.body).toContain('HTML body')

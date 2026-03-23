@@ -13,21 +13,13 @@ type EmailGroupInfo = {
   created_at: string
 }
 
-function EmailGroupMembers({
-  group,
-  onChanged,
-}: {
-  group: EmailGroupInfo
-  onChanged: () => void
-}) {
+function EmailGroupMembers({ group, onChanged }: { group: EmailGroupInfo; onChanged: () => void }) {
   const [members, setMembers] = useState<string[] | null>(null)
   const [newMember, setNewMember] = useState('')
 
   const load = useCallback(async () => {
     try {
-      const data = await fetchJson<string[]>(
-        `/admin/email-groups/${group.id}/members`,
-      )
+      const data = await fetchJson<string[]>(`/admin/email-groups/${group.id}/members`)
       setMembers(data)
     } catch {
       // keep current state
@@ -35,7 +27,8 @@ function EmailGroupMembers({
   }, [group.id])
 
   useEffect(() => {
-    load()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch
+    void load()
   }, [load])
 
   const handleAddMember = async () => {
@@ -56,9 +49,7 @@ function EmailGroupMembers({
   const handleRemoveMember = async (address: string) => {
     if (!window.confirm(`Remove member "${address}" from this email group?`)) return
     try {
-      await deleteJson(
-        `/admin/email-groups/${group.id}/members/${encodeURIComponent(address)}`,
-      )
+      await deleteJson(`/admin/email-groups/${group.id}/members/${encodeURIComponent(address)}`)
       toast.success(`Member "${address}" removed`)
       load()
       onChanged()
@@ -68,19 +59,13 @@ function EmailGroupMembers({
   }
 
   if (!members) {
-    return (
-      <div className="px-4 py-3 text-sm text-[var(--color-text-tertiary)]">
-        Loading...
-      </div>
-    )
+    return <div className="px-4 py-3 text-sm text-[var(--color-text-tertiary)]">Loading...</div>
   }
 
   return (
     <div className="space-y-4 px-4 pb-4 pt-1">
       <div>
-        <h4 className="mb-2 text-xs font-medium text-[var(--color-text-secondary)]">
-          Members
-        </h4>
+        <h4 className="mb-2 text-xs font-medium text-[var(--color-text-secondary)]">Members</h4>
         <div className="mb-2 flex gap-2">
           <input
             value={newMember}
@@ -114,9 +99,7 @@ function EmailGroupMembers({
             ))}
           </div>
         ) : (
-          <span className="text-xs text-[var(--color-text-tertiary)]">
-            No members
-          </span>
+          <span className="text-xs text-[var(--color-text-tertiary)]">No members</span>
         )}
       </div>
     </div>
@@ -155,8 +138,9 @@ export function AdminEmailGroups() {
   }, [])
 
   useEffect(() => {
-    loadGroups()
-    loadDomains()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch
+    void loadGroups()
+    void loadDomains()
   }, [loadGroups, loadDomains])
 
   const handleAdd = async () => {
@@ -271,20 +255,14 @@ export function AdminEmailGroups() {
               <Fragment key={group.id}>
                 <tr className="border-b border-[var(--color-border-default)] last:border-0">
                   <td className="px-4 py-3 font-medium">{group.address}</td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                    {group.domain}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                    {group.name}
-                  </td>
+                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">{group.domain}</td>
+                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">{group.name}</td>
                   <td className="px-4 py-3 text-[var(--color-text-secondary)]">
                     {group.description}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
-                      onClick={() =>
-                        setExpandedId(expandedId === group.id ? null : group.id)
-                      }
+                      onClick={() => setExpandedId(expandedId === group.id ? null : group.id)}
                       className="mr-3 text-xs text-[var(--color-brand-primary)] hover:opacity-80"
                     >
                       {expandedId === group.id ? 'Hide' : 'Members'}
@@ -300,10 +278,7 @@ export function AdminEmailGroups() {
                 {expandedId === group.id && (
                   <tr>
                     <td colSpan={5}>
-                      <EmailGroupMembers
-                        group={group}
-                        onChanged={loadGroups}
-                      />
+                      <EmailGroupMembers group={group} onChanged={loadGroups} />
                     </td>
                   </tr>
                 )}
@@ -311,10 +286,7 @@ export function AdminEmailGroups() {
             ))}
             {groups.length === 0 && (
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
-                >
+                <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
                   No email groups configured
                 </td>
               </tr>
@@ -326,12 +298,20 @@ export function AdminEmailGroups() {
       {deleteTarget !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg">
-            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">Delete this email group? This cannot be undone.</p>
+            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
+              Delete this email group? This cannot be undone.
+            </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleteTarget(null)} className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              >
                 Cancel
               </button>
-              <button onClick={() => handleDelete(deleteTarget)} className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90">
+              <button
+                onClick={() => handleDelete(deleteTarget)}
+                className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+              >
                 Delete
               </button>
             </div>

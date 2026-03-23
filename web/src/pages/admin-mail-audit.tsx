@@ -112,9 +112,7 @@ function MessageView({ msg, targetUser }: { msg: AuditMessage; targetUser: strin
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{msg.sender}</p>
-          <p className="truncate text-xs text-[var(--color-text-tertiary)]">
-            To: {msg.recipients}
-          </p>
+          <p className="truncate text-xs text-[var(--color-text-tertiary)]">To: {msg.recipients}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="text-xs text-[var(--color-text-tertiary)]">
@@ -190,7 +188,7 @@ export function AdminMailAudit() {
     setMessages([])
     try {
       const data = await fetchJson<AuditConversation[]>(
-        `/admin/audit/conversations?target_user=${encodeURIComponent(address)}&limit=50`
+        `/admin/audit/conversations?target_user=${encodeURIComponent(address)}&limit=50`,
       )
       setConversations(Array.isArray(data) ? data : [])
     } catch {
@@ -201,32 +199,38 @@ export function AdminMailAudit() {
   }, [])
 
   // load thread messages
-  const loadThread = useCallback(async (threadId: string) => {
-    if (!selectedAccount) return
-    setLoading(true)
-    try {
-      const data = await fetchJson<AuditMessage[]>(
-        `/admin/audit/conversations/${encodeURIComponent(threadId)}/messages?target_user=${encodeURIComponent(selectedAccount)}`
-      )
-      setMessages(Array.isArray(data) ? data : [])
-      setSelectedThread(threadId)
-    } catch {
-      setMessages([])
-    } finally {
-      setLoading(false)
-    }
-  }, [selectedAccount])
+  const loadThread = useCallback(
+    async (threadId: string) => {
+      if (!selectedAccount) return
+      setLoading(true)
+      try {
+        const data = await fetchJson<AuditMessage[]>(
+          `/admin/audit/conversations/${encodeURIComponent(threadId)}/messages?target_user=${encodeURIComponent(selectedAccount)}`,
+        )
+        setMessages(Array.isArray(data) ? data : [])
+        setSelectedThread(threadId)
+      } catch {
+        setMessages([])
+      } finally {
+        setLoading(false)
+      }
+    },
+    [selectedAccount],
+  )
 
-  const handleSelectAccount = useCallback((address: string) => {
-    setSelectedAccount(address)
-    loadConversations(address)
-  }, [loadConversations])
+  const handleSelectAccount = useCallback(
+    (address: string) => {
+      setSelectedAccount(address)
+      loadConversations(address)
+    },
+    [loadConversations],
+  )
 
   const filteredAccounts = useMemo(() => {
     if (!search) return accounts
     const q = search.toLowerCase()
     return accounts.filter(
-      (a) => a.address.toLowerCase().includes(q) || a.display_name.toLowerCase().includes(q)
+      (a) => a.address.toLowerCase().includes(q) || a.display_name.toLowerCase().includes(q),
     )
   }, [accounts, search])
 
@@ -276,9 +280,13 @@ export function AdminMailAudit() {
                 >
                   <td className="px-4 py-3 font-medium">{a.address}</td>
                   <td className="px-4 py-3 text-[var(--color-text-secondary)]">{a.domain}</td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">{a.display_name || '—'}</td>
+                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                    {a.display_name || '—'}
+                  </td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${a.active ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]' : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-tertiary)]'}`}>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${a.active ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]' : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-tertiary)]'}`}
+                    >
                       {a.active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
@@ -294,8 +302,13 @@ export function AdminMailAudit() {
               ))}
               {filteredAccounts.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
-                    {accounts.length === 0 ? 'No auditable accounts (requires admin.impersonate permission)' : 'No matches'}
+                  <td
+                    colSpan={5}
+                    className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
+                  >
+                    {accounts.length === 0
+                      ? 'No auditable accounts (requires admin.impersonate permission)'
+                      : 'No matches'}
                   </td>
                 </tr>
               )}
@@ -312,7 +325,10 @@ export function AdminMailAudit() {
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex items-center gap-3 border-b border-[var(--color-border-default)] px-6 py-3">
           <button
-            onClick={() => { setSelectedThread(null); setMessages([]) }}
+            onClick={() => {
+              setSelectedThread(null)
+              setMessages([])
+            }}
             className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -321,9 +337,7 @@ export function AdminMailAudit() {
             <p className="text-xs text-[var(--color-status-warning)]">
               Audit Mode — {selectedAccount}
             </p>
-            <p className="truncate text-sm font-medium">
-              {messages[0]?.subject || selectedThread}
-            </p>
+            <p className="truncate text-sm font-medium">{messages[0]?.subject || selectedThread}</p>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-6">
@@ -334,7 +348,9 @@ export function AdminMailAudit() {
             <MessageView key={msg.id} msg={msg} targetUser={selectedAccount} />
           ))}
           {!loading && messages.length === 0 && (
-            <p className="py-8 text-center text-sm text-[var(--color-text-tertiary)]">No messages</p>
+            <p className="py-8 text-center text-sm text-[var(--color-text-tertiary)]">
+              No messages
+            </p>
           )}
         </div>
       </div>
@@ -346,15 +362,16 @@ export function AdminMailAudit() {
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex items-center gap-3 border-b border-[var(--color-border-default)] px-6 py-3">
         <button
-          onClick={() => { setSelectedAccount(null); setConversations([]) }}
+          onClick={() => {
+            setSelectedAccount(null)
+            setConversations([])
+          }}
           className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
         <div>
-          <p className="text-xs text-[var(--color-status-warning)]">
-            Audit Mode
-          </p>
+          <p className="text-xs text-[var(--color-status-warning)]">Audit Mode</p>
           <p className="text-sm font-medium">{selectedAccount}</p>
         </div>
       </div>

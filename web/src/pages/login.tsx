@@ -29,7 +29,10 @@ export function Login() {
 
   // fetch OIDC config
   useEffect(() => {
-    fetch('/api/auth/oidc/config').then((r) => r.json()).then(setOidcConfig).catch(() => {})
+    fetch('/api/auth/oidc/config')
+      .then((r) => r.json())
+      .then(setOidcConfig)
+      .catch(() => {})
   }, [])
 
   // handle OIDC callback redirect
@@ -202,11 +205,7 @@ export function Login() {
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
                   tabIndex={-1}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
@@ -259,16 +258,18 @@ export function Login() {
               disabled={loading}
               className="flex w-full items-center justify-center rounded-md bg-[var(--color-brand-primary)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
             >
-              {loading && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {loading ? 'Signing in...' : totpRequired ? 'Verify' : 'Sign in'}
             </button>
 
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => { setForgotMode(true); setError(''); setForgotMessage('') }}
+                onClick={() => {
+                  setForgotMode(true)
+                  setError('')
+                  setForgotMessage('')
+                }}
                 className="text-sm text-[var(--color-brand-primary)] hover:underline"
               >
                 Forgot password?
@@ -338,7 +339,8 @@ export function Login() {
                 className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
               />
               <p className="text-xs text-[var(--color-text-tertiary)]">
-                Enter the recovery email you configured in Settings. The reset link will be sent there.
+                Enter the recovery email you configured in Settings. The reset link will be sent
+                there.
               </p>
             </div>
 
@@ -348,16 +350,17 @@ export function Login() {
               disabled={forgotLoading || !forgotAddress || !forgotRecoveryEmail}
               className="flex w-full items-center justify-center rounded-md bg-[var(--color-brand-primary)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
             >
-              {forgotLoading && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {forgotLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {forgotLoading ? 'Sending...' : 'Send Reset Link'}
             </button>
 
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => { setForgotMode(false); setForgotMessage('') }}
+                onClick={() => {
+                  setForgotMode(false)
+                  setForgotMessage('')
+                }}
                 className="text-sm text-[var(--color-brand-primary)] hover:underline"
               >
                 Back to login

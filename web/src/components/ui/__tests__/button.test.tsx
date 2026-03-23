@@ -25,7 +25,11 @@ describe('Button', () => {
 
   it('can be disabled', () => {
     const onClick = vi.fn()
-    render(<Button disabled onClick={onClick}>Disabled</Button>)
+    render(
+      <Button disabled onClick={onClick}>
+        Disabled
+      </Button>,
+    )
     const btn = screen.getByRole('button')
     expect(btn.hasAttribute('disabled')).toBe(true)
     fireEvent.click(btn)

@@ -32,9 +32,7 @@ export function ContactAutocomplete({
     }
     debounceRef.current = setTimeout(async () => {
       try {
-        const data = await fetchJson<string[]>(
-          `/contacts?q=${encodeURIComponent(query)}&limit=5`,
-        )
+        const data = await fetchJson<string[]>(`/contacts?q=${encodeURIComponent(query)}&limit=5`)
         setSuggestions(data)
         setShowSuggestions(data.length > 0)
         setActiveIndex(-1)
@@ -44,10 +42,13 @@ export function ContactAutocomplete({
     }, 300)
   }, [])
 
-  const handleChange = useCallback((newValue: string) => {
-    onChange(newValue)
-    fetchContacts(newValue)
-  }, [onChange, fetchContacts])
+  const handleChange = useCallback(
+    (newValue: string) => {
+      onChange(newValue)
+      fetchContacts(newValue)
+    },
+    [onChange, fetchContacts],
+  )
 
   const selectSuggestion = useCallback(
     (selected: string) => {
@@ -66,14 +67,10 @@ export function ContactAutocomplete({
 
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setActiveIndex((prev) =>
-        prev < suggestions.length - 1 ? prev + 1 : 0,
-      )
+      setActiveIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setActiveIndex((prev) =>
-        prev > 0 ? prev - 1 : suggestions.length - 1,
-      )
+      setActiveIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1))
     } else if (e.key === 'Enter' && activeIndex >= 0) {
       e.preventDefault()
       selectSuggestion(suggestions[activeIndex])

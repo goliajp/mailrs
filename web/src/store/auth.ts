@@ -35,7 +35,7 @@ export const authAtom = atom(
   (_get, set, value: AuthInfo | null) => {
     saveAuth(value)
     set(baseAuthAtom, value)
-  }
+  },
 )
 
 export function getToken(): string | null {

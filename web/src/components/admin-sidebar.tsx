@@ -1,4 +1,15 @@
-import { ArrowLeftRight, Blocks, Eye, Globe, LayoutGrid, ListOrdered, Mail, ScrollText, Shield, Users } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  Blocks,
+  Eye,
+  Globe,
+  LayoutGrid,
+  ListOrdered,
+  Mail,
+  ScrollText,
+  Shield,
+  Users,
+} from 'lucide-react'
 import { NavLink } from 'react-router'
 
 const navItems = [
@@ -80,7 +91,9 @@ export function AdminSidebar() {
       {/* desktop: vertical sidebar */}
       <aside className="hidden h-full w-48 shrink-0 select-none flex-col border-r border-[var(--color-border-default)] md:flex">
         <div className="px-3 py-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">Server</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">
+            Server
+          </p>
         </div>
         <nav className="flex-1 px-3">
           {navItems.map((item) => (
@@ -95,9 +108,7 @@ export function AdminSidebar() {
                 }`
               }
             >
-              <span className="text-[var(--color-text-tertiary)]">
-                {item.icon}
-              </span>
+              <span className="text-[var(--color-text-tertiary)]">{item.icon}</span>
               <span>{item.label}</span>
             </NavLink>
           ))}

@@ -19,11 +19,19 @@ function makeLocalStorageMock(): Storage {
   const store: Record<string, string> = {}
   return {
     getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => { store[k] = v },
-    removeItem: (k: string) => { delete store[k] },
-    clear: () => { for (const k in store) delete store[k] },
+    setItem: (k: string, v: string) => {
+      store[k] = v
+    },
+    removeItem: (k: string) => {
+      delete store[k]
+    },
+    clear: () => {
+      for (const k in store) delete store[k]
+    },
     key: (n: number) => Object.keys(store)[n] ?? null,
-    get length() { return Object.keys(store).length },
+    get length() {
+      return Object.keys(store).length
+    },
   } as Storage
 }
 

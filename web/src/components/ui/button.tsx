@@ -16,8 +16,7 @@ const variantStyles: Record<ButtonVariant, string> = {
     'border border-[var(--color-border-default)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] disabled:opacity-40',
   ghost:
     'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)] disabled:opacity-40',
-  danger:
-    'bg-[var(--color-status-danger)] text-white hover:opacity-90 disabled:opacity-40',
+  danger: 'bg-[var(--color-status-danger)] text-white hover:opacity-90 disabled:opacity-40',
 }
 
 const sizeStyles: Record<Size, string> = {

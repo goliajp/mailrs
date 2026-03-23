@@ -39,7 +39,10 @@ export function AddBlockMenu({ onAdd, onAddFile }: Props) {
           {BLOCK_OPTIONS.map(({ type, label, icon: Icon }) => (
             <button
               key={type}
-              onClick={() => { onAdd(type); setOpen(false) }}
+              onClick={() => {
+                onAdd(type)
+                setOpen(false)
+              }}
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
             >
               <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
@@ -47,7 +50,10 @@ export function AddBlockMenu({ onAdd, onAddFile }: Props) {
             </button>
           ))}
           <button
-            onClick={() => { onAddFile(); setOpen(false) }}
+            onClick={() => {
+              onAddFile()
+              setOpen(false)
+            }}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
           >
             <Paperclip className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />

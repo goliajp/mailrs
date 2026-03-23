@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { avatarColor, avatarInitial, decodeMimeHeader, extractEmail, extractName, isMachineGenerated } from '../avatar'
+import {
+  avatarColor,
+  avatarInitial,
+  decodeMimeHeader,
+  extractEmail,
+  extractName,
+  isMachineGenerated,
+} from '../avatar'
 
 // valid Tailwind color classes used in avatar.ts
 const VALID_COLORS = [
@@ -144,7 +151,9 @@ describe('extractName', () => {
   })
 
   it('returns domain-based name for machine-generated bounce addresses', () => {
-    const result = extractName('<0101019ccdad21d4-3b587183-7366-4b5f-a157-c01ce00c45e1-000000@atlassian-bounces.atlassian.net>')
+    const result = extractName(
+      '<0101019ccdad21d4-3b587183-7366-4b5f-a157-c01ce00c45e1-000000@atlassian-bounces.atlassian.net>',
+    )
     expect(result).toBe('Atlassian')
   })
 
@@ -154,32 +163,44 @@ describe('extractName', () => {
   })
 
   it('returns domain-based name for digit-heavy tracking IDs', () => {
-    const result = extractName('722-YFB-855.0.848.0.0.2733.9.9404639 <722-YFB-855.0.848.0.0.2733.9.9404639@magazine2.zehitomo.com>')
+    const result = extractName(
+      '722-YFB-855.0.848.0.0.2733.9.9404639 <722-YFB-855.0.848.0.0.2733.9.9404639@magazine2.zehitomo.com>',
+    )
     expect(result).toBe('Zehitomo')
   })
 
   it('returns domain-based name for VERP bounce addresses', () => {
-    const result = extractName('msprvs1=205268vVROh3y=bounces-265094 <msprvs1=205268vVROh3y=bounces-265094@notify.cloudflare.com>')
+    const result = extractName(
+      'msprvs1=205268vVROh3y=bounces-265094 <msprvs1=205268vVROh3y=bounces-265094@notify.cloudflare.com>',
+    )
     expect(result).toBe('Cloudflare')
   })
 
   it('returns domain-based name for bounce+ prefixed addresses', () => {
-    const result = extractName('bounce+6a5245.e953aa-lihao=golia.jp <bounce+6a5245.e953aa-lihao=golia.jp@crates.io>')
+    const result = extractName(
+      'bounce+6a5245.e953aa-lihao=golia.jp <bounce+6a5245.e953aa-lihao=golia.jp@crates.io>',
+    )
     expect(result).toBe('Crates')
   })
 
   it('returns domain-based name for bounces+ with subdomain', () => {
-    const result = extractName('bounces+46507342-d0da-lihao=golia.jp <bounces+46507342-d0da-lihao=golia.jp@em8742.bsm.freee.work>')
+    const result = extractName(
+      'bounces+46507342-d0da-lihao=golia.jp <bounces+46507342-d0da-lihao=golia.jp@em8742.bsm.freee.work>',
+    )
     expect(result).toBe('Freee')
   })
 
   it('returns domain-based name for tracking-id display names', () => {
-    const result = extractName('z-bd148-xiacv7-0-2t4n-005lihaogolia.jp <z-bd148-xiacv7-0-2t4n-005lihaogolia.jp@bma.mpse.jp>')
+    const result = extractName(
+      'z-bd148-xiacv7-0-2t4n-005lihaogolia.jp <z-bd148-xiacv7-0-2t4n-005lihaogolia.jp@bma.mpse.jp>',
+    )
     expect(result).toBe('Mpse')
   })
 
   it('returns domain-based name for tracking-id with deeper subdomain', () => {
-    const result = extractName('z-cap7-xiadwo-0-5piy-005lihaogolia.jp <z-cap7-xiadwo-0-5piy-005lihaogolia.jp@bma.rec.mpse.jp>')
+    const result = extractName(
+      'z-cap7-xiadwo-0-5piy-005lihaogolia.jp <z-cap7-xiadwo-0-5piy-005lihaogolia.jp@bma.rec.mpse.jp>',
+    )
     expect(result).toBe('Mpse')
   })
 
@@ -203,7 +224,9 @@ describe('extractName', () => {
 
 describe('isMachineGenerated', () => {
   it('detects long hex/uuid strings', () => {
-    expect(isMachineGenerated('0101019ccdad21d4-3b587183-7366-4b5f-a157-c01ce00c45e1-000000')).toBe(true)
+    expect(isMachineGenerated('0101019ccdad21d4-3b587183-7366-4b5f-a157-c01ce00c45e1-000000')).toBe(
+      true,
+    )
   })
 
   it('detects digit-heavy tracking IDs', () => {

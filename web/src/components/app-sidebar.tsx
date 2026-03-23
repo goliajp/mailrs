@@ -17,8 +17,7 @@ const navBtnBase =
   'flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]'
 const navBtnInactive =
   'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
-const navBtnActive =
-  'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
+const navBtnActive = 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
 
 function SidebarLink({
   href,
@@ -138,25 +137,33 @@ export function AppSidebar() {
 
         {/* inbox + domain group */}
         <div className="mt-1 flex flex-col items-center gap-0.5">
-          <SidebarLink href="/mail" icon={Inbox} label="Mail" active={section === 'mail' && selectedDomains.length === 0} badge={unreadCount} />
-          {domains.length > 0 && domains.map((d) => {
-            const active = section === 'mail' && selectedDomains.length === 1 && selectedDomains[0] === d
-            const label = d.split('.')[0]
-            return (
-              <button
-                key={d}
-                onClick={() => setSelectedDomains(active ? [] : [d])}
-                className={cn(
-                  navBtnBase,
-                  active ? navBtnActive : navBtnInactive,
-                  'h-8 w-8 text-[9px] font-semibold',
-                )}
-                title={d}
-              >
-                {label.slice(0, 3)}
-              </button>
-            )
-          })}
+          <SidebarLink
+            href="/mail"
+            icon={Inbox}
+            label="Mail"
+            active={section === 'mail' && selectedDomains.length === 0}
+            badge={unreadCount}
+          />
+          {domains.length > 0 &&
+            domains.map((d) => {
+              const active =
+                section === 'mail' && selectedDomains.length === 1 && selectedDomains[0] === d
+              const label = d.split('.')[0]
+              return (
+                <button
+                  key={d}
+                  onClick={() => setSelectedDomains(active ? [] : [d])}
+                  className={cn(
+                    navBtnBase,
+                    active ? navBtnActive : navBtnInactive,
+                    'h-8 w-8 text-[9px] font-semibold',
+                  )}
+                  title={d}
+                >
+                  {label.slice(0, 3)}
+                </button>
+              )
+            })}
         </div>
 
         {/* separator */}
@@ -165,7 +172,12 @@ export function AppSidebar() {
         {/* other nav */}
         <nav className="flex flex-col items-center gap-1.5">
           <SidebarLink href="/admin" icon={Server} label="Server" active={section === 'server'} />
-          <SidebarLink href="/protocol" icon={Activity} label="Monitor" active={section === 'monitor'} />
+          <SidebarLink
+            href="/protocol"
+            icon={Activity}
+            label="Monitor"
+            active={section === 'monitor'}
+          />
         </nav>
 
         <div className="flex-1" />
@@ -187,7 +199,12 @@ export function AppSidebar() {
             )}
           </button>
 
-          <SidebarLink href="/settings" icon={Settings} label="Settings" active={section === 'settings'} />
+          <SidebarLink
+            href="/settings"
+            icon={Settings}
+            label="Settings"
+            active={section === 'settings'}
+          />
 
           <button
             onClick={() => setShowLogoutConfirm(true)}
@@ -207,9 +224,20 @@ export function AppSidebar() {
       {/* mobile: bottom tab bar */}
       <nav className="flex select-none items-stretch border-t border-[var(--color-border-default)] bg-[var(--color-bg-raised)] md:hidden">
         <MobileNavLink href="/" icon={Home} label="Home" active={section === 'home'} />
-        <MobileNavLink href="/mail" icon={Inbox} label="Mail" active={section === 'mail'} badge={unreadCount} />
+        <MobileNavLink
+          href="/mail"
+          icon={Inbox}
+          label="Mail"
+          active={section === 'mail'}
+          badge={unreadCount}
+        />
         <MobileNavLink href="/admin" icon={Server} label="Admin" active={section === 'server'} />
-        <MobileNavLink href="/settings" icon={Settings} label="Settings" active={section === 'settings'} />
+        <MobileNavLink
+          href="/settings"
+          icon={Settings}
+          label="Settings"
+          active={section === 'settings'}
+        />
         <button
           onClick={() => setShowLogoutConfirm(true)}
           className="flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] text-[var(--color-text-tertiary)] transition-colors"
@@ -227,16 +255,32 @@ export function AppSidebar() {
   )
 }
 
-function LogoutConfirmDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+function LogoutConfirmDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void
+  onConfirm: () => void
+}) {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onCancel])
 
   return (
-    <div className="fixed inset-0 z-50 flex animate-[fadeIn_150ms_ease-out] items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onCancel} role="dialog" aria-modal="true">
-      <div className="mx-4 w-full max-w-sm animate-[scaleIn_150ms_ease-out] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex animate-[fadeIn_150ms_ease-out] items-center justify-center bg-black/50 backdrop-blur-sm"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="mx-4 w-full max-w-sm animate-[scaleIn_150ms_ease-out] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Sign out?</h3>
         <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
           You will need to sign in again to access your mailbox.

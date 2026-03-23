@@ -31,12 +31,12 @@ export const radius = {
 
 // -- font sizes --
 export const fontSize = {
-  xs: '0.6875rem',    // 11px
-  sm: '0.8125rem',    // 13px
-  base: '0.875rem',   // 14px
-  lg: '1rem',         // 16px
-  xl: '1.125rem',     // 18px
-  '2xl': '1.25rem',   // 20px
+  xs: '0.6875rem', // 11px
+  sm: '0.8125rem', // 13px
+  base: '0.875rem', // 14px
+  lg: '1rem', // 16px
+  xl: '1.125rem', // 18px
+  '2xl': '1.25rem', // 20px
 } as const
 
 // -- font weights --
@@ -60,19 +60,13 @@ export const zIndex = {
 // -- semantic color token keys --
 // actual values come from CSS custom properties (--color-*)
 // these names are used in component variant maps
-export type ColorIntent =
-  | 'primary'
-  | 'secondary'
-  | 'success'
-  | 'warning'
-  | 'danger'
-  | 'info'
+export type ColorIntent = 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info'
 
 export type SurfaceLevel =
-  | 'base'      // main background
-  | 'raised'    // cards, panels
-  | 'overlay'   // dropdowns, popovers
-  | 'sunken'    // inset areas
+  | 'base' // main background
+  | 'raised' // cards, panels
+  | 'overlay' // dropdowns, popovers
+  | 'sunken' // inset areas
 
 // -- component size variants --
 export type Size = 'xs' | 'sm' | 'md' | 'lg'

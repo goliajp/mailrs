@@ -156,7 +156,9 @@ export function AdminAliases() {
                 className="border-b border-[var(--color-border-default)] last:border-0"
               >
                 <td className="px-4 py-3 font-medium">{alias.source_address}</td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">{alias.target_address}</td>
+                <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                  {alias.target_address}
+                </td>
                 <td className="px-4 py-3 text-[var(--color-text-secondary)]">{alias.domain}</td>
                 <td className="px-4 py-3">
                   <span
@@ -193,12 +195,20 @@ export function AdminAliases() {
       {deleteTarget !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg">
-            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">Delete this alias? This cannot be undone.</p>
+            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
+              Delete this alias? This cannot be undone.
+            </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleteTarget(null)} className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              >
                 Cancel
               </button>
-              <button onClick={() => handleDelete(deleteTarget)} className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90">
+              <button
+                onClick={() => handleDelete(deleteTarget)}
+                className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+              >
                 Delete
               </button>
             </div>

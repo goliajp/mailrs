@@ -16,9 +16,7 @@ function StatusCard({
   return (
     <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-3">
       <div className="text-xs text-[var(--color-text-tertiary)]">{label}</div>
-      <div className={`mt-1 text-2xl font-bold tabular-nums ${color}`}>
-        {value}
-      </div>
+      <div className={`mt-1 text-2xl font-bold tabular-nums ${color}`}>{value}</div>
     </div>
   )
 }
@@ -41,9 +39,7 @@ function ConnectionRow({
           : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
       }`}
     >
-      <span className="font-mono text-xs text-[var(--color-text-tertiary)]">
-        #{conn.id}
-      </span>
+      <span className="font-mono text-xs text-[var(--color-text-tertiary)]">#{conn.id}</span>
       <span className="truncate">{conn.addr}</span>
       <div className="ml-auto flex items-center gap-1.5">
         {conn.tls && (
@@ -87,10 +83,7 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
       {conn.lines.map((line, i) => {
         const isServer = line.direction === 'server'
         return (
-          <div
-            key={i}
-            className={`flex gap-2 ${isServer ? '' : 'flex-row-reverse'}`}
-          >
+          <div key={i} className={`flex gap-2 ${isServer ? '' : 'flex-row-reverse'}`}>
             <div
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                 isServer
@@ -115,9 +108,7 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
         )
       })}
       {conn.lines.length === 0 && (
-        <div className="text-sm text-[var(--color-text-tertiary)]">
-          waiting for commands...
-        </div>
+        <div className="text-sm text-[var(--color-text-tertiary)]">waiting for commands...</div>
       )}
     </div>
   )
@@ -140,17 +131,10 @@ function EventLog({ events }: { events: SmtpEvent[] }) {
         .reverse()
         .slice(0, 100)
         .map((event, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs"
-          >
-            <span className="text-[var(--color-text-tertiary)]">
-              #{event.id}
-            </span>
+          <div key={i} className="flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs">
+            <span className="text-[var(--color-text-tertiary)]">#{event.id}</span>
             <EventBadge type={event.type} />
-            <span className="truncate text-[var(--color-text-tertiary)]">
-              {formatEvent(event)}
-            </span>
+            <span className="truncate text-[var(--color-text-tertiary)]">{formatEvent(event)}</span>
           </div>
         ))}
       {events.length === 0 && (
@@ -210,8 +194,7 @@ export function Protocol() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
   const connList = Array.from(connections.values())
-  const selectedConn =
-    selectedId !== null ? (connections.get(selectedId) ?? null) : null
+  const selectedConn = selectedId !== null ? (connections.get(selectedId) ?? null) : null
 
   return (
     <div className="flex h-full flex-col">
@@ -283,9 +266,7 @@ export function Protocol() {
         {/* center: conversation */}
         <div className="flex flex-1 flex-col">
           <div className="border-b border-[var(--color-border-default)] px-4 py-2 text-xs font-medium tracking-wider text-[var(--color-text-tertiary)] uppercase">
-            {selectedConn
-              ? `Session #${selectedConn.id} — ${selectedConn.addr}`
-              : 'Conversation'}
+            {selectedConn ? `Session #${selectedConn.id} — ${selectedConn.addr}` : 'Conversation'}
           </div>
           <div className="flex-1 overflow-hidden">
             <ConversationView conn={selectedConn} />
