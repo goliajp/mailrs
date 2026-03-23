@@ -2,3 +2,6 @@
 name = "mailrs-imap-proto"
 version.workspace = true
 edition = "2021"
+
+[lints]
+workspace = true

@@ -3,6 +3,9 @@ name = "mailrs-smtp-client"
 version.workspace = true
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
 tokio = { version = "1", features = ["net", "io-util", "time"] }
 tokio-rustls = "0.26"
