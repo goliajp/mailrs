@@ -28,10 +28,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json()
 }
 
-export async function fetchJson<T>(
-  path: string,
-  signal?: AbortSignal
-): Promise<T> {
+export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: authHeaders(),
     signal,
@@ -109,9 +106,7 @@ type SaveDraftResult = {
   message?: string
 }
 
-export async function saveDraft(
-  draft: SaveDraftRequest,
-): Promise<SaveDraftResult> {
+export async function saveDraft(draft: SaveDraftRequest): Promise<SaveDraftResult> {
   return postJson<SaveDraftResult>('/mail/drafts', draft)
 }
 
@@ -176,10 +171,6 @@ export async function recordFeedback(
   return postJson('/mail/feedback', { sender_email: senderEmail, action })
 }
 
-export async function deleteDraft(
-  id: number,
-): Promise<{ success: boolean; message?: string }> {
-  return deleteJson<{ success: boolean; message?: string }>(
-    `/mail/drafts/${id}`,
-  )
+export async function deleteDraft(id: number): Promise<{ success: boolean; message?: string }> {
+  return deleteJson<{ success: boolean; message?: string }>(`/mail/drafts/${id}`)
 }

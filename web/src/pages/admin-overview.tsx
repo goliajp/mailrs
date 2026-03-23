@@ -93,13 +93,13 @@ function StatusBanner({ health }: { health: HealthInfo }) {
 
   return (
     <div className="flex items-center gap-4 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-5 py-3">
-      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}>
+      <span
+        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}
+      >
         <span className={`h-2 w-2 rounded-full ${dotColor}`} />
         {health.status.charAt(0).toUpperCase() + health.status.slice(1)}
       </span>
-      <span className="text-sm text-[var(--color-text-tertiary)]">
-        v{health.version}
-      </span>
+      <span className="text-sm text-[var(--color-text-tertiary)]">v{health.version}</span>
       <span className="text-sm text-[var(--color-text-tertiary)]">
         Uptime {formatUptime(health.uptime_secs)}
       </span>
@@ -120,11 +120,11 @@ function MetricCard({ label, value, sub }: { label: string; value: string; sub?:
 function ServicePill({ name, ok, detail }: { name: string; ok: boolean; detail?: string }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-4 py-3">
-      <span className={`h-2.5 w-2.5 rounded-full ${ok ? 'bg-[var(--color-status-success)]' : 'bg-[var(--color-status-danger)]'}`} />
+      <span
+        className={`h-2.5 w-2.5 rounded-full ${ok ? 'bg-[var(--color-status-success)]' : 'bg-[var(--color-status-danger)]'}`}
+      />
       <span className="text-sm font-medium text-[var(--color-text-primary)]">{name}</span>
-      {detail && (
-        <span className="text-xs text-[var(--color-text-tertiary)]">{detail}</span>
-      )}
+      {detail && <span className="text-xs text-[var(--color-text-tertiary)]">{detail}</span>}
     </div>
   )
 }
@@ -132,7 +132,9 @@ function ServicePill({ name, ok, detail }: { name: string; ok: boolean; detail?:
 function SmtpConfigPanel({ config }: { config: SmtpConfig }) {
   return (
     <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
-      <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">SMTP Configuration</h3>
+      <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">
+        SMTP Configuration
+      </h3>
       <div className="space-y-2">
         <Row label="Hostname" value={config.hostname} mono />
         <Row
@@ -163,7 +165,9 @@ function Row({ label, value }: { label: string; value: string; mono?: boolean })
 function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
   return (
     <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
-      <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">Recent Audit Log</h3>
+      <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">
+        Recent Audit Log
+      </h3>
       {entries.length === 0 ? (
         <p className="text-sm text-[var(--color-text-tertiary)]">No entries</p>
       ) : (
@@ -172,16 +176,23 @@ function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
             {entries.map((e) => {
               const ip = e.detail.replace(/^ip=/, '').trim()
               return (
-                <tr key={e.id} className="border-b border-[var(--color-border-default)] last:border-0">
+                <tr
+                  key={e.id}
+                  className="border-b border-[var(--color-border-default)] last:border-0"
+                >
                   <td className="whitespace-nowrap py-1.5 pr-2 text-[var(--color-text-tertiary)]">
                     {formatRelativeTime(e.timestamp)}
                   </td>
                   <td className="whitespace-nowrap py-1.5 pr-2">
-                    <span className={`rounded px-1.5 py-0.5 font-medium ${
-                      e.action === 'login_failed' ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
-                      : e.action === 'login' ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
-                      : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)]'
-                    }`}>
+                    <span
+                      className={`rounded px-1.5 py-0.5 font-medium ${
+                        e.action === 'login_failed'
+                          ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+                          : e.action === 'login'
+                            ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+                            : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)]'
+                      }`}
+                    >
                       {e.action.replace('_', ' ')}
                     </span>
                   </td>
@@ -221,9 +232,7 @@ export function AdminOverview() {
   }, [refresh])
 
   if (error) {
-    return (
-      <div className="p-6 text-sm text-[var(--color-status-danger)]">{error}</div>
-    )
+    return <div className="p-6 text-sm text-[var(--color-status-danger)]">{error}</div>
   }
 
   const activeConns = status?.active_connections ?? health?.total_connections ?? 0
@@ -250,20 +259,13 @@ export function AdminOverview() {
           value={formatNumber(activeConns)}
           sub={`${formatNumber(health?.total_connections ?? 0)} total`}
         />
-        <MetricCard
-          label="Total Messages"
-          value={formatNumber(totalMsgs)}
-        />
+        <MetricCard label="Total Messages" value={formatNumber(totalMsgs)} />
         <MetricCard
           label="Queue Pending"
           value={formatNumber(queuePending)}
           sub={queueFailed > 0 ? `${formatNumber(queueFailed)} failed` : '0 failed'}
         />
-        <MetricCard
-          label="Active Users"
-          value={formatNumber(activeSessions)}
-          sub="sessions"
-        />
+        <MetricCard label="Active Users" value={formatNumber(activeSessions)} sub="sessions" />
       </div>
 
       {/* service health */}

@@ -1,6 +1,20 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Panel, PanelRow } from '@/layouts/shell'
-import { ArrowLeft, ChevronDown, ChevronUp, Download, Forward, Mail, MailOpen, MoreVertical, Paperclip, Printer, Star, Trash2, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  Forward,
+  Mail,
+  MailOpen,
+  MoreVertical,
+  Paperclip,
+  Printer,
+  Star,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -18,7 +32,17 @@ import { deleteJson, fetchJson, postJson, recordFeedback, type FeedbackAction } 
 import { getToken } from '@/store/auth'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
 import type { ConversationSummary, ThreadMessage } from '@/lib/types'
-import { categoryFilterAtom, conversationsAtom, crossAccountReadAtom, folderAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom, visibleConversationIdsAtom } from '@/store/chat'
+import {
+  categoryFilterAtom,
+  conversationsAtom,
+  crossAccountReadAtom,
+  folderAtom,
+  searchQueryAtom,
+  selectedDomainsAtom,
+  selectedThreadIdAtom,
+  threadMessagesAtom,
+  visibleConversationIdsAtom,
+} from '@/store/chat'
 import { authAtom } from '@/store/auth'
 
 type ForwardSource = {
@@ -43,8 +67,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const currentIdx = selectedId ? visibleIds.indexOf(selectedId) : -1
   const hasPrev = currentIdx > 0
   const hasNext = currentIdx >= 0 && currentIdx < visibleIds.length - 1
-  const goToPrev = useCallback(() => { if (hasPrev) setSelectedId(visibleIds[currentIdx - 1]) }, [hasPrev, visibleIds, currentIdx, setSelectedId])
-  const goToNext = useCallback(() => { if (hasNext) setSelectedId(visibleIds[currentIdx + 1]) }, [hasNext, visibleIds, currentIdx, setSelectedId])
+  const goToPrev = useCallback(() => {
+    if (hasPrev) setSelectedId(visibleIds[currentIdx - 1])
+  }, [hasPrev, visibleIds, currentIdx, setSelectedId])
+  const goToNext = useCallback(() => {
+    if (hasNext) setSelectedId(visibleIds[currentIdx + 1])
+  }, [hasNext, visibleIds, currentIdx, setSelectedId])
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const categoryRef = useRef(categoryFilter)
   categoryRef.current = categoryFilter
@@ -95,13 +123,16 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
 
         const crossAll = crossAccountReadRef.current
-        const readParam = crossAll && doms.length > 0
-          ? `?domains=${encodeURIComponent(doms.join(','))}`
-          : ''
-        postJson(`/conversations/${encodeURIComponent(threadId)}/read${readParam}`, {}).catch(() => {})
+        const readParam =
+          crossAll && doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
+        postJson(`/conversations/${encodeURIComponent(threadId)}/read${readParam}`, {}).catch(
+          () => {},
+        )
         setIsRead(true)
         // update unread_count locally instead of re-fetching entire list
-        setConversations((prev) => prev.map((c) => c.thread_id === threadId ? { ...c, unread_count: 0 } : c))
+        setConversations((prev) =>
+          prev.map((c) => (c.thread_id === threadId ? { ...c, unread_count: 0 } : c)),
+        )
       } catch (err) {
         if (!controller.signal.aborted) {
           toast.error(err instanceof Error ? err.message : 'Failed to load messages')
@@ -126,7 +157,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     try {
       const convos = await fetchJson<ConversationSummary[]>(path)
       setConversations(convos)
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [setConversations])
 
   const handleMarkUnread = useCallback(async () => {
@@ -134,9 +167,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     try {
       await postJson(`/conversations/${encodeURIComponent(selectedId)}/unread`, {})
       setIsRead(false)
-      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, unread_count: c.unread_count + 1 } : c))
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.thread_id === selectedId ? { ...c, unread_count: c.unread_count + 1 } : c,
+        ),
+      )
       toast.success('Marked as unread')
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed')
+    }
   }, [selectedId, setConversations])
 
   const handleMarkRead = useCallback(async () => {
@@ -144,12 +183,17 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     try {
       const doms = domainsRef.current
       const crossAll = crossAccountReadRef.current
-      const domainsParam = crossAll && doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
+      const domainsParam =
+        crossAll && doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
       await postJson(`/conversations/${encodeURIComponent(selectedId)}/read${domainsParam}`, {})
       setIsRead(true)
-      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, unread_count: 0 } : c))
+      setConversations((prev) =>
+        prev.map((c) => (c.thread_id === selectedId ? { ...c, unread_count: 0 } : c)),
+      )
       toast.success('Marked as read')
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed')
+    }
   }, [selectedId, setConversations])
 
   const handleStar = useCallback(async () => {
@@ -157,8 +201,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     try {
       await postJson(`/conversations/${encodeURIComponent(selectedId)}/star`, {})
       setIsFlagged(true)
-      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, flagged: true } : c))
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
+      setConversations((prev) =>
+        prev.map((c) => (c.thread_id === selectedId ? { ...c, flagged: true } : c)),
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed')
+    }
   }, [selectedId, setConversations])
 
   const handleUnstar = useCallback(async () => {
@@ -166,8 +214,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     try {
       await postJson(`/conversations/${encodeURIComponent(selectedId)}/unstar`, {})
       setIsFlagged(false)
-      setConversations((prev) => prev.map((c) => c.thread_id === selectedId ? { ...c, flagged: false } : c))
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
+      setConversations((prev) =>
+        prev.map((c) => (c.thread_id === selectedId ? { ...c, flagged: false } : c)),
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed')
+    }
   }, [selectedId, setConversations])
 
   const handleDelete = useCallback(async () => {
@@ -192,7 +244,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     const body = msg.html_body
       ? DOMPurify.sanitize(msg.html_body)
       : `<pre style="white-space:pre-wrap;word-break:break-word;font-family:sans-serif;font-size:14px;line-height:1.6">${esc(msg.clean_text || msg.text_body || '')}</pre>`
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(msg.subject || '')}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:2rem;max-width:800px;margin:0 auto}table{border-collapse:collapse;width:100%;margin-bottom:1.5rem}td{padding:4px 8px;font-size:14px}td:first-child{font-weight:600;white-space:nowrap;color:#555;width:80px}hr{border:none;border-top:1px solid #ddd;margin:1rem 0}img{max-width:100%}@media print{body{padding:0}}</style></head><body><table><tr><td>From</td><td>${esc(msg.sender)}</td></tr><tr><td>To</td><td>${esc(msg.recipients)}</td></tr><tr><td>Date</td><td>${esc(formatFullDate(msg.internal_date))}</td></tr><tr><td>Subject</td><td>${esc(msg.subject || '')}</td></tr></table><hr><div>${body}</div></body></html>`)
+    w.document.write(
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(msg.subject || '')}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:2rem;max-width:800px;margin:0 auto}table{border-collapse:collapse;width:100%;margin-bottom:1.5rem}td{padding:4px 8px;font-size:14px}td:first-child{font-weight:600;white-space:nowrap;color:#555;width:80px}hr{border:none;border-top:1px solid #ddd;margin:1rem 0}img{max-width:100%}@media print{body{padding:0}}</style></head><body><table><tr><td>From</td><td>${esc(msg.sender)}</td></tr><tr><td>To</td><td>${esc(msg.recipients)}</td></tr><tr><td>Date</td><td>${esc(formatFullDate(msg.internal_date))}</td></tr><tr><td>Subject</td><td>${esc(msg.subject || '')}</td></tr></table><hr><div>${body}</div></body></html>`,
+    )
     w.document.close()
     w.onload = () => w.print()
   }, [])
@@ -203,7 +257,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       const headers: Record<string, string> = {}
       if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch(`/api/mail/messages/${uid}/raw`, { headers })
-      if (!res.ok) { toast.error('Download failed'); return }
+      if (!res.ok) {
+        toast.error('Download failed')
+        return
+      }
       const blob = await res.blob()
       const safeName = subject.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u30ff _-]/g, '_').trim()
       const url = URL.createObjectURL(blob)
@@ -217,7 +274,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       } finally {
         setTimeout(() => URL.revokeObjectURL(url), 1000)
       }
-    } catch { toast.error('Download failed') }
+    } catch {
+      toast.error('Download failed')
+    }
   }, [])
 
   const handleForwardMsg = useCallback((msg: ThreadMessage) => {
@@ -248,7 +307,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
     loadMessages(selectedId)
-    return () => { abortRef.current?.abort() }
+    return () => {
+      abortRef.current?.abort()
+    }
   }, [selectedId, loadMessages, setMessages])
 
   useEffect(() => {
@@ -277,7 +338,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const replyAllRecipients = lastMsg
     ? (() => {
         const senderEmail = extractEmail(lastMsg.sender)
-        const recipientEmails = lastMsg.recipients.split(',').map((s) => s.trim()).filter(Boolean)
+        const recipientEmails = lastMsg.recipients
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
         const all = new Set([senderEmail, ...recipientEmails])
         all.delete(myEmail)
         return [...all].join(', ')
@@ -299,36 +363,62 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         {/* header bar at top of content panel */}
         <div className="flex shrink-0 select-none items-center gap-2 border-b border-[var(--color-border-default)] px-3 py-1.5">
           {onBack && (
-            <button onClick={onBack} className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] md:hidden" title="Back">
+            <button
+              onClick={onBack}
+              className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] md:hidden"
+              title="Back"
+            >
               <ArrowLeft className="h-4 w-4" />
             </button>
           )}
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <h2 className="select-text truncate text-sm font-semibold text-[var(--color-text-primary)]">{subject || '(no subject)'}</h2>
+            <h2 className="select-text truncate text-sm font-semibold text-[var(--color-text-primary)]">
+              {subject || '(no subject)'}
+            </h2>
             {messages.length > 1 && (
               <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">
-                {selectedMsgIdx != null ? `${selectedMsgIdx + 1}/` : ''}{messages.length}
+                {selectedMsgIdx != null ? `${selectedMsgIdx + 1}/` : ''}
+                {messages.length}
               </span>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <HdrBtn onClick={goToPrev} title="Previous conversation" className={hasPrev ? '' : 'opacity-30 pointer-events-none'}>
+            <HdrBtn
+              onClick={goToPrev}
+              title="Previous conversation"
+              className={hasPrev ? '' : 'opacity-30 pointer-events-none'}
+            >
               <ChevronUp className="h-4 w-4" />
             </HdrBtn>
-            <HdrBtn onClick={goToNext} title="Next conversation" className={hasNext ? '' : 'opacity-30 pointer-events-none'}>
+            <HdrBtn
+              onClick={goToNext}
+              title="Next conversation"
+              className={hasNext ? '' : 'opacity-30 pointer-events-none'}
+            >
               <ChevronDown className="h-4 w-4" />
             </HdrBtn>
-            <HdrBtn onClick={isRead ? handleMarkUnread : handleMarkRead} title={isRead ? 'Mark unread' : 'Mark read'}>
-              {isRead ? (
-                <Mail className="h-4 w-4" />
-              ) : (
-                <MailOpen className="h-4 w-4" />
-              )}
+            <HdrBtn
+              onClick={isRead ? handleMarkUnread : handleMarkRead}
+              title={isRead ? 'Mark unread' : 'Mark read'}
+            >
+              {isRead ? <Mail className="h-4 w-4" /> : <MailOpen className="h-4 w-4" />}
             </HdrBtn>
-            <HdrBtn onClick={isFlagged ? handleUnstar : handleStar} title={isFlagged ? 'Unstar' : 'Star'} className={isFlagged ? 'text-[var(--color-status-warning)] hover:text-[var(--color-status-warning)]' : undefined}>
+            <HdrBtn
+              onClick={isFlagged ? handleUnstar : handleStar}
+              title={isFlagged ? 'Unstar' : 'Star'}
+              className={
+                isFlagged
+                  ? 'text-[var(--color-status-warning)] hover:text-[var(--color-status-warning)]'
+                  : undefined
+              }
+            >
               <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
             </HdrBtn>
-            <HdrBtn onClick={() => setShowDeleteConfirm(true)} title="Delete" className="hover:text-[var(--color-status-danger)]">
+            <HdrBtn
+              onClick={() => setShowDeleteConfirm(true)}
+              title="Delete"
+              className="hover:text-[var(--color-status-danger)]"
+            >
               <Trash2 className="h-4 w-4" />
             </HdrBtn>
             <HdrBtn onClick={() => setSelectedId(null)} title="Close">
@@ -353,8 +443,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     <SenderAvatar sender={selectedMsg.sender} size={28} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className={`select-text text-sm font-medium ${extractEmail(selectedMsg.sender) === myEmail ? 'text-[var(--color-brand-primary)]' : 'text-[var(--color-text-primary)]'}`}>
-                          {extractEmail(selectedMsg.sender) === myEmail ? 'Me' : extractName(selectedMsg.sender)}
+                        <p
+                          className={`select-text text-sm font-medium ${extractEmail(selectedMsg.sender) === myEmail ? 'text-[var(--color-brand-primary)]' : 'text-[var(--color-text-primary)]'}`}
+                        >
+                          {extractEmail(selectedMsg.sender) === myEmail
+                            ? 'Me'
+                            : extractName(selectedMsg.sender)}
                           {selectedMsg.bimi_logo_url && (
                             <img
                               src={selectedMsg.bimi_logo_url}
@@ -371,7 +465,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           <SmBtn onClick={() => handlePrint(selectedMsg)} title="Print">
                             <Printer className="h-3.5 w-3.5" />
                           </SmBtn>
-                          <SmBtn onClick={() => handleDownloadEml(selectedMsg.uid, selectedMsg.subject)} title="Download .eml">
+                          <SmBtn
+                            onClick={() => handleDownloadEml(selectedMsg.uid, selectedMsg.subject)}
+                            title="Download .eml"
+                          >
                             <Download className="h-3.5 w-3.5" />
                           </SmBtn>
                           <FeedbackMenu senderEmail={extractEmail(selectedMsg.sender)} />
@@ -395,11 +492,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           </span>
                         )}
                         {selectedMsg.risk_score >= 40 && (
-                          <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${
-                            selectedMsg.risk_score >= 60
-                              ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
-                              : 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
-                          }`}>
+                          <span
+                            className={`rounded px-2 py-0.5 text-[11px] font-medium ${
+                              selectedMsg.risk_score >= 60
+                                ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+                                : 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
+                            }`}
+                          >
                             {selectedMsg.risk_score >= 60 ? 'Dangerous' : 'Suspicious'}
                           </span>
                         )}
@@ -419,13 +518,23 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 {/* email body */}
                 {selectedMsg.html_body && (
                   <div className="border-b border-[var(--color-border-default)]">
-                    <MessageBubble uid={selectedMsg.uid} textBody={null} htmlBody={selectedMsg.html_body} attachments={[]} isOwn={false} />
+                    <MessageBubble
+                      uid={selectedMsg.uid}
+                      textBody={null}
+                      htmlBody={selectedMsg.html_body}
+                      attachments={[]}
+                      isOwn={false}
+                    />
                   </div>
                 )}
                 {!selectedMsg.html_body && (
                   <div className="select-text px-4 py-3">
                     <div className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-[var(--color-text-primary)]">
-                      {highlightMentions(selectedMsg.clean_text || selectedMsg.text_body || '(no text content)', myEmail, auth?.display_name)}
+                      {highlightMentions(
+                        selectedMsg.clean_text || selectedMsg.text_body || '(no text content)',
+                        myEmail,
+                        auth?.display_name,
+                      )}
                     </div>
                   </div>
                 )}
@@ -457,7 +566,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             {loadingThread && messages.length === 0 && (
               <div className="animate-pulse space-y-4">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex gap-3 border-b border-[var(--color-border-default)] py-3">
+                  <div
+                    key={i}
+                    className="flex gap-3 border-b border-[var(--color-border-default)] py-3"
+                  >
                     <div className="h-7 w-7 shrink-0 rounded-full bg-[var(--color-border-default)]" />
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex items-center gap-2">
@@ -504,20 +616,28 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
                       return (
                         <Fragment key={msg.id}>
-                          {showDivider && <BubbleDateDivider label={bubbleDateLabel(msg.internal_date)} />}
+                          {showDivider && (
+                            <BubbleDateDivider label={bubbleDateLabel(msg.internal_date)} />
+                          )}
                           <div
                             role="button"
                             tabIndex={0}
                             onClick={() => setSelectedMsgIdx(idx)}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click()
+                            }}
                             className={`flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
-                              isSelected ? 'bg-[var(--color-bg-selected)]' : 'hover:bg-[var(--color-hover)]'
+                              isSelected
+                                ? 'bg-[var(--color-bg-selected)]'
+                                : 'hover:bg-[var(--color-hover)]'
                             } ${isOwn ? 'ml-6' : ''}`}
                           >
                             <SenderAvatar sender={msg.sender} size={28} />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <span className={`text-sm font-semibold ${isOwn ? 'text-[var(--color-brand-primary)]' : 'text-[var(--color-text-primary)]'}`}>
+                                <span
+                                  className={`text-sm font-semibold ${isOwn ? 'text-[var(--color-brand-primary)]' : 'text-[var(--color-text-primary)]'}`}
+                                >
                                   {isOwn ? 'Me' : name}
                                 </span>
                                 <span className="text-xs text-[var(--color-text-tertiary)]">
@@ -528,11 +648,19 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                 </span>
                               </div>
                               <div className="relative mt-1">
-                                <div className={`select-text text-[13px] leading-relaxed text-[var(--color-text-primary)] ${isExpanded ? '' : 'line-clamp-5'}`}>
-                                  {highlightMentions(isExpanded ? fullText : snippet, myEmail, auth?.display_name)}
+                                <div
+                                  className={`select-text text-[13px] leading-relaxed text-[var(--color-text-primary)] ${isExpanded ? '' : 'line-clamp-5'}`}
+                                >
+                                  {highlightMentions(
+                                    isExpanded ? fullText : snippet,
+                                    myEmail,
+                                    auth?.display_name,
+                                  )}
                                 </div>
                                 {isLong && !isExpanded && (
-                                  <div className={`absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t ${isSelected ? 'from-[var(--color-bg-selected)]' : 'from-[var(--color-bg-raised)]'}`} />
+                                  <div
+                                    className={`absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t ${isSelected ? 'from-[var(--color-bg-selected)]' : 'from-[var(--color-bg-raised)]'}`}
+                                  />
                                 )}
                               </div>
                               {isLong && (
@@ -589,13 +717,38 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
       {/* delete confirm dialog */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex animate-[fadeIn_150ms_ease-out] items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => setShowDeleteConfirm(false)} onKeyDown={(e) => { if (e.key === 'Escape') setShowDeleteConfirm(false) }}>
-          <div className="mx-4 w-full max-w-sm animate-[scaleIn_150ms_ease-out] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Delete conversation?</h3>
-            <p className="mt-1.5 text-sm text-[var(--color-text-tertiary)]">This will permanently delete all messages.</p>
+        <div
+          className="fixed inset-0 z-50 flex animate-[fadeIn_150ms_ease-out] items-center justify-center bg-black/50 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowDeleteConfirm(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setShowDeleteConfirm(false)
+          }}
+        >
+          <div
+            className="mx-4 w-full max-w-sm animate-[scaleIn_150ms_ease-out] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
+              Delete conversation?
+            </h3>
+            <p className="mt-1.5 text-sm text-[var(--color-text-tertiary)]">
+              This will permanently delete all messages.
+            </p>
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setShowDeleteConfirm(false)} className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]">Cancel</button>
-              <button onClick={handleDelete} className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90">Delete</button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
@@ -607,12 +760,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 function BubbleDateDivider({ label }: { label: string }) {
   return (
     <div className="flex select-none justify-center py-2">
-      <span className="rounded-full bg-[var(--color-bg-sunken)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--color-text-tertiary)]">{label}</span>
+      <span className="rounded-full bg-[var(--color-bg-sunken)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--color-text-tertiary)]">
+        {label}
+      </span>
     </div>
   )
 }
 
-const bubbleDateLabel = (ts: string | number) => dateGroupLabel(typeof ts === 'number' ? ts : Math.floor(new Date(ts).getTime() / 1000))
+const bubbleDateLabel = (ts: string | number) =>
+  dateGroupLabel(typeof ts === 'number' ? ts : Math.floor(new Date(ts).getTime() / 1000))
 
 // strip invisible unicode: ZWJ, ZWNJ, ZW space, BOM, soft hyphen, directional marks, etc.
 // eslint-disable-next-line no-misleading-character-class
@@ -622,9 +778,7 @@ const INVISIBLE_RE = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF\u00AD\u034F
 const NOISE_LINE = /^[\s│┼┬┴├┤┌┐└┘─━═╌╍╎╏║╔╗╚╝╠╣╦╩╬\-=_·•*#|+:>{}[\]~`]+$/
 
 function cleanTextForBubble(raw: string): string {
-  const lines = raw
-    .replace(INVISIBLE_RE, '')
-    .split('\n')
+  const lines = raw.replace(INVISIBLE_RE, '').split('\n')
 
   // find signature delimiter and remove everything after it
   let sigIdx = lines.length
@@ -675,23 +829,52 @@ function bubbleText(msg: ThreadMessage): string {
 // format recipients string into a short human-readable form
 function formatRecipients(recipients: string): string {
   // split by comma, extract names, deduplicate
-  const parts = recipients.split(',').map((r) => extractName(r.trim())).filter(Boolean)
+  const parts = recipients
+    .split(',')
+    .map((r) => extractName(r.trim()))
+    .filter(Boolean)
   if (parts.length === 0) return recipients
   if (parts.length <= 2) return parts.join(', ')
   return `${parts[0]}, ${parts[1]} +${parts.length - 2}`
 }
 
-function HdrBtn({ onClick, title, className, children }: { onClick: () => void; title: string; className?: string; children: React.ReactNode }) {
+function HdrBtn({
+  onClick,
+  title,
+  className,
+  children,
+}: {
+  onClick: () => void
+  title: string
+  className?: string
+  children: React.ReactNode
+}) {
   return (
-    <button onClick={onClick} className={`flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)] ${className ?? ''}`} title={title}>
+    <button
+      onClick={onClick}
+      className={`flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)] ${className ?? ''}`}
+      title={title}
+    >
       {children}
     </button>
   )
 }
 
-function SmBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
+function SmBtn({
+  onClick,
+  title,
+  children,
+}: {
+  onClick: () => void
+  title: string
+  children: React.ReactNode
+}) {
   return (
-    <button onClick={onClick} className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-all duration-150 hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)]" title={title}>
+    <button
+      onClick={onClick}
+      className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-all duration-150 hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)]"
+      title={title}
+    >
       {children}
     </button>
   )
@@ -762,13 +945,25 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
                 {confirming === 'block' ? 'Block this sender?' : 'Report as spam?'}
               </p>
               <div className="mt-2 flex gap-2">
-                <button onClick={() => setConfirming(null)} className="rounded px-2 py-1 text-xs text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]">Cancel</button>
-                <button onClick={() => executeAction(confirming)} className="rounded bg-[var(--color-status-danger)] px-2 py-1 text-xs text-white hover:opacity-90">Confirm</button>
+                <button
+                  onClick={() => setConfirming(null)}
+                  className="rounded px-2 py-1 text-xs text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => executeAction(confirming)}
+                  className="rounded bg-[var(--color-status-danger)] px-2 py-1 text-xs text-white hover:opacity-90"
+                >
+                  Confirm
+                </button>
               </div>
             </div>
           ) : (
             <>
-              <p className="truncate px-3 py-1 text-[11px] text-[var(--color-text-tertiary)]">{senderEmail}</p>
+              <p className="truncate px-3 py-1 text-[11px] text-[var(--color-text-tertiary)]">
+                {senderEmail}
+              </p>
               {FEEDBACK_ITEMS.map((item) => (
                 <button
                   key={item.action}

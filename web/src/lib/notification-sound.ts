@@ -22,23 +22,25 @@ export function playNotificationSound(): void {
 
   const resume = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve()
 
-  resume.then(() => {
-    const oscillator = ctx.createOscillator()
-    const gainNode = ctx.createGain()
+  resume
+    .then(() => {
+      const oscillator = ctx.createOscillator()
+      const gainNode = ctx.createGain()
 
-    oscillator.connect(gainNode)
-    gainNode.connect(ctx.destination)
+      oscillator.connect(gainNode)
+      gainNode.connect(ctx.destination)
 
-    oscillator.type = 'sine'
-    oscillator.frequency.setValueAtTime(FREQUENCY_HZ, ctx.currentTime)
+      oscillator.type = 'sine'
+      oscillator.frequency.setValueAtTime(FREQUENCY_HZ, ctx.currentTime)
 
-    // fade out smoothly to avoid click artifacts
-    gainNode.gain.setValueAtTime(GAIN, ctx.currentTime)
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + DURATION_MS / 1000)
+      // fade out smoothly to avoid click artifacts
+      gainNode.gain.setValueAtTime(GAIN, ctx.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + DURATION_MS / 1000)
 
-    oscillator.start(ctx.currentTime)
-    oscillator.stop(ctx.currentTime + DURATION_MS / 1000)
-  }).catch(() => {
-    // autoplay policy may block audio — silently ignore
-  })
+      oscillator.start(ctx.currentTime)
+      oscillator.stop(ctx.currentTime + DURATION_MS / 1000)
+    })
+    .catch(() => {
+      // autoplay policy may block audio — silently ignore
+    })
 }

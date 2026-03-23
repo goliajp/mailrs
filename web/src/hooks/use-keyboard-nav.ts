@@ -39,7 +39,7 @@ export function useKeyboardNav() {
 
   useEffect(() => {
     let gPending = false // for g+i, g+s chord sequences
-    function scrollToThread(_threadId: string) {
+    function scrollToThread() {
       requestAnimationFrame(() => {
         document.querySelector(`[aria-selected="true"]`)?.scrollIntoView({ block: 'nearest' })
       })
@@ -55,13 +55,13 @@ export function useKeyboardNav() {
           if (visibleIds.length === 0) return
           if (selectedThreadId === null) {
             setSelectedThreadId(visibleIds[0])
-            scrollToThread(visibleIds[0])
+            scrollToThread()
             return
           }
           const idx = visibleIds.indexOf(selectedThreadId)
           if (idx < visibleIds.length - 1) {
             setSelectedThreadId(visibleIds[idx + 1])
-            scrollToThread(visibleIds[idx + 1])
+            scrollToThread()
           }
           break
         }
@@ -72,13 +72,13 @@ export function useKeyboardNav() {
           if (visibleIds.length === 0) return
           if (selectedThreadId === null) {
             setSelectedThreadId(visibleIds[0])
-            scrollToThread(visibleIds[0])
+            scrollToThread()
             return
           }
           const idx = visibleIds.indexOf(selectedThreadId)
           if (idx > 0) {
             setSelectedThreadId(visibleIds[idx - 1])
-            scrollToThread(visibleIds[idx - 1])
+            scrollToThread()
           }
           break
         }
@@ -108,7 +108,7 @@ export function useKeyboardNav() {
         case '/': {
           e.preventDefault()
           const searchInput = document.querySelector<HTMLInputElement>(
-            'input[placeholder="Search..."]'
+            'input[placeholder="Search..."]',
           )
           searchInput?.focus()
           break
@@ -131,8 +131,8 @@ export function useKeyboardNav() {
               toast.success(action === 'archive' ? 'Archived' : 'Unarchived')
               setConversations((prev) =>
                 prev.map((c) =>
-                  c.thread_id === selectedThreadId ? { ...c, archived: action === 'archive' } : c
-                )
+                  c.thread_id === selectedThreadId ? { ...c, archived: action === 'archive' } : c,
+                ),
               )
               // auto-advance to next thread after archive
               if (action === 'archive') {
@@ -155,8 +155,8 @@ export function useKeyboardNav() {
             .then(() => {
               setConversations((prev) =>
                 prev.map((c) =>
-                  c.thread_id === selectedThreadId ? { ...c, flagged: act === 'star' } : c
-                )
+                  c.thread_id === selectedThreadId ? { ...c, flagged: act === 'star' } : c,
+                ),
               )
             })
             .catch(() => toast.error('Failed'))
@@ -172,8 +172,10 @@ export function useKeyboardNav() {
               toast.success('Marked unread')
               setConversations((prev) =>
                 prev.map((c) =>
-                  c.thread_id === selectedThreadId ? { ...c, unread_count: Math.max(1, c.unread_count) } : c
-                )
+                  c.thread_id === selectedThreadId
+                    ? { ...c, unread_count: Math.max(1, c.unread_count) }
+                    : c,
+                ),
               )
             })
             .catch(() => toast.error('Failed'))
@@ -187,8 +189,9 @@ export function useKeyboardNav() {
           setMobileView('thread')
           // focus the reply editor after a tick
           setTimeout(() => {
-            const editor = document.querySelector<HTMLElement>('.tiptap.ProseMirror')
-              ?? document.querySelector<HTMLElement>('[contenteditable="true"]')
+            const editor =
+              document.querySelector<HTMLElement>('.tiptap.ProseMirror') ??
+              document.querySelector<HTMLElement>('[contenteditable="true"]')
             editor?.focus()
           }, 100)
           break
@@ -219,7 +222,9 @@ export function useKeyboardNav() {
           postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${pinAct}`, {})
             .then(() => {
               toast.success(pinned ? 'Unpinned' : 'Pinned')
-              setConversations((prev) => prev.map((c) => c.thread_id === selectedThreadId ? { ...c, pinned: !pinned } : c))
+              setConversations((prev) =>
+                prev.map((c) => (c.thread_id === selectedThreadId ? { ...c, pinned: !pinned } : c)),
+              )
             })
             .catch(() => toast.error('Failed'))
           break
@@ -242,8 +247,12 @@ export function useKeyboardNav() {
           // Shift+I: mark read and go to next
           if (!selectedThreadId) break
           e.preventDefault()
-          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/read`, {}).catch(() => {})
-          setConversations((prev) => prev.map((c) => c.thread_id === selectedThreadId ? { ...c, unread_count: 0 } : c))
+          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/read`, {}).catch(
+            () => {},
+          )
+          setConversations((prev) =>
+            prev.map((c) => (c.thread_id === selectedThreadId ? { ...c, unread_count: 0 } : c)),
+          )
           const readIdx = visibleIds.indexOf(selectedThreadId)
           const nextThread = visibleIds[readIdx + 1] ?? visibleIds[readIdx - 1] ?? null
           if (nextThread) setSelectedThreadId(nextThread)
@@ -255,7 +264,9 @@ export function useKeyboardNav() {
           if (gPending) break
           e.preventDefault()
           gPending = true
-          setTimeout(() => { gPending = false }, 1000)
+          setTimeout(() => {
+            gPending = false
+          }, 1000)
           break
         }
 
@@ -263,7 +274,10 @@ export function useKeyboardNav() {
           if (!gPending) break
           e.preventDefault()
           gPending = false
-          setFolder(null); setSection(null); setQuickFilter('all'); setCategory(null)
+          setFolder(null)
+          setSection(null)
+          setQuickFilter('all')
+          setCategory(null)
           break
         }
 
@@ -271,11 +285,17 @@ export function useKeyboardNav() {
           if (gPending && e.key === 's') {
             e.preventDefault()
             gPending = false
-            setFolder('Sent'); setSection(null); setQuickFilter('all'); setCategory(null)
+            setFolder('Sent')
+            setSection(null)
+            setQuickFilter('all')
+            setCategory(null)
           } else if (gPending && e.key === 'a') {
             e.preventDefault()
             gPending = false
-            setFolder(null); setSection('action'); setQuickFilter('all'); setCategory(null)
+            setFolder(null)
+            setSection('action')
+            setQuickFilter('all')
+            setCategory(null)
           } else {
             gPending = false
           }
@@ -285,5 +305,18 @@ export function useKeyboardNav() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [conversations, visibleIds, selectedThreadId, setSelectedThreadId, setComposingNew, setConversations, setMobileView, setShortcutsOpen])
+  }, [
+    conversations,
+    visibleIds,
+    selectedThreadId,
+    setSelectedThreadId,
+    setComposingNew,
+    setConversations,
+    setMobileView,
+    setShortcutsOpen,
+    setCategory,
+    setFolder,
+    setQuickFilter,
+    setSection,
+  ])
 }

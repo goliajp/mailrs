@@ -88,7 +88,6 @@ export type AmountMention = {
   context: string
 }
 
-
 // admin API types
 export type DomainInfo = {
   name: string

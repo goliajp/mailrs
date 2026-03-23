@@ -89,10 +89,7 @@ describe('AiAnalysisPanel', () => {
       <AiAnalysisPanel
         message={makeMessage({
           ai_analyzed: true,
-          people: [
-            { name: 'John Doe', role: 'Manager' },
-            { name: 'Jane Smith' },
-          ],
+          people: [{ name: 'John Doe', role: 'Manager' }, { name: 'Jane Smith' }],
         })}
       />,
     )

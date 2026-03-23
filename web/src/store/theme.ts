@@ -9,5 +9,5 @@ export const themeAtom = atom(
   (_get, set, value: ThemeMode) => {
     applyTheme(value)
     set(baseThemeAtom, value)
-  }
+  },
 )

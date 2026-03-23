@@ -246,18 +246,21 @@ export function AdminApps() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {app.scopes
-                        ? app.scopes.split(',').filter(Boolean).map((scope) => (
-                            <span
-                              key={scope}
-                              className={
-                                scope === 'internal.rpc'
-                                  ? 'inline-block rounded px-2 py-0.5 text-xs font-medium bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
-                                  : 'inline-block rounded px-2 py-0.5 text-xs font-medium bg-[var(--color-bg-raised)] text-[var(--color-text-secondary)]'
-                              }
-                            >
-                              {scope}
-                            </span>
-                          ))
+                        ? app.scopes
+                            .split(',')
+                            .filter(Boolean)
+                            .map((scope) => (
+                              <span
+                                key={scope}
+                                className={
+                                  scope === 'internal.rpc'
+                                    ? 'inline-block rounded px-2 py-0.5 text-xs font-medium bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+                                    : 'inline-block rounded px-2 py-0.5 text-xs font-medium bg-[var(--color-bg-raised)] text-[var(--color-text-secondary)]'
+                                }
+                              >
+                                {scope}
+                              </span>
+                            ))
                         : null}
                     </div>
                   </td>
@@ -265,7 +268,10 @@ export function AdminApps() {
                     {app.owner_address}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="max-w-[120px] truncate font-mono text-xs text-[var(--color-text-tertiary)]" title={app.app_id}>
+                    <span
+                      className="max-w-[120px] truncate font-mono text-xs text-[var(--color-text-tertiary)]"
+                      title={app.app_id}
+                    >
                       {app.app_id}
                     </span>
                   </td>
@@ -287,10 +293,15 @@ export function AdminApps() {
                   </td>
                 </tr>
                 {expandedAppId === app.app_id && (
-                  <tr key={`${app.app_id}-edit`} className="border-b border-[var(--color-border-default)] last:border-0">
+                  <tr
+                    key={`${app.app_id}-edit`}
+                    className="border-b border-[var(--color-border-default)] last:border-0"
+                  >
                     <td colSpan={5} className="px-4 py-3">
                       <div className="space-y-2 rounded-lg border border-[var(--color-border-default)] p-3">
-                        <p className="text-xs font-medium text-[var(--color-text-secondary)]">Edit Scopes</p>
+                        <p className="text-xs font-medium text-[var(--color-text-secondary)]">
+                          Edit Scopes
+                        </p>
                         <div className="flex flex-wrap gap-2">
                           {permissions.map((perm) => (
                             <label key={perm} className="flex items-center gap-1.5 text-sm">
@@ -336,8 +347,14 @@ export function AdminApps() {
       </div>
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDeleteTarget(null)}>
-          <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
             <p className="mb-4 text-sm text-[var(--color-text-tertiary)]">
               Are you sure you want to delete this app? This action cannot be undone.

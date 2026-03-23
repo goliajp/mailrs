@@ -59,7 +59,7 @@ export function AdminDomains() {
     try {
       const report = await postJson<DomainCheckReport>(
         `/admin/domains/${encodeURIComponent(name)}/check`,
-        {}
+        {},
       )
       setReports((prev) => ({ ...prev, [name]: report }))
     } catch {
@@ -130,7 +130,9 @@ export function AdminDomains() {
             {domains.map((domain) => (
               <Fragment key={domain.name}>
                 <tr className="border-b border-[var(--color-border-default)] last:border-0">
-                  <td className="px-4 py-3 font-medium"><Copyable value={domain.name}>{domain.name}</Copyable></td>
+                  <td className="px-4 py-3 font-medium">
+                    <Copyable value={domain.name}>{domain.name}</Copyable>
+                  </td>
                   <td className="px-4 py-3 text-[var(--color-text-secondary)]">
                     {new Date(domain.created_at * 1000).toLocaleDateString()}
                   </td>
@@ -182,13 +184,21 @@ export function AdminDomains() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg">
             <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
-              Delete domain <span className="font-medium text-[var(--color-text-primary)]">{deleteTarget}</span>? This will also remove all associated accounts and aliases.
+              Delete domain{' '}
+              <span className="font-medium text-[var(--color-text-primary)]">{deleteTarget}</span>?
+              This will also remove all associated accounts and aliases.
             </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleteTarget(null)} className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              >
                 Cancel
               </button>
-              <button onClick={() => handleDelete(deleteTarget)} className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90">
+              <button
+                onClick={() => handleDelete(deleteTarget)}
+                className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+              >
                 Delete
               </button>
             </div>

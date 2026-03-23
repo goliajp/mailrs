@@ -38,7 +38,7 @@ export const pageSizeAtom = atom(
     const clamped = Math.max(10, Math.min(200, value))
     localStorage.setItem(PAGE_SIZE_KEY, String(clamped))
     set(basePageSizeAtom, clamped)
-  }
+  },
 )
 
 const baseNotificationsAtom = atom<boolean>(loadNotifications())
@@ -48,7 +48,7 @@ export const notificationsAtom = atom(
   (_get, set, value: boolean) => {
     localStorage.setItem(NOTIFICATIONS_KEY, String(value))
     set(baseNotificationsAtom, value)
-  }
+  },
 )
 
 // --- notification sound ---
@@ -70,7 +70,7 @@ export const notificationSoundAtom = atom(
   (_get, set, value: boolean) => {
     localStorage.setItem(NOTIFICATION_SOUND_KEY, String(value))
     set(baseNotificationSoundAtom, value)
-  }
+  },
 )
 
 // --- signature ---
@@ -100,7 +100,7 @@ export const signatureAtom = atom(
   (_get, set, value: string) => {
     localStorage.setItem(SIGNATURE_KEY, value)
     set(baseSignatureAtom, value)
-  }
+  },
 )
 
 const baseSignatureEnabledAtom = atom<boolean>(loadSignatureEnabled())
@@ -110,7 +110,7 @@ export const signatureEnabledAtom = atom(
   (_get, set, value: boolean) => {
     localStorage.setItem(SIGNATURE_ENABLED_KEY, String(value))
     set(baseSignatureEnabledAtom, value)
-  }
+  },
 )
 
 // standard email signature separator

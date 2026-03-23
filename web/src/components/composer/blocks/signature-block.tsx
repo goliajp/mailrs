@@ -15,7 +15,10 @@ export function SignatureBlock({ data, onChange, disabled }: Props) {
   const editor = useEditor({
     extensions: createMinimalExtensions(),
     editorProps: {
-      attributes: { class: 'prose prose-sm max-w-none px-3 py-1.5 outline-none text-[var(--color-text-tertiary)]' },
+      attributes: {
+        class:
+          'prose prose-sm max-w-none px-3 py-1.5 outline-none text-[var(--color-text-tertiary)]',
+      },
     },
     editable: !disabled,
     onUpdate: ({ editor: e }) => {

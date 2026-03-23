@@ -20,7 +20,9 @@ type Props = {
 
 export function TextBlock({ onChange, onSubmit, disabled, placeholder, getEditorRef }: Props) {
   const onSubmitRef = useRef(onSubmit)
-  onSubmitRef.current = onSubmit
+  useEffect(() => {
+    onSubmitRef.current = onSubmit
+  }, [onSubmit])
 
   const editor = useEditor({
     extensions: createEditorExtensions(placeholder),
@@ -46,29 +48,35 @@ export function TextBlock({ onChange, onSubmit, disabled, placeholder, getEditor
   }, [editor, getEditorRef])
 
   // image drag-drop
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    if (!editor) return
-    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
-    if (files.length === 0) return
-    e.preventDefault()
-    for (const file of files) {
-      const url = await uploadInlineImage(file)
-      if (url) editor.chain().focus().setImage({ src: url }).run()
-    }
-  }, [editor])
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      if (!editor) return
+      const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+      if (files.length === 0) return
+      e.preventDefault()
+      for (const file of files) {
+        const url = await uploadInlineImage(file)
+        if (url) editor.chain().focus().setImage({ src: url }).run()
+      }
+    },
+    [editor],
+  )
 
-  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
-    if (!editor) return
-    const items = Array.from(e.clipboardData.items).filter((i) => i.type.startsWith('image/'))
-    if (items.length === 0) return
-    e.preventDefault()
-    for (const item of items) {
-      const file = item.getAsFile()
-      if (!file) continue
-      const url = await uploadInlineImage(file)
-      if (url) editor.chain().focus().setImage({ src: url }).run()
-    }
-  }, [editor])
+  const handlePaste = useCallback(
+    async (e: React.ClipboardEvent) => {
+      if (!editor) return
+      const items = Array.from(e.clipboardData.items).filter((i) => i.type.startsWith('image/'))
+      if (items.length === 0) return
+      e.preventDefault()
+      for (const item of items) {
+        const file = item.getAsFile()
+        if (!file) continue
+        const url = await uploadInlineImage(file)
+        if (url) editor.chain().focus().setImage({ src: url }).run()
+      }
+    },
+    [editor],
+  )
 
   return (
     <div onDrop={handleDrop} onPaste={handlePaste} onDragOver={(e) => e.preventDefault()}>

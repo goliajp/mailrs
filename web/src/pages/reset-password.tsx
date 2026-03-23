@@ -58,9 +58,14 @@ export function ResetPassword() {
         <div className="w-full max-w-sm space-y-4 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg">
           <div className="flex flex-col items-center">
             <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" />
-            <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">mailrs</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+              mailrs
+            </h1>
           </div>
-          <div className="rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-2 text-sm text-[var(--color-status-danger)]" role="alert">
+          <div
+            className="rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-2 text-sm text-[var(--color-status-danger)]"
+            role="alert"
+          >
             Invalid or missing reset token
           </div>
           <div className="text-center">
@@ -79,7 +84,9 @@ export function ResetPassword() {
         <div className="w-full max-w-sm space-y-4 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg">
           <div className="flex flex-col items-center">
             <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" />
-            <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">mailrs</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+              mailrs
+            </h1>
           </div>
           <div className="rounded-md bg-[var(--color-status-success-subtle)] px-3 py-2 text-sm text-[var(--color-status-success)]">
             Password reset successfully. You can now sign in with your new password.
@@ -99,15 +106,13 @@ export function ResetPassword() {
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm select-none space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg"
-             >
+      >
         <div className="flex flex-col items-center">
           <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" />
           <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
             mailrs
           </h1>
-          <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
-            Set your new password
-          </p>
+          <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">Set your new password</p>
         </div>
 
         {error && (

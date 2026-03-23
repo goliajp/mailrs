@@ -52,7 +52,9 @@ function resolveIcon(domain: string): Promise<string | null> {
           return data.logo_url
         }
       }
-    } catch { /* continue */ }
+    } catch {
+      /* continue */
+    }
 
     // 2. try apple-touch-icon: exact domain first, then parent domain
     const domains = [domain]
@@ -78,7 +80,11 @@ function resolveIcon(domain: string): Promise<string | null> {
   return p
 }
 
-export function SenderAvatar({ sender, size = 36, className }: {
+export function SenderAvatar({
+  sender,
+  size = 36,
+  className,
+}: {
   sender: string
   size?: number
   className?: string
@@ -90,19 +96,23 @@ export function SenderAvatar({ sender, size = 36, className }: {
   })
   const initial = avatarInitial(sender)
   const color = avatarColor(sender)
-  const sizeClass = size <= 28 ? 'h-7 w-7 text-[11px]' : size <= 32 ? 'h-8 w-8 text-xs' : 'h-9 w-9 text-sm'
+  const sizeClass =
+    size <= 28 ? 'h-7 w-7 text-[11px]' : size <= 32 ? 'h-8 w-8 text-xs' : 'h-9 w-9 text-sm'
 
   useEffect(() => {
     if (!domain) return
     if (iconCache.has(domain)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing with external module-level cache
       setIconUrl(iconCache.get(domain)!)
       return
     }
     let cancelled = false
-    resolveIcon(domain).then(url => {
+    resolveIcon(domain).then((url) => {
       if (!cancelled) setIconUrl(url)
     })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [domain])
 
   // verified icon (BIMI or apple-touch-icon)
@@ -122,7 +132,12 @@ export function SenderAvatar({ sender, size = 36, className }: {
 
   // colored initials — immediate, no blank state
   return (
-    <div className={cn(`flex shrink-0 items-center justify-center rounded-full font-medium text-white ${sizeClass} ${color}`, className)}>
+    <div
+      className={cn(
+        `flex shrink-0 items-center justify-center rounded-full font-medium text-white ${sizeClass} ${color}`,
+        className,
+      )}
+    >
       {initial}
     </div>
   )

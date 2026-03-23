@@ -17,7 +17,9 @@ export function QuoteBlock({ data, onChange, mode }: Props) {
   const editor = useEditor({
     extensions: createMinimalExtensions(),
     editorProps: {
-      attributes: { class: 'prose prose-sm max-w-none px-3 py-2 outline-none text-[var(--color-text-tertiary)]' },
+      attributes: {
+        class: 'prose prose-sm max-w-none px-3 py-2 outline-none text-[var(--color-text-tertiary)]',
+      },
     },
     editable: false,
   })

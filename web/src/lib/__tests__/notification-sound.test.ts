@@ -137,7 +137,12 @@ describe('playNotificationSound', () => {
   })
 
   it('does nothing when AudioContext constructor throws', async () => {
-    vi.stubGlobal('AudioContext', vi.fn(() => { throw new Error('not allowed') }))
+    vi.stubGlobal(
+      'AudioContext',
+      vi.fn(() => {
+        throw new Error('not allowed')
+      }),
+    )
 
     const { playNotificationSound } = await import('../notification-sound')
     // should not throw

@@ -4,7 +4,15 @@ import { useCallback, useEffect, useRef } from 'react'
 import { fetchJson } from '@/lib/api'
 import { playNotificationSound } from '@/lib/notification-sound'
 import type { ConversationSummary, NewMessageEvent, SmtpEvent, ThreadMessage } from '@/lib/types'
-import { categoryFilterAtom, conversationsAtom, folderAtom, searchQueryAtom, selectedDomainsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
+import {
+  categoryFilterAtom,
+  conversationsAtom,
+  folderAtom,
+  searchQueryAtom,
+  selectedDomainsAtom,
+  selectedThreadIdAtom,
+  threadMessagesAtom,
+} from '@/store/chat'
 import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 
 const POLL_INTERVAL = 60_000
@@ -16,24 +24,35 @@ export function useMailEvents(user: string) {
   const selectedThreadId = useAtomValue(selectedThreadIdAtom)
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedRef = useRef(selectedThreadId)
-  selectedRef.current = selectedThreadId
   const categoryRef = useRef(categoryFilter)
-  categoryRef.current = categoryFilter
   const searchQuery = useAtomValue(searchQueryAtom)
   const searchRef = useRef(searchQuery)
-  searchRef.current = searchQuery
   const selectedDomains = useAtomValue(selectedDomainsAtom)
   const domainsRef = useRef(selectedDomains)
-  domainsRef.current = selectedDomains
   const folder = useAtomValue(folderAtom)
   const folderRef = useRef(folder)
-  folderRef.current = folder
   const notificationsEnabled = useAtomValue(notificationsAtom)
   const notificationsRef = useRef(notificationsEnabled)
-  notificationsRef.current = notificationsEnabled
   const soundEnabled = useAtomValue(notificationSoundAtom)
   const soundRef = useRef(soundEnabled)
-  soundRef.current = soundEnabled
+
+  useEffect(() => {
+    selectedRef.current = selectedThreadId
+    categoryRef.current = categoryFilter
+    searchRef.current = searchQuery
+    domainsRef.current = selectedDomains
+    folderRef.current = folder
+    notificationsRef.current = notificationsEnabled
+    soundRef.current = soundEnabled
+  }, [
+    selectedThreadId,
+    categoryFilter,
+    searchQuery,
+    selectedDomains,
+    folder,
+    notificationsEnabled,
+    soundEnabled,
+  ])
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(null)
@@ -57,27 +76,28 @@ export function useMailEvents(user: string) {
       path += `&folder=${encodeURIComponent(f)}`
     }
     fetchJson<ConversationSummary[]>(path).then(
-      (fresh) => setConversations((prev) => {
-        // merge: update existing, prepend new, keep loaded items beyond the fresh window
-        const merged: ConversationSummary[] = []
-        const seen = new Set<string>()
+      (fresh) =>
+        setConversations((prev) => {
+          // merge: update existing, prepend new, keep loaded items beyond the fresh window
+          const merged: ConversationSummary[] = []
+          const seen = new Set<string>()
 
-        // fresh items first (preserves server order for top N)
-        for (const c of fresh) {
-          merged.push(c)
-          seen.add(c.thread_id)
-        }
-
-        // keep previously loaded items that aren't in the fresh batch
-        for (const c of prev) {
-          if (!seen.has(c.thread_id)) {
+          // fresh items first (preserves server order for top N)
+          for (const c of fresh) {
             merged.push(c)
+            seen.add(c.thread_id)
           }
-        }
 
-        return merged
-      }),
-      () => {}
+          // keep previously loaded items that aren't in the fresh batch
+          for (const c of prev) {
+            if (!seen.has(c.thread_id)) {
+              merged.push(c)
+            }
+          }
+
+          return merged
+        }),
+      () => {},
     )
   }, [setConversations])
 
@@ -86,11 +106,9 @@ export function useMailEvents(user: string) {
     if (!tid) return
     const doms = domainsRef.current
     const domainsParam = doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
-    fetchJson<ThreadMessage[]>(
-      `/conversations/${encodeURIComponent(tid)}${domainsParam}`
-    ).then(
+    fetchJson<ThreadMessage[]>(`/conversations/${encodeURIComponent(tid)}${domainsParam}`).then(
       (data) => setThreadMessages(data),
-      () => {}
+      () => {},
     )
   }, [setThreadMessages])
 
@@ -140,7 +158,11 @@ export function useMailEvents(user: string) {
               if (notificationsRef.current) {
                 if (soundRef.current) playNotificationSound()
 
-                if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
+                if (
+                  typeof Notification !== 'undefined' &&
+                  Notification.permission === 'granted' &&
+                  document.hidden
+                ) {
                   new Notification(msg.sender, {
                     body: msg.subject || msg.snippet,
                     tag: msg.thread_id,

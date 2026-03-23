@@ -10,7 +10,14 @@ import { themeAtom } from '@/store/theme'
 
 // --- types ---
 
-type Category = 'account' | 'security' | 'signatures' | 'keys' | 'api-keys' | 'webhooks' | 'appearance'
+type Category =
+  | 'account'
+  | 'security'
+  | 'signatures'
+  | 'keys'
+  | 'api-keys'
+  | 'webhooks'
+  | 'appearance'
 
 interface TotpStatus {
   enabled: boolean
@@ -216,16 +223,24 @@ function AccountSection() {
       <div className={cardClass}>
         <div className="space-y-3">
           <Field label="Email">
-            <span className="text-sm text-[var(--color-text-secondary)]">{auth?.address ?? '-'}</span>
+            <span className="text-sm text-[var(--color-text-secondary)]">
+              {auth?.address ?? '-'}
+            </span>
           </Field>
           <Field label="Display Name">
-            <span className="text-sm text-[var(--color-text-secondary)]">{auth?.display_name || '-'}</span>
+            <span className="text-sm text-[var(--color-text-secondary)]">
+              {auth?.display_name || '-'}
+            </span>
           </Field>
           <Field label="Permissions">
-            <span className="text-sm text-[var(--color-text-secondary)]">{auth?.permissions?.join(', ') || '-'}</span>
+            <span className="text-sm text-[var(--color-text-secondary)]">
+              {auth?.permissions?.join(', ') || '-'}
+            </span>
           </Field>
           <Field label="Domains">
-            <span className="text-sm text-[var(--color-text-secondary)]">{auth?.accessible_domains?.join(', ') || '-'}</span>
+            <span className="text-sm text-[var(--color-text-secondary)]">
+              {auth?.accessible_domains?.join(', ') || '-'}
+            </span>
           </Field>
         </div>
       </div>
@@ -233,7 +248,8 @@ function AccountSection() {
       <div className={cardClass}>
         <h3 className="mb-3 text-sm font-medium">Recovery Email</h3>
         <p className="mb-2 text-xs text-[var(--color-text-tertiary)]">
-          Used to receive password reset links. Must be an external email address you can access independently.
+          Used to receive password reset links. Must be an external email address you can access
+          independently.
         </p>
         <div className="flex gap-2">
           <input
@@ -244,7 +260,11 @@ function AccountSection() {
             disabled={!recoveryLoaded}
             className={inputClass + ' flex-1'}
           />
-          <button onClick={handleRecoveryEmailSave} disabled={savingRecovery || !recoveryLoaded} className={btnPrimary}>
+          <button
+            onClick={handleRecoveryEmailSave}
+            disabled={savingRecovery || !recoveryLoaded}
+            className={btnPrimary}
+          >
             {savingRecovery ? 'Saving...' : 'Save'}
           </button>
         </div>
@@ -254,7 +274,12 @@ function AccountSection() {
         <h3 className="mb-3 text-sm font-medium">Change Password</h3>
         <div className="space-y-2">
           <div>
-            <label htmlFor="settings-current-pw" className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Current password</label>
+            <label
+              htmlFor="settings-current-pw"
+              className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]"
+            >
+              Current password
+            </label>
             <input
               id="settings-current-pw"
               type="password"
@@ -265,7 +290,12 @@ function AccountSection() {
             />
           </div>
           <div>
-            <label htmlFor="settings-new-pw" className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">New password</label>
+            <label
+              htmlFor="settings-new-pw"
+              className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]"
+            >
+              New password
+            </label>
             <input
               id="settings-new-pw"
               type="password"
@@ -276,7 +306,12 @@ function AccountSection() {
             />
           </div>
           <div>
-            <label htmlFor="settings-confirm-pw" className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Confirm new password</label>
+            <label
+              htmlFor="settings-confirm-pw"
+              className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]"
+            >
+              Confirm new password
+            </label>
             <input
               id="settings-confirm-pw"
               type="password"
@@ -310,7 +345,9 @@ function AccountSection() {
           Sign out
         </button>
         {auth?.address && (
-          <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">Signed in as {auth.address}</p>
+          <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">
+            Signed in as {auth.address}
+          </p>
         )}
       </div>
 
@@ -389,12 +426,13 @@ function SecuritySection() {
     }
   }
 
-  if (loading) return (
-    <div className="flex items-center gap-2 py-4 text-sm text-[var(--color-text-tertiary)]">
-      <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-      Loading...
-    </div>
-  )
+  if (loading)
+    return (
+      <div className="flex items-center gap-2 py-4 text-sm text-[var(--color-text-tertiary)]">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        Loading...
+      </div>
+    )
 
   return (
     <div className="space-y-6">
@@ -424,7 +462,9 @@ function SecuritySection() {
         <div className={cardClass + ' space-y-4'}>
           <h3 className="text-sm font-medium">Scan QR Code</h3>
           <div className="rounded-md bg-[var(--color-bg-raised)] p-3">
-            <p className="break-all font-mono text-xs text-[var(--color-text-secondary)]">{setup.qr_url}</p>
+            <p className="break-all font-mono text-xs text-[var(--color-text-secondary)]">
+              {setup.qr_url}
+            </p>
           </div>
 
           {setup.recovery_codes.length > 0 && (
@@ -435,7 +475,10 @@ function SecuritySection() {
               </p>
               <div className="grid grid-cols-2 gap-1">
                 {setup.recovery_codes.map((rc) => (
-                  <code key={rc} className="rounded bg-[var(--color-bg-sunken)] px-2 py-1 font-mono text-xs">
+                  <code
+                    key={rc}
+                    className="rounded bg-[var(--color-bg-sunken)] px-2 py-1 font-mono text-xs"
+                  >
                     {rc}
                   </code>
                 ))}
@@ -495,7 +538,7 @@ function SignaturesSection() {
   }, [])
 
   useEffect(() => {
-    load()
+    void load()
   }, [load])
 
   const handleSave = async () => {
@@ -536,7 +579,9 @@ function SignaturesSection() {
       <div className="flex items-center justify-between">
         <SectionHeader title="Signatures" />
         <button
-          onClick={() => setEditing({ name: '', text_content: '', html_content: '', is_default: false })}
+          onClick={() =>
+            setEditing({ name: '', text_content: '', html_content: '', is_default: false })
+          }
           className={btnPrimary}
         >
           Add Signature
@@ -552,7 +597,9 @@ function SignaturesSection() {
             className={inputClass}
           />
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Text content</label>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+              Text content
+            </label>
             <textarea
               value={editing.text_content ?? ''}
               onChange={(e) => setEditing({ ...editing, text_content: e.target.value })}
@@ -561,7 +608,9 @@ function SignaturesSection() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">HTML content</label>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+              HTML content
+            </label>
             <textarea
               value={editing.html_content ?? ''}
               onChange={(e) => setEditing({ ...editing, html_content: e.target.value })}
@@ -610,10 +659,16 @@ function SignaturesSection() {
               )}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setEditing(sig)} className="text-xs text-[var(--color-brand-primary)]">
+              <button
+                onClick={() => setEditing(sig)}
+                className="text-xs text-[var(--color-brand-primary)]"
+              >
                 Edit
               </button>
-              <button onClick={() => setDeleteTarget(sig.id)} className="text-xs text-[var(--color-status-danger)]">
+              <button
+                onClick={() => setDeleteTarget(sig.id)}
+                className="text-xs text-[var(--color-status-danger)]"
+              >
                 Delete
               </button>
             </div>
@@ -651,7 +706,7 @@ function EncryptionKeysSection() {
   }, [])
 
   useEffect(() => {
-    load()
+    void load()
   }, [load])
 
   const handleUpload = async (type: 'pgp' | 'smime', content: string) => {
@@ -660,7 +715,11 @@ function EncryptionKeysSection() {
     try {
       await putJson(`/mail/keys/${type}`, { content: content.trim() })
       toast.success(`${type.toUpperCase()} key saved`)
-      type === 'pgp' ? setPgpKey('') : setSmimeCert('')
+      if (type === 'pgp') {
+        setPgpKey('')
+      } else {
+        setSmimeCert('')
+      }
       load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : `Failed to save ${type} key`)
@@ -701,11 +760,19 @@ function EncryptionKeysSection() {
           className={inputClass}
         />
         <div className="flex gap-2">
-          <button onClick={() => handleUpload('pgp', pgpKey)} disabled={saving === 'pgp'} className={btnPrimary}>
+          <button
+            onClick={() => handleUpload('pgp', pgpKey)}
+            disabled={saving === 'pgp'}
+            className={btnPrimary}
+          >
             {saving === 'pgp' ? 'Saving...' : 'Save PGP Key'}
           </button>
           {status?.pgp_fingerprint && (
-            <button onClick={() => setDeleteKeyTarget('pgp')} disabled={saving === 'pgp'} className={btnDanger}>
+            <button
+              onClick={() => setDeleteKeyTarget('pgp')}
+              disabled={saving === 'pgp'}
+              className={btnDanger}
+            >
               Delete
             </button>
           )}
@@ -727,11 +794,19 @@ function EncryptionKeysSection() {
           className={inputClass}
         />
         <div className="flex gap-2">
-          <button onClick={() => handleUpload('smime', smimeCert)} disabled={saving === 'smime'} className={btnPrimary}>
+          <button
+            onClick={() => handleUpload('smime', smimeCert)}
+            disabled={saving === 'smime'}
+            className={btnPrimary}
+          >
             {saving === 'smime' ? 'Saving...' : 'Save S/MIME Cert'}
           </button>
           {status?.smime_fingerprint && (
-            <button onClick={() => setDeleteKeyTarget('smime')} disabled={saving === 'smime'} className={btnDanger}>
+            <button
+              onClick={() => setDeleteKeyTarget('smime')}
+              disabled={saving === 'smime'}
+              className={btnDanger}
+            >
               Delete
             </button>
           )}
@@ -771,7 +846,8 @@ function ApiKeysSection() {
   }, [])
 
   useEffect(() => {
-    load()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch
+    void load()
   }, [load])
 
   const handleCreate = async () => {
@@ -876,14 +952,19 @@ function ApiKeysSection() {
           <div className="flex items-center justify-between">
             <div>
               <span className="text-sm font-medium">{k.name}</span>
-              <span className="ml-2 font-mono text-xs text-[var(--color-text-tertiary)]">{k.prefix}...</span>
+              <span className="ml-2 font-mono text-xs text-[var(--color-text-tertiary)]">
+                {k.prefix}...
+              </span>
               {k.expires_at && (
                 <span className="ml-2 text-xs text-[var(--color-text-tertiary)]">
                   expires {new Date(k.expires_at).toLocaleDateString()}
                 </span>
               )}
             </div>
-            <button onClick={() => setDeleteTarget(k.id)} className="text-xs text-[var(--color-status-danger)]">
+            <button
+              onClick={() => setDeleteTarget(k.id)}
+              className="text-xs text-[var(--color-status-danger)]"
+            >
               Revoke
             </button>
           </div>
@@ -906,7 +987,12 @@ function ApiKeysSection() {
 function WebhooksSection() {
   const [webhooks, setWebhooks] = useState<Webhook[]>([])
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ url: '', event_type: 'new_message', filter_sender: '', filter_thread_id: '' })
+  const [form, setForm] = useState({
+    url: '',
+    event_type: 'new_message',
+    filter_sender: '',
+    filter_thread_id: '',
+  })
   const [createdSecret, setCreatedSecret] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
@@ -920,7 +1006,7 @@ function WebhooksSection() {
   }, [])
 
   useEffect(() => {
-    load()
+    void load()
   }, [load])
 
   const [creating, setCreating] = useState(false)
@@ -1004,7 +1090,9 @@ function WebhooksSection() {
             className={inputClass}
           />
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Event type</label>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+              Event type
+            </label>
             <select
               value={form.event_type}
               onChange={(e) => setForm({ ...form, event_type: e.target.value })}
@@ -1046,7 +1134,9 @@ function WebhooksSection() {
         <div key={wh.id} className={cardClass}>
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium" title={wh.url}>{wh.url}</p>
+              <p className="truncate text-sm font-medium" title={wh.url}>
+                {wh.url}
+              </p>
               <div className="mt-1 flex flex-wrap gap-2">
                 <span className="rounded-full bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]">
                   {wh.event_type}
@@ -1072,7 +1162,10 @@ function WebhooksSection() {
                 </span>
               </div>
             </div>
-            <button onClick={() => setDeleteTarget(wh.id)} className="ml-3 text-xs text-[var(--color-status-danger)]">
+            <button
+              onClick={() => setDeleteTarget(wh.id)}
+              className="ml-3 text-xs text-[var(--color-status-danger)]"
+            >
               Delete
             </button>
           </div>
@@ -1108,18 +1201,22 @@ function AppearanceSection() {
       if (enabled && Notification.permission === 'default') {
         const result = await Notification.requestPermission()
         if (result === 'denied') {
-          setNotificationError('Browser notifications were denied. Please enable them in your browser settings.')
+          setNotificationError(
+            'Browser notifications were denied. Please enable them in your browser settings.',
+          )
           return
         }
       }
       if (enabled && Notification.permission === 'denied') {
-        setNotificationError('Browser notifications are blocked. Please enable them in your browser settings.')
+        setNotificationError(
+          'Browser notifications are blocked. Please enable them in your browser settings.',
+        )
         return
       }
       setNotificationError(null)
       setNotifications(enabled)
     },
-    [setNotifications]
+    [setNotifications],
   )
 
   return (
@@ -1233,8 +1330,14 @@ function ConfirmDialog({
   }, [onCancel])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
-      <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
         <p className="mb-4 text-sm text-[var(--color-text-secondary)]">{message}</p>
         <div className="flex justify-end gap-2">
           <button onClick={onCancel} className={btnSecondary}>

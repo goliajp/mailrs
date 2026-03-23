@@ -34,7 +34,8 @@ export function AdminAuditLog() {
   }, [])
 
   useEffect(() => {
-    loadEntries()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch
+    void loadEntries()
   }, [loadEntries])
 
   return (
@@ -73,9 +74,7 @@ export function AdminAuditLog() {
                 <td className={`px-4 py-3 font-medium ${actionColor(entry.action)}`}>
                   {entry.action}
                 </td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                  {entry.target}
-                </td>
+                <td className="px-4 py-3 text-[var(--color-text-secondary)]">{entry.target}</td>
                 <td className="max-w-xs truncate px-4 py-3 text-[var(--color-text-tertiary)]">
                   {entry.detail}
                 </td>
@@ -83,10 +82,7 @@ export function AdminAuditLog() {
             ))}
             {entries.length === 0 && (
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
-                >
+                <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
                   No audit log entries
                 </td>
               </tr>

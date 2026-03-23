@@ -24,8 +24,7 @@ const PAGE_SIZE = 20
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
@@ -39,9 +38,7 @@ function QuotaCell({ address }: { address: string }) {
 
   useEffect(() => {
     let cancelled = false
-    fetchJson<QuotaInfo>(
-      `/admin/accounts/${encodeURIComponent(address)}/quota`,
-    )
+    fetchJson<QuotaInfo>(`/admin/accounts/${encodeURIComponent(address)}/quota`)
       .then((data) => {
         if (!cancelled) {
           setQuota({ status: 'loaded', quotaBytes: data.quota_bytes })
@@ -58,15 +55,11 @@ function QuotaCell({ address }: { address: string }) {
   }, [address])
 
   if (quota.status === 'loading') {
-    return (
-      <span className="text-xs text-[var(--color-text-tertiary)]">Loading...</span>
-    )
+    return <span className="text-xs text-[var(--color-text-tertiary)]">Loading...</span>
   }
 
   if (quota.status === 'none') {
-    return (
-      <span className="text-xs text-[var(--color-text-tertiary)]">No quota set</span>
-    )
+    return <span className="text-xs text-[var(--color-text-tertiary)]">No quota set</span>
   }
 
   const totalBytes = quota.quotaBytes
@@ -82,13 +75,7 @@ function QuotaCell({ address }: { address: string }) {
   )
 }
 
-function PasswordCell({
-  account,
-  onSaved,
-}: {
-  account: AccountInfo
-  onSaved: () => void
-}) {
+function PasswordCell({ account, onSaved }: { account: AccountInfo; onSaved: () => void }) {
   const [editing, setEditing] = useState(false)
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
@@ -209,10 +196,7 @@ function SieveCell({ address }: { address: string }) {
 
   if (state.status === 'idle') {
     return (
-      <button
-        onClick={load}
-        className="text-xs text-[var(--color-brand-primary)] hover:opacity-80"
-      >
+      <button onClick={load} className="text-xs text-[var(--color-brand-primary)] hover:opacity-80">
         Sieve
       </button>
     )
@@ -229,12 +213,10 @@ function SieveCell({ address }: { address: string }) {
         onChange={(e) => setState((prev) => ({ ...prev, script: e.target.value }))}
         rows={6}
         className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 py-1.5 font-mono text-xs"
-        placeholder="require &quot;fileinto&quot;; ..."
+        placeholder='require "fileinto"; ...'
         disabled={state.status === 'saving' || state.status === 'deleting'}
       />
-      {state.error && (
-        <p className="text-xs text-[var(--color-status-danger)]">{state.error}</p>
-      )}
+      {state.error && <p className="text-xs text-[var(--color-status-danger)]">{state.error}</p>}
       <div className="flex gap-1.5">
         <button
           onClick={save}
@@ -281,10 +263,7 @@ function GroupsCell({ address }: { address: string }) {
 
   if (groups === null && !loading) {
     return (
-      <button
-        onClick={load}
-        className="text-xs text-[var(--color-brand-primary)] hover:opacity-80"
-      >
+      <button onClick={load} className="text-xs text-[var(--color-brand-primary)] hover:opacity-80">
         Groups
       </button>
     )
@@ -329,21 +308,27 @@ function DeleteConfirmDialog({
   onCancel: () => void
 }) {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onCancel])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
-      <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
         <p className="mb-4 text-sm text-[var(--color-text-tertiary)]">
           Are you sure you want to delete{' '}
-          <span className="font-medium text-[var(--color-text-primary)]">
-            {address}
-          </span>
-          ? This action cannot be undone.
+          <span className="font-medium text-[var(--color-text-primary)]">{address}</span>? This
+          action cannot be undone.
         </p>
         <div className="flex justify-end gap-2">
           <button
@@ -477,9 +462,7 @@ export function AdminAccounts() {
           <div className="flex gap-2">
             <input
               value={form.displayName}
-              onChange={(e) =>
-                setForm({ ...form, displayName: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, displayName: e.target.value })}
               placeholder="Display Name"
               className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
             />
@@ -527,7 +510,9 @@ export function AdminAccounts() {
                 key={account.address}
                 className="border-b border-[var(--color-border-default)] last:border-0"
               >
-                <td className="px-4 py-3 font-medium"><Copyable value={account.address}>{account.address}</Copyable></td>
+                <td className="px-4 py-3 font-medium">
+                  <Copyable value={account.address}>{account.address}</Copyable>
+                </td>
                 <td className="select-text px-4 py-3 text-[var(--color-text-secondary)]">
                   {account.display_name}
                 </td>
@@ -543,10 +528,7 @@ export function AdminAccounts() {
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <PasswordCell
-                    account={account}
-                    onSaved={loadAccounts}
-                  />
+                  <PasswordCell account={account} onSaved={loadAccounts} />
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
@@ -579,8 +561,7 @@ export function AdminAccounts() {
         <div className="mt-4 flex items-center justify-between text-sm text-[var(--color-text-secondary)]">
           <span>
             Showing {safePage * PAGE_SIZE + 1}--
-            {Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of{' '}
-            {filtered.length}
+            {Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
           </span>
           <div className="flex gap-1">
             <button

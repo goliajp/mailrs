@@ -16,7 +16,7 @@ export function highlightMentions(text: string, myEmail: string, myName?: string
   patterns.push(myEmail)
 
   // escape for regex
-  const escaped = patterns.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const escaped = patterns.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   // match @pattern or standalone pattern (case insensitive)
   const regex = new RegExp(`(@(?:${escaped.join('|')})|\\b(?:${escaped.join('|')})\\b)`, 'gi')
 
@@ -30,9 +30,12 @@ export function highlightMentions(text: string, myEmail: string, myName?: string
       parts.push(text.slice(lastIndex, match.index))
     }
     parts.push(
-      <mark key={key++} className="bg-[var(--color-brand-subtle)] px-0.5 font-medium text-[var(--color-brand-primary)]">
+      <mark
+        key={key++}
+        className="bg-[var(--color-brand-subtle)] px-0.5 font-medium text-[var(--color-brand-primary)]"
+      >
         {match[0]}
-      </mark>
+      </mark>,
     )
     lastIndex = regex.lastIndex
   }

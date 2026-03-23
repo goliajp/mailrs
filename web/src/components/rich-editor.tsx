@@ -19,7 +19,7 @@ import { getToken } from '@/store/auth'
 
 const lowlight = createLowlight(common)
 
-// shared: upload inline image to server
+// eslint-disable-next-line react-refresh/only-export-components
 export async function uploadInlineImage(file: File): Promise<string | null> {
   const form = new FormData()
   form.append('image', file)
@@ -40,7 +40,7 @@ export async function uploadInlineImage(file: File): Promise<string | null> {
   return null
 }
 
-// shared: create full editor extensions
+// eslint-disable-next-line react-refresh/only-export-components
 export function createEditorExtensions(placeholder?: string): Extensions {
   return [
     StarterKit.configure({
@@ -73,7 +73,7 @@ export function createEditorExtensions(placeholder?: string): Extensions {
   ]
 }
 
-// shared: create minimal extensions for signature zone
+// eslint-disable-next-line react-refresh/only-export-components
 export function createMinimalExtensions(placeholder?: string): Extensions {
   return [
     StarterKit.configure({
@@ -91,7 +91,6 @@ export function createMinimalExtensions(placeholder?: string): Extensions {
   ]
 }
 
-// shared: prose class for editor content
 export const PROSE_CLASS =
   'prose prose-sm max-w-none px-3 py-2 outline-none prose-[var(--color-text-primary)] ' +
   'prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-md ' +
@@ -267,6 +266,7 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getEditorContent(editor: Editor | null): {
   text: string
   html: string

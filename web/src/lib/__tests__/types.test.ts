@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  FLAG_ANSWERED,
-  FLAG_DELETED,
-  FLAG_DRAFT,
-  FLAG_FLAGGED,
-  FLAG_SEEN,
-} from '../types'
+import { FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_SEEN } from '../types'
 
 describe('flag constants', () => {
   it('FLAG_SEEN is 1', () => {

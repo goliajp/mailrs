@@ -32,11 +32,19 @@ function makeLocalStorageMock(): Storage {
   const store: Record<string, string> = {}
   return {
     getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => { store[k] = v },
-    removeItem: (k: string) => { delete store[k] },
-    clear: () => { for (const k in store) delete store[k] },
+    setItem: (k: string, v: string) => {
+      store[k] = v
+    },
+    removeItem: (k: string) => {
+      delete store[k]
+    },
+    clear: () => {
+      for (const k in store) delete store[k]
+    },
     key: (n: number) => Object.keys(store)[n] ?? null,
-    get length() { return Object.keys(store).length },
+    get length() {
+      return Object.keys(store).length
+    },
   } as Storage
 }
 vi.stubGlobal('localStorage', makeLocalStorageMock())
@@ -83,7 +91,13 @@ function makeStore() {
   return store
 }
 
-function Wrapper({ store, children }: { store: ReturnType<typeof createStore>; children: ReactNode }) {
+function Wrapper({
+  store,
+  children,
+}: {
+  store: ReturnType<typeof createStore>
+  children: ReactNode
+}) {
   return <Provider store={store}>{children}</Provider>
 }
 
@@ -330,7 +344,10 @@ describe('ConversationItem rendering', () => {
 
   it('renders subject and participant name', () => {
     store.set(conversationsAtom, [
-      makeConversation({ subject: 'Important Email', participants: ['Alice Smith <alice@example.com>'] }),
+      makeConversation({
+        subject: 'Important Email',
+        participants: ['Alice Smith <alice@example.com>'],
+      }),
     ])
 
     render(
@@ -344,9 +361,7 @@ describe('ConversationItem rendering', () => {
   })
 
   it('shows unread count badge', () => {
-    store.set(conversationsAtom, [
-      makeConversation({ unread_count: 5 }),
-    ])
+    store.set(conversationsAtom, [makeConversation({ unread_count: 5 })])
 
     render(
       <Wrapper store={store}>
@@ -358,9 +373,7 @@ describe('ConversationItem rendering', () => {
   })
 
   it('shows (no subject) for empty subject', () => {
-    store.set(conversationsAtom, [
-      makeConversation({ subject: '' }),
-    ])
+    store.set(conversationsAtom, [makeConversation({ subject: '' })])
 
     render(
       <Wrapper store={store}>
@@ -388,9 +401,7 @@ describe('ConversationItem rendering', () => {
   })
 
   it('shows snippet when available', () => {
-    store.set(conversationsAtom, [
-      makeConversation({ snippet: 'This is a preview...' }),
-    ])
+    store.set(conversationsAtom, [makeConversation({ snippet: 'This is a preview...' })])
 
     render(
       <Wrapper store={store}>
@@ -402,9 +413,7 @@ describe('ConversationItem rendering', () => {
   })
 
   it('shows category badge for non-general categories', () => {
-    store.set(conversationsAtom, [
-      makeConversation({ category: 'newsletter' }),
-    ])
+    store.set(conversationsAtom, [makeConversation({ category: 'newsletter' })])
 
     render(
       <Wrapper store={store}>
@@ -416,9 +425,7 @@ describe('ConversationItem rendering', () => {
   })
 
   it('does not show category badge for general category', () => {
-    store.set(conversationsAtom, [
-      makeConversation({ category: 'general' }),
-    ])
+    store.set(conversationsAtom, [makeConversation({ category: 'general' })])
 
     render(
       <Wrapper store={store}>

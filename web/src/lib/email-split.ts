@@ -23,9 +23,7 @@ export function splitTextEmail(text: string): EmailParts {
     const line = lines[i]
     if (ATTRIBUTION_RE.test(line)) {
       // verify at least one `>` line follows
-      const hasQuotedBelow = lines
-        .slice(i + 1)
-        .some((l) => l.startsWith('>'))
+      const hasQuotedBelow = lines.slice(i + 1).some((l) => l.startsWith('>'))
       if (hasQuotedBelow) {
         quotedStart = i
         break
@@ -83,7 +81,10 @@ export function splitTextEmail(text: string): EmailParts {
   let signature: string | null = null
   let bodyLines = remaining
   if (sigStart !== -1) {
-    const sigContent = remaining.slice(sigStart + 1).join('\n').trimEnd()
+    const sigContent = remaining
+      .slice(sigStart + 1)
+      .join('\n')
+      .trimEnd()
     signature = sigContent || null
     bodyLines = remaining.slice(0, sigStart)
   }
@@ -101,11 +102,7 @@ export function splitHtmlEmail(html: string): EmailParts {
   let quoted: string | null = null
 
   // extract signature
-  const sigSelectors = [
-    '.gmail_signature',
-    '#Signature',
-    '#signature',
-  ]
+  const sigSelectors = ['.gmail_signature', '#Signature', '#signature']
   for (const sel of sigSelectors) {
     const el = doc.body.querySelector(sel)
     if (el) {
@@ -126,8 +123,7 @@ export function splitHtmlEmail(html: string): EmailParts {
   // Outlook: #divRplyFwdMsg + all following siblings
   if (!quoted) {
     const outlookDiv =
-      doc.body.querySelector('#divRplyFwdMsg') ??
-      doc.body.querySelector('#appendonsend')
+      doc.body.querySelector('#divRplyFwdMsg') ?? doc.body.querySelector('#appendonsend')
     if (outlookDiv) {
       const parts: string[] = []
       let node: Element | null = outlookDiv
@@ -157,11 +153,7 @@ export function splitHtmlEmail(html: string): EmailParts {
       const parts: string[] = [mozPrefix.outerHTML]
       let next: Element | null = mozPrefix.nextElementSibling
       mozPrefix.remove()
-      while (
-        next &&
-        next.tagName === 'BLOCKQUOTE' &&
-        next.getAttribute('type') === 'cite'
-      ) {
+      while (next && next.tagName === 'BLOCKQUOTE' && next.getAttribute('type') === 'cite') {
         parts.push(next.outerHTML)
         const following = next.nextElementSibling
         next.remove()
@@ -213,7 +205,7 @@ export function splitHtmlEmail(html: string): EmailParts {
 
 export function splitEmail(
   textBody: string | null,
-  htmlBody: string | null
+  htmlBody: string | null,
 ): { parts: EmailParts; isHtml: boolean } {
   try {
     if (htmlBody) {

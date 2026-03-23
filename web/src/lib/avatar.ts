@@ -1,29 +1,34 @@
 // decode RFC 2047 encoded-words in email headers (e.g. =?UTF-8?B?...?= or =?UTF-8?Q?...?=)
 export function decodeMimeHeader(value: string): string {
   if (!value || !value.includes('=?')) return value ?? ''
-  return value.replace(
-    /=\?([^?]+)\?(B|Q)\?([^?]*)\?=/gi,
-    (_match, charset: string, encoding: string, encoded: string) => {
-      try {
-        if (encoding.toUpperCase() === 'B') {
-          // base64
-          const binary = atob(encoded)
-          const bytes = new Uint8Array(binary.length)
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return value
+    .replace(
+      /=\?([^?]+)\?(B|Q)\?([^?]*)\?=/gi,
+      (_match, charset: string, encoding: string, encoded: string) => {
+        try {
+          if (encoding.toUpperCase() === 'B') {
+            // base64
+            const binary = atob(encoded)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+            return new TextDecoder(charset).decode(bytes)
+          }
+          // quoted-printable
+          const decoded = encoded
+            .replace(/_/g, ' ')
+            .replace(/=([0-9A-Fa-f]{2})/g, (_m, hex: string) =>
+              String.fromCharCode(parseInt(hex, 16)),
+            )
+          const bytes = new Uint8Array(decoded.length)
+          for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i)
           return new TextDecoder(charset).decode(bytes)
+        } catch {
+          return encoded
         }
-        // quoted-printable
-        const decoded = encoded
-          .replace(/_/g, ' ')
-          .replace(/=([0-9A-Fa-f]{2})/g, (_m, hex: string) => String.fromCharCode(parseInt(hex, 16)))
-        const bytes = new Uint8Array(decoded.length)
-        for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i)
-        return new TextDecoder(charset).decode(bytes)
-      } catch {
-        return encoded
-      }
-    },
-  ).replace(/\s+/g, ' ').trim()
+      },
+    )
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 // generate a consistent color from an email address

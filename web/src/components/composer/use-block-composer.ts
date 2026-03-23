@@ -14,24 +14,29 @@ type Options = {
 }
 
 function buildInitialBlocks(options: Options): AnyBlock[] {
-  const blocks: AnyBlock[] = [
-    createBlock('text', { content: '', html: '', format: 'rich' }),
-  ]
+  const blocks: AnyBlock[] = [createBlock('text', { content: '', html: '', format: 'rich' })]
 
   if (options.signatureEnabled && options.signature?.trim()) {
-    blocks.push(createBlock('signature', {
-      html: `<p>${options.signature.split('\n').map((l) => l || '<br>').join('</p><p>')}</p>`,
-      text: options.signature,
-    }))
+    blocks.push(
+      createBlock('signature', {
+        html: `<p>${options.signature
+          .split('\n')
+          .map((l) => l || '<br>')
+          .join('</p><p>')}</p>`,
+        text: options.signature,
+      }),
+    )
   }
 
   if (options.mode !== 'new' && options.quotedHtml) {
-    blocks.push(createBlock('quote', {
-      html: options.quotedHtml,
-      headerHtml: options.quotedHeaderHtml ?? '',
-      headerText: options.quotedHeader ?? '',
-      collapsed: true,
-    }))
+    blocks.push(
+      createBlock('quote', {
+        html: options.quotedHtml,
+        headerHtml: options.quotedHeaderHtml ?? '',
+        headerText: options.quotedHeader ?? '',
+        collapsed: true,
+      }),
+    )
   }
 
   return blocks
@@ -56,10 +61,14 @@ export function useBlockComposer(options: Options) {
       text: () => createBlock('text', { content: '', html: '', format: 'rich' }),
       code: () => createBlock('code', { code: '', language: 'javascript' }),
       signature: () => createBlock('signature', { html: '', text: '' }),
-      quote: () => createBlock('quote', { html: '', headerHtml: '', headerText: '', collapsed: false }),
+      quote: () =>
+        createBlock('quote', { html: '', headerHtml: '', headerText: '', collapsed: false }),
       divider: () => createBlock('divider', {}),
-      attachment: () => { throw new Error('use addAttachment') },
-      task: () => createBlock('task', { items: [{ id: crypto.randomUUID(), text: '', checked: false }] }),
+      attachment: () => {
+        throw new Error('use addAttachment')
+      },
+      task: () =>
+        createBlock('task', { items: [{ id: crypto.randomUUID(), text: '', checked: false }] }),
     }
     const block = defaults[type]()
     setBlocks((prev) => {
@@ -91,7 +100,7 @@ export function useBlockComposer(options: Options) {
   }, [])
 
   const updateBlock = useCallback((id: string, data: BlockDataMap[BlockType]) => {
-    setBlocks((prev) => prev.map((b) => b.id === id ? { ...b, data } : b))
+    setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, data } : b)))
   }, [])
 
   const moveBlock = useCallback((fromIndex: number, toIndex: number) => {

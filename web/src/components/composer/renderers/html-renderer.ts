@@ -36,9 +36,10 @@ export function renderBlockHtml(block: AnyBlock): string {
 
     case 'attachment': {
       const d = block.data as { name: string; size: number; mimeType: string }
-      const sizeStr = d.size < 1024 * 1024
-        ? `${(d.size / 1024).toFixed(0)}KB`
-        : `${(d.size / (1024 * 1024)).toFixed(1)}MB`
+      const sizeStr =
+        d.size < 1024 * 1024
+          ? `${(d.size / 1024).toFixed(0)}KB`
+          : `${(d.size / (1024 * 1024)).toFixed(1)}MB`
       return `<div style="margin:8px 0;padding:8px 12px;border:1px solid #ddd;border-radius:8px;display:inline-block">
         <span style="font-size:13px">📎 ${escapeHtml(d.name)}</span>
         <span style="font-size:11px;color:#888;margin-left:8px">${sizeStr}</span>
@@ -47,11 +48,13 @@ export function renderBlockHtml(block: AnyBlock): string {
 
     case 'task': {
       const d = block.data as { items: ReadonlyArray<{ text: string; checked: boolean }> }
-      const items = d.items.map((item) => {
-        const check = item.checked ? '☑' : '☐'
-        const style = item.checked ? 'text-decoration:line-through;color:#888' : ''
-        return `<li style="list-style:none;padding:2px 0;${style}">${check} ${escapeHtml(item.text)}</li>`
-      }).join('')
+      const items = d.items
+        .map((item) => {
+          const check = item.checked ? '☑' : '☐'
+          const style = item.checked ? 'text-decoration:line-through;color:#888' : ''
+          return `<li style="list-style:none;padding:2px 0;${style}">${check} ${escapeHtml(item.text)}</li>`
+        })
+        .join('')
       return `<ul style="padding-left:0;margin:8px 0">${items}</ul>`
     }
 
@@ -81,7 +84,10 @@ export function renderBlockText(block: AnyBlock): string {
       const d = block.data as { html: string; headerText: string }
       // extract text from html
       const textContent = d.html.replace(/<[^>]*>/g, '').trim()
-      const quoted = textContent.split('\n').map((l) => `> ${l}`).join('\n')
+      const quoted = textContent
+        .split('\n')
+        .map((l) => `> ${l}`)
+        .join('\n')
       return `\n${d.headerText}\n${quoted}`
     }
 
