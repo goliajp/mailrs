@@ -494,11 +494,7 @@ pub(super) async fn verify_credentials(
     }
 
     // check if TOTP is enabled
-    let totp_required = if let Ok(Some((_secret, true, _codes))) = ds.get_totp_secret(&req.address).await {
-        true
-    } else {
-        false
-    };
+    let totp_required = matches!(ds.get_totp_secret(&req.address).await, Ok(Some((_, true, _))));
 
     (
         StatusCode::OK,

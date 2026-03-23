@@ -3,6 +3,9 @@ name = "mailrs-server"
 version.workspace = true
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
 mailrs-smtp-proto = { path = "../smtp-proto" }
 mailrs-storage-maildir = { path = "../storage-maildir" }

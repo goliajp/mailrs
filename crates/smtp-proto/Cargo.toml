@@ -3,5 +3,8 @@ name = "mailrs-smtp-proto"
 version.workspace = true
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
 base64 = "0.22"

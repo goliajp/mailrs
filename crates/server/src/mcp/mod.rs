@@ -1694,9 +1694,7 @@ async fn resolve_attachments(
                     .decode(data_str)
                     .map_err(|_| {
                         McpError::invalid_params(
-                            format!(
-                                "attachment data is not a valid URL, file path, or base64 string"
-                            ),
+                            "attachment data is not a valid URL, file path, or base64 string".to_string(),
                             None,
                         )
                     })?;

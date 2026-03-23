@@ -3,6 +3,9 @@ name = "mailrs-storage-maildir"
 version.workspace = true
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
 hostname = "0.4"
 

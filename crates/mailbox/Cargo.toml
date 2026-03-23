@@ -3,6 +3,9 @@ name = "mailrs-mailbox"
 version.workspace = true
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
 sqlx = { workspace = true }
 serde = { workspace = true }

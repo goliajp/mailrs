@@ -105,7 +105,7 @@ async fn process_one(
     if success {
         *done += 1;
         *consecutive_fails = 0;
-        if *done % 20 == 0 {
+        if (*done).is_multiple_of(20) {
             eprintln!("AI backfill: {done}/{total} analyzed, {failed} failed");
         }
     } else {
