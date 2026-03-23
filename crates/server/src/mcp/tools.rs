@@ -31,7 +31,7 @@ pub(crate) struct SendEmailParams {
     /// optional HTML email body
     #[serde(default)]
     pub html_body: Option<String>,
-    /// optional file attachments (base64-encoded)
+    /// optional file attachments (base64, URL, or server file path)
     #[serde(default)]
     pub attachments: Option<Vec<Attachment>>,
 }
