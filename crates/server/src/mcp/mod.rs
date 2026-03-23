@@ -89,27 +89,8 @@ impl MailMcpService {
             self.web_state.hostname,
         );
 
-        // decode base64 attachments
-        let attachment_data: Vec<crate::web::mail::AttachmentData> = params
-            .attachments
-            .unwrap_or_default()
-            .into_iter()
-            .map(|a| {
-                let data = base64::engine::general_purpose::STANDARD
-                    .decode(&a.data)
-                    .map_err(|_| {
-                        McpError::invalid_params(
-                            format!("invalid base64 in attachment '{}'", a.filename),
-                            None,
-                        )
-                    })?;
-                Ok(crate::web::mail::AttachmentData {
-                    filename: a.filename,
-                    content_type: a.content_type,
-                    data,
-                })
-            })
-            .collect::<Result<Vec<_>, McpError>>()?;
+        // resolve attachments from base64 / URL / file path
+        let attachment_data = resolve_attachments(params.attachments.unwrap_or_default()).await?;
 
         let raw = crate::web::mail::build_rfc5322_with_attachments(
             from,
@@ -1625,6 +1606,147 @@ impl ServerHandler for MailMcpService {
                 "mailrs MCP server — tools for email operations (send, read, search, reply) and account/permission management (create/remove accounts, manage group memberships). Admin tools require appropriate permissions.",
             )
     }
+}
+
+const MAX_ATTACHMENT_SIZE: usize = 25 * 1024 * 1024; // 25 MB
+
+/// resolve attachment data field: URL → download, existing file → read, otherwise → base64 decode
+async fn resolve_attachments(
+    attachments: Vec<tools::Attachment>,
+) -> Result<Vec<crate::web::mail::AttachmentData>, McpError> {
+    let mut results = Vec::with_capacity(attachments.len());
+
+    for a in attachments {
+        let data_str = a.data.trim();
+
+        // determine source type
+        let (bytes, derived_filename) =
+            if data_str.starts_with("http://") || data_str.starts_with("https://") {
+                // URL: download
+                let resp = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(60))
+                    .build()
+                    .map_err(|e| McpError::internal_error(format!("http client: {e}"), None))?
+                    .get(data_str)
+                    .send()
+                    .await
+                    .map_err(|e| {
+                        McpError::invalid_params(
+                            format!("failed to download attachment '{}': {e}", data_str),
+                            None,
+                        )
+                    })?;
+                if !resp.status().is_success() {
+                    return Err(McpError::invalid_params(
+                        format!(
+                            "download failed for '{}': HTTP {}",
+                            data_str,
+                            resp.status()
+                        ),
+                        None,
+                    ));
+                }
+                let bytes = resp.bytes().await.map_err(|e| {
+                    McpError::invalid_params(
+                        format!("failed to read response body: {e}"),
+                        None,
+                    )
+                })?;
+                if bytes.len() > MAX_ATTACHMENT_SIZE {
+                    return Err(McpError::invalid_params(
+                        format!(
+                            "attachment too large: {} bytes (max {})",
+                            bytes.len(),
+                            MAX_ATTACHMENT_SIZE
+                        ),
+                        None,
+                    ));
+                }
+                // derive filename from URL path
+                let name = url_filename(data_str);
+                (bytes.to_vec(), name)
+            } else if tokio::fs::metadata(data_str).await.is_ok() {
+                // file path: read from disk
+                let bytes = tokio::fs::read(data_str).await.map_err(|e| {
+                    McpError::invalid_params(
+                        format!("failed to read file '{}': {e}", data_str),
+                        None,
+                    )
+                })?;
+                if bytes.len() > MAX_ATTACHMENT_SIZE {
+                    return Err(McpError::invalid_params(
+                        format!(
+                            "attachment too large: {} bytes (max {})",
+                            bytes.len(),
+                            MAX_ATTACHMENT_SIZE
+                        ),
+                        None,
+                    ));
+                }
+                let name = std::path::Path::new(data_str)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .map(String::from);
+                (bytes, name)
+            } else {
+                // base64
+                let bytes = base64::engine::general_purpose::STANDARD
+                    .decode(data_str)
+                    .map_err(|_| {
+                        McpError::invalid_params(
+                            format!(
+                                "attachment data is not a valid URL, file path, or base64 string"
+                            ),
+                            None,
+                        )
+                    })?;
+                if bytes.len() > MAX_ATTACHMENT_SIZE {
+                    return Err(McpError::invalid_params(
+                        format!(
+                            "attachment too large: {} bytes (max {})",
+                            bytes.len(),
+                            MAX_ATTACHMENT_SIZE
+                        ),
+                        None,
+                    ));
+                }
+                (bytes, None)
+            };
+
+        let filename = a
+            .filename
+            .or(derived_filename)
+            .unwrap_or_else(|| "attachment".to_string());
+
+        let content_type = a.content_type.unwrap_or_else(|| {
+            mime_guess::from_path(&filename)
+                .first_raw()
+                .unwrap_or("application/octet-stream")
+                .to_string()
+        });
+
+        results.push(crate::web::mail::AttachmentData {
+            filename,
+            content_type,
+            data: bytes,
+        });
+    }
+
+    Ok(results)
+}
+
+/// extract filename from URL path segment
+fn url_filename(url: &str) -> Option<String> {
+    url.split('?')
+        .next()
+        .and_then(|path| path.rsplit('/').next())
+        .filter(|s| !s.is_empty() && s.contains('.'))
+        .map(|s| {
+            // url-decode percent-encoded characters
+            urlencoding::decode(s)
+                .map(|c| c.into_owned())
+                .unwrap_or_else(|_| s.to_string())
+        })
 }
 
 /// create the MCP axum Router

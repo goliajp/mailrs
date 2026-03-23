@@ -2054,6 +2054,7 @@ dependencies = [
  "mailrs-smtp-client",
  "mailrs-smtp-proto",
  "mailrs-storage-maildir",
+ "mime_guess",
  "password-hash",
  "pdf-extract",
  "rand_core 0.6.4",
