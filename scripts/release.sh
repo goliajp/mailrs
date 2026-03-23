@@ -40,7 +40,10 @@ if [ "$WEB_ONLY" = false ]; then
   echo ""
 fi
 
-# 2. web tests
+# 2. web lint + tests
+echo "==> running web check"
+(cd web && bun run check)
+echo ""
 echo "==> running web tests"
 (cd web && bun run test)
 echo ""
