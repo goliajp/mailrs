@@ -1,62 +1,12 @@
+import type { ThreadMessage } from '@/lib/types'
+
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
+
 import { Copyable } from '@/components/copy-button'
-import type { ThreadMessage } from '@/lib/types'
 
 type Props = {
   message: ThreadMessage
-}
-
-// safely extract display text from potentially malformed AI data
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function safePeople(raw: any[]): { label: string; email?: string; role?: string }[] {
-  if (!Array.isArray(raw)) return []
-  const results: { label: string; email?: string; role?: string }[] = []
-  for (const p of raw) {
-    if (typeof p === 'string' && p.trim()) {
-      results.push({ label: p })
-      continue
-    }
-    if (p && typeof p === 'object') {
-      const label = p.name || p.email || ''
-      if (label) results.push({ label, email: p.email || undefined, role: p.role || undefined })
-    }
-  }
-  return results
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function safeDates(raw: any[]): { text: string; context?: string }[] {
-  if (!Array.isArray(raw)) return []
-  const results: { text: string; context?: string }[] = []
-  for (const d of raw) {
-    if (typeof d === 'string' && d.trim()) {
-      results.push({ text: d })
-      continue
-    }
-    if (d && typeof d === 'object') {
-      const text = d.text || d.iso_date || ''
-      if (text) results.push({ text, context: d.context || undefined })
-    }
-  }
-  return results
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function safeAmounts(raw: any[]): { text: string; context?: string }[] {
-  if (!Array.isArray(raw)) return []
-  const results: { text: string; context?: string }[] = []
-  for (const a of raw) {
-    if (typeof a === 'string' && a.trim()) {
-      results.push({ text: a })
-      continue
-    }
-    if (a && typeof a === 'object') {
-      const text = a.text || (a.value != null ? `${a.currency ?? ''}${a.value}` : '')
-      if (text) results.push({ text, context: a.context || undefined })
-    }
-  }
-  return results
 }
 
 export function AiAnalysisPanel({ message }: Props) {
@@ -72,14 +22,17 @@ export function AiAnalysisPanel({ message }: Props) {
     : []
   const hasDeadline = !!message.action_deadline
   const hasDetails =
-    people.length > 0 || dates.length > 0 || amounts.length > 0 || actions.length > 0
+    people.length > 0 ||
+    dates.length > 0 ||
+    amounts.length > 0 ||
+    actions.length > 0
 
   return (
     <div className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-5 py-2">
       {/* summary — always visible, clickable to expand */}
       <button
-        onClick={() => setExpanded((v) => !v)}
         className="flex w-full items-start gap-1.5 text-left"
+        onClick={() => setExpanded((v) => !v)}
       >
         {hasDetails ? (
           expanded ? (
@@ -90,23 +43,25 @@ export function AiAnalysisPanel({ message }: Props) {
         ) : null}
         <div className="min-w-0 flex-1">
           {message.summary ? (
-            <p className="select-text text-sm text-[var(--color-text-secondary)]">
+            <p className="text-sm text-[var(--color-text-secondary)] select-text">
               {message.summary}
             </p>
           ) : hasDetails ? (
-            <p className="text-xs text-[var(--color-text-tertiary)]">AI analysis details</p>
+            <p className="text-xs text-[var(--color-text-tertiary)]">
+              AI analysis details
+            </p>
           ) : null}
 
           {/* deadline */}
           {hasDeadline && (
-            <p className="mt-1 select-text text-xs font-medium text-[var(--color-status-danger)]">
+            <p className="mt-1 text-xs font-medium text-[var(--color-status-danger)] select-text">
               Deadline: {message.action_deadline}
             </p>
           )}
 
           {/* risk reason */}
           {message.risk_score > 0 && message.risk_reason && (
-            <p className="mt-1 select-text text-xs text-[var(--color-status-warning)]">
+            <p className="mt-1 text-xs text-[var(--color-status-warning)] select-text">
               Risk: {message.risk_reason}
             </p>
           )}
@@ -117,14 +72,14 @@ export function AiAnalysisPanel({ message }: Props) {
         <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
           {people.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
+              <span className="text-xs font-medium tracking-wide text-[var(--color-text-tertiary)] uppercase">
                 People
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
                 {people.map((p, i) => (
                   <span
+                    className="inline-flex max-w-full items-center gap-1 truncate rounded bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)] select-text"
                     key={i}
-                    className="inline-flex max-w-full select-text items-center gap-1 truncate rounded bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]"
                   >
                     {p.label}
                     {p.role && <span className="opacity-70">({p.role})</span>}
@@ -139,14 +94,14 @@ export function AiAnalysisPanel({ message }: Props) {
 
           {dates.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
+              <span className="text-xs font-medium tracking-wide text-[var(--color-text-tertiary)] uppercase">
                 Dates
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
                 {dates.map((d, i) => (
                   <span
+                    className="inline-flex items-center rounded bg-[var(--color-status-success-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-success)] select-text"
                     key={i}
-                    className="inline-flex select-text items-center rounded bg-[var(--color-status-success-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-success)]"
                     title={d.context}
                   >
                     {d.text}
@@ -158,14 +113,14 @@ export function AiAnalysisPanel({ message }: Props) {
 
           {amounts.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
+              <span className="text-xs font-medium tracking-wide text-[var(--color-text-tertiary)] uppercase">
                 Amounts
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
                 {amounts.map((a, i) => (
                   <span
+                    className="inline-flex items-center rounded bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-warning)] select-text"
                     key={i}
-                    className="inline-flex select-text items-center rounded bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-warning)]"
                     title={a.context}
                   >
                     <Copyable value={a.text}>{a.text}</Copyable>
@@ -177,14 +132,14 @@ export function AiAnalysisPanel({ message }: Props) {
 
           {actions.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
+              <span className="text-xs font-medium tracking-wide text-[var(--color-text-tertiary)] uppercase">
                 Action Items
               </span>
               <ul className="mt-0.5 space-y-0.5">
                 {actions.map((item, i) => (
                   <li
+                    className="flex items-start gap-1.5 text-xs break-words text-[var(--color-text-secondary)] select-text"
                     key={i}
-                    className="flex select-text items-start gap-1.5 break-words text-xs text-[var(--color-text-secondary)]"
                   >
                     <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-brand-primary)]" />
                     {item}
@@ -197,4 +152,62 @@ export function AiAnalysisPanel({ message }: Props) {
       )}
     </div>
   )
+}
+
+function safeAmounts(raw: any[]): { context?: string; text: string }[] {
+  if (!Array.isArray(raw)) return []
+  const results: { context?: string; text: string }[] = []
+  for (const a of raw) {
+    if (typeof a === 'string' && a.trim()) {
+      results.push({ text: a })
+      continue
+    }
+    if (a && typeof a === 'object') {
+      const text =
+        a.text || (a.value != null ? `${a.currency ?? ''}${a.value}` : '')
+      if (text) results.push({ context: a.context || undefined, text })
+    }
+  }
+  return results
+}
+
+function safeDates(raw: any[]): { context?: string; text: string }[] {
+  if (!Array.isArray(raw)) return []
+  const results: { context?: string; text: string }[] = []
+  for (const d of raw) {
+    if (typeof d === 'string' && d.trim()) {
+      results.push({ text: d })
+      continue
+    }
+    if (d && typeof d === 'object') {
+      const text = d.text || d.iso_date || ''
+      if (text) results.push({ context: d.context || undefined, text })
+    }
+  }
+  return results
+}
+
+// safely extract display text from potentially malformed AI data
+
+function safePeople(
+  raw: any[]
+): { email?: string; label: string; role?: string }[] {
+  if (!Array.isArray(raw)) return []
+  const results: { email?: string; label: string; role?: string }[] = []
+  for (const p of raw) {
+    if (typeof p === 'string' && p.trim()) {
+      results.push({ label: p })
+      continue
+    }
+    if (p && typeof p === 'object') {
+      const label = p.name || p.email || ''
+      if (label)
+        results.push({
+          email: p.email || undefined,
+          label,
+          role: p.role || undefined,
+        })
+    }
+  }
+  return results
 }

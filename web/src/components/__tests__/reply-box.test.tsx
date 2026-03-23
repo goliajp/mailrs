@@ -1,10 +1,11 @@
-import { Provider, createStore } from 'jotai'
 import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
-import { authAtom } from '@/store/auth'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { createStore, Provider } from 'jotai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
+import { authAtom } from '@/store/auth'
 
 // mock api module to prevent real network calls
 vi.mock('@/lib/api', () => ({
@@ -16,8 +17,8 @@ vi.mock('@/lib/api', () => ({
 // mock sonner toast
 vi.mock('sonner', () => ({
   toast: {
-    success: vi.fn(),
     error: vi.fn(),
+    success: vi.fn(),
   },
 }))
 
@@ -25,19 +26,19 @@ vi.mock('sonner', () => ({
 function makeLocalStorageMock(): Storage {
   const store: Record<string, string> = {}
   return {
+    clear: () => {
+      for (const k in store) delete store[k]
+    },
     getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => {
-      store[k] = v
+    key: (n: number) => Object.keys(store)[n] ?? null,
+    get length() {
+      return Object.keys(store).length
     },
     removeItem: (k: string) => {
       delete store[k]
     },
-    clear: () => {
-      for (const k in store) delete store[k]
-    },
-    key: (n: number) => Object.keys(store)[n] ?? null,
-    get length() {
-      return Object.keys(store).length
+    setItem: (k: string, v: string) => {
+      store[k] = v
     },
   } as Storage
 }
@@ -46,37 +47,37 @@ vi.stubGlobal('localStorage', makeLocalStorageMock())
 function makeStore() {
   const store = createStore()
   store.set(authAtom, {
-    token: 'test-token',
+    accessible_domains: [],
     address: 'user@example.com',
     display_name: 'Test User',
     permissions: [],
-    accessible_domains: [],
+    token: 'test-token',
   })
   return store
 }
 
 function Wrapper({
-  store,
   children,
+  store,
 }: {
-  store: ReturnType<typeof createStore>
   children: ReactNode
+  store: ReturnType<typeof createStore>
 }) {
   return <Provider store={store}>{children}</Provider>
 }
 
 const defaultProps = {
-  threadId: 'thread-1',
   lastMessageId: 'msg-1',
-  replyRecipients: 'alice@example.com',
-  replyAllRecipients: 'alice@example.com, bob@example.com',
-  subject: 'Test Subject',
-  originalFrom: 'alice@example.com',
-  originalDate: '2024-01-01 10:00',
-  originalBody: 'Original message body',
-  onSent: vi.fn(),
   mode: 'reply' as ReplyMode,
   onModeChange: vi.fn(),
+  onSent: vi.fn(),
+  originalBody: 'Original message body',
+  originalDate: '2024-01-01 10:00',
+  originalFrom: 'alice@example.com',
+  replyAllRecipients: 'alice@example.com, bob@example.com',
+  replyRecipients: 'alice@example.com',
+  subject: 'Test Subject',
+  threadId: 'thread-1',
 }
 
 afterEach(() => {
@@ -95,7 +96,7 @@ describe('ReplyBox', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('Reply')).toBeDefined()
@@ -107,7 +108,7 @@ describe('ReplyBox', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} mode="reply" />
-      </Wrapper>,
+      </Wrapper>
     )
 
     const replyButton = screen.getByText('Reply')
@@ -119,7 +120,7 @@ describe('ReplyBox', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} onModeChange={onModeChange} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     fireEvent.click(screen.getByText('Reply All'))
@@ -131,7 +132,7 @@ describe('ReplyBox', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} onModeChange={onModeChange} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     fireEvent.click(screen.getByText('Forward'))
@@ -142,7 +143,7 @@ describe('ReplyBox', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} mode="reply" />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('to alice@example.com')).toBeDefined()
@@ -152,17 +153,19 @@ describe('ReplyBox', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} mode="reply-all" />
-      </Wrapper>,
+      </Wrapper>
     )
 
-    expect(screen.getByText('to alice@example.com, bob@example.com')).toBeDefined()
+    expect(
+      screen.getByText('to alice@example.com, bob@example.com')
+    ).toBeDefined()
   })
 
   it('shows forward To field in forward mode', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} mode="forward" />
-      </Wrapper>,
+      </Wrapper>
     )
 
     // forward mode should render the ContactAutocomplete input
@@ -174,7 +177,7 @@ describe('ReplyBox', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} mode="forward" />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.queryByText(/^to alice/)).toBeNull()
@@ -184,7 +187,7 @@ describe('ReplyBox', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     const sendButton = screen.getByRole('button', { name: /send/i })
@@ -195,7 +198,7 @@ describe('ReplyBox', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('Add block')).toBeDefined()
@@ -205,7 +208,7 @@ describe('ReplyBox', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} mode="forward" />
-      </Wrapper>,
+      </Wrapper>
     )
 
     const forwardButton = screen.getByText('Forward')
@@ -216,7 +219,7 @@ describe('ReplyBox', () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} mode="reply" />
-      </Wrapper>,
+      </Wrapper>
     )
 
     const replyAllButton = screen.getByText('Reply All')

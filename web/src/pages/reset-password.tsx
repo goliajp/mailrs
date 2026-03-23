@@ -33,9 +33,9 @@ export function ResetPassword() {
     setLoading(true)
     try {
       const res = await fetch('/api/auth/reset-password', {
-        method: 'POST',
+        body: JSON.stringify({ new_password: password, token }),
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, new_password: password }),
+        method: 'POST',
       })
       const data = await res.json()
 
@@ -57,7 +57,11 @@ export function ResetPassword() {
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-sunken)]">
         <div className="w-full max-w-sm space-y-4 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg">
           <div className="flex flex-col items-center">
-            <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" />
+            <img
+              alt="mailrs"
+              className="mb-3 h-14 w-14 rounded-lg shadow-sm"
+              src="/icon.svg"
+            />
             <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
               mailrs
             </h1>
@@ -69,7 +73,10 @@ export function ResetPassword() {
             Invalid or missing reset token
           </div>
           <div className="text-center">
-            <a href="/login" className="text-sm text-[var(--color-brand-primary)] hover:underline">
+            <a
+              className="text-sm text-[var(--color-brand-primary)] hover:underline"
+              href="/login"
+            >
               Back to sign in
             </a>
           </div>
@@ -83,16 +90,24 @@ export function ResetPassword() {
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-sunken)]">
         <div className="w-full max-w-sm space-y-4 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg">
           <div className="flex flex-col items-center">
-            <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" />
+            <img
+              alt="mailrs"
+              className="mb-3 h-14 w-14 rounded-lg shadow-sm"
+              src="/icon.svg"
+            />
             <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
               mailrs
             </h1>
           </div>
           <div className="rounded-md bg-[var(--color-status-success-subtle)] px-3 py-2 text-sm text-[var(--color-status-success)]">
-            Password reset successfully. You can now sign in with your new password.
+            Password reset successfully. You can now sign in with your new
+            password.
           </div>
           <div className="text-center">
-            <a href="/login" className="text-sm text-[var(--color-brand-primary)] hover:underline">
+            <a
+              className="text-sm text-[var(--color-brand-primary)] hover:underline"
+              href="/login"
+            >
               Sign in
             </a>
           </div>
@@ -104,21 +119,27 @@ export function ResetPassword() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-sunken)]">
       <form
+        className="w-full max-w-sm space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg select-none"
         onSubmit={handleSubmit}
-        className="w-full max-w-sm select-none space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg"
       >
         <div className="flex flex-col items-center">
-          <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" />
+          <img
+            alt="mailrs"
+            className="mb-3 h-14 w-14 rounded-lg shadow-sm"
+            src="/icon.svg"
+          />
           <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
             mailrs
           </h1>
-          <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">Set your new password</p>
+          <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
+            Set your new password
+          </p>
         </div>
 
         {error && (
           <div
-            role="alert"
             className="rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-2 text-sm text-[var(--color-status-danger)]"
+            role="alert"
           >
             {error}
           </div>
@@ -126,52 +147,55 @@ export function ResetPassword() {
 
         <div className="space-y-1.5">
           <label
-            htmlFor="reset-password"
             className="block text-sm font-medium text-[var(--color-text-secondary)]"
+            htmlFor="reset-password"
           >
             New Password
           </label>
           <input
+            aria-label="New password"
+            autoFocus
+            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
             id="reset-password"
-            type="password"
-            value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            autoFocus
-            aria-label="New password"
-            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+            type="password"
+            value={password}
           />
         </div>
 
         <div className="space-y-1.5">
           <label
-            htmlFor="reset-confirm"
             className="block text-sm font-medium text-[var(--color-text-secondary)]"
+            htmlFor="reset-confirm"
           >
             Confirm Password
           </label>
           <input
-            id="reset-confirm"
-            type="password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            required
             aria-label="Confirm password"
             className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+            id="reset-confirm"
+            onChange={(e) => setConfirm(e.target.value)}
+            required
+            type="password"
+            value={confirm}
           />
         </div>
 
         <button
-          type="submit"
-          disabled={loading}
           className="flex w-full items-center justify-center rounded-md bg-[var(--color-brand-primary)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
+          disabled={loading}
+          type="submit"
         >
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {loading ? 'Resetting...' : 'Reset Password'}
         </button>
 
         <div className="text-center">
-          <a href="/login" className="text-sm text-[var(--color-brand-primary)] hover:underline">
+          <a
+            className="text-sm text-[var(--color-brand-primary)] hover:underline"
+            href="/login"
+          >
             Back to sign in
           </a>
         </div>

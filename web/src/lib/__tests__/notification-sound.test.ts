@@ -4,66 +4,46 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // minimal AudioContext mock
 // ---------------------------------------------------------------------------
 
-type OscillatorType = 'sine' | 'square' | 'sawtooth' | 'triangle' | 'custom'
+interface MockGainNode {
+  connect: ReturnType<typeof vi.fn>
+  gain: {
+    exponentialRampToValueAtTime: ReturnType<typeof vi.fn>
+    setValueAtTime: ReturnType<typeof vi.fn>
+  }
+}
 
 interface MockOscillator {
-  type: OscillatorType
-  frequency: { setValueAtTime: ReturnType<typeof vi.fn> }
   connect: ReturnType<typeof vi.fn>
+  frequency: { setValueAtTime: ReturnType<typeof vi.fn> }
   start: ReturnType<typeof vi.fn>
   stop: ReturnType<typeof vi.fn>
+  type: OscillatorType
 }
 
-interface MockGainNode {
-  gain: {
-    setValueAtTime: ReturnType<typeof vi.fn>
-    exponentialRampToValueAtTime: ReturnType<typeof vi.fn>
-  }
-  connect: ReturnType<typeof vi.fn>
-}
-
-function makeMockOscillator(): MockOscillator {
-  return {
-    type: 'sine',
-    frequency: { setValueAtTime: vi.fn() },
-    connect: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
-  }
-}
-
-function makeMockGainNode(): MockGainNode {
-  return {
-    gain: {
-      setValueAtTime: vi.fn(),
-      exponentialRampToValueAtTime: vi.fn(),
-    },
-    connect: vi.fn(),
-  }
-}
+type OscillatorType = 'custom' | 'sawtooth' | 'sine' | 'square' | 'triangle'
 
 // factory that produces a fresh AudioContext mock and captures instances
 function makeAudioContextClass(state: AudioContext['state'] = 'running') {
   const instances: MockAudioContextInstance[] = []
 
   class MockAudioContextInstance {
-    state: AudioContext['state'] = state
+    close = vi.fn()
     currentTime = 0
     destination = {}
-    oscillator = makeMockOscillator()
     gainNode = makeMockGainNode()
+    oscillator = makeMockOscillator()
 
     resume = vi.fn(() => Promise.resolve())
 
-    createOscillator(): MockOscillator {
-      return this.oscillator
-    }
+    state: AudioContext['state'] = state
 
     createGain(): MockGainNode {
       return this.gainNode
     }
 
-    close = vi.fn()
+    createOscillator(): MockOscillator {
+      return this.oscillator
+    }
   }
 
   const Ctor = vi.fn(() => {
@@ -73,6 +53,26 @@ function makeAudioContextClass(state: AudioContext['state'] = 'running') {
   })
 
   return { Ctor, instances }
+}
+
+function makeMockGainNode(): MockGainNode {
+  return {
+    connect: vi.fn(),
+    gain: {
+      exponentialRampToValueAtTime: vi.fn(),
+      setValueAtTime: vi.fn(),
+    },
+  }
+}
+
+function makeMockOscillator(): MockOscillator {
+  return {
+    connect: vi.fn(),
+    frequency: { setValueAtTime: vi.fn() },
+    start: vi.fn(),
+    stop: vi.fn(),
+    type: 'sine',
+  }
 }
 
 describe('playNotificationSound', () => {
@@ -112,7 +112,7 @@ describe('playNotificationSound', () => {
     expect(ctx.gainNode.gain.setValueAtTime).toHaveBeenCalledWith(0.3, 0)
     expect(ctx.gainNode.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(
       0.001,
-      0.15, // 150ms / 1000
+      0.15 // 150ms / 1000
     )
 
     // oscillator lifecycle
@@ -141,7 +141,7 @@ describe('playNotificationSound', () => {
       'AudioContext',
       vi.fn(() => {
         throw new Error('not allowed')
-      }),
+      })
     )
 
     const { playNotificationSound } = await import('../notification-sound')

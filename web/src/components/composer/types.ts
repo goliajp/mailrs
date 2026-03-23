@@ -1,14 +1,55 @@
-export type BlockType = 'text' | 'code' | 'signature' | 'quote' | 'divider' | 'attachment' | 'task'
+export type AnyBlock = Block<BlockType>
 
-export type TextBlockData = {
-  readonly content: string
+export type AssembledEmail = {
+  readonly attachments: ReadonlyArray<File>
   readonly html: string
-  readonly format: 'rich' | 'markdown'
+  readonly text: string
 }
+
+export type AttachmentBlockData = {
+  readonly file: File
+  readonly mimeType: string
+  readonly name: string
+  readonly size: number
+}
+
+export type Block<T extends BlockType = BlockType> = {
+  readonly data: BlockDataMap[T]
+  readonly id: string
+  readonly type: T
+}
+
+export type BlockDataMap = {
+  attachment: AttachmentBlockData
+  code: CodeBlockData
+  divider: DividerBlockData
+  quote: QuoteBlockData
+  signature: SignatureBlockData
+  task: TaskBlockData
+  text: TextBlockData
+}
+
+export type BlockType =
+  | 'attachment'
+  | 'code'
+  | 'divider'
+  | 'quote'
+  | 'signature'
+  | 'task'
+  | 'text'
 
 export type CodeBlockData = {
   readonly code: string
   readonly language: string
+}
+
+export type DividerBlockData = Record<string, never>
+
+export type QuoteBlockData = {
+  readonly collapsed: boolean
+  readonly headerHtml: string
+  readonly headerText: string
+  readonly html: string
 }
 
 export type SignatureBlockData = {
@@ -16,54 +57,23 @@ export type SignatureBlockData = {
   readonly text: string
 }
 
-export type QuoteBlockData = {
-  readonly html: string
-  readonly headerHtml: string
-  readonly headerText: string
-  readonly collapsed: boolean
-}
-
-export type DividerBlockData = Record<string, never>
-
-export type AttachmentBlockData = {
-  readonly file: File
-  readonly name: string
-  readonly size: number
-  readonly mimeType: string
-}
-
 export type TaskBlockData = {
   readonly items: ReadonlyArray<{
+    readonly checked: boolean
     readonly id: string
     readonly text: string
-    readonly checked: boolean
   }>
 }
 
-export type BlockDataMap = {
-  text: TextBlockData
-  code: CodeBlockData
-  signature: SignatureBlockData
-  quote: QuoteBlockData
-  divider: DividerBlockData
-  attachment: AttachmentBlockData
-  task: TaskBlockData
-}
-
-export type Block<T extends BlockType = BlockType> = {
-  readonly id: string
-  readonly type: T
-  readonly data: BlockDataMap[T]
-}
-
-export type AnyBlock = Block<BlockType>
-
-export type AssembledEmail = {
-  readonly text: string
+export type TextBlockData = {
+  readonly content: string
+  readonly format: 'markdown' | 'rich'
   readonly html: string
-  readonly attachments: ReadonlyArray<File>
 }
 
-export function createBlock<T extends BlockType>(type: T, data: BlockDataMap[T]): Block<T> {
-  return { id: crypto.randomUUID(), type, data }
+export function createBlock<T extends BlockType>(
+  type: T,
+  data: BlockDataMap[T]
+): Block<T> {
+  return { data, id: crypto.randomUUID(), type }
 }

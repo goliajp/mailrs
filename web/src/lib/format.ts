@@ -1,23 +1,17 @@
-function startOfDay(date: Date): Date {
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function isYesterday(d: Date, now: Date): boolean {
-  const yesterday = startOfDay(now)
-  yesterday.setDate(yesterday.getDate() - 1)
-  return startOfDay(d).getTime() === yesterday.getTime()
-}
-
-function isSameWeek(d: Date, now: Date): boolean {
-  const nowStart = startOfDay(now)
-  const dayOfWeek = nowStart.getDay()
-  // week starts on Monday: go back (dayOfWeek - 1) days, or 6 if Sunday
-  const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-  const weekStart = new Date(nowStart)
-  weekStart.setDate(weekStart.getDate() - mondayOffset)
-  return startOfDay(d).getTime() >= weekStart.getTime() && d < now
+export function dateGroupLabel(epoch: number): string {
+  const d = new Date(epoch * 1000)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const diffDays = Math.floor((today.getTime() - msgDate.getTime()) / 86400000)
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return d.toLocaleDateString(undefined, { weekday: 'long' })
+  return d.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: now.getFullYear() !== d.getFullYear() ? 'numeric' : undefined,
+  })
 }
 
 export function formatDate(ts: number): string {
@@ -41,37 +35,25 @@ export function formatDate(ts: number): string {
 
   // same year: month + day
   if (d.getFullYear() === now.getFullYear()) {
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    return d.toLocaleDateString([], { day: 'numeric', month: 'short' })
   }
 
   // older: abbreviated year
-  return d.toLocaleDateString([], { year: '2-digit', month: 'short', day: 'numeric' })
+  return d.toLocaleDateString([], {
+    day: 'numeric',
+    month: 'short',
+    year: '2-digit',
+  })
 }
 
 export function formatFullDate(ts: number): string {
   return new Date(ts * 1000).toLocaleString([], {
-    weekday: 'short',
-    year: 'numeric',
-    month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  })
-}
-
-export function dateGroupLabel(epoch: number): string {
-  const d = new Date(epoch * 1000)
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  const diffDays = Math.floor((today.getTime() - msgDate.getTime()) / 86400000)
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return d.toLocaleDateString(undefined, { weekday: 'long' })
-  return d.toLocaleDateString(undefined, {
     month: 'short',
-    day: 'numeric',
-    year: now.getFullYear() !== d.getFullYear() ? 'numeric' : undefined,
+    weekday: 'short',
+    year: 'numeric',
   })
 }
 
@@ -87,4 +69,26 @@ export function formatUptime(secs: number): string {
   const s = secs % 60
   if (h > 0) return `${h}h ${m}m`
   return `${m}m ${s}s`
+}
+
+function isSameWeek(d: Date, now: Date): boolean {
+  const nowStart = startOfDay(now)
+  const dayOfWeek = nowStart.getDay()
+  // week starts on Monday: go back (dayOfWeek - 1) days, or 6 if Sunday
+  const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const weekStart = new Date(nowStart)
+  weekStart.setDate(weekStart.getDate() - mondayOffset)
+  return startOfDay(d).getTime() >= weekStart.getTime() && d < now
+}
+
+function isYesterday(d: Date, now: Date): boolean {
+  const yesterday = startOfDay(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  return startOfDay(d).getTime() === yesterday.getTime()
+}
+
+function startOfDay(date: Date): Date {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  return d
 }

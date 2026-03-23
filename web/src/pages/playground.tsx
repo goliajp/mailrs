@@ -1,28 +1,19 @@
+import type { ThemeMode } from '@/lib/theme'
+
 import { useAtom } from 'jotai'
 import { Moon, Plus, Search, Star, Sun, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 
-import { Avatar, Badge, Button, Card, Dialog, IconButton, Input } from '@/components/ui'
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  Dialog,
+  IconButton,
+  Input,
+} from '@/components/ui'
 import { themeAtom } from '@/store/theme'
-import type { ThemeMode } from '@/lib/theme'
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">{title}</h2>
-      <div className="space-y-4">{children}</div>
-    </section>
-  )
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-1.5 text-xs font-medium text-[var(--color-text-tertiary)]">{label}</p>
-      <div className="flex flex-wrap items-center gap-2">{children}</div>
-    </div>
-  )
-}
 
 export function Playground() {
   const [theme, setTheme] = useAtom(themeAtom)
@@ -39,19 +30,20 @@ export function Playground() {
               Component Playground
             </h1>
             <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-              Design token system &middot; All components render with CSS custom properties
+              Design token system &middot; All components render with CSS custom
+              properties
             </p>
           </div>
           <div className="flex items-center gap-1 border border-[var(--color-border-default)] p-0.5">
             {(['light', 'dark', 'system'] as ThemeMode[]).map((m) => (
               <button
-                key={m}
-                onClick={() => setTheme(m)}
                 className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
                   theme === m
                     ? 'bg-[var(--color-brand-primary)] text-white'
                     : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
                 }`}
+                key={m}
+                onClick={() => setTheme(m)}
               >
                 {m === 'light' && <Sun className="h-3 w-3" />}
                 {m === 'dark' && <Moon className="h-3 w-3" />}
@@ -72,7 +64,7 @@ export function Playground() {
                 '--color-bg-sunken',
               ] as const
             ).map((v) => (
-              <div key={v} className="flex flex-col items-center gap-1">
+              <div className="flex flex-col items-center gap-1" key={v}>
                 <div
                   className="h-12 w-12 border border-[var(--color-border-default)]"
                   style={{ background: `var(${v})` }}
@@ -85,30 +77,36 @@ export function Playground() {
           </Row>
           <Row label="Text">
             {[
-              { v: '--color-text-primary', label: 'primary' },
-              { v: '--color-text-secondary', label: 'secondary' },
-              { v: '--color-text-tertiary', label: 'tertiary' },
-            ].map(({ v, label }) => (
-              <span key={v} className="text-sm font-medium" style={{ color: `var(${v})` }}>
+              { label: 'primary', v: '--color-text-primary' },
+              { label: 'secondary', v: '--color-text-secondary' },
+              { label: 'tertiary', v: '--color-text-tertiary' },
+            ].map(({ label, v }) => (
+              <span
+                className="text-sm font-medium"
+                key={v}
+                style={{ color: `var(${v})` }}
+              >
                 {label}
               </span>
             ))}
           </Row>
           <Row label="Status">
             {(['success', 'warning', 'danger', 'info'] as const).map((s) => (
-              <div key={s} className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5" key={s}>
                 <div
                   className="h-3 w-3 rounded-full"
                   style={{ background: `var(--color-status-${s})` }}
                 />
-                <span className="text-xs text-[var(--color-text-secondary)]">{s}</span>
+                <span className="text-xs text-[var(--color-text-secondary)]">
+                  {s}
+                </span>
               </div>
             ))}
           </Row>
           <Row label="Brand">
             <div className="flex items-center gap-2">
               <div
-                className="h-8 w-20 flex items-center justify-center text-xs font-medium"
+                className="flex h-8 w-20 items-center justify-center text-xs font-medium"
                 style={{
                   background: 'var(--color-brand-primary)',
                   color: 'var(--color-brand-primary-text)',
@@ -117,7 +115,7 @@ export function Playground() {
                 Primary
               </div>
               <div
-                className="h-8 w-20 flex items-center justify-center text-xs font-medium"
+                className="flex h-8 w-20 items-center justify-center text-xs font-medium"
                 style={{
                   background: 'var(--color-brand-primary-hover)',
                   color: 'var(--color-brand-primary-text)',
@@ -126,7 +124,7 @@ export function Playground() {
                 Hover
               </div>
               <div
-                className="h-8 w-20 flex items-center justify-center text-xs font-medium border border-[var(--color-border-default)]"
+                className="flex h-8 w-20 items-center justify-center border border-[var(--color-border-default)] text-xs font-medium"
                 style={{
                   background: 'var(--color-brand-subtle)',
                   color: 'var(--color-brand-primary)',
@@ -161,21 +159,21 @@ export function Playground() {
             </Button>
           </Row>
           <Row label="States">
-            <Button variant="primary" disabled>
+            <Button disabled variant="primary">
               Disabled
             </Button>
-            <Button variant="secondary" disabled>
+            <Button disabled variant="secondary">
               Disabled
             </Button>
           </Row>
           <Row label="With icons">
-            <Button variant="primary" size="sm">
+            <Button size="sm" variant="primary">
               <Plus className="h-3.5 w-3.5" /> New
             </Button>
-            <Button variant="danger" size="sm">
+            <Button size="sm" variant="danger">
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </Button>
-            <Button variant="ghost" size="sm">
+            <Button size="sm" variant="ghost">
               <Search className="h-3.5 w-3.5" /> Search
             </Button>
           </Row>
@@ -201,7 +199,7 @@ export function Playground() {
             <IconButton label="Normal">
               <X className="h-4 w-4" />
             </IconButton>
-            <IconButton label="Disabled" disabled>
+            <IconButton disabled label="Disabled">
               <X className="h-4 w-4" />
             </IconButton>
           </Row>
@@ -223,28 +221,28 @@ export function Playground() {
         <Section title="Input">
           <Row label="Default">
             <Input
-              placeholder="Type something..."
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
               aria-label="Default input"
               className="max-w-xs"
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Type something..."
+              value={inputValue}
             />
           </Row>
           <Row label="Error state">
             <Input
-              placeholder="Invalid input"
-              error
               aria-label="Error input"
               className="max-w-xs"
               defaultValue="bad value"
+              error
+              placeholder="Invalid input"
             />
           </Row>
           <Row label="Disabled">
             <Input
-              placeholder="Disabled"
-              disabled
               aria-label="Disabled input"
               className="max-w-xs"
+              disabled
+              placeholder="Disabled"
             />
           </Row>
         </Section>
@@ -269,13 +267,13 @@ export function Playground() {
         {/* card */}
         <Section title="Card">
           <Row label="Padding sizes">
-            <Card padding="sm" className="w-40">
+            <Card className="w-40" padding="sm">
               <p className="text-sm">Small padding</p>
             </Card>
-            <Card padding="md" className="w-40">
+            <Card className="w-40" padding="md">
               <p className="text-sm">Medium padding</p>
             </Card>
-            <Card padding="lg" className="w-40">
+            <Card className="w-40" padding="lg">
               <p className="text-sm">Large padding</p>
             </Card>
           </Row>
@@ -284,19 +282,31 @@ export function Playground() {
         {/* dialog */}
         <Section title="Dialog">
           <Row label="Modal">
-            <Button variant="secondary" onClick={() => setDialogOpen(true)}>
+            <Button onClick={() => setDialogOpen(true)} variant="secondary">
               Open Dialog
             </Button>
           </Row>
-          <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} title="Confirm action">
+          <Dialog
+            onClose={() => setDialogOpen(false)}
+            open={dialogOpen}
+            title="Confirm action"
+          >
             <p className="text-sm text-[var(--color-text-secondary)]">
               Are you sure you want to proceed? This action cannot be undone.
             </p>
             <div className="mt-4 flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setDialogOpen(false)}>
+              <Button
+                onClick={() => setDialogOpen(false)}
+                size="sm"
+                variant="ghost"
+              >
                 Cancel
               </Button>
-              <Button variant="danger" size="sm" onClick={() => setDialogOpen(false)}>
+              <Button
+                onClick={() => setDialogOpen(false)}
+                size="sm"
+                variant="danger"
+              >
                 Confirm
               </Button>
             </div>
@@ -355,22 +365,58 @@ export function Playground() {
         <Section title="Spacing Scale">
           <div className="flex items-end gap-1">
             {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
-              <div key={n} className="flex flex-col items-center gap-1">
+              <div className="flex flex-col items-center gap-1" key={n}>
                 <div
                   className="bg-[var(--color-brand-primary)]"
-                  style={{ width: `${n * 4}px`, height: `${n * 4}px` }}
+                  style={{ height: `${n * 4}px`, width: `${n * 4}px` }}
                 />
-                <span className="text-[10px] text-[var(--color-text-tertiary)]">{n}</span>
+                <span className="text-[10px] text-[var(--color-text-tertiary)]">
+                  {n}
+                </span>
               </div>
             ))}
           </div>
         </Section>
 
         <footer className="border-t border-[var(--color-border-default)] pt-4 text-xs text-[var(--color-text-tertiary)]">
-          mailrs design system &middot; Tokens auto-switch between light/dark via CSS custom
-          properties
+          mailrs design system &middot; Tokens auto-switch between light/dark
+          via CSS custom properties
         </footer>
       </div>
     </div>
+  )
+}
+
+function Row({
+  children,
+  label,
+}: {
+  children: React.ReactNode
+  label: string
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-xs font-medium text-[var(--color-text-tertiary)]">
+        {label}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
+    </div>
+  )
+}
+
+function Section({
+  children,
+  title,
+}: {
+  children: React.ReactNode
+  title: string
+}) {
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
+        {title}
+      </h2>
+      <div className="space-y-4">{children}</div>
+    </section>
   )
 }

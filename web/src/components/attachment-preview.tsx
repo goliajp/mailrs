@@ -1,136 +1,22 @@
+import type { AttachmentInfo } from '@/lib/types'
+
 import { File, FileText, X } from 'lucide-react'
 import { useCallback, useState } from 'react'
 
 import { Copyable } from '@/components/copy-button'
 import { formatSize } from '@/lib/format'
-import type { AttachmentInfo } from '@/lib/types'
 import { getToken } from '@/store/auth'
 
-const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'])
-
-function isImageAttachment(att: AttachmentInfo): boolean {
-  if (att.content_type.startsWith('image/')) return true
-  const ext = att.filename.split('.').pop()?.toLowerCase() ?? ''
-  return IMAGE_EXTENSIONS.has(ext)
-}
-
-function isPdfAttachment(att: AttachmentInfo): boolean {
-  if (att.content_type === 'application/pdf') return true
-  return att.filename.toLowerCase().endsWith('.pdf')
-}
-
-function attachmentUrl(uid: number, index: number): string {
-  const token = getToken() ?? ''
-  return `/api/mail/messages/${uid}/attachments/${index}?token=${encodeURIComponent(token)}`
-}
-
-// pdf icon
-function PdfIcon({ className }: { className?: string }) {
-  return <FileText className={className} />
-}
-
-// generic file icon
-function FileIcon({ className }: { className?: string }) {
-  return <File className={className} />
-}
-
-// lightbox modal for full-size image preview
-function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) onClose()
-    },
-    [onClose],
-  )
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    },
-    [onClose],
-  )
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-      onClick={handleBackdropClick}
-      onKeyDown={handleKeyDown}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Image preview: ${alt}`}
-      tabIndex={-1}
-    >
-      <button
-        onClick={onClose}
-        className="absolute right-4 top-4 rounded-md bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
-        aria-label="Close preview"
-      >
-        <X className="h-5 w-5" />
-      </button>
-      <img
-        src={src}
-        alt={alt}
-        className="max-h-[90vh] max-w-[90vw] rounded-md object-contain shadow-lg"
-      />
-    </div>
-  )
-}
-
-// single image thumbnail with click-to-expand
-function ImageThumbnail({ uid, index, att }: { uid: number; index: number; att: AttachmentInfo }) {
-  const [lightboxOpen, setLightboxOpen] = useState(false)
-  const url = attachmentUrl(uid, index)
-
-  return (
-    <>
-      <div className="group relative overflow-hidden">
-        <button
-          onClick={() => setLightboxOpen(true)}
-          className="block overflow-hidden rounded-md border border-[var(--color-border-default)] transition-shadow hover:shadow-md"
-          title={`${att.filename} - click to enlarge`}
-        >
-          <img src={url} alt={att.filename} className="max-h-32 object-contain" loading="lazy" />
-        </button>
-        <p className="mt-1 truncate text-xs text-[var(--color-text-tertiary)]">
-          <Copyable value={att.filename}>{att.filename}</Copyable>
-          <span className="ml-1 text-[var(--color-text-tertiary)]">({formatSize(att.size)})</span>
-        </p>
-      </div>
-      {lightboxOpen && (
-        <ImageLightbox src={url} alt={att.filename} onClose={() => setLightboxOpen(false)} />
-      )}
-    </>
-  )
-}
-
-// non-image file row
-function FileRow({ uid, index, att }: { uid: number; index: number; att: AttachmentInfo }) {
-  const url = attachmentUrl(uid, index)
-  const isPdf = isPdfAttachment(att)
-
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-2 rounded-md border border-[var(--color-border-default)] px-3 py-2 text-sm transition-colors hover:bg-[var(--color-hover)]"
-    >
-      {isPdf ? (
-        <PdfIcon className="h-5 w-5 shrink-0 text-[var(--color-status-danger)]" />
-      ) : (
-        <FileIcon className="h-5 w-5 shrink-0 text-[var(--color-text-tertiary)]" />
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[var(--color-text-secondary)]">
-          <Copyable value={att.filename}>{att.filename}</Copyable>
-        </p>
-        <p className="text-xs text-[var(--color-text-tertiary)]">
-          {att.content_type} · {formatSize(att.size)}
-        </p>
-      </div>
-    </a>
-  )
-}
+const IMAGE_EXTENSIONS = new Set([
+  'bmp',
+  'gif',
+  'ico',
+  'jpeg',
+  'jpg',
+  'png',
+  'svg',
+  'webp',
+])
 
 export function AttachmentPreview({
   attachments,
@@ -151,7 +37,7 @@ export function AttachmentPreview({
   return (
     <div className="border-t border-[var(--color-border-default)] px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
-        <span className="select-none text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
+        <span className="text-xs font-medium tracking-wide text-[var(--color-text-tertiary)] uppercase select-none">
           Attachments ({attachments.length})
         </span>
         <div className="h-px flex-1 bg-[var(--color-border-default)]" />
@@ -161,7 +47,7 @@ export function AttachmentPreview({
       {images.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
           {images.map(({ att, index }) => (
-            <ImageThumbnail key={index} uid={uid} index={index} att={att} />
+            <ImageThumbnail att={att} index={index} key={index} uid={uid} />
           ))}
         </div>
       )}
@@ -170,10 +56,169 @@ export function AttachmentPreview({
       {others.length > 0 && (
         <div className="flex flex-col gap-2">
           {others.map(({ att, index }) => (
-            <FileRow key={index} uid={uid} index={index} att={att} />
+            <FileRow att={att} index={index} key={index} uid={uid} />
           ))}
         </div>
       )}
     </div>
   )
+}
+
+function attachmentUrl(uid: number, index: number): string {
+  const token = getToken() ?? ''
+  return `/api/mail/messages/${uid}/attachments/${index}?token=${encodeURIComponent(token)}`
+}
+
+// generic file icon
+function FileIcon({ className }: { className?: string }) {
+  return <File className={className} />
+}
+
+// non-image file row
+function FileRow({
+  att,
+  index,
+  uid,
+}: {
+  att: AttachmentInfo
+  index: number
+  uid: number
+}) {
+  const url = attachmentUrl(uid, index)
+  const isPdf = isPdfAttachment(att)
+
+  return (
+    <a
+      className="flex items-center gap-2 rounded-md border border-[var(--color-border-default)] px-3 py-2 text-sm transition-colors hover:bg-[var(--color-hover)]"
+      href={url}
+      rel="noopener noreferrer"
+      target="_blank"
+    >
+      {isPdf ? (
+        <PdfIcon className="h-5 w-5 shrink-0 text-[var(--color-status-danger)]" />
+      ) : (
+        <FileIcon className="h-5 w-5 shrink-0 text-[var(--color-text-tertiary)]" />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[var(--color-text-secondary)]">
+          <Copyable value={att.filename}>{att.filename}</Copyable>
+        </p>
+        <p className="text-xs text-[var(--color-text-tertiary)]">
+          {att.content_type} · {formatSize(att.size)}
+        </p>
+      </div>
+    </a>
+  )
+}
+
+// lightbox modal for full-size image preview
+function ImageLightbox({
+  alt,
+  onClose,
+  src,
+}: {
+  alt: string
+  onClose: () => void
+  src: string
+}) {
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) onClose()
+    },
+    [onClose]
+  )
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    },
+    [onClose]
+  )
+
+  return (
+    <div
+      aria-label={`Image preview: ${alt}`}
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onClick={handleBackdropClick}
+      onKeyDown={handleKeyDown}
+      role="dialog"
+      tabIndex={-1}
+    >
+      <button
+        aria-label="Close preview"
+        className="absolute top-4 right-4 rounded-md bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+        onClick={onClose}
+      >
+        <X className="h-5 w-5" />
+      </button>
+      <img
+        alt={alt}
+        className="max-h-[90vh] max-w-[90vw] rounded-md object-contain shadow-lg"
+        src={src}
+      />
+    </div>
+  )
+}
+
+// single image thumbnail with click-to-expand
+function ImageThumbnail({
+  att,
+  index,
+  uid,
+}: {
+  att: AttachmentInfo
+  index: number
+  uid: number
+}) {
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const url = attachmentUrl(uid, index)
+
+  return (
+    <>
+      <div className="group relative overflow-hidden">
+        <button
+          className="block overflow-hidden rounded-md border border-[var(--color-border-default)] transition-shadow hover:shadow-md"
+          onClick={() => setLightboxOpen(true)}
+          title={`${att.filename} - click to enlarge`}
+        >
+          <img
+            alt={att.filename}
+            className="max-h-32 object-contain"
+            loading="lazy"
+            src={url}
+          />
+        </button>
+        <p className="mt-1 truncate text-xs text-[var(--color-text-tertiary)]">
+          <Copyable value={att.filename}>{att.filename}</Copyable>
+          <span className="ml-1 text-[var(--color-text-tertiary)]">
+            ({formatSize(att.size)})
+          </span>
+        </p>
+      </div>
+      {lightboxOpen && (
+        <ImageLightbox
+          alt={att.filename}
+          onClose={() => setLightboxOpen(false)}
+          src={url}
+        />
+      )}
+    </>
+  )
+}
+
+function isImageAttachment(att: AttachmentInfo): boolean {
+  if (att.content_type.startsWith('image/')) return true
+  const ext = att.filename.split('.').pop()?.toLowerCase() ?? ''
+  return IMAGE_EXTENSIONS.has(ext)
+}
+
+function isPdfAttachment(att: AttachmentInfo): boolean {
+  if (att.content_type === 'application/pdf') return true
+  return att.filename.toLowerCase().endsWith('.pdf')
+}
+
+// pdf icon
+function PdfIcon({ className }: { className?: string }) {
+  return <FileText className={className} />
 }

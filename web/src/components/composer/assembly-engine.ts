@@ -1,6 +1,7 @@
 import type { AnyBlock, AssembledEmail } from './types'
-import { renderBlockHtml, renderBlockText } from './renderers/html-renderer'
+
 import { wrapInEmailTemplate } from './renderers/email-template'
+import { renderBlockHtml, renderBlockText } from './renderers/html-renderer'
 
 export function assembleEmail(blocks: ReadonlyArray<AnyBlock>): AssembledEmail {
   const htmlParts: string[] = []
@@ -21,8 +22,8 @@ export function assembleEmail(blocks: ReadonlyArray<AnyBlock>): AssembledEmail {
   }
 
   return {
-    text: textParts.join('\n\n'),
-    html: wrapInEmailTemplate(htmlParts.join('\n')),
     attachments,
+    html: wrapInEmailTemplate(htmlParts.join('\n')),
+    text: textParts.join('\n\n'),
   }
 }

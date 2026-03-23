@@ -1,44 +1,24 @@
-import { useRef } from 'react'
-import { type Editor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
+import type { Extensions } from '@tiptap/react'
+
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
+import Placeholder from '@tiptap/extension-placeholder'
 import { Table } from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
-import TaskList from '@tiptap/extension-task-list'
+import TableRow from '@tiptap/extension-table-row'
 import TaskItem from '@tiptap/extension-task-item'
-import Placeholder from '@tiptap/extension-placeholder'
+import TaskList from '@tiptap/extension-task-list'
 import Underline from '@tiptap/extension-underline'
+import { type Editor } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
 import { common, createLowlight } from 'lowlight'
-import type { Extensions } from '@tiptap/react'
+import { useRef } from 'react'
 
 import { getToken } from '@/store/auth'
 
 const lowlight = createLowlight(common)
-
-// eslint-disable-next-line react-refresh/only-export-components
-export async function uploadInlineImage(file: File): Promise<string | null> {
-  const form = new FormData()
-  form.append('image', file)
-  const token = getToken()
-  const headers: Record<string, string> = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  try {
-    const res = await fetch('/api/mail/inline-upload', {
-      method: 'POST',
-      headers,
-      body: form,
-    })
-    const data = await res.json()
-    if (data.success && data.url) return data.url as string
-  } catch {
-    // fallback handled by caller
-  }
-  return null
-}
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function createEditorExtensions(placeholder?: string): Extensions {
@@ -49,16 +29,16 @@ export function createEditorExtensions(placeholder?: string): Extensions {
       underline: false,
     }),
     CodeBlockLowlight.configure({
-      lowlight,
       defaultLanguage: 'plaintext',
+      lowlight,
     }),
     Image.configure({
-      inline: true,
       allowBase64: true,
+      inline: true,
     }),
     Link.configure({
-      openOnClick: false,
       autolink: true,
+      openOnClick: false,
     }),
     Table.configure({ resizable: false }),
     TableRow,
@@ -77,18 +57,39 @@ export function createEditorExtensions(placeholder?: string): Extensions {
 export function createMinimalExtensions(placeholder?: string): Extensions {
   return [
     StarterKit.configure({
+      blockquote: false,
       codeBlock: false,
+      heading: false,
+      horizontalRule: false,
       link: false,
       underline: false,
-      heading: false,
-      blockquote: false,
-      horizontalRule: false,
     }),
-    Link.configure({ openOnClick: false, autolink: true }),
+    Link.configure({ autolink: true, openOnClick: false }),
     Placeholder.configure({
       placeholder: placeholder ?? '',
     }),
   ]
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export async function uploadInlineImage(file: File): Promise<null | string> {
+  const form = new FormData()
+  form.append('image', file)
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  try {
+    const res = await fetch('/api/mail/inline-upload', {
+      body: form,
+      headers,
+      method: 'POST',
+    })
+    const data = await res.json()
+    if (data.success && data.url) return data.url as string
+  } catch {
+    // fallback handled by caller
+  }
+  return null
 }
 
 export const PROSE_CLASS =
@@ -97,29 +98,11 @@ export const PROSE_CLASS =
   'prose-code:before:content-none prose-code:after:content-none'
 
 type ToolbarButtonProps = {
-  onClick: () => void
   active?: boolean
-  disabled?: boolean
-  title: string
   children: React.ReactNode
-}
-
-function ToolbarButton({ onClick, active, disabled, title, children }: ToolbarButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className={`rounded-md px-1.5 py-1 text-xs transition-colors ${
-        active
-          ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]'
-          : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
-      } disabled:opacity-50`}
-    >
-      {children}
-    </button>
-  )
+  disabled?: boolean
+  onClick: () => void
+  title: string
 }
 
 // shared: editor toolbar, binds to any editor instance
@@ -131,7 +114,12 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
   const addLink = () => {
     const url = window.prompt('URL')
     if (url) {
-      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+      editor
+        .chain()
+        .focus()
+        .extendMarkRange('link')
+        .setLink({ href: url })
+        .run()
     }
   }
   const addImage = () => {
@@ -150,29 +138,29 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-0.5 px-2 py-1">
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBold().run()}
         active={editor.isActive('bold')}
+        onClick={() => editor.chain().focus().toggleBold().run()}
         title="Bold (Ctrl+B)"
       >
         <span className="font-bold">B</span>
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleItalic().run()}
         active={editor.isActive('italic')}
+        onClick={() => editor.chain().focus().toggleItalic().run()}
         title="Italic (Ctrl+I)"
       >
         <span className="italic">I</span>
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
         active={editor.isActive('underline')}
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
         title="Underline (Ctrl+U)"
       >
         <span className="underline">U</span>
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleStrike().run()}
         active={editor.isActive('strike')}
+        onClick={() => editor.chain().focus().toggleStrike().run()}
         title="Strikethrough"
       >
         <span className="line-through">S</span>
@@ -181,15 +169,15 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
       <div className="mx-1 h-4 w-px bg-[var(--color-border-default)]" />
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleCode().run()}
         active={editor.isActive('code')}
+        onClick={() => editor.chain().focus().toggleCode().run()}
         title="Inline code"
       >
         <span className="font-mono text-xs">&lt;/&gt;</span>
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
         active={editor.isActive('codeBlock')}
+        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
         title="Code block"
       >
         <span className="font-mono text-xs">{'{ }'}</span>
@@ -198,50 +186,54 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
       <div className="mx-1 h-4 w-px bg-[var(--color-border-default)]" />
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
         active={editor.isActive('heading', { level: 2 })}
+        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
         title="Heading"
       >
         H
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
         active={editor.isActive('blockquote')}
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
         title="Quote"
       >
         &ldquo;
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
         active={editor.isActive('bulletList')}
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
         title="Bullet list"
       >
         &bull;
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
         active={editor.isActive('orderedList')}
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
         title="Numbered list"
       >
         1.
       </ToolbarButton>
-      <ToolbarButton onClick={addLink} active={editor.isActive('link')} title="Link">
+      <ToolbarButton
+        active={editor.isActive('link')}
+        onClick={addLink}
+        title="Link"
+      >
         <span className="text-xs">Link</span>
       </ToolbarButton>
 
       {/* secondary tools — hidden on narrow screens */}
       <div className="mx-1 hidden h-4 w-px bg-[var(--color-border-default)] sm:block" />
       <input
-        ref={fileInputRef}
-        type="file"
         accept="image/*"
         className="hidden"
         onChange={handleImageFile}
+        ref={fileInputRef}
+        type="file"
       />
       <div className="hidden items-center gap-0.5 sm:flex">
         <ToolbarButton
-          onClick={() => editor.chain().focus().toggleTaskList().run()}
           active={editor.isActive('taskList')}
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
           title="Task list"
         >
           &#9744;
@@ -250,7 +242,9 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
           <span className="text-xs">Img</span>
         </ToolbarButton>
         <ToolbarButton
-          onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3 }).run()}
+          onClick={() =>
+            editor.chain().focus().insertTable({ cols: 3, rows: 3 }).run()
+          }
           title="Table"
         >
           <span className="text-xs">Table</span>
@@ -268,12 +262,36 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function getEditorContent(editor: Editor | null): {
-  text: string
   html: string
+  text: string
 } {
-  if (!editor) return { text: '', html: '' }
+  if (!editor) return { html: '', text: '' }
   return {
-    text: editor.getText(),
     html: editor.getHTML(),
+    text: editor.getText(),
   }
+}
+
+function ToolbarButton({
+  active,
+  children,
+  disabled,
+  onClick,
+  title,
+}: ToolbarButtonProps) {
+  return (
+    <button
+      className={`rounded-md px-1.5 py-1 text-xs transition-colors ${
+        active
+          ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]'
+          : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
+      } disabled:opacity-50`}
+      disabled={disabled}
+      onClick={onClick}
+      title={title}
+      type="button"
+    >
+      {children}
+    </button>
+  )
 }

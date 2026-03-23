@@ -22,69 +22,75 @@ export const spacing = {
 
 // -- border radius --
 export const radius = {
+  full: '9999px',
+  lg: '0.5rem',
+  md: '0.25rem',
   none: '0',
   sm: '0.125rem',
-  md: '0.25rem',
-  lg: '0.5rem',
-  full: '9999px',
 } as const
 
 // -- font sizes --
 export const fontSize = {
-  xs: '0.6875rem', // 11px
-  sm: '0.8125rem', // 13px
+  '2xl': '1.25rem', // 20px
   base: '0.875rem', // 14px
   lg: '1rem', // 16px
+  sm: '0.8125rem', // 13px
   xl: '1.125rem', // 18px
-  '2xl': '1.25rem', // 20px
+  xs: '0.6875rem', // 11px
 } as const
 
 // -- font weights --
 export const fontWeight = {
-  normal: '400',
-  medium: '500',
-  semibold: '600',
   bold: '700',
+  medium: '500',
+  normal: '400',
+  semibold: '600',
 } as const
 
 // -- z-index layers --
 export const zIndex = {
   dropdown: 10,
-  sticky: 20,
-  overlay: 40,
   modal: 50,
+  overlay: 40,
   popover: 60,
+  sticky: 20,
   toast: 70,
 } as const
 
 // -- semantic color token keys --
 // actual values come from CSS custom properties (--color-*)
 // these names are used in component variant maps
-export type ColorIntent = 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info'
+export type ColorIntent =
+  | 'danger'
+  | 'info'
+  | 'primary'
+  | 'secondary'
+  | 'success'
+  | 'warning'
+
+// -- component size variants --
+export type Size = 'lg' | 'md' | 'sm' | 'xs'
 
 export type SurfaceLevel =
   | 'base' // main background
-  | 'raised' // cards, panels
   | 'overlay' // dropdowns, popovers
+  | 'raised' // cards, panels
   | 'sunken' // inset areas
-
-// -- component size variants --
-export type Size = 'xs' | 'sm' | 'md' | 'lg'
 
 // -- CSS variable names for semantic colors --
 // these are the actual custom property names set in index.css
 export const colorVars = {
   // surfaces
   bgBase: '--color-bg-base',
-  bgRaised: '--color-bg-raised',
   bgOverlay: '--color-bg-overlay',
+  bgRaised: '--color-bg-raised',
   bgSunken: '--color-bg-sunken',
 
   // text
+  textInverse: '--color-text-inverse',
   textPrimary: '--color-text-primary',
   textSecondary: '--color-text-secondary',
   textTertiary: '--color-text-tertiary',
-  textInverse: '--color-text-inverse',
 
   // borders
   borderDefault: '--color-border-default',
@@ -96,10 +102,10 @@ export const colorVars = {
   brandPrimaryText: '--color-brand-primary-text',
 
   // status
-  statusSuccess: '--color-status-success',
-  statusWarning: '--color-status-warning',
   statusDanger: '--color-status-danger',
   statusInfo: '--color-status-info',
+  statusSuccess: '--color-status-success',
+  statusWarning: '--color-status-warning',
 } as const
 
 // helper to read a CSS variable value

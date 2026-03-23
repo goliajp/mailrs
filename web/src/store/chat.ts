@@ -1,19 +1,19 @@
-import { atom } from 'jotai'
-
 import type { ConversationSummary, ThreadMessage } from '@/lib/types'
+
+import { atom } from 'jotai'
 
 export const conversationsAtom = atom<ConversationSummary[]>([])
 export const unreadCountAtom = atom((get) => {
   const conversations = get(conversationsAtom)
   return conversations.reduce((sum, c) => sum + c.unread_count, 0)
 })
-export const selectedThreadIdAtom = atom<string | null>(null)
+export const selectedThreadIdAtom = atom<null | string>(null)
 export const threadMessagesAtom = atom<ThreadMessage[]>([])
 export const composingNewAtom = atom(false)
 export const searchQueryAtom = atom('')
 export const hasMoreAtom = atom(true)
 export const loadingMoreAtom = atom(false)
-export const categoryFilterAtom = atom<string | null>(null)
+export const categoryFilterAtom = atom<null | string>(null)
 export const selectedDomainsAtom = atom<string[]>([])
 export const initialLoadingAtom = atom(true)
 export const mobileViewAtom = atom<'list' | 'thread'>('list')
@@ -26,7 +26,7 @@ export const batchModeAtom = atom(false)
 export const selectedThreadIdsAtom = atom<Set<string>>(new Set<string>())
 
 // mailbox folder filter (null = INBOX default, 'Sent' = sent folder)
-export type MailFolder = 'Sent' | 'Drafts' | 'Trash' | null
+export type MailFolder = 'Drafts' | 'Sent' | 'Trash' | null
 export const folderAtom = atom<MailFolder>(null)
 
 // archived view toggle
@@ -40,7 +40,7 @@ export type ImportanceSection = 'action' | 'important' | 'other' | null
 export const importanceSectionAtom = atom<ImportanceSection>(null)
 
 // quick filter
-export type QuickFilter = 'all' | 'unread' | 'starred' | 'attachment'
+export type QuickFilter = 'all' | 'attachment' | 'starred' | 'unread'
 export const quickFilterAtom = atom<QuickFilter>('all')
 
 // keyboard shortcuts dialog

@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-
 import type { ThreadMessage } from '@/lib/types'
+
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 
 afterEach(() => {
@@ -10,50 +11,55 @@ afterEach(() => {
 
 function makeMessage(overrides: Partial<ThreadMessage> = {}): ThreadMessage {
   return {
-    id: 1,
-    uid: 100,
-    sender: 'alice@example.com',
-    recipients: 'bob@example.com',
-    subject: 'Test',
-    flags: 0,
-    internal_date: 1700000000,
-    message_id: '<msg1@example.com>',
-    text_body: 'text',
-    html_body: null,
-    attachments: [],
-    category: 'general',
-    risk_score: 0,
-    risk_reason: '',
-    summary: '',
-    people: [],
-    dates: [],
-    amounts: [],
+    action_deadline: null,
     action_items: [],
     ai_analyzed: false,
+    amounts: [],
+    attachments: [],
+    category: 'general',
     clean_text: null,
-    new_content: null,
+    dates: [],
+    flags: 0,
+    has_tracking_pixel: false,
+    html_body: null,
+    id: 1,
     importance_level: 'normal',
     importance_score: 0.3,
+    internal_date: 1700000000,
     is_bulk_sender: false,
-    has_tracking_pixel: false,
+    message_id: '<msg1@example.com>',
+    new_content: null,
+    people: [],
+    recipients: 'bob@example.com',
     requires_action: false,
+    risk_reason: '',
+    risk_score: 0,
+    sender: 'alice@example.com',
     sender_intent: 'inform',
-    action_deadline: null,
+    subject: 'Test',
+    summary: '',
+    text_body: 'text',
+    uid: 100,
     ...overrides,
   }
 }
 
 describe('AiAnalysisPanel', () => {
   it('returns null when message is not ai_analyzed', () => {
-    const { container } = render(<AiAnalysisPanel message={makeMessage({ ai_analyzed: false })} />)
+    const { container } = render(
+      <AiAnalysisPanel message={makeMessage({ ai_analyzed: false })} />
+    )
     expect(container.innerHTML).toBe('')
   })
 
   it('renders summary when present', () => {
     render(
       <AiAnalysisPanel
-        message={makeMessage({ ai_analyzed: true, summary: 'This email is about a meeting.' })}
-      />,
+        message={makeMessage({
+          ai_analyzed: true,
+          summary: 'This email is about a meeting.',
+        })}
+      />
     )
     expect(screen.getByText('This email is about a meeting.')).toBeDefined()
   })
@@ -63,10 +69,10 @@ describe('AiAnalysisPanel', () => {
       <AiAnalysisPanel
         message={makeMessage({
           ai_analyzed: true,
-          risk_score: 50,
           risk_reason: 'Contains suspicious links',
+          risk_score: 50,
         })}
-      />,
+      />
     )
     expect(screen.getByText(/Contains suspicious links/)).toBeDefined()
   })
@@ -76,10 +82,10 @@ describe('AiAnalysisPanel', () => {
       <AiAnalysisPanel
         message={makeMessage({
           ai_analyzed: true,
-          risk_score: 0,
           risk_reason: 'Should not show',
+          risk_score: 0,
         })}
-      />,
+      />
     )
     expect(screen.queryByText(/Should not show/)).toBeNull()
   })
@@ -89,9 +95,12 @@ describe('AiAnalysisPanel', () => {
       <AiAnalysisPanel
         message={makeMessage({
           ai_analyzed: true,
-          people: [{ name: 'John Doe', role: 'Manager' }, { name: 'Jane Smith' }],
+          people: [
+            { name: 'John Doe', role: 'Manager' },
+            { name: 'Jane Smith' },
+          ],
         })}
-      />,
+      />
     )
     // expand details
     fireEvent.click(screen.getByRole('button'))
@@ -106,9 +115,11 @@ describe('AiAnalysisPanel', () => {
       <AiAnalysisPanel
         message={makeMessage({
           ai_analyzed: true,
-          dates: [{ text: 'March 15', context: 'deadline', iso_date: '2025-03-15' }],
+          dates: [
+            { context: 'deadline', iso_date: '2025-03-15', text: 'March 15' },
+          ],
         })}
-      />,
+      />
     )
     fireEvent.click(screen.getByRole('button'))
     expect(screen.getByText('Dates')).toBeDefined()
@@ -120,9 +131,16 @@ describe('AiAnalysisPanel', () => {
       <AiAnalysisPanel
         message={makeMessage({
           ai_analyzed: true,
-          amounts: [{ text: '$500', value: 500, currency: 'USD', context: 'invoice total' }],
+          amounts: [
+            {
+              context: 'invoice total',
+              currency: 'USD',
+              text: '$500',
+              value: 500,
+            },
+          ],
         })}
-      />,
+      />
     )
     fireEvent.click(screen.getByRole('button'))
     expect(screen.getByText('Amounts')).toBeDefined()
@@ -133,10 +151,10 @@ describe('AiAnalysisPanel', () => {
     render(
       <AiAnalysisPanel
         message={makeMessage({
-          ai_analyzed: true,
           action_items: ['Review the proposal', 'Send feedback by Friday'],
+          ai_analyzed: true,
         })}
-      />,
+      />
     )
     fireEvent.click(screen.getByRole('button'))
     expect(screen.getByText('Action Items')).toBeDefined()
@@ -148,14 +166,14 @@ describe('AiAnalysisPanel', () => {
     render(
       <AiAnalysisPanel
         message={makeMessage({
-          ai_analyzed: true,
-          summary: 'Just a summary',
-          people: [],
-          dates: [],
-          amounts: [],
           action_items: [],
+          ai_analyzed: true,
+          amounts: [],
+          dates: [],
+          people: [],
+          summary: 'Just a summary',
         })}
-      />,
+      />
     )
     expect(screen.queryByText('People')).toBeNull()
     expect(screen.queryByText('Dates')).toBeNull()

@@ -1,27 +1,30 @@
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import { useEditor, EditorContent } from '@tiptap/react'
-import { useEffect, useRef } from 'react'
-import { createMinimalExtensions } from '@/components/rich-editor'
 import type { QuoteBlockData } from '../types'
+
+import { EditorContent, useEditor } from '@tiptap/react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+
+import { createMinimalExtensions } from '@/components/rich-editor'
 
 type Props = {
   data: QuoteBlockData
+  mode?: 'forward' | 'reply'
   onChange: (data: QuoteBlockData) => void
-  mode?: 'reply' | 'forward'
 }
 
-export function QuoteBlock({ data, onChange, mode }: Props) {
+export function QuoteBlock({ data, mode, onChange }: Props) {
   const initializedRef = useRef(false)
   const collapsed = data.collapsed
 
   const editor = useEditor({
-    extensions: createMinimalExtensions(),
+    editable: false,
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none px-3 py-2 outline-none text-[var(--color-text-tertiary)]',
+        class:
+          'prose prose-sm max-w-none px-3 py-2 outline-none text-[var(--color-text-tertiary)]',
       },
     },
-    editable: false,
+    extensions: createMinimalExtensions(),
   })
 
   useEffect(() => {
@@ -32,14 +35,20 @@ export function QuoteBlock({ data, onChange, mode }: Props) {
   }, [editor, data.html, data.headerHtml])
 
   return (
-    <div className="border-l-2 border-t border-[var(--color-border-default)]">
+    <div className="border-t border-l-2 border-[var(--color-border-default)]">
       <button
-        type="button"
-        onClick={() => onChange({ ...data, collapsed: !collapsed })}
         className="flex w-full cursor-pointer items-center gap-1 px-4 py-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+        onClick={() => onChange({ ...data, collapsed: !collapsed })}
+        type="button"
       >
-        {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        {collapsed ? `Show original${mode === 'forward' ? ' (forwarded)' : ''}` : 'Hide original'}
+        {collapsed ? (
+          <ChevronRight className="h-3 w-3" />
+        ) : (
+          <ChevronDown className="h-3 w-3" />
+        )}
+        {collapsed
+          ? `Show original${mode === 'forward' ? ' (forwarded)' : ''}`
+          : 'Hide original'}
       </button>
       {!collapsed && (
         <div className="border-l-2 border-[var(--color-border-default)] opacity-50">

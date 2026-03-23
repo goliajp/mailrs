@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
-import { createStore } from 'jotai/vanilla'
-
 import type { ConversationSummary } from '@/lib/types'
+
+import { createStore } from 'jotai/vanilla'
+import { describe, expect, it } from 'vitest'
+
 import {
   batchModeAtom,
   categoryFilterAtom,
@@ -21,22 +22,24 @@ import {
   unreadCountAtom,
 } from '../chat'
 
-function makeConversation(overrides: Partial<ConversationSummary> = {}): ConversationSummary {
+function makeConversation(
+  overrides: Partial<ConversationSummary> = {}
+): ConversationSummary {
   return {
-    thread_id: 'thread-1',
-    subject: 'Test subject',
-    participants: ['alice@example.com'],
-    message_count: 1,
-    unread_count: 0,
-    last_date: Date.now(),
+    archived: false,
     category: 'inbox',
     flagged: false,
-    snippet: '',
-    pinned: false,
-    archived: false,
     importance_level: 'normal',
     importance_score: 0.3,
+    last_date: Date.now(),
+    message_count: 1,
+    participants: ['alice@example.com'],
+    pinned: false,
     requires_action: false,
+    snippet: '',
+    subject: 'Test subject',
+    thread_id: 'thread-1',
+    unread_count: 0,
     ...overrides,
   }
 }
@@ -59,7 +62,9 @@ describe('unreadCountAtom', () => {
 
   it('updates reactively when conversations change', () => {
     const store = createStore()
-    store.set(conversationsAtom, [makeConversation({ thread_id: 't1', unread_count: 2 })])
+    store.set(conversationsAtom, [
+      makeConversation({ thread_id: 't1', unread_count: 2 }),
+    ])
     expect(store.get(unreadCountAtom)).toBe(2)
 
     store.set(conversationsAtom, [
@@ -80,7 +85,9 @@ describe('unreadCountAtom', () => {
 
   it('handles single conversation correctly', () => {
     const store = createStore()
-    store.set(conversationsAtom, [makeConversation({ thread_id: 't1', unread_count: 12 })])
+    store.set(conversationsAtom, [
+      makeConversation({ thread_id: 't1', unread_count: 12 }),
+    ])
     expect(store.get(unreadCountAtom)).toBe(12)
   })
 })

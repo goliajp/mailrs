@@ -1,54 +1,36 @@
+import type { ThemeMode } from '@/lib/theme'
+
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
-import type { ThemeMode } from '@/lib/theme'
 import { authAtom, getToken } from '@/store/auth'
-import { notificationsAtom, notificationSoundAtom, pageSizeAtom } from '@/store/settings'
+import {
+  notificationsAtom,
+  notificationSoundAtom,
+  pageSizeAtom,
+} from '@/store/settings'
 import { themeAtom } from '@/store/theme'
 
 // --- types ---
 
-type Category =
-  | 'account'
-  | 'security'
-  | 'signatures'
-  | 'keys'
-  | 'api-keys'
-  | 'webhooks'
-  | 'appearance'
-
-interface TotpStatus {
-  enabled: boolean
-}
-
-interface TotpSetup {
-  secret: string
-  qr_url: string
-  recovery_codes: string[]
-}
-
-interface Signature {
-  id: number
-  name: string
-  text_content: string
-  html_content: string
-  is_default: boolean
-}
-
-interface KeyStatus {
-  pgp_fingerprint: string | null
-  smime_fingerprint: string | null
-}
-
 interface AgentKey {
+  created_at: string
+  expires_at: null | string
   id: string
   name: string
   prefix: string
-  expires_at: string | null
-  created_at: string
 }
+
+type Category =
+  | 'account'
+  | 'api-keys'
+  | 'appearance'
+  | 'keys'
+  | 'security'
+  | 'signatures'
+  | 'webhooks'
 
 interface CreatedAgentKey {
   id: string
@@ -56,19 +38,42 @@ interface CreatedAgentKey {
   prefix: string
 }
 
-interface Webhook {
-  id: string
-  url: string
-  event_type: string
-  filter_sender: string | null
-  filter_thread_id: string | null
-  active: boolean
-  created_at: string
-}
-
 interface CreatedWebhook {
   id: string
   signing_secret: string
+}
+
+interface KeyStatus {
+  pgp_fingerprint: null | string
+  smime_fingerprint: null | string
+}
+
+interface Signature {
+  html_content: string
+  id: number
+  is_default: boolean
+  name: string
+  text_content: string
+}
+
+interface TotpSetup {
+  qr_url: string
+  recovery_codes: string[]
+  secret: string
+}
+
+interface TotpStatus {
+  enabled: boolean
+}
+
+interface Webhook {
+  active: boolean
+  created_at: string
+  event_type: string
+  filter_sender: null | string
+  filter_thread_id: null | string
+  id: string
+  url: string
 }
 
 // --- constants ---
@@ -83,10 +88,10 @@ const CATEGORIES: { key: Category; label: string }[] = [
   { key: 'appearance', label: 'Appearance' },
 ]
 
-const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'system', label: 'System' },
+const THEME_OPTIONS: { label: string; value: ThemeMode }[] = [
+  { label: 'Light', value: 'light' },
+  { label: 'Dark', value: 'dark' },
+  { label: 'System', value: 'system' },
 ]
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
@@ -114,16 +119,16 @@ export function Settings() {
 
       <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
         {/* sidebar - horizontal on mobile, vertical on desktop */}
-        <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--color-border-default)] p-2 sm:w-48 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-b-0 sm:border-r sm:p-3">
+        <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--color-border-default)] p-2 sm:w-48 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-3">
           {CATEGORIES.map((cat) => (
             <button
-              key={cat.key}
-              onClick={() => setActive(cat.key)}
-              className={`whitespace-nowrap rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
+              className={`rounded-md px-3 py-1.5 text-left text-sm whitespace-nowrap transition-colors ${
                 active === cat.key
                   ? 'bg-[var(--color-brand-primary)] text-[var(--color-brand-primary-text)]'
                   : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
               }`}
+              key={cat.key}
+              onClick={() => setActive(cat.key)}
             >
               {cat.label}
             </button>
@@ -152,7 +157,7 @@ export function Settings() {
 function AccountSection() {
   const auth = useAtomValue(authAtom)
   const setAuth = useSetAtom(authAtom)
-  const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
+  const [pw, setPw] = useState({ confirm: '', current: '', next: '' })
   const [saving, setSaving] = useState(false)
   const [recoveryEmail, setRecoveryEmail] = useState('')
   const [recoveryLoaded, setRecoveryLoaded] = useState(false)
@@ -173,7 +178,9 @@ function AccountSection() {
       await postJson('/auth/recovery-email', { recovery_email: recoveryEmail })
       toast.success('Recovery email updated')
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update recovery email')
+      toast.error(
+        e instanceof Error ? e.message : 'Failed to update recovery email'
+      )
     } finally {
       setSavingRecovery(false)
     }
@@ -196,7 +203,7 @@ function AccountSection() {
         new_password: pw.next,
       })
       toast.success('Password updated')
-      setPw({ current: '', next: '', confirm: '' })
+      setPw({ confirm: '', current: '', next: '' })
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to update password')
     } finally {
@@ -248,22 +255,22 @@ function AccountSection() {
       <div className={cardClass}>
         <h3 className="mb-3 text-sm font-medium">Recovery Email</h3>
         <p className="mb-2 text-xs text-[var(--color-text-tertiary)]">
-          Used to receive password reset links. Must be an external email address you can access
-          independently.
+          Used to receive password reset links. Must be an external email
+          address you can access independently.
         </p>
         <div className="flex gap-2">
           <input
-            type="email"
-            placeholder={recoveryLoaded ? 'Not configured' : 'Loading...'}
-            value={recoveryEmail}
-            onChange={(e) => setRecoveryEmail(e.target.value)}
-            disabled={!recoveryLoaded}
             className={inputClass + ' flex-1'}
+            disabled={!recoveryLoaded}
+            onChange={(e) => setRecoveryEmail(e.target.value)}
+            placeholder={recoveryLoaded ? 'Not configured' : 'Loading...'}
+            type="email"
+            value={recoveryEmail}
           />
           <button
-            onClick={handleRecoveryEmailSave}
-            disabled={savingRecovery || !recoveryLoaded}
             className={btnPrimary}
+            disabled={savingRecovery || !recoveryLoaded}
+            onClick={handleRecoveryEmailSave}
           >
             {savingRecovery ? 'Saving...' : 'Save'}
           </button>
@@ -275,53 +282,57 @@ function AccountSection() {
         <div className="space-y-2">
           <div>
             <label
-              htmlFor="settings-current-pw"
               className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]"
+              htmlFor="settings-current-pw"
             >
               Current password
             </label>
             <input
-              id="settings-current-pw"
-              type="password"
-              placeholder="Current password"
-              value={pw.current}
-              onChange={(e) => setPw({ ...pw, current: e.target.value })}
               className={inputClass}
+              id="settings-current-pw"
+              onChange={(e) => setPw({ ...pw, current: e.target.value })}
+              placeholder="Current password"
+              type="password"
+              value={pw.current}
             />
           </div>
           <div>
             <label
-              htmlFor="settings-new-pw"
               className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]"
+              htmlFor="settings-new-pw"
             >
               New password
             </label>
             <input
-              id="settings-new-pw"
-              type="password"
-              placeholder="New password"
-              value={pw.next}
-              onChange={(e) => setPw({ ...pw, next: e.target.value })}
               className={inputClass}
+              id="settings-new-pw"
+              onChange={(e) => setPw({ ...pw, next: e.target.value })}
+              placeholder="New password"
+              type="password"
+              value={pw.next}
             />
           </div>
           <div>
             <label
-              htmlFor="settings-confirm-pw"
               className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]"
+              htmlFor="settings-confirm-pw"
             >
               Confirm new password
             </label>
             <input
-              id="settings-confirm-pw"
-              type="password"
-              placeholder="Confirm new password"
-              value={pw.confirm}
-              onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
               className={inputClass}
+              id="settings-confirm-pw"
+              onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
+              placeholder="Confirm new password"
+              type="password"
+              value={pw.confirm}
             />
           </div>
-          <button onClick={handlePasswordChange} disabled={saving} className={btnPrimary}>
+          <button
+            className={btnPrimary}
+            disabled={saving}
+            onClick={handlePasswordChange}
+          >
             {saving ? 'Saving...' : 'Update Password'}
           </button>
         </div>
@@ -333,15 +344,20 @@ function AccountSection() {
           Download all your emails as an MBOX file
         </p>
         <button
-          onClick={() => window.open(`/api/mail/export?token=${getToken()}`, '_blank')}
           className={btnPrimary}
+          onClick={() =>
+            window.open(`/api/mail/export?token=${getToken()}`, '_blank')
+          }
         >
           Export as MBOX
         </button>
       </div>
 
       <div className="border-t border-[var(--color-border-default)] pt-4">
-        <button onClick={() => setShowLogoutConfirm(true)} className={btnDanger}>
+        <button
+          className={btnDanger}
+          onClick={() => setShowLogoutConfirm(true)}
+        >
           Sign out
         </button>
         {auth?.address && (
@@ -354,8 +370,8 @@ function AccountSection() {
       {showLogoutConfirm && (
         <ConfirmDialog
           message="Sign out? You will need to sign in again to access your mailbox."
-          onConfirm={doLogout}
           onCancel={() => setShowLogoutConfirm(false)}
+          onConfirm={doLogout}
         />
       )}
     </div>
@@ -364,9 +380,494 @@ function AccountSection() {
 
 // --- security section ---
 
+function ApiKeysSection() {
+  const [keys, setKeys] = useState<AgentKey[]>([])
+  const [adding, setAdding] = useState(false)
+  const [form, setForm] = useState({ expires_in_days: '', name: '' })
+  const [createdKey, setCreatedKey] = useState<CreatedAgentKey | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<null | string>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const data = await fetchJson<AgentKey[]>('/agent/keys')
+      setKeys(data)
+    } catch {
+      // keep current
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const handleCreate = async () => {
+    if (!form.name.trim()) return
+    try {
+      const expires_in_days = form.expires_in_days
+        ? parseInt(form.expires_in_days, 10)
+        : undefined
+      const data = await postJson<CreatedAgentKey>('/agent/keys', {
+        expires_in_days,
+        name: form.name.trim(),
+      })
+      toast.success('API key created')
+      setCreatedKey(data)
+      setForm({ expires_in_days: '', name: '' })
+      setAdding(false)
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to create key')
+    }
+  }
+
+  const handleRevoke = async (id: string) => {
+    try {
+      await deleteJson(`/agent/keys/${id}`)
+      toast.success('API key revoked')
+      setDeleteTarget(null)
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to revoke key')
+      setDeleteTarget(null)
+    }
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success('Copied to clipboard'))
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="API Keys" />
+        <button className={btnPrimary} onClick={() => setAdding(true)}>
+          Create Key
+        </button>
+      </div>
+
+      {createdKey && (
+        <div className="rounded-lg border border-[var(--color-status-warning)] bg-[var(--color-status-warning-subtle)] p-4">
+          <p className="mb-2 text-sm font-semibold">API Key Created</p>
+          <p className="mb-2 text-xs text-[var(--color-text-secondary)]">
+            Copy this key now. It will not be shown again.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded bg-[var(--color-bg-sunken)] px-3 py-1.5 font-mono text-sm">
+              {createdKey.key}
+            </code>
+            <button
+              className={btnPrimary}
+              onClick={() => copyToClipboard(createdKey.key)}
+            >
+              Copy
+            </button>
+          </div>
+          <button
+            className="mt-2 text-xs text-[var(--color-text-secondary)] transition-colors hover:opacity-70"
+            onClick={() => setCreatedKey(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {adding && (
+        <div className={cardClass + ' space-y-3'}>
+          <input
+            className={inputClass}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Key name"
+            value={form.name}
+          />
+          <input
+            className={inputClass}
+            min="1"
+            onChange={(e) =>
+              setForm({ ...form, expires_in_days: e.target.value })
+            }
+            placeholder="Expires in days (optional)"
+            type="number"
+            value={form.expires_in_days}
+          />
+          <div className="flex gap-2">
+            <button className={btnPrimary} onClick={handleCreate}>
+              Create
+            </button>
+            <button className={btnSecondary} onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {keys.length === 0 && !adding && (
+        <p className="text-sm text-[var(--color-text-tertiary)]">No API keys</p>
+      )}
+
+      {keys.map((k) => (
+        <div className={cardClass} key={k.id}>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-medium">{k.name}</span>
+              <span className="ml-2 font-mono text-xs text-[var(--color-text-tertiary)]">
+                {k.prefix}...
+              </span>
+              {k.expires_at && (
+                <span className="ml-2 text-xs text-[var(--color-text-tertiary)]">
+                  expires {new Date(k.expires_at).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            <button
+              className="text-xs text-[var(--color-status-danger)]"
+              onClick={() => setDeleteTarget(k.id)}
+            >
+              Revoke
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {deleteTarget !== null && (
+        <ConfirmDialog
+          message="Revoke this API key? This cannot be undone."
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => handleRevoke(deleteTarget)}
+        />
+      )}
+    </div>
+  )
+}
+
+// --- signatures section ---
+
+function AppearanceSection() {
+  const [theme, setTheme] = useAtom(themeAtom)
+  const [pageSize, setPageSize] = useAtom(pageSizeAtom)
+  const [notifications, setNotifications] = useAtom(notificationsAtom)
+  const [notificationSound, setNotificationSound] = useAtom(
+    notificationSoundAtom
+  )
+  const [notificationError, setNotificationError] = useState<null | string>(
+    null
+  )
+
+  const handleNotificationToggle = useCallback(
+    async (enabled: boolean) => {
+      if (typeof Notification === 'undefined') {
+        setNotificationError(
+          'Browser notifications are not supported on this device.'
+        )
+        return
+      }
+      if (enabled && Notification.permission === 'default') {
+        const result = await Notification.requestPermission()
+        if (result === 'denied') {
+          setNotificationError(
+            'Browser notifications were denied. Please enable them in your browser settings.'
+          )
+          return
+        }
+      }
+      if (enabled && Notification.permission === 'denied') {
+        setNotificationError(
+          'Browser notifications are blocked. Please enable them in your browser settings.'
+        )
+        return
+      }
+      setNotificationError(null)
+      setNotifications(enabled)
+    },
+    [setNotifications]
+  )
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader title="Appearance" />
+
+      <div className={cardClass}>
+        <Field label="Theme">
+          <div className="flex gap-1">
+            {THEME_OPTIONS.map((opt) => (
+              <button
+                className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+                  theme === opt.value
+                    ? 'bg-[var(--color-brand-primary)] text-[var(--color-brand-primary-text)]'
+                    : 'bg-[var(--color-bg-raised)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                }`}
+                key={opt.value}
+                onClick={() => setTheme(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+      </div>
+
+      <div className={cardClass}>
+        <Field label="Page size">
+          <select
+            className="rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)] focus:outline-none"
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            value={pageSize}
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {size} per page
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+
+      <div className={cardClass}>
+        <div className="space-y-3">
+          <Field label="Browser notifications">
+            <div className="flex flex-col items-end gap-1">
+              <Toggle
+                checked={notifications}
+                onChange={(v) => handleNotificationToggle(v)}
+              />
+              {notificationError && (
+                <p className="text-xs text-[var(--color-status-danger)]">
+                  {notificationError}
+                </p>
+              )}
+            </div>
+          </Field>
+          <Field label="Notification sound">
+            <Toggle
+              checked={notificationSound}
+              onChange={setNotificationSound}
+            />
+          </Field>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// --- encryption keys section ---
+
+function ConfirmDialog({
+  message,
+  onCancel,
+  onConfirm,
+}: {
+  message: string
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onCancel])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
+          {message}
+        </p>
+        <div className="flex justify-end gap-2">
+          <button className={btnSecondary} onClick={onCancel}>
+            Cancel
+          </button>
+          <button className={btnDanger} onClick={onConfirm}>
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// --- api keys section ---
+
+function EncryptionKeysSection() {
+  const [status, setStatus] = useState<KeyStatus | null>(null)
+  const [pgpKey, setPgpKey] = useState('')
+  const [smimeCert, setSmimeCert] = useState('')
+  const [saving, setSaving] = useState<null | string>(null)
+  const [deleteKeyTarget, setDeleteKeyTarget] = useState<
+    'pgp' | 'smime' | null
+  >(null)
+
+  const load = useCallback(async () => {
+    try {
+      const data = await fetchJson<KeyStatus>('/mail/keys/status')
+      setStatus(data)
+    } catch {
+      // keep null
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const handleUpload = async (type: 'pgp' | 'smime', content: string) => {
+    if (!content.trim()) return
+    setSaving(type)
+    try {
+      await putJson(`/mail/keys/${type}`, { content: content.trim() })
+      toast.success(`${type.toUpperCase()} key saved`)
+      if (type === 'pgp') {
+        setPgpKey('')
+      } else {
+        setSmimeCert('')
+      }
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : `Failed to save ${type} key`)
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const handleDelete = async (type: 'pgp' | 'smime') => {
+    setSaving(type)
+    try {
+      await deleteJson(`/mail/keys/${type}`)
+      toast.success(`${type.toUpperCase()} key deleted`)
+      load()
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : `Failed to delete ${type} key`
+      )
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader title="Encryption Keys" />
+
+      <div className={cardClass + ' space-y-4'}>
+        <h3 className="text-sm font-medium">PGP Key</h3>
+        <Field label="Fingerprint">
+          <span className="font-mono text-xs text-[var(--color-text-secondary)]">
+            {status?.pgp_fingerprint ?? 'Not configured'}
+          </span>
+        </Field>
+        <textarea
+          className={inputClass}
+          onChange={(e) => setPgpKey(e.target.value)}
+          placeholder="Paste PGP public key (ASCII-armored)"
+          rows={4}
+          value={pgpKey}
+        />
+        <div className="flex gap-2">
+          <button
+            className={btnPrimary}
+            disabled={saving === 'pgp'}
+            onClick={() => handleUpload('pgp', pgpKey)}
+          >
+            {saving === 'pgp' ? 'Saving...' : 'Save PGP Key'}
+          </button>
+          {status?.pgp_fingerprint && (
+            <button
+              className={btnDanger}
+              disabled={saving === 'pgp'}
+              onClick={() => setDeleteKeyTarget('pgp')}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className={cardClass + ' space-y-4'}>
+        <h3 className="text-sm font-medium">S/MIME Certificate</h3>
+        <Field label="Fingerprint">
+          <span className="font-mono text-xs text-[var(--color-text-secondary)]">
+            {status?.smime_fingerprint ?? 'Not configured'}
+          </span>
+        </Field>
+        <textarea
+          className={inputClass}
+          onChange={(e) => setSmimeCert(e.target.value)}
+          placeholder="Paste S/MIME certificate (PEM format)"
+          rows={4}
+          value={smimeCert}
+        />
+        <div className="flex gap-2">
+          <button
+            className={btnPrimary}
+            disabled={saving === 'smime'}
+            onClick={() => handleUpload('smime', smimeCert)}
+          >
+            {saving === 'smime' ? 'Saving...' : 'Save S/MIME Cert'}
+          </button>
+          {status?.smime_fingerprint && (
+            <button
+              className={btnDanger}
+              disabled={saving === 'smime'}
+              onClick={() => setDeleteKeyTarget('smime')}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+
+      {deleteKeyTarget && (
+        <ConfirmDialog
+          message={`Delete your ${deleteKeyTarget.toUpperCase()} key? This cannot be undone.`}
+          onCancel={() => setDeleteKeyTarget(null)}
+          onConfirm={() => {
+            handleDelete(deleteKeyTarget)
+            setDeleteKeyTarget(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// --- webhooks section ---
+
+function Field({
+  children,
+  label,
+}: {
+  children: React.ReactNode
+  label: string
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-sm font-medium text-[var(--color-text-secondary)]">
+        {label}
+      </span>
+      {children}
+    </div>
+  )
+}
+
+// --- appearance section ---
+
+function SectionHeader({ title }: { title: string }) {
+  return <h2 className="mb-4 text-base font-semibold">{title}</h2>
+}
+
+// --- shared ui components ---
+
 function SecuritySection() {
-  const [status, setStatus] = useState<TotpStatus | null>(null)
-  const [setup, setSetup] = useState<TotpSetup | null>(null)
+  const [status, setStatus] = useState<null | TotpStatus>(null)
+  const [setup, setSetup] = useState<null | TotpSetup>(null)
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -453,7 +954,7 @@ function SecuritySection() {
       </div>
 
       {!status?.enabled && !setup && (
-        <button onClick={handleSetup} className={btnPrimary}>
+        <button className={btnPrimary} onClick={handleSetup}>
           Set up 2FA
         </button>
       )}
@@ -462,7 +963,7 @@ function SecuritySection() {
         <div className={cardClass + ' space-y-4'}>
           <h3 className="text-sm font-medium">Scan QR Code</h3>
           <div className="rounded-md bg-[var(--color-bg-raised)] p-3">
-            <p className="break-all font-mono text-xs text-[var(--color-text-secondary)]">
+            <p className="font-mono text-xs break-all text-[var(--color-text-secondary)]">
               {setup.qr_url}
             </p>
           </div>
@@ -471,13 +972,14 @@ function SecuritySection() {
             <div className="rounded-lg border border-[var(--color-status-warning)] bg-[var(--color-status-warning-subtle)] p-3">
               <p className="mb-2 text-sm font-semibold">Recovery Codes</p>
               <p className="mb-2 text-xs text-[var(--color-text-secondary)]">
-                Save these codes in a safe place. Each code can only be used once.
+                Save these codes in a safe place. Each code can only be used
+                once.
               </p>
               <div className="grid grid-cols-2 gap-1">
                 {setup.recovery_codes.map((rc) => (
                   <code
-                    key={rc}
                     className="rounded bg-[var(--color-bg-sunken)] px-2 py-1 font-mono text-xs"
+                    key={rc}
                   >
                     {rc}
                   </code>
@@ -488,12 +990,16 @@ function SecuritySection() {
 
           <div className="flex gap-2">
             <input
-              value={code}
+              className={inputClass + ' max-w-[200px]'}
               onChange={(e) => setCode(e.target.value)}
               placeholder="Enter TOTP code"
-              className={inputClass + ' max-w-[200px]'}
+              value={code}
             />
-            <button onClick={handleEnable} disabled={submitting} className={btnPrimary}>
+            <button
+              className={btnPrimary}
+              disabled={submitting}
+              onClick={handleEnable}
+            >
               {submitting ? 'Verifying...' : 'Verify & Enable'}
             </button>
           </div>
@@ -505,12 +1011,16 @@ function SecuritySection() {
           <h3 className="text-sm font-medium">Disable 2FA</h3>
           <div className="flex gap-2">
             <input
-              value={code}
+              className={inputClass + ' max-w-[200px]'}
               onChange={(e) => setCode(e.target.value)}
               placeholder="Enter TOTP code"
-              className={inputClass + ' max-w-[200px]'}
+              value={code}
             />
-            <button onClick={handleDisable} disabled={submitting} className={btnDanger}>
+            <button
+              className={btnDanger}
+              disabled={submitting}
+              onClick={handleDisable}
+            >
               {submitting ? 'Disabling...' : 'Disable 2FA'}
             </button>
           </div>
@@ -520,13 +1030,11 @@ function SecuritySection() {
   )
 }
 
-// --- signatures section ---
-
 function SignaturesSection() {
   const [signatures, setSignatures] = useState<Signature[]>([])
-  const [editing, setEditing] = useState<Partial<Signature> | null>(null)
+  const [editing, setEditing] = useState<null | Partial<Signature>>(null)
   const [saving, setSaving] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
 
   const load = useCallback(async () => {
     try {
@@ -546,11 +1054,11 @@ function SignaturesSection() {
     setSaving(true)
     try {
       await postJson('/mail/signatures', {
+        html_content: editing.html_content ?? '',
         id: editing.id,
+        is_default: editing.is_default ?? false,
         name: editing.name.trim(),
         text_content: editing.text_content ?? '',
-        html_content: editing.html_content ?? '',
-        is_default: editing.is_default ?? false,
       })
       toast.success(editing.id ? 'Signature updated' : 'Signature created')
       setEditing(null)
@@ -579,10 +1087,15 @@ function SignaturesSection() {
       <div className="flex items-center justify-between">
         <SectionHeader title="Signatures" />
         <button
-          onClick={() =>
-            setEditing({ name: '', text_content: '', html_content: '', is_default: false })
-          }
           className={btnPrimary}
+          onClick={() =>
+            setEditing({
+              html_content: '',
+              is_default: false,
+              name: '',
+              text_content: '',
+            })
+          }
         >
           Add Signature
         </button>
@@ -591,20 +1104,22 @@ function SignaturesSection() {
       {editing && (
         <div className={cardClass + ' space-y-3'}>
           <input
-            value={editing.name ?? ''}
+            className={inputClass}
             onChange={(e) => setEditing({ ...editing, name: e.target.value })}
             placeholder="Signature name"
-            className={inputClass}
+            value={editing.name ?? ''}
           />
           <div>
             <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
               Text content
             </label>
             <textarea
-              value={editing.text_content ?? ''}
-              onChange={(e) => setEditing({ ...editing, text_content: e.target.value })}
-              rows={3}
               className={inputClass}
+              onChange={(e) =>
+                setEditing({ ...editing, text_content: e.target.value })
+              }
+              rows={3}
+              value={editing.text_content ?? ''}
             />
           </div>
           <div>
@@ -612,25 +1127,33 @@ function SignaturesSection() {
               HTML content
             </label>
             <textarea
-              value={editing.html_content ?? ''}
-              onChange={(e) => setEditing({ ...editing, html_content: e.target.value })}
-              rows={3}
               className={inputClass}
+              onChange={(e) =>
+                setEditing({ ...editing, html_content: e.target.value })
+              }
+              rows={3}
+              value={editing.html_content ?? ''}
             />
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input
-              type="checkbox"
               checked={editing.is_default ?? false}
-              onChange={(e) => setEditing({ ...editing, is_default: e.target.checked })}
+              onChange={(e) =>
+                setEditing({ ...editing, is_default: e.target.checked })
+              }
+              type="checkbox"
             />
             Default signature
           </label>
           <div className="flex gap-2">
-            <button onClick={handleSave} disabled={saving} className={btnPrimary}>
+            <button
+              className={btnPrimary}
+              disabled={saving}
+              onClick={handleSave}
+            >
               {saving ? 'Saving...' : 'Save'}
             </button>
-            <button onClick={() => setEditing(null)} className={btnSecondary}>
+            <button className={btnSecondary} onClick={() => setEditing(null)}>
               Cancel
             </button>
           </div>
@@ -638,11 +1161,13 @@ function SignaturesSection() {
       )}
 
       {signatures.length === 0 && !editing && (
-        <p className="text-sm text-[var(--color-text-tertiary)]">No signatures configured</p>
+        <p className="text-sm text-[var(--color-text-tertiary)]">
+          No signatures configured
+        </p>
       )}
 
       {signatures.map((sig) => (
-        <div key={sig.id} className={cardClass}>
+        <div className={cardClass} key={sig.id}>
           <div className="flex items-start justify-between">
             <div>
               <span className="text-sm font-medium">{sig.name}</span>
@@ -652,7 +1177,7 @@ function SignaturesSection() {
                 </span>
               )}
               {sig.text_content && (
-                <p className="mt-1 whitespace-pre-wrap text-xs text-[var(--color-text-tertiary)]">
+                <p className="mt-1 text-xs whitespace-pre-wrap text-[var(--color-text-tertiary)]">
                   {sig.text_content.slice(0, 120)}
                   {sig.text_content.length > 120 ? '...' : ''}
                 </p>
@@ -660,14 +1185,14 @@ function SignaturesSection() {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => setEditing(sig)}
                 className="text-xs text-[var(--color-brand-primary)]"
+                onClick={() => setEditing(sig)}
               >
                 Edit
               </button>
               <button
-                onClick={() => setDeleteTarget(sig.id)}
                 className="text-xs text-[var(--color-status-danger)]"
+                onClick={() => setDeleteTarget(sig.id)}
               >
                 Delete
               </button>
@@ -679,322 +1204,52 @@ function SignaturesSection() {
       {deleteTarget !== null && (
         <ConfirmDialog
           message="Delete this signature? This cannot be undone."
+          onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDelete(deleteTarget)}
-          onCancel={() => setDeleteTarget(null)}
         />
       )}
     </div>
   )
 }
 
-// --- encryption keys section ---
-
-function EncryptionKeysSection() {
-  const [status, setStatus] = useState<KeyStatus | null>(null)
-  const [pgpKey, setPgpKey] = useState('')
-  const [smimeCert, setSmimeCert] = useState('')
-  const [saving, setSaving] = useState<string | null>(null)
-  const [deleteKeyTarget, setDeleteKeyTarget] = useState<'pgp' | 'smime' | null>(null)
-
-  const load = useCallback(async () => {
-    try {
-      const data = await fetchJson<KeyStatus>('/mail/keys/status')
-      setStatus(data)
-    } catch {
-      // keep null
-    }
-  }, [])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const handleUpload = async (type: 'pgp' | 'smime', content: string) => {
-    if (!content.trim()) return
-    setSaving(type)
-    try {
-      await putJson(`/mail/keys/${type}`, { content: content.trim() })
-      toast.success(`${type.toUpperCase()} key saved`)
-      if (type === 'pgp') {
-        setPgpKey('')
-      } else {
-        setSmimeCert('')
-      }
-      load()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : `Failed to save ${type} key`)
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  const handleDelete = async (type: 'pgp' | 'smime') => {
-    setSaving(type)
-    try {
-      await deleteJson(`/mail/keys/${type}`)
-      toast.success(`${type.toUpperCase()} key deleted`)
-      load()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : `Failed to delete ${type} key`)
-    } finally {
-      setSaving(null)
-    }
-  }
-
+function Toggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+}) {
   return (
-    <div className="space-y-6">
-      <SectionHeader title="Encryption Keys" />
-
-      <div className={cardClass + ' space-y-4'}>
-        <h3 className="text-sm font-medium">PGP Key</h3>
-        <Field label="Fingerprint">
-          <span className="font-mono text-xs text-[var(--color-text-secondary)]">
-            {status?.pgp_fingerprint ?? 'Not configured'}
-          </span>
-        </Field>
-        <textarea
-          value={pgpKey}
-          onChange={(e) => setPgpKey(e.target.value)}
-          placeholder="Paste PGP public key (ASCII-armored)"
-          rows={4}
-          className={inputClass}
-        />
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleUpload('pgp', pgpKey)}
-            disabled={saving === 'pgp'}
-            className={btnPrimary}
-          >
-            {saving === 'pgp' ? 'Saving...' : 'Save PGP Key'}
-          </button>
-          {status?.pgp_fingerprint && (
-            <button
-              onClick={() => setDeleteKeyTarget('pgp')}
-              disabled={saving === 'pgp'}
-              className={btnDanger}
-            >
-              Delete
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className={cardClass + ' space-y-4'}>
-        <h3 className="text-sm font-medium">S/MIME Certificate</h3>
-        <Field label="Fingerprint">
-          <span className="font-mono text-xs text-[var(--color-text-secondary)]">
-            {status?.smime_fingerprint ?? 'Not configured'}
-          </span>
-        </Field>
-        <textarea
-          value={smimeCert}
-          onChange={(e) => setSmimeCert(e.target.value)}
-          placeholder="Paste S/MIME certificate (PEM format)"
-          rows={4}
-          className={inputClass}
-        />
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleUpload('smime', smimeCert)}
-            disabled={saving === 'smime'}
-            className={btnPrimary}
-          >
-            {saving === 'smime' ? 'Saving...' : 'Save S/MIME Cert'}
-          </button>
-          {status?.smime_fingerprint && (
-            <button
-              onClick={() => setDeleteKeyTarget('smime')}
-              disabled={saving === 'smime'}
-              className={btnDanger}
-            >
-              Delete
-            </button>
-          )}
-        </div>
-      </div>
-
-      {deleteKeyTarget && (
-        <ConfirmDialog
-          message={`Delete your ${deleteKeyTarget.toUpperCase()} key? This cannot be undone.`}
-          onConfirm={() => {
-            handleDelete(deleteKeyTarget)
-            setDeleteKeyTarget(null)
-          }}
-          onCancel={() => setDeleteKeyTarget(null)}
-        />
-      )}
-    </div>
+    <button
+      aria-checked={checked}
+      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
+        checked
+          ? 'bg-[var(--color-brand-primary)]'
+          : 'bg-[var(--color-border-strong)]'
+      }`}
+      onClick={() => onChange(!checked)}
+      role="switch"
+    >
+      <span
+        className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
   )
 }
-
-// --- api keys section ---
-
-function ApiKeysSection() {
-  const [keys, setKeys] = useState<AgentKey[]>([])
-  const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ name: '', expires_in_days: '' })
-  const [createdKey, setCreatedKey] = useState<CreatedAgentKey | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    try {
-      const data = await fetchJson<AgentKey[]>('/agent/keys')
-      setKeys(data)
-    } catch {
-      // keep current
-    }
-  }, [])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch
-    void load()
-  }, [load])
-
-  const handleCreate = async () => {
-    if (!form.name.trim()) return
-    try {
-      const expires_in_days = form.expires_in_days ? parseInt(form.expires_in_days, 10) : undefined
-      const data = await postJson<CreatedAgentKey>('/agent/keys', {
-        name: form.name.trim(),
-        expires_in_days,
-      })
-      toast.success('API key created')
-      setCreatedKey(data)
-      setForm({ name: '', expires_in_days: '' })
-      setAdding(false)
-      load()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to create key')
-    }
-  }
-
-  const handleRevoke = async (id: string) => {
-    try {
-      await deleteJson(`/agent/keys/${id}`)
-      toast.success('API key revoked')
-      setDeleteTarget(null)
-      load()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to revoke key')
-      setDeleteTarget(null)
-    }
-  }
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => toast.success('Copied to clipboard'))
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <SectionHeader title="API Keys" />
-        <button onClick={() => setAdding(true)} className={btnPrimary}>
-          Create Key
-        </button>
-      </div>
-
-      {createdKey && (
-        <div className="rounded-lg border border-[var(--color-status-warning)] bg-[var(--color-status-warning-subtle)] p-4">
-          <p className="mb-2 text-sm font-semibold">API Key Created</p>
-          <p className="mb-2 text-xs text-[var(--color-text-secondary)]">
-            Copy this key now. It will not be shown again.
-          </p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 rounded bg-[var(--color-bg-sunken)] px-3 py-1.5 font-mono text-sm">
-              {createdKey.key}
-            </code>
-            <button onClick={() => copyToClipboard(createdKey.key)} className={btnPrimary}>
-              Copy
-            </button>
-          </div>
-          <button
-            onClick={() => setCreatedKey(null)}
-            className="mt-2 text-xs text-[var(--color-text-secondary)] transition-colors hover:opacity-70"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {adding && (
-        <div className={cardClass + ' space-y-3'}>
-          <input
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Key name"
-            className={inputClass}
-          />
-          <input
-            value={form.expires_in_days}
-            onChange={(e) => setForm({ ...form, expires_in_days: e.target.value })}
-            placeholder="Expires in days (optional)"
-            type="number"
-            min="1"
-            className={inputClass}
-          />
-          <div className="flex gap-2">
-            <button onClick={handleCreate} className={btnPrimary}>
-              Create
-            </button>
-            <button onClick={() => setAdding(false)} className={btnSecondary}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {keys.length === 0 && !adding && (
-        <p className="text-sm text-[var(--color-text-tertiary)]">No API keys</p>
-      )}
-
-      {keys.map((k) => (
-        <div key={k.id} className={cardClass}>
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm font-medium">{k.name}</span>
-              <span className="ml-2 font-mono text-xs text-[var(--color-text-tertiary)]">
-                {k.prefix}...
-              </span>
-              {k.expires_at && (
-                <span className="ml-2 text-xs text-[var(--color-text-tertiary)]">
-                  expires {new Date(k.expires_at).toLocaleDateString()}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => setDeleteTarget(k.id)}
-              className="text-xs text-[var(--color-status-danger)]"
-            >
-              Revoke
-            </button>
-          </div>
-        </div>
-      ))}
-
-      {deleteTarget !== null && (
-        <ConfirmDialog
-          message="Revoke this API key? This cannot be undone."
-          onConfirm={() => handleRevoke(deleteTarget)}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
-    </div>
-  )
-}
-
-// --- webhooks section ---
 
 function WebhooksSection() {
   const [webhooks, setWebhooks] = useState<Webhook[]>([])
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({
-    url: '',
     event_type: 'new_message',
     filter_sender: '',
     filter_thread_id: '',
+    url: '',
   })
-  const [createdSecret, setCreatedSecret] = useState<string | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [createdSecret, setCreatedSecret] = useState<null | string>(null)
+  const [deleteTarget, setDeleteTarget] = useState<null | string>(null)
 
   const load = useCallback(async () => {
     try {
@@ -1015,14 +1270,23 @@ function WebhooksSection() {
     setCreating(true)
     try {
       const data = await postJson<CreatedWebhook>('/agent/webhooks', {
-        url: form.url.trim(),
         event_type: form.event_type,
-        ...(form.filter_sender.trim() ? { filter_sender: form.filter_sender.trim() } : {}),
-        ...(form.filter_thread_id.trim() ? { filter_thread_id: form.filter_thread_id.trim() } : {}),
+        url: form.url.trim(),
+        ...(form.filter_sender.trim()
+          ? { filter_sender: form.filter_sender.trim() }
+          : {}),
+        ...(form.filter_thread_id.trim()
+          ? { filter_thread_id: form.filter_thread_id.trim() }
+          : {}),
       })
       toast.success('Webhook created')
       setCreatedSecret(data.signing_secret)
-      setForm({ url: '', event_type: 'new_message', filter_sender: '', filter_thread_id: '' })
+      setForm({
+        event_type: 'new_message',
+        filter_sender: '',
+        filter_thread_id: '',
+        url: '',
+      })
       setAdding(false)
       load()
     } catch (e) {
@@ -1045,14 +1309,16 @@ function WebhooksSection() {
   }
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => toast.success('Copied to clipboard'))
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success('Copied to clipboard'))
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <SectionHeader title="Webhooks" />
-        <button onClick={() => setAdding(true)} className={btnPrimary}>
+        <button className={btnPrimary} onClick={() => setAdding(true)}>
           Add Webhook
         </button>
       </div>
@@ -1067,13 +1333,16 @@ function WebhooksSection() {
             <code className="flex-1 rounded bg-[var(--color-bg-sunken)] px-3 py-1.5 font-mono text-sm">
               {createdSecret}
             </code>
-            <button onClick={() => copyToClipboard(createdSecret)} className={btnPrimary}>
+            <button
+              className={btnPrimary}
+              onClick={() => copyToClipboard(createdSecret)}
+            >
               Copy
             </button>
           </div>
           <button
-            onClick={() => setCreatedSecret(null)}
             className="mt-2 text-xs text-[var(--color-text-secondary)] transition-colors hover:opacity-70"
+            onClick={() => setCreatedSecret(null)}
           >
             Dismiss
           </button>
@@ -1083,20 +1352,20 @@ function WebhooksSection() {
       {adding && (
         <div className={cardClass + ' space-y-3'}>
           <input
-            type="url"
-            value={form.url}
+            className={inputClass}
             onChange={(e) => setForm({ ...form, url: e.target.value })}
             placeholder="https://example.com/webhook"
-            className={inputClass}
+            type="url"
+            value={form.url}
           />
           <div>
             <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
               Event type
             </label>
             <select
-              value={form.event_type}
-              onChange={(e) => setForm({ ...form, event_type: e.target.value })}
               className={inputClass}
+              onChange={(e) => setForm({ ...form, event_type: e.target.value })}
+              value={form.event_type}
             >
               <option value="new_message">new_message</option>
               <option value="message_read">message_read</option>
@@ -1104,22 +1373,30 @@ function WebhooksSection() {
             </select>
           </div>
           <input
-            value={form.filter_sender}
-            onChange={(e) => setForm({ ...form, filter_sender: e.target.value })}
-            placeholder="Filter by sender (optional)"
             className={inputClass}
+            onChange={(e) =>
+              setForm({ ...form, filter_sender: e.target.value })
+            }
+            placeholder="Filter by sender (optional)"
+            value={form.filter_sender}
           />
           <input
-            value={form.filter_thread_id}
-            onChange={(e) => setForm({ ...form, filter_thread_id: e.target.value })}
-            placeholder="Filter by thread ID (optional)"
             className={inputClass}
+            onChange={(e) =>
+              setForm({ ...form, filter_thread_id: e.target.value })
+            }
+            placeholder="Filter by thread ID (optional)"
+            value={form.filter_thread_id}
           />
           <div className="flex gap-2">
-            <button onClick={handleCreate} disabled={creating} className={btnPrimary}>
+            <button
+              className={btnPrimary}
+              disabled={creating}
+              onClick={handleCreate}
+            >
               {creating ? 'Creating…' : 'Create'}
             </button>
-            <button onClick={() => setAdding(false)} className={btnSecondary}>
+            <button className={btnSecondary} onClick={() => setAdding(false)}>
               Cancel
             </button>
           </div>
@@ -1127,11 +1404,13 @@ function WebhooksSection() {
       )}
 
       {webhooks.length === 0 && !adding && (
-        <p className="text-sm text-[var(--color-text-tertiary)]">No webhooks configured</p>
+        <p className="text-sm text-[var(--color-text-tertiary)]">
+          No webhooks configured
+        </p>
       )}
 
       {webhooks.map((wh) => (
-        <div key={wh.id} className={cardClass}>
+        <div className={cardClass} key={wh.id}>
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium" title={wh.url}>
@@ -1163,8 +1442,8 @@ function WebhooksSection() {
               </div>
             </div>
             <button
-              onClick={() => setDeleteTarget(wh.id)}
               className="ml-3 text-xs text-[var(--color-status-danger)]"
+              onClick={() => setDeleteTarget(wh.id)}
             >
               Delete
             </button>
@@ -1175,179 +1454,10 @@ function WebhooksSection() {
       {deleteTarget !== null && (
         <ConfirmDialog
           message="Delete this webhook? This cannot be undone."
-          onConfirm={() => handleDelete(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => handleDelete(deleteTarget)}
         />
       )}
-    </div>
-  )
-}
-
-// --- appearance section ---
-
-function AppearanceSection() {
-  const [theme, setTheme] = useAtom(themeAtom)
-  const [pageSize, setPageSize] = useAtom(pageSizeAtom)
-  const [notifications, setNotifications] = useAtom(notificationsAtom)
-  const [notificationSound, setNotificationSound] = useAtom(notificationSoundAtom)
-  const [notificationError, setNotificationError] = useState<string | null>(null)
-
-  const handleNotificationToggle = useCallback(
-    async (enabled: boolean) => {
-      if (typeof Notification === 'undefined') {
-        setNotificationError('Browser notifications are not supported on this device.')
-        return
-      }
-      if (enabled && Notification.permission === 'default') {
-        const result = await Notification.requestPermission()
-        if (result === 'denied') {
-          setNotificationError(
-            'Browser notifications were denied. Please enable them in your browser settings.',
-          )
-          return
-        }
-      }
-      if (enabled && Notification.permission === 'denied') {
-        setNotificationError(
-          'Browser notifications are blocked. Please enable them in your browser settings.',
-        )
-        return
-      }
-      setNotificationError(null)
-      setNotifications(enabled)
-    },
-    [setNotifications],
-  )
-
-  return (
-    <div className="space-y-6">
-      <SectionHeader title="Appearance" />
-
-      <div className={cardClass}>
-        <Field label="Theme">
-          <div className="flex gap-1">
-            {THEME_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setTheme(opt.value)}
-                className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-                  theme === opt.value
-                    ? 'bg-[var(--color-brand-primary)] text-[var(--color-brand-primary-text)]'
-                    : 'bg-[var(--color-bg-raised)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </Field>
-      </div>
-
-      <div className={cardClass}>
-        <Field label="Page size">
-          <select
-            value={pageSize}
-            onChange={(e) => setPageSize(Number(e.target.value))}
-            className="rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] focus:border-[var(--color-brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
-          >
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size} per page
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
-
-      <div className={cardClass}>
-        <div className="space-y-3">
-          <Field label="Browser notifications">
-            <div className="flex flex-col items-end gap-1">
-              <Toggle checked={notifications} onChange={(v) => handleNotificationToggle(v)} />
-              {notificationError && (
-                <p className="text-xs text-[var(--color-status-danger)]">{notificationError}</p>
-              )}
-            </div>
-          </Field>
-          <Field label="Notification sound">
-            <Toggle checked={notificationSound} onChange={setNotificationSound} />
-          </Field>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// --- shared ui components ---
-
-function SectionHeader({ title }: { title: string }) {
-  return <h2 className="text-base font-semibold mb-4">{title}</h2>
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-sm font-medium text-[var(--color-text-secondary)]">{label}</span>
-      {children}
-    </div>
-  )
-}
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-        checked ? 'bg-[var(--color-brand-primary)]' : 'bg-[var(--color-border-strong)]'
-      }`}
-      role="switch"
-      aria-checked={checked}
-    >
-      <span
-        className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-          checked ? 'translate-x-6' : 'translate-x-1'
-        }`}
-      />
-    </button>
-  )
-}
-
-function ConfirmDialog({
-  message,
-  onConfirm,
-  onCancel,
-}: {
-  message: string
-  onConfirm: () => void
-  onCancel: () => void
-}) {
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onCancel])
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onCancel}
-    >
-      <div
-        className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p className="mb-4 text-sm text-[var(--color-text-secondary)]">{message}</p>
-        <div className="flex justify-end gap-2">
-          <button onClick={onCancel} className={btnSecondary}>
-            Cancel
-          </button>
-          <button onClick={onConfirm} className={btnDanger}>
-            Confirm
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

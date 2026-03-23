@@ -19,180 +19,17 @@ import { composingNewAtom } from '@/store/chat'
 import { themeAtom } from '@/store/theme'
 
 type Command = {
+  action: () => void
+  category: 'Actions' | 'Navigation' | 'Search'
+  icon: React.ReactNode
   id: string
   label: string
-  icon: React.ReactNode
-  category: 'Navigation' | 'Actions' | 'Search'
   shortcut?: string
-  action: () => void
-}
-
-function useCommands(query: string, onClose: () => void): Command[] {
-  const navigate = useNavigate()
-  const setAuth = useSetAtom(authAtom)
-  const setComposing = useSetAtom(composingNewAtom)
-  const setTheme = useSetAtom(themeAtom)
-  const theme = useAtomValue(themeAtom)
-
-  const staticCommands = useMemo<Command[]>(
-    () => [
-      {
-        id: 'nav-home',
-        label: 'Go to Home',
-        icon: <Mail size={16} />,
-        category: 'Navigation',
-        action: () => {
-          navigate('/')
-          onClose()
-        },
-      },
-      {
-        id: 'nav-inbox',
-        label: 'Go to Inbox',
-        icon: <Mail size={16} />,
-        category: 'Navigation',
-        action: () => {
-          navigate('/mail')
-          onClose()
-        },
-      },
-      {
-        id: 'nav-sent',
-        label: 'Go to Sent',
-        icon: <Send size={16} />,
-        category: 'Navigation',
-        action: () => {
-          navigate('/mail?folder=Sent')
-          onClose()
-        },
-      },
-      {
-        id: 'nav-settings',
-        label: 'Go to Settings',
-        icon: <Settings size={16} />,
-        category: 'Navigation',
-        shortcut: '',
-        action: () => {
-          navigate('/settings')
-          onClose()
-        },
-      },
-      {
-        id: 'nav-admin',
-        label: 'Go to Admin',
-        icon: <Shield size={16} />,
-        category: 'Navigation',
-        action: () => {
-          navigate('/admin')
-          onClose()
-        },
-      },
-      {
-        id: 'nav-protocol',
-        label: 'Go to Protocol Monitor',
-        icon: <Monitor size={16} />,
-        category: 'Navigation',
-        action: () => {
-          navigate('/protocol')
-          onClose()
-        },
-      },
-      {
-        id: 'action-compose',
-        label: 'Compose New Email',
-        icon: <PenSquare size={16} />,
-        category: 'Actions',
-        shortcut: 'C',
-        action: () => {
-          setComposing(true)
-          navigate('/mail')
-          onClose()
-        },
-      },
-      {
-        id: 'action-toggle-theme',
-        label: 'Toggle Theme',
-        icon: theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />,
-        category: 'Actions',
-        action: () => {
-          const next = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark'
-          setTheme(next)
-          onClose()
-        },
-      },
-      {
-        id: 'action-dark-mode',
-        label: 'Toggle Dark Mode',
-        icon: <Moon size={16} />,
-        category: 'Actions',
-        action: () => {
-          setTheme(theme === 'dark' ? 'light' : 'dark')
-          onClose()
-        },
-      },
-      {
-        id: 'action-logout',
-        label: 'Logout',
-        icon: <LogOut size={16} />,
-        category: 'Actions',
-        action: () => {
-          if (!window.confirm('Sign out? You will need to sign in again to access your mailbox.'))
-            return
-          setAuth(null)
-          navigate('/login')
-          onClose()
-        },
-      },
-    ],
-    [navigate, onClose, setAuth, setComposing, setTheme, theme],
-  )
-
-  return useMemo(() => {
-    const trimmed = query.trim().toLowerCase()
-
-    const filtered =
-      trimmed === ''
-        ? staticCommands
-        : staticCommands.filter((cmd) => cmd.label.toLowerCase().includes(trimmed))
-
-    // add dynamic search command when there's a query
-    if (trimmed !== '') {
-      return [
-        ...filtered,
-        {
-          id: 'search-query',
-          label: `Search emails for: ${query.trim()}`,
-          icon: <Search size={16} />,
-          category: 'Search' as const,
-          action: () => {
-            navigate(`/?q=${encodeURIComponent(query.trim())}`)
-            onClose()
-          },
-        },
-      ]
-    }
-
-    return filtered
-  }, [query, staticCommands, navigate, onClose])
 }
 
 type GroupedCommands = {
   category: string
   commands: Command[]
-}
-
-function groupByCategory(commands: Command[]): GroupedCommands[] {
-  const order: Command['category'][] = ['Navigation', 'Actions', 'Search']
-  const groups: GroupedCommands[] = []
-
-  for (const category of order) {
-    const cmds = commands.filter((c) => c.category === category)
-    if (cmds.length > 0) {
-      groups.push({ category, commands: cmds })
-    }
-  }
-
-  return groups
 }
 
 export function CommandPalette() {
@@ -267,7 +104,7 @@ export function CommandPalette() {
         commands[selectedIndex]?.action()
       }
     },
-    [commands, selectedIndex, close],
+    [commands, selectedIndex, close]
   )
 
   if (!open) return null
@@ -275,22 +112,28 @@ export function CommandPalette() {
   let flatIndex = 0
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={close}>
+    <div
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+      onClick={close}
+    >
       <div
         className="mx-auto mt-[20vh] max-w-lg overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* search input */}
         <div className="flex items-center border-b border-[var(--color-border-default)] px-4">
-          <Search size={18} className="shrink-0 text-[var(--color-text-tertiary)]" />
+          <Search
+            className="shrink-0 text-[var(--color-text-tertiary)]"
+            size={18}
+          />
           <input
-            ref={inputRef}
-            type="text"
-            value={query}
+            className="w-full bg-transparent px-3 py-3 text-lg text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a command or search..."
-            className="w-full bg-transparent px-3 py-3 text-lg text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]"
+            ref={inputRef}
+            type="text"
+            value={query}
           />
           <kbd className="shrink-0 rounded border border-[var(--color-border-default)] px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)]">
             ESC
@@ -298,7 +141,7 @@ export function CommandPalette() {
         </div>
 
         {/* results */}
-        <div ref={listRef} className="max-h-80 overflow-y-auto py-2">
+        <div className="max-h-80 overflow-y-auto py-2" ref={listRef}>
           {commands.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-[var(--color-text-tertiary)]">
               No results found
@@ -306,7 +149,7 @@ export function CommandPalette() {
           ) : (
             groups.map((group) => (
               <div key={group.category}>
-                <div className="px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">
+                <div className="px-4 py-1.5 text-xs font-medium tracking-wider text-[var(--color-text-tertiary)] uppercase">
                   {group.category}
                 </div>
                 {group.commands.map((cmd) => {
@@ -315,17 +158,19 @@ export function CommandPalette() {
 
                   return (
                     <button
-                      key={cmd.id}
-                      data-selected={isSelected}
                       className={`flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                         isSelected
                           ? 'bg-[var(--color-bg-selected)] text-[var(--color-text-primary)]'
                           : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]'
                       }`}
+                      data-selected={isSelected}
+                      key={cmd.id}
                       onClick={() => cmd.action()}
                       onMouseEnter={() => setSelectedIndex(idx)}
                     >
-                      <span className="shrink-0 text-[var(--color-text-tertiary)]">{cmd.icon}</span>
+                      <span className="shrink-0 text-[var(--color-text-tertiary)]">
+                        {cmd.icon}
+                      </span>
                       <span className="flex-1 text-sm">{cmd.label}</span>
                       {cmd.shortcut && (
                         <kbd className="rounded border border-[var(--color-border-default)] px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)]">
@@ -342,4 +187,174 @@ export function CommandPalette() {
       </div>
     </div>
   )
+}
+
+function groupByCategory(commands: Command[]): GroupedCommands[] {
+  const order: Command['category'][] = ['Navigation', 'Actions', 'Search']
+  const groups: GroupedCommands[] = []
+
+  for (const category of order) {
+    const cmds = commands.filter((c) => c.category === category)
+    if (cmds.length > 0) {
+      groups.push({ category, commands: cmds })
+    }
+  }
+
+  return groups
+}
+
+function useCommands(query: string, onClose: () => void): Command[] {
+  const navigate = useNavigate()
+  const setAuth = useSetAtom(authAtom)
+  const setComposing = useSetAtom(composingNewAtom)
+  const setTheme = useSetAtom(themeAtom)
+  const theme = useAtomValue(themeAtom)
+
+  const staticCommands = useMemo<Command[]>(
+    () => [
+      {
+        category: 'Navigation',
+        icon: <Mail size={16} />,
+        id: 'nav-home',
+        label: 'Go to Home',
+        action: () => {
+          navigate('/')
+          onClose()
+        },
+      },
+      {
+        category: 'Navigation',
+        icon: <Mail size={16} />,
+        id: 'nav-inbox',
+        label: 'Go to Inbox',
+        action: () => {
+          navigate('/mail')
+          onClose()
+        },
+      },
+      {
+        category: 'Navigation',
+        icon: <Send size={16} />,
+        id: 'nav-sent',
+        label: 'Go to Sent',
+        action: () => {
+          navigate('/mail?folder=Sent')
+          onClose()
+        },
+      },
+      {
+        category: 'Navigation',
+        icon: <Settings size={16} />,
+        id: 'nav-settings',
+        label: 'Go to Settings',
+        shortcut: '',
+        action: () => {
+          navigate('/settings')
+          onClose()
+        },
+      },
+      {
+        category: 'Navigation',
+        icon: <Shield size={16} />,
+        id: 'nav-admin',
+        label: 'Go to Admin',
+        action: () => {
+          navigate('/admin')
+          onClose()
+        },
+      },
+      {
+        category: 'Navigation',
+        icon: <Monitor size={16} />,
+        id: 'nav-protocol',
+        label: 'Go to Protocol Monitor',
+        action: () => {
+          navigate('/protocol')
+          onClose()
+        },
+      },
+      {
+        category: 'Actions',
+        icon: <PenSquare size={16} />,
+        id: 'action-compose',
+        label: 'Compose New Email',
+        shortcut: 'C',
+        action: () => {
+          setComposing(true)
+          navigate('/mail')
+          onClose()
+        },
+      },
+      {
+        category: 'Actions',
+        icon: theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />,
+        id: 'action-toggle-theme',
+        label: 'Toggle Theme',
+        action: () => {
+          const next =
+            theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark'
+          setTheme(next)
+          onClose()
+        },
+      },
+      {
+        category: 'Actions',
+        icon: <Moon size={16} />,
+        id: 'action-dark-mode',
+        label: 'Toggle Dark Mode',
+        action: () => {
+          setTheme(theme === 'dark' ? 'light' : 'dark')
+          onClose()
+        },
+      },
+      {
+        category: 'Actions',
+        icon: <LogOut size={16} />,
+        id: 'action-logout',
+        label: 'Logout',
+        action: () => {
+          if (
+            !window.confirm(
+              'Sign out? You will need to sign in again to access your mailbox.'
+            )
+          )
+            return
+          setAuth(null)
+          navigate('/login')
+          onClose()
+        },
+      },
+    ],
+    [navigate, onClose, setAuth, setComposing, setTheme, theme]
+  )
+
+  return useMemo(() => {
+    const trimmed = query.trim().toLowerCase()
+
+    const filtered =
+      trimmed === ''
+        ? staticCommands
+        : staticCommands.filter((cmd) =>
+            cmd.label.toLowerCase().includes(trimmed)
+          )
+
+    // add dynamic search command when there's a query
+    if (trimmed !== '') {
+      return [
+        ...filtered,
+        {
+          category: 'Search' as const,
+          icon: <Search size={16} />,
+          id: 'search-query',
+          label: `Search emails for: ${query.trim()}`,
+          action: () => {
+            navigate(`/?q=${encodeURIComponent(query.trim())}`)
+            onClose()
+          },
+        },
+      ]
+    }
+
+    return filtered
+  }, [query, staticCommands, navigate, onClose])
 }

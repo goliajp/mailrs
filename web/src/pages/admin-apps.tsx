@@ -3,15 +3,26 @@ import { toast } from 'sonner'
 
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
 
+interface ApiResult {
+  success: boolean
+}
+
 interface AppInfo {
-  id: number
+  active: boolean
   app_id: string
-  name: string
+  created_at: string
   description: string
+  id: number
+  name: string
   owner_address: string
   scopes: string
-  active: boolean
-  created_at: string
+}
+
+interface CreateAppResponse {
+  api_key: CreatedKey
+  app_id: string
+  name: string
+  scopes: string
 }
 
 interface CreatedKey {
@@ -20,26 +31,15 @@ interface CreatedKey {
   prefix: string
 }
 
-interface CreateAppResponse {
-  app_id: string
-  name: string
-  scopes: string
-  api_key: CreatedKey
-}
-
-interface ApiResult {
-  success: boolean
-}
-
 export function AdminApps() {
   const [apps, setApps] = useState<AppInfo[]>([])
   const [adding, setAdding] = useState(false)
   const [permissions, setPermissions] = useState<string[]>([])
-  const [form, setForm] = useState({ name: '', description: '' })
+  const [form, setForm] = useState({ description: '', name: '' })
   const [selectedScopes, setSelectedScopes] = useState<Set<string>>(new Set())
   const [createdKey, setCreatedKey] = useState<CreatedKey | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-  const [expandedAppId, setExpandedAppId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<null | string>(null)
+  const [expandedAppId, setExpandedAppId] = useState<null | string>(null)
   const [editScopes, setEditScopes] = useState<Set<string>>(new Set())
   const [savingScopes, setSavingScopes] = useState(false)
 
@@ -70,13 +70,13 @@ export function AdminApps() {
     if (!form.name.trim()) return
     try {
       const result = await postJson<CreateAppResponse>('/admin/apps', {
-        name: form.name.trim(),
         description: form.description.trim(),
+        name: form.name.trim(),
         scopes: Array.from(selectedScopes).join(','),
       })
       toast.success(`App "${form.name.trim()}" created`)
       setCreatedKey(result.api_key)
-      setForm({ name: '', description: '' })
+      setForm({ description: '', name: '' })
       setSelectedScopes(new Set())
       setAdding(false)
       loadApps()
@@ -113,7 +113,11 @@ export function AdminApps() {
     }
   }
 
-  const toggleScope = (scope: string, set: Set<string>, setter: (s: Set<string>) => void) => {
+  const toggleScope = (
+    scope: string,
+    set: Set<string>,
+    setter: (s: Set<string>) => void
+  ) => {
     const next = new Set(set)
     if (next.has(scope)) {
       next.delete(scope)
@@ -129,7 +133,9 @@ export function AdminApps() {
       return
     }
     setExpandedAppId(app.app_id)
-    const currentScopes = app.scopes ? app.scopes.split(',').filter(Boolean) : []
+    const currentScopes = app.scopes
+      ? app.scopes.split(',').filter(Boolean)
+      : []
     setEditScopes(new Set(currentScopes))
   }
 
@@ -144,8 +150,8 @@ export function AdminApps() {
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Apps</h2>
         <button
-          onClick={() => setAdding(true)}
           className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+          onClick={() => setAdding(true)}
         >
           Add App
         </button>
@@ -162,15 +168,15 @@ export function AdminApps() {
               {createdKey.key}
             </code>
             <button
-              onClick={() => copyToClipboard(createdKey.key)}
               className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+              onClick={() => copyToClipboard(createdKey.key)}
             >
               Copy
             </button>
           </div>
           <button
-            onClick={() => setCreatedKey(null)}
             className="mt-2 text-xs text-[var(--color-text-secondary)] transition-colors hover:opacity-70"
+            onClick={() => setCreatedKey(null)}
           >
             Dismiss
           </button>
@@ -181,26 +187,30 @@ export function AdminApps() {
         <div className="mb-4 space-y-2 rounded-lg border border-[var(--color-border-default)] p-4">
           <div className="flex gap-2">
             <input
-              value={form.name}
+              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="App name"
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              value={form.name}
             />
             <input
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Description"
               className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
+              placeholder="Description"
+              value={form.description}
             />
           </div>
           {permissions.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {permissions.map((perm) => (
-                <label key={perm} className="flex items-center gap-1.5 text-sm">
+                <label className="flex items-center gap-1.5 text-sm" key={perm}>
                   <input
-                    type="checkbox"
                     checked={selectedScopes.has(perm)}
-                    onChange={() => toggleScope(perm, selectedScopes, setSelectedScopes)}
+                    onChange={() =>
+                      toggleScope(perm, selectedScopes, setSelectedScopes)
+                    }
+                    type="checkbox"
                   />
                   {perm}
                 </label>
@@ -209,14 +219,14 @@ export function AdminApps() {
           )}
           <div className="flex gap-2">
             <button
-              onClick={handleAdd}
               className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)]"
+              onClick={handleAdd}
             >
               Save
             </button>
             <button
-              onClick={() => setAdding(false)}
               className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              onClick={() => setAdding(false)}
             >
               Cancel
             </button>
@@ -239,8 +249,8 @@ export function AdminApps() {
             {apps.map((app) => (
               <>
                 <tr
-                  key={app.app_id}
                   className="border-b border-[var(--color-border-default)] last:border-0"
+                  key={app.app_id}
                 >
                   <td className="px-4 py-3 font-medium">{app.name}</td>
                   <td className="px-4 py-3">
@@ -251,12 +261,12 @@ export function AdminApps() {
                             .filter(Boolean)
                             .map((scope) => (
                               <span
-                                key={scope}
                                 className={
                                   scope === 'internal.rpc'
-                                    ? 'inline-block rounded px-2 py-0.5 text-xs font-medium bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
-                                    : 'inline-block rounded px-2 py-0.5 text-xs font-medium bg-[var(--color-bg-raised)] text-[var(--color-text-secondary)]'
+                                    ? 'inline-block rounded bg-[var(--color-status-success-subtle)] px-2 py-0.5 text-xs font-medium text-[var(--color-status-success)]'
+                                    : 'inline-block rounded bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs font-medium text-[var(--color-text-secondary)]'
                                 }
+                                key={scope}
                               >
                                 {scope}
                               </span>
@@ -278,14 +288,14 @@ export function AdminApps() {
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
                       <button
-                        onClick={() => handleExpand(app)}
                         className="text-xs text-[var(--color-brand-primary)] transition-colors hover:opacity-70"
+                        onClick={() => handleExpand(app)}
                       >
                         {expandedAppId === app.app_id ? 'Collapse' : 'Scopes'}
                       </button>
                       <button
-                        onClick={() => setDeleteTarget(app.app_id)}
                         className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
+                        onClick={() => setDeleteTarget(app.app_id)}
                       >
                         Delete
                       </button>
@@ -294,21 +304,26 @@ export function AdminApps() {
                 </tr>
                 {expandedAppId === app.app_id && (
                   <tr
-                    key={`${app.app_id}-edit`}
                     className="border-b border-[var(--color-border-default)] last:border-0"
+                    key={`${app.app_id}-edit`}
                   >
-                    <td colSpan={5} className="px-4 py-3">
+                    <td className="px-4 py-3" colSpan={5}>
                       <div className="space-y-2 rounded-lg border border-[var(--color-border-default)] p-3">
                         <p className="text-xs font-medium text-[var(--color-text-secondary)]">
                           Edit Scopes
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {permissions.map((perm) => (
-                            <label key={perm} className="flex items-center gap-1.5 text-sm">
+                            <label
+                              className="flex items-center gap-1.5 text-sm"
+                              key={perm}
+                            >
                               <input
-                                type="checkbox"
                                 checked={editScopes.has(perm)}
-                                onChange={() => toggleScope(perm, editScopes, setEditScopes)}
+                                onChange={() =>
+                                  toggleScope(perm, editScopes, setEditScopes)
+                                }
+                                type="checkbox"
                               />
                               {perm}
                             </label>
@@ -316,15 +331,15 @@ export function AdminApps() {
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => handleSaveScopes(app.app_id)}
-                            disabled={savingScopes}
                             className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)] disabled:opacity-50"
+                            disabled={savingScopes}
+                            onClick={() => handleSaveScopes(app.app_id)}
                           >
                             {savingScopes ? 'Saving...' : 'Save'}
                           </button>
                           <button
-                            onClick={() => setExpandedAppId(null)}
                             className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+                            onClick={() => setExpandedAppId(null)}
                           >
                             Cancel
                           </button>
@@ -337,7 +352,10 @@ export function AdminApps() {
             ))}
             {apps.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
+                <td
+                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
+                  colSpan={5}
+                >
                   No apps configured
                 </td>
               </tr>
@@ -357,18 +375,19 @@ export function AdminApps() {
           >
             <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
             <p className="mb-4 text-sm text-[var(--color-text-tertiary)]">
-              Are you sure you want to delete this app? This action cannot be undone.
+              Are you sure you want to delete this app? This action cannot be
+              undone.
             </p>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setDeleteTarget(null)}
                 className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+                onClick={() => setDeleteTarget(null)}
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleDelete(deleteTarget)}
                 className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+                onClick={() => handleDelete(deleteTarget)}
               >
                 Delete
               </button>

@@ -6,16 +6,6 @@ const GAIN = 0.3
 
 let audioCtx: AudioContext | null = null
 
-function getAudioContext(): AudioContext | null {
-  if (audioCtx && audioCtx.state !== 'closed') return audioCtx
-  try {
-    audioCtx = new AudioContext()
-    return audioCtx
-  } catch {
-    return null
-  }
-}
-
 export function playNotificationSound(): void {
   const ctx = getAudioContext()
   if (!ctx) return
@@ -35,7 +25,10 @@ export function playNotificationSound(): void {
 
       // fade out smoothly to avoid click artifacts
       gainNode.gain.setValueAtTime(GAIN, ctx.currentTime)
-      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + DURATION_MS / 1000)
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.001,
+        ctx.currentTime + DURATION_MS / 1000
+      )
 
       oscillator.start(ctx.currentTime)
       oscillator.stop(ctx.currentTime + DURATION_MS / 1000)
@@ -43,4 +36,14 @@ export function playNotificationSound(): void {
     .catch(() => {
       // autoplay policy may block audio — silently ignore
     })
+}
+
+function getAudioContext(): AudioContext | null {
+  if (audioCtx && audioCtx.state !== 'closed') return audioCtx
+  try {
+    audioCtx = new AudioContext()
+    return audioCtx
+  } catch {
+    return null
+  }
 }

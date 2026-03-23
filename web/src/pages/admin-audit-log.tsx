@@ -3,22 +3,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { fetchJson } from '@/lib/api'
 
 type AuditEntry = {
-  id: number
-  timestamp: number
-  actor: string
   action: string
-  target: string
+  actor: string
   detail: string
-}
-
-function formatTime(epoch: number): string {
-  return new Date(epoch * 1000).toLocaleString()
-}
-
-function actionColor(action: string): string {
-  if (action === 'login_failed') return 'text-[var(--color-status-danger)]'
-  if (action === 'login') return 'text-[var(--color-status-success)]'
-  return 'text-[var(--color-text-primary)]'
+  id: number
+  target: string
+  timestamp: number
 }
 
 export function AdminAuditLog() {
@@ -34,7 +24,6 @@ export function AdminAuditLog() {
   }, [])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch
     void loadEntries()
   }, [loadEntries])
 
@@ -43,8 +32,8 @@ export function AdminAuditLog() {
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Audit Log</h2>
         <button
-          onClick={loadEntries}
           className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+          onClick={loadEntries}
         >
           Refresh
         </button>
@@ -64,17 +53,21 @@ export function AdminAuditLog() {
           <tbody>
             {entries.map((entry) => (
               <tr
-                key={entry.id}
                 className="border-b border-[var(--color-border-default)] last:border-0"
+                key={entry.id}
               >
-                <td className="whitespace-nowrap px-4 py-3 text-[var(--color-text-secondary)]">
+                <td className="px-4 py-3 whitespace-nowrap text-[var(--color-text-secondary)]">
                   {formatTime(entry.timestamp)}
                 </td>
                 <td className="px-4 py-3 font-medium">{entry.actor}</td>
-                <td className={`px-4 py-3 font-medium ${actionColor(entry.action)}`}>
+                <td
+                  className={`px-4 py-3 font-medium ${actionColor(entry.action)}`}
+                >
                   {entry.action}
                 </td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">{entry.target}</td>
+                <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                  {entry.target}
+                </td>
                 <td className="max-w-xs truncate px-4 py-3 text-[var(--color-text-tertiary)]">
                   {entry.detail}
                 </td>
@@ -82,7 +75,10 @@ export function AdminAuditLog() {
             ))}
             {entries.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
+                <td
+                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
+                  colSpan={5}
+                >
                   No audit log entries
                 </td>
               </tr>
@@ -92,4 +88,14 @@ export function AdminAuditLog() {
       </div>
     </div>
   )
+}
+
+function actionColor(action: string): string {
+  if (action === 'login_failed') return 'text-[var(--color-status-danger)]'
+  if (action === 'login') return 'text-[var(--color-status-success)]'
+  return 'text-[var(--color-text-primary)]'
+}
+
+function formatTime(epoch: number): string {
+  return new Date(epoch * 1000).toLocaleString()
 }

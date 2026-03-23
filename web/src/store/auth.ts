@@ -1,11 +1,11 @@
 import { atom } from 'jotai'
 
 export type AuthInfo = {
-  token: string
+  accessible_domains: string[]
   address: string
   display_name: string
   permissions: string[]
-  accessible_domains: string[]
+  token: string
 }
 
 const STORAGE_KEY = 'mailrs_auth'
@@ -35,9 +35,9 @@ export const authAtom = atom(
   (_get, set, value: AuthInfo | null) => {
     saveAuth(value)
     set(baseAuthAtom, value)
-  },
+  }
 )
 
-export function getToken(): string | null {
+export function getToken(): null | string {
   return loadAuth()?.token ?? null
 }

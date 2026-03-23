@@ -8,6 +8,16 @@ const SIGNATURE_ENABLED_KEY = 'mailrs_signature_enabled'
 
 const DEFAULT_PAGE_SIZE = 50
 
+function loadNotifications(): boolean {
+  try {
+    const raw = localStorage.getItem(NOTIFICATIONS_KEY)
+    if (raw === null) return true
+    return raw === 'true'
+  } catch {
+    return true
+  }
+}
+
 function loadPageSize(): number {
   try {
     const raw = localStorage.getItem(PAGE_SIZE_KEY)
@@ -20,16 +30,6 @@ function loadPageSize(): number {
   }
 }
 
-function loadNotifications(): boolean {
-  try {
-    const raw = localStorage.getItem(NOTIFICATIONS_KEY)
-    if (raw === null) return true
-    return raw === 'true'
-  } catch {
-    return true
-  }
-}
-
 const basePageSizeAtom = atom<number>(loadPageSize())
 
 export const pageSizeAtom = atom(
@@ -38,7 +38,7 @@ export const pageSizeAtom = atom(
     const clamped = Math.max(10, Math.min(200, value))
     localStorage.setItem(PAGE_SIZE_KEY, String(clamped))
     set(basePageSizeAtom, clamped)
-  },
+  }
 )
 
 const baseNotificationsAtom = atom<boolean>(loadNotifications())
@@ -48,7 +48,7 @@ export const notificationsAtom = atom(
   (_get, set, value: boolean) => {
     localStorage.setItem(NOTIFICATIONS_KEY, String(value))
     set(baseNotificationsAtom, value)
-  },
+  }
 )
 
 // --- notification sound ---
@@ -70,7 +70,7 @@ export const notificationSoundAtom = atom(
   (_get, set, value: boolean) => {
     localStorage.setItem(NOTIFICATION_SOUND_KEY, String(value))
     set(baseNotificationSoundAtom, value)
-  },
+  }
 )
 
 // --- signature ---
@@ -100,7 +100,7 @@ export const signatureAtom = atom(
   (_get, set, value: string) => {
     localStorage.setItem(SIGNATURE_KEY, value)
     set(baseSignatureAtom, value)
-  },
+  }
 )
 
 const baseSignatureEnabledAtom = atom<boolean>(loadSignatureEnabled())
@@ -110,13 +110,17 @@ export const signatureEnabledAtom = atom(
   (_get, set, value: boolean) => {
     localStorage.setItem(SIGNATURE_ENABLED_KEY, String(value))
     set(baseSignatureEnabledAtom, value)
-  },
+  }
 )
 
 // standard email signature separator
 const SIG_SEPARATOR = '\n\n-- \n'
 
-export function appendSignature(body: string, signature: string, enabled: boolean): string {
+export function appendSignature(
+  body: string,
+  signature: string,
+  enabled: boolean
+): string {
   if (!enabled || !signature.trim()) return body
   return body + SIG_SEPARATOR + signature
 }

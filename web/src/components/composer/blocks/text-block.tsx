@@ -1,33 +1,43 @@
+import type { TextBlockData } from '../types'
+
+import { type Editor, EditorContent, useEditor } from '@tiptap/react'
 import { useCallback, useEffect, useRef } from 'react'
-import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 
 import {
-  EditorToolbar,
   createEditorExtensions,
-  uploadInlineImage,
+  EditorToolbar,
   PROSE_CLASS,
+  uploadInlineImage,
 } from '@/components/rich-editor'
-import type { TextBlockData } from '../types'
 
 type Props = {
   data: TextBlockData
+  disabled?: boolean
+  getEditorRef?: (editor: Editor | null) => void
   onChange: (data: TextBlockData) => void
   onSubmit: () => void
-  disabled?: boolean
   placeholder?: string
-  getEditorRef?: (editor: Editor | null) => void
 }
 
-export function TextBlock({ onChange, onSubmit, disabled, placeholder, getEditorRef }: Props) {
+export function TextBlock({
+  disabled,
+  getEditorRef,
+  onChange,
+  onSubmit,
+  placeholder,
+}: Props) {
   const onSubmitRef = useRef(onSubmit)
   useEffect(() => {
     onSubmitRef.current = onSubmit
   }, [onSubmit])
 
   const editor = useEditor({
-    extensions: createEditorExtensions(placeholder),
+    editable: !disabled,
     editorProps: {
-      attributes: { class: PROSE_CLASS + ' min-h-[3rem]', style: 'cursor:text' },
+      attributes: {
+        class: PROSE_CLASS + ' min-h-[3rem]',
+        style: 'cursor:text',
+      },
       handleKeyDown: (_view, event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
           event.preventDefault()
@@ -37,9 +47,9 @@ export function TextBlock({ onChange, onSubmit, disabled, placeholder, getEditor
         return false
       },
     },
-    editable: !disabled,
+    extensions: createEditorExtensions(placeholder),
     onUpdate: ({ editor: e }) => {
-      onChange({ content: e.getText(), html: e.getHTML(), format: 'rich' })
+      onChange({ content: e.getText(), format: 'rich', html: e.getHTML() })
     },
   })
 
@@ -51,7 +61,9 @@ export function TextBlock({ onChange, onSubmit, disabled, placeholder, getEditor
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       if (!editor) return
-      const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+      const files = Array.from(e.dataTransfer.files).filter((f) =>
+        f.type.startsWith('image/')
+      )
       if (files.length === 0) return
       e.preventDefault()
       for (const file of files) {
@@ -59,13 +71,15 @@ export function TextBlock({ onChange, onSubmit, disabled, placeholder, getEditor
         if (url) editor.chain().focus().setImage({ src: url }).run()
       }
     },
-    [editor],
+    [editor]
   )
 
   const handlePaste = useCallback(
     async (e: React.ClipboardEvent) => {
       if (!editor) return
-      const items = Array.from(e.clipboardData.items).filter((i) => i.type.startsWith('image/'))
+      const items = Array.from(e.clipboardData.items).filter((i) =>
+        i.type.startsWith('image/')
+      )
       if (items.length === 0) return
       e.preventDefault()
       for (const item of items) {
@@ -75,15 +89,21 @@ export function TextBlock({ onChange, onSubmit, disabled, placeholder, getEditor
         if (url) editor.chain().focus().setImage({ src: url }).run()
       }
     },
-    [editor],
+    [editor]
   )
 
   return (
-    <div onDrop={handleDrop} onPaste={handlePaste} onDragOver={(e) => e.preventDefault()}>
+    <div
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
+      onPaste={handlePaste}
+    >
       <div className="border-b border-[var(--color-border-default)]">
         <EditorToolbar editor={editor} />
       </div>
-      <div className={`flex-1 cursor-text ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
+      <div
+        className={`flex-1 cursor-text ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+      >
         <EditorContent editor={editor} />
       </div>
     </div>

@@ -1,35 +1,48 @@
+import type { QueueEntry } from '@/lib/types'
+
 import { useAtom } from 'jotai'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { fetchJson, postJson } from '@/lib/api'
-import type { QueueEntry } from '@/lib/types'
 import { queueAtom } from '@/store/admin'
 
 const PAGE_SIZE = 20
 
-const ALL_STATUSES = ['pending', 'inflight', 'delivered', 'failed', 'bounced'] as const
+const ALL_STATUSES = [
+  'pending',
+  'inflight',
+  'delivered',
+  'failed',
+  'bounced',
+] as const
 type QueueStatus = (typeof ALL_STATUSES)[number]
 
 const statusStyles: Record<string, string> = {
+  bounced:
+    'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]',
+  delivered:
+    'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]',
+  failed:
+    'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]',
+  inflight:
+    'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]',
   pending: 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]',
-  inflight: 'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]',
-  delivered: 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]',
-  failed: 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]',
-  bounced: 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]',
 }
 
-const filterBaseStyle = 'rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
+const filterBaseStyle =
+  'rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
 const filterActiveStyle =
   'ring-2 ring-offset-1 ring-[var(--color-border-default)] ring-offset-[var(--color-bg-base)]'
-const filterAllStyle = 'bg-[var(--color-border-default)] text-[var(--color-text-secondary)]'
+const filterAllStyle =
+  'bg-[var(--color-border-default)] text-[var(--color-text-secondary)]'
 
 export function AdminQueues() {
   const [queue, setQueue] = useAtom(queueAtom)
-  const [statusFilter, setStatusFilterRaw] = useState<QueueStatus | null>(null)
+  const [statusFilter, setStatusFilterRaw] = useState<null | QueueStatus>(null)
   const [currentPage, setCurrentPage] = useState(1)
 
   // wrap setStatusFilter to also reset page
-  const setStatusFilter = useCallback((v: QueueStatus | null) => {
+  const setStatusFilter = useCallback((v: null | QueueStatus) => {
     setStatusFilterRaw(v)
     setCurrentPage(1)
   }, [])
@@ -68,8 +81,9 @@ export function AdminQueues() {
   }, [queue])
 
   const filtered = useMemo(
-    () => (statusFilter ? queue.filter((q) => q.status === statusFilter) : queue),
-    [queue, statusFilter],
+    () =>
+      statusFilter ? queue.filter((q) => q.status === statusFilter) : queue,
+    [queue, statusFilter]
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -82,7 +96,7 @@ export function AdminQueues() {
 
   const pageItems = useMemo(
     () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [filtered, safePage],
+    [filtered, safePage]
   )
 
   const handleFilterClick = (status: QueueStatus) => {
@@ -94,8 +108,8 @@ export function AdminQueues() {
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Outbound Queue</h2>
         <button
-          onClick={loadQueue}
           className="rounded-md bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--color-hover)]"
+          onClick={loadQueue}
         >
           Refresh
         </button>
@@ -104,16 +118,16 @@ export function AdminQueues() {
       {/* status counts as clickable filter chips */}
       <div className="mb-4 flex flex-wrap gap-2">
         <button
-          onClick={() => setStatusFilter(null)}
           className={`${filterBaseStyle} ${filterAllStyle} ${statusFilter === null ? filterActiveStyle : ''}`}
+          onClick={() => setStatusFilter(null)}
         >
           All ({queue.length})
         </button>
         {ALL_STATUSES.map((status) => (
           <button
+            className={`${filterBaseStyle} ${statusStyles[status]} ${statusFilter === status ? filterActiveStyle : ''}`}
             key={status}
             onClick={() => handleFilterClick(status)}
-            className={`${filterBaseStyle} ${statusStyles[status]} ${statusFilter === status ? filterActiveStyle : ''}`}
           >
             <span className="capitalize">{status}</span> ({counts[status]})
           </button>
@@ -137,12 +151,14 @@ export function AdminQueues() {
           <tbody>
             {pageItems.map((item) => (
               <tr
-                key={item.id}
                 className="border-b border-[var(--color-border-default)] last:border-0"
+                key={item.id}
               >
                 <td className="px-4 py-3 font-medium">{item.sender}</td>
                 <td className="px-4 py-3">{item.recipient}</td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">{item.domain}</td>
+                <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                  {item.domain}
+                </td>
                 <td className="px-4 py-3">
                   <span
                     className={`rounded px-1.5 py-0.5 text-xs ${statusStyles[item.status] ?? ''}`}
@@ -157,8 +173,8 @@ export function AdminQueues() {
                 <td className="px-4 py-3 text-right">
                   {item.status === 'failed' && (
                     <button
-                      onClick={() => handleRetry(item.id)}
                       className="text-xs text-[var(--color-brand-primary)] transition-colors hover:opacity-70"
+                      onClick={() => handleRetry(item.id)}
                     >
                       Retry
                     </button>
@@ -168,8 +184,13 @@ export function AdminQueues() {
             ))}
             {pageItems.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
-                  {statusFilter ? `No ${statusFilter} entries` : 'Queue is empty'}
+                <td
+                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
+                  colSpan={7}
+                >
+                  {statusFilter
+                    ? `No ${statusFilter} entries`
+                    : 'Queue is empty'}
                 </td>
               </tr>
             )}
@@ -185,16 +206,16 @@ export function AdminQueues() {
           </span>
           <div className="flex gap-2">
             <button
+              className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 transition-colors hover:bg-[var(--color-hover)] disabled:cursor-not-allowed disabled:opacity-40"
               disabled={safePage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 transition-colors hover:bg-[var(--color-hover)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Previous
             </button>
             <button
+              className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 transition-colors hover:bg-[var(--color-hover)] disabled:cursor-not-allowed disabled:opacity-40"
               disabled={safePage >= totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 transition-colors hover:bg-[var(--color-hover)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Next
             </button>

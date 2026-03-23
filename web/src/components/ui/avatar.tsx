@@ -1,16 +1,16 @@
 import type { Size } from '@/lib/tokens'
 
 type Props = {
+  className?: string
   name: string
   size?: Size
-  className?: string
 }
 
 const sizeStyles: Record<Size, string> = {
-  xs: 'h-5 w-5 text-[9px]',
-  sm: 'h-6 w-6 text-[10px]',
-  md: 'h-7 w-7 text-[11px]',
   lg: 'h-9 w-9 text-sm',
+  md: 'h-7 w-7 text-[11px]',
+  sm: 'h-6 w-6 text-[10px]',
+  xs: 'h-5 w-5 text-[9px]',
 }
 
 const COLORS = [
@@ -24,21 +24,7 @@ const COLORS = [
   'bg-teal-600',
 ] as const
 
-function hashCode(s: string): number {
-  let h = 0
-  for (let i = 0; i < s.length; i++) {
-    h = ((h << 5) - h + s.charCodeAt(i)) | 0
-  }
-  return Math.abs(h)
-}
-
-function getInitial(name: string): string {
-  const match = name.match(/^"?([^"<]+)"?\s*</)
-  if (match) return match[1].trim()[0].toUpperCase()
-  return (name[0] ?? '?').toUpperCase()
-}
-
-export function Avatar({ name, size = 'md', className = '' }: Props) {
+export function Avatar({ className = '', name, size = 'md' }: Props) {
   const color = COLORS[hashCode(name) % COLORS.length]
   const initial = getInitial(name)
 
@@ -49,4 +35,18 @@ export function Avatar({ name, size = 'md', className = '' }: Props) {
       {initial}
     </div>
   )
+}
+
+function getInitial(name: string): string {
+  const match = name.match(/^"?([^"<]+)"?\s*</)
+  if (match) return match[1].trim()[0].toUpperCase()
+  return (name[0] ?? '?').toUpperCase()
+}
+
+function hashCode(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) | 0
+  }
+  return Math.abs(h)
 }

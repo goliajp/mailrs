@@ -1,22 +1,31 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import type {
+  ConnectionInfo,
+  ConversationLine,
+  ServerStatus,
+  SmtpEvent,
+} from '@/lib/types'
 
-import type { ConnectionInfo, ConversationLine, ServerStatus, SmtpEvent } from '@/lib/types'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 function getWsUrl() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
   const token = localStorage.getItem('mailrs_auth')
   const parsed = token ? JSON.parse(token) : null
-  const tokenParam = parsed?.token ? `?token=${encodeURIComponent(parsed.token)}` : ''
+  const tokenParam = parsed?.token
+    ? `?token=${encodeURIComponent(parsed.token)}`
+    : ''
   return `${proto}//${location.host}/api/events${tokenParam}`
 }
 const STATUS_URL = '/api/status'
 
 export function useSmtpEvents() {
-  const [connections, setConnections] = useState<Map<number, ConnectionInfo>>(new Map())
+  const [connections, setConnections] = useState<Map<number, ConnectionInfo>>(
+    new Map()
+  )
   const [events, setEvents] = useState<SmtpEvent[]>([])
-  const [status, setStatus] = useState<ServerStatus | null>(null)
+  const [status, setStatus] = useState<null | ServerStatus>(null)
   const [connected, setConnected] = useState(false)
-  const wsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<null | WebSocket>(null)
 
   const handleEvent = useCallback((event: SmtpEvent) => {
     setEvents((prev) => [...prev.slice(-500), event])
@@ -25,15 +34,13 @@ export function useSmtpEvents() {
       const next = new Map(prev)
 
       switch (event.type) {
-        case 'ConnectionOpened':
-          next.set(event.id, {
-            id: event.id,
-            addr: event.addr,
-            tls: event.tls,
-            state: 'Connected',
-            lines: [],
-          })
+        case 'Authenticated': {
+          const conn = next.get(event.id)
+          if (conn) {
+            next.set(event.id, { ...conn, authenticated: event.username })
+          }
           break
+        }
 
         case 'CommandReceived': {
           const conn = next.get(event.id)
@@ -45,12 +52,26 @@ export function useSmtpEvents() {
             }
             next.set(event.id, {
               ...conn,
-              state: event.state_before,
               lines: [...conn.lines, line],
+              state: event.state_before,
             })
           }
           break
         }
+
+        case 'ConnectionClosed':
+          next.delete(event.id)
+          break
+
+        case 'ConnectionOpened':
+          next.set(event.id, {
+            addr: event.addr,
+            id: event.id,
+            lines: [],
+            state: 'Connected',
+            tls: event.tls,
+          })
+          break
 
         case 'ResponseSent': {
           const conn = next.get(event.id)
@@ -62,8 +83,8 @@ export function useSmtpEvents() {
             }
             next.set(event.id, {
               ...conn,
-              state: event.state_after,
               lines: [...conn.lines, line],
+              state: event.state_after,
             })
           }
           break
@@ -76,18 +97,6 @@ export function useSmtpEvents() {
           }
           break
         }
-
-        case 'Authenticated': {
-          const conn = next.get(event.id)
-          if (conn) {
-            next.set(event.id, { ...conn, authenticated: event.username })
-          }
-          break
-        }
-
-        case 'ConnectionClosed':
-          next.delete(event.id)
-          break
       }
 
       return next
@@ -137,5 +146,5 @@ export function useSmtpEvents() {
     return () => clearInterval(interval)
   }, [])
 
-  return { connections, events, status, connected }
+  return { connected, connections, events, status }
 }

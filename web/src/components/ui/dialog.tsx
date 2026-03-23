@@ -1,13 +1,13 @@
 import { useEffect } from 'react'
 
 type Props = {
-  open: boolean
-  onClose: () => void
-  title?: string
   children: React.ReactNode
+  onClose: () => void
+  open: boolean
+  title?: string
 }
 
-export function Dialog({ open, onClose, title, children }: Props) {
+export function Dialog({ children, onClose, open, title }: Props) {
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
@@ -25,13 +25,15 @@ export function Dialog({ open, onClose, title, children }: Props) {
       onClick={onClose}
     >
       <div
-        role="dialog"
         aria-modal="true"
         className="mx-4 w-full max-w-md border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-6 shadow-[var(--shadow-lg)]"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
       >
         {title && (
-          <h3 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">{title}</h3>
+          <h3 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">
+            {title}
+          </h3>
         )}
         {children}
       </div>

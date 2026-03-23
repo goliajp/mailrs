@@ -5,8 +5,8 @@ interface Props {
 }
 
 interface State {
-  hasError: boolean
   error?: Error
+  hasError: boolean
 }
 
 export class ErrorBoundary extends React.Component<Props, State> {
@@ -16,7 +16,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error }
+    return { error, hasError: true }
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
@@ -24,7 +24,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   handleReload = () => {
-    this.setState({ hasError: false, error: undefined })
+    this.setState({ error: undefined, hasError: false })
     window.location.reload()
   }
 
@@ -43,15 +43,17 @@ export class ErrorBoundary extends React.Component<Props, State> {
                     viewBox="0 0 24 24"
                   >
                     <path
+                      d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
                 </div>
               </div>
-              <h1 className="mb-2 text-2xl font-bold text-[var(--color-text-primary)]">出错了</h1>
+              <h1 className="mb-2 text-2xl font-bold text-[var(--color-text-primary)]">
+                出错了
+              </h1>
               <p className="mb-4 text-[var(--color-text-secondary)]">
                 应用程序遇到了一个意外错误。请尝试重新加载页面。
               </p>
@@ -66,8 +68,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
                 </details>
               )}
               <button
-                onClick={this.handleReload}
                 className="w-full rounded-md bg-[var(--color-brand-primary)] px-4 py-2 font-semibold text-white transition-colors hover:bg-[var(--color-brand-primary-hover)]"
+                onClick={this.handleReload}
               >
                 重新加载
               </button>

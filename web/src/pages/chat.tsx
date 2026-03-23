@@ -1,13 +1,16 @@
+import type { ConversationSummary } from '@/lib/types'
+
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { ConversationList } from '@/components/conversation-list'
-import { Panel, PanelRow } from '@/layouts/shell'
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { NewConversation } from '@/components/new-conversation'
 import { ThreadView } from '@/components/thread-view'
+import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { useMailEvents } from '@/hooks/use-mail-events'
+import { Panel, PanelRow } from '@/layouts/shell'
 import { fetchJson } from '@/lib/api'
-import type { ConversationSummary } from '@/lib/types'
 import { authAtom } from '@/store/auth'
 import {
   categoryFilterAtom,
@@ -20,12 +23,10 @@ import {
   mobileViewAtom,
   searchQueryAtom,
   selectedDomainsAtom,
-  shortcutsDialogOpenAtom,
   selectedThreadIdAtom,
+  shortcutsDialogOpenAtom,
   showArchivedAtom,
 } from '@/store/chat'
-import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import { useMailEvents } from '@/hooks/use-mail-events'
 
 const PAGE_SIZE = 50
 
@@ -63,7 +64,10 @@ export function Chat() {
 
   // request notification permission
   useEffect(() => {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+    if (
+      typeof Notification !== 'undefined' &&
+      Notification.permission === 'default'
+    ) {
       Notification.requestPermission()
     }
   }, [])
@@ -77,14 +81,21 @@ export function Chat() {
   // build API path helper
   const buildPath = useCallback(
     (opts?: {
-      query?: string
-      before?: number
-      category?: string | null
-      domains?: string[]
       archived?: boolean
-      folder?: string | null
+      before?: number
+      category?: null | string
+      domains?: string[]
+      folder?: null | string
+      query?: string
     }) => {
-      const { query, before, category, domains, archived, folder: f } = opts ?? {}
+      const {
+        archived,
+        before,
+        category,
+        domains,
+        folder: f,
+        query,
+      } = opts ?? {}
       if (query) {
         let path = `/conversations/search?q=${encodeURIComponent(query)}&limit=${PAGE_SIZE}`
         if (category) path += `&category=${encodeURIComponent(category)}`
@@ -95,24 +106,25 @@ export function Chat() {
       let path = `/conversations?limit=${PAGE_SIZE}`
       if (before) path += `&before=${before}`
       if (category) path += `&category=${encodeURIComponent(category)}`
-      if (domains && domains.length > 0) path += `&domains=${encodeURIComponent(domains.join(','))}`
+      if (domains && domains.length > 0)
+        path += `&domains=${encodeURIComponent(domains.join(','))}`
       if (archived) path += '&archived=true'
       if (f) path += `&folder=${encodeURIComponent(f)}`
       return path
     },
-    [],
+    []
   )
 
   // load conversations with optional append mode
   const loadConversations = useCallback(
     async (opts?: {
-      query?: string
-      before?: number
-      category?: string | null
-      domains?: string[]
-      archived?: boolean
-      folder?: string | null
       append?: boolean
+      archived?: boolean
+      before?: number
+      category?: null | string
+      domains?: string[]
+      folder?: null | string
+      query?: string
     }) => {
       const { append } = opts ?? {}
       try {
@@ -138,7 +150,7 @@ export function Chat() {
         }
       }
     },
-    [setConversations, setHasMore, setInitialLoading, buildPath],
+    [setConversations, setHasMore, setInitialLoading, buildPath]
   )
 
   // load more (infinite scroll callback) with reentry guard
@@ -153,13 +165,13 @@ export function Chat() {
     setLoadingMore(true)
     try {
       await loadConversations({
-        query: searchRef.current || undefined,
+        append: true,
+        archived: archivedRef.current || undefined,
         before: last.last_date,
         category: categoryRef.current,
         domains: domainsRef.current.length > 0 ? domainsRef.current : undefined,
-        archived: archivedRef.current || undefined,
         folder: folderRef.current,
-        append: true,
+        query: searchRef.current || undefined,
       })
     } finally {
       loadingRef.current = false
@@ -173,11 +185,11 @@ export function Chat() {
     debounceRef.current = setTimeout(() => {
       setHasMore(true)
       loadConversations({
-        query: searchQuery || undefined,
+        archived: showArchived || undefined,
         category: categoryFilter,
         domains: selectedDomains.length > 0 ? selectedDomains : undefined,
-        archived: showArchived || undefined,
         folder,
+        query: searchQuery || undefined,
       })
     }, 300)
     return () => {
@@ -206,7 +218,7 @@ export function Chat() {
 
   return (
     <PanelRow>
-      <Panel width={480} className={showThread ? 'hidden md:flex' : ''}>
+      <Panel className={showThread ? 'hidden md:flex' : ''} width={480}>
         <ConversationList
           onLoadMore={loadMore}
           onSelectConversation={() => setMobileView('thread')}
@@ -223,7 +235,10 @@ export function Chat() {
         )}
       </PanelRow>
 
-      <KeyboardShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <KeyboardShortcutsDialog
+        onClose={() => setShortcutsOpen(false)}
+        open={shortcutsOpen}
+      />
     </PanelRow>
   )
 }

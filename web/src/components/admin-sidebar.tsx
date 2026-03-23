@@ -14,54 +14,54 @@ import { NavLink } from 'react-router'
 
 const navItems = [
   {
-    to: '/admin/overview',
-    label: 'Overview',
     icon: <LayoutGrid className="h-4 w-4" />,
+    label: 'Overview',
+    to: '/admin/overview',
   },
   {
-    to: '/admin/domains',
-    label: 'Domains',
     icon: <Globe className="h-4 w-4" />,
+    label: 'Domains',
+    to: '/admin/domains',
   },
   {
-    to: '/admin/accounts',
-    label: 'Accounts',
     icon: <Users className="h-4 w-4" />,
+    label: 'Accounts',
+    to: '/admin/accounts',
   },
   {
-    to: '/admin/aliases',
-    label: 'Aliases',
     icon: <ArrowLeftRight className="h-4 w-4" />,
+    label: 'Aliases',
+    to: '/admin/aliases',
   },
   {
-    to: '/admin/groups',
-    label: 'Groups',
     icon: <Shield className="h-4 w-4" />,
+    label: 'Groups',
+    to: '/admin/groups',
   },
   {
-    to: '/admin/email-groups',
-    label: 'Email Groups',
     icon: <Mail className="h-4 w-4" />,
+    label: 'Email Groups',
+    to: '/admin/email-groups',
   },
   {
-    to: '/admin/apps',
-    label: 'Apps',
     icon: <Blocks className="h-4 w-4" />,
+    label: 'Apps',
+    to: '/admin/apps',
   },
   {
-    to: '/admin/queues',
-    label: 'Queues',
     icon: <ListOrdered className="h-4 w-4" />,
+    label: 'Queues',
+    to: '/admin/queues',
   },
   {
-    to: '/admin/mail-audit',
-    label: 'Mail Audit',
     icon: <Eye className="h-4 w-4" />,
+    label: 'Mail Audit',
+    to: '/admin/mail-audit',
   },
   {
-    to: '/admin/audit-log',
-    label: 'Audit Log',
     icon: <ScrollText className="h-4 w-4" />,
+    label: 'Audit Log',
+    to: '/admin/audit-log',
   },
 ]
 
@@ -69,11 +69,9 @@ export function AdminSidebar() {
   return (
     <>
       {/* mobile: horizontal tab bar */}
-      <nav className="flex select-none items-center gap-1.5 overflow-x-auto border-b border-[var(--color-border-default)] px-3 py-2 md:hidden">
+      <nav className="flex items-center gap-1.5 overflow-x-auto border-b border-[var(--color-border-default)] px-3 py-2 select-none md:hidden">
         {navItems.map((item) => (
           <NavLink
-            key={item.to}
-            to={item.to}
             className={({ isActive }) =>
               `flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors ${
                 isActive
@@ -81,25 +79,27 @@ export function AdminSidebar() {
                   : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
               }`
             }
+            key={item.to}
+            to={item.to}
           >
-            <span className="text-[var(--color-text-tertiary)]">{item.icon}</span>
+            <span className="text-[var(--color-text-tertiary)]">
+              {item.icon}
+            </span>
             <span>{item.label}</span>
           </NavLink>
         ))}
       </nav>
 
       {/* desktop: vertical sidebar */}
-      <aside className="hidden h-full w-48 shrink-0 select-none flex-col border-r border-[var(--color-border-default)] md:flex">
+      <aside className="hidden h-full w-48 shrink-0 flex-col border-r border-[var(--color-border-default)] select-none md:flex">
         <div className="px-3 py-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">
+          <p className="text-xs font-medium tracking-wider text-[var(--color-text-tertiary)] uppercase">
             Server
           </p>
         </div>
         <nav className="flex-1 px-3">
           {navItems.map((item) => (
             <NavLink
-              key={item.to}
-              to={item.to}
               className={({ isActive }) =>
                 `flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
                   isActive
@@ -107,8 +107,12 @@ export function AdminSidebar() {
                     : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
                 }`
               }
+              key={item.to}
+              to={item.to}
             >
-              <span className="text-[var(--color-text-tertiary)]">{item.icon}</span>
+              <span className="text-[var(--color-text-tertiary)]">
+                {item.icon}
+              </span>
               <span>{item.label}</span>
             </NavLink>
           ))}
