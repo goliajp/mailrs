@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && prettier --write src/ && vite build",
+    "build": "tsc --noEmit && eslint src/ && prettier --check src/ && vite build",
     "test": "vitest run",
     "lint": "eslint src/",
     "check": "tsc --noEmit && eslint src/ && prettier --check src/",
