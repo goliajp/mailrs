@@ -28,7 +28,7 @@ describe('Button', () => {
     render(
       <Button disabled onClick={onClick}>
         Disabled
-      </Button>,
+      </Button>
     )
     const btn = screen.getByRole('button')
     expect(btn.hasAttribute('disabled')).toBe(true)

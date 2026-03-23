@@ -4,48 +4,55 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
-import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
+import {
+  StructuredCompose,
+  type StructuredComposeHandle,
+} from '@/components/structured-compose'
 import { deleteJson, postJson } from '@/lib/api'
-import { escapeHtml, buildForwardHeaderHtml } from '@/lib/html-utils'
+import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { authAtom } from '@/store/auth'
 import { threadMessagesAtom } from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
-export type ReplyMode = 'reply' | 'reply-all' | 'forward'
+export type ReplyMode = 'forward' | 'reply' | 'reply-all'
 
-type SendResult = { success: boolean; message?: string; message_id?: string }
-type ReplySuggestResult = { success: boolean; suggestions: string[]; message?: string }
-type PolishResult = { success: boolean; polished?: string; message?: string }
+type PolishResult = { message?: string; polished?: string; success: boolean }
+type ReplySuggestResult = {
+  message?: string
+  success: boolean
+  suggestions: string[]
+}
+type SendResult = { message?: string; message_id?: string; success: boolean }
 
 const MODE_LABELS: Record<ReplyMode, string> = {
+  forward: 'Forward',
   reply: 'Reply',
   'reply-all': 'Reply All',
-  forward: 'Forward',
 }
 
 export function ReplyBox({
   lastMessageId,
-  replyRecipients,
-  replyAllRecipients,
-  subject,
-  originalFrom,
-  originalDate,
-  originalBody,
-  onSent,
   mode,
   onModeChange,
+  onSent,
+  originalBody,
+  originalDate,
+  originalFrom,
+  replyAllRecipients,
+  replyRecipients,
+  subject,
 }: {
-  threadId: string
   lastMessageId: string
-  replyRecipients: string
-  replyAllRecipients: string
-  subject: string
-  originalFrom: string
-  originalDate: string
-  originalBody: string
-  onSent: () => void
   mode: ReplyMode
   onModeChange: (mode: ReplyMode) => void
+  onSent: () => void
+  originalBody: string
+  originalDate: string
+  originalFrom: string
+  replyAllRecipients: string
+  replyRecipients: string
+  subject: string
+  threadId: string
 }) {
   const auth = useAtomValue(authAtom)
   const signature = useAtomValue(signatureAtom)
@@ -118,7 +125,8 @@ export function ReplyBox({
   }
 
   const resolveSubject = (): string => {
-    if (mode === 'forward') return subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`
+    if (mode === 'forward')
+      return subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`
     return subject.startsWith('Re:') ? subject : `Re: ${subject}`
   }
 
@@ -161,9 +169,9 @@ export function ReplyBox({
         for (const f of attachmentFiles) formData.append('attachments', f)
 
         const res = await fetch('/api/mail/send-multipart', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${auth?.token ?? ''}` },
           body: formData,
+          headers: { Authorization: `Bearer ${auth?.token ?? ''}` },
+          method: 'POST',
         })
         if (!res.ok) {
           toast.error(`Send failed (${res.status})`)
@@ -177,13 +185,13 @@ export function ReplyBox({
         sentMessageId = result.message_id
       } else {
         const payload: Record<string, unknown> = {
-          from: auth?.address ?? '',
-          to,
-          cc: [],
           bcc: [],
-          subject: resolvedSubject,
           body: assembled.fullText,
+          cc: [],
+          from: auth?.address ?? '',
           html_body: assembled.fullHtml,
+          subject: resolvedSubject,
+          to,
         }
         if (inReplyTo) payload['in_reply_to'] = inReplyTo
 
@@ -205,7 +213,9 @@ export function ReplyBox({
                 label: 'Undo',
                 onClick: async () => {
                   try {
-                    await deleteJson(`/mail/pending/${encodeURIComponent(sentMessageId)}`)
+                    await deleteJson(
+                      `/mail/pending/${encodeURIComponent(sentMessageId)}`
+                    )
                     toast.success('Send cancelled')
                   } catch {
                     toast.error('Could not cancel — already delivered')
@@ -220,16 +230,19 @@ export function ReplyBox({
       onSent()
     } catch (err) {
       saveDraftLocal()
-      toast.error(err instanceof Error ? err.message : 'Network error — draft saved', {
-        action: { label: 'Retry', onClick: () => send() },
-        duration: 10000,
-      })
+      toast.error(
+        err instanceof Error ? err.message : 'Network error — draft saved',
+        {
+          action: { label: 'Retry', onClick: () => send() },
+          duration: 10000,
+        }
+      )
     } finally {
       setSending(false)
     }
   }
 
-  const prePolishRef = useRef<string | null>(null)
+  const prePolishRef = useRef<null | string>(null)
 
   const [polishTone, setPolishTone] = useState('professional')
 
@@ -251,7 +264,9 @@ export function ReplyBox({
           .filter(Boolean)
           .map((p) => `<p>${escapeHtml(p)}</p>`)
           .join('')
-        editor.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
+        editor.commands.setContent(
+          paragraphs || `<p>${escapeHtml(result.polished)}</p>`
+        )
         toast.success('Text polished', {
           action: {
             label: 'Undo',
@@ -284,15 +299,20 @@ export function ReplyBox({
       const threadContext =
         priorMessages.length > 0
           ? priorMessages
-              .map((m) => `From: ${m.sender}\n${m.clean_text || m.text_body || ''}`)
+              .map(
+                (m) => `From: ${m.sender}\n${m.clean_text || m.text_body || ''}`
+              )
               .join('\n---\n')
           : undefined
-      const result = await postJson<ReplySuggestResult>('/mail/ai/reply-suggest', {
-        original_sender: originalFrom,
-        original_subject: subject,
-        original_body: originalBody,
-        thread_context: threadContext,
-      })
+      const result = await postJson<ReplySuggestResult>(
+        '/mail/ai/reply-suggest',
+        {
+          original_body: originalBody,
+          original_sender: originalFrom,
+          original_subject: subject,
+          thread_context: threadContext,
+        }
+      )
       if (result.success && result.suggestions.length > 0) {
         setSuggestions(result.suggestions)
       } else {
@@ -311,7 +331,9 @@ export function ReplyBox({
       .filter(Boolean)
       .map((p) => `<p>${escapeHtml(p)}</p>`)
       .join('')
-    composeRef.current?.setComposeContent(paragraphs || `<p>${escapeHtml(suggestion)}</p>`)
+    composeRef.current?.setComposeContent(
+      paragraphs || `<p>${escapeHtml(suggestion)}</p>`
+    )
     setSuggestions([])
     toast.success('Suggestion applied')
   }
@@ -330,22 +352,23 @@ export function ReplyBox({
         ? `On ${originalDate}, ${originalFrom} wrote:\n\n`
         : ''
 
-  const placeholder = mode === 'forward' ? 'Add a message...' : 'Type a reply...'
+  const placeholder =
+    mode === 'forward' ? 'Add a message...' : 'Type a reply...'
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* mode toggle + recipients */}
-      <div className="flex shrink-0 select-none items-center gap-1 border-b border-[var(--color-border-default)] px-4 py-2">
+      <div className="flex shrink-0 items-center gap-1 border-b border-[var(--color-border-default)] px-4 py-2 select-none">
         {(Object.keys(MODE_LABELS) as ReplyMode[]).map((m) => (
           <button
-            key={m}
-            onClick={() => handleModeChange(m)}
             aria-pressed={mode === m}
             className={`cursor-pointer rounded px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none ${
               mode === m
                 ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
                 : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
             }`}
+            key={m}
+            onClick={() => handleModeChange(m)}
           >
             {MODE_LABELS[m]}
           </button>
@@ -364,15 +387,21 @@ export function ReplyBox({
       {mode === 'forward' && (
         <div className="shrink-0 border-b border-[var(--color-border-default)] px-4 py-2">
           <div className="flex items-center gap-2">
-            <label className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">To</label>
+            <label className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">
+              To
+            </label>
             <ContactAutocomplete
-              value={forwardTo}
+              className="w-full rounded-md border border-[var(--color-border-default)] bg-transparent px-2 py-1 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-brand-primary)]"
               onChange={setForwardTo}
               placeholder="recipient@example.com"
-              className="w-full rounded-md border border-[var(--color-border-default)] bg-transparent px-2 py-1 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-brand-primary)]"
+              value={forwardTo}
             />
           </div>
-          {error && <p className="mt-1 text-xs text-[var(--color-status-danger)]">{error}</p>}
+          {error && (
+            <p className="mt-1 text-xs text-[var(--color-status-danger)]">
+              {error}
+            </p>
+          )}
         </div>
       )}
 
@@ -381,17 +410,17 @@ export function ReplyBox({
         <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-[var(--color-border-default)] px-4 py-2">
           {suggestions.map((s, i) => (
             <button
+              className="max-w-xs truncate rounded-full border border-[var(--color-border-default)] bg-[var(--color-brand-subtle)] px-2.5 py-0.5 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-hover)]"
               key={i}
               onClick={() => applySuggestion(s)}
-              className="max-w-xs truncate rounded-full border border-[var(--color-border-default)] bg-[var(--color-brand-subtle)] px-2.5 py-0.5 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-hover)]"
               title={s}
             >
               {s}
             </button>
           ))}
           <button
-            onClick={() => setSuggestions([])}
             className="rounded-full px-2 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
+            onClick={() => setSuggestions([])}
           >
             Dismiss
           </button>
@@ -401,45 +430,53 @@ export function ReplyBox({
       {/* block-based composer */}
       <div className="min-h-0 flex-1 overflow-hidden">
         <StructuredCompose
-          ref={composeRef}
+          disabled={sending}
+          mode={mode === 'forward' ? 'forward' : 'reply'}
           onSubmit={send}
           placeholder={placeholder}
-          disabled={sending}
-          signature={signature}
-          signatureEnabled={signatureEnabled}
-          quotedHtml={quotedHtml}
           quotedHeader={quotedHeader}
           quotedHeaderHtml={quotedHeaderHtml}
-          mode={mode === 'forward' ? 'forward' : 'reply'}
+          quotedHtml={quotedHtml}
+          ref={composeRef}
+          signature={signature}
+          signatureEnabled={signatureEnabled}
         />
       </div>
 
       {/* action bar */}
-      <div className="flex shrink-0 select-none flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2 select-none">
         {mode !== 'forward' && (
           <button
-            onClick={suggest}
-            disabled={suggesting || sending}
             className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
+            disabled={suggesting || sending}
+            onClick={suggest}
             title="AI reply suggestions"
           >
-            {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Suggest'}
+            {suggesting ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              'Suggest'
+            )}
           </button>
         )}
         <div className="relative flex shrink-0">
           <button
-            onClick={() => polish()}
-            disabled={polishing || sending}
             className="flex h-8 items-center rounded-l-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
+            disabled={polishing || sending}
+            onClick={() => polish()}
             title={`Polish (${polishTone})`}
           >
-            {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
+            {polishing ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              'Polish'
+            )}
           </button>
           <select
-            value={polishTone}
-            onChange={(e) => setPolishTone(e.target.value)}
-            disabled={polishing || sending}
             className="h-8 appearance-none rounded-r-md border-l border-[var(--color-border-default)] bg-transparent px-1 text-[10px] text-[var(--color-brand-primary)] outline-none hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={polishing || sending}
+            onChange={(e) => setPolishTone(e.target.value)}
+            value={polishTone}
           >
             <option value="professional">Pro</option>
             <option value="casual">Casual</option>
@@ -451,9 +488,9 @@ export function ReplyBox({
         <div className="flex-1" />
 
         <button
-          onClick={send}
-          disabled={sending}
           className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-all hover:bg-[var(--color-brand-primary-hover)] hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={sending}
+          onClick={send}
         >
           <Send className="h-3.5 w-3.5" />
           {sending ? 'Sending…' : 'Send'}

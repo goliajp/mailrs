@@ -5,18 +5,112 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
 import { ErrorBoundary } from '@/components/error-boundary'
-import { Shell, Panel } from '@/layouts/shell'
+import { Panel, Shell } from '@/layouts/shell'
 import { Chat } from '@/pages/chat'
 import { Dashboard } from '@/pages/dashboard'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 
-const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
-const Playground = lazy(() => import('@/pages/playground').then((m) => ({ default: m.Playground })))
-const Protocol = lazy(() => import('@/pages/protocol').then((m) => ({ default: m.Protocol })))
-const Settings = lazy(() => import('@/pages/settings').then((m) => ({ default: m.Settings })))
+const Admin = lazy(() =>
+  import('@/pages/admin').then((m) => ({ default: m.Admin }))
+)
+const Playground = lazy(() =>
+  import('@/pages/playground').then((m) => ({ default: m.Playground }))
+)
+const Protocol = lazy(() =>
+  import('@/pages/protocol').then((m) => ({ default: m.Protocol }))
+)
+const Settings = lazy(() =>
+  import('@/pages/settings').then((m) => ({ default: m.Settings }))
+)
 import { authAtom } from '@/store/auth'
 import { unreadCountAtom } from '@/store/chat'
+
+export function App() {
+  useDocumentTitle()
+
+  return (
+    <ErrorBoundary>
+      <CommandPalette />
+      <Routes>
+        <Route element={<Login />} path="/login" />
+        <Route element={<ResetPassword />} path="/reset-password" />
+        <Route
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <Playground />
+            </Suspense>
+          }
+          path="/playground"
+        />
+        <Route
+          element={
+            <AuthShell>
+              <PagePanel>
+                <Suspense fallback={<LoadingFallback />}>
+                  <Protocol />
+                </Suspense>
+              </PagePanel>
+            </AuthShell>
+          }
+          path="/protocol"
+        />
+        <Route
+          element={
+            <AuthShell>
+              <PagePanel>
+                <Suspense fallback={<LoadingFallback />}>
+                  <Admin />
+                </Suspense>
+              </PagePanel>
+            </AuthShell>
+          }
+          path="/admin/*"
+        />
+        <Route
+          element={
+            <AuthShell>
+              <PagePanel>
+                <Suspense fallback={<LoadingFallback />}>
+                  <Settings />
+                </Suspense>
+              </PagePanel>
+            </AuthShell>
+          }
+          path="/settings"
+        />
+        <Route
+          element={
+            <AuthShell>
+              <Chat />
+            </AuthShell>
+          }
+          path="/mail/*"
+        />
+        <Route
+          element={
+            <AuthShell>
+              <PagePanel>
+                <Dashboard />
+              </PagePanel>
+            </AuthShell>
+          }
+          path="/*"
+        />
+      </Routes>
+    </ErrorBoundary>
+  )
+}
+
+function AuthShell({ children }: { children: React.ReactNode }) {
+  return (
+    <RequireAuth>
+      <Shell sidebar={<AppSidebar />} statusBar={<StatusBar />}>
+        {children}
+      </Shell>
+    </RequireAuth>
+  )
+}
 
 function LoadingFallback() {
   return (
@@ -26,21 +120,25 @@ function LoadingFallback() {
   )
 }
 
+function PagePanel({ children }: { children: React.ReactNode }) {
+  return <Panel className="p-1">{children}</Panel>
+}
+
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const auth = useAtomValue(authAtom)
-  if (!auth) return <Navigate to="/login" replace />
+  if (!auth) return <Navigate replace to="/login" />
   return children
 }
 
 function StatusBar() {
   const auth = useAtomValue(authAtom)
   const location = useLocation()
-  const [health, setHealth] = useState<{
-    status: string
-    version: string
+  const [health, setHealth] = useState<null | {
     pg: boolean
+    status: string
     valkey: boolean
-  } | null>(null)
+    version: string
+  }>(null)
 
   const fetchHealth = useCallback(async () => {
     try {
@@ -52,7 +150,6 @@ function StatusBar() {
   }, [])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch
     void fetchHealth()
     const id = setInterval(fetchHealth, 30000)
     return () => clearInterval(id)
@@ -86,25 +183,13 @@ function StatusBar() {
       </div>
       <div className="flex items-center gap-2">
         {auth && <span>{auth.address}</span>}
-        {auth && health && <span className="text-[var(--color-border-strong)]">·</span>}
+        {auth && health && (
+          <span className="text-[var(--color-border-strong)]">·</span>
+        )}
         {health && <span>v{health.version}</span>}
       </div>
     </div>
   )
-}
-
-function AuthShell({ children }: { children: React.ReactNode }) {
-  return (
-    <RequireAuth>
-      <Shell sidebar={<AppSidebar />} statusBar={<StatusBar />}>
-        {children}
-      </Shell>
-    </RequireAuth>
-  )
-}
-
-function PagePanel({ children }: { children: React.ReactNode }) {
-  return <Panel className="p-1">{children}</Panel>
 }
 
 function useDocumentTitle() {
@@ -112,80 +197,4 @@ function useDocumentTitle() {
   useEffect(() => {
     document.title = unreadCount > 0 ? `(${unreadCount}) Mailrs` : 'Mailrs'
   }, [unreadCount])
-}
-
-export function App() {
-  useDocumentTitle()
-
-  return (
-    <ErrorBoundary>
-      <CommandPalette />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route
-          path="/playground"
-          element={
-            <Suspense fallback={<LoadingFallback />}>
-              <Playground />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/protocol"
-          element={
-            <AuthShell>
-              <PagePanel>
-                <Suspense fallback={<LoadingFallback />}>
-                  <Protocol />
-                </Suspense>
-              </PagePanel>
-            </AuthShell>
-          }
-        />
-        <Route
-          path="/admin/*"
-          element={
-            <AuthShell>
-              <PagePanel>
-                <Suspense fallback={<LoadingFallback />}>
-                  <Admin />
-                </Suspense>
-              </PagePanel>
-            </AuthShell>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <AuthShell>
-              <PagePanel>
-                <Suspense fallback={<LoadingFallback />}>
-                  <Settings />
-                </Suspense>
-              </PagePanel>
-            </AuthShell>
-          }
-        />
-        <Route
-          path="/mail/*"
-          element={
-            <AuthShell>
-              <Chat />
-            </AuthShell>
-          }
-        />
-        <Route
-          path="/*"
-          element={
-            <AuthShell>
-              <PagePanel>
-                <Dashboard />
-              </PagePanel>
-            </AuthShell>
-          }
-        />
-      </Routes>
-    </ErrorBoundary>
-  )
 }

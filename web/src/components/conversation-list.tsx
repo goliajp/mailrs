@@ -1,3 +1,6 @@
+import type { ContextMenuItem } from '@/components/context-menu'
+import type { CategoryCount, ConversationSummary } from '@/lib/types'
+
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   Check,
@@ -11,73 +14,86 @@ import {
   Star,
   X,
 } from 'lucide-react'
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { toast } from 'sonner'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ContextMenu, useContextMenu } from '@/components/context-menu'
-import type { ContextMenuItem } from '@/components/context-menu'
+import { SenderAvatar } from '@/components/sender-avatar'
 import { fetchJson, postJson, snoozeConversation } from '@/lib/api'
 import { extractEmail, extractName } from '@/lib/avatar'
-import { SenderAvatar } from '@/components/sender-avatar'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
-import type { CategoryCount, ConversationSummary } from '@/lib/types'
+import { authAtom } from '@/store/auth'
 import {
   batchModeAtom,
   categoryFilterAtom,
   composingNewAtom,
   conversationsAtom,
+  folderAtom,
   hasMoreAtom,
+  type ImportanceSection,
   importanceSectionAtom,
   initialLoadingAtom,
   loadingMoreAtom,
+  quickFilterAtom,
   searchQueryAtom,
   selectedDomainsAtom,
   selectedThreadIdAtom,
   selectedThreadIdsAtom,
-  folderAtom,
   showArchivedAtom,
+  type SortOrder,
   sortOrderAtom,
   visibleConversationIdsAtom,
-  quickFilterAtom,
-  type ImportanceSection,
-  type SortOrder,
 } from '@/store/chat'
-import { authAtom } from '@/store/auth'
-
-type BatchAction = 'read' | 'unread' | 'delete' | 'star' | 'unstar' | 'archive' | 'unarchive'
-type SingleAction = BatchAction | 'pin' | 'unpin' | 'snooze'
-
-interface BatchResult {
-  success: boolean
-  processed: number
-  failed: number
-  message?: string
-}
 
 interface ApiResult {
-  success: boolean
   message?: string
+  success: boolean
+}
+type BatchAction =
+  | 'archive'
+  | 'delete'
+  | 'read'
+  | 'star'
+  | 'unarchive'
+  | 'unread'
+  | 'unstar'
+
+interface BatchResult {
+  failed: number
+  message?: string
+  processed: number
+  success: boolean
 }
 
+type SingleAction = 'pin' | 'snooze' | 'unpin' | BatchAction
+
 const ConversationItem = memo(function ConversationItem({
-  convo,
-  selected,
   batchMode,
   checked,
+  convo,
+  myEmail,
+  onContextAction,
   onSelect,
   onToggleCheck,
-  onContextAction,
-  myEmail,
+  selected,
 }: {
-  convo: ConversationSummary
-  selected: boolean
   batchMode: boolean
   checked: boolean
+  convo: ConversationSummary
+  myEmail: string
+  onContextAction: (threadId: string, action: SingleAction) => void
   onSelect: (threadId: string) => void
   onToggleCheck: (threadId: string) => void
-  onContextAction: (threadId: string, action: SingleAction) => void
-  myEmail: string
+  selected: boolean
 }) {
   const firstParticipant = convo.participants[0] ?? ''
   const firstEmail = extractEmail(firstParticipant)
@@ -94,27 +110,31 @@ const ConversationItem = memo(function ConversationItem({
   const contextItems: ContextMenuItem[] = [
     {
       label: hasUnread ? 'Mark as read' : 'Mark as unread',
-      onClick: () => onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread'),
+      onClick: () =>
+        onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread'),
     },
     {
       label: isFlagged ? 'Unstar' : 'Star',
-      onClick: () => onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star'),
+      onClick: () =>
+        onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star'),
     },
     {
       label: isPinned ? 'Unpin' : 'Pin',
-      onClick: () => onContextAction(convo.thread_id, isPinned ? 'unpin' : 'pin'),
+      onClick: () =>
+        onContextAction(convo.thread_id, isPinned ? 'unpin' : 'pin'),
     },
     {
       label: isArchived ? 'Unarchive' : 'Archive',
-      onClick: () => onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive'),
+      onClick: () =>
+        onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive'),
     },
     {
       label: 'Snooze until tomorrow',
       onClick: () => onContextAction(convo.thread_id, 'snooze'),
     },
     {
-      label: 'Delete',
       danger: true,
+      label: 'Delete',
       onClick: () => onContextAction(convo.thread_id, 'delete'),
     },
   ]
@@ -129,16 +149,14 @@ const ConversationItem = memo(function ConversationItem({
 
   return (
     <div
-      role="listitem"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      role="listitem"
     >
       <button
-        onClick={handleClick}
-        onContextMenu={ctx.open}
-        aria-selected={selected && !batchMode}
         aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
-        className={`relative flex w-full items-start gap-3 border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] ${
+        aria-selected={selected && !batchMode}
+        className={`relative flex w-full items-start gap-3 border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] focus-visible:outline-none ${
           selected && !batchMode
             ? 'border-l-[var(--color-brand-primary)]'
             : hasUnread
@@ -151,6 +169,8 @@ const ConversationItem = memo(function ConversationItem({
               ? 'bg-[var(--color-brand-subtle)]'
               : 'hover:bg-[var(--color-hover)]'
         }`}
+        onClick={handleClick}
+        onContextMenu={ctx.open}
       >
         {batchMode && (
           <div className="mt-0.5 flex shrink-0 items-center">
@@ -181,32 +201,43 @@ const ConversationItem = memo(function ConversationItem({
             </span>
             <div className="flex shrink-0 items-center gap-1.5">
               {convo.message_count > 1 && (
-                <span className="rounded bg-[var(--color-bg-sunken)] px-1 py-px text-[10px] tabular-nums text-[var(--color-text-tertiary)]">
+                <span className="rounded bg-[var(--color-bg-sunken)] px-1 py-px text-[10px] text-[var(--color-text-tertiary)] tabular-nums">
                   {convo.message_count}
                 </span>
               )}
-              {isPinned && <Pin className="h-3 w-3 text-[var(--color-brand-primary)]" />}
+              {isPinned && (
+                <Pin className="h-3 w-3 text-[var(--color-brand-primary)]" />
+              )}
               {hovered && !batchMode ? (
                 <span className="flex items-center gap-0.5">
                   <button
+                    className="rounded p-0.5 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
                     onClick={(e) => {
                       e.stopPropagation()
-                      onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive')
+                      onContextAction(
+                        convo.thread_id,
+                        isArchived ? 'unarchive' : 'archive'
+                      )
                     }}
-                    className="rounded p-0.5 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
                     title={isArchived ? 'Unarchive' : 'Archive'}
                   >
                     <Mail className="h-3.5 w-3.5" />
                   </button>
                   <button
+                    className={`rounded p-0.5 hover:bg-[var(--color-hover)] ${isFlagged ? 'text-[var(--color-status-warning)]' : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'}`}
                     onClick={(e) => {
                       e.stopPropagation()
-                      onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star')
+                      onContextAction(
+                        convo.thread_id,
+                        isFlagged ? 'unstar' : 'star'
+                      )
                     }}
-                    className={`rounded p-0.5 hover:bg-[var(--color-hover)] ${isFlagged ? 'text-[var(--color-status-warning)]' : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'}`}
                     title={isFlagged ? 'Unstar' : 'Star'}
                   >
-                    <Star className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
+                    <Star
+                      className="h-3.5 w-3.5"
+                      fill={isFlagged ? 'currentColor' : 'none'}
+                    />
                   </button>
                 </span>
               ) : (
@@ -242,23 +273,29 @@ const ConversationItem = memo(function ConversationItem({
             )}
           </div>
           {convo.snippet && (
-            <p className="truncate text-xs text-[var(--color-text-tertiary)]">{convo.snippet}</p>
+            <p className="truncate text-xs text-[var(--color-text-tertiary)]">
+              {convo.snippet}
+            </p>
           )}
         </div>
       </button>
-      <ContextMenu position={ctx.position} items={contextItems} onClose={ctx.close} />
+      <ContextMenu
+        items={contextItems}
+        onClose={ctx.close}
+        position={ctx.position}
+      />
     </div>
   )
 })
 
 // unified tab bar
-const VIEW_TABS: { value: string; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'unread', label: 'Unread' },
-  { value: 'starred', label: 'Starred' },
-  { value: 'sent', label: 'Sent' },
-  { value: 'action', label: 'Action' },
-  { value: 'spam', label: 'Spam' },
+const VIEW_TABS: { label: string; value: string }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Unread', value: 'unread' },
+  { label: 'Starred', value: 'starred' },
+  { label: 'Sent', value: 'sent' },
+  { label: 'Action', value: 'action' },
+  { label: 'Spam', value: 'spam' },
 ]
 
 function FilterBar() {
@@ -283,7 +320,7 @@ function FilterBar() {
         : ''
     fetchJson<CategoryCount[]>(`/conversations/categories${domainsParam}`).then(
       (data) => setCategories(data),
-      () => {},
+      () => {}
     )
   }, [selectedDomainsVal])
 
@@ -354,7 +391,7 @@ function FilterBar() {
         : ''
     fetchJson<{ count: number }>(`/conversations/action-count${doms}`).then(
       (d) => setActionCount(d.count),
-      () => {},
+      () => {}
     )
   }, [selectedDomainsVal, conversations])
 
@@ -362,7 +399,9 @@ function FilterBar() {
   const hasAdvancedFilters =
     sortOrder !== 'newest' ||
     showArchived ||
-    (activeCategory !== null && activeCategory !== 'spam' && activeCategory !== 'scam') ||
+    (activeCategory !== null &&
+      activeCategory !== 'spam' &&
+      activeCategory !== 'scam') ||
     selectedDomains.length > 0 ||
     section === 'important' ||
     section === 'other'
@@ -391,9 +430,9 @@ function FilterBar() {
           : ''
         return (
           <button
+            className={`${base} ${color} ${ring}`}
             key={t.value}
             onClick={() => handleTab(t.value)}
-            className={`${base} ${color} ${ring}`}
           >
             {t.label}
             {t.value === 'action' && actionCount > 0 && (
@@ -406,24 +445,24 @@ function FilterBar() {
       {/* filter dropdown toggle */}
       <div className="relative ml-auto" ref={panelRef}>
         <button
-          onClick={() => setFiltersOpen((prev) => !prev)}
+          aria-label="Toggle filters"
           className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150 ${
             filtersOpen || hasAdvancedFilters
               ? 'text-[var(--color-brand-primary)]'
               : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
           }`}
+          onClick={() => setFiltersOpen((prev) => !prev)}
           title="Filters"
-          aria-label="Toggle filters"
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
           {hasAdvancedFilters && (
-            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[var(--color-brand-primary)]" />
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-[var(--color-brand-primary)]" />
           )}
         </button>
 
         {/* filter dropdown panel */}
         {filtersOpen && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3 text-xs shadow-lg">
+          <div className="absolute top-full right-0 z-50 mt-1 w-56 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-3 text-xs shadow-lg">
             {/* sort */}
             <div className="mb-3">
               <label className="mb-1 block font-medium text-[var(--color-text-tertiary)]">
@@ -432,13 +471,13 @@ function FilterBar() {
               <div className="flex gap-1">
                 {(['newest', 'oldest', 'unread'] as SortOrder[]).map((s) => (
                   <button
-                    key={s}
-                    onClick={() => setSortOrder(s)}
                     className={`rounded-md px-2 py-0.5 capitalize transition-colors ${
                       sortOrder === s
                         ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
                         : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
                     }`}
+                    key={s}
+                    onClick={() => setSortOrder(s)}
                   >
                     {s === 'unread' ? 'Unread first' : s}
                   </button>
@@ -453,22 +492,22 @@ function FilterBar() {
               </label>
               <div className="flex gap-1">
                 <button
-                  onClick={() => setShowArchived(false)}
                   className={`rounded-md px-2 py-0.5 transition-colors ${
                     !showArchived
                       ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
                       : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
                   }`}
+                  onClick={() => setShowArchived(false)}
                 >
                   Active
                 </button>
                 <button
-                  onClick={() => setShowArchived(true)}
                   className={`rounded-md px-2 py-0.5 transition-colors ${
                     showArchived
                       ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
                       : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
                   }`}
+                  onClick={() => setShowArchived(true)}
                 >
                   Archived
                 </button>
@@ -481,19 +520,25 @@ function FilterBar() {
                 Priority
               </label>
               <div className="flex flex-wrap gap-1">
-                {([null, 'important', 'other'] as ImportanceSection[]).map((s) => (
-                  <button
-                    key={s ?? 'all'}
-                    onClick={() => setSection(section === s ? null : s)}
-                    className={`rounded-md px-2 py-0.5 transition-colors ${
-                      section === s
-                        ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
-                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
-                    }`}
-                  >
-                    {s === null ? 'All' : s === 'important' ? 'Important' : 'Other'}
-                  </button>
-                ))}
+                {([null, 'important', 'other'] as ImportanceSection[]).map(
+                  (s) => (
+                    <button
+                      className={`rounded-md px-2 py-0.5 transition-colors ${
+                        section === s
+                          ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
+                          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                      }`}
+                      key={s ?? 'all'}
+                      onClick={() => setSection(section === s ? null : s)}
+                    >
+                      {s === null
+                        ? 'All'
+                        : s === 'important'
+                          ? 'Important'
+                          : 'Other'}
+                    </button>
+                  )
+                )}
               </div>
             </div>
 
@@ -505,26 +550,28 @@ function FilterBar() {
                 </label>
                 <div className="flex flex-wrap gap-1">
                   <button
-                    onClick={() => setActiveCategory(null)}
                     className={`rounded-md px-2 py-0.5 transition-colors ${
                       activeCategory === null
                         ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
                         : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
                     }`}
+                    onClick={() => setActiveCategory(null)}
                   >
                     All
                   </button>
                   {categories.map((cat) => (
                     <button
-                      key={cat.category}
-                      onClick={() =>
-                        setActiveCategory(activeCategory === cat.category ? null : cat.category)
-                      }
                       className={`rounded-md px-2 py-0.5 capitalize transition-colors ${
                         activeCategory === cat.category
                           ? 'bg-[var(--color-bg-inverted)] text-[var(--color-text-on-inverted)]'
                           : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
                       }`}
+                      key={cat.category}
+                      onClick={() =>
+                        setActiveCategory(
+                          activeCategory === cat.category ? null : cat.category
+                        )
+                      }
                     >
                       {cat.category}
                     </button>
@@ -536,6 +583,7 @@ function FilterBar() {
             {/* reset all filters */}
             {hasAdvancedFilters && (
               <button
+                className="mt-3 w-full rounded-md border border-[var(--color-border-default)] py-1 text-center text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
                 onClick={() => {
                   setSortOrder('newest')
                   setShowArchived(false)
@@ -544,7 +592,6 @@ function FilterBar() {
                   setSection(null)
                   setFiltersOpen(false)
                 }}
-                className="mt-3 w-full rounded-md border border-[var(--color-border-default)] py-1 text-center text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
               >
                 Reset filters
               </button>
@@ -557,105 +604,6 @@ function FilterBar() {
 }
 
 const dateLabel = dateGroupLabel
-
-function DateDivider({ label }: { label: string }) {
-  return (
-    <div className="sticky top-0 z-10 flex select-none justify-center py-1.5">
-      <span className="rounded-full bg-[var(--color-bg-sunken)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--color-text-tertiary)]">
-        {label}
-      </span>
-    </div>
-  )
-}
-
-function ConversationSkeleton() {
-  return (
-    <div className="animate-pulse">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="flex items-start gap-3 px-4 py-3">
-          <div className="h-9 w-9 shrink-0 rounded-full bg-[var(--color-border-default)]" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="h-3.5 w-24 rounded bg-[var(--color-border-default)]" />
-              <div className="h-3 w-10 rounded bg-[var(--color-border-default)]" />
-            </div>
-            <div className="h-3 w-40 rounded bg-[var(--color-border-default)]" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// floating action bar at bottom of list during batch mode
-function BatchActionBar({
-  selectedCount,
-  onAction,
-  onCancel,
-  loading,
-}: {
-  selectedCount: number
-  onAction: (action: BatchAction) => void
-  onCancel: () => void
-  loading: boolean
-}) {
-  return (
-    <div className="absolute bottom-0 left-0 right-0 z-40 border-t border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] px-3 py-2 backdrop-blur">
-      <div className="flex items-center gap-2">
-        <span className="shrink-0 text-xs font-medium text-[var(--color-text-secondary)]">
-          {selectedCount} selected
-        </span>
-        <div className="flex flex-1 items-center gap-1.5 overflow-x-auto">
-          <button
-            onClick={() => onAction('read')}
-            disabled={loading}
-            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
-          >
-            Mark read
-          </button>
-          <button
-            onClick={() => onAction('unread')}
-            disabled={loading}
-            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
-          >
-            Mark unread
-          </button>
-          <button
-            onClick={() => onAction('star')}
-            disabled={loading}
-            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
-          >
-            Star
-          </button>
-          <button
-            onClick={() => onAction('archive')}
-            disabled={loading}
-            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
-          >
-            Archive
-          </button>
-          <button
-            onClick={() => onAction('delete')}
-            disabled={loading}
-            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-status-danger)] transition-colors hover:bg-[var(--color-status-danger-subtle)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
-          >
-            Delete
-          </button>
-        </div>
-        <button
-          onClick={onCancel}
-          disabled={loading}
-          className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        {loading && (
-          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--color-border-default)] border-t-[var(--color-text-secondary)]" />
-        )}
-      </div>
-    </div>
-  )
-}
 
 export function ConversationList({
   onLoadMore,
@@ -676,7 +624,9 @@ export function ConversationList({
 
   // batch mode state
   const [batchMode, setBatchMode] = useAtom(batchModeAtom)
-  const [selectedThreadIds, setSelectedThreadIds] = useAtom(selectedThreadIdsAtom)
+  const [selectedThreadIds, setSelectedThreadIds] = useAtom(
+    selectedThreadIdsAtom
+  )
   const [batchLoading, setBatchLoading] = useState(false)
 
   // refs to avoid stale closures in observer callback
@@ -708,7 +658,7 @@ export function ConversationList({
       {
         root: scrollContainerRef.current,
         rootMargin: '300px',
-      },
+      }
     )
     observer.observe(node)
     observerRef.current = observer
@@ -740,7 +690,7 @@ export function ConversationList({
         return next
       })
     },
-    [setSelectedThreadIds],
+    [setSelectedThreadIds]
   )
 
   // execute batch action against API then refresh
@@ -752,10 +702,11 @@ export function ConversationList({
       setBatchLoading(true)
       try {
         const result = await postJson<BatchResult>('/conversations/batch', {
-          thread_ids: ids,
           action,
+          thread_ids: ids,
         })
-        const msg = result.message ?? (result.success ? 'Done' : 'Some operations failed')
+        const msg =
+          result.message ?? (result.success ? 'Done' : 'Some operations failed')
         if (result.success) {
           toast.success(msg)
         } else {
@@ -765,12 +716,14 @@ export function ConversationList({
         // trigger list refresh
         onLoadMoreRef.current()
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Batch operation failed')
+        toast.error(
+          err instanceof Error ? err.message : 'Batch operation failed'
+        )
       } finally {
         setBatchLoading(false)
       }
     },
-    [selectedThreadIds, exitBatchMode],
+    [selectedThreadIds, exitBatchMode]
   )
 
   // single-thread context menu action with optimistic updates
@@ -780,19 +733,24 @@ export function ConversationList({
       const snapshot = conversations
 
       // optimistic update for all actions
-      const optimistic: Record<string, (c: ConversationSummary) => ConversationSummary> = {
-        pin: (c) => ({ ...c, pinned: true }),
-        unpin: (c) => ({ ...c, pinned: false }),
+      const optimistic: Record<
+        string,
+        (c: ConversationSummary) => ConversationSummary
+      > = {
         archive: (c) => ({ ...c, archived: true }),
-        unarchive: (c) => ({ ...c, archived: false }),
-        star: (c) => ({ ...c, flagged: true }),
-        unstar: (c) => ({ ...c, flagged: false }),
+        pin: (c) => ({ ...c, pinned: true }),
         read: (c) => ({ ...c, unread_count: 0 }),
+        star: (c) => ({ ...c, flagged: true }),
+        unarchive: (c) => ({ ...c, archived: false }),
+        unpin: (c) => ({ ...c, pinned: false }),
         unread: (c) => ({ ...c, unread_count: Math.max(1, c.unread_count) }),
+        unstar: (c) => ({ ...c, flagged: false }),
       }
       if (optimistic[action]) {
         setConversations((prev) =>
-          prev.map((c) => (c.thread_id === threadId ? optimistic[action](c) : c)),
+          prev.map((c) =>
+            c.thread_id === threadId ? optimistic[action](c) : c
+          )
         )
       }
 
@@ -802,11 +760,18 @@ export function ConversationList({
           tomorrow.setDate(tomorrow.getDate() + 1)
           tomorrow.setHours(9, 0, 0, 0)
           await snoozeConversation(threadId, tomorrow.toISOString())
-          setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
+          setConversations((prev) =>
+            prev.filter((c) => c.thread_id !== threadId)
+          )
           toast.success('Snoozed until tomorrow 9:00')
         } else if (action === 'delete') {
-          await postJson<BatchResult>('/conversations/batch', { thread_ids: [threadId], action })
-          setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
+          await postJson<BatchResult>('/conversations/batch', {
+            action,
+            thread_ids: [threadId],
+          })
+          setConversations((prev) =>
+            prev.filter((c) => c.thread_id !== threadId)
+          )
           toast.success('Deleted')
         } else if (
           action === 'pin' ||
@@ -814,16 +779,22 @@ export function ConversationList({
           action === 'archive' ||
           action === 'unarchive'
         ) {
-          await postJson<ApiResult>(`/conversations/${encodeURIComponent(threadId)}/${action}`, {})
+          await postJson<ApiResult>(
+            `/conversations/${encodeURIComponent(threadId)}/${action}`,
+            {}
+          )
           const labels: Record<string, string> = {
-            pin: 'Pinned',
-            unpin: 'Unpinned',
             archive: 'Archived',
+            pin: 'Pinned',
             unarchive: 'Unarchived',
+            unpin: 'Unpinned',
           }
           toast.success(labels[action] ?? 'Updated')
         } else {
-          await postJson<BatchResult>('/conversations/batch', { thread_ids: [threadId], action })
+          await postJson<BatchResult>('/conversations/batch', {
+            action,
+            thread_ids: [threadId],
+          })
           toast.success('Updated')
         }
       } catch (err) {
@@ -832,7 +803,7 @@ export function ConversationList({
         toast.error(err instanceof Error ? err.message : 'Action failed')
       }
     },
-    [conversations, setConversations],
+    [conversations, setConversations]
   )
 
   const sortOrder = useAtomValue(sortOrderAtom)
@@ -843,7 +814,9 @@ export function ConversationList({
 
   // apply client-side filtering + sort
   const sortedConversations = useMemo(() => {
-    let visible = showArchived ? conversations : conversations.filter((c) => !c.archived)
+    let visible = showArchived
+      ? conversations
+      : conversations.filter((c) => !c.archived)
 
     // hide sent-only threads from inbox view (show them only in Sent tab)
     if (folder !== 'Sent' && myEmail) {
@@ -866,11 +839,13 @@ export function ConversationList({
       visible = visible.filter((c) => c.requires_action)
     } else if (importanceSection === 'important') {
       visible = visible.filter(
-        (c) => c.importance_level === 'critical' || c.importance_level === 'important',
+        (c) =>
+          c.importance_level === 'critical' ||
+          c.importance_level === 'important'
       )
     } else if (importanceSection === 'other') {
       visible = visible.filter(
-        (c) => c.importance_level === 'low' || c.importance_level === 'noise',
+        (c) => c.importance_level === 'low' || c.importance_level === 'noise'
       )
     }
 
@@ -880,10 +855,20 @@ export function ConversationList({
     if (sortOrder === 'oldest') {
       unpinned.sort((a, b) => a.last_date - b.last_date)
     } else if (sortOrder === 'unread') {
-      unpinned.sort((a, b) => b.unread_count - a.unread_count || b.last_date - a.last_date)
+      unpinned.sort(
+        (a, b) => b.unread_count - a.unread_count || b.last_date - a.last_date
+      )
     }
     return [...pinned, ...unpinned]
-  }, [conversations, sortOrder, showArchived, importanceSection, quickFilter, folder, myEmail])
+  }, [
+    conversations,
+    sortOrder,
+    showArchived,
+    importanceSection,
+    quickFilter,
+    folder,
+    myEmail,
+  ])
 
   // sync visible conversation ids to store for keyboard nav
   const setVisibleIds = useSetAtom(visibleConversationIdsAtom)
@@ -898,33 +883,33 @@ export function ConversationList({
       setComposingNew(false)
       onSelectConversation?.()
     },
-    [setSelectedId, setComposingNew, onSelectConversation],
+    [setSelectedId, setComposingNew, onSelectConversation]
   )
 
   const isSearching = searchQuery.trim().length > 0
   const hasBatchBar = batchMode && selectedThreadIds.size > 0
 
   return (
-    <div className="relative flex h-full select-none flex-col">
+    <div className="relative flex h-full flex-col select-none">
       <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] px-3 py-2">
-        <div role="search" className="relative flex-1">
+        <div className="relative flex-1" role="search">
           <Search
-            className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]"
             aria-hidden="true"
+            className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]"
           />
           <input
-            type="text"
-            value={searchQuery}
+            aria-label="Search conversations"
+            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-2 pr-8 pl-9 text-sm text-[var(--color-text-primary)] transition-colors outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:bg-[var(--color-bg-base)]"
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search..."
-            aria-label="Search conversations"
-            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] py-2 pl-9 pr-8 text-sm text-[var(--color-text-primary)] outline-none transition-colors placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:bg-[var(--color-bg-base)]"
+            type="text"
+            value={searchQuery}
           />
           {isSearching && (
             <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
               aria-label="Clear search"
+              className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+              onClick={() => setSearchQuery('')}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -934,6 +919,15 @@ export function ConversationList({
         {/* batch select toggle — hidden during search */}
         {!isSearching && (
           <button
+            aria-label={
+              batchMode ? 'Exit batch select mode' : 'Enter batch select mode'
+            }
+            aria-pressed={batchMode}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150 ${
+              batchMode
+                ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
+                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
+            }`}
             onClick={() => {
               if (batchMode) {
                 exitBatchMode()
@@ -941,71 +935,69 @@ export function ConversationList({
                 setBatchMode(true)
               }
             }}
-            aria-pressed={batchMode}
-            aria-label={batchMode ? 'Exit batch select mode' : 'Enter batch select mode'}
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150 ${
-              batchMode
-                ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
-                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
-            }`}
             title="Batch select"
           >
-            <CheckCircle className="h-5 w-5" aria-hidden="true" />
+            <CheckCircle aria-hidden="true" className="h-5 w-5" />
           </button>
         )}
 
         {conversations.some((c) => c.unread_count > 0) && (
           <button
+            aria-label="Mark all as read"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-all duration-150 hover:bg-[var(--color-hover)]"
             onClick={async () => {
               const unreadIds = conversations
                 .filter((c) => c.unread_count > 0)
                 .map((c) => c.thread_id)
               if (unreadIds.length === 0) return
               try {
-                await postJson('/conversations/batch', { thread_ids: unreadIds, action: 'read' })
-                setConversations((prev) => prev.map((c) => ({ ...c, unread_count: 0 })))
+                await postJson('/conversations/batch', {
+                  action: 'read',
+                  thread_ids: unreadIds,
+                })
+                setConversations((prev) =>
+                  prev.map((c) => ({ ...c, unread_count: 0 }))
+                )
                 toast.success(`Marked ${unreadIds.length} as read`)
               } catch {
                 toast.error('Failed')
               }
             }}
-            aria-label="Mark all as read"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-all duration-150 hover:bg-[var(--color-hover)]"
             title="Mark all as read"
           >
-            <MailCheck className="h-5 w-5" aria-hidden="true" />
+            <MailCheck aria-hidden="true" className="h-5 w-5" />
           </button>
         )}
 
         <button
+          aria-label="New conversation"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-all duration-150 hover:bg-[var(--color-hover)]"
           onClick={() => {
             setComposingNew(true)
             setSelectedId(null)
           }}
-          aria-label="New conversation"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-all duration-150 hover:bg-[var(--color-hover)]"
           title="New conversation"
         >
-          <SquarePen className="h-5 w-5" aria-hidden="true" />
+          <SquarePen aria-hidden="true" className="h-5 w-5" />
         </button>
       </div>
 
       <FilterBar />
 
       <div
-        ref={scrollContainerRef}
-        role="list"
         aria-label="Conversations"
         className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-14' : ''}`}
+        ref={scrollContainerRef}
+        role="list"
       >
         {initialLoading && conversations.length === 0 ? (
           <ConversationSkeleton />
         ) : conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-center text-[var(--color-text-tertiary)]">
             <Mail
+              aria-hidden="true"
               className="mb-3 h-10 w-10 text-[var(--color-text-tertiary)]"
               strokeWidth={1}
-              aria-hidden="true"
             />
             <p className="text-sm font-medium">
               {isSearching
@@ -1020,7 +1012,9 @@ export function ConversationList({
                         ? 'No archived conversations'
                         : 'All caught up!'}
             </p>
-            <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : ''}</p>
+            <p className="mt-1 text-xs">
+              {isSearching ? 'Try a different search term' : ''}
+            </p>
           </div>
         ) : (
           (() => {
@@ -1033,14 +1027,14 @@ export function ConversationList({
                 <Fragment key={c.thread_id}>
                   {showDivider && <DateDivider label={group} />}
                   <ConversationItem
-                    convo={c}
-                    selected={selectedId === c.thread_id}
                     batchMode={batchMode}
                     checked={selectedThreadIds.has(c.thread_id)}
+                    convo={c}
+                    myEmail={myEmail}
+                    onContextAction={handleContextAction}
                     onSelect={handleSelect}
                     onToggleCheck={toggleThreadCheck}
-                    onContextAction={handleContextAction}
-                    myEmail={myEmail}
+                    selected={selectedId === c.thread_id}
                   />
                 </Fragment>
               )
@@ -1050,7 +1044,7 @@ export function ConversationList({
 
         {/* infinite scroll sentinel */}
         {hasMore && conversations.length > 0 && (
-          <div ref={sentinelCallback} className="flex justify-center py-4">
+          <div className="flex justify-center py-4" ref={sentinelCallback}>
             {loadingMore && (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-border-default)] border-t-[var(--color-text-secondary)]" />
             )}
@@ -1067,12 +1061,111 @@ export function ConversationList({
       {/* floating batch action bar */}
       {hasBatchBar && (
         <BatchActionBar
-          selectedCount={selectedThreadIds.size}
+          loading={batchLoading}
           onAction={handleBatchAction}
           onCancel={exitBatchMode}
-          loading={batchLoading}
+          selectedCount={selectedThreadIds.size}
         />
       )}
+    </div>
+  )
+}
+
+// floating action bar at bottom of list during batch mode
+function BatchActionBar({
+  loading,
+  onAction,
+  onCancel,
+  selectedCount,
+}: {
+  loading: boolean
+  onAction: (action: BatchAction) => void
+  onCancel: () => void
+  selectedCount: number
+}) {
+  return (
+    <div className="absolute right-0 bottom-0 left-0 z-40 border-t border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] px-3 py-2 backdrop-blur">
+      <div className="flex items-center gap-2">
+        <span className="shrink-0 text-xs font-medium text-[var(--color-text-secondary)]">
+          {selectedCount} selected
+        </span>
+        <div className="flex flex-1 items-center gap-1.5 overflow-x-auto">
+          <button
+            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] focus-visible:outline-none disabled:opacity-50"
+            disabled={loading}
+            onClick={() => onAction('read')}
+          >
+            Mark read
+          </button>
+          <button
+            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] focus-visible:outline-none disabled:opacity-50"
+            disabled={loading}
+            onClick={() => onAction('unread')}
+          >
+            Mark unread
+          </button>
+          <button
+            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] focus-visible:outline-none disabled:opacity-50"
+            disabled={loading}
+            onClick={() => onAction('star')}
+          >
+            Star
+          </button>
+          <button
+            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] focus-visible:outline-none disabled:opacity-50"
+            disabled={loading}
+            onClick={() => onAction('archive')}
+          >
+            Archive
+          </button>
+          <button
+            className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-status-danger)] transition-colors hover:bg-[var(--color-status-danger-subtle)] focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] focus-visible:outline-none disabled:opacity-50"
+            disabled={loading}
+            onClick={() => onAction('delete')}
+          >
+            Delete
+          </button>
+        </div>
+        <button
+          className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50"
+          disabled={loading}
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        {loading && (
+          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--color-border-default)] border-t-[var(--color-text-secondary)]" />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ConversationSkeleton() {
+  return (
+    <div className="animate-pulse">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div className="flex items-start gap-3 px-4 py-3" key={i}>
+          <div className="h-9 w-9 shrink-0 rounded-full bg-[var(--color-border-default)]" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="h-3.5 w-24 rounded bg-[var(--color-border-default)]" />
+              <div className="h-3 w-10 rounded bg-[var(--color-border-default)]" />
+            </div>
+            <div className="h-3 w-40 rounded bg-[var(--color-border-default)]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DateDivider({ label }: { label: string }) {
+  return (
+    <div className="sticky top-0 z-10 flex justify-center py-1.5 select-none">
+      <span className="rounded-full bg-[var(--color-bg-sunken)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--color-text-tertiary)]">
+        {label}
+      </span>
     </div>
   )
 }

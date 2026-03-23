@@ -1,21 +1,22 @@
+import type { AliasInfo, DomainInfo } from '@/lib/types'
+
 import { useAtom } from 'jotai'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
-import type { AliasInfo, DomainInfo } from '@/lib/types'
 import { aliasesAtom, domainsAtom } from '@/store/admin'
 
 export function AdminAliases() {
   const [aliases, setAliases] = useAtom(aliasesAtom)
   const [domains, setDomains] = useAtom(domainsAtom)
   const [adding, setAdding] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
   const [form, setForm] = useState({
+    alias_type: 'alias',
+    domain: '',
     source_address: '',
     target_address: '',
-    domain: '',
-    alias_type: 'alias',
   })
 
   const loadAliases = useCallback(async () => {
@@ -42,16 +43,26 @@ export function AdminAliases() {
   }, [loadAliases, loadDomains])
 
   const handleAdd = async () => {
-    if (!form.source_address.trim() || !form.target_address.trim() || !form.domain) return
+    if (
+      !form.source_address.trim() ||
+      !form.target_address.trim() ||
+      !form.domain
+    )
+      return
     try {
       await postJson('/admin/aliases', {
+        alias_type: form.alias_type,
+        domain: form.domain,
         source_address: form.source_address.trim(),
         target_address: form.target_address.trim(),
-        domain: form.domain,
-        alias_type: form.alias_type,
       })
       toast.success(`Alias "${form.source_address.trim()}" added`)
-      setForm({ source_address: '', target_address: '', domain: '', alias_type: 'alias' })
+      setForm({
+        alias_type: 'alias',
+        domain: '',
+        source_address: '',
+        target_address: '',
+      })
       setAdding(false)
       loadAliases()
     } catch (e) {
@@ -76,8 +87,8 @@ export function AdminAliases() {
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Aliases</h2>
         <button
-          onClick={() => setAdding(true)}
           className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+          onClick={() => setAdding(true)}
         >
           Add Alias
         </button>
@@ -87,23 +98,27 @@ export function AdminAliases() {
         <div className="mb-4 space-y-2 rounded-lg border border-[var(--color-border-default)] p-4">
           <div className="flex gap-2">
             <input
-              value={form.source_address}
-              onChange={(e) => setForm({ ...form, source_address: e.target.value })}
-              placeholder="admin@example.com"
               className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              onChange={(e) =>
+                setForm({ ...form, source_address: e.target.value })
+              }
+              placeholder="admin@example.com"
+              value={form.source_address}
             />
             <input
-              value={form.target_address}
-              onChange={(e) => setForm({ ...form, target_address: e.target.value })}
-              placeholder="user@example.com"
               className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              onChange={(e) =>
+                setForm({ ...form, target_address: e.target.value })
+              }
+              placeholder="user@example.com"
+              value={form.target_address}
             />
           </div>
           <div className="flex gap-2">
             <select
-              value={form.domain}
-              onChange={(e) => setForm({ ...form, domain: e.target.value })}
               className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              onChange={(e) => setForm({ ...form, domain: e.target.value })}
+              value={form.domain}
             >
               <option value="">Select domain...</option>
               {domains.map((d) => (
@@ -113,9 +128,9 @@ export function AdminAliases() {
               ))}
             </select>
             <select
-              value={form.alias_type}
-              onChange={(e) => setForm({ ...form, alias_type: e.target.value })}
               className="w-36 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              onChange={(e) => setForm({ ...form, alias_type: e.target.value })}
+              value={form.alias_type}
             >
               <option value="alias">Alias</option>
               <option value="forward">Forward</option>
@@ -123,14 +138,14 @@ export function AdminAliases() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={handleAdd}
               className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)]"
+              onClick={handleAdd}
             >
               Save
             </button>
             <button
-              onClick={() => setAdding(false)}
               className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              onClick={() => setAdding(false)}
             >
               Cancel
             </button>
@@ -152,14 +167,18 @@ export function AdminAliases() {
           <tbody>
             {aliases.map((alias) => (
               <tr
-                key={alias.id}
                 className="border-b border-[var(--color-border-default)] last:border-0"
+                key={alias.id}
               >
-                <td className="px-4 py-3 font-medium">{alias.source_address}</td>
+                <td className="px-4 py-3 font-medium">
+                  {alias.source_address}
+                </td>
                 <td className="px-4 py-3 text-[var(--color-text-secondary)]">
                   {alias.target_address}
                 </td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">{alias.domain}</td>
+                <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                  {alias.domain}
+                </td>
                 <td className="px-4 py-3">
                   <span
                     className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
@@ -173,8 +192,8 @@ export function AdminAliases() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <button
-                    onClick={() => setDeleteTarget(alias.id)}
                     className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
+                    onClick={() => setDeleteTarget(alias.id)}
                   >
                     Delete
                   </button>
@@ -183,7 +202,10 @@ export function AdminAliases() {
             ))}
             {aliases.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
+                <td
+                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
+                  colSpan={5}
+                >
                   No aliases configured
                 </td>
               </tr>
@@ -200,14 +222,14 @@ export function AdminAliases() {
             </p>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setDeleteTarget(null)}
                 className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+                onClick={() => setDeleteTarget(null)}
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleDelete(deleteTarget)}
                 className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+                onClick={() => handleDelete(deleteTarget)}
               >
                 Delete
               </button>

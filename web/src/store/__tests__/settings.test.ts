@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createStore } from 'jotai/vanilla'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   appendSignature,
@@ -12,19 +12,19 @@ import {
 function makeLocalStorageMock(): Storage {
   const store: Record<string, string> = {}
   return {
+    clear: () => {
+      for (const k in store) delete store[k]
+    },
     getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => {
-      store[k] = v
+    key: (n: number) => Object.keys(store)[n] ?? null,
+    get length() {
+      return Object.keys(store).length
     },
     removeItem: (k: string) => {
       delete store[k]
     },
-    clear: () => {
-      for (const k in store) delete store[k]
-    },
-    key: (n: number) => Object.keys(store)[n] ?? null,
-    get length() {
-      return Object.keys(store).length
+    setItem: (k: string, v: string) => {
+      store[k] = v
     },
   } as Storage
 }

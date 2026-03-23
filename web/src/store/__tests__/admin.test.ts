@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import type {
+  AccountInfo,
+  AliasInfo,
+  DomainInfo,
+  QueueEntry,
+} from '@/lib/types'
+
 import { createStore } from 'jotai/vanilla'
+import { describe, expect, it } from 'vitest'
 
 import { accountsAtom, aliasesAtom, domainsAtom, queueAtom } from '../admin'
-import type { AccountInfo, AliasInfo, DomainInfo, QueueEntry } from '@/lib/types'
 
 describe('admin atoms — initial values', () => {
   it('domainsAtom defaults to empty array', () => {
@@ -30,8 +36,8 @@ describe('admin atoms — writability', () => {
   it('domainsAtom can hold domain info', () => {
     const store = createStore()
     const domains: DomainInfo[] = [
-      { name: 'example.com', created_at: 1000 },
-      { name: 'test.org', created_at: 2000 },
+      { created_at: 1000, name: 'example.com' },
+      { created_at: 2000, name: 'test.org' },
     ]
     store.set(domainsAtom, domains)
     expect(store.get(domainsAtom)).toEqual(domains)
@@ -41,11 +47,11 @@ describe('admin atoms — writability', () => {
     const store = createStore()
     const accounts: AccountInfo[] = [
       {
-        address: 'alice@example.com',
-        domain: 'example.com',
-        display_name: 'Alice',
         active: true,
+        address: 'alice@example.com',
         created_at: 1000,
+        display_name: 'Alice',
+        domain: 'example.com',
         quota_bytes: 0,
         recovery_email: '',
       },
@@ -58,13 +64,13 @@ describe('admin atoms — writability', () => {
     const store = createStore()
     const aliases: AliasInfo[] = [
       {
+        active: true,
+        alias_type: 'forward',
+        created_at: 1000,
+        domain: 'example.com',
         id: 1,
         source_address: 'info@example.com',
         target_address: 'alice@example.com',
-        domain: 'example.com',
-        alias_type: 'forward',
-        active: true,
-        created_at: 1000,
       },
     ]
     store.set(aliasesAtom, aliases)
@@ -75,14 +81,14 @@ describe('admin atoms — writability', () => {
     const store = createStore()
     const entries: QueueEntry[] = [
       {
-        id: 1,
-        sender: 'alice@example.com',
-        recipient: 'bob@test.org',
-        domain: 'test.org',
-        status: 'pending',
         attempts: 0,
-        last_error: null,
         created_at: 1000,
+        domain: 'test.org',
+        id: 1,
+        last_error: null,
+        recipient: 'bob@test.org',
+        sender: 'alice@example.com',
+        status: 'pending',
         updated_at: 1000,
       },
     ]
@@ -92,11 +98,11 @@ describe('admin atoms — writability', () => {
 
   it('setting new value does not mutate previous value', () => {
     const store = createStore()
-    const first: DomainInfo[] = [{ name: 'a.com', created_at: 1 }]
+    const first: DomainInfo[] = [{ created_at: 1, name: 'a.com' }]
     store.set(domainsAtom, first)
     const second: DomainInfo[] = [
-      { name: 'a.com', created_at: 1 },
-      { name: 'b.com', created_at: 2 },
+      { created_at: 1, name: 'a.com' },
+      { created_at: 2, name: 'b.com' },
     ]
     store.set(domainsAtom, second)
     expect(first).toHaveLength(1)
@@ -106,7 +112,7 @@ describe('admin atoms — writability', () => {
   it('each store instance is isolated', () => {
     const storeA = createStore()
     const storeB = createStore()
-    storeA.set(domainsAtom, [{ name: 'a.com', created_at: 1 }])
+    storeA.set(domainsAtom, [{ created_at: 1, name: 'a.com' }])
     expect(storeB.get(domainsAtom)).toEqual([])
   })
 })

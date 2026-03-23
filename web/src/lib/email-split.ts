@@ -1,7 +1,7 @@
 export type EmailParts = {
   body: string
-  signature: string | null
-  quoted: string | null
+  quoted: null | string
+  signature: null | string
 }
 
 // detect "On ... wrote:" attribution line
@@ -10,8 +10,144 @@ const ATTRIBUTION_RE = /^.{0,200}\bwrote:\s*$/
 // detect Outlook-style original message separator
 const OUTLOOK_SEP_RE = /^-{4,}\s*Original Message\s*-{4,}$/i
 
+export function splitEmail(
+  textBody: null | string,
+  htmlBody: null | string
+): { isHtml: boolean; parts: EmailParts } {
+  try {
+    if (htmlBody) {
+      return { isHtml: true, parts: splitHtmlEmail(htmlBody) }
+    }
+    return { isHtml: false, parts: splitTextEmail(textBody ?? '') }
+  } catch {
+    // fallback: return as-is
+    return {
+      isHtml: !!htmlBody,
+      parts: {
+        body: htmlBody ?? textBody ?? '',
+        quoted: null,
+        signature: null,
+      },
+    }
+  }
+}
+
+export function splitHtmlEmail(html: string): EmailParts {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+
+  let signature: null | string = null
+  let quoted: null | string = null
+
+  // extract signature
+  const sigSelectors = ['.gmail_signature', '#Signature', '#signature']
+  for (const sel of sigSelectors) {
+    const el = doc.body.querySelector(sel)
+    if (el) {
+      signature = el.innerHTML.trim()
+      el.remove()
+      break
+    }
+  }
+
+  // extract quoted text by client-specific selectors
+  // Gmail
+  const gmailQuote = doc.body.querySelector('.gmail_quote')
+  if (gmailQuote) {
+    quoted = gmailQuote.innerHTML.trim()
+    gmailQuote.remove()
+  }
+
+  // Outlook: #divRplyFwdMsg + all following siblings
+  if (!quoted) {
+    const outlookDiv =
+      doc.body.querySelector('#divRplyFwdMsg') ??
+      doc.body.querySelector('#appendonsend')
+    if (outlookDiv) {
+      const parts: string[] = []
+      let node: Element | null = outlookDiv
+      while (node) {
+        parts.push(node.outerHTML)
+        const sibling: Element | null = node.nextElementSibling
+        node.remove()
+        node = sibling
+      }
+      quoted = parts.join('')
+    }
+  }
+
+  // Yahoo
+  if (!quoted) {
+    const yahooQuote = doc.body.querySelector('.yahoo_quoted')
+    if (yahooQuote) {
+      quoted = yahooQuote.innerHTML.trim()
+      yahooQuote.remove()
+    }
+  }
+
+  // Mozilla: .moz-cite-prefix + following blockquote[type="cite"]
+  if (!quoted) {
+    const mozPrefix = doc.body.querySelector('.moz-cite-prefix')
+    if (mozPrefix) {
+      const parts: string[] = [mozPrefix.outerHTML]
+      let next: Element | null = mozPrefix.nextElementSibling
+      mozPrefix.remove()
+      while (
+        next &&
+        next.tagName === 'BLOCKQUOTE' &&
+        next.getAttribute('type') === 'cite'
+      ) {
+        parts.push(next.outerHTML)
+        const following = next.nextElementSibling
+        next.remove()
+        next = following
+      }
+      quoted = parts.join('')
+    }
+  }
+
+  // Apple Mail / generic: top-level blockquote[type="cite"]
+  if (!quoted) {
+    const citeBlock = doc.body.querySelector('blockquote[type="cite"]')
+    if (citeBlock) {
+      quoted = citeBlock.outerHTML
+      citeBlock.remove()
+    }
+  }
+
+  // fallback: trailing <blockquote> (only if it's the last significant element)
+  if (!quoted) {
+    const children = Array.from(doc.body.children)
+    if (children.length > 0) {
+      const last = children[children.length - 1]
+      // check if last element is a blockquote, or contains only a blockquote as last child
+      if (last.tagName === 'BLOCKQUOTE') {
+        quoted = last.innerHTML.trim()
+        last.remove()
+      } else {
+        const innerChildren = Array.from(last.children)
+        if (innerChildren.length > 0) {
+          const innerLast = innerChildren[innerChildren.length - 1]
+          if (innerLast.tagName === 'BLOCKQUOTE') {
+            quoted = innerLast.innerHTML.trim()
+            innerLast.remove()
+          }
+        }
+      }
+    }
+  }
+
+  const body = doc.body.innerHTML.trim()
+
+  return {
+    body,
+    quoted: quoted || null,
+    signature: signature || null,
+  }
+}
+
 export function splitTextEmail(text: string): EmailParts {
-  if (!text) return { body: '', signature: null, quoted: null }
+  if (!text) return { body: '', quoted: null, signature: null }
 
   const lines = text.split('\n')
 
@@ -62,7 +198,7 @@ export function splitTextEmail(text: string): EmailParts {
   }
 
   // extract quoted section
-  let quoted: string | null = null
+  let quoted: null | string = null
   let remaining = lines
   if (quotedStart !== -1) {
     quoted = lines.slice(quotedStart).join('\n').trimEnd()
@@ -78,7 +214,7 @@ export function splitTextEmail(text: string): EmailParts {
     }
   }
 
-  let signature: string | null = null
+  let signature: null | string = null
   let bodyLines = remaining
   if (sigStart !== -1) {
     const sigContent = remaining
@@ -91,136 +227,5 @@ export function splitTextEmail(text: string): EmailParts {
 
   const body = bodyLines.join('\n').trimEnd()
 
-  return { body, signature, quoted }
-}
-
-export function splitHtmlEmail(html: string): EmailParts {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(html, 'text/html')
-
-  let signature: string | null = null
-  let quoted: string | null = null
-
-  // extract signature
-  const sigSelectors = ['.gmail_signature', '#Signature', '#signature']
-  for (const sel of sigSelectors) {
-    const el = doc.body.querySelector(sel)
-    if (el) {
-      signature = el.innerHTML.trim()
-      el.remove()
-      break
-    }
-  }
-
-  // extract quoted text by client-specific selectors
-  // Gmail
-  const gmailQuote = doc.body.querySelector('.gmail_quote')
-  if (gmailQuote) {
-    quoted = gmailQuote.innerHTML.trim()
-    gmailQuote.remove()
-  }
-
-  // Outlook: #divRplyFwdMsg + all following siblings
-  if (!quoted) {
-    const outlookDiv =
-      doc.body.querySelector('#divRplyFwdMsg') ?? doc.body.querySelector('#appendonsend')
-    if (outlookDiv) {
-      const parts: string[] = []
-      let node: Element | null = outlookDiv
-      while (node) {
-        parts.push(node.outerHTML)
-        const sibling: Element | null = node.nextElementSibling
-        node.remove()
-        node = sibling
-      }
-      quoted = parts.join('')
-    }
-  }
-
-  // Yahoo
-  if (!quoted) {
-    const yahooQuote = doc.body.querySelector('.yahoo_quoted')
-    if (yahooQuote) {
-      quoted = yahooQuote.innerHTML.trim()
-      yahooQuote.remove()
-    }
-  }
-
-  // Mozilla: .moz-cite-prefix + following blockquote[type="cite"]
-  if (!quoted) {
-    const mozPrefix = doc.body.querySelector('.moz-cite-prefix')
-    if (mozPrefix) {
-      const parts: string[] = [mozPrefix.outerHTML]
-      let next: Element | null = mozPrefix.nextElementSibling
-      mozPrefix.remove()
-      while (next && next.tagName === 'BLOCKQUOTE' && next.getAttribute('type') === 'cite') {
-        parts.push(next.outerHTML)
-        const following = next.nextElementSibling
-        next.remove()
-        next = following
-      }
-      quoted = parts.join('')
-    }
-  }
-
-  // Apple Mail / generic: top-level blockquote[type="cite"]
-  if (!quoted) {
-    const citeBlock = doc.body.querySelector('blockquote[type="cite"]')
-    if (citeBlock) {
-      quoted = citeBlock.outerHTML
-      citeBlock.remove()
-    }
-  }
-
-  // fallback: trailing <blockquote> (only if it's the last significant element)
-  if (!quoted) {
-    const children = Array.from(doc.body.children)
-    if (children.length > 0) {
-      const last = children[children.length - 1]
-      // check if last element is a blockquote, or contains only a blockquote as last child
-      if (last.tagName === 'BLOCKQUOTE') {
-        quoted = last.innerHTML.trim()
-        last.remove()
-      } else {
-        const innerChildren = Array.from(last.children)
-        if (innerChildren.length > 0) {
-          const innerLast = innerChildren[innerChildren.length - 1]
-          if (innerLast.tagName === 'BLOCKQUOTE') {
-            quoted = innerLast.innerHTML.trim()
-            innerLast.remove()
-          }
-        }
-      }
-    }
-  }
-
-  const body = doc.body.innerHTML.trim()
-
-  return {
-    body,
-    signature: signature || null,
-    quoted: quoted || null,
-  }
-}
-
-export function splitEmail(
-  textBody: string | null,
-  htmlBody: string | null,
-): { parts: EmailParts; isHtml: boolean } {
-  try {
-    if (htmlBody) {
-      return { parts: splitHtmlEmail(htmlBody), isHtml: true }
-    }
-    return { parts: splitTextEmail(textBody ?? ''), isHtml: false }
-  } catch {
-    // fallback: return as-is
-    return {
-      parts: {
-        body: htmlBody ?? textBody ?? '',
-        signature: null,
-        quoted: null,
-      },
-      isHtml: !!htmlBody,
-    }
-  }
+  return { body, quoted, signature }
 }

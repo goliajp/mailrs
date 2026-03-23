@@ -1,9 +1,15 @@
+import type {
+  ConversationSummary,
+  NewMessageEvent,
+  SmtpEvent,
+  ThreadMessage,
+} from '@/lib/types'
+
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { fetchJson } from '@/lib/api'
 import { playNotificationSound } from '@/lib/notification-sound'
-import type { ConversationSummary, NewMessageEvent, SmtpEvent, ThreadMessage } from '@/lib/types'
 import {
   categoryFilterAtom,
   conversationsAtom,
@@ -54,7 +60,7 @@ export function useMailEvents(user: string) {
     soundEnabled,
   ])
 
-  const wsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<null | WebSocket>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(null)
   const pingTimer = useRef<ReturnType<typeof setInterval>>(null)
   const pollTimer = useRef<ReturnType<typeof setInterval>>(null)
@@ -97,7 +103,7 @@ export function useMailEvents(user: string) {
 
           return merged
         }),
-      () => {},
+      () => {}
     )
   }, [setConversations])
 
@@ -105,10 +111,13 @@ export function useMailEvents(user: string) {
     const tid = selectedRef.current
     if (!tid) return
     const doms = domainsRef.current
-    const domainsParam = doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
-    fetchJson<ThreadMessage[]>(`/conversations/${encodeURIComponent(tid)}${domainsParam}`).then(
+    const domainsParam =
+      doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
+    fetchJson<ThreadMessage[]>(
+      `/conversations/${encodeURIComponent(tid)}${domainsParam}`
+    ).then(
       (data) => setThreadMessages(data),
-      () => {},
+      () => {}
     )
   }, [setThreadMessages])
 
@@ -129,8 +138,12 @@ export function useMailEvents(user: string) {
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
       const token = localStorage.getItem('mailrs_auth')
       const parsed = token ? JSON.parse(token) : null
-      const tokenParam = parsed?.token ? `?token=${encodeURIComponent(parsed.token)}` : ''
-      const ws = new WebSocket(`${proto}//${location.host}/api/events${tokenParam}`)
+      const tokenParam = parsed?.token
+        ? `?token=${encodeURIComponent(parsed.token)}`
+        : ''
+      const ws = new WebSocket(
+        `${proto}//${location.host}/api/events${tokenParam}`
+      )
       wsRef.current = ws
 
       ws.onopen = () => {
@@ -144,14 +157,17 @@ export function useMailEvents(user: string) {
 
       ws.onmessage = (e) => {
         try {
-          const event = JSON.parse(e.data) as SmtpEvent | NewMessageEvent
+          const event = JSON.parse(e.data) as NewMessageEvent | SmtpEvent
           if (event.type === 'NewMessage') {
             const msg = event as NewMessageEvent
             if (msg.user === user) {
               refreshConversations()
 
               // refresh current thread if the new message belongs to it
-              if (selectedRef.current && msg.thread_id === selectedRef.current) {
+              if (
+                selectedRef.current &&
+                msg.thread_id === selectedRef.current
+              ) {
                 refreshThread()
               }
 

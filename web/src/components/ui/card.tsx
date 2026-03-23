@@ -1,16 +1,16 @@
 type Props = {
-  padding?: 'sm' | 'md' | 'lg'
   children: React.ReactNode
   className?: string
+  padding?: 'lg' | 'md' | 'sm'
 }
 
 const paddingStyles = {
-  sm: 'p-3',
-  md: 'p-4',
   lg: 'p-6',
+  md: 'p-4',
+  sm: 'p-3',
 }
 
-export function Card({ padding = 'md', children, className = '' }: Props) {
+export function Card({ children, className = '', padding = 'md' }: Props) {
   return (
     <div
       className={`border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] ${paddingStyles[padding]} ${className}`}

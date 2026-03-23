@@ -8,27 +8,27 @@ afterEach(cleanup)
 describe('Dialog', () => {
   it('renders children when open', () => {
     render(
-      <Dialog open onClose={vi.fn()}>
+      <Dialog onClose={vi.fn()} open>
         Content
-      </Dialog>,
+      </Dialog>
     )
     expect(screen.getByText('Content')).toBeDefined()
   })
 
   it('does not render when closed', () => {
     render(
-      <Dialog open={false} onClose={vi.fn()}>
+      <Dialog onClose={vi.fn()} open={false}>
         Hidden
-      </Dialog>,
+      </Dialog>
     )
     expect(screen.queryByText('Hidden')).toBeNull()
   })
 
   it('has dialog role and aria-modal', () => {
     render(
-      <Dialog open onClose={vi.fn()}>
+      <Dialog onClose={vi.fn()} open>
         Test
-      </Dialog>,
+      </Dialog>
     )
     const dialog = screen.getByRole('dialog')
     expect(dialog.getAttribute('aria-modal')).toBe('true')
@@ -37,9 +37,9 @@ describe('Dialog', () => {
   it('calls onClose when backdrop is clicked', () => {
     const onClose = vi.fn()
     render(
-      <Dialog open onClose={onClose}>
+      <Dialog onClose={onClose} open>
         Test
-      </Dialog>,
+      </Dialog>
     )
     // click the backdrop (the outer overlay div)
     const backdrop = screen.getByRole('dialog').parentElement!
@@ -50,9 +50,9 @@ describe('Dialog', () => {
   it('does not call onClose when content is clicked', () => {
     const onClose = vi.fn()
     render(
-      <Dialog open onClose={onClose}>
+      <Dialog onClose={onClose} open>
         <p>Inner</p>
-      </Dialog>,
+      </Dialog>
     )
     fireEvent.click(screen.getByText('Inner'))
     expect(onClose).not.toHaveBeenCalled()
@@ -61,9 +61,9 @@ describe('Dialog', () => {
   it('calls onClose on Escape key', () => {
     const onClose = vi.fn()
     render(
-      <Dialog open onClose={onClose}>
+      <Dialog onClose={onClose} open>
         Test
-      </Dialog>,
+      </Dialog>
     )
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -71,9 +71,9 @@ describe('Dialog', () => {
 
   it('accepts title prop', () => {
     render(
-      <Dialog open onClose={vi.fn()} title="Confirm">
+      <Dialog onClose={vi.fn()} open title="Confirm">
         Body
-      </Dialog>,
+      </Dialog>
     )
     expect(screen.getByText('Confirm')).toBeDefined()
   })

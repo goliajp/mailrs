@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { colorVars, cssVar, fontSize, fontWeight, radius, spacing, zIndex } from '../tokens'
+import {
+  colorVars,
+  cssVar,
+  fontSize,
+  fontWeight,
+  radius,
+  spacing,
+  zIndex,
+} from '../tokens'
 
 describe('spacing', () => {
   it('has standard scale values', () => {

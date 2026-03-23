@@ -1,26 +1,28 @@
-import { useEditor, EditorContent } from '@tiptap/react'
-import { useEffect, useRef } from 'react'
-import { createMinimalExtensions } from '@/components/rich-editor'
 import type { SignatureBlockData } from '../types'
+
+import { EditorContent, useEditor } from '@tiptap/react'
+import { useEffect, useRef } from 'react'
+
+import { createMinimalExtensions } from '@/components/rich-editor'
 
 type Props = {
   data: SignatureBlockData
-  onChange: (data: SignatureBlockData) => void
   disabled?: boolean
+  onChange: (data: SignatureBlockData) => void
 }
 
-export function SignatureBlock({ data, onChange, disabled }: Props) {
+export function SignatureBlock({ data, disabled, onChange }: Props) {
   const initializedRef = useRef(false)
 
   const editor = useEditor({
-    extensions: createMinimalExtensions(),
+    editable: !disabled,
     editorProps: {
       attributes: {
         class:
           'prose prose-sm max-w-none px-3 py-1.5 outline-none text-[var(--color-text-tertiary)]',
       },
     },
-    editable: !disabled,
+    extensions: createMinimalExtensions(),
     onUpdate: ({ editor: e }) => {
       onChange({ html: e.getHTML(), text: e.getText() })
     },
@@ -36,7 +38,9 @@ export function SignatureBlock({ data, onChange, disabled }: Props) {
 
   return (
     <div className="border-t border-dashed border-[var(--color-border-default)] opacity-70">
-      <div className="px-4 pt-2 text-xs text-[var(--color-text-tertiary)]">-- </div>
+      <div className="px-4 pt-2 text-xs text-[var(--color-text-tertiary)]">
+        --{' '}
+      </div>
       <EditorContent editor={editor} />
     </div>
   )

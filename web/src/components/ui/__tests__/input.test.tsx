@@ -14,13 +14,17 @@ describe('Input', () => {
   it('handles value changes', () => {
     const onChange = vi.fn()
     render(<Input aria-label="Name" onChange={onChange} />)
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'test' } })
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'test' },
+    })
     expect(onChange).toHaveBeenCalled()
   })
 
   it('can be disabled', () => {
     render(<Input aria-label="Disabled" disabled />)
-    expect(screen.getByLabelText('Disabled').hasAttribute('disabled')).toBe(true)
+    expect(screen.getByLabelText('Disabled').hasAttribute('disabled')).toBe(
+      true
+    )
   })
 
   it('renders placeholder', () => {

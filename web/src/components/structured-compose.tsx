@@ -1,96 +1,97 @@
+import type {
+  AnyBlock,
+  AttachmentBlockData,
+  QuoteBlockData,
+  SignatureBlockData,
+  TextBlockData,
+} from '@/components/composer/types'
+import type { Editor } from '@tiptap/react'
+
+import { X } from 'lucide-react'
 import {
+  forwardRef,
+  type ReactNode,
   useCallback,
   useImperativeHandle,
   useRef,
   useState,
-  forwardRef,
-  type ReactNode,
 } from 'react'
-import type { Editor } from '@tiptap/react'
-import { X } from 'lucide-react'
 
-import { useBlockComposer } from '@/components/composer/use-block-composer'
-import { TextBlock } from '@/components/composer/blocks/text-block'
-import { SignatureBlock } from '@/components/composer/blocks/signature-block'
-import { QuoteBlock } from '@/components/composer/blocks/quote-block'
-import { DividerBlock } from '@/components/composer/blocks/divider-block'
-import { AttachmentBlock } from '@/components/composer/blocks/attachment-block'
 import { AddBlockMenu } from '@/components/composer/add-block-menu'
-import type {
-  TextBlockData,
-  SignatureBlockData,
-  QuoteBlockData,
-  AttachmentBlockData,
-  AnyBlock,
-} from '@/components/composer/types'
+import { AttachmentBlock } from '@/components/composer/blocks/attachment-block'
+import { DividerBlock } from '@/components/composer/blocks/divider-block'
+import { QuoteBlock } from '@/components/composer/blocks/quote-block'
+import { SignatureBlock } from '@/components/composer/blocks/signature-block'
+import { TextBlock } from '@/components/composer/blocks/text-block'
+import { useBlockComposer } from '@/components/composer/use-block-composer'
 
 // keep backward-compatible types
-export type EditorMode = 'rich' | 'markdown' | 'preview'
-
-export type StructuredContent = {
-  compose: { text: string; html: string }
-  signature: { text: string; html: string }
-  quoted: { text: string; html: string }
-  fullText: string
-  fullHtml: string
-  attachments: File[]
-}
+export type EditorMode = 'markdown' | 'preview' | 'rich'
 
 export type StructuredComposeHandle = {
-  getContent: () => StructuredContent
-  getComposeEditor: () => Editor | null
-  clearCompose: () => void
-  setComposeContent: (html: string) => void
-  getEditorMode: () => EditorMode
   addAttachment: (file: File) => void
+  clearCompose: () => void
+  getComposeEditor: () => Editor | null
+  getContent: () => StructuredContent
+  getEditorMode: () => EditorMode
+  setComposeContent: (html: string) => void
+}
+
+export type StructuredContent = {
+  attachments: File[]
+  compose: { html: string; text: string }
+  fullHtml: string
+  fullText: string
+  quoted: { html: string; text: string }
+  signature: { html: string; text: string }
 }
 
 type Props = {
+  disabled?: boolean
+  mode?: 'forward' | 'new' | 'reply'
   onSubmit: () => void
   placeholder?: string
-  disabled?: boolean
-  signature?: string
-  signatureEnabled?: boolean
-  quotedHtml?: string
   quotedHeader?: string
   quotedHeaderHtml?: string
-  mode?: 'new' | 'reply' | 'forward'
+  quotedHtml?: string
+  signature?: string
+  signatureEnabled?: boolean
 }
 
 export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
   function StructuredCompose(
     {
+      disabled,
+      mode = 'new',
       onSubmit,
       placeholder,
-      disabled,
-      signature,
-      signatureEnabled,
-      quotedHtml,
       quotedHeader = '',
       quotedHeaderHtml,
-      mode = 'new',
+      quotedHtml,
+      signature,
+      signatureEnabled,
     },
-    ref,
+    ref
   ) {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const textEditorRef = useRef<Editor | null>(null)
     const scrollAreaRef = useRef<HTMLDivElement>(null)
 
     const {
-      blocks,
-      addBlock,
       addAttachment,
-      removeBlock,
-      updateBlock,
+      addBlock,
+      blocks,
       clearCompose,
       getAssembled,
+      removeBlock,
+      updateBlock,
     } = useBlockComposer({
-      signature,
-      signatureEnabled,
-      quotedHtml,
+      mode: mode ?? 'new',
       quotedHeader,
       quotedHeaderHtml,
-      mode: mode ?? 'new',
+      quotedHtml,
+      signature,
+      signatureEnabled,
     })
 
     const setTextEditorRef = useCallback((editor: Editor | null) => {
@@ -101,6 +102,9 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
     useImperativeHandle(
       ref,
       () => ({
+        addAttachment,
+        clearCompose,
+        getComposeEditor: () => textEditorRef.current,
         getContent: () => {
           const assembled = getAssembled()
           // extract parts for backward compat
@@ -113,45 +117,45 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
             .filter((f): f is File => f != null)
 
           return {
+            attachments,
             compose: textBlock
               ? {
-                  text: (textBlock.data as TextBlockData).content,
                   html: (textBlock.data as TextBlockData).html,
+                  text: (textBlock.data as TextBlockData).content,
                 }
-              : { text: '', html: '' },
+              : { html: '', text: '' },
+            fullHtml: assembled.html,
+            fullText: assembled.text,
+            quoted: quoteBlock
+              ? { html: (quoteBlock.data as QuoteBlockData).html, text: '' }
+              : { html: '', text: '' },
             signature: sigBlock
               ? {
-                  text: (sigBlock.data as SignatureBlockData).text,
                   html: (sigBlock.data as SignatureBlockData).html,
+                  text: (sigBlock.data as SignatureBlockData).text,
                 }
-              : { text: '', html: '' },
-            quoted: quoteBlock
-              ? { text: '', html: (quoteBlock.data as QuoteBlockData).html }
-              : { text: '', html: '' },
-            fullText: assembled.text,
-            fullHtml: assembled.html,
-            attachments,
+              : { html: '', text: '' },
           }
-        },
-        getComposeEditor: () => textEditorRef.current,
-        clearCompose,
-        setComposeContent: (html: string) => {
-          textEditorRef.current?.commands.setContent(html)
         },
         getEditorMode: () => {
           const textBlock = blocks.find((b) => b.type === 'text')
           return textBlock ? (textBlock.data as TextBlockData).format : 'rich'
         },
-        addAttachment,
+        setComposeContent: (html: string) => {
+          textEditorRef.current?.commands.setContent(html)
+        },
       }),
-      [blocks, getAssembled, clearCompose, addAttachment],
+      [blocks, getAssembled, clearCompose, addAttachment]
     )
 
     // click empty space → focus first text editor
-    const handleAreaClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.target !== scrollAreaRef.current) return
-      textEditorRef.current?.commands.focus('end')
-    }, [])
+    const handleAreaClick = useCallback(
+      (e: React.MouseEvent<HTMLDivElement>) => {
+        if (e.target !== scrollAreaRef.current) return
+        textEditorRef.current?.commands.focus('end')
+      },
+      []
+    )
 
     const handleFileSelect = useCallback(() => {
       if (fileInputRef.current) {
@@ -166,7 +170,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
         for (const file of selected) addAttachment(file)
         e.target.value = ''
       },
-      [addAttachment],
+      [addAttachment]
     )
 
     // drag-and-drop attachment support
@@ -193,33 +197,33 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
         const files = Array.from(e.dataTransfer.files)
         for (const file of files) addAttachment(file)
       },
-      [addAttachment],
+      [addAttachment]
     )
 
     // wrapper that shows a delete button on hover for removable blocks
     const Removable = useCallback(
       ({
-        id,
         children,
         className = '',
+        id,
       }: {
-        id: string
         children: ReactNode
         className?: string
+        id: string
       }) => (
         <div className={`group relative ${className}`}>
           {children}
           <button
-            type="button"
-            onClick={() => removeBlock(id)}
-            className="absolute right-2 top-1 z-10 rounded-full bg-[var(--color-bg-overlay)] p-0.5 text-[var(--color-text-tertiary)] opacity-0 shadow-sm transition-opacity hover:bg-[var(--color-status-danger-subtle)] hover:text-[var(--color-status-danger)] group-hover:opacity-100"
             aria-label="Remove block"
+            className="absolute top-1 right-2 z-10 rounded-full bg-[var(--color-bg-overlay)] p-0.5 text-[var(--color-text-tertiary)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-[var(--color-status-danger-subtle)] hover:text-[var(--color-status-danger)]"
+            onClick={() => removeBlock(id)}
+            type="button"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       ),
-      [removeBlock],
+      [removeBlock]
     )
 
     const renderBlock = (block: AnyBlock, index: number) => {
@@ -230,74 +234,74 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
       const canRemove = !isFirstText && !isAutoManaged
 
       switch (block.type) {
-        case 'text':
-          return canRemove ? (
-            <Removable key={key} id={block.id}>
-              <TextBlock
-                data={block.data as TextBlockData}
-                onChange={(data) => updateBlock(block.id, data)}
-                onSubmit={onSubmit}
-                disabled={disabled}
-                placeholder="Continue writing..."
+        case 'attachment':
+          return (
+            <div className="px-4 py-1" key={key}>
+              <AttachmentBlock
+                data={block.data as AttachmentBlockData}
+                onRemove={() => removeBlock(block.id)}
               />
-            </Removable>
-          ) : (
-            <TextBlock
-              key={key}
-              data={block.data as TextBlockData}
-              onChange={(data) => updateBlock(block.id, data)}
-              onSubmit={onSubmit}
-              disabled={disabled}
-              placeholder={placeholder}
-              getEditorRef={setTextEditorRef}
-            />
-          )
-
-        case 'signature':
-          return (
-            <SignatureBlock
-              key={key}
-              data={block.data as SignatureBlockData}
-              onChange={(data) => updateBlock(block.id, data)}
-              disabled={disabled}
-            />
-          )
-
-        case 'quote':
-          return (
-            <QuoteBlock
-              key={key}
-              data={block.data as QuoteBlockData}
-              onChange={(data) => updateBlock(block.id, data)}
-              mode={mode === 'forward' ? 'forward' : 'reply'}
-            />
+            </div>
           )
 
         case 'divider':
           return (
-            <div key={key} className="group relative flex items-center px-4">
+            <div className="group relative flex items-center px-4" key={key}>
               <div className="flex-1">
                 <DividerBlock />
               </div>
               <button
-                type="button"
-                onClick={() => removeBlock(block.id)}
-                className="ml-2 shrink-0 rounded-full bg-[var(--color-bg-overlay)] p-0.5 text-[var(--color-text-tertiary)] opacity-0 shadow-sm transition-opacity hover:bg-[var(--color-status-danger-subtle)] hover:text-[var(--color-status-danger)] group-hover:opacity-100"
                 aria-label="Remove divider"
+                className="ml-2 shrink-0 rounded-full bg-[var(--color-bg-overlay)] p-0.5 text-[var(--color-text-tertiary)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-[var(--color-status-danger-subtle)] hover:text-[var(--color-status-danger)]"
+                onClick={() => removeBlock(block.id)}
+                type="button"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
           )
 
-        case 'attachment':
+        case 'quote':
           return (
-            <div key={key} className="px-4 py-1">
-              <AttachmentBlock
-                data={block.data as AttachmentBlockData}
-                onRemove={() => removeBlock(block.id)}
+            <QuoteBlock
+              data={block.data as QuoteBlockData}
+              key={key}
+              mode={mode === 'forward' ? 'forward' : 'reply'}
+              onChange={(data) => updateBlock(block.id, data)}
+            />
+          )
+
+        case 'signature':
+          return (
+            <SignatureBlock
+              data={block.data as SignatureBlockData}
+              disabled={disabled}
+              key={key}
+              onChange={(data) => updateBlock(block.id, data)}
+            />
+          )
+
+        case 'text':
+          return canRemove ? (
+            <Removable id={block.id} key={key}>
+              <TextBlock
+                data={block.data as TextBlockData}
+                disabled={disabled}
+                onChange={(data) => updateBlock(block.id, data)}
+                onSubmit={onSubmit}
+                placeholder="Continue writing..."
               />
-            </div>
+            </Removable>
+          ) : (
+            <TextBlock
+              data={block.data as TextBlockData}
+              disabled={disabled}
+              getEditorRef={setTextEditorRef}
+              key={key}
+              onChange={(data) => updateBlock(block.id, data)}
+              onSubmit={onSubmit}
+              placeholder={placeholder}
+            />
           )
 
         default:
@@ -322,25 +326,28 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
         )}
         {/* block content area */}
         <div
-          ref={scrollAreaRef}
+          className={`flex min-h-0 flex-1 cursor-text flex-col overflow-x-hidden overflow-y-auto ${disabled ? 'pointer-events-none opacity-50' : ''}`}
           onClick={handleAreaClick}
-          className={`flex min-h-0 flex-1 cursor-text flex-col overflow-y-auto overflow-x-hidden ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+          ref={scrollAreaRef}
         >
           {blocks.map((block, i) => renderBlock(block, i))}
         </div>
 
         {/* add block bar */}
         <div className="flex shrink-0 items-center border-t border-[var(--color-border-default)] px-4 py-1.5">
-          <AddBlockMenu onAdd={(type) => addBlock(type)} onAddFile={handleFileSelect} />
+          <AddBlockMenu
+            onAdd={(type) => addBlock(type)}
+            onAddFile={handleFileSelect}
+          />
           <input
+            className="hidden"
+            multiple
+            onChange={handleFilesAdded}
             ref={fileInputRef}
             type="file"
-            multiple
-            className="hidden"
-            onChange={handleFilesAdded}
           />
         </div>
       </div>
     )
-  },
+  }
 )

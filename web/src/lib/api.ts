@@ -2,6 +2,164 @@ import { getToken } from '@/store/auth'
 
 const API_BASE = '/api'
 
+export type Draft = {
+  bcc_addresses: string
+  body: string
+  cc_addresses: string
+  created_at: string
+  id: number
+  reply_to_thread_id: null | string
+  subject: string
+  to_addresses: string
+  updated_at: string
+}
+
+export type FeedbackAction =
+  | 'archive'
+  | 'block'
+  | 'mark_important'
+  | 'mark_spam'
+  | 'mark_vip'
+  | 'unblock'
+
+export type SaveDraftRequest = {
+  bcc?: string
+  body?: string
+  cc?: string
+  reply_to_thread_id?: string
+  subject?: string
+  to?: string
+}
+
+type SaveDraftResult = {
+  id?: number
+  message?: string
+  success: boolean
+}
+
+export async function deleteDraft(
+  id: number
+): Promise<{ message?: string; success: boolean }> {
+  return deleteJson<{ message?: string; success: boolean }>(
+    `/mail/drafts/${id}`
+  )
+}
+
+export async function deleteJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: authHeaders(),
+    method: 'DELETE',
+  })
+  return handleResponse<T>(res)
+}
+
+export async function fetchBlob(path: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: authHeaders(),
+  })
+  if (res.status === 401) {
+    localStorage.removeItem('mailrs_auth')
+    window.location.href = '/login'
+    throw new Error('unauthorized')
+  }
+  if (!res.ok) {
+    throw new Error(`Download failed: ${res.status}`)
+  }
+  return res.blob()
+}
+
+// --- draft types and API ---
+
+export async function fetchJson<T>(
+  path: string,
+  signal?: AbortSignal
+): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: authHeaders(),
+    signal,
+  })
+  return handleResponse<T>(res)
+}
+
+export async function getThreadReactions(
+  threadId: string
+): Promise<Record<number, ReactionSummary[]>> {
+  const result = await fetchJson<{
+    reactions: Record<number, ReactionSummary[]>
+  }>(`/conversations/${encodeURIComponent(threadId)}/reactions`)
+  return result.reactions
+}
+
+export async function listDrafts(): Promise<Draft[]> {
+  return fetchJson<Draft[]>('/mail/drafts')
+}
+
+export async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    method: 'POST',
+  })
+  return handleResponse<T>(res)
+}
+
+export async function putJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    method: 'PUT',
+  })
+  return handleResponse<T>(res)
+}
+
+// --- reactions API ---
+
+import type { ReactionSummary } from '@/lib/types'
+
+export async function recordFeedback(
+  senderEmail: string,
+  action: FeedbackAction
+): Promise<{ message?: string; success: boolean }> {
+  return postJson('/mail/feedback', { action, sender_email: senderEmail })
+}
+
+export async function saveDraft(
+  draft: SaveDraftRequest
+): Promise<SaveDraftResult> {
+  return postJson<SaveDraftResult>('/mail/drafts', draft)
+}
+
+// --- snooze API ---
+
+export async function snoozeConversation(
+  threadId: string,
+  until: string
+): Promise<{ message?: string; success: boolean }> {
+  return putJson(`/conversations/${encodeURIComponent(threadId)}/snooze`, {
+    until,
+  })
+}
+
+export async function toggleReaction(
+  threadId: string,
+  uid: number,
+  emoji: string
+): Promise<ReactionSummary[]> {
+  const result = await putJson<{ reactions: ReactionSummary[] }>(
+    `/conversations/${encodeURIComponent(threadId)}/messages/${uid}/reactions`,
+    { emoji }
+  )
+  return result.reactions
+}
+
+// --- sender feedback API ---
+
+export async function unsnoozeConversation(
+  threadId: string
+): Promise<{ message?: string; success: boolean }> {
+  return deleteJson(`/conversations/${encodeURIComponent(threadId)}/snooze`)
+}
+
 function authHeaders(): Record<string, string> {
   const token = getToken()
   if (token) return { Authorization: `Bearer ${token}` }
@@ -26,151 +184,4 @@ async function handleResponse<T>(res: Response): Promise<T> {
     throw new Error(message)
   }
   return res.json()
-}
-
-export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: authHeaders(),
-    signal,
-  })
-  return handleResponse<T>(res)
-}
-
-export async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(body),
-  })
-  return handleResponse<T>(res)
-}
-
-export async function putJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(body),
-  })
-  return handleResponse<T>(res)
-}
-
-export async function deleteJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  })
-  return handleResponse<T>(res)
-}
-
-export async function fetchBlob(path: string): Promise<Blob> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: authHeaders(),
-  })
-  if (res.status === 401) {
-    localStorage.removeItem('mailrs_auth')
-    window.location.href = '/login'
-    throw new Error('unauthorized')
-  }
-  if (!res.ok) {
-    throw new Error(`Download failed: ${res.status}`)
-  }
-  return res.blob()
-}
-
-// --- draft types and API ---
-
-export type Draft = {
-  id: number
-  to_addresses: string
-  cc_addresses: string
-  bcc_addresses: string
-  subject: string
-  body: string
-  reply_to_thread_id: string | null
-  created_at: string
-  updated_at: string
-}
-
-export type SaveDraftRequest = {
-  to?: string
-  cc?: string
-  bcc?: string
-  subject?: string
-  body?: string
-  reply_to_thread_id?: string
-}
-
-type SaveDraftResult = {
-  success: boolean
-  id?: number
-  message?: string
-}
-
-export async function saveDraft(draft: SaveDraftRequest): Promise<SaveDraftResult> {
-  return postJson<SaveDraftResult>('/mail/drafts', draft)
-}
-
-export async function listDrafts(): Promise<Draft[]> {
-  return fetchJson<Draft[]>('/mail/drafts')
-}
-
-// --- reactions API ---
-
-import type { ReactionSummary } from '@/lib/types'
-
-export async function toggleReaction(
-  threadId: string,
-  uid: number,
-  emoji: string,
-): Promise<ReactionSummary[]> {
-  const result = await putJson<{ reactions: ReactionSummary[] }>(
-    `/conversations/${encodeURIComponent(threadId)}/messages/${uid}/reactions`,
-    { emoji },
-  )
-  return result.reactions
-}
-
-export async function getThreadReactions(
-  threadId: string,
-): Promise<Record<number, ReactionSummary[]>> {
-  const result = await fetchJson<{ reactions: Record<number, ReactionSummary[]> }>(
-    `/conversations/${encodeURIComponent(threadId)}/reactions`,
-  )
-  return result.reactions
-}
-
-// --- snooze API ---
-
-export async function snoozeConversation(
-  threadId: string,
-  until: string,
-): Promise<{ success: boolean; message?: string }> {
-  return putJson(`/conversations/${encodeURIComponent(threadId)}/snooze`, { until })
-}
-
-export async function unsnoozeConversation(
-  threadId: string,
-): Promise<{ success: boolean; message?: string }> {
-  return deleteJson(`/conversations/${encodeURIComponent(threadId)}/snooze`)
-}
-
-// --- sender feedback API ---
-
-export type FeedbackAction =
-  | 'mark_important'
-  | 'mark_vip'
-  | 'mark_spam'
-  | 'block'
-  | 'archive'
-  | 'unblock'
-
-export async function recordFeedback(
-  senderEmail: string,
-  action: FeedbackAction,
-): Promise<{ success: boolean; message?: string }> {
-  return postJson('/mail/feedback', { sender_email: senderEmail, action })
-}
-
-export async function deleteDraft(id: number): Promise<{ success: boolean; message?: string }> {
-  return deleteJson<{ success: boolean; message?: string }>(`/mail/drafts/${id}`)
 }

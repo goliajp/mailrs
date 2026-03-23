@@ -3,17 +3,17 @@ import { useCallback, useRef, useState } from 'react'
 import { fetchJson } from '@/lib/api'
 
 export function ContactAutocomplete({
-  value,
+  autoFocus = false,
+  className = '',
   onChange,
   placeholder = 'recipient@example.com',
-  className = '',
-  autoFocus = false,
+  value,
 }: {
-  value: string
+  autoFocus?: boolean
+  className?: string
   onChange: (value: string) => void
   placeholder?: string
-  className?: string
-  autoFocus?: boolean
+  value: string
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -32,7 +32,9 @@ export function ContactAutocomplete({
     }
     debounceRef.current = setTimeout(async () => {
       try {
-        const data = await fetchJson<string[]>(`/contacts?q=${encodeURIComponent(query)}&limit=5`)
+        const data = await fetchJson<string[]>(
+          `/contacts?q=${encodeURIComponent(query)}&limit=5`
+        )
         setSuggestions(data)
         setShowSuggestions(data.length > 0)
         setActiveIndex(-1)
@@ -47,7 +49,7 @@ export function ContactAutocomplete({
       onChange(newValue)
       fetchContacts(newValue)
     },
-    [onChange, fetchContacts],
+    [onChange, fetchContacts]
   )
 
   const selectSuggestion = useCallback(
@@ -59,7 +61,7 @@ export function ContactAutocomplete({
       setShowSuggestions(false)
       setActiveIndex(-1)
     },
-    [value, onChange],
+    [value, onChange]
   )
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -81,32 +83,32 @@ export function ContactAutocomplete({
   }
 
   return (
-    <div ref={containerRef} className="relative flex-1">
+    <div className="relative flex-1" ref={containerRef}>
       <input
-        type="text"
-        value={value}
-        onChange={(e) => handleChange(e.target.value)}
-        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-        onKeyDown={handleKeyDown}
+        autoFocus={autoFocus}
         className={
           className ||
           'w-full bg-transparent py-2 text-sm text-[var(--color-text-primary)] outline-none'
         }
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+        onChange={(e) => handleChange(e.target.value)}
+        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        autoFocus={autoFocus}
+        type="text"
+        value={value}
       />
       {showSuggestions && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-full max-w-72 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] shadow-lg">
+        <div className="absolute top-full left-0 z-50 mt-1 w-full max-w-72 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] shadow-lg">
           {suggestions.map((s, i) => (
             <button
-              key={s}
-              onMouseDown={() => selectSuggestion(s)}
               className={`w-full px-3 py-2 text-left text-sm transition-colors ${
                 i === activeIndex
                   ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
                   : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
               }`}
+              key={s}
+              onMouseDown={() => selectSuggestion(s)}
             >
               {s}
             </button>

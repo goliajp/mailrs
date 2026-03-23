@@ -1,36 +1,36 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createStore } from 'jotai/vanilla'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // matchMedia and localStorage must exist before theme.ts module evaluates (top-level calls)
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
-    writable: true,
     value: vi.fn().mockReturnValue({
-      matches: false,
       addEventListener: vi.fn(),
+      matches: false,
       removeEventListener: vi.fn(),
     }),
+    writable: true,
   })
   // store/theme.ts calls getTheme() at module level which reads localStorage
   const store: Record<string, string> = {}
   Object.defineProperty(window, 'localStorage', {
-    writable: true,
     value: {
-      getItem: (k: string) => store[k] ?? null,
-      setItem: (k: string, v: string) => {
-        store[k] = v
-      },
-      removeItem: (k: string) => {
-        delete store[k]
-      },
       clear: () => {
         for (const k in store) delete store[k]
       },
+      getItem: (k: string) => store[k] ?? null,
       key: (n: number) => Object.keys(store)[n] ?? null,
       get length() {
         return Object.keys(store).length
       },
+      removeItem: (k: string) => {
+        delete store[k]
+      },
+      setItem: (k: string, v: string) => {
+        store[k] = v
+      },
     },
+    writable: true,
   })
 })
 
@@ -39,19 +39,19 @@ import { themeAtom } from '../theme'
 function makeLocalStorageMock(): Storage {
   const store: Record<string, string> = {}
   return {
+    clear: () => {
+      for (const k in store) delete store[k]
+    },
     getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => {
-      store[k] = v
+    key: (n: number) => Object.keys(store)[n] ?? null,
+    get length() {
+      return Object.keys(store).length
     },
     removeItem: (k: string) => {
       delete store[k]
     },
-    clear: () => {
-      for (const k in store) delete store[k]
-    },
-    key: (n: number) => Object.keys(store)[n] ?? null,
-    get length() {
-      return Object.keys(store).length
+    setItem: (k: string, v: string) => {
+      store[k] = v
     },
   } as Storage
 }

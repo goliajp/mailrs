@@ -1,7 +1,10 @@
 export default {
+  trailingComma: 'es5',
+  tabWidth: 2,
+  printWidth: 80,
   semi: false,
   singleQuote: true,
-  trailingComma: 'all',
-  printWidth: 100,
-  tabWidth: 2,
+  jsxSingleQuote: false,
+  plugins: ['prettier-plugin-tailwindcss'],
+  tailwindFunctions: ['clsx', 'cx'],
 }

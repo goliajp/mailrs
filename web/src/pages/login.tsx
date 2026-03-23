@@ -1,23 +1,32 @@
+import type { AuthInfo } from '@/store/auth'
+
 import { useSetAtom } from 'jotai'
-import { Eye, EyeOff, Loader2, ExternalLink } from 'lucide-react'
+import { ExternalLink, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
-import type { AuthInfo } from '@/store/auth'
 import { authAtom } from '@/store/auth'
 
-type OidcClientConfig = { enabled: boolean; login_url?: string; provider_name?: string }
+type OidcClientConfig = {
+  enabled: boolean
+  login_url?: string
+  provider_name?: string
+}
 
 export function Login() {
   const setAuth = useSetAtom(authAtom)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [address, setAddress] = useState(() => localStorage.getItem('mailrs_saved_email') ?? '')
+  const [address, setAddress] = useState(
+    () => localStorage.getItem('mailrs_saved_email') ?? ''
+  )
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [oidcConfig, setOidcConfig] = useState<OidcClientConfig | null>(null)
-  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('mailrs_saved_email'))
+  const [oidcConfig, setOidcConfig] = useState<null | OidcClientConfig>(null)
+  const [rememberMe, setRememberMe] = useState(
+    () => !!localStorage.getItem('mailrs_saved_email')
+  )
   const [showPassword, setShowPassword] = useState(false)
   const [totpRequired, setTotpRequired] = useState(false)
   const [totpCode, setTotpCode] = useState('')
@@ -42,11 +51,11 @@ export function Login() {
     const displayName = searchParams.get('display_name')
     if (token && addr) {
       const auth: AuthInfo = {
-        token,
+        accessible_domains: [],
         address: addr,
         display_name: displayName ?? '',
         permissions: [],
-        accessible_domains: [],
+        token,
       }
       setAuth(auth)
       // refresh permissions by calling /auth/me
@@ -54,11 +63,11 @@ export function Login() {
         .then((r) => r.json())
         .then((me) => {
           setAuth({
-            token,
+            accessible_domains: me.accessible_domains ?? [],
             address: me.address ?? addr,
             display_name: me.display_name ?? displayName ?? '',
             permissions: me.permissions ?? [],
-            accessible_domains: me.accessible_domains ?? [],
+            token,
           })
         })
         .catch(() => {})
@@ -72,13 +81,20 @@ export function Login() {
     setForgotMessage('')
     try {
       await fetch('/api/auth/forgot-password', {
-        method: 'POST',
+        body: JSON.stringify({
+          address: forgotAddress,
+          recovery_email: forgotRecoveryEmail,
+        }),
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: forgotAddress, recovery_email: forgotRecoveryEmail }),
+        method: 'POST',
       })
-      setForgotMessage('If the account and recovery email match, a reset link has been sent.')
+      setForgotMessage(
+        'If the account and recovery email match, a reset link has been sent.'
+      )
     } catch {
-      setForgotMessage('If the account and recovery email match, a reset link has been sent.')
+      setForgotMessage(
+        'If the account and recovery email match, a reset link has been sent.'
+      )
     } finally {
       setForgotLoading(false)
     }
@@ -91,13 +107,13 @@ export function Login() {
 
     try {
       const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           address,
           password,
           ...(totpRequired && totpCode ? { totp_code: totpCode } : {}),
         }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
       })
 
       const data = await res.json()
@@ -114,11 +130,11 @@ export function Login() {
       }
 
       const auth: AuthInfo = {
-        token: data.token,
+        accessible_domains: data.accessible_domains ?? [],
         address: data.address,
         display_name: data.display_name,
         permissions: data.permissions ?? [],
-        accessible_domains: data.accessible_domains ?? [],
+        token: data.token,
       }
       if (rememberMe) {
         localStorage.setItem('mailrs_saved_email', address)
@@ -137,11 +153,15 @@ export function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-base)] px-4">
       <form
+        className="w-full max-w-sm space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-lg select-none sm:p-8"
         onSubmit={forgotMode ? (e) => e.preventDefault() : handleSubmit}
-        className="w-full max-w-sm select-none space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-lg sm:p-8"
       >
         <div className="flex flex-col items-center">
-          <img src="/icon.svg" alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" />
+          <img
+            alt="mailrs"
+            className="mb-3 h-14 w-14 rounded-lg shadow-sm"
+            src="/icon.svg"
+          />
           <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
             Mailrs
           </h1>
@@ -152,8 +172,8 @@ export function Login() {
 
         {error && !forgotMode && (
           <div
-            role="alert"
             className="rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-2 text-sm text-[var(--color-status-danger)]"
+            role="alert"
           >
             {error}
           </div>
@@ -163,49 +183,53 @@ export function Login() {
           <>
             <div className="space-y-1.5">
               <label
-                htmlFor="login-email"
                 className="block text-xs font-medium text-[var(--color-text-secondary)]"
+                htmlFor="login-email"
               >
                 Email
               </label>
               <input
+                aria-label="Email address"
+                autoFocus
+                className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                 id="login-email"
-                type="email"
-                value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="you@domain.com"
                 required
-                autoFocus
-                aria-label="Email address"
-                className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                type="email"
+                value={address}
               />
             </div>
 
             <div className="space-y-1.5">
               <label
-                htmlFor="login-password"
                 className="block text-xs font-medium text-[var(--color-text-secondary)]"
+                htmlFor="login-password"
               >
                 Password
               </label>
               <div className="relative">
                 <input
-                  id="login-password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
                   aria-label="Password"
                   className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 pr-10 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                  id="login-password"
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
                 />
                 <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+                  className="absolute top-1/2 right-2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+                  onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
+                  type="button"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -215,23 +239,23 @@ export function Login() {
         {!forgotMode && totpRequired && (
           <div className="space-y-1.5">
             <label
-              htmlFor="login-totp"
               className="block text-xs font-medium text-[var(--color-text-secondary)]"
+              htmlFor="login-totp"
             >
               Two-Factor Code
             </label>
             <input
-              id="login-totp"
-              type="text"
-              inputMode="numeric"
+              aria-label="Two-factor authentication code"
               autoComplete="one-time-code"
-              value={totpCode}
+              autoFocus
+              className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+              id="login-totp"
+              inputMode="numeric"
               onChange={(e) => setTotpCode(e.target.value)}
               placeholder="Enter 6-digit code"
               required
-              autoFocus
-              aria-label="Two-factor authentication code"
-              className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+              type="text"
+              value={totpCode}
             />
             <p className="text-xs text-[var(--color-text-tertiary)]">
               Enter the code from your authenticator app, or a recovery code
@@ -244,19 +268,21 @@ export function Login() {
             {!totpRequired && (
               <label className="flex items-center gap-2">
                 <input
-                  type="checkbox"
                   checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="h-4 w-4 rounded border-[var(--color-border-default)] focus:ring-[var(--color-focus-ring)]"
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  type="checkbox"
                 />
-                <span className="text-sm text-[var(--color-text-secondary)]">Remember email</span>
+                <span className="text-sm text-[var(--color-text-secondary)]">
+                  Remember email
+                </span>
               </label>
             )}
 
             <button
-              type="submit"
-              disabled={loading}
               className="flex w-full items-center justify-center rounded-md bg-[var(--color-brand-primary)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
+              disabled={loading}
+              type="submit"
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {loading ? 'Signing in...' : totpRequired ? 'Verify' : 'Sign in'}
@@ -264,13 +290,13 @@ export function Login() {
 
             <div className="text-center">
               <button
-                type="button"
+                className="text-sm text-[var(--color-brand-primary)] hover:underline"
                 onClick={() => {
                   setForgotMode(true)
                   setError('')
                   setForgotMessage('')
                 }}
-                className="text-sm text-[var(--color-brand-primary)] hover:underline"
+                type="button"
               >
                 Forgot password?
               </button>
@@ -280,12 +306,14 @@ export function Login() {
               <>
                 <div className="flex items-center gap-3">
                   <div className="h-px flex-1 bg-[var(--color-border-default)]" />
-                  <span className="text-xs text-[var(--color-text-tertiary)]">or</span>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">
+                    or
+                  </span>
                   <div className="h-px flex-1 bg-[var(--color-border-default)]" />
                 </div>
                 <a
-                  href={oidcConfig.login_url}
                   className="flex w-full items-center justify-center gap-2 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-hover)]"
+                  href={oidcConfig.login_url}
                 >
                   <ExternalLink className="h-4 w-4" />
                   Sign in with {oidcConfig.provider_name ?? 'SSO'}
@@ -305,63 +333,65 @@ export function Login() {
 
             <div className="space-y-1.5">
               <label
-                htmlFor="forgot-email"
                 className="block text-xs font-medium text-[var(--color-text-secondary)]"
+                htmlFor="forgot-email"
               >
                 Account Email
               </label>
               <input
+                autoFocus
+                className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                 id="forgot-email"
-                type="email"
-                value={forgotAddress}
                 onChange={(e) => setForgotAddress(e.target.value)}
                 placeholder="you@domain.com"
                 required
-                autoFocus
-                className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                type="email"
+                value={forgotAddress}
               />
             </div>
 
             <div className="space-y-1.5">
               <label
-                htmlFor="forgot-recovery"
                 className="block text-xs font-medium text-[var(--color-text-secondary)]"
+                htmlFor="forgot-recovery"
               >
                 Recovery Email
               </label>
               <input
+                className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                 id="forgot-recovery"
-                type="email"
-                value={forgotRecoveryEmail}
                 onChange={(e) => setForgotRecoveryEmail(e.target.value)}
                 placeholder="your-recovery@gmail.com"
                 required
-                className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                type="email"
+                value={forgotRecoveryEmail}
               />
               <p className="text-xs text-[var(--color-text-tertiary)]">
-                Enter the recovery email you configured in Settings. The reset link will be sent
-                there.
+                Enter the recovery email you configured in Settings. The reset
+                link will be sent there.
               </p>
             </div>
 
             <button
-              type="button"
-              onClick={handleForgotPassword}
-              disabled={forgotLoading || !forgotAddress || !forgotRecoveryEmail}
               className="flex w-full items-center justify-center rounded-md bg-[var(--color-brand-primary)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
+              disabled={forgotLoading || !forgotAddress || !forgotRecoveryEmail}
+              onClick={handleForgotPassword}
+              type="button"
             >
-              {forgotLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {forgotLoading && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               {forgotLoading ? 'Sending...' : 'Send Reset Link'}
             </button>
 
             <div className="text-center">
               <button
-                type="button"
+                className="text-sm text-[var(--color-brand-primary)] hover:underline"
                 onClick={() => {
                   setForgotMode(false)
                   setForgotMessage('')
                 }}
-                className="text-sm text-[var(--color-brand-primary)] hover:underline"
+                type="button"
               >
                 Back to login
               </button>

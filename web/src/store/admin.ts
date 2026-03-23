@@ -1,6 +1,11 @@
-import { atom } from 'jotai'
+import type {
+  AccountInfo,
+  AliasInfo,
+  DomainInfo,
+  QueueEntry,
+} from '@/lib/types'
 
-import type { AccountInfo, AliasInfo, DomainInfo, QueueEntry } from '@/lib/types'
+import { atom } from 'jotai'
 
 export const domainsAtom = atom<DomainInfo[]>([])
 export const accountsAtom = atom<AccountInfo[]>([])

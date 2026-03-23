@@ -1,50 +1,25 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import type { AnyBlock, BlockType, BlockDataMap } from './types'
-import { createBlock } from './types'
-import { assembleEmail } from './assembly-engine'
+import type { AnyBlock, BlockDataMap, BlockType } from './types'
 import type { AssembledEmail } from './types'
 
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { assembleEmail } from './assembly-engine'
+import { createBlock } from './types'
+
 type Options = {
-  signature?: string
-  signatureEnabled?: boolean
-  quotedHtml?: string
+  mode: 'forward' | 'new' | 'reply'
   quotedHeader?: string
   quotedHeaderHtml?: string
-  mode: 'new' | 'reply' | 'forward'
-}
-
-function buildInitialBlocks(options: Options): AnyBlock[] {
-  const blocks: AnyBlock[] = [createBlock('text', { content: '', html: '', format: 'rich' })]
-
-  if (options.signatureEnabled && options.signature?.trim()) {
-    blocks.push(
-      createBlock('signature', {
-        html: `<p>${options.signature
-          .split('\n')
-          .map((l) => l || '<br>')
-          .join('</p><p>')}</p>`,
-        text: options.signature,
-      }),
-    )
-  }
-
-  if (options.mode !== 'new' && options.quotedHtml) {
-    blocks.push(
-      createBlock('quote', {
-        html: options.quotedHtml,
-        headerHtml: options.quotedHeaderHtml ?? '',
-        headerText: options.quotedHeader ?? '',
-        collapsed: true,
-      }),
-    )
-  }
-
-  return blocks
+  quotedHtml?: string
+  signature?: string
+  signatureEnabled?: boolean
 }
 
 export function useBlockComposer(options: Options) {
   const initializedRef = useRef(false)
-  const [blocks, setBlocks] = useState<AnyBlock[]>(() => buildInitialBlocks(options))
+  const [blocks, setBlocks] = useState<AnyBlock[]>(() =>
+    buildInitialBlocks(options)
+  )
 
   // reinitialize when mode/quoted content changes
   useEffect(() => {
@@ -58,17 +33,25 @@ export function useBlockComposer(options: Options) {
 
   const addBlock = useCallback((type: BlockType, position?: number) => {
     const defaults: Record<BlockType, () => AnyBlock> = {
-      text: () => createBlock('text', { content: '', html: '', format: 'rich' }),
-      code: () => createBlock('code', { code: '', language: 'javascript' }),
-      signature: () => createBlock('signature', { html: '', text: '' }),
-      quote: () =>
-        createBlock('quote', { html: '', headerHtml: '', headerText: '', collapsed: false }),
-      divider: () => createBlock('divider', {}),
       attachment: () => {
         throw new Error('use addAttachment')
       },
+      code: () => createBlock('code', { code: '', language: 'javascript' }),
+      divider: () => createBlock('divider', {}),
+      quote: () =>
+        createBlock('quote', {
+          collapsed: false,
+          headerHtml: '',
+          headerText: '',
+          html: '',
+        }),
+      signature: () => createBlock('signature', { html: '', text: '' }),
       task: () =>
-        createBlock('task', { items: [{ id: crypto.randomUUID(), text: '', checked: false }] }),
+        createBlock('task', {
+          items: [{ checked: false, id: crypto.randomUUID(), text: '' }],
+        }),
+      text: () =>
+        createBlock('text', { content: '', format: 'rich', html: '' }),
     }
     const block = defaults[type]()
     setBlocks((prev) => {
@@ -83,9 +66,9 @@ export function useBlockComposer(options: Options) {
   const addAttachment = useCallback((file: File) => {
     const block = createBlock('attachment', {
       file,
+      mimeType: file.type,
       name: file.name,
       size: file.size,
-      mimeType: file.type,
     })
     setBlocks((prev) => {
       const next = [...prev]
@@ -99,9 +82,12 @@ export function useBlockComposer(options: Options) {
     setBlocks((prev) => prev.filter((b) => b.id !== id))
   }, [])
 
-  const updateBlock = useCallback((id: string, data: BlockDataMap[BlockType]) => {
-    setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, data } : b)))
-  }, [])
+  const updateBlock = useCallback(
+    (id: string, data: BlockDataMap[BlockType]) => {
+      setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, data } : b)))
+    },
+    []
+  )
 
   const moveBlock = useCallback((fromIndex: number, toIndex: number) => {
     setBlocks((prev) => {
@@ -121,15 +107,46 @@ export function useBlockComposer(options: Options) {
   }, [blocks])
 
   return {
-    blocks,
-    addBlock,
     addAttachment,
-    removeBlock,
-    updateBlock,
-    moveBlock,
+    addBlock,
+    blocks,
     clearCompose,
     getAssembled,
+    moveBlock,
+    removeBlock,
+    updateBlock,
   }
+}
+
+function buildInitialBlocks(options: Options): AnyBlock[] {
+  const blocks: AnyBlock[] = [
+    createBlock('text', { content: '', format: 'rich', html: '' }),
+  ]
+
+  if (options.signatureEnabled && options.signature?.trim()) {
+    blocks.push(
+      createBlock('signature', {
+        html: `<p>${options.signature
+          .split('\n')
+          .map((l) => l || '<br>')
+          .join('</p><p>')}</p>`,
+        text: options.signature,
+      })
+    )
+  }
+
+  if (options.mode !== 'new' && options.quotedHtml) {
+    blocks.push(
+      createBlock('quote', {
+        collapsed: true,
+        headerHtml: options.quotedHeaderHtml ?? '',
+        headerText: options.quotedHeader ?? '',
+        html: options.quotedHtml,
+      })
+    )
+  }
+
+  return blocks
 }
 
 // find position before signature/quote blocks

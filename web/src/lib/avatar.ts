@@ -10,22 +10,24 @@ export function decodeMimeHeader(value: string): string {
             // base64
             const binary = atob(encoded)
             const bytes = new Uint8Array(binary.length)
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+            for (let i = 0; i < binary.length; i++)
+              bytes[i] = binary.charCodeAt(i)
             return new TextDecoder(charset).decode(bytes)
           }
           // quoted-printable
           const decoded = encoded
             .replace(/_/g, ' ')
             .replace(/=([0-9A-Fa-f]{2})/g, (_m, hex: string) =>
-              String.fromCharCode(parseInt(hex, 16)),
+              String.fromCharCode(parseInt(hex, 16))
             )
           const bytes = new Uint8Array(decoded.length)
-          for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i)
+          for (let i = 0; i < decoded.length; i++)
+            bytes[i] = decoded.charCodeAt(i)
           return new TextDecoder(charset).decode(bytes)
         } catch {
           return encoded
         }
-      },
+      }
     )
     .replace(/\s+/g, ' ')
     .trim()
@@ -91,19 +93,17 @@ export function isMachineGenerated(s: string): boolean {
 
 // extract the brand/registrable domain label
 // e.g. "notify.cloudflare.com" → "cloudflare", "em8742.bsm.freee.work" → "freee"
-const SECONDARY_TLDS = new Set(['co', 'com', 'net', 'org', 'ac', 'gov', 'edu', 'ne', 'or'])
-
-function domainLabel(domain: string): string {
-  const parts = domain.split('.')
-  if (parts.length <= 1) return domain
-  // the brand is usually the second-to-last part (just before the TLD)
-  // for multi-part TLDs like .co.jp / .co.uk, go one level deeper
-  const sld = parts[parts.length - 2]
-  if (parts.length >= 3 && SECONDARY_TLDS.has(sld)) {
-    return parts[parts.length - 3] || sld
-  }
-  return sld
-}
+const SECONDARY_TLDS = new Set([
+  'ac',
+  'co',
+  'com',
+  'edu',
+  'gov',
+  'ne',
+  'net',
+  'or',
+  'org',
+])
 
 // extract a human-readable display name from a "Name <email>" or raw email string
 export function extractName(sender: string): string {
@@ -124,4 +124,16 @@ export function extractName(sender: string): string {
     return label.charAt(0).toUpperCase() + label.slice(1)
   }
   return local ?? sender
+}
+
+function domainLabel(domain: string): string {
+  const parts = domain.split('.')
+  if (parts.length <= 1) return domain
+  // the brand is usually the second-to-last part (just before the TLD)
+  // for multi-part TLDs like .co.jp / .co.uk, go one level deeper
+  const sld = parts[parts.length - 2]
+  if (parts.length >= 3 && SECONDARY_TLDS.has(sld)) {
+    return parts[parts.length - 3] || sld
+  }
+  return sld
 }

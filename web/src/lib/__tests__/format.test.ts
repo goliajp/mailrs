@@ -2,16 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { formatDate, formatFullDate, formatSize, formatUptime } from '../format'
 
-// helper: convert a Date to a unix timestamp (seconds)
-function toTs(d: Date): number {
-  return Math.floor(d.getTime() / 1000)
-}
-
 // helper: build a Date relative to a fixed "now"
 function daysAgo(now: Date, days: number): Date {
   const d = new Date(now)
   d.setDate(d.getDate() - days)
   return d
+}
+
+// helper: convert a Date to a unix timestamp (seconds)
+function toTs(d: Date): number {
+  return Math.floor(d.getTime() / 1000)
 }
 
 describe('formatDate', () => {

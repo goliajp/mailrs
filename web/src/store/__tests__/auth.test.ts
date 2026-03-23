@@ -1,36 +1,37 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AuthInfo } from '../auth'
+
 import { createStore } from 'jotai/vanilla'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { authAtom, getToken } from '../auth'
-import type { AuthInfo } from '../auth'
 
 const STORAGE_KEY = 'mailrs_auth'
 
 const sampleAuth: AuthInfo = {
-  token: 'tok-abc123',
+  accessible_domains: ['example.com'],
   address: 'user@example.com',
   display_name: 'Test User',
   permissions: [],
-  accessible_domains: ['example.com'],
+  token: 'tok-abc123',
 }
 
 // localStorage mock that supports all needed methods
 function makeLocalStorageMock(): Storage {
   const store: Record<string, string> = {}
   return {
+    clear: () => {
+      for (const k in store) delete store[k]
+    },
     getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => {
-      store[k] = v
+    key: (n: number) => Object.keys(store)[n] ?? null,
+    get length() {
+      return Object.keys(store).length
     },
     removeItem: (k: string) => {
       delete store[k]
     },
-    clear: () => {
-      for (const k in store) delete store[k]
-    },
-    key: (n: number) => Object.keys(store)[n] ?? null,
-    get length() {
-      return Object.keys(store).length
+    setItem: (k: string, v: string) => {
+      store[k] = v
     },
   } as Storage
 }

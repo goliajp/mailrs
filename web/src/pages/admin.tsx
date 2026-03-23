@@ -5,10 +5,10 @@ import { AdminAccounts } from '@/pages/admin-accounts'
 import { AdminAliases } from '@/pages/admin-aliases'
 import { AdminApps } from '@/pages/admin-apps'
 import { AdminAuditLog } from '@/pages/admin-audit-log'
-import { AdminMailAudit } from '@/pages/admin-mail-audit'
 import { AdminDomains } from '@/pages/admin-domains'
 import { AdminEmailGroups } from '@/pages/admin-email-groups'
 import { AdminGroups } from '@/pages/admin-groups'
+import { AdminMailAudit } from '@/pages/admin-mail-audit'
 import { AdminOverview } from '@/pages/admin-overview'
 import { AdminQueues } from '@/pages/admin-queues'
 
@@ -18,17 +18,17 @@ export function Admin() {
       <AdminSidebar />
       <div className="min-h-0 flex-1 overflow-auto">
         <Routes>
-          <Route path="overview" element={<AdminOverview />} />
-          <Route path="domains" element={<AdminDomains />} />
-          <Route path="accounts" element={<AdminAccounts />} />
-          <Route path="aliases" element={<AdminAliases />} />
-          <Route path="groups" element={<AdminGroups />} />
-          <Route path="email-groups" element={<AdminEmailGroups />} />
-          <Route path="apps" element={<AdminApps />} />
-          <Route path="queues" element={<AdminQueues />} />
-          <Route path="audit-log" element={<AdminAuditLog />} />
-          <Route path="mail-audit" element={<AdminMailAudit />} />
-          <Route path="*" element={<Navigate to="overview" replace />} />
+          <Route element={<AdminOverview />} path="overview" />
+          <Route element={<AdminDomains />} path="domains" />
+          <Route element={<AdminAccounts />} path="accounts" />
+          <Route element={<AdminAliases />} path="aliases" />
+          <Route element={<AdminGroups />} path="groups" />
+          <Route element={<AdminEmailGroups />} path="email-groups" />
+          <Route element={<AdminApps />} path="apps" />
+          <Route element={<AdminQueues />} path="queues" />
+          <Route element={<AdminAuditLog />} path="audit-log" />
+          <Route element={<AdminMailAudit />} path="mail-audit" />
+          <Route element={<Navigate replace to="overview" />} path="*" />
         </Routes>
       </div>
     </div>

@@ -1,15 +1,26 @@
 import { useEffect, useState } from 'react'
+
 import { avatarColor, avatarInitial } from '@/lib/avatar'
 import { cn } from '@/lib/cn'
 
-function extractDomain(sender: string): string | null {
+function extractDomain(sender: string): null | string {
   const match = sender.match(/@([a-zA-Z0-9.-]+)/)
   return match ? match[1] : null
 }
 
 // extract parent/registrable domain: mail.nvidia.cn → nvidia.cn, em.linkedin.com → linkedin.com
-const SECONDARY_TLDS = new Set(['co', 'com', 'net', 'org', 'ac', 'gov', 'edu', 'ne', 'or'])
-function getParentDomain(domain: string): string | null {
+const SECONDARY_TLDS = new Set([
+  'ac',
+  'co',
+  'com',
+  'edu',
+  'gov',
+  'ne',
+  'net',
+  'or',
+  'org',
+])
+function getParentDomain(domain: string): null | string {
   const parts = domain.split('.')
   if (parts.length <= 2) return null
   // handle multi-part TLDs like .co.jp, .co.uk
@@ -21,8 +32,77 @@ function getParentDomain(domain: string): string | null {
 }
 
 // unified icon cache: domain → verified image URL or null
-const iconCache = new Map<string, string | null>()
-const iconInflight = new Map<string, Promise<string | null>>()
+const iconCache = new Map<string, null | string>()
+const iconInflight = new Map<string, Promise<null | string>>()
+
+export function SenderAvatar({
+  className,
+  sender,
+  size = 36,
+}: {
+  className?: string
+  sender: string
+  size?: number
+}) {
+  const domain = extractDomain(sender)
+  const [iconUrl, setIconUrl] = useState<null | string>(() => {
+    if (domain && iconCache.has(domain)) return iconCache.get(domain)!
+    return null
+  })
+  const initial = avatarInitial(sender)
+  const color = avatarColor(sender)
+  const sizeClass =
+    size <= 28
+      ? 'h-7 w-7 text-[11px]'
+      : size <= 32
+        ? 'h-8 w-8 text-xs'
+        : 'h-9 w-9 text-sm'
+
+  useEffect(() => {
+    if (!domain) return
+    if (iconCache.has(domain)) {
+      setIconUrl(iconCache.get(domain)!)
+      return
+    }
+    let cancelled = false
+    resolveIcon(domain).then((url) => {
+      if (!cancelled) setIconUrl(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [domain])
+
+  // verified icon (BIMI or apple-touch-icon)
+  if (iconUrl) {
+    return (
+      <img
+        alt={initial}
+        className={cn(
+          `shrink-0 rounded-full object-cover ${sizeClass}`,
+          className
+        )}
+        onError={() => {
+          iconCache.set(domain!, null)
+          setIconUrl(null)
+        }}
+        src={iconUrl}
+      />
+    )
+  }
+
+  // colored initials — immediate, no blank state
+  return (
+    <div
+      className={cn(
+        `flex shrink-0 items-center justify-center rounded-full font-medium text-white ${sizeClass} ${color}`,
+        className
+      )}
+    >
+      {initial}
+    </div>
+  )
+}
 
 // preload an image and verify it's actually a valid image (not an HTML error page)
 function probeImage(url: string): Promise<boolean> {
@@ -35,7 +115,7 @@ function probeImage(url: string): Promise<boolean> {
 }
 
 // try BIMI first, then apple-touch-icon, cache the winner
-function resolveIcon(domain: string): Promise<string | null> {
+function resolveIcon(domain: string): Promise<null | string> {
   if (iconCache.has(domain)) return Promise.resolve(iconCache.get(domain)!)
   const existing = iconInflight.get(domain)
   if (existing) return existing
@@ -78,67 +158,4 @@ function resolveIcon(domain: string): Promise<string | null> {
 
   iconInflight.set(domain, p)
   return p
-}
-
-export function SenderAvatar({
-  sender,
-  size = 36,
-  className,
-}: {
-  sender: string
-  size?: number
-  className?: string
-}) {
-  const domain = extractDomain(sender)
-  const [iconUrl, setIconUrl] = useState<string | null>(() => {
-    if (domain && iconCache.has(domain)) return iconCache.get(domain)!
-    return null
-  })
-  const initial = avatarInitial(sender)
-  const color = avatarColor(sender)
-  const sizeClass =
-    size <= 28 ? 'h-7 w-7 text-[11px]' : size <= 32 ? 'h-8 w-8 text-xs' : 'h-9 w-9 text-sm'
-
-  useEffect(() => {
-    if (!domain) return
-    if (iconCache.has(domain)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing with external module-level cache
-      setIconUrl(iconCache.get(domain)!)
-      return
-    }
-    let cancelled = false
-    resolveIcon(domain).then((url) => {
-      if (!cancelled) setIconUrl(url)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [domain])
-
-  // verified icon (BIMI or apple-touch-icon)
-  if (iconUrl) {
-    return (
-      <img
-        src={iconUrl}
-        alt={initial}
-        onError={() => {
-          iconCache.set(domain!, null)
-          setIconUrl(null)
-        }}
-        className={cn(`shrink-0 rounded-full object-cover ${sizeClass}`, className)}
-      />
-    )
-  }
-
-  // colored initials — immediate, no blank state
-  return (
-    <div
-      className={cn(
-        `flex shrink-0 items-center justify-center rounded-full font-medium text-white ${sizeClass} ${color}`,
-        className,
-      )}
-    >
-      {initial}
-    </div>
-  )
 }

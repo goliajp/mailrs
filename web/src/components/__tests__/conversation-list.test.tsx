@@ -1,9 +1,10 @@
-import { Provider, createStore } from 'jotai'
-import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-
 import type { ConversationSummary } from '@/lib/types'
+import type { ReactNode } from 'react'
+
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { createStore, Provider } from 'jotai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { authAtom } from '@/store/auth'
 import {
   batchModeAtom,
@@ -22,8 +23,8 @@ vi.mock('@/lib/api', () => ({
 // mock sonner toast
 vi.mock('sonner', () => ({
   toast: {
-    success: vi.fn(),
     error: vi.fn(),
+    success: vi.fn(),
   },
 }))
 
@@ -31,19 +32,19 @@ vi.mock('sonner', () => ({
 function makeLocalStorageMock(): Storage {
   const store: Record<string, string> = {}
   return {
+    clear: () => {
+      for (const k in store) delete store[k]
+    },
     getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => {
-      store[k] = v
+    key: (n: number) => Object.keys(store)[n] ?? null,
+    get length() {
+      return Object.keys(store).length
     },
     removeItem: (k: string) => {
       delete store[k]
     },
-    clear: () => {
-      for (const k in store) delete store[k]
-    },
-    key: (n: number) => Object.keys(store)[n] ?? null,
-    get length() {
-      return Object.keys(store).length
+    setItem: (k: string, v: string) => {
+      store[k] = v
     },
   } as Storage
 }
@@ -52,28 +53,30 @@ vi.stubGlobal('localStorage', makeLocalStorageMock())
 // mock IntersectionObserver
 const mockIntersectionObserver = vi.fn()
 mockIntersectionObserver.mockReturnValue({
+  disconnect: vi.fn(),
   observe: vi.fn(),
   unobserve: vi.fn(),
-  disconnect: vi.fn(),
 })
 vi.stubGlobal('IntersectionObserver', mockIntersectionObserver)
 
-function makeConversation(overrides: Partial<ConversationSummary> = {}): ConversationSummary {
+function makeConversation(
+  overrides: Partial<ConversationSummary> = {}
+): ConversationSummary {
   return {
-    thread_id: 'thread-1',
-    subject: 'Test Subject',
-    participants: ['alice@example.com'],
-    message_count: 1,
-    unread_count: 0,
-    last_date: Math.floor(Date.now() / 1000),
+    archived: false,
     category: 'general',
     flagged: false,
-    snippet: 'A snippet',
-    pinned: false,
-    archived: false,
     importance_level: 'normal',
     importance_score: 0.3,
+    last_date: Math.floor(Date.now() / 1000),
+    message_count: 1,
+    participants: ['alice@example.com'],
+    pinned: false,
     requires_action: false,
+    snippet: 'A snippet',
+    subject: 'Test Subject',
+    thread_id: 'thread-1',
+    unread_count: 0,
     ...overrides,
   }
 }
@@ -81,22 +84,22 @@ function makeConversation(overrides: Partial<ConversationSummary> = {}): Convers
 function makeStore() {
   const store = createStore()
   store.set(authAtom, {
-    token: 'test-token',
+    accessible_domains: ['example.com', 'golia.jp'],
     address: 'user@example.com',
     display_name: 'Test User',
     permissions: [],
-    accessible_domains: ['example.com', 'golia.jp'],
+    token: 'test-token',
   })
   store.set(initialLoadingAtom, false)
   return store
 }
 
 function Wrapper({
-  store,
   children,
+  store,
 }: {
-  store: ReturnType<typeof createStore>
   children: ReactNode
+  store: ReturnType<typeof createStore>
 }) {
   return <Provider store={store}>{children}</Provider>
 }
@@ -128,7 +131,7 @@ describe('FilterBar — sort', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     openFilterPanel()
@@ -141,14 +144,22 @@ describe('FilterBar — sort', () => {
   it('applies oldest sort to conversations', () => {
     const now = Math.floor(Date.now() / 1000)
     store.set(conversationsAtom, [
-      makeConversation({ thread_id: 'newer', last_date: now, subject: 'Newer' }),
-      makeConversation({ thread_id: 'older', last_date: now - 86400, subject: 'Older' }),
+      makeConversation({
+        last_date: now,
+        subject: 'Newer',
+        thread_id: 'newer',
+      }),
+      makeConversation({
+        last_date: now - 86400,
+        subject: 'Older',
+        thread_id: 'older',
+      }),
     ])
 
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     openFilterPanel()
@@ -173,7 +184,7 @@ describe('FilterBar — archived toggle', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     openFilterPanel()
@@ -183,14 +194,22 @@ describe('FilterBar — archived toggle', () => {
 
   it('shows archived conversations when Archived clicked', () => {
     store.set(conversationsAtom, [
-      makeConversation({ thread_id: 'normal', subject: 'Normal Item', archived: false }),
-      makeConversation({ thread_id: 'archived', subject: 'Archived Item', archived: true }),
+      makeConversation({
+        archived: false,
+        subject: 'Normal Item',
+        thread_id: 'normal',
+      }),
+      makeConversation({
+        archived: true,
+        subject: 'Archived Item',
+        thread_id: 'archived',
+      }),
     ])
 
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.queryByText('Archived Item')).toBeNull()
@@ -207,8 +226,8 @@ describe('BatchActionBar', () => {
   beforeEach(() => {
     store = makeStore()
     store.set(conversationsAtom, [
-      makeConversation({ thread_id: 't1', subject: 'Thread 1' }),
-      makeConversation({ thread_id: 't2', subject: 'Thread 2' }),
+      makeConversation({ subject: 'Thread 1', thread_id: 't1' }),
+      makeConversation({ subject: 'Thread 2', thread_id: 't2' }),
     ])
   })
 
@@ -216,7 +235,7 @@ describe('BatchActionBar', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.queryByText(/selected$/)).toBeNull()
@@ -229,7 +248,7 @@ describe('BatchActionBar', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('1 selected')).toBeDefined()
@@ -245,7 +264,7 @@ describe('BatchActionBar', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     const batchButton = screen.getByLabelText('Enter batch select mode')
@@ -265,7 +284,7 @@ describe('BatchActionBar', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     fireEvent.click(screen.getByText('Cancel'))
@@ -279,7 +298,7 @@ describe('BatchActionBar', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('2 selected')).toBeDefined()
@@ -299,7 +318,7 @@ describe('ConversationList empty states', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('All caught up!')).toBeDefined()
@@ -311,7 +330,7 @@ describe('ConversationList empty states', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     const searchInput = screen.getByLabelText('Search conversations')
@@ -328,7 +347,7 @@ describe('ConversationList empty states', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('No more conversations')).toBeDefined()
@@ -345,15 +364,15 @@ describe('ConversationItem rendering', () => {
   it('renders subject and participant name', () => {
     store.set(conversationsAtom, [
       makeConversation({
-        subject: 'Important Email',
         participants: ['Alice Smith <alice@example.com>'],
+        subject: 'Important Email',
       }),
     ])
 
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('Important Email')).toBeDefined()
@@ -366,7 +385,7 @@ describe('ConversationItem rendering', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('5')).toBeDefined()
@@ -378,7 +397,7 @@ describe('ConversationItem rendering', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('(no subject)')).toBeDefined()
@@ -387,26 +406,32 @@ describe('ConversationItem rendering', () => {
   it('shows participant count when multiple participants', () => {
     store.set(conversationsAtom, [
       makeConversation({
-        participants: ['alice@example.com', 'bob@example.com', 'charlie@example.com'],
+        participants: [
+          'alice@example.com',
+          'bob@example.com',
+          'charlie@example.com',
+        ],
       }),
     ])
 
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('+2')).toBeDefined()
   })
 
   it('shows snippet when available', () => {
-    store.set(conversationsAtom, [makeConversation({ snippet: 'This is a preview...' })])
+    store.set(conversationsAtom, [
+      makeConversation({ snippet: 'This is a preview...' }),
+    ])
 
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('This is a preview...')).toBeDefined()
@@ -418,7 +443,7 @@ describe('ConversationItem rendering', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.getByText('Newsletter')).toBeDefined()
@@ -430,7 +455,7 @@ describe('ConversationItem rendering', () => {
     render(
       <Wrapper store={store}>
         <ConversationList onLoadMore={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
 
     expect(screen.queryByText('General')).toBeNull()

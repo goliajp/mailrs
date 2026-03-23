@@ -1,3 +1,5 @@
+import type { DomainCheckReport, DomainInfo } from '@/lib/types'
+
 import { useAtom } from 'jotai'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -5,15 +7,14 @@ import { toast } from 'sonner'
 import { Copyable } from '@/components/copy-button'
 import { DomainHealthCard } from '@/components/domain-health-card'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
-import type { DomainCheckReport, DomainInfo } from '@/lib/types'
 import { domainsAtom } from '@/store/admin'
 
 export function AdminDomains() {
   const [domains, setDomains] = useAtom(domainsAtom)
   const [adding, setAdding] = useState(false)
   const [newDomain, setNewDomain] = useState('')
-  const [checking, setChecking] = useState<string | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [checking, setChecking] = useState<null | string>(null)
+  const [deleteTarget, setDeleteTarget] = useState<null | string>(null)
   const [reports, setReports] = useState<Record<string, DomainCheckReport>>({})
 
   const loadDomains = useCallback(async () => {
@@ -59,7 +60,7 @@ export function AdminDomains() {
     try {
       const report = await postJson<DomainCheckReport>(
         `/admin/domains/${encodeURIComponent(name)}/check`,
-        {},
+        {}
       )
       setReports((prev) => ({ ...prev, [name]: report }))
     } catch {
@@ -86,8 +87,8 @@ export function AdminDomains() {
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Domains</h2>
         <button
-          onClick={() => setAdding(true)}
           className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+          onClick={() => setAdding(true)}
         >
           Add Domain
         </button>
@@ -96,21 +97,21 @@ export function AdminDomains() {
       {adding && (
         <div className="mb-4 flex gap-2">
           <input
-            value={newDomain}
-            onChange={(e) => setNewDomain(e.target.value)}
-            placeholder="example.com"
             className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+            onChange={(e) => setNewDomain(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            placeholder="example.com"
+            value={newDomain}
           />
           <button
-            onClick={handleAdd}
             className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)]"
+            onClick={handleAdd}
           >
             Save
           </button>
           <button
-            onClick={() => setAdding(false)}
             className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+            onClick={() => setAdding(false)}
           >
             Cancel
           </button>
@@ -138,9 +139,9 @@ export function AdminDomains() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
-                      onClick={() => toggleReport(domain.name)}
-                      disabled={checking === domain.name}
                       className="mr-3 text-xs text-[var(--color-brand-primary)] hover:opacity-80 disabled:opacity-50"
+                      disabled={checking === domain.name}
+                      onClick={() => toggleReport(domain.name)}
                     >
                       {checking === domain.name
                         ? 'Checking...'
@@ -149,8 +150,8 @@ export function AdminDomains() {
                           : 'Check'}
                     </button>
                     <button
-                      onClick={() => setDeleteTarget(domain.name)}
                       className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
+                      onClick={() => setDeleteTarget(domain.name)}
                     >
                       Delete
                     </button>
@@ -158,11 +159,11 @@ export function AdminDomains() {
                 </tr>
                 {reports[domain.name] && (
                   <tr>
-                    <td colSpan={3} className="px-4 pb-4 pt-1">
+                    <td className="px-4 pt-1 pb-4" colSpan={3}>
                       <DomainHealthCard
-                        report={reports[domain.name]}
                         checking={checking === domain.name}
                         onRecheck={() => handleCheck(domain.name)}
+                        report={reports[domain.name]}
                       />
                     </td>
                   </tr>
@@ -171,7 +172,10 @@ export function AdminDomains() {
             ))}
             {domains.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
+                <td
+                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
+                  colSpan={3}
+                >
                   No domains configured
                 </td>
               </tr>
@@ -185,19 +189,21 @@ export function AdminDomains() {
           <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg">
             <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
               Delete domain{' '}
-              <span className="font-medium text-[var(--color-text-primary)]">{deleteTarget}</span>?
-              This will also remove all associated accounts and aliases.
+              <span className="font-medium text-[var(--color-text-primary)]">
+                {deleteTarget}
+              </span>
+              ? This will also remove all associated accounts and aliases.
             </p>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setDeleteTarget(null)}
                 className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+                onClick={() => setDeleteTarget(null)}
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleDelete(deleteTarget)}
                 className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+                onClick={() => handleDelete(deleteTarget)}
               >
                 Delete
               </button>

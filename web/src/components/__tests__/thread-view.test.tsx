@@ -1,38 +1,48 @@
-import { Provider, createStore } from 'jotai'
-import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-
 import type { ConversationSummary, ThreadMessage } from '@/lib/types'
+import type { ReactNode } from 'react'
+
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
+import { createStore, Provider } from 'jotai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const localStorageStore: Record<string, string> = {}
 vi.stubGlobal('localStorage', {
-  getItem: vi.fn((key: string) => localStorageStore[key] ?? null),
-  setItem: vi.fn((key: string, value: string) => {
-    localStorageStore[key] = value
-  }),
-  removeItem: vi.fn((key: string) => {
-    delete localStorageStore[key]
-  }),
   clear: vi.fn(() => {
     Object.keys(localStorageStore).forEach((k) => delete localStorageStore[k])
   }),
-  length: 0,
+  getItem: vi.fn((key: string) => localStorageStore[key] ?? null),
   key: vi.fn(() => null),
+  length: 0,
+  removeItem: vi.fn((key: string) => {
+    delete localStorageStore[key]
+  }),
+  setItem: vi.fn((key: string, value: string) => {
+    localStorageStore[key] = value
+  }),
 })
 
 import { authAtom } from '@/store/auth'
-import { conversationsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
+import {
+  conversationsAtom,
+  selectedThreadIdAtom,
+  threadMessagesAtom,
+} from '@/store/chat'
 
 vi.mock('@/lib/api', () => ({
-  fetchJson: vi.fn(() => Promise.resolve([])),
-  postJson: vi.fn(() => Promise.resolve({ success: true })),
   deleteJson: vi.fn(() => Promise.resolve({ success: true })),
-  saveDraft: vi.fn(() => Promise.resolve({ success: true })),
+  fetchJson: vi.fn(() => Promise.resolve([])),
   getThreadReactions: vi.fn(() => Promise.resolve({})),
-  toggleReaction: vi.fn(() => Promise.resolve({ success: true })),
+  postJson: vi.fn(() => Promise.resolve({ success: true })),
   recordFeedback: vi.fn(() => Promise.resolve({ success: true })),
+  saveDraft: vi.fn(() => Promise.resolve({ success: true })),
   snoozeConversation: vi.fn(() => Promise.resolve({ success: true })),
+  toggleReaction: vi.fn(() => Promise.resolve({ success: true })),
   unsnoozeConversation: vi.fn(() => Promise.resolve({ success: true })),
 }))
 
@@ -44,7 +54,7 @@ vi.mock('@/store/auth', async (importOriginal) => {
 Element.prototype.scrollIntoView = vi.fn()
 
 vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 vi.mock('@/components/ai-analysis', () => ({
@@ -54,7 +64,13 @@ vi.mock('@/components/ai-analysis', () => ({
 }))
 
 vi.mock('@/components/attachment-preview', () => ({
-  AttachmentPreview: ({ attachments, uid }: { attachments: unknown[]; uid: number }) => (
+  AttachmentPreview: ({
+    attachments,
+    uid,
+  }: {
+    attachments: unknown[]
+    uid: number
+  }) => (
     <div data-testid="attachment-preview">
       {attachments.length} attachment(s) for uid {uid}
     </div>
@@ -62,78 +78,94 @@ vi.mock('@/components/attachment-preview', () => ({
 }))
 
 vi.mock('@/components/message-bubble', () => ({
-  MessageBubble: ({ htmlBody, textBody }: { htmlBody: string | null; textBody: string | null }) => (
-    <div data-testid="message-bubble">{htmlBody ? 'HTML' : textBody ? 'TEXT' : 'EMPTY'}</div>
+  MessageBubble: ({
+    htmlBody,
+    textBody,
+  }: {
+    htmlBody: null | string
+    textBody: null | string
+  }) => (
+    <div data-testid="message-bubble">
+      {htmlBody ? 'HTML' : textBody ? 'TEXT' : 'EMPTY'}
+    </div>
   ),
 }))
 
 vi.mock('@/components/category-badge', () => ({
+  ActionBadge: () => <span data-testid="action-badge">Action</span>,
   CategoryBadge: ({ category }: { category: string }) =>
     category && category !== 'general' ? (
       <span data-testid="category-badge">{category}</span>
     ) : null,
   ImportanceBadge: ({ level }: { level: string }) =>
-    level && level !== 'normal' ? <span data-testid="importance-badge">{level}</span> : null,
-  ActionBadge: () => <span data-testid="action-badge">Action</span>,
+    level && level !== 'normal' ? (
+      <span data-testid="importance-badge">{level}</span>
+    ) : null,
   IntentBadge: ({ intent }: { intent: string }) =>
-    intent && intent !== 'inform' ? <span data-testid="intent-badge">{intent}</span> : null,
+    intent && intent !== 'inform' ? (
+      <span data-testid="intent-badge">{intent}</span>
+    ) : null,
 }))
 
 vi.mock('@/components/reply-box', () => ({
-  ReplyBox: ({ mode }: { mode: string }) => <div data-testid="reply-box">mode: {mode}</div>,
+  ReplyBox: ({ mode }: { mode: string }) => (
+    <div data-testid="reply-box">mode: {mode}</div>
+  ),
 }))
 
-function makeMessage(overrides: Partial<ThreadMessage> = {}): ThreadMessage {
+function makeConversation(
+  overrides: Partial<ConversationSummary> = {}
+): ConversationSummary {
   return {
-    id: 1,
-    uid: 100,
-    sender: 'Alice Smith <alice@example.com>',
-    recipients: 'bob@example.com',
-    subject: 'Test Subject',
-    flags: 0,
-    internal_date: 1700000000,
-    message_id: '<msg1@example.com>',
-    text_body: 'Hello, this is a test message',
-    html_body: null,
-    attachments: [],
+    archived: false,
     category: 'general',
-    risk_score: 0,
-    risk_reason: '',
-    summary: '',
-    people: [],
-    dates: [],
-    amounts: [],
-    action_items: [],
-    ai_analyzed: false,
-    clean_text: null,
-    new_content: null,
+    flagged: false,
     importance_level: 'normal',
     importance_score: 0.3,
-    is_bulk_sender: false,
-    has_tracking_pixel: false,
+    last_date: Math.floor(Date.now() / 1000),
+    message_count: 1,
+    participants: ['alice@example.com'],
+    pinned: false,
     requires_action: false,
-    sender_intent: 'inform',
-    action_deadline: null,
+    snippet: 'A snippet',
+    subject: 'Test Subject',
+    thread_id: 'thread-1',
+    unread_count: 0,
     ...overrides,
   }
 }
 
-function makeConversation(overrides: Partial<ConversationSummary> = {}): ConversationSummary {
+function makeMessage(overrides: Partial<ThreadMessage> = {}): ThreadMessage {
   return {
-    thread_id: 'thread-1',
-    subject: 'Test Subject',
-    participants: ['alice@example.com'],
-    message_count: 1,
-    unread_count: 0,
-    last_date: Math.floor(Date.now() / 1000),
+    action_deadline: null,
+    action_items: [],
+    ai_analyzed: false,
+    amounts: [],
+    attachments: [],
     category: 'general',
-    flagged: false,
-    snippet: 'A snippet',
-    pinned: false,
-    archived: false,
+    clean_text: null,
+    dates: [],
+    flags: 0,
+    has_tracking_pixel: false,
+    html_body: null,
+    id: 1,
     importance_level: 'normal',
     importance_score: 0.3,
+    internal_date: 1700000000,
+    is_bulk_sender: false,
+    message_id: '<msg1@example.com>',
+    new_content: null,
+    people: [],
+    recipients: 'bob@example.com',
     requires_action: false,
+    risk_reason: '',
+    risk_score: 0,
+    sender: 'Alice Smith <alice@example.com>',
+    sender_intent: 'inform',
+    subject: 'Test Subject',
+    summary: '',
+    text_body: 'Hello, this is a test message',
+    uid: 100,
     ...overrides,
   }
 }
@@ -141,21 +173,21 @@ function makeConversation(overrides: Partial<ConversationSummary> = {}): Convers
 function makeStore() {
   const store = createStore()
   store.set(authAtom, {
-    token: 'test-token',
+    accessible_domains: [],
     address: 'user@example.com',
     display_name: 'Test User',
     permissions: [],
-    accessible_domains: [],
+    token: 'test-token',
   })
   return store
 }
 
 function Wrapper({
-  store,
   children,
+  store,
 }: {
-  store: ReturnType<typeof createStore>
   children: ReactNode
+  store: ReturnType<typeof createStore>
 }) {
   return <Provider store={store}>{children}</Provider>
 }
@@ -174,7 +206,7 @@ describe('ThreadView — no selection', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.getByText('No conversation selected')).toBeDefined()
   })
@@ -186,7 +218,7 @@ describe('ThreadView — no selection', () => {
     render(
       <Wrapper store={store}>
         <ThreadView onBack={onBack} />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.queryByText('Back')).toBeNull()
   })
@@ -206,7 +238,7 @@ describe('ThreadView — with messages', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.getByText('Important Email')).toBeDefined()
   })
@@ -216,7 +248,7 @@ describe('ThreadView — with messages', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.getAllByText('(no subject)').length).toBeGreaterThan(0)
   })
@@ -224,12 +256,12 @@ describe('ThreadView — with messages', () => {
   it('displays message count', () => {
     store.set(threadMessagesAtom, [
       makeMessage({ id: 1, uid: 100 }),
-      makeMessage({ id: 2, uid: 101, sender: 'Bob <bob@example.com>' }),
+      makeMessage({ id: 2, sender: 'Bob <bob@example.com>', uid: 101 }),
     ])
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.getByText('2')).toBeDefined()
   })
@@ -239,17 +271,19 @@ describe('ThreadView — with messages', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.queryByText('1')).toBeNull()
   })
 
   it('renders sender name in chat bubble', () => {
-    store.set(threadMessagesAtom, [makeMessage({ sender: 'Charlie Brown <charlie@example.com>' })])
+    store.set(threadMessagesAtom, [
+      makeMessage({ sender: 'Charlie Brown <charlie@example.com>' }),
+    ])
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.getByText('Charlie Brown')).toBeDefined()
   })
@@ -267,7 +301,7 @@ describe('ThreadView — selected message detail', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
 
     // wait for loadMessages to resolve and selectedMsgIdx to be set
@@ -282,18 +316,26 @@ describe('ThreadView — selected message detail', () => {
   })
 
   it('renders plain text in raw email panel', async () => {
-    await renderAndWait(makeMessage({ text_body: 'Plain text email body here', html_body: null }))
+    await renderAndWait(
+      makeMessage({ html_body: null, text_body: 'Plain text email body here' })
+    )
     // text appears in both raw panel and chat bubble snippet, use getAllByText
-    expect(screen.getAllByText(/Plain text email body here/).length).toBeGreaterThanOrEqual(1)
+    expect(
+      screen.getAllByText(/Plain text email body here/).length
+    ).toBeGreaterThanOrEqual(1)
   })
 
   it('renders attachment preview', async () => {
     await renderAndWait(
       makeMessage({
-        attachments: [{ filename: 'doc.pdf', content_type: 'application/pdf', size: 1024 }],
-      }),
+        attachments: [
+          { content_type: 'application/pdf', filename: 'doc.pdf', size: 1024 },
+        ],
+      })
     )
-    expect(screen.getByTestId('attachment-preview').textContent).toContain('1 attachment(s)')
+    expect(screen.getByTestId('attachment-preview').textContent).toContain(
+      '1 attachment(s)'
+    )
   })
 
   it('shows risk badge for analyzed messages', async () => {
@@ -311,7 +353,7 @@ describe('ThreadView — loading state', () => {
   it('shows skeleton when loading', async () => {
     const { fetchJson } = await import('@/lib/api')
     vi.mocked(fetchJson).mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve([]), 500)),
+      () => new Promise((resolve) => setTimeout(() => resolve([]), 500))
     )
 
     const store = makeStore()
@@ -322,7 +364,7 @@ describe('ThreadView — loading state', () => {
     const { container } = render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
 
     await waitFor(() => {
@@ -345,7 +387,7 @@ describe('ThreadView — delete dialog', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     fireEvent.click(screen.getByTitle('Delete'))
     expect(screen.getByText('Delete conversation?')).toBeDefined()
@@ -355,7 +397,7 @@ describe('ThreadView — delete dialog', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     fireEvent.click(screen.getByTitle('Delete'))
     fireEvent.click(screen.getByText('Cancel'))
@@ -377,7 +419,7 @@ describe('ThreadView — toolbar', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     fireEvent.click(screen.getByTitle('Close'))
     expect(store.get(selectedThreadIdAtom)).toBeNull()
@@ -387,7 +429,7 @@ describe('ThreadView — toolbar', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.getByTestId('reply-box').textContent).toContain('mode: reply')
   })
@@ -396,7 +438,7 @@ describe('ThreadView — toolbar', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.getByTitle('Star')).toBeDefined()
   })
@@ -405,7 +447,7 @@ describe('ThreadView — toolbar', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.getByTitle('Mark unread')).toBeDefined()
   })
