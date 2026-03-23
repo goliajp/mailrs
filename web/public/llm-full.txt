@@ -31,7 +31,7 @@ Config for Claude Code or any MCP client:
 
 | Tool | Permission | Description |
 |------|-----------|-------------|
-| send_email | any authenticated | Send email with optional CC, HTML body, and base64 attachments. Returns message ID |
+| send_email | any authenticated | Send email with optional CC, HTML body, and attachments (base64, URL, or file path). Returns message ID |
 | read_email | any authenticated | Read a message by UID. Returns sender, subject, text body, metadata |
 | search_emails | any authenticated | Search by keyword. Returns conversation summaries (thread_id, subject, snippet, participants) |
 | reply_email | any authenticated | Reply to a thread by thread_id. Auto-sets In-Reply-To/References headers |
@@ -161,15 +161,14 @@ Config for Claude Code or any MCP client:
   "cc": ["cc@example.com"],
   "from": "sender@golia.jp",
   "attachments": [
-    {
-      "filename": "photo.png",
-      "content_type": "image/png",
-      "data": "<base64-encoded content>"
-    }
+    {"data": "<base64-encoded content>", "filename": "photo.png", "content_type": "image/png"},
+    {"data": "https://example.com/report.pdf"},
+    {"data": "/tmp/invoice.xlsx"}
   ]
 }
 ```
 Optional: `from` (defaults to authenticated account), `cc`, `html_body`, `attachments`. Max 50 total recipients.
+Attachment `data` accepts: base64 string, URL (http/https), or server file path. `filename` and `content_type` are auto-derived if omitted.
 
 #### reply_email
 ```json

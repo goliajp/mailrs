@@ -4,11 +4,13 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(crate) struct Attachment {
-    /// filename (e.g. "photo.png")
-    pub filename: String,
-    /// MIME type (e.g. "image/png")
-    pub content_type: String,
-    /// base64-encoded file content
+    /// filename (e.g. "photo.png") — auto-derived from URL path or file path if omitted
+    #[serde(default)]
+    pub filename: Option<String>,
+    /// MIME type (e.g. "image/png") — auto-derived from filename extension if omitted
+    #[serde(default)]
+    pub content_type: Option<String>,
+    /// attachment source: base64-encoded content, URL (http:// or https://), or server file path (starts with /)
     pub data: String,
 }
 
