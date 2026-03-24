@@ -12,7 +12,7 @@ vi.hoisted(() => {
   })
 })
 
-import { getTheme, setTheme, type ThemeMode } from '../theme'
+import { getTheme, initTheme, setTheme, type ThemeMode } from '../theme'
 
 function makeLocalStorageMock(): Storage {
   const store: Record<string, string> = {}
@@ -127,5 +127,40 @@ describe('setTheme', () => {
       setTheme(mode)
       expect(getTheme()).toBe(mode)
     }
+  })
+})
+
+describe('initTheme', () => {
+  let mockStorage: Storage
+
+  beforeEach(() => {
+    mockStorage = makeLocalStorageMock()
+    vi.stubGlobal('localStorage', mockStorage)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    document.documentElement.classList.remove('dark')
+  })
+
+  it('applies light theme when system prefers light and mode is system', () => {
+    initTheme()
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+  })
+
+  it('applies stored dark theme regardless of system preference', () => {
+    mockStorage.setItem('mailrs_theme', 'dark')
+    initTheme()
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+  })
+
+  it('registers media query change listener', () => {
+    // the hoisted matchMedia mock captures addEventListener calls
+    const mockMq = window.matchMedia('(prefers-color-scheme: dark)')
+    initTheme()
+    expect(mockMq.addEventListener).toHaveBeenCalledWith(
+      'change',
+      expect.any(Function)
+    )
   })
 })

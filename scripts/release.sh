@@ -44,8 +44,8 @@ fi
 echo "==> running web check"
 (cd web && bun run check)
 echo ""
-echo "==> running web tests"
-(cd web && bun run test)
+echo "==> running web tests with coverage"
+(cd web && bun run test:coverage)
 echo ""
 
 # 3. check working tree is clean (except version files)
