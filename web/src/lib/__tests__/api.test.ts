@@ -330,14 +330,14 @@ describe('recordFeedback', () => {
   it('sends POST with sender_email and action', async () => {
     mockGetToken.mockReturnValue('tok')
     vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
-    const result = await recordFeedback('spam@example.com', 'spam')
+    const result = await recordFeedback('spam@example.com', 'mark_spam')
     expect(result).toEqual({ success: true })
     const call = vi.mocked(fetch).mock.calls[0]
     expect(call[0]).toBe('/api/mail/feedback')
     const opts = call[1] as RequestInit
     expect(opts.method).toBe('POST')
     expect(JSON.parse(opts.body as string)).toEqual({
-      action: 'spam',
+      action: 'mark_spam',
       sender_email: 'spam@example.com',
     })
   })
