@@ -1,6 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { deleteJson, fetchBlob, fetchJson, postJson, putJson } from '../api'
+import {
+  deleteDraft,
+  deleteJson,
+  fetchBlob,
+  fetchJson,
+  getThreadReactions,
+  listDrafts,
+  postJson,
+  putJson,
+  recordFeedback,
+  saveDraft,
+  snoozeConversation,
+  toggleReaction,
+  unsnoozeConversation,
+} from '../api'
 
 // mock getToken from auth store
 vi.mock('@/store/auth', () => ({
@@ -244,5 +258,161 @@ describe('fetchBlob', () => {
     await expect(fetchBlob('/attachment/99')).rejects.toThrow(
       'Download failed: 404'
     )
+  })
+})
+
+describe('deleteDraft', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    mockGetToken.mockReset()
+  })
+
+  it('sends DELETE to /mail/drafts/:id and returns result', async () => {
+    mockGetToken.mockReturnValue('tok')
+    vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
+    const result = await deleteDraft(42)
+    expect(result).toEqual({ success: true })
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(call[0]).toBe('/api/mail/drafts/42')
+    expect((call[1] as RequestInit).method).toBe('DELETE')
+  })
+})
+
+describe('getThreadReactions', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    mockGetToken.mockReset()
+  })
+
+  it('fetches reactions and returns the reactions record', async () => {
+    mockGetToken.mockReturnValue(null)
+    const reactions = { 1: [{ count: 2, emoji: '👍', reacted: true }] }
+    vi.stubGlobal('fetch', makeFetchMock(200, { reactions }))
+    const result = await getThreadReactions('thread-abc')
+    expect(result).toEqual(reactions)
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe(
+      '/api/conversations/thread-abc/reactions'
+    )
+  })
+
+  it('encodes threadId in URL', async () => {
+    mockGetToken.mockReturnValue(null)
+    vi.stubGlobal('fetch', makeFetchMock(200, { reactions: {} }))
+    await getThreadReactions('thread with spaces')
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe(
+      '/api/conversations/thread%20with%20spaces/reactions'
+    )
+  })
+})
+
+describe('listDrafts', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    mockGetToken.mockReset()
+  })
+
+  it('fetches drafts list via GET', async () => {
+    mockGetToken.mockReturnValue(null)
+    const drafts = [{ id: 1, subject: 'Draft 1' }]
+    vi.stubGlobal('fetch', makeFetchMock(200, drafts))
+    const result = await listDrafts()
+    expect(result).toEqual(drafts)
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/mail/drafts')
+  })
+})
+
+describe('recordFeedback', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    mockGetToken.mockReset()
+  })
+
+  it('sends POST with sender_email and action', async () => {
+    mockGetToken.mockReturnValue('tok')
+    vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
+    const result = await recordFeedback('spam@example.com', 'spam')
+    expect(result).toEqual({ success: true })
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(call[0]).toBe('/api/mail/feedback')
+    const opts = call[1] as RequestInit
+    expect(opts.method).toBe('POST')
+    expect(JSON.parse(opts.body as string)).toEqual({
+      action: 'spam',
+      sender_email: 'spam@example.com',
+    })
+  })
+})
+
+describe('saveDraft', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    mockGetToken.mockReset()
+  })
+
+  it('sends POST with draft payload and returns result', async () => {
+    mockGetToken.mockReturnValue('tok')
+    const draft = { body: 'Hello', subject: 'Hi', to: ['a@b.com'] }
+    vi.stubGlobal('fetch', makeFetchMock(200, { id: 1, success: true }))
+    const result = await saveDraft(draft as never)
+    expect(result).toEqual({ id: 1, success: true })
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(call[0]).toBe('/api/mail/drafts')
+    expect((call[1] as RequestInit).method).toBe('POST')
+  })
+})
+
+describe('snoozeConversation', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    mockGetToken.mockReset()
+  })
+
+  it('sends PUT with until param', async () => {
+    mockGetToken.mockReturnValue('tok')
+    vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
+    const result = await snoozeConversation('thread-1', '2024-12-01T09:00:00Z')
+    expect(result).toEqual({ success: true })
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(call[0]).toBe('/api/conversations/thread-1/snooze')
+    const opts = call[1] as RequestInit
+    expect(opts.method).toBe('PUT')
+    expect(JSON.parse(opts.body as string)).toEqual({
+      until: '2024-12-01T09:00:00Z',
+    })
+  })
+})
+
+describe('toggleReaction', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    mockGetToken.mockReset()
+  })
+
+  it('sends PUT with emoji and returns reactions array', async () => {
+    mockGetToken.mockReturnValue('tok')
+    const reactions = [{ count: 1, emoji: '👍', reacted: true }]
+    vi.stubGlobal('fetch', makeFetchMock(200, { reactions }))
+    const result = await toggleReaction('thread-1', 5, '👍')
+    expect(result).toEqual(reactions)
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(call[0]).toBe('/api/conversations/thread-1/messages/5/reactions')
+    expect((call[1] as RequestInit).method).toBe('PUT')
+  })
+})
+
+describe('unsnoozeConversation', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    mockGetToken.mockReset()
+  })
+
+  it('sends DELETE to snooze endpoint', async () => {
+    mockGetToken.mockReturnValue('tok')
+    vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
+    const result = await unsnoozeConversation('thread-2')
+    expect(result).toEqual({ success: true })
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(call[0]).toBe('/api/conversations/thread-2/snooze')
+    expect((call[1] as RequestInit).method).toBe('DELETE')
   })
 })
