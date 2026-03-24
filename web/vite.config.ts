@@ -6,10 +6,13 @@ export default defineConfig({
   test: {
     coverage: {
       exclude: [
+        'dist/**',
+        'public/**',
         'src/**/__tests__/**',
         'src/**/*.test.*',
         'src/main.tsx',
         'src/vite-env.d.ts',
+        '*.config.*',
       ],
       provider: 'v8',
       reporter: ['text', 'text-summary'],
