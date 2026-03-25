@@ -309,7 +309,7 @@ function MobileNavLink({
       <Icon className="h-5 w-5" />
       <span>{label}</span>
       {badge != null && badge > 0 && (
-        <span className="absolute top-0.5 left-1/2 ml-2 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--color-status-danger)] px-0.5 text-[10px] leading-none font-bold text-white">
+        <span className="absolute top-0.5 left-1/2 ml-2 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--color-status-danger)] px-0.5 pb-px text-[10px] leading-none font-bold text-white">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -344,7 +344,7 @@ function SidebarLink({
     >
       <Icon className="h-5 w-5" />
       {badge != null && badge > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--color-status-danger)] px-0.5 text-[10px] leading-none font-bold text-white">
+        <span className="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--color-status-danger)] px-0.5 pb-px text-[10px] leading-none font-bold text-white">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
