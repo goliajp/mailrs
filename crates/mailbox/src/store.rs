@@ -696,6 +696,29 @@ impl MailboxStore {
         Ok(row.map(row_to_message_meta))
     }
 
+    /// find a message by its uid (across all user's mailboxes)
+    pub async fn find_message_by_uid(
+        &self,
+        user: &str,
+        uid: u32,
+    ) -> Result<Option<MessageMeta>, sqlx::Error> {
+        let row = sqlx::query_as::<_, (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64)>(
+            "SELECT m.id, m.mailbox_id, m.uid, m.maildir_id, m.sender, m.recipients,
+                    m.subject, m.date_epoch, m.size, m.flags, m.internal_date, m.message_id,
+                    m.in_reply_to, m.thread_id, m.modseq
+             FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE mb.user_address = $1 AND m.uid = $2
+             LIMIT 1",
+        )
+        .bind(user)
+        .bind(uid as i32)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(row_to_message_meta))
+    }
+
     // ---- threading / conversation queries ----
 
     /// look up the thread_id of a message by its message_id (across all user's mailboxes)

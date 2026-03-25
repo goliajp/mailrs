@@ -55,9 +55,11 @@ import {
 type ForwardSource = {
   body: string
   date: string
+  htmlBody: null | string
   messageId: string
   sender: string
   subject: string
+  uid: number
 }
 
 export function ThreadView({ onBack }: { onBack?: () => void }) {
@@ -332,9 +334,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setForwardSource({
       body: msg.clean_text || msg.text_body || '',
       date: formatFullDate(msg.internal_date),
+      htmlBody: msg.html_body || null,
       messageId: msg.message_id,
       sender: msg.sender,
       subject: msg.subject || '',
+      uid: msg.uid,
     })
     setReplyMode('forward')
   }, [])
@@ -407,6 +411,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdOriginalDate = forwardSource?.date ?? lastMsgDate
   const fwdSubject = forwardSource?.subject ?? subject
   const fwdOriginalBody = forwardSource?.body ?? lastMsgBody
+  const fwdOriginalHtml = forwardSource?.htmlBody ?? null
+  const fwdUid = forwardSource?.uid ?? null
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   return (
@@ -789,6 +795,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           </div>
           <div className="flex min-h-[160px] flex-[1] basis-0 flex-col border-t border-[var(--color-border-default)]">
             <ReplyBox
+              forwardAttachmentsUid={fwdUid}
               lastMessageId={fwdLastMessageId}
               mode={replyMode}
               onModeChange={(m) => {
@@ -802,6 +809,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               originalBody={fwdOriginalBody}
               originalDate={fwdOriginalDate}
               originalFrom={fwdOriginalFrom}
+              originalHtmlBody={fwdOriginalHtml}
               replyAllRecipients={
                 replyAllRecipients || extractEmail(messages[0]?.sender ?? '')
               }

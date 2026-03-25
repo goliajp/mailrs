@@ -133,6 +133,9 @@ pub(super) struct SendMessageRequest {
     /// request a read receipt (MDN) from recipients
     #[serde(default)]
     pub request_read_receipt: bool,
+    /// uid of original message to forward attachments from
+    #[serde(default)]
+    pub forward_attachments_from: Option<u32>,
 }
 
 pub(crate) struct AttachmentData {
@@ -587,6 +590,13 @@ pub(super) async fn send_message(
         None => (None, vec![]),
     };
 
+    // extract attachments from original message when forwarding
+    let forwarded_attachments = if let Some(uid) = req.forward_attachments_from {
+        extract_forwarded_attachments(&state, from, uid).await
+    } else {
+        vec![]
+    };
+
     let raw = build_rfc5322_with_attachments(
         from,
         &req.to,
@@ -598,7 +608,7 @@ pub(super) async fn send_message(
         in_reply_to_ref,
         &references,
         &now,
-        &[],
+        &forwarded_attachments,
         req.list_unsubscribe.as_deref(),
         &inline_images,
         req.request_read_receipt,
@@ -843,6 +853,67 @@ ul[data-type=\"taskList\"] li{{display:flex;align-items:flex-start;gap:4px}}\
 h1{{font-size:1.5em}} h2{{font-size:1.3em}} h3{{font-size:1.1em}}\
 </style></head><body><div class=\"wrapper\">{html}</div></body></html>"
     )
+}
+
+/// extract attachments from an existing message (for forwarding)
+async fn extract_forwarded_attachments(
+    state: &WebState,
+    user: &str,
+    uid: u32,
+) -> Vec<AttachmentData> {
+    let Some(ref mb_store) = state.mailbox_store else {
+        return vec![];
+    };
+    let Some(meta) = mb_store.find_message_by_uid(user, uid).await.ok().flatten() else {
+        return vec![];
+    };
+    let Some(raw) = message_util::read_message_raw(&state.maildir_root, user, &meta.maildir_id) else {
+        return vec![];
+    };
+    let Some(parsed) = mail_parser::MessageParser::default().parse(&raw) else {
+        return vec![];
+    };
+
+    let mut attachments = Vec::new();
+    for part in parsed.parts.iter().skip(1) {
+        let disp = part.content_disposition();
+        let is_attachment = disp
+            .map(|d| d.ctype() == "attachment" || d.ctype() == "inline")
+            .unwrap_or(false);
+        let ct = part.content_type();
+        let is_text_or_html = ct
+            .map(|c| {
+                let main = c.ctype();
+                let sub = c.subtype().unwrap_or("");
+                (main == "text" && (sub == "plain" || sub == "html")) && !is_attachment
+            })
+            .unwrap_or(false);
+        if is_text_or_html {
+            continue;
+        }
+
+        let filename = part
+            .attachment_name()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "attachment".into());
+        let content_type = ct
+            .map(|c| {
+                let sub = c.subtype().unwrap_or("octet-stream");
+                format!("{}/{}", c.ctype(), sub)
+            })
+            .unwrap_or_else(|| "application/octet-stream".into());
+
+        let body_bytes = part.contents();
+        if !body_bytes.is_empty() {
+            attachments.push(AttachmentData {
+                filename,
+                content_type,
+                data: body_bytes.to_vec(),
+            });
+        }
+    }
+
+    attachments
 }
 
 /// resolve inline images from HTML, load from disk, return images + rewritten HTML
