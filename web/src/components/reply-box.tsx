@@ -31,6 +31,7 @@ const MODE_LABELS: Record<ReplyMode, string> = {
 }
 
 export function ReplyBox({
+  forwardAttachmentsUid,
   lastMessageId,
   mode,
   onModeChange,
@@ -38,10 +39,12 @@ export function ReplyBox({
   originalBody,
   originalDate,
   originalFrom,
+  originalHtmlBody,
   replyAllRecipients,
   replyRecipients,
   subject,
 }: {
+  forwardAttachmentsUid?: null | number
   lastMessageId: string
   mode: ReplyMode
   onModeChange: (mode: ReplyMode) => void
@@ -49,6 +52,7 @@ export function ReplyBox({
   originalBody: string
   originalDate: string
   originalFrom: string
+  originalHtmlBody?: null | string
   replyAllRecipients: string
   replyRecipients: string
   subject: string
@@ -194,6 +198,9 @@ export function ReplyBox({
           to,
         }
         if (inReplyTo) payload['in_reply_to'] = inReplyTo
+        if (mode === 'forward' && forwardAttachmentsUid) {
+          payload['forward_attachments_from'] = forwardAttachmentsUid
+        }
 
         const result = await postJson<SendResult>('/mail/send', payload)
         if (!result.success) {
@@ -338,7 +345,10 @@ export function ReplyBox({
     toast.success('Suggestion applied')
   }
 
-  const quotedHtml = originalBody || undefined
+  const quotedHtml =
+    mode === 'forward' && originalHtmlBody
+      ? originalHtmlBody
+      : originalBody || undefined
   const quotedHeaderHtml =
     mode === 'forward'
       ? buildForwardHeaderHtml(originalFrom, originalDate, subject)
