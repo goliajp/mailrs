@@ -27,6 +27,7 @@ mod pg;
 mod managesieve_session;
 mod pop3_session;
 mod ptr_check;
+mod rbl_monitor;
 mod sieve;
 mod smtp_session;
 mod tls;
@@ -799,6 +800,16 @@ async fn main() {
             shutdown_rx.clone(),
         );
         eprintln!("DMARC report generation enabled");
+    }
+
+    // RBL blocklist monitoring
+    if let Some(ref resolver) = ctx.resolver {
+        rbl_monitor::start(
+            resolver.clone(),
+            cfg.hostname.clone(),
+            valkey_conn.clone(),
+        );
+        eprintln!("RBL blocklist monitor started");
     }
 
     // keep main alive

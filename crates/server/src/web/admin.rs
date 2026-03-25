@@ -1870,3 +1870,40 @@ pub(super) async fn audit_get_raw_message(
     })
     .into_response()
 }
+
+// --- RBL blocklist status ---
+
+pub(super) async fn get_rbl_status(
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if let Some(resp) = require_permission(permissions, "admin.domains") {
+        return resp.into_response();
+    }
+
+    let Some(ref valkey) = state.valkey else {
+        return Json(serde_json::json!({"error": "valkey not available"})).into_response();
+    };
+
+    // scan for rbl:status:* keys
+    let keys: Vec<String> = redis::cmd("KEYS")
+        .arg("rbl:status:*")
+        .query_async(&mut valkey.clone())
+        .await
+        .unwrap_or_default();
+
+    let mut reports = Vec::new();
+    for key in &keys {
+        if let Ok(json) = redis::cmd("GET")
+            .arg(key)
+            .query_async::<String>(&mut valkey.clone())
+            .await
+        {
+            if let Ok(report) = serde_json::from_str::<serde_json::Value>(&json) {
+                reports.push(report);
+            }
+        }
+    }
+
+    Json(serde_json::json!({ "reports": reports })).into_response()
+}
