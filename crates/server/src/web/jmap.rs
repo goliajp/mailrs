@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -1072,4 +1072,67 @@ async fn handle_email_submission_set(
         "created": created,
         "notCreated": not_created
     })))
+}
+
+// --- JMAP EventSource (SSE push notifications) ---
+
+pub(super) async fn jmap_eventsource(
+    AuthUser { address, .. }: AuthUser,
+    Query(params): Query<EventSourceParams>,
+    State(state): State<Arc<WebState>>,
+) -> axum::response::sse::Sse<impl futures_util::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>> {
+    use axum::response::sse::{Event, KeepAlive, Sse};
+
+    let ping_secs = params.ping.unwrap_or(30).max(5).min(300) as u64;
+    let rx = state.event_bus.subscribe();
+
+    let stream = futures_util::stream::unfold(
+        (rx, address, ping_secs),
+        |(mut rx, address, ping_secs)| async move {
+            loop {
+                tokio::select! {
+                    _ = tokio::time::sleep(std::time::Duration::from_secs(ping_secs)) => {
+                        let event = Event::default().event("ping").data("{}");
+                        return Some((Ok(event), (rx, address, ping_secs)));
+                    }
+                    result = rx.recv() => {
+                        match result {
+                            Ok(ev) => {
+                                if let Ok(json) = serde_json::to_string(&ev) {
+                                    if json.contains(&address) {
+                                        let data = serde_json::json!({
+                                            "@type": "StateChange",
+                                            "changed": {
+                                                &address: {
+                                                    "Email": chrono::Utc::now().timestamp().to_string()
+                                                }
+                                            }
+                                        });
+                                        let event = Event::default().event("state").data(data.to_string());
+                                        return Some((Ok(event), (rx, address, ping_secs)));
+                                    }
+                                }
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                            Err(_) => return None,
+                        }
+                    }
+                }
+            }
+        },
+    );
+
+    Sse::new(stream).keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(15)))
+}
+
+#[derive(Deserialize)]
+pub(super) struct EventSourceParams {
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub types: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub closeafter: Option<String>,
+    #[serde(default)]
+    pub ping: Option<u32>,
 }

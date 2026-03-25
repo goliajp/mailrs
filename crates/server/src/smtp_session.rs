@@ -887,6 +887,21 @@ where
                         }
                     }
 
+                    // FBL: check if this is an ARF complaint report to abuse@
+                    if local_rcpts.iter().any(|r| r.starts_with("abuse@") || r.starts_with("postmaster@")) {
+                        if let Some((reported_addr, feedback_type)) = crate::fbl::parse_arf_report(&full_message) {
+                            eprintln!("FBL: received {feedback_type} complaint for {reported_addr}");
+                            if let Some(ref queue_pool) = ctx.outbound_queue {
+                                let _ = mailrs_outbound_queue::queue::add_suppression(
+                                    queue_pool,
+                                    &reported_addr,
+                                    &format!("FBL complaint: {feedback_type}"),
+                                    None,
+                                ).await;
+                            }
+                        }
+                    }
+
                     // enqueue remote recipients
                     if !remote_rcpts.is_empty() {
                         // non-forwarded remote requires authentication (relay protection)

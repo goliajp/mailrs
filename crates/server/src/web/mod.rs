@@ -627,6 +627,7 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/api/mail/messages/{uid}", delete(mail::delete_message))
         .route("/api/mail/export", get(mail::export_mbox))
         .route("/api/mail/send", post(mail::send_message))
+        .route("/api/mail/check-deliverability", post(mail::check_deliverability))
         .route(
             "/api/mail/send-multipart",
             post(mail::send_message_multipart),
@@ -914,6 +915,7 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         // JMAP
         .route("/.well-known/jmap", get(jmap::jmap_session))
         .route("/jmap", post(jmap::jmap_api))
+        .route("/jmap/eventsource/", get(jmap::jmap_eventsource))
         // MTA-STS policy
         .route("/.well-known/mta-sts.txt", get(admin::mta_sts_policy))
         // mail client autodiscover

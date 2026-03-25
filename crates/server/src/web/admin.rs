@@ -739,6 +739,37 @@ pub(super) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
     let _ = writeln!(body, "# TYPE mailrs_health_valkey_up gauge");
     let _ = writeln!(body, "mailrs_health_valkey_up {}", if valkey_up { 1 } else { 0 });
 
+    // suppression list count
+    if let Some(ref pool) = state.pg_pool {
+        let suppression_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM suppression_list")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
+        let _ = writeln!(body, "# HELP mailrs_suppression_count Suppressed email addresses");
+        let _ = writeln!(body, "# TYPE mailrs_suppression_count gauge");
+        let _ = writeln!(body, "mailrs_suppression_count {suppression_count}");
+    }
+
+    // RBL listing status
+    if let Some(ref valkey) = state.valkey {
+        let rbl_listed: i64 = {
+            let keys: Vec<String> = redis::cmd("KEYS").arg("rbl:status:*")
+                .query_async(&mut valkey.clone()).await.unwrap_or_default();
+            let mut listed = 0i64;
+            for key in &keys {
+                if let Ok(json) = redis::cmd("GET").arg(key)
+                    .query_async::<String>(&mut valkey.clone()).await
+                {
+                    if json.contains("\"any_listed\":true") { listed += 1; }
+                }
+            }
+            listed
+        };
+        let _ = writeln!(body, "# HELP mailrs_rbl_listed IPs currently listed on RBLs");
+        let _ = writeln!(body, "# TYPE mailrs_rbl_listed gauge");
+        let _ = writeln!(body, "mailrs_rbl_listed {rbl_listed}");
+    }
+
     (
         [(
             axum::http::header::CONTENT_TYPE,
