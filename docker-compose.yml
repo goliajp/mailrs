@@ -34,6 +34,25 @@ services:
       retries: 3
     restart: unless-stopped
 
+  meilisearch:
+    container_name: mailrs-meilisearch
+    image: getmeili/meilisearch:v1.13
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
   mailrs:
     container_name: mailrs
     build: .
@@ -70,6 +89,8 @@ services:
       MAILRS_ACME_DOMAINS: ${MAILRS_ACME_DOMAINS:-}
       MAILRS_ACME_DIR: /data/acme
       MAILRS_ACME_STAGING: ${MAILRS_ACME_STAGING:-false}
+      MAILRS_MEILI_URL: http://meilisearch:7700
+      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
     volumes:
       - mailrs-data:/data
       - ./certs:/certs:ro
@@ -79,3 +100,4 @@ volumes:
   mailrs-data:
   pg-data:
   valkey-data:
+  meili-data:

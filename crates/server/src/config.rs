@@ -79,6 +79,9 @@ pub struct ServerConfig {
     // storage backends
     pub pg_url: Option<String>,
     pub valkey_url: Option<String>,
+    // Meilisearch
+    pub meili_url: Option<String>,
+    pub meili_key: Option<String>,
     // LDAP authentication
     pub ldap_url: Option<String>,
     pub ldap_bind_dn: Option<String>,
@@ -139,6 +142,8 @@ impl Default for ServerConfig {
             srs_secret: None,
             pg_url: None,
             valkey_url: None,
+            meili_url: None,
+            meili_key: None,
             ldap_url: None,
             ldap_bind_dn: None,
             ldap_bind_password: None,
@@ -364,6 +369,17 @@ impl ServerConfig {
         }
         if let Ok(v) = std::env::var("MAILRS_VALKEY_URL") {
             cfg.valkey_url = Some(v);
+        }
+        // Meilisearch
+        if let Ok(v) = std::env::var("MAILRS_MEILI_URL") {
+            if !v.is_empty() {
+                cfg.meili_url = Some(v);
+            }
+        }
+        if let Ok(v) = std::env::var("MAILRS_MEILI_KEY") {
+            if !v.is_empty() {
+                cfg.meili_key = Some(v);
+            }
         }
         // LDAP
         if let Ok(v) = std::env::var("MAILRS_LDAP_URL") {
