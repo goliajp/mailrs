@@ -2373,3 +2373,125 @@ mod tests {
         assert!(!validate_key_type("PGP"));
     }
 }
+
+// --- image proxy ---
+
+const IMAGE_PROXY_MAX_BYTES: usize = 5 * 1024 * 1024; // 5 MB
+const IMAGE_PROXY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+#[derive(Deserialize)]
+pub(super) struct ImageProxyQuery {
+    pub url: String,
+}
+
+pub(super) async fn proxy_image(
+    _auth: AuthUser,
+    Query(q): Query<ImageProxyQuery>,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    use axum::http::header;
+
+    let url = &q.url;
+
+    // only allow http/https
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return (StatusCode::BAD_REQUEST, "invalid url scheme").into_response();
+    }
+
+    // check valkey cache first
+    if let Some(ref valkey) = state.valkey {
+        let cache_key = format!("imgproxy:{}", url);
+        {
+            if let Ok(cached) = redis::cmd("GET")
+                .arg(&cache_key)
+                .query_async::<Vec<u8>>(&mut valkey.clone())
+                .await
+            {
+                if !cached.is_empty() {
+                    // first byte stores content-type length, then content-type, then image data
+                    let ct_len = cached[0] as usize;
+                    if cached.len() > 1 + ct_len {
+                        let ct = String::from_utf8_lossy(&cached[1..1 + ct_len]).to_string();
+                        let body = cached[1 + ct_len..].to_vec();
+                        return (
+                            StatusCode::OK,
+                            [
+                                (header::CONTENT_TYPE, ct),
+                                (header::CACHE_CONTROL, "public, max-age=86400".to_string()),
+                            ],
+                            body,
+                        )
+                            .into_response();
+                    }
+                }
+            }
+        }
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(IMAGE_PROXY_TIMEOUT)
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build()
+        .unwrap_or_default();
+
+    let resp = match client
+        .get(url)
+        .header("User-Agent", "mailrs/image-proxy")
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(_) => return (StatusCode::BAD_GATEWAY, "fetch failed").into_response(),
+    };
+
+    if !resp.status().is_success() {
+        return (StatusCode::BAD_GATEWAY, "upstream error").into_response();
+    }
+
+    let content_type = resp
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+
+    // reject non-image responses
+    if !content_type.starts_with("image/") {
+        return (StatusCode::UNSUPPORTED_MEDIA_TYPE, "not an image").into_response();
+    }
+
+    let body = match resp.bytes().await {
+        Ok(b) if b.len() <= IMAGE_PROXY_MAX_BYTES => b.to_vec(),
+        Ok(_) => return (StatusCode::PAYLOAD_TOO_LARGE, "image too large").into_response(),
+        Err(_) => return (StatusCode::BAD_GATEWAY, "read failed").into_response(),
+    };
+
+    // cache in valkey (1 hour TTL)
+    if let Some(ref valkey) = state.valkey {
+        let cache_key = format!("imgproxy:{}", url);
+        let ct_bytes = content_type.as_bytes();
+        if ct_bytes.len() < 256 {
+            let mut packed = Vec::with_capacity(1 + ct_bytes.len() + body.len());
+            packed.push(ct_bytes.len() as u8);
+            packed.extend_from_slice(ct_bytes);
+            packed.extend_from_slice(&body);
+            let _ = redis::cmd("SET")
+                .arg(&cache_key)
+                .arg(&packed)
+                .arg("EX")
+                .arg(3600i64)
+                .query_async::<()>(&mut valkey.clone())
+                .await;
+        }
+    }
+
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, content_type),
+            (header::CACHE_CONTROL, "public, max-age=86400".to_string()),
+        ],
+        body,
+    )
+        .into_response()
+}
