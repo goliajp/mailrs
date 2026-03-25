@@ -66,6 +66,13 @@ export function ReplyBox({
   const threadMessages = useAtomValue(threadMessagesAtom)
   const [forwardTo, setForwardTo] = useState('')
   const [sending, setSending] = useState(false)
+  // refs to avoid stale closures in send callback
+  const forwardMessageIdRef = useRef(forwardMessageId)
+  forwardMessageIdRef.current = forwardMessageId
+  const forwardAttachmentsUidRef = useRef(forwardAttachmentsUid)
+  forwardAttachmentsUidRef.current = forwardAttachmentsUid
+  const modeRef = useRef(mode)
+  modeRef.current = mode
   const [polishing, setPolishing] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
@@ -140,7 +147,7 @@ export function ReplyBox({
     if (sending) return
 
     const to = resolveRecipients()
-    if (mode === 'forward' && to.length === 0) {
+    if (modeRef.current === 'forward' && to.length === 0) {
       setError('Please enter at least one recipient')
       return
     }
@@ -155,7 +162,8 @@ export function ReplyBox({
     setSending(true)
 
     const resolvedSubject = resolveSubject()
-    const inReplyTo = mode === 'forward' ? undefined : lastMessageId
+    const currentMode = modeRef.current
+    const inReplyTo = currentMode === 'forward' ? undefined : lastMessageId
 
     try {
       let sentMessageId: string | undefined
@@ -171,14 +179,11 @@ export function ReplyBox({
         formData.append('body', assembled.fullText)
         formData.append('html_body', assembled.fullHtml)
         if (inReplyTo) formData.append('in_reply_to', inReplyTo)
-        if (mode === 'forward') {
-          if (forwardMessageId)
-            formData.append('forward_message_id', forwardMessageId)
-          if (forwardAttachmentsUid)
-            formData.append(
-              'forward_attachments_from',
-              String(forwardAttachmentsUid)
-            )
+        if (currentMode === 'forward') {
+          const fmid = forwardMessageIdRef.current
+          const fuid = forwardAttachmentsUidRef.current
+          if (fmid) formData.append('forward_message_id', fmid)
+          if (fuid) formData.append('forward_attachments_from', String(fuid))
         }
         for (const r of to) formData.append('to', r)
         for (const f of attachmentFiles) formData.append('attachments', f)
@@ -201,8 +206,9 @@ export function ReplyBox({
       } else {
         // when forwarding via backend (forward_message_id), send only the user's
         // typed text — the backend reads the original body + attachments from raw .eml
-        const isBackendForward =
-          mode === 'forward' && (forwardMessageId || forwardAttachmentsUid)
+        const fwdMid = forwardMessageIdRef.current
+        const fwdUid = forwardAttachmentsUidRef.current
+        const isBackendForward = currentMode === 'forward' && (fwdMid || fwdUid)
         const payload: Record<string, unknown> = {
           bcc: [],
           body: isBackendForward ? assembled.compose.text : assembled.fullText,
@@ -215,18 +221,10 @@ export function ReplyBox({
           to,
         }
         if (inReplyTo) payload['in_reply_to'] = inReplyTo
-        if (mode === 'forward') {
-          if (forwardMessageId && forwardMessageId.length > 0)
-            payload['forward_message_id'] = forwardMessageId
-          if (forwardAttachmentsUid && forwardAttachmentsUid > 0)
-            payload['forward_attachments_from'] = forwardAttachmentsUid
-
-          console.log(
-            '[forward] messageId:',
-            forwardMessageId,
-            'uid:',
-            forwardAttachmentsUid
-          )
+        if (currentMode === 'forward') {
+          if (fwdMid && fwdMid.length > 0)
+            payload['forward_message_id'] = fwdMid
+          if (fwdUid && fwdUid > 0) payload['forward_attachments_from'] = fwdUid
         }
 
         const result = await postJson<SendResult>('/mail/send', payload)
@@ -239,7 +237,7 @@ export function ReplyBox({
 
       composeRef.current?.clearCompose()
       setForwardTo('')
-      const label = mode === 'forward' ? 'Forwarded' : 'Reply sent'
+      const label = currentMode === 'forward' ? 'Forwarded' : 'Reply sent'
       toast.success(label, {
         ...(sentMessageId
           ? {
