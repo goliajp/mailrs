@@ -169,6 +169,12 @@ export function ReplyBox({
         formData.append('body', assembled.fullText)
         formData.append('html_body', assembled.fullHtml)
         if (inReplyTo) formData.append('in_reply_to', inReplyTo)
+        if (mode === 'forward' && forwardAttachmentsUid) {
+          formData.append(
+            'forward_attachments_from',
+            String(forwardAttachmentsUid)
+          )
+        }
         for (const r of to) formData.append('to', r)
         for (const f of attachmentFiles) formData.append('attachments', f)
 
