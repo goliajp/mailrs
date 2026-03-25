@@ -28,6 +28,7 @@ mod managesieve_session;
 mod pop3_session;
 mod ptr_check;
 mod rbl_monitor;
+mod search_index;
 mod sieve;
 mod smtp_session;
 mod tls;
@@ -360,6 +361,15 @@ async fn main() {
     if let Some(ref ldap) = ldap_config {
         ws = ws.with_ldap_config(ldap.clone());
     }
+    // Meilisearch full-text search
+    let meili_client = if let Some(ref url) = cfg.meili_url {
+        let key = cfg.meili_key.clone().unwrap_or_default();
+        let client = Arc::new(search_index::MeiliClient::new(url.clone(), key));
+        ws = ws.with_meili(client.clone());
+        Some(client)
+    } else {
+        None
+    };
     // OIDC client (Sign in with external IdP)
     if let (Ok(client_id), Ok(client_secret), Ok(issuer)) = (
         std::env::var("MAILRS_OIDC_CLIENT_ID"),
@@ -385,6 +395,12 @@ async fn main() {
         });
     }
     let web_state = Arc::new(ws);
+
+    // spawn meilisearch indexer
+    if let (Some(ref meili), Some(ref pool)) = (&meili_client, &pg_pool) {
+        search_index::spawn_indexer(meili.clone(), pool.clone());
+        eprintln!("Meilisearch indexer started");
+    }
 
     let users = Arc::new(user_store);
 

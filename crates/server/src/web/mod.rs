@@ -91,6 +91,7 @@ pub struct WebState {
     pub web_rate_limiter: Arc<rate_limit::WebRateLimiter>,
     pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
     pub oidc_config: Option<OidcConfig>,
+    pub meili: Option<Arc<crate::search_index::MeiliClient>>,
 }
 
 /// spawn a background task to clean up expired sessions and stale rate-limit buckets every hour
@@ -142,6 +143,7 @@ impl WebState {
             web_rate_limiter: Arc::new(rate_limit::WebRateLimiter::new()),
             ldap_config: None,
             oidc_config: None,
+            meili: None,
         }
     }
 
@@ -205,6 +207,11 @@ impl WebState {
 
     pub fn with_oidc(mut self, config: OidcConfig) -> Self {
         self.oidc_config = Some(config);
+        self
+    }
+
+    pub fn with_meili(mut self, client: Arc<crate::search_index::MeiliClient>) -> Self {
+        self.meili = Some(client);
         self
     }
 
