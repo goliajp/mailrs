@@ -796,6 +796,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           <div className="flex min-h-[160px] flex-[1] basis-0 flex-col border-t border-[var(--color-border-default)]">
             <ReplyBox
               forwardAttachmentsUid={fwdUid}
+              forwardMessageId={forwardSource?.messageId ?? null}
               lastMessageId={fwdLastMessageId}
               mode={replyMode}
               onModeChange={(m) => {

@@ -32,6 +32,7 @@ const MODE_LABELS: Record<ReplyMode, string> = {
 
 export function ReplyBox({
   forwardAttachmentsUid,
+  forwardMessageId,
   lastMessageId,
   mode,
   onModeChange,
@@ -45,6 +46,7 @@ export function ReplyBox({
   subject,
 }: {
   forwardAttachmentsUid?: null | number
+  forwardMessageId?: null | string
   lastMessageId: string
   mode: ReplyMode
   onModeChange: (mode: ReplyMode) => void
@@ -169,11 +171,14 @@ export function ReplyBox({
         formData.append('body', assembled.fullText)
         formData.append('html_body', assembled.fullHtml)
         if (inReplyTo) formData.append('in_reply_to', inReplyTo)
-        if (mode === 'forward' && forwardAttachmentsUid) {
-          formData.append(
-            'forward_attachments_from',
-            String(forwardAttachmentsUid)
-          )
+        if (mode === 'forward') {
+          if (forwardMessageId)
+            formData.append('forward_message_id', forwardMessageId)
+          if (forwardAttachmentsUid)
+            formData.append(
+              'forward_attachments_from',
+              String(forwardAttachmentsUid)
+            )
         }
         for (const r of to) formData.append('to', r)
         for (const f of attachmentFiles) formData.append('attachments', f)
@@ -194,18 +199,26 @@ export function ReplyBox({
         }
         sentMessageId = result.message_id
       } else {
+        // when forwarding via backend (forward_message_id), send only the user's
+        // typed text — the backend reads the original body + attachments from raw .eml
+        const isBackendForward =
+          mode === 'forward' && (forwardMessageId || forwardAttachmentsUid)
         const payload: Record<string, unknown> = {
           bcc: [],
-          body: assembled.fullText,
+          body: isBackendForward ? assembled.compose.text : assembled.fullText,
           cc: [],
           from: auth?.address ?? '',
-          html_body: assembled.fullHtml,
+          html_body: isBackendForward
+            ? assembled.compose.html
+            : assembled.fullHtml,
           subject: resolvedSubject,
           to,
         }
         if (inReplyTo) payload['in_reply_to'] = inReplyTo
-        if (mode === 'forward' && forwardAttachmentsUid) {
-          payload['forward_attachments_from'] = forwardAttachmentsUid
+        if (mode === 'forward') {
+          if (forwardMessageId) payload['forward_message_id'] = forwardMessageId
+          if (forwardAttachmentsUid)
+            payload['forward_attachments_from'] = forwardAttachmentsUid
         }
 
         const result = await postJson<SendResult>('/mail/send', payload)
