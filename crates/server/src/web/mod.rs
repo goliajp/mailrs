@@ -812,6 +812,10 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         )
         .route("/api/admin/rbl-status", get(admin::get_rbl_status))
         .route(
+            "/api/admin/suppressions",
+            get(admin::list_suppressed).delete(admin::remove_suppressed),
+        )
+        .route(
             "/api/admin/accounts",
             get(admin::list_accounts).post(admin::add_account),
         )
