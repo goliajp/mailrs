@@ -300,12 +300,10 @@ function HtmlFrame({ html }: { html: string }) {
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   body { margin: 0; padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Segoe UI', Roboto, 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-size: 14px; line-height: 1.6; color: #1a1a1a; background: #fff; word-wrap: break-word; overflow-wrap: break-word; overflow-x: hidden; }
-  * { max-width: 100% !important; box-sizing: border-box; }
-  img { max-width: 100% !important; height: auto; }
-  table { max-width: 100% !important; width: 100% !important; table-layout: fixed; }
-  td, th { overflow-wrap: break-word; word-break: break-word; }
+  img { max-width: 100%; height: auto; }
+  table { max-width: 100% !important; }
   a { color: #2563eb; }
-  pre { overflow-x: auto; max-width: 100%; }
+  pre { overflow-x: auto; }
   blockquote { border-left: 3px solid #d4d4d8; padding-left: 12px; margin: 8px 0; color: #71717a; }
 </style>
 </head><body>${sanitized}</body></html>`
