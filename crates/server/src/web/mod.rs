@@ -803,6 +803,7 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             "/api/admin/domains/{name}/check",
             post(admin::check_domain_handler),
         )
+        .route("/api/admin/rbl-status", get(admin::get_rbl_status))
         .route(
             "/api/admin/accounts",
             get(admin::list_accounts).post(admin::add_account),
