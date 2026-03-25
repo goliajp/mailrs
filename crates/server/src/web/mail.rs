@@ -483,6 +483,15 @@ pub(super) async fn send_message(
     State(state): State<Arc<WebState>>,
     Json(req): Json<SendMessageRequest>,
 ) -> impl IntoResponse {
+    // debug: log forward params
+    eprintln!(
+        "send_message: user={user} forward_message_id={:?} forward_attachments_from={:?} subject={:?} body_len={}",
+        req.forward_message_id,
+        req.forward_attachments_from,
+        req.subject,
+        req.body.len(),
+    );
+
     if req.to.is_empty() {
         return Json(SendResult {
             success: false,
