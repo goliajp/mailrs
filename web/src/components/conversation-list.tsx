@@ -819,10 +819,11 @@ export function ConversationList({
       : conversations.filter((c) => !c.archived)
 
     // hide sent-only threads from inbox view (show them only in Sent tab)
+    // a thread with replies from others should appear in both inbox and sent
     if (folder !== 'Sent' && myEmail) {
       visible = visible.filter((c) => {
-        const firstEmail = extractEmail(c.participants[0] ?? '')
-        return firstEmail !== myEmail
+        const emails = c.participants.map((p) => extractEmail(p))
+        return !emails.every((e) => e === myEmail)
       })
     }
 
