@@ -730,6 +730,9 @@ impl MailboxStore {
         domains: Option<&[String]>,
         archived: bool,
         folder: Option<&str>,
+        unread: Option<bool>,
+        starred: Option<bool>,
+        section: Option<&str>,
     ) -> Result<Vec<ConversationSummary>, sqlx::Error> {
         let count_expr = "COUNT(DISTINCT CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END)";
         let unread_expr = "COUNT(DISTINCT CASE WHEN (m.flags & 1) = 0 THEN CASE WHEN m.message_id != '' THEN m.message_id ELSE CAST(m.id AS TEXT) END END)";
@@ -789,6 +792,29 @@ impl MailboxStore {
         }
 
         let where_clause = conditions.join(" AND ");
+
+        // build HAVING clause with optional filters
+        let mut having_parts = vec![archived_filter.to_string()];
+        if unread == Some(true) {
+            having_parts.push(format!("{unread_expr} > 0"));
+        }
+        if starred == Some(true) {
+            having_parts.push("BOOL_OR((m.flags & 4) != 0) = true".to_string());
+        }
+        match section {
+            Some("action") => having_parts.push(
+                "COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false) = true".to_string()
+            ),
+            Some("important") => having_parts.push(
+                "COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal') IN ('critical', 'important')".to_string()
+            ),
+            Some("other") => having_parts.push(
+                "COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal') IN ('low', 'noise')".to_string()
+            ),
+            _ => {}
+        }
+        let having_clause = having_parts.join(" AND ");
+
         let sql = format!(
             "SELECT m.thread_id, MAX(m.subject), string_agg(DISTINCT m.sender, ','),
                     {count_expr}, {unread_expr}, MAX(m.internal_date),
@@ -813,7 +839,7 @@ impl MailboxStore {
                     COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false)
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {where_clause}
-             GROUP BY m.thread_id HAVING {archived_filter}
+             GROUP BY m.thread_id HAVING {having_clause}
              ORDER BY BOOL_OR(m.pinned) DESC, MAX(m.internal_date) DESC LIMIT ${limit_idx}"
         );
 

@@ -89,6 +89,12 @@ pub(super) struct ConversationsQuery {
     pub archived: bool,
     #[serde(default)]
     pub folder: Option<String>,
+    #[serde(default)]
+    pub unread: Option<bool>,
+    #[serde(default)]
+    pub starred: Option<bool>,
+    #[serde(default)]
+    pub section: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -165,6 +171,9 @@ pub(super) async fn get_conversations(
             domains.as_deref(),
             q.archived,
             q.folder.as_deref(),
+            q.unread,
+            q.starred,
+            q.section.as_deref(),
         )
         .await
         .unwrap_or_default();

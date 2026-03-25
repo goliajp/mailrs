@@ -373,6 +373,9 @@ impl MailMcpService {
                 None,
                 false,
                 None,
+                None,
+                None,
+                None,
             )
             .await
             .map_err(|e| {
@@ -1502,6 +1505,9 @@ impl MailMcpService {
                 params.category.as_deref(),
                 None,
                 false,
+                None,
+                None,
+                None,
                 None,
             )
             .await

@@ -14,6 +14,8 @@ import {
   categoryFilterAtom,
   conversationsAtom,
   folderAtom,
+  importanceSectionAtom,
+  quickFilterAtom,
   searchQueryAtom,
   selectedDomainsAtom,
   selectedThreadIdAtom,
@@ -37,6 +39,10 @@ export function useMailEvents(user: string) {
   const domainsRef = useRef(selectedDomains)
   const folder = useAtomValue(folderAtom)
   const folderRef = useRef(folder)
+  const quickFilter = useAtomValue(quickFilterAtom)
+  const quickFilterRef = useRef(quickFilter)
+  const importanceSection = useAtomValue(importanceSectionAtom)
+  const sectionRef = useRef(importanceSection)
   const notificationsEnabled = useAtomValue(notificationsAtom)
   const notificationsRef = useRef(notificationsEnabled)
   const soundEnabled = useAtomValue(notificationSoundAtom)
@@ -48,6 +54,8 @@ export function useMailEvents(user: string) {
     searchRef.current = searchQuery
     domainsRef.current = selectedDomains
     folderRef.current = folder
+    quickFilterRef.current = quickFilter
+    sectionRef.current = importanceSection
     notificationsRef.current = notificationsEnabled
     soundRef.current = soundEnabled
   }, [
@@ -56,6 +64,8 @@ export function useMailEvents(user: string) {
     searchQuery,
     selectedDomains,
     folder,
+    quickFilter,
+    importanceSection,
     notificationsEnabled,
     soundEnabled,
   ])
@@ -81,6 +91,11 @@ export function useMailEvents(user: string) {
     if (f) {
       path += `&folder=${encodeURIComponent(f)}`
     }
+    const qf = quickFilterRef.current
+    if (qf === 'unread') path += '&unread=true'
+    if (qf === 'starred') path += '&starred=true'
+    const sec = sectionRef.current
+    if (sec) path += `&section=${encodeURIComponent(sec)}`
     fetchJson<ConversationSummary[]>(path).then(
       (fresh) =>
         setConversations((prev) => {

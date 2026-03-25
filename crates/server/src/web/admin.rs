@@ -1654,6 +1654,9 @@ pub(super) async fn audit_list_conversations(
             None,
             false,
             q.folder.as_deref(),
+            None,
+            None,
+            None,
         )
         .await
         .unwrap_or_default();
