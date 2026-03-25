@@ -12,6 +12,7 @@ mod domain_check;
 mod domain_store;
 pub(crate) mod permission;
 mod event_bus;
+mod fbl;
 mod health;
 mod html_clean;
 mod imap_codec;

@@ -2374,6 +2374,68 @@ mod tests {
     }
 }
 
+// --- deliverability check ---
+
+#[derive(Deserialize)]
+pub(super) struct DeliverabilityCheckRequest {
+    pub recipient: String,
+}
+
+#[derive(Serialize)]
+pub(super) struct DeliverabilityCheckResult {
+    pub recipient: String,
+    pub suppressed: bool,
+    pub mx_found: bool,
+    pub mx_hosts: Vec<String>,
+    pub issues: Vec<String>,
+}
+
+pub(super) async fn check_deliverability(
+    _auth: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<DeliverabilityCheckRequest>,
+) -> impl IntoResponse {
+    let mut issues = Vec::new();
+    let recipient = req.recipient.trim().to_lowercase();
+
+    // check suppression list
+    let suppressed = if let Some(ref pool) = state.outbound_queue {
+        mailrs_outbound_queue::queue::is_suppressed(pool, &recipient).await
+    } else {
+        false
+    };
+    if suppressed {
+        issues.push("recipient is on suppression list (previous hard bounce)".into());
+    }
+
+    // check MX records
+    let domain = recipient.split_once('@').map(|(_, d)| d).unwrap_or("");
+    let (mx_found, mx_hosts) = if let Some(ref resolver) = state.resolver {
+        match mailrs_smtp_client::resolve_mx(resolver, domain).await {
+            Ok(records) => (true, records.iter().map(|r| r.exchange.clone()).collect()),
+            Err(e) => {
+                issues.push(format!("MX lookup failed: {e}"));
+                (false, vec![])
+            }
+        }
+    } else {
+        issues.push("DNS resolver not available".into());
+        (false, vec![])
+    };
+
+    if domain.is_empty() {
+        issues.push("invalid email address".into());
+    }
+
+    Json(DeliverabilityCheckResult {
+        recipient,
+        suppressed,
+        mx_found,
+        mx_hosts,
+        issues,
+    })
+}
+
 // --- image proxy ---
 
 const IMAGE_PROXY_MAX_BYTES: usize = 5 * 1024 * 1024; // 5 MB
