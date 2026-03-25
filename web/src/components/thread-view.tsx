@@ -412,7 +412,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   return (
     <PanelRow>
       {/* content panel */}
-      <Panel>
+      <Panel className="flex-[2]">
         {/* header bar at top of content panel */}
         <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border-default)] px-3 py-1.5 select-none">
           {onBack && (
