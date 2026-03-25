@@ -332,7 +332,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   const handleForwardMsg = useCallback((msg: ThreadMessage) => {
     setForwardSource({
-      body: msg.clean_text || msg.text_body || '',
+      body: msg.text_body || msg.clean_text || '',
       date: formatFullDate(msg.internal_date),
       htmlBody: msg.html_body || null,
       messageId: msg.message_id,
