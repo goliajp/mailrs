@@ -352,6 +352,17 @@ function isExtractable(contentType: string): boolean {
   return contentType.startsWith('image/') || contentType === 'application/pdf'
 }
 
+// rewrite external image URLs to go through our proxy (bypasses CSP img-src 'self')
+function proxyImages(html: string): string {
+  const token = getToken()
+  const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
+  return html.replace(
+    /(<img\b[^>]*\bsrc\s*=\s*["'])(https?:\/\/[^"']+)(["'])/gi,
+    (_match, before, url, after) =>
+      `${before}/api/proxy/image?url=${encodeURIComponent(url)}${tokenParam}${after}`
+  )
+}
+
 function sanitizeEmail(html: string): string {
   const clean = emailPurifier.sanitize(html, {
     ADD_ATTR: [
@@ -369,7 +380,7 @@ function sanitizeEmail(html: string): string {
     ALLOW_UNKNOWN_PROTOCOLS: false,
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
   })
-  return injectCjkFonts(clean)
+  return proxyImages(injectCjkFonts(clean))
 }
 
 function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {

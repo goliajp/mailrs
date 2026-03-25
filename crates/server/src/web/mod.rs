@@ -963,8 +963,10 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
     app = app.merge(mcp_router.with_state(state.clone()));
 
     // BIMI logo lookup — bypasses rate limiter (cached DNS, read-only)
+    // Image proxy — fetches external email images through our server (requires auth)
     let bimi_router = axum::Router::new()
         .route("/api/bimi/{domain}", get(mail::get_bimi_logo))
+        .route("/api/proxy/image", get(mail::proxy_image))
         .with_state(state);
     app = app.merge(bimi_router);
 
