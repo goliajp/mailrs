@@ -216,9 +216,17 @@ export function ReplyBox({
         }
         if (inReplyTo) payload['in_reply_to'] = inReplyTo
         if (mode === 'forward') {
-          if (forwardMessageId) payload['forward_message_id'] = forwardMessageId
-          if (forwardAttachmentsUid)
+          if (forwardMessageId && forwardMessageId.length > 0)
+            payload['forward_message_id'] = forwardMessageId
+          if (forwardAttachmentsUid && forwardAttachmentsUid > 0)
             payload['forward_attachments_from'] = forwardAttachmentsUid
+
+          console.log(
+            '[forward] messageId:',
+            forwardMessageId,
+            'uid:',
+            forwardAttachmentsUid
+          )
         }
 
         const result = await postJson<SendResult>('/mail/send', payload)
