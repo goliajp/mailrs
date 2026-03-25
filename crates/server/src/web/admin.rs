@@ -1871,6 +1871,52 @@ pub(super) async fn audit_get_raw_message(
     .into_response()
 }
 
+// --- suppression list ---
+
+pub(super) async fn list_suppressed(
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if let Some(resp) = require_permission(permissions, "admin.queue") {
+        return resp.into_response();
+    }
+    let Some(ref pool) = state.pg_pool else {
+        return Json(serde_json::json!({"error": "pg not available"})).into_response();
+    };
+    match mailrs_outbound_queue::queue::list_suppressions(pool, 500).await {
+        Ok(items) => {
+            let list: Vec<_> = items.into_iter().map(|(email, reason, code, ts)| {
+                serde_json::json!({ "email": email, "reason": reason, "smtp_code": code, "created_at": ts })
+            }).collect();
+            Json(serde_json::json!({ "suppressions": list })).into_response()
+        }
+        Err(e) => Json(serde_json::json!({ "error": e.to_string() })).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub(super) struct SuppressionAction {
+    pub email: String,
+}
+
+pub(super) async fn remove_suppressed(
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(body): Json<SuppressionAction>,
+) -> impl IntoResponse {
+    if let Some(resp) = require_permission(permissions, "admin.queue") {
+        return resp.into_response();
+    }
+    let Some(ref pool) = state.pg_pool else {
+        return Json(ApiResult { success: false, message: Some("pg not available".into()) }).into_response();
+    };
+    match mailrs_outbound_queue::queue::remove_suppression(pool, &body.email).await {
+        Ok(true) => Json(ApiResult { success: true, message: None }).into_response(),
+        Ok(false) => Json(ApiResult { success: false, message: Some("not found".into()) }).into_response(),
+        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }).into_response(),
+    }
+}
+
 // --- RBL blocklist status ---
 
 pub(super) async fn get_rbl_status(

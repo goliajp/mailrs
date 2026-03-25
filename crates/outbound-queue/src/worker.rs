@@ -258,6 +258,29 @@ async fn deliver_domain_static(
     max_per_conn: usize,
     event_sender: Option<&DeliveryEventSender>,
 ) {
+    // filter out suppressed recipients before delivery
+    let mut messages = messages;
+    let now_check = chrono::Utc::now().timestamp();
+    {
+        let mut suppressed_ids = Vec::new();
+        for msg in &messages {
+            if queue::is_suppressed(pool, &msg.recipient).await {
+                tracing::info!("skipping suppressed recipient: {}", msg.recipient);
+                let _ = queue::mark_bounced(pool, msg.id, "recipient suppressed (hard bounce history)", now_check).await;
+                if let Some(es) = event_sender {
+                    es(DeliveryEvent::Bounced { queue_id: msg.id, sender: msg.sender.clone() });
+                }
+                suppressed_ids.push(msg.id);
+            }
+        }
+        if !suppressed_ids.is_empty() {
+            messages.retain(|msg| !suppressed_ids.contains(&msg.id));
+        }
+        if messages.is_empty() {
+            return;
+        }
+    }
+
     // resolve MX records
     let mx_records = match mailrs_smtp_client::resolve_mx(resolver, domain).await {
         Ok(records) => records,
@@ -269,6 +292,10 @@ async fn deliver_domain_static(
                 if should_bounce(msg.attempts + 1, msg.max_attempts) {
                     let error = format!("MX resolution failed: {e}");
                     let _ = queue::mark_bounced(pool, msg.id, &error, now).await;
+                    // record hard bounce for suppression
+                    if queue::is_hard_bounce(&error) {
+                        let _ = queue::add_suppression(pool, &msg.recipient, &error, None).await;
+                    }
                     enqueue_dsn(pool, hostname, msg, &error).await;
                     if let Some(es) = event_sender {
                         es(DeliveryEvent::Bounced { queue_id: msg.id, sender: msg.sender.clone() });
@@ -332,6 +359,12 @@ async fn deliver_domain_static(
         let delay = retry_delay_secs(msg.attempts);
         if should_bounce(msg.attempts + 1, msg.max_attempts) {
             let _ = queue::mark_bounced(pool, msg.id, "all MX hosts failed", now).await;
+            // add to suppression if last error was a hard bounce
+            if let Some(ref err) = msg.last_error {
+                if queue::is_hard_bounce(err) {
+                    let _ = queue::add_suppression(pool, &msg.recipient, err, None).await;
+                }
+            }
             enqueue_dsn(pool, hostname, msg, "all MX hosts failed").await;
             if let Some(es) = event_sender {
                 es(DeliveryEvent::Bounced { queue_id: msg.id, sender: msg.sender.clone() });
