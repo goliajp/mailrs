@@ -580,8 +580,33 @@ pub(super) async fn send_message(
         _ => req.body.clone(),
     };
 
+    // when forwarding, build email from original raw message (full body + all attachments)
+    let (final_body, final_html, forwarded_attachments) = if let Some(uid) = req.forward_attachments_from {
+        let (orig_text, orig_html, atts) = extract_full_forward(&state, from, uid).await;
+        // prepend user's message before the forwarded content
+        let user_text = req.body.clone();
+        let fwd_text = if let Some(ref text) = orig_text {
+            format!("{user_text}\n\n---------- Forwarded message ----------\n{text}")
+        } else {
+            user_text.clone()
+        };
+        let user_html_fallback = format!("<p>{}</p>", user_text.replace('\n', "<br>"));
+        let user_html_str = req.html_body.as_deref().unwrap_or(&user_html_fallback);
+        let fwd_html = if let Some(ref html) = orig_html {
+            Some(format!("{user_html_str}<hr style=\"border:none;border-top:1px solid #ccc;margin:16px 0\"><div style=\"color:#555\">{html}</div>"))
+        } else if let Some(ref text) = orig_text {
+            let escaped = text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('\n', "<br>");
+            Some(format!("{user_html_str}<hr style=\"border:none;border-top:1px solid #ccc;margin:16px 0\"><pre style=\"font-family:sans-serif;white-space:pre-wrap\">{escaped}</pre>"))
+        } else {
+            req.html_body.clone()
+        };
+        (fwd_text, fwd_html, atts)
+    } else {
+        (body_with_quote.clone(), req.html_body.clone(), vec![])
+    };
+
     // resolve inline images from HTML before building MIME
-    let (resolved_html, inline_images) = match req.html_body.as_deref() {
+    let (resolved_html, inline_images) = match final_html.as_deref() {
         Some(html) => {
             let (rewritten, images) =
                 resolve_inline_images(html, &state.maildir_root, from, &state.hostname).await;
@@ -590,19 +615,12 @@ pub(super) async fn send_message(
         None => (None, vec![]),
     };
 
-    // extract attachments from original message when forwarding
-    let forwarded_attachments = if let Some(uid) = req.forward_attachments_from {
-        extract_forwarded_attachments(&state, from, uid).await
-    } else {
-        vec![]
-    };
-
     let raw = build_rfc5322_with_attachments(
         from,
         &req.to,
         &req.cc,
         &req.subject,
-        &body_with_quote,
+        &final_body,
         resolved_html.as_deref(),
         &message_id,
         in_reply_to_ref,
@@ -855,65 +873,76 @@ h1{{font-size:1.5em}} h2{{font-size:1.3em}} h3{{font-size:1.1em}}\
     )
 }
 
-/// extract attachments from an existing message (for forwarding)
-async fn extract_forwarded_attachments(
+/// extract full body (text + html) and all attachments from an existing message for forwarding
+async fn extract_full_forward(
     state: &WebState,
     user: &str,
     uid: u32,
-) -> Vec<AttachmentData> {
-    let Some(ref mb_store) = state.mailbox_store else {
-        return vec![];
-    };
+) -> (Option<String>, Option<String>, Vec<AttachmentData>) {
+    let empty = (None, None, vec![]);
+    let Some(ref mb_store) = state.mailbox_store else { return empty; };
     let Some(meta) = mb_store.find_message_by_uid(user, uid).await.ok().flatten() else {
-        return vec![];
+        eprintln!("forward: message uid={uid} not found for user={user}");
+        return empty;
     };
     let Some(raw) = message_util::read_message_raw(&state.maildir_root, user, &meta.maildir_id) else {
-        return vec![];
-    };
-    let Some(parsed) = mail_parser::MessageParser::default().parse(&raw) else {
-        return vec![];
+        eprintln!("forward: raw message not found for maildir_id={}", meta.maildir_id);
+        return empty;
     };
 
+    // use the existing parser that handles nested MIME well
+    let (text_body, html_body, _) = message_util::parse_message(&raw);
+
+    // parse attachments from raw MIME
     let mut attachments = Vec::new();
-    for part in parsed.parts.iter().skip(1) {
-        let disp = part.content_disposition();
-        let is_attachment = disp
-            .map(|d| d.ctype() == "attachment" || d.ctype() == "inline")
-            .unwrap_or(false);
-        let ct = part.content_type();
-        let is_text_or_html = ct
-            .map(|c| {
-                let main = c.ctype();
-                let sub = c.subtype().unwrap_or("");
-                (main == "text" && (sub == "plain" || sub == "html")) && !is_attachment
-            })
-            .unwrap_or(false);
-        if is_text_or_html {
-            continue;
-        }
+    if let Some(parsed) = mail_parser::MessageParser::default().parse(&raw) {
+        for part in parsed.parts.iter().skip(1) {
+            let disp = part.content_disposition();
+            let is_attachment = disp
+                .map(|d| d.ctype() == "attachment" || d.ctype() == "inline")
+                .unwrap_or(false);
+            let ct = part.content_type();
+            let is_body_part = ct
+                .map(|c| {
+                    let main = c.ctype();
+                    let sub = c.subtype().unwrap_or("");
+                    (main == "text" && (sub == "plain" || sub == "html")) && !is_attachment
+                })
+                .unwrap_or(false);
+            if is_body_part {
+                continue;
+            }
 
-        let filename = part
-            .attachment_name()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "attachment".into());
-        let content_type = ct
-            .map(|c| {
-                let sub = c.subtype().unwrap_or("octet-stream");
-                format!("{}/{}", c.ctype(), sub)
-            })
-            .unwrap_or_else(|| "application/octet-stream".into());
+            let filename = part
+                .attachment_name()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "attachment".into());
+            let content_type = ct
+                .map(|c| {
+                    let sub = c.subtype().unwrap_or("octet-stream");
+                    format!("{}/{}", c.ctype(), sub)
+                })
+                .unwrap_or_else(|| "application/octet-stream".into());
 
-        let body_bytes = part.contents();
-        if !body_bytes.is_empty() {
-            attachments.push(AttachmentData {
-                filename,
-                content_type,
-                data: body_bytes.to_vec(),
-            });
+            let body_bytes = part.contents();
+            if !body_bytes.is_empty() {
+                attachments.push(AttachmentData {
+                    filename,
+                    content_type,
+                    data: body_bytes.to_vec(),
+                });
+            }
         }
     }
 
-    attachments
+    eprintln!(
+        "forward: uid={uid} text={}bytes html={}bytes attachments={}",
+        text_body.as_ref().map(|s| s.len()).unwrap_or(0),
+        html_body.as_ref().map(|s| s.len()).unwrap_or(0),
+        attachments.len()
+    );
+
+    (text_body, html_body, attachments)
 }
 
 /// resolve inline images from HTML, load from disk, return images + rewritten HTML
