@@ -353,14 +353,22 @@ function isExtractable(contentType: string): boolean {
 }
 
 // rewrite external image URLs to go through our proxy (bypasses CSP img-src 'self')
-function proxyImages(html: string): string {
+function proxyExternalUrls(html: string): string {
   const token = getToken()
   const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
-  return html.replace(
+  // proxy images
+  let result = html.replace(
     /(<img\b[^>]*\bsrc\s*=\s*["'])(https?:\/\/[^"']+)(["'])/gi,
     (_match, before, url, after) =>
       `${before}/api/proxy/image?url=${encodeURIComponent(url)}${tokenParam}${after}`
   )
+  // proxy links for safe browsing
+  result = result.replace(
+    /(<a\b[^>]*\bhref\s*=\s*["'])(https?:\/\/[^"']+)(["'])/gi,
+    (_match, before, url, after) =>
+      `${before}/api/proxy/link?url=${encodeURIComponent(url)}${tokenParam}${after}`
+  )
+  return result
 }
 
 function sanitizeEmail(html: string): string {
@@ -380,7 +388,7 @@ function sanitizeEmail(html: string): string {
     ALLOW_UNKNOWN_PROTOCOLS: false,
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
   })
-  return proxyImages(injectCjkFonts(clean))
+  return proxyExternalUrls(injectCjkFonts(clean))
 }
 
 function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {

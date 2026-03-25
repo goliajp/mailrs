@@ -967,6 +967,7 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
     let bimi_router = axum::Router::new()
         .route("/api/bimi/{domain}", get(mail::get_bimi_logo))
         .route("/api/proxy/image", get(mail::proxy_image))
+        .route("/api/proxy/link", get(mail::proxy_link))
         .with_state(state);
     app = app.merge(bimi_router);
 

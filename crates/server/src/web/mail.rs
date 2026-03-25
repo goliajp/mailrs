@@ -2495,3 +2495,136 @@ pub(super) async fn proxy_image(
     )
         .into_response()
 }
+
+// --- link protection proxy ---
+
+/// known phishing / malicious URL patterns
+const BLOCKED_DOMAINS: &[&str] = &[
+    // placeholder — extend with real blocklist or external API
+];
+
+#[derive(Deserialize)]
+pub(super) struct LinkProxyQuery {
+    pub url: String,
+}
+
+/// check whether a URL should be blocked
+fn is_url_blocked(url: &str) -> bool {
+    // extract host from URL
+    let host = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+        .and_then(|s| s.split('/').next())
+        .and_then(|s| s.split('?').next())
+        .and_then(|s| s.split(':').next())
+        .unwrap_or("");
+
+    for blocked in BLOCKED_DOMAINS {
+        if host == *blocked || host.ends_with(&format!(".{blocked}")) {
+            return true;
+        }
+    }
+
+    // block suspicious patterns
+    if url.contains("@") && url.contains("http") {
+        // e.g. http://legit.com@evil.com
+        return true;
+    }
+
+    false
+}
+
+pub(super) async fn proxy_link(
+    _auth: AuthUser,
+    Query(q): Query<LinkProxyQuery>,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    use axum::http::header;
+
+    let url = &q.url;
+
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return (StatusCode::BAD_REQUEST, "invalid url scheme").into_response();
+    }
+
+    // check valkey blocklist cache
+    if let Some(ref valkey) = state.valkey {
+        let cache_key = format!("linkblock:{}", url);
+        if let Ok(blocked) = redis::cmd("GET")
+            .arg(&cache_key)
+            .query_async::<Option<String>>(&mut valkey.clone())
+            .await
+        {
+            if blocked.as_deref() == Some("1") {
+                return link_warning_page(url).into_response();
+            }
+        }
+    }
+
+    if is_url_blocked(url) {
+        // cache the block decision
+        if let Some(ref valkey) = state.valkey {
+            let cache_key = format!("linkblock:{}", url);
+            let _ = redis::cmd("SET")
+                .arg(&cache_key)
+                .arg("1")
+                .arg("EX")
+                .arg(86400i64)
+                .query_async::<()>(&mut valkey.clone())
+                .await;
+        }
+        return link_warning_page(url).into_response();
+    }
+
+    // record click (fire-and-forget to valkey)
+    if let Some(ref valkey) = state.valkey {
+        let host = url
+            .strip_prefix("https://")
+            .or_else(|| url.strip_prefix("http://"))
+            .and_then(|s| s.split('/').next())
+            .unwrap_or("unknown");
+        let counter_key = format!("linkclick:{host}");
+        let _ = redis::cmd("INCR")
+            .arg(&counter_key)
+            .query_async::<i64>(&mut valkey.clone())
+            .await;
+    }
+
+    // safe — redirect
+    (StatusCode::FOUND, [(header::LOCATION, url.to_string())]).into_response()
+}
+
+fn link_warning_page(url: &str) -> impl IntoResponse {
+    use axum::http::header;
+
+    let escaped = url.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;");
+    let html = format!(
+        r#"<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Link Warning</title>
+<style>
+body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 80px auto; padding: 20px; color: #1a1a1a; }}
+.warn {{ background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 24px; }}
+h1 {{ color: #dc2626; font-size: 20px; margin: 0 0 12px; }}
+p {{ margin: 8px 0; line-height: 1.6; }}
+code {{ background: #f5f5f5; padding: 2px 6px; border-radius: 4px; word-break: break-all; font-size: 13px; }}
+.actions {{ margin-top: 20px; display: flex; gap: 12px; }}
+a.btn {{ display: inline-block; padding: 8px 20px; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 14px; }}
+a.back {{ background: #2563eb; color: white; }}
+a.proceed {{ background: #e5e7eb; color: #374151; }}
+</style></head><body>
+<div class="warn">
+<h1>⚠ Suspicious Link Detected</h1>
+<p>This link may be unsafe:</p>
+<p><code>{escaped}</code></p>
+<p>It matched a known malicious pattern. If you trust this link, you can proceed at your own risk.</p>
+<div class="actions">
+<a class="btn back" href="javascript:history.back()">Go Back</a>
+<a class="btn proceed" href="{escaped}" rel="noopener noreferrer">Proceed Anyway</a>
+</div></div></body></html>"#
+    );
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/html; charset=utf-8".to_string())],
+        html,
+    )
+}
