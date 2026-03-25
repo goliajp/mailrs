@@ -18,9 +18,11 @@ import {
   conversationsAtom,
   folderAtom,
   hasMoreAtom,
+  importanceSectionAtom,
   initialLoadingAtom,
   loadingMoreAtom,
   mobileViewAtom,
+  quickFilterAtom,
   searchQueryAtom,
   selectedDomainsAtom,
   selectedThreadIdAtom,
@@ -44,9 +46,12 @@ export function Chat() {
   const [mobileView, setMobileView] = useAtom(mobileViewAtom)
   const [shortcutsOpen, setShortcutsOpen] = useAtom(shortcutsDialogOpenAtom)
   const showArchived = useAtomValue(showArchivedAtom)
+  const quickFilter = useAtomValue(quickFilterAtom)
+  const importanceSection = useAtomValue(importanceSectionAtom)
   const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const firstLoadDone = useRef(false)
+  const prevSearchRef = useRef(searchQuery)
 
   // keep a ref so loadMore always sees latest
   const conversationsRef = useRef(conversations)
@@ -61,6 +66,10 @@ export function Chat() {
   archivedRef.current = showArchived
   const folderRef = useRef(folder)
   folderRef.current = folder
+  const quickFilterRef = useRef(quickFilter)
+  quickFilterRef.current = quickFilter
+  const sectionRef = useRef(importanceSection)
+  sectionRef.current = importanceSection
 
   // request notification permission
   useEffect(() => {
@@ -87,6 +96,9 @@ export function Chat() {
       domains?: string[]
       folder?: null | string
       query?: string
+      section?: null | string
+      starred?: boolean
+      unread?: boolean
     }) => {
       const {
         archived,
@@ -95,6 +107,9 @@ export function Chat() {
         domains,
         folder: f,
         query,
+        section,
+        starred,
+        unread,
       } = opts ?? {}
       if (query) {
         let path = `/conversations/search?q=${encodeURIComponent(query)}&limit=${PAGE_SIZE}`
@@ -110,6 +125,9 @@ export function Chat() {
         path += `&domains=${encodeURIComponent(domains.join(','))}`
       if (archived) path += '&archived=true'
       if (f) path += `&folder=${encodeURIComponent(f)}`
+      if (unread) path += '&unread=true'
+      if (starred) path += '&starred=true'
+      if (section) path += `&section=${encodeURIComponent(section)}`
       return path
     },
     []
@@ -125,6 +143,9 @@ export function Chat() {
       domains?: string[]
       folder?: null | string
       query?: string
+      section?: null | string
+      starred?: boolean
+      unread?: boolean
     }) => {
       const { append } = opts ?? {}
       try {
@@ -172,6 +193,9 @@ export function Chat() {
         domains: domainsRef.current.length > 0 ? domainsRef.current : undefined,
         folder: folderRef.current,
         query: searchRef.current || undefined,
+        section: sectionRef.current,
+        starred: quickFilterRef.current === 'starred' || undefined,
+        unread: quickFilterRef.current === 'unread' || undefined,
       })
     } finally {
       loadingRef.current = false
@@ -179,10 +203,14 @@ export function Chat() {
     }
   }, [setLoadingMore, loadConversations])
 
-  // initial load + react to filter/search/domain/archived/folder changes
+  // load conversations when any filter changes
+  // debounce only while the user is actively typing in search
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
+    const searchChanged = searchQuery !== prevSearchRef.current
+    prevSearchRef.current = searchQuery
+
+    const doLoad = () => {
+      setConversations([])
       setHasMore(true)
       loadConversations({
         archived: showArchived || undefined,
@@ -190,8 +218,20 @@ export function Chat() {
         domains: selectedDomains.length > 0 ? selectedDomains : undefined,
         folder,
         query: searchQuery || undefined,
+        section: importanceSection,
+        starred: quickFilter === 'starred' || undefined,
+        unread: quickFilter === 'unread' || undefined,
       })
-    }, 300)
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    if (searchChanged && searchQuery) {
+      debounceRef.current = setTimeout(doLoad, 300)
+    } else {
+      doLoad()
+    }
+
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
@@ -201,7 +241,10 @@ export function Chat() {
     selectedDomains,
     showArchived,
     folder,
+    quickFilter,
+    importanceSection,
     loadConversations,
+    setConversations,
     setHasMore,
   ])
 

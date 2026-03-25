@@ -17,6 +17,8 @@ vi.mock('@/store/chat', () => ({
   categoryFilterAtom: Symbol('category'),
   conversationsAtom: Symbol('conversations'),
   folderAtom: Symbol('folder'),
+  importanceSectionAtom: Symbol('section'),
+  quickFilterAtom: Symbol('quickFilter'),
   searchQueryAtom: Symbol('search'),
   selectedDomainsAtom: Symbol('domains'),
   selectedThreadIdAtom: Symbol('selected'),
