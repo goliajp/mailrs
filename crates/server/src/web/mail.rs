@@ -133,9 +133,12 @@ pub(super) struct SendMessageRequest {
     /// request a read receipt (MDN) from recipients
     #[serde(default)]
     pub request_read_receipt: bool,
-    /// uid of original message to forward attachments from
+    /// uid of original message to forward attachments from (legacy, prefer forward_message_id)
     #[serde(default)]
     pub forward_attachments_from: Option<u32>,
+    /// message-id header of original message to forward (more reliable than uid)
+    #[serde(default)]
+    pub forward_message_id: Option<String>,
 }
 
 pub(crate) struct AttachmentData {
@@ -581,8 +584,15 @@ pub(super) async fn send_message(
     };
 
     // when forwarding, build email from original raw message (full body + all attachments)
-    let (final_body, final_html, forwarded_attachments) = if let Some(uid) = req.forward_attachments_from {
-        let (orig_text, orig_html, atts) = extract_full_forward(&state, from, uid).await;
+    // prefer forward_message_id (globally unique), fall back to uid
+    let forward_requested = req.forward_message_id.is_some() || req.forward_attachments_from.is_some();
+    let (final_body, final_html, forwarded_attachments) = if forward_requested {
+        let (orig_text, orig_html, atts) = extract_full_forward_by_id(
+            &state,
+            &user,  // always use authenticated user, not from
+            req.forward_message_id.as_deref(),
+            req.forward_attachments_from,
+        ).await;
         // prepend user's message before the forwarded content
         let user_text = req.body.clone();
         let fwd_text = if let Some(ref text) = orig_text {
@@ -874,21 +884,59 @@ h1{{font-size:1.5em}} h2{{font-size:1.3em}} h3{{font-size:1.1em}}\
 }
 
 /// extract full body (text + html) and all attachments from an existing message for forwarding
-async fn extract_full_forward(
+/// tries message_id first (globally unique), falls back to uid
+async fn extract_full_forward_by_id(
     state: &WebState,
     user: &str,
-    uid: u32,
+    message_id: Option<&str>,
+    uid: Option<u32>,
 ) -> (Option<String>, Option<String>, Vec<AttachmentData>) {
     let empty = (None, None, vec![]);
     let Some(ref mb_store) = state.mailbox_store else { return empty; };
-    let Some(meta) = mb_store.find_message_by_uid(user, uid).await.ok().flatten() else {
-        eprintln!("forward: message uid={uid} not found for user={user}");
+
+    // find message: try message_id first, then uid
+    let meta = if let Some(mid) = message_id {
+        match mb_store.find_message_by_message_id(user, mid).await {
+            Ok(Some(m)) => {
+                eprintln!("forward: found by message_id={mid} user={user}");
+                m
+            }
+            _ => {
+                eprintln!("forward: message_id={mid} not found for user={user}, trying uid");
+                if let Some(u) = uid {
+                    match mb_store.find_message_by_uid(user, u).await {
+                        Ok(Some(m)) => m,
+                        _ => {
+                            eprintln!("forward: uid={u} also not found for user={user}");
+                            return empty;
+                        }
+                    }
+                } else {
+                    return empty;
+                }
+            }
+        }
+    } else if let Some(u) = uid {
+        match mb_store.find_message_by_uid(user, u).await {
+            Ok(Some(m)) => {
+                eprintln!("forward: found by uid={u} user={user}");
+                m
+            }
+            _ => {
+                eprintln!("forward: uid={u} not found for user={user}");
+                return empty;
+            }
+        }
+    } else {
+        eprintln!("forward: no message_id or uid provided");
         return empty;
     };
+
     let Some(raw) = message_util::read_message_raw(&state.maildir_root, user, &meta.maildir_id) else {
-        eprintln!("forward: raw message not found for maildir_id={}", meta.maildir_id);
+        eprintln!("forward: raw message not found maildir_id={} user={user}", meta.maildir_id);
         return empty;
     };
+    eprintln!("forward: raw message loaded, {} bytes", raw.len());
 
     // use the existing parser that handles nested MIME well
     let (text_body, html_body, _) = message_util::parse_message(&raw);
@@ -936,7 +984,7 @@ async fn extract_full_forward(
     }
 
     eprintln!(
-        "forward: uid={uid} text={}bytes html={}bytes attachments={}",
+        "forward: uid={uid:?} text={}bytes html={}bytes attachments={}",
         text_body.as_ref().map(|s| s.len()).unwrap_or(0),
         html_body.as_ref().map(|s| s.len()).unwrap_or(0),
         attachments.len()
