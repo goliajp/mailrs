@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { avatarColor, avatarInitial } from '@/lib/avatar'
 import { cn } from '@/lib/cn'
+import { getToken } from '@/store/auth'
 
 function extractDomain(sender: string): null | string {
   const match = sender.match(/@([a-zA-Z0-9.-]+)/)
@@ -104,10 +105,10 @@ export function SenderAvatar({
   )
 }
 
-// probe an image URL using fetch (avoids console errors from Image element 404s)
+// probe an image URL — token is already in the URL query param
 async function probeImage(url: string): Promise<boolean> {
   try {
-    const res = await fetch(url, { method: 'HEAD' })
+    const res = await fetch(url)
     if (!res.ok) return false
     const ct = res.headers.get('content-type') ?? ''
     return ct.startsWith('image/')
@@ -143,9 +144,11 @@ function resolveIcon(domain: string): Promise<null | string> {
     const parentDomain = getParentDomain(domain)
     if (parentDomain && parentDomain !== domain) domains.push(parentDomain)
 
+    const token = getToken()
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
     for (const d of domains) {
       const raw = `https://${d}/apple-touch-icon.png`
-      const url = `/api/proxy/image?url=${encodeURIComponent(raw)}`
+      const url = `/api/proxy/image?url=${encodeURIComponent(raw)}${tokenParam}`
       if (await probeImage(url)) {
         iconCache.set(domain, url)
         iconInflight.delete(domain)
