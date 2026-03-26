@@ -137,8 +137,11 @@ impl RenderPreviewClient {
             .as_str()
             .ok_or("webSocketDebuggerUrl not found in /json/version")?;
 
-        // replace localhost with the container hostname
-        let fixed = ws_url.replace("localhost:9222", &host).replace("127.0.0.1:9222", &host);
+        // extract the path from the returned URL and combine with our known host
+        let path = ws_url.find("/devtools/")
+            .map(|i| &ws_url[i..])
+            .unwrap_or("/devtools/browser/unknown");
+        let fixed = format!("ws://{host}{path}");
         eprintln!("render_preview: resolved WS URL: {fixed}");
         Ok(fixed)
     }
