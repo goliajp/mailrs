@@ -11,6 +11,7 @@ type Preview = {
 
 type RenderResult = {
   error?: string
+  errors?: string[]
   previews?: Preview[]
 }
 
@@ -36,14 +37,19 @@ export function RenderPreview({ html }: { html: string }) {
         presets: ['desktop', 'mobile', 'gmail', 'outlook'],
       })
 
-      console.log('[render-preview] response:', JSON.stringify(result))
       if (result.error) {
         setError(result.error)
       } else if (result.previews && result.previews.length > 0) {
         setPreviews(result.previews)
         setActiveTab(result.previews[0].name)
+        if (result.errors && result.errors.length > 0) {
+          setError(
+            `${result.errors.length} preset(s) failed: ${result.errors.join('; ')}`
+          )
+        }
       } else {
-        setError('No previews generated — Chrome may be connecting')
+        const detail = result.errors?.join('; ') ?? 'unknown'
+        setError(`No previews generated: ${detail}`)
       }
     } catch {
       setError('Render failed')

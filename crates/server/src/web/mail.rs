@@ -2567,17 +2567,24 @@ pub(super) async fn render_preview(
 
     eprintln!("render_preview handler: html_len={} presets={:?}", req.html.len(), req.presets);
     let results = client.render(&req.html, &req.presets).await;
-    let errors: Vec<_> = results.iter().filter_map(|r| r.as_ref().err().map(|e| e.clone())).collect();
-    if !errors.is_empty() {
-        eprintln!("render_preview errors: {:?}", errors);
-    }
-    let previews: Vec<_> = results
-        .into_iter()
-        .filter_map(|r| r.ok())
-        .collect();
-    eprintln!("render_preview handler: returning {} previews", previews.len());
 
-    Json(serde_json::json!({ "previews": previews })).into_response()
+    let mut previews = Vec::new();
+    let mut errors = Vec::new();
+    for result in results {
+        match result {
+            Ok(preview) => previews.push(preview),
+            Err(e) => {
+                eprintln!("render_preview error: {e}");
+                errors.push(e);
+            }
+        }
+    }
+    eprintln!("render_preview handler: {} ok, {} errors", previews.len(), errors.len());
+
+    Json(serde_json::json!({
+        "previews": previews,
+        "errors": errors,
+    })).into_response()
 }
 
 pub(super) async fn serve_render_cache(
