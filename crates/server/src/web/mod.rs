@@ -628,6 +628,8 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/api/mail/export", get(mail::export_mbox))
         .route("/api/mail/send", post(mail::send_message))
         .route("/api/mail/check-deliverability", post(mail::check_deliverability))
+        .route("/api/mail/spam-feedback", post(mail::submit_spam_feedback))
+        .route("/api/admin/spam-feedback-stats", get(mail::get_spam_feedback_stats))
         .route(
             "/api/mail/send-multipart",
             post(mail::send_message_multipart),
@@ -812,6 +814,8 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             post(admin::check_domain_handler),
         )
         .route("/api/admin/rbl-status", get(admin::get_rbl_status))
+        .route("/api/admin/reputation", get(admin::get_reputation))
+        .route("/api/admin/export", get(admin::export_messages))
         .route(
             "/api/admin/suppressions",
             get(admin::list_suppressed).delete(admin::remove_suppressed),

@@ -29,6 +29,7 @@ mod managesieve_session;
 mod pop3_session;
 mod ptr_check;
 mod rbl_monitor;
+mod reputation;
 mod search_index;
 mod sieve;
 mod smtp_session;
