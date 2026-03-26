@@ -18,6 +18,12 @@ services:
       - valkey-data:/data
     restart: unless-stopped
 
+  chromium:
+    container_name: mailrs-chromium
+    image: zenika/alpine-chrome:latest
+    command: ["--no-sandbox", "--remote-debugging-address=0.0.0.0", "--remote-debugging-port=9222", "--disable-gpu", "--headless"]
+    restart: unless-stopped
+
   mailrs:
     container_name: mailrs
     build: .
@@ -49,6 +55,7 @@ services:
       MAILRS_LLM_URL: "${MAILRS_LLM_URL:-}"
       MAILRS_LLM_API_KEY: "${MAILRS_LLM_API_KEY:-}"
       MAILRS_ANTISPAM_ENABLED: "false"
+      MAILRS_CHROME_CDP_URL: ws://chromium:9222
     volumes:
       - mailrs-data:/data
       - ./certs:/certs:ro
@@ -56,6 +63,7 @@ services:
     depends_on:
       - postgres
       - valkey
+      - chromium
     restart: unless-stopped
 
 volumes:
