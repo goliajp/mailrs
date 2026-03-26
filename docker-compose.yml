@@ -21,7 +21,7 @@ services:
 
   valkey:
     container_name: mailrs-valkey
-    image: valkey/valkey:8
+    image: valkey/valkey:latest
     ports:
       - "6379:6379"
     volumes:
