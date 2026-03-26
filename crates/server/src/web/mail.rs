@@ -2388,6 +2388,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn transparent_png_is_valid() {
+        // verify PNG signature
+        assert_eq!(&TRANSPARENT_1X1_PNG[..8], &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+        // verify IHDR chunk (1x1 RGBA)
+        assert!(TRANSPARENT_1X1_PNG.len() > 20);
+        // verify IEND chunk at end
+        assert!(TRANSPARENT_1X1_PNG.ends_with(&[0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82]));
+    }
+
+    #[test]
     fn extract_address_bare() {
         assert_eq!(extract_address("user@example.com"), "user@example.com");
     }
@@ -2723,6 +2733,16 @@ pub(super) async fn check_deliverability(
 const IMAGE_PROXY_MAX_BYTES: usize = 5 * 1024 * 1024; // 5 MB
 const IMAGE_PROXY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
+// 1x1 transparent PNG — returned when image proxy fails, avoids browser console errors
+const TRANSPARENT_1X1_PNG: &[u8] = &[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+    0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x62, 0x00, 0x00, 0x00, 0x02,
+    0x00, 0x01, 0xE5, 0x27, 0xDE, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
+    0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+];
+
 #[derive(Deserialize)]
 pub(super) struct ImageProxyQuery {
     pub url: String,
@@ -2737,9 +2757,22 @@ pub(super) async fn proxy_image(
 
     let url = &q.url;
 
+    // 1x1 transparent PNG (67 bytes) — returned on any failure to avoid browser console errors
+    let transparent_png = || {
+        (
+            StatusCode::OK,
+            [
+                (header::CONTENT_TYPE, "image/png".to_string()),
+                (header::CACHE_CONTROL, "public, max-age=86400".to_string()),
+            ],
+            TRANSPARENT_1X1_PNG.to_vec(),
+        )
+            .into_response()
+    };
+
     // only allow http/https
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        return (StatusCode::BAD_REQUEST, "invalid url scheme").into_response();
+        return transparent_png();
     }
 
     // check valkey cache first
@@ -2785,11 +2818,11 @@ pub(super) async fn proxy_image(
         .await
     {
         Ok(r) => r,
-        Err(_) => return (StatusCode::BAD_GATEWAY, "fetch failed").into_response(),
+        Err(_) => return transparent_png(),
     };
 
     if !resp.status().is_success() {
-        return (StatusCode::BAD_GATEWAY, "upstream error").into_response();
+        return transparent_png();
     }
 
     let content_type = resp
@@ -2801,13 +2834,13 @@ pub(super) async fn proxy_image(
 
     // reject non-image responses
     if !content_type.starts_with("image/") {
-        return (StatusCode::UNSUPPORTED_MEDIA_TYPE, "not an image").into_response();
+        return transparent_png();
     }
 
     let body = match resp.bytes().await {
         Ok(b) if b.len() <= IMAGE_PROXY_MAX_BYTES => b.to_vec(),
-        Ok(_) => return (StatusCode::PAYLOAD_TOO_LARGE, "image too large").into_response(),
-        Err(_) => return (StatusCode::BAD_GATEWAY, "read failed").into_response(),
+        Ok(_) => return transparent_png(),
+        Err(_) => return transparent_png(),
     };
 
     // cache in valkey (1 hour TTL)
