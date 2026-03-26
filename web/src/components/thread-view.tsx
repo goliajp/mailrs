@@ -410,9 +410,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdOriginalFrom = forwardSource?.sender ?? lastMsg?.sender ?? ''
   const fwdOriginalDate = forwardSource?.date ?? lastMsgDate
   const fwdSubject = forwardSource?.subject ?? subject
-  const fwdOriginalBody = forwardSource?.body ?? lastMsgBody
-  const fwdOriginalHtml = forwardSource?.htmlBody ?? null
-  const fwdUid = forwardSource?.uid ?? null
+  const fwdMsg = forwardSource ? null : (selectedMsg ?? lastMsg)
+  const fwdOriginalBody =
+    forwardSource?.body ??
+    fwdMsg?.text_body ??
+    fwdMsg?.clean_text ??
+    lastMsgBody
+  const fwdOriginalHtml = forwardSource?.htmlBody ?? fwdMsg?.html_body ?? null
+  const fwdUid = forwardSource?.uid ?? fwdMsg?.uid ?? null
+  const fwdMessageId = forwardSource?.messageId ?? fwdMsg?.message_id ?? null
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   return (
@@ -796,7 +802,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           <div className="flex min-h-[160px] flex-[1] basis-0 flex-col border-t border-[var(--color-border-default)]">
             <ReplyBox
               forwardAttachmentsUid={fwdUid}
-              forwardMessageId={forwardSource?.messageId ?? null}
+              forwardMessageId={fwdMessageId}
               lastMessageId={fwdLastMessageId}
               mode={replyMode}
               onModeChange={(m) => {
