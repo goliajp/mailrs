@@ -122,6 +122,7 @@ impl RenderPreviewClient {
             .unwrap_or_default();
 
         let text = client.get(&version_url)
+            .header("Host", "localhost")
             .send()
             .await
             .map_err(|e| format!("CDP version query failed: {e}"))?
