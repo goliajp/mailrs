@@ -107,24 +107,6 @@ impl RenderPreviewClient {
 
     /// resolve the full WebSocket debugger URL from the CDP base URL
     async fn resolve_ws_url(&self) -> Result<String, String> {
-        // convert ws:// to http:// for the version endpoint
-        let http_url = self.cdp_url
-            .replace("ws://", "http://")
-            .replace("wss://", "https://");
-        let version_url = format!("{}/json/version", http_url.trim_end_matches('/'));
-
-        let resp: serde_json::Value = reqwest::get(&version_url)
-            .await
-            .map_err(|e| format!("CDP version query failed: {e}"))?
-            .json()
-            .await
-            .map_err(|e| format!("CDP version parse failed: {e}"))?;
-
-        let ws_url = resp["webSocketDebuggerUrl"]
-            .as_str()
-            .ok_or("webSocketDebuggerUrl not found in /json/version")?;
-
-        // replace localhost with the actual hostname from cdp_url
         let host = self.cdp_url
             .replace("ws://", "")
             .replace("wss://", "")
@@ -132,7 +114,31 @@ impl RenderPreviewClient {
             .next()
             .unwrap_or("localhost:9222")
             .to_string();
+        let version_url = format!("http://{host}/json/version");
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
+
+        let text = client.get(&version_url)
+            .send()
+            .await
+            .map_err(|e| format!("CDP version query failed: {e}"))?
+            .text()
+            .await
+            .map_err(|e| format!("CDP version read failed: {e}"))?;
+
+        let resp: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| format!("CDP version parse failed: {e} body={}", &text[..text.len().min(200)]))?;
+
+        let ws_url = resp["webSocketDebuggerUrl"]
+            .as_str()
+            .ok_or("webSocketDebuggerUrl not found in /json/version")?;
+
+        // replace localhost with the container hostname
         let fixed = ws_url.replace("localhost:9222", &host).replace("127.0.0.1:9222", &host);
+        eprintln!("render_preview: resolved WS URL: {fixed}");
         Ok(fixed)
     }
 
