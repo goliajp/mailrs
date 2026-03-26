@@ -20,7 +20,7 @@ mkdir -p "$DIST/bin" "$DIST/web"
 cp "target/$TARGET/release/mailrs-server" "$DIST/bin/"
 cp -r web/dist/* "$DIST/web/"
 cp Dockerfile "$DIST/"
-cp docker-compose.yml "$DIST/"
+cp deploy/docker-compose.yml "$DIST/"
 
 echo "==> done: $DIST/"
 ls -lh "$DIST/bin/mailrs-server"
