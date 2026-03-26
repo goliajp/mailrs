@@ -1948,6 +1948,117 @@ pub(super) async fn remove_suppressed(
     }
 }
 
+// --- audit / eDiscovery export ---
+
+#[derive(Deserialize)]
+pub(super) struct ExportQuery {
+    pub user: String,
+    #[serde(default)]
+    pub from_date: Option<String>,
+    #[serde(default)]
+    pub to_date: Option<String>,
+    #[serde(default)]
+    pub query: Option<String>,
+    #[serde(default = "default_export_limit")]
+    pub limit: i64,
+}
+
+fn default_export_limit() -> i64 { 1000 }
+
+pub(super) async fn export_messages(
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Query(q): Query<ExportQuery>,
+) -> impl IntoResponse {
+    use axum::http::header;
+
+    if let Some(resp) = require_permission(permissions, "admin.accounts") {
+        return resp.into_response();
+    }
+    let Some(ref pool) = state.pg_pool else {
+        return (StatusCode::SERVICE_UNAVAILABLE, "pg not available").into_response();
+    };
+
+    let mut conditions = vec!["mb.user_address = $1".to_string()];
+    let mut param_idx = 2u32;
+
+    if q.from_date.is_some() {
+        conditions.push(format!("m.internal_date >= EXTRACT(EPOCH FROM ${}::TIMESTAMPTZ)", param_idx));
+        param_idx += 1;
+    }
+    if q.to_date.is_some() {
+        conditions.push(format!("m.internal_date <= EXTRACT(EPOCH FROM ${}::TIMESTAMPTZ)", param_idx));
+        param_idx += 1;
+    }
+    if q.query.is_some() {
+        conditions.push(format!("(m.subject ILIKE '%' || ${} || '%' OR m.text_body ILIKE '%' || ${} || '%')", param_idx, param_idx));
+        param_idx += 1;
+    }
+
+    let where_clause = conditions.join(" AND ");
+    let sql = format!(
+        "SELECT m.message_id, m.sender, m.recipients, m.subject, \
+                m.internal_date, m.size, m.text_body, mb.name as folder \
+         FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id \
+         WHERE {where_clause} \
+         ORDER BY m.internal_date DESC LIMIT ${param_idx}"
+    );
+
+    let mut query = sqlx::query_as::<_, (String, String, String, Option<String>, i64, i32, Option<String>, String)>(&sql);
+    query = query.bind(&q.user);
+    if let Some(ref d) = q.from_date { query = query.bind(d); }
+    if let Some(ref d) = q.to_date { query = query.bind(d); }
+    if let Some(ref s) = q.query { query = query.bind(s); }
+    query = query.bind(q.limit);
+
+    let rows = match query.fetch_all(pool).await {
+        Ok(r) => r,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    // export as JSON lines
+    let mut output = String::new();
+    for (message_id, sender, recipients, subject, date, size, body, folder) in &rows {
+        let obj = serde_json::json!({
+            "message_id": message_id,
+            "sender": sender,
+            "recipients": recipients,
+            "subject": subject,
+            "date": date,
+            "size": size,
+            "body_preview": body.as_deref().unwrap_or("").chars().take(500).collect::<String>(),
+            "folder": folder,
+        });
+        output.push_str(&obj.to_string());
+        output.push('\n');
+    }
+
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "application/jsonl".to_string()),
+            (header::CONTENT_DISPOSITION, format!("attachment; filename=\"export-{}.jsonl\"", q.user)),
+        ],
+        output,
+    ).into_response()
+}
+
+// --- domain reputation ---
+
+pub(super) async fn get_reputation(
+    AuthUser { ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    if let Some(resp) = require_permission(permissions, "admin.domains") {
+        return resp.into_response();
+    }
+    let Some(ref pool) = state.outbound_queue else {
+        return Json(serde_json::json!({"error": "queue not available"})).into_response();
+    };
+    let rep = crate::reputation::compute_reputation(pool).await;
+    Json(serde_json::json!({ "domains": rep })).into_response()
+}
+
 // --- RBL blocklist status ---
 
 pub(super) async fn get_rbl_status(
