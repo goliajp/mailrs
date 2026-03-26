@@ -35,13 +35,15 @@ export function RenderPreview({ html }: { html: string }) {
         html,
         presets: ['desktop', 'mobile', 'gmail', 'outlook'],
       })
+
+      console.log('[render-preview] response:', JSON.stringify(result))
       if (result.error) {
         setError(result.error)
-      } else if (result.previews) {
+      } else if (result.previews && result.previews.length > 0) {
         setPreviews(result.previews)
-        if (result.previews.length > 0) {
-          setActiveTab(result.previews[0].name)
-        }
+        setActiveTab(result.previews[0].name)
+      } else {
+        setError('No previews generated — Chrome may be connecting')
       }
     } catch {
       setError('Render failed')
@@ -50,11 +52,10 @@ export function RenderPreview({ html }: { html: string }) {
     }
   }
 
-  if (previews.length === 0 && !loading) {
+  if (previews.length === 0 && !loading && !error) {
     return (
       <button
         className="rounded-md bg-[var(--color-bg-raised)] px-3 py-1.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
-        disabled={loading}
         onClick={render}
       >
         Preview in clients
