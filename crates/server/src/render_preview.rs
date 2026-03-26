@@ -105,14 +105,49 @@ impl RenderPreviewClient {
         }
     }
 
+    /// resolve the full WebSocket debugger URL from the CDP base URL
+    async fn resolve_ws_url(&self) -> Result<String, String> {
+        // convert ws:// to http:// for the version endpoint
+        let http_url = self.cdp_url
+            .replace("ws://", "http://")
+            .replace("wss://", "https://");
+        let version_url = format!("{}/json/version", http_url.trim_end_matches('/'));
+
+        let resp: serde_json::Value = reqwest::get(&version_url)
+            .await
+            .map_err(|e| format!("CDP version query failed: {e}"))?
+            .json()
+            .await
+            .map_err(|e| format!("CDP version parse failed: {e}"))?;
+
+        let ws_url = resp["webSocketDebuggerUrl"]
+            .as_str()
+            .ok_or("webSocketDebuggerUrl not found in /json/version")?;
+
+        // replace localhost with the actual hostname from cdp_url
+        let host = self.cdp_url
+            .replace("ws://", "")
+            .replace("wss://", "")
+            .split('/')
+            .next()
+            .unwrap_or("localhost:9222")
+            .to_string();
+        let fixed = ws_url.replace("localhost:9222", &host).replace("127.0.0.1:9222", &host);
+        Ok(fixed)
+    }
+
     async fn get_browser(&self) -> Result<Arc<Browser>, String> {
         let mut guard = self.browser.lock().await;
         if let Some(ref browser) = *guard {
             return Ok(browser.clone());
         }
 
+        // resolve full WebSocket URL
+        let ws_url = self.resolve_ws_url().await?;
+        eprintln!("render_preview: connecting to {ws_url}");
+
         // connect to remote Chrome
-        let (browser, mut handler) = Browser::connect(&self.cdp_url)
+        let (browser, mut handler) = Browser::connect(&ws_url)
             .await
             .map_err(|e| format!("CDP connect failed: {e}"))?;
 
