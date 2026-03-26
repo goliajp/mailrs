@@ -2,34 +2,10 @@ import { useEffect, useState } from 'react'
 
 import { avatarColor, avatarInitial } from '@/lib/avatar'
 import { cn } from '@/lib/cn'
-import { getToken } from '@/store/auth'
 
 function extractDomain(sender: string): null | string {
   const match = sender.match(/@([a-zA-Z0-9.-]+)/)
   return match ? match[1] : null
-}
-
-// extract parent/registrable domain: mail.nvidia.cn → nvidia.cn, em.linkedin.com → linkedin.com
-const SECONDARY_TLDS = new Set([
-  'ac',
-  'co',
-  'com',
-  'edu',
-  'gov',
-  'ne',
-  'net',
-  'or',
-  'org',
-])
-function getParentDomain(domain: string): null | string {
-  const parts = domain.split('.')
-  if (parts.length <= 2) return null
-  // handle multi-part TLDs like .co.jp, .co.uk
-  const sld = parts[parts.length - 2]
-  if (SECONDARY_TLDS.has(sld) && parts.length >= 3) {
-    return parts.length >= 4 ? parts.slice(-3).join('.') : null
-  }
-  return parts.slice(-2).join('.')
 }
 
 // unified icon cache: domain → verified image URL or null
@@ -105,19 +81,7 @@ export function SenderAvatar({
   )
 }
 
-// probe an image URL — token is already in the URL query param
-async function probeImage(url: string): Promise<boolean> {
-  try {
-    const res = await fetch(url)
-    if (!res.ok) return false
-    const ct = res.headers.get('content-type') ?? ''
-    return ct.startsWith('image/')
-  } catch {
-    return false
-  }
-}
-
-// try BIMI first, then apple-touch-icon, cache the winner
+// try BIMI logo lookup, cache the result
 function resolveIcon(domain: string): Promise<null | string> {
   if (iconCache.has(domain)) return Promise.resolve(iconCache.get(domain)!)
   const existing = iconInflight.get(domain)
@@ -139,24 +103,8 @@ function resolveIcon(domain: string): Promise<null | string> {
       /* continue */
     }
 
-    // 2. try apple-touch-icon: exact domain first, then parent domain
-    const domains = [domain]
-    const parentDomain = getParentDomain(domain)
-    if (parentDomain && parentDomain !== domain) domains.push(parentDomain)
-
-    const token = getToken()
-    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
-    for (const d of domains) {
-      const raw = `https://${d}/apple-touch-icon.png`
-      const url = `/api/proxy/image?url=${encodeURIComponent(raw)}${tokenParam}`
-      if (await probeImage(url)) {
-        iconCache.set(domain, url)
-        iconInflight.delete(domain)
-        return url
-      }
-    }
-
-    // 3. nothing found
+    // no apple-touch-icon fallback — too many 404s and false positives
+    // just use letter avatar when BIMI is not available
     iconCache.set(domain, null)
     iconInflight.delete(domain)
     return null
