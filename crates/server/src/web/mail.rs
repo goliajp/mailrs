@@ -2565,11 +2565,17 @@ pub(super) async fn render_preview(
         return Json(serde_json::json!({"error": "html too large (max 1MB)"})).into_response();
     }
 
+    eprintln!("render_preview handler: html_len={} presets={:?}", req.html.len(), req.presets);
     let results = client.render(&req.html, &req.presets).await;
+    let errors: Vec<_> = results.iter().filter_map(|r| r.as_ref().err().map(|e| e.clone())).collect();
+    if !errors.is_empty() {
+        eprintln!("render_preview errors: {:?}", errors);
+    }
     let previews: Vec<_> = results
         .into_iter()
         .filter_map(|r| r.ok())
         .collect();
+    eprintln!("render_preview handler: returning {} previews", previews.len());
 
     Json(serde_json::json!({ "previews": previews })).into_response()
 }
