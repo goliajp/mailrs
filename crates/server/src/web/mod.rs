@@ -92,6 +92,7 @@ pub struct WebState {
     pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
     pub oidc_config: Option<OidcConfig>,
     pub meili: Option<Arc<crate::search_index::MeiliClient>>,
+    pub render_preview: Option<Arc<crate::render_preview::RenderPreviewClient>>,
 }
 
 /// spawn a background task to clean up expired sessions and stale rate-limit buckets every hour
@@ -144,6 +145,7 @@ impl WebState {
             ldap_config: None,
             oidc_config: None,
             meili: None,
+            render_preview: None,
         }
     }
 
@@ -212,6 +214,11 @@ impl WebState {
 
     pub fn with_meili(mut self, client: Arc<crate::search_index::MeiliClient>) -> Self {
         self.meili = Some(client);
+        self
+    }
+
+    pub fn with_render_preview(mut self, client: Arc<crate::render_preview::RenderPreviewClient>) -> Self {
+        self.render_preview = Some(client);
         self
     }
 
@@ -629,6 +636,8 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/api/mail/send", post(mail::send_message))
         .route("/api/mail/check-deliverability", post(mail::check_deliverability))
         .route("/api/mail/spam-feedback", post(mail::submit_spam_feedback))
+        .route("/api/mail/render-preview", post(mail::render_preview))
+        .route("/api/mail/render-preview/cache/{id}", get(mail::serve_render_cache))
         .route("/api/admin/spam-feedback-stats", get(mail::get_spam_feedback_stats))
         .route(
             "/api/mail/send-multipart",

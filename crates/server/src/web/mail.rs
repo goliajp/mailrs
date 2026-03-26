@@ -2531,6 +2531,62 @@ mod tests {
     }
 }
 
+// --- email rendering preview ---
+
+#[derive(Deserialize)]
+pub(super) struct RenderPreviewRequest {
+    pub html: String,
+    #[serde(default)]
+    pub presets: Vec<String>,
+}
+
+pub(super) async fn render_preview(
+    _auth: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<RenderPreviewRequest>,
+) -> impl IntoResponse {
+    let Some(ref client) = state.render_preview else {
+        return Json(serde_json::json!({
+            "error": "rendering engine not configured (MAILRS_CHROME_CDP_URL not set)"
+        })).into_response();
+    };
+
+    if req.html.len() > 1_000_000 {
+        return Json(serde_json::json!({"error": "html too large (max 1MB)"})).into_response();
+    }
+
+    let results = client.render(&req.html, &req.presets).await;
+    let previews: Vec<_> = results
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Json(serde_json::json!({ "previews": previews })).into_response()
+}
+
+pub(super) async fn serve_render_cache(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    use axum::http::header;
+
+    let Some(ref client) = state.render_preview else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    match client.get_cached(&id).await {
+        Some(data) => (
+            StatusCode::OK,
+            [
+                (header::CONTENT_TYPE, "image/png".to_string()),
+                (header::CACHE_CONTROL, "public, max-age=3600".to_string()),
+            ],
+            data,
+        ).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 // --- spam feedback for ML training ---
 
 #[derive(Deserialize)]

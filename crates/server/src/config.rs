@@ -82,6 +82,8 @@ pub struct ServerConfig {
     // Meilisearch
     pub meili_url: Option<String>,
     pub meili_key: Option<String>,
+    // Chrome CDP (headless browser for email rendering preview)
+    pub chrome_cdp_url: Option<String>,
     // LDAP authentication
     pub ldap_url: Option<String>,
     pub ldap_bind_dn: Option<String>,
@@ -144,6 +146,7 @@ impl Default for ServerConfig {
             valkey_url: None,
             meili_url: None,
             meili_key: None,
+            chrome_cdp_url: None,
             ldap_url: None,
             ldap_bind_dn: None,
             ldap_bind_password: None,
@@ -369,6 +372,12 @@ impl ServerConfig {
         }
         if let Ok(v) = std::env::var("MAILRS_VALKEY_URL") {
             cfg.valkey_url = Some(v);
+        }
+        // Chrome CDP
+        if let Ok(v) = std::env::var("MAILRS_CHROME_CDP_URL") {
+            if !v.is_empty() {
+                cfg.chrome_cdp_url = Some(v);
+            }
         }
         // Meilisearch
         if let Ok(v) = std::env::var("MAILRS_MEILI_URL") {
