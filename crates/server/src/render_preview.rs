@@ -287,6 +287,12 @@ fn cache_hash(html: &str, preset: &str) -> String {
 fn preprocess_html(html: &str, preset: &ViewportPreset) -> String {
     let mut result = html.to_string();
 
+    // restore proxy URLs back to original so Chrome can fetch directly
+    result = restore_proxy_urls(&result);
+
+    // extract body content if the html is a full document (strip outer html/head/body wrappers)
+    result = extract_body_content(&result);
+
     // strip <style> tags for gmail simulation
     if preset.strip_style_tags {
         // simple regex-free approach: remove everything between <style and </style>
@@ -313,6 +319,80 @@ body {{ margin: 0; padding: 16px; background: #fff; }}
 </head><body>{result}</body></html>"#,
         w = preset.width,
     )
+}
+
+/// extract content between <body> and </body>, preserving <style> blocks from <head>
+fn extract_body_content(html: &str) -> String {
+    let lower = html.to_lowercase();
+
+    // collect <style> blocks from <head> section
+    let mut head_styles = String::new();
+    if let Some(head_start) = lower.find("<head") {
+        let head_end = lower.find("</head>").unwrap_or(lower.len());
+        let head_section = &html[head_start..head_end];
+        let head_lower = head_section.to_lowercase();
+        let mut pos = 0;
+        while let Some(style_start) = head_lower[pos..].find("<style") {
+            let abs_start = pos + style_start;
+            if let Some(style_end) = head_lower[abs_start..].find("</style>") {
+                let abs_end = abs_start + style_end + 8;
+                head_styles.push_str(&head_section[abs_start..abs_end]);
+                pos = abs_end;
+            } else {
+                break;
+            }
+        }
+    }
+
+    // extract body content
+    if let Some(body_open) = lower.find("<body") {
+        if let Some(body_tag_end) = lower[body_open..].find('>') {
+            let content_start = body_open + body_tag_end + 1;
+            let content_end = lower.find("</body>").unwrap_or(html.len());
+            let body = html[content_start..content_end].trim();
+            if head_styles.is_empty() {
+                return body.to_string();
+            }
+            return format!("{head_styles}{body}");
+        }
+    }
+
+    html.to_string()
+}
+
+/// convert /api/proxy/image?url=ENCODED back to the original URL
+fn restore_proxy_urls(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut remaining = html;
+
+    while let Some(idx) = remaining.find("/api/proxy/image?url=") {
+        result.push_str(&remaining[..idx]);
+        let after = &remaining[idx + 21..]; // skip "/api/proxy/image?url="
+
+        // find the end of the URL (either & for token param, or quote char)
+        let end = after.find(|c: char| c == '"' || c == '\'' || c == '&')
+            .unwrap_or(after.len());
+        let encoded_url = &after[..end];
+        match urlencoding::decode(encoded_url) {
+            Ok(decoded) => result.push_str(&decoded),
+            Err(_) => {
+                result.push_str("/api/proxy/image?url=");
+                result.push_str(encoded_url);
+            }
+        }
+
+        // skip past any &token=... parameter
+        let skip_to = if end < after.len() && after.as_bytes()[end] == b'&' {
+            after[end..].find(|c: char| c == '"' || c == '\'')
+                .unwrap_or(after.len() - end) + end
+        } else {
+            end
+        };
+        remaining = &after[skip_to..];
+    }
+
+    result.push_str(remaining);
+    result
 }
 
 #[cfg(test)]
@@ -363,6 +443,60 @@ mod tests {
         };
         let result = preprocess_html("<p>test</p>", &preset);
         assert!(result.contains("font-family: Calibri"));
+    }
+
+    #[test]
+    fn extract_body_strips_html_wrapper() {
+        let html = r#"<html><head><style>.x{color:red}</style></head><body><p>hello</p></body></html>"#;
+        let result = extract_body_content(html);
+        assert!(result.contains("<p>hello</p>"));
+        assert!(result.contains(".x{color:red}"));
+        assert!(!result.contains("<html>"));
+        assert!(!result.contains("<body>"));
+    }
+
+    #[test]
+    fn extract_body_passthrough_fragment() {
+        let html = "<p>just a fragment</p>";
+        let result = extract_body_content(html);
+        assert_eq!(result, html);
+    }
+
+    #[test]
+    fn restore_proxy_urls_converts_back() {
+        let html = r#"<img src="/api/proxy/image?url=https%3A%2F%2Fexample.com%2Fimg.png&token=abc123">"#;
+        let result = restore_proxy_urls(html);
+        assert!(result.contains(r#"src="https://example.com/img.png""#));
+        assert!(!result.contains("/api/proxy/image"));
+    }
+
+    #[test]
+    fn restore_proxy_urls_no_token() {
+        let html = r#"<img src="/api/proxy/image?url=https%3A%2F%2Fexample.com%2Fimg.png">"#;
+        let result = restore_proxy_urls(html);
+        assert!(result.contains(r#"src="https://example.com/img.png""#));
+    }
+
+    #[test]
+    fn preprocess_full_email_document() {
+        let preset = ViewportPreset {
+            name: "outlook".into(),
+            width: 660,
+            height: 900,
+            device_scale_factor: 1.0,
+            is_mobile: false,
+            inject_css: Some("body { font-family: Calibri; }".into()),
+            strip_style_tags: false,
+        };
+        let html = r#"<!DOCTYPE html><html><head><style>.email{padding:10px}</style></head><body><p>content</p></body></html>"#;
+        let result = preprocess_html(html, &preset);
+        // should not have nested <html> tags
+        assert_eq!(result.matches("<html>").count(), 1);
+        assert_eq!(result.matches("<body>").count(), 1);
+        // should preserve email styles and inject preset css
+        assert!(result.contains(".email{padding:10px}"));
+        assert!(result.contains("font-family: Calibri"));
+        assert!(result.contains("<p>content</p>"));
     }
 
     #[test]
