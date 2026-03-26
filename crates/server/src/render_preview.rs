@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use chromiumoxide::Browser;
+use chromiumoxide::cdp::browser_protocol::emulation::SetDeviceMetricsOverrideParams;
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
 use chromiumoxide::page::ScreenshotParams;
 use futures_util::StreamExt;
@@ -202,6 +203,18 @@ impl RenderPreviewClient {
             .new_page("about:blank")
             .await
             .map_err(|e| format!("new page failed: {e}"))?;
+
+        // set viewport dimensions via CDP
+        let metrics = SetDeviceMetricsOverrideParams::builder()
+            .width(preset.width)
+            .height(preset.height)
+            .device_scale_factor(preset.device_scale_factor)
+            .mobile(preset.is_mobile)
+            .build()
+            .unwrap();
+        page.execute(metrics)
+            .await
+            .map_err(|e| format!("set viewport failed: {e}"))?;
 
         page.set_content(&processed_html)
             .await
