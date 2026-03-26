@@ -104,14 +104,16 @@ export function SenderAvatar({
   )
 }
 
-// preload an image and verify it's actually a valid image (not an HTML error page)
-function probeImage(url: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => resolve(img.naturalWidth > 1 && img.naturalHeight > 1)
-    img.onerror = () => resolve(false)
-    img.src = url
-  })
+// probe an image URL using fetch (avoids console errors from Image element 404s)
+async function probeImage(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { method: 'HEAD' })
+    if (!res.ok) return false
+    const ct = res.headers.get('content-type') ?? ''
+    return ct.startsWith('image/')
+  } catch {
+    return false
+  }
 }
 
 // try BIMI first, then apple-touch-icon, cache the winner
@@ -142,7 +144,8 @@ function resolveIcon(domain: string): Promise<null | string> {
     if (parentDomain && parentDomain !== domain) domains.push(parentDomain)
 
     for (const d of domains) {
-      const url = `https://${d}/apple-touch-icon.png`
+      const raw = `https://${d}/apple-touch-icon.png`
+      const url = `/api/proxy/image?url=${encodeURIComponent(raw)}`
       if (await probeImage(url)) {
         iconCache.set(domain, url)
         iconInflight.delete(domain)

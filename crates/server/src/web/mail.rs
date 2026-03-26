@@ -2353,7 +2353,7 @@ pub(super) async fn get_bimi_logo(
             .await
         {
             if cached.is_empty() {
-                return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "no BIMI record"})));
+                return (StatusCode::OK, Json(serde_json::json!({"logo_url": null})));
             }
             return (StatusCode::OK, Json(serde_json::json!({"logo_url": cached})));
         }
@@ -2379,7 +2379,7 @@ pub(super) async fn get_bimi_logo(
 
     match logo_url {
         Some(url) => (StatusCode::OK, Json(serde_json::json!({"logo_url": url}))),
-        None => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "no BIMI record"}))),
+        None => (StatusCode::OK, Json(serde_json::json!({"logo_url": null}))),
     }
 }
 
