@@ -29,6 +29,7 @@ mod managesieve_session;
 mod pop3_session;
 mod ptr_check;
 mod rbl_monitor;
+mod render_preview;
 mod reputation;
 mod search_index;
 mod sieve;
@@ -362,6 +363,12 @@ async fn main() {
     }
     if let Some(ref ldap) = ldap_config {
         ws = ws.with_ldap_config(ldap.clone());
+    }
+    // Chrome CDP for email rendering preview
+    if let Some(ref url) = cfg.chrome_cdp_url {
+        let client = Arc::new(render_preview::RenderPreviewClient::new(url.clone(), 5));
+        ws = ws.with_render_preview(client);
+        eprintln!("Email render preview enabled (Chrome CDP: {url})");
     }
     // Meilisearch full-text search
     let meili_client = if let Some(ref url) = cfg.meili_url {

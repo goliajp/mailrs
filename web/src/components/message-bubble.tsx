@@ -7,6 +7,7 @@ import Markdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 
+import { RenderPreview } from '@/components/render-preview'
 import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
 import { getToken } from '@/store/auth'
@@ -123,8 +124,13 @@ export function MessageBubble({
   return (
     <div>
       {isHtml ? (
-        <div className="overflow-hidden border border-[var(--color-border-default)] bg-[var(--color-bg-base)] select-text">
-          <HtmlFrame html={parts.body} />
+        <div>
+          <div className="overflow-hidden border border-[var(--color-border-default)] bg-[var(--color-bg-base)] select-text">
+            <HtmlFrame html={parts.body} />
+          </div>
+          <div className="px-2 py-1.5">
+            <RenderPreview html={parts.body} />
+          </div>
         </div>
       ) : (
         <div
