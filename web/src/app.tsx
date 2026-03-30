@@ -2,7 +2,6 @@ import type React from 'react'
 
 import {
   AppShell,
-  resolvedModeAtom,
   themeAtom,
   ToastProvider,
   useThemeEffect,
@@ -40,7 +39,6 @@ export function App() {
   useDocumentTitle()
   useMailrsTheme()
   useThemeEffect()
-  useDarkClass()
   useFonts()
 
   return (
@@ -209,20 +207,6 @@ function StatusBar() {
       </div>
     </div>
   )
-}
-
-// gds sets data-theme-mode but does not toggle .dark class
-// mailrs CSS uses .dark for --mr-* variable switching
-function useDarkClass() {
-  const resolvedMode = useAtomValue(resolvedModeAtom)
-
-  useEffect(() => {
-    if (resolvedMode === 'dark') {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }, [resolvedMode])
 }
 
 function useDocumentTitle() {

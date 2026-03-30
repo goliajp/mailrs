@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
-/* enable class-based dark mode (gds uses .dark class on html) */
-@custom-variant dark (&:where(.dark, .dark *));
+/* dark mode via gds data-theme-mode attribute (2.0.1+) */
+@custom-variant dark (&:where([data-theme-mode="dark"], [data-theme-mode="dark"] *));
 
 /* ===== mailrs zinc palette — light mode ===== */
 :root {
@@ -26,7 +26,7 @@
 }
 
 /* ===== mailrs zinc palette — dark mode ===== */
-.dark {
+[data-theme-mode='dark'] {
   --mr-bg: #09090b;
   --mr-bg-secondary: #0a0a0a;
   --mr-bg-tertiary: #18181b;
