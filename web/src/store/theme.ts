@@ -1,16 +1,18 @@
-import { useSetThemeMode, useTheme } from '@goliapkg/gds'
+// re-export gds theme atom directly — single source of truth
+// mailrs components that read/write themeAtom are controlling gds's theme system
+import { themeAtom } from '@goliapkg/gds'
 import { atom } from 'jotai'
 
 type ThemeMode = 'dark' | 'light' | 'system'
 
-const baseThemeAtom = atom<ThemeMode>('system')
-
-export const themeAtom = atom(
-  (get) => get(baseThemeAtom),
-  (_get, set, value: ThemeMode) => {
-    set(baseThemeAtom, value)
+// derived atom: read/write only the mode field of gds ThemeState
+export const themeModeAtom = atom(
+  (get) => get(themeAtom).mode,
+  (get, set, mode: ThemeMode) => {
+    set(themeAtom, { ...get(themeAtom), mode })
   }
 )
 
-export { useSetThemeMode, useTheme }
+// backward compat alias
+export const themeAtom_ = themeAtom
 export type { ThemeMode }

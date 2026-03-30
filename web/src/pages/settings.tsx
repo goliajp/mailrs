@@ -11,7 +11,7 @@ import {
   notificationSoundAtom,
   pageSizeAtom,
 } from '@/store/settings'
-import { themeAtom } from '@/store/theme'
+import { themeModeAtom } from '@/store/theme'
 
 // --- types ---
 
@@ -544,7 +544,7 @@ function ApiKeysSection() {
 // --- signatures section ---
 
 function AppearanceSection() {
-  const [theme, setTheme] = useAtom(themeAtom)
+  const [theme, setTheme] = useAtom(themeModeAtom)
   const [pageSize, setPageSize] = useAtom(pageSizeAtom)
   const [notifications, setNotifications] = useAtom(notificationsAtom)
   const [notificationSound, setNotificationSound] = useAtom(
