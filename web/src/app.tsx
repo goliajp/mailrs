@@ -219,6 +219,7 @@ function useDocumentTitle() {
 // mailrs colors are defined statically in index.css via --mr-* variables
 // and mapped to Tailwind via @theme overrides, so no JS color injection needed
 function useMailrsTheme() {
+  const theme = useAtomValue(themeAtom)
   const setTheme = useSetAtom(themeAtom)
   const initialized = useRef(false)
 
@@ -226,12 +227,12 @@ function useMailrsTheme() {
     if (initialized.current) return
     initialized.current = true
     if (!localStorage.getItem('gds-theme')) {
-      setTheme((prev) => ({
-        ...prev,
-        elevation: 'subtle',
-        glass: 'subtle',
+      setTheme({
+        ...theme,
+        elevation: 'subtle' as const,
+        glass: 'subtle' as const,
         primaryColor: '#3b7ddd',
-      }))
+      })
     }
-  }, [setTheme])
+  }, [setTheme, theme])
 }
