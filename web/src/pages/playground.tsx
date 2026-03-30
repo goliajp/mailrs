@@ -1,22 +1,18 @@
-import type { ThemeMode } from '@goliapkg/gds'
-
-import { useAtom } from 'jotai'
-import { Moon, Plus, Search, Star, Sun, Trash2, X } from 'lucide-react'
-import { useState } from 'react'
-
 import {
   Avatar,
   Badge,
   Button,
   Card,
+  CardContent,
   Dialog,
   IconButton,
   Input,
-} from '@/components/ui'
-import { themeAtom } from '@/store/theme'
+  ThemeToggle,
+} from '@goliapkg/gds'
+import { Plus, Search, Star, Trash2, X } from 'lucide-react'
+import { useState } from 'react'
 
 export function Playground() {
-  const [theme, setTheme] = useAtom(themeAtom)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
 
@@ -28,56 +24,35 @@ export function Playground() {
           <div>
             <h1 className="text-fg text-2xl font-bold">Component Playground</h1>
             <p className="text-fg-secondary mt-1 text-sm">
-              Design token system &middot; All components render with CSS custom
+              GDS design system &middot; All components render with CSS custom
               properties
             </p>
           </div>
-          <div className="border-border flex items-center gap-1 border p-0.5">
-            {(['light', 'dark', 'system'] as ThemeMode[]).map((m) => (
-              <button
-                className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
-                  theme === m
-                    ? 'bg-accent text-white'
-                    : 'text-fg-secondary hover:bg-bg-secondary'
-                }`}
-                key={m}
-                onClick={() => setTheme(m)}
-              >
-                {m === 'light' && <Sun className="h-3 w-3" />}
-                {m === 'dark' && <Moon className="h-3 w-3" />}
-                {m.charAt(0).toUpperCase() + m.slice(1)}
-              </button>
-            ))}
-          </div>
+          <ThemeToggle />
         </div>
 
         {/* color tokens */}
         <Section title="Color Tokens">
           <Row label="Surfaces">
-            {(
-              [
-                '--gds-bg',
-                '--gds-surface',
-                '--gds-surface-raised',
-                '--gds-bg-secondary',
-              ] as const
-            ).map((v) => (
-              <div className="flex flex-col items-center gap-1" key={v}>
-                <div
-                  className="border-border h-12 w-12 border"
-                  style={{ background: `var(${v})` }}
-                />
-                <span className="text-fg-muted text-[10px]">
-                  {v.replace('--gds-', '')}
-                </span>
-              </div>
-            ))}
+            {(['--gds-bg', '--gds-surface', '--gds-bg-secondary'] as const).map(
+              (v) => (
+                <div className="flex flex-col items-center gap-1" key={v}>
+                  <div
+                    className="border-border h-12 w-12 border"
+                    style={{ background: `var(${v})` }}
+                  />
+                  <span className="text-fg-muted text-[10px]">
+                    {v.replace('--gds-', '')}
+                  </span>
+                </div>
+              )
+            )}
           </Row>
           <Row label="Text">
             {[
               { label: 'primary', v: '--gds-fg' },
               { label: 'secondary', v: '--gds-fg-secondary' },
-              { label: 'tertiary', v: '--gds-fg-muted' },
+              { label: 'muted', v: '--gds-fg-muted' },
             ].map(({ label, v }) => (
               <span
                 className="text-sm font-medium"
@@ -142,14 +117,11 @@ export function Playground() {
             <Button variant="danger">Danger</Button>
           </Row>
           <Row label="Sizes">
-            <Button size="xs" variant="primary">
-              XS
-            </Button>
             <Button size="sm" variant="primary">
               Small
             </Button>
-            <Button size="md" variant="primary">
-              Medium
+            <Button size="default" variant="primary">
+              Default
             </Button>
             <Button size="lg" variant="primary">
               Large
@@ -179,24 +151,21 @@ export function Playground() {
         {/* icon buttons */}
         <Section title="IconButton">
           <Row label="Sizes">
-            <IconButton label="Extra small" size="xs">
-              <Star className="h-3 w-3" />
-            </IconButton>
-            <IconButton label="Small" size="sm">
+            <IconButton aria-label="Small" size="sm">
               <Star className="h-3.5 w-3.5" />
             </IconButton>
-            <IconButton label="Medium" size="md">
+            <IconButton aria-label="Default">
               <Star className="h-4 w-4" />
             </IconButton>
-            <IconButton label="Large" size="lg">
+            <IconButton aria-label="Large" size="lg">
               <Star className="h-4.5 w-4.5" />
             </IconButton>
           </Row>
           <Row label="States">
-            <IconButton label="Normal">
+            <IconButton aria-label="Normal">
               <X className="h-4 w-4" />
             </IconButton>
-            <IconButton disabled label="Disabled">
+            <IconButton aria-label="Disabled" disabled>
               <X className="h-4 w-4" />
             </IconButton>
           </Row>
@@ -204,13 +173,12 @@ export function Playground() {
 
         {/* badges */}
         <Section title="Badge">
-          <Row label="Intents">
-            <Badge intent="primary">Primary</Badge>
-            <Badge intent="secondary">Secondary</Badge>
-            <Badge intent="success">Success</Badge>
-            <Badge intent="warning">Warning</Badge>
-            <Badge intent="danger">Danger</Badge>
-            <Badge intent="info">Info</Badge>
+          <Row label="Variants">
+            <Badge variant="default">Default</Badge>
+            <Badge variant="success">Success</Badge>
+            <Badge variant="warning">Warning</Badge>
+            <Badge variant="danger">Danger</Badge>
+            <Badge variant="info">Info</Badge>
           </Row>
         </Section>
 
@@ -223,15 +191,6 @@ export function Playground() {
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Type something..."
               value={inputValue}
-            />
-          </Row>
-          <Row label="Error state">
-            <Input
-              aria-label="Error input"
-              className="max-w-xs"
-              defaultValue="bad value"
-              error
-              placeholder="Invalid input"
             />
           </Row>
           <Row label="Disabled">
@@ -249,13 +208,13 @@ export function Playground() {
           <Row label="Sizes">
             <Avatar name="Alice" size="xs" />
             <Avatar name="Bob" size="sm" />
-            <Avatar name="Charlie" size="md" />
+            <Avatar name="Charlie" />
             <Avatar name="Diana" size="lg" />
           </Row>
           <Row label="Color consistency">
             <Avatar name="alice@example.com" />
             <Avatar name="bob@example.com" />
-            <Avatar name="Charlie Brown <charlie@example.com>" />
+            <Avatar name="Charlie Brown" />
             <Avatar name="support@golia.jp" />
             <Avatar name="noreply@amazon.co.jp" />
           </Row>
@@ -263,15 +222,21 @@ export function Playground() {
 
         {/* card */}
         <Section title="Card">
-          <Row label="Padding sizes">
-            <Card className="w-40" padding="sm">
-              <p className="text-sm">Small padding</p>
+          <Row label="Cards">
+            <Card className="w-40">
+              <CardContent>
+                <p className="text-sm">Default</p>
+              </CardContent>
             </Card>
-            <Card className="w-40" padding="md">
-              <p className="text-sm">Medium padding</p>
+            <Card className="w-40">
+              <CardContent className="p-2">
+                <p className="text-sm">Compact</p>
+              </CardContent>
             </Card>
-            <Card className="w-40" padding="lg">
-              <p className="text-sm">Large padding</p>
+            <Card className="w-40">
+              <CardContent className="p-6">
+                <p className="text-sm">Spacious</p>
+              </CardContent>
             </Card>
           </Row>
         </Section>
@@ -331,22 +296,13 @@ export function Playground() {
         {/* shadows */}
         <Section title="Shadows">
           <Row label="Elevation levels">
-            <div
-              className="border-border bg-surface text-fg-secondary h-16 w-24 border p-2 text-xs"
-              style={{ boxShadow: 'var(--gds-shadow-sm)' }}
-            >
+            <div className="border-border bg-surface text-fg-secondary h-16 w-24 border p-2 text-xs shadow-sm">
               sm
             </div>
-            <div
-              className="border-border bg-surface text-fg-secondary h-16 w-24 border p-2 text-xs"
-              style={{ boxShadow: 'var(--gds-shadow-md)' }}
-            >
+            <div className="border-border bg-surface text-fg-secondary h-16 w-24 border p-2 text-xs shadow-md">
               md
             </div>
-            <div
-              className="border-border bg-surface text-fg-secondary h-16 w-24 border p-2 text-xs"
-              style={{ boxShadow: 'var(--gds-shadow-lg)' }}
-            >
+            <div className="border-border bg-surface text-fg-secondary h-16 w-24 border p-2 text-xs shadow-lg">
               lg
             </div>
           </Row>
@@ -368,8 +324,7 @@ export function Playground() {
         </Section>
 
         <footer className="border-border text-fg-muted border-t pt-4 text-xs">
-          mailrs design system &middot; Tokens auto-switch between light/dark
-          via CSS custom properties
+          mailrs design system &middot; Powered by @goliapkg/gds
         </footer>
       </div>
     </div>

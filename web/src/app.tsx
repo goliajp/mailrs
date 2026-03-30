@@ -1,11 +1,6 @@
 import type React from 'react'
 
-import {
-  AppShell,
-  NotificationToast,
-  Pane,
-  useThemeEffect,
-} from '@goliapkg/gds'
+import { AppShell, Pane, ToastProvider, useThemeEffect } from '@goliapkg/gds'
 import { useFonts } from '@goliapkg/gds/systems'
 import { useAtomValue } from 'jotai'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
@@ -41,7 +36,7 @@ export function App() {
 
   return (
     <ErrorBoundary>
-      <NotificationToast />
+      <ToastProvider position="top-right" />
       <CommandPalette />
       <Routes>
         <Route element={<Login />} path="/login" />
