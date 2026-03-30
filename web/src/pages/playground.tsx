@@ -8,6 +8,8 @@ import {
   IconButton,
   Input,
   ThemeToggle,
+  useResolvedMode,
+  useSetThemeMode,
 } from '@goliapkg/gds'
 import { Plus, Search, Star, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
@@ -15,6 +17,8 @@ import { useState } from 'react'
 export function Playground() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
+  const mode = useResolvedMode()
+  const setMode = useSetThemeMode()
 
   return (
     <div className="bg-bg min-h-screen p-6">
@@ -28,7 +32,10 @@ export function Playground() {
               properties
             </p>
           </div>
-          <ThemeToggle />
+          <ThemeToggle
+            mode={mode as 'dark' | 'light'}
+            onChange={(m) => setMode(m)}
+          />
         </div>
 
         {/* color tokens */}
@@ -151,23 +158,13 @@ export function Playground() {
         {/* icon buttons */}
         <Section title="IconButton">
           <Row label="Sizes">
-            <IconButton aria-label="Small" size="sm">
-              <Star className="h-3.5 w-3.5" />
-            </IconButton>
-            <IconButton aria-label="Default">
-              <Star className="h-4 w-4" />
-            </IconButton>
-            <IconButton aria-label="Large" size="lg">
-              <Star className="h-4.5 w-4.5" />
-            </IconButton>
+            <IconButton icon={<Star />} size="sm" tooltip="Small" />
+            <IconButton icon={<Star />} tooltip="Default" />
+            <IconButton icon={<Star />} size="lg" tooltip="Large" />
           </Row>
           <Row label="States">
-            <IconButton aria-label="Normal">
-              <X className="h-4 w-4" />
-            </IconButton>
-            <IconButton aria-label="Disabled" disabled>
-              <X className="h-4 w-4" />
-            </IconButton>
+            <IconButton icon={<X />} tooltip="Normal" />
+            <IconButton disabled icon={<X />} tooltip="Disabled" />
           </Row>
         </Section>
 
