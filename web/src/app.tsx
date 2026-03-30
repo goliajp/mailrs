@@ -216,9 +216,8 @@ function useDocumentTitle() {
   }, [unreadCount])
 }
 
-// override gds-derived colors with mailrs's hand-tuned zinc palette
-// gds derives surface colors from primaryColor which adds a blue tint,
-// but mailrs needs pure neutral zinc grays
+// mailrs colors are defined statically in index.css via --mr-* variables
+// and mapped to Tailwind via @theme overrides, so no JS color injection needed
 function useMailrsTheme() {
   const setTheme = useSetAtom(themeAtom)
   const initialized = useRef(false)
@@ -235,60 +234,4 @@ function useMailrsTheme() {
       }))
     }
   }, [setTheme])
-
-  // inject mailrs zinc palette after gds sets its derived colors
-  useEffect(() => {
-    const root = document.documentElement
-    const isDark = root.classList.contains('dark')
-
-    const observer = new MutationObserver(() => {
-      const nowDark = root.classList.contains('dark')
-      applyMailrsPalette(root, nowDark)
-    })
-    observer.observe(root, { attributeFilter: ['class'] })
-
-    applyMailrsPalette(root, isDark)
-    return () => observer.disconnect()
-  }, [])
-}
-
-const LIGHT_PALETTE = {
-  '--gds-accent': '#3b7ddd',
-  '--gds-accent-fg': '#ffffff',
-  '--gds-accent-hover': '#2b6bc5',
-  '--gds-bg': '#fafafa',
-  '--gds-bg-secondary': '#f4f4f5',
-  '--gds-bg-tertiary': '#e4e4e7',
-  '--gds-border': '#e4e4e7',
-  '--gds-border-strong': '#d4d4d8',
-  '--gds-fg': '#09090b',
-  '--gds-fg-muted': '#71717a',
-  '--gds-fg-secondary': '#3f3f46',
-  '--gds-overlay': 'rgba(0,0,0,0.5)',
-  '--gds-surface': '#ffffff',
-  '--gds-surface-raised': '#ffffff',
-} as const
-
-const DARK_PALETTE = {
-  '--gds-accent': '#3b82f6',
-  '--gds-accent-fg': '#ffffff',
-  '--gds-accent-hover': '#60a5fa',
-  '--gds-bg': '#09090b',
-  '--gds-bg-secondary': '#0a0a0a',
-  '--gds-bg-tertiary': '#18181b',
-  '--gds-border': '#27272a',
-  '--gds-border-strong': '#3f3f46',
-  '--gds-fg': '#fafafa',
-  '--gds-fg-muted': '#71717a',
-  '--gds-fg-secondary': '#a1a1aa',
-  '--gds-overlay': 'rgba(0,0,0,0.7)',
-  '--gds-surface': '#18181b',
-  '--gds-surface-raised': '#27272a',
-} as const
-
-function applyMailrsPalette(root: HTMLElement, isDark: boolean) {
-  const palette = isDark ? DARK_PALETTE : LIGHT_PALETTE
-  for (const [key, value] of Object.entries(palette)) {
-    root.style.setProperty(key, value)
-  }
 }
