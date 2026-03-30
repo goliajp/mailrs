@@ -1,6 +1,5 @@
 import type { ConversationSummary } from '@/lib/types'
 
-import { Pane, PaneGroup } from '@goliapkg/gds'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useRef } from 'react'
 
@@ -10,6 +9,7 @@ import { NewConversation } from '@/components/new-conversation'
 import { ThreadView } from '@/components/thread-view'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { useMailEvents } from '@/hooks/use-mail-events'
+import { MPane, MPaneGroup } from '@/layouts/pane'
 import { fetchJson } from '@/lib/api'
 import { authAtom } from '@/store/auth'
 import {
@@ -260,28 +260,28 @@ export function Chat() {
   const showThread = mobileView === 'thread'
 
   return (
-    <PaneGroup>
-      <Pane className={showThread ? 'hidden md:flex' : ''} width={480}>
+    <MPaneGroup>
+      <MPane className={showThread ? 'hidden md:flex' : ''} width={480}>
         <ConversationList
           onLoadMore={loadMore}
           onSelectConversation={() => setMobileView('thread')}
         />
-      </Pane>
+      </MPane>
 
-      <PaneGroup className={showList ? 'hidden md:flex' : ''}>
+      <MPaneGroup className={showList ? 'hidden md:flex' : ''}>
         {composingNew ? (
-          <Pane>
+          <MPane>
             <NewConversation />
-          </Pane>
+          </MPane>
         ) : (
           <ThreadView onBack={() => setMobileView('list')} />
         )}
-      </PaneGroup>
+      </MPaneGroup>
 
       <KeyboardShortcutsDialog
         onClose={() => setShortcutsOpen(false)}
         open={shortcutsOpen}
       />
-    </PaneGroup>
+    </MPaneGroup>
   )
 }

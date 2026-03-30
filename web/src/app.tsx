@@ -2,7 +2,6 @@ import type React from 'react'
 
 import {
   AppShell,
-  Pane,
   themeAtom,
   ToastProvider,
   useThemeEffect,
@@ -15,6 +14,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { MPane } from '@/layouts/pane'
 import { Chat } from '@/pages/chat'
 import { Dashboard } from '@/pages/dashboard'
 import { Login } from '@/pages/login'
@@ -119,6 +119,8 @@ function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
       <AppShell
+        gap={6}
+        padded
         sidebar={<AppSidebar />}
         sidebarWidth={56}
         statusBar={<StatusBar />}
@@ -138,7 +140,7 @@ function LoadingFallback() {
 }
 
 function PagePane({ children }: { children: React.ReactNode }) {
-  return <Pane className="p-1">{children}</Pane>
+  return <MPane className="p-1">{children}</MPane>
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
