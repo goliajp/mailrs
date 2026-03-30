@@ -37,16 +37,23 @@ pub async fn classify(
     );
 
     let client = reqwest::Client::new();
+    let api_key = std::env::var("MAILRS_LLM_API_KEY").ok();
     let response = match tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        client
-            .post(llm_url)
-            .json(&serde_json::json!({
-                "system": system,
-                "messages": [{"role": "user", "content": user_message}],
-                "temperature": 0.1
-            }))
-            .send(),
+        {
+            let mut req = client
+                .post(llm_url)
+                .header("x-caller", "mailrs")
+                .json(&serde_json::json!({
+                    "system": system,
+                    "messages": [{"role": "user", "content": user_message}],
+                    "temperature": 0.1
+                }));
+            if let Some(ref key) = api_key {
+                req = req.header("Authorization", format!("Bearer {key}"));
+            }
+            req.send()
+        },
     )
     .await
     {

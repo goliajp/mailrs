@@ -23,6 +23,7 @@ mod conversations;
 mod dav;
 mod jmap;
 pub(crate) mod mail;
+mod oidc_provider;
 mod templates;
 mod webhook;
 pub(crate) mod rate_limit;
@@ -107,6 +108,11 @@ pub fn spawn_session_cleanup(state: Arc<WebState>) {
             // purge rate-limit buckets not seen in the last hour
             let stale_before = Instant::now() - Duration::from_secs(3600);
             state.web_rate_limiter.cleanup(stale_before);
+            // clean up expired OIDC auth codes and refresh tokens
+            if let Some(ref pool) = state.pg_pool {
+                let _ = crate::oidc_store::cleanup_expired_codes(pool).await;
+                let _ = crate::oidc_store::cleanup_expired_refresh_tokens(pool).await;
+            }
             // clean up audit log entries older than 90 days
             if let Some(ref ds) = state.domain_store {
                 ds.cleanup_audit_log(90).await;
@@ -929,6 +935,18 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/.well-known/jmap", get(jmap::jmap_session))
         .route("/jmap", post(jmap::jmap_api))
         .route("/jmap/eventsource/", get(jmap::jmap_eventsource))
+        // OIDC provider
+        .route("/.well-known/openid-configuration", get(oidc_provider::openid_configuration))
+        .route("/.well-known/jwks.json", get(oidc_provider::jwks))
+        .route("/oauth/authorize", get(oidc_provider::authorize))
+        .route("/oauth/token", post(oidc_provider::token))
+        .route("/oauth/userinfo", get(oidc_provider::userinfo))
+        // OAuth client admin
+        .route(
+            "/api/admin/oauth-clients",
+            post(admin::create_oauth_client).get(admin::list_oauth_clients),
+        )
+        .route("/api/admin/oauth-clients/{client_id}", delete(admin::delete_oauth_client))
         // MTA-STS policy
         .route("/.well-known/mta-sts.txt", get(admin::mta_sts_policy))
         // mail client autodiscover

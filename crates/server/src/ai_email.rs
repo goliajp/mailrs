@@ -80,7 +80,8 @@ pub async fn generate_embedding(config: &LlmConfig, text: &str) -> Option<Vec<f3
     for attempt in 0..2u32 {
         let mut req = config.client.post(&embed_url).json(&body);
         if let Some(ref key) = config.api_key {
-            req = req.header("x-api-key", key);
+            req = req.header("Authorization", format!("Bearer {key}"))
+                .header("x-caller", "mailrs");
         }
         let response = match tokio::time::timeout(
             std::time::Duration::from_secs(10),
@@ -165,7 +166,8 @@ pub async fn call_llm(
             async {
                 let mut req = config.client.post(&config.url).json(&body);
                 if let Some(ref key) = config.api_key {
-                    req = req.header("x-api-key", key);
+                    req = req.header("Authorization", format!("Bearer {key}"))
+                .header("x-caller", "mailrs");
                 }
                 let response = req.send().await?;
 
