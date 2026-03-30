@@ -5,7 +5,7 @@ import { useAtom } from 'jotai'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Copyable } from '@/components/copy-button'
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
 import { accountsAtom } from '@/store/admin'
 
 type GroupInfo = {
@@ -193,8 +193,8 @@ export function AdminAccounts() {
                 <td className="px-4 py-3 font-medium">
                   <Copyable value={account.address}>{account.address}</Copyable>
                 </td>
-                <td className="text-fg-secondary px-4 py-3 select-text">
-                  {account.display_name}
+                <td className="px-4 py-3">
+                  <DisplayNameCell account={account} onSaved={loadAccounts} />
                 </td>
                 <td className="text-fg-secondary px-4 py-3">
                   {account.domain}
@@ -323,6 +323,86 @@ function DeleteConfirmDialog({
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function DisplayNameCell({
+  account,
+  onSaved,
+}: {
+  account: AccountInfo
+  onSaved: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(account.display_name)
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    const trimmed = value.trim()
+    if (trimmed === account.display_name) {
+      setEditing(false)
+      return
+    }
+    setSaving(true)
+    try {
+      await putJson(`/admin/accounts/${encodeURIComponent(account.address)}`, {
+        display_name: trimmed,
+      })
+      toast.success(`Display name updated for "${account.address}"`)
+      setEditing(false)
+      onSaved()
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : 'Failed to update display name'
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <button
+        className="text-fg-secondary w-full cursor-pointer text-left hover:underline"
+        onClick={() => {
+          setValue(account.display_name)
+          setEditing(true)
+        }}
+        title="Click to edit"
+      >
+        {account.display_name || '—'}
+      </button>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        autoFocus
+        className="border-border bg-bg-secondary w-32 rounded-md border px-2 py-0.5 text-sm"
+        disabled={saving}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') handleSave()
+          if (e.key === 'Escape') setEditing(false)
+        }}
+        value={value}
+      />
+      <button
+        className="text-success text-xs hover:opacity-80 disabled:opacity-50"
+        disabled={saving}
+        onClick={handleSave}
+      >
+        {saving ? '...' : 'Save'}
+      </button>
+      <button
+        className="text-fg-muted hover:text-fg-secondary text-xs transition-colors"
+        disabled={saving}
+        onClick={() => setEditing(false)}
+      >
+        Cancel
+      </button>
     </div>
   )
 }

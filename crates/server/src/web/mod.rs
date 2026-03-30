@@ -835,7 +835,7 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         )
         .route(
             "/api/admin/accounts/{address}",
-            delete(admin::remove_account),
+            put(admin::update_account).delete(admin::remove_account),
         )
         .route(
             "/api/admin/aliases",
