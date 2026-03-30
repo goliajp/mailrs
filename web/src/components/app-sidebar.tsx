@@ -20,7 +20,7 @@ import { useLocation } from 'react-router'
 import { postJson } from '@/lib/api'
 import { authAtom } from '@/store/auth'
 import { selectedDomainsAtom, unreadCountAtom } from '@/store/chat'
-import { themeAtom } from '@/store/theme'
+import { themeModeAtom } from '@/store/theme'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
@@ -33,7 +33,7 @@ const navBtnActive = 'bg-accent/10 text-accent'
 export function AppSidebar() {
   const auth = useAtomValue(authAtom)
   const setAuth = useSetAtom(authAtom)
-  const [theme, setTheme] = useAtom(themeAtom)
+  const [theme, setTheme] = useAtom(themeModeAtom)
   const { pathname } = useLocation()
 
   const cycleTheme = () => {

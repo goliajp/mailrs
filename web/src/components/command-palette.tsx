@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router'
 
 import { authAtom } from '@/store/auth'
 import { composingNewAtom } from '@/store/chat'
-import { themeAtom } from '@/store/theme'
+import { themeModeAtom } from '@/store/theme'
 
 type Command = {
   action: () => void
@@ -202,8 +202,8 @@ function useCommands(query: string, onClose: () => void): Command[] {
   const navigate = useNavigate()
   const setAuth = useSetAtom(authAtom)
   const setComposing = useSetAtom(composingNewAtom)
-  const setTheme = useSetAtom(themeAtom)
-  const theme = useAtomValue(themeAtom)
+  const setTheme = useSetAtom(themeModeAtom)
+  const theme = useAtomValue(themeModeAtom)
 
   const staticCommands = useMemo<Command[]>(
     () => [

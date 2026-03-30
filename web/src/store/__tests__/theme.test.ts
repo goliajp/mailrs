@@ -1,7 +1,6 @@
 import { createStore } from 'jotai/vanilla'
 import { describe, expect, it, vi } from 'vitest'
 
-// gds modules call matchMedia at top-level
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
     value: vi.fn().mockReturnValue({
@@ -15,41 +14,38 @@ vi.hoisted(() => {
   })
 })
 
-import { themeAtom } from '../theme'
+import { themeModeAtom } from '../theme'
 
-// theme persistence and DOM class management are now handled by gds useThemeEffect()
-// this test only verifies the jotai atom state management
-
-describe('themeAtom', () => {
+describe('themeModeAtom', () => {
   it('can be set to "light"', () => {
     const store = createStore()
-    store.set(themeAtom, 'light')
-    expect(store.get(themeAtom)).toBe('light')
+    store.set(themeModeAtom, 'light')
+    expect(store.get(themeModeAtom)).toBe('light')
   })
 
   it('can be set to "dark"', () => {
     const store = createStore()
-    store.set(themeAtom, 'dark')
-    expect(store.get(themeAtom)).toBe('dark')
+    store.set(themeModeAtom, 'dark')
+    expect(store.get(themeModeAtom)).toBe('dark')
   })
 
   it('can be set to "system"', () => {
     const store = createStore()
-    store.set(themeAtom, 'system')
-    expect(store.get(themeAtom)).toBe('system')
+    store.set(themeModeAtom, 'system')
+    expect(store.get(themeModeAtom)).toBe('system')
   })
 
   it('defaults to "system"', () => {
     const store = createStore()
-    expect(store.get(themeAtom)).toBe('system')
+    expect(store.get(themeModeAtom)).toBe('system')
   })
 
   it('each store instance tracks independently', () => {
     const storeA = createStore()
     const storeB = createStore()
-    storeA.set(themeAtom, 'dark')
-    storeB.set(themeAtom, 'light')
-    expect(storeA.get(themeAtom)).toBe('dark')
-    expect(storeB.get(themeAtom)).toBe('light')
+    storeA.set(themeModeAtom, 'dark')
+    storeB.set(themeModeAtom, 'light')
+    expect(storeA.get(themeModeAtom)).toBe('dark')
+    expect(storeB.get(themeModeAtom)).toBe('light')
   })
 })
