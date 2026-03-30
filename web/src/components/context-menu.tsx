@@ -52,7 +52,7 @@ export function ContextMenu({
 
   return (
     <div
-      className="min-w-[160px] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] py-1 shadow-lg"
+      className="border-border bg-surface min-w-[160px] rounded-lg border py-1 shadow-lg"
       ref={ref}
       role="menu"
       style={style}
@@ -61,8 +61,8 @@ export function ContextMenu({
         <button
           className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors ${
             item.danger
-              ? 'text-[var(--color-status-danger)] hover:bg-[var(--color-status-danger-subtle)]'
-              : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+              ? 'text-danger hover:bg-danger/10'
+              : 'text-fg-secondary hover:bg-bg-secondary'
           }`}
           key={item.label}
           onClick={() => {

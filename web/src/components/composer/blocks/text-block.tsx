@@ -98,7 +98,7 @@ export function TextBlock({
       onDrop={handleDrop}
       onPaste={handlePaste}
     >
-      <div className="border-b border-[var(--color-border-default)]">
+      <div className="border-border border-b">
         <EditorToolbar editor={editor} />
       </div>
       <div

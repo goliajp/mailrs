@@ -93,7 +93,7 @@ export async function uploadInlineImage(file: File): Promise<null | string> {
 }
 
 export const PROSE_CLASS =
-  'prose prose-sm max-w-none px-3 py-2 outline-none prose-[var(--color-text-primary)] ' +
+  'prose prose-sm max-w-none px-3 py-2 outline-none prose-fg ' +
   'prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-md ' +
   'prose-code:before:content-none prose-code:after:content-none'
 
@@ -166,7 +166,7 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
         <span className="line-through">S</span>
       </ToolbarButton>
 
-      <div className="mx-1 h-4 w-px bg-[var(--color-border-default)]" />
+      <div className="bg-border mx-1 h-4 w-px" />
 
       <ToolbarButton
         active={editor.isActive('code')}
@@ -183,7 +183,7 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
         <span className="font-mono text-xs">{'{ }'}</span>
       </ToolbarButton>
 
-      <div className="mx-1 h-4 w-px bg-[var(--color-border-default)]" />
+      <div className="bg-border mx-1 h-4 w-px" />
 
       <ToolbarButton
         active={editor.isActive('heading', { level: 2 })}
@@ -222,7 +222,7 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
       </ToolbarButton>
 
       {/* secondary tools — hidden on narrow screens */}
-      <div className="mx-1 hidden h-4 w-px bg-[var(--color-border-default)] sm:block" />
+      <div className="bg-border mx-1 hidden h-4 w-px sm:block" />
       <input
         accept="image/*"
         className="hidden"
@@ -283,8 +283,8 @@ function ToolbarButton({
     <button
       className={`rounded-md px-1.5 py-1 text-xs transition-colors ${
         active
-          ? 'bg-[var(--color-border-default)] text-[var(--color-text-primary)]'
-          : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
+          ? 'bg-border text-fg'
+          : 'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary'
       } disabled:opacity-50`}
       disabled={disabled}
       onClick={onClick}

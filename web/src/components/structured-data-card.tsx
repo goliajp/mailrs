@@ -27,36 +27,32 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
   if (!hasContent) return null
 
   return (
-    <div className="border-b border-[var(--color-border-default)] px-5 py-3">
-      <p className="mb-2 text-xs font-medium tracking-wider text-[var(--color-text-tertiary)] uppercase">
+    <div className="border-border border-b px-5 py-3">
+      <p className="text-fg-muted mb-2 text-xs font-medium tracking-wider uppercase">
         Structured Data
       </p>
       <div className="space-y-2">
         {reservations.map((r, i) => (
           <div
-            className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
+            className="border-border bg-bg-secondary rounded-lg border p-4"
             key={`res-${i}`}
           >
             <div className="flex items-center gap-2">
               <ReservationIcon kind={r.type} />
-              <span className="text-xs font-medium text-[var(--color-text-secondary)] capitalize">
+              <span className="text-fg-secondary text-xs font-medium capitalize">
                 {r.type} Reservation
               </span>
               {r.reservation_id && (
                 <Copyable value={r.reservation_id}>
-                  <span className="rounded bg-[var(--color-border-default)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--color-text-secondary)]">
+                  <span className="bg-border text-fg-secondary rounded px-1.5 py-0.5 font-mono text-[11px]">
                     {r.reservation_id}
                   </span>
                 </Copyable>
               )}
             </div>
-            <div className="mt-1.5 space-y-0.5 text-xs text-[var(--color-text-secondary)] select-text">
+            <div className="text-fg-secondary mt-1.5 space-y-0.5 text-xs select-text">
               {r.name && <p>{r.name}</p>}
-              {r.provider && (
-                <p className="text-[var(--color-text-secondary)]">
-                  {r.provider}
-                </p>
-              )}
+              {r.provider && <p className="text-fg-secondary">{r.provider}</p>}
               {r.departure_airport && r.arrival_airport && (
                 <p className="font-medium">
                   {r.departure_airport} → {r.arrival_airport}
@@ -85,48 +81,42 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
 
         {orders.map((o, i) => (
           <div
-            className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
+            className="border-border bg-bg-secondary rounded-lg border p-4"
             key={`ord-${i}`}
           >
             <div className="flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4 text-[var(--color-status-success)]" />
-              <span className="text-xs font-medium text-[var(--color-text-secondary)]">
+              <ShoppingBag className="text-success h-4 w-4" />
+              <span className="text-fg-secondary text-xs font-medium">
                 Order
               </span>
               {o.order_number && (
                 <Copyable value={o.order_number}>
-                  <span className="rounded bg-[var(--color-border-default)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--color-text-secondary)]">
+                  <span className="bg-border text-fg-secondary rounded px-1.5 py-0.5 font-mono text-[11px]">
                     #{o.order_number}
                   </span>
                 </Copyable>
               )}
               {o.merchant && (
-                <span className="text-xs text-[var(--color-text-secondary)]">
-                  {o.merchant}
-                </span>
+                <span className="text-fg-secondary text-xs">{o.merchant}</span>
               )}
             </div>
             {o.items.length > 0 && (
-              <ul className="mt-1.5 space-y-0.5 text-xs text-[var(--color-text-secondary)] select-text">
+              <ul className="text-fg-secondary mt-1.5 space-y-0.5 text-xs select-text">
                 {o.items.map((item, j) => (
                   <li className="flex items-center gap-2" key={j}>
                     <span>{item.name}</span>
                     {item.quantity && item.quantity > 1 && (
-                      <span className="text-[var(--color-text-tertiary)]">
-                        x{item.quantity}
-                      </span>
+                      <span className="text-fg-muted">x{item.quantity}</span>
                     )}
                     {item.price && (
-                      <span className="text-[var(--color-text-secondary)]">
-                        {item.price}
-                      </span>
+                      <span className="text-fg-secondary">{item.price}</span>
                     )}
                   </li>
                 ))}
               </ul>
             )}
             {o.total && (
-              <p className="mt-1.5 text-xs font-medium text-[var(--color-text-secondary)] select-text">
+              <p className="text-fg-secondary mt-1.5 text-xs font-medium select-text">
                 Total: {o.currency && `${o.currency} `}
                 {o.total}
               </p>
@@ -136,16 +126,16 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
 
         {events.map((e, i) => (
           <div
-            className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
+            className="border-border bg-bg-secondary rounded-lg border p-4"
             key={`evt-${i}`}
           >
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-[var(--color-brand-primary)]" />
-              <span className="text-xs font-medium text-[var(--color-text-secondary)] select-text">
+              <Calendar className="text-accent h-4 w-4" />
+              <span className="text-fg-secondary text-xs font-medium select-text">
                 {e.name}
               </span>
             </div>
-            <div className="mt-1 space-y-0.5 text-xs text-[var(--color-text-secondary)] select-text">
+            <div className="text-fg-secondary mt-1 space-y-0.5 text-xs select-text">
               {e.start_date && (
                 <p>
                   {formatSchemaDate(e.start_date)}
@@ -155,7 +145,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
               {e.location && <p>{e.location}</p>}
               {e.url && isSafeUrl(e.url) && (
                 <a
-                  className="text-[var(--color-brand-primary)] hover:underline"
+                  className="text-accent hover:underline"
                   href={e.url}
                   rel="noopener noreferrer"
                   target="_blank"
@@ -169,18 +159,18 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
 
         {actions.map((a, i) => (
           <div
-            className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] p-4"
+            className="border-border bg-bg-secondary rounded-lg border p-4"
             key={`act-${i}`}
           >
             <div className="flex items-center gap-2">
-              <ExternalLink className="h-4 w-4 text-[var(--color-brand-primary)]" />
-              <span className="text-xs font-medium text-[var(--color-text-secondary)]">
+              <ExternalLink className="text-accent h-4 w-4" />
+              <span className="text-fg-secondary text-xs font-medium">
                 {a.type || 'Action'}: {a.name}
               </span>
             </div>
             {a.url && isSafeUrl(a.url) && (
               <a
-                className="mt-1 inline-block text-xs text-[var(--color-brand-primary)] hover:underline"
+                className="text-accent mt-1 inline-block text-xs hover:underline"
                 href={a.url}
                 rel="noopener noreferrer"
                 target="_blank"
@@ -224,16 +214,12 @@ function isSafeUrl(url: string): boolean {
 function ReservationIcon({ kind }: { kind: string }) {
   switch (kind) {
     case 'flight':
-      return <Plane className="h-4 w-4 text-[var(--color-status-info)]" />
+      return <Plane className="text-info h-4 w-4" />
     case 'hotel':
-      return (
-        <Building2 className="h-4 w-4 text-[var(--color-status-warning)]" />
-      )
+      return <Building2 className="text-warning h-4 w-4" />
     case 'restaurant':
-      return (
-        <UtensilsCrossed className="h-4 w-4 text-[var(--color-status-warning)]" />
-      )
+      return <UtensilsCrossed className="text-warning h-4 w-4" />
     default:
-      return <Car className="h-4 w-4 text-[var(--color-brand-primary)]" />
+      return <Car className="text-accent h-4 w-4" />
   }
 }

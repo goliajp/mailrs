@@ -28,7 +28,7 @@ export function AttachmentBlock({ data, onRemove }: Props) {
   }, [previewUrl])
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-3 py-2">
+    <div className="border-border bg-surface flex items-center gap-3 rounded-lg border px-3 py-2">
       {isImage && previewUrl ? (
         <img
           alt={data.name}
@@ -36,24 +36,19 @@ export function AttachmentBlock({ data, onRemove }: Props) {
           src={previewUrl}
         />
       ) : (
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-[var(--color-bg-sunken)]">
-          <FileIcon className="h-5 w-5 text-[var(--color-text-tertiary)]" />
+        <div className="bg-bg-secondary flex h-10 w-10 shrink-0 items-center justify-center rounded">
+          <FileIcon className="text-fg-muted h-5 w-5" />
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <p
-          className="truncate text-sm text-[var(--color-text-primary)]"
-          title={data.name}
-        >
+        <p className="text-fg truncate text-sm" title={data.name}>
           {data.name}
         </p>
-        <p className="text-xs text-[var(--color-text-tertiary)]">
-          {formatFileSize(data.size)}
-        </p>
+        <p className="text-fg-muted text-xs">{formatFileSize(data.size)}</p>
       </div>
       <button
         aria-label={`Remove ${data.name}`}
-        className="shrink-0 rounded-full p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
+        className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary shrink-0 rounded-full p-1 transition-colors"
         onClick={onRemove}
       >
         <X className="h-3.5 w-3.5" />

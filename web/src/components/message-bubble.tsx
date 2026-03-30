@@ -30,13 +30,13 @@ function CodeBlock({
   return (
     <div className="group relative overflow-hidden">
       {lang && (
-        <span className="absolute top-2 right-10 text-[11px] text-[var(--color-text-tertiary)] opacity-0 transition-opacity group-hover:opacity-100">
+        <span className="text-fg-muted absolute top-2 right-10 text-[11px] opacity-0 transition-opacity group-hover:opacity-100">
           {lang}
         </span>
       )}
       <button
         aria-label={copied ? 'Copied to clipboard' : 'Copy code'}
-        className="absolute top-2 right-2 rounded-md px-1.5 py-0.5 text-[11px] text-[var(--color-text-tertiary)] opacity-0 transition-opacity group-hover:opacity-100 hover:bg-[var(--color-active)] hover:text-[var(--color-text-primary)]"
+        className="text-fg-muted hover:bg-bg-secondary hover:text-fg absolute top-2 right-2 rounded-md px-1.5 py-0.5 text-[11px] opacity-0 transition-opacity group-hover:opacity-100"
         onClick={copy}
       >
         {copied ? 'Copied!' : 'Copy'}
@@ -125,7 +125,7 @@ export function MessageBubble({
     <div>
       {isHtml ? (
         <div>
-          <div className="overflow-hidden border border-[var(--color-border-default)] bg-[var(--color-bg-base)] select-text">
+          <div className="border-border bg-bg overflow-hidden border select-text">
             <HtmlFrame html={parts.body} />
           </div>
           <div className="px-2 py-1.5">
@@ -135,9 +135,7 @@ export function MessageBubble({
       ) : (
         <div
           className={`px-4 py-2.5 select-text ${
-            isOwn
-              ? 'bg-[var(--color-brand-primary)] text-white'
-              : 'bg-[var(--color-bg-raised)] text-[var(--color-text-primary)]'
+            isOwn ? 'bg-accent text-white' : 'bg-surface text-fg'
           }`}
         >
           <TextContent body={parts.body} isOwn={isOwn} />
@@ -208,7 +206,7 @@ function AttachmentItem({
   }, [uid, index, extractedText])
 
   return (
-    <div className="border border-[var(--color-border-default)]">
+    <div className="border-border border">
       <div className="flex items-center gap-2 px-3 py-2 text-sm">
         {isImage ? (
           <img
@@ -220,25 +218,23 @@ function AttachmentItem({
           />
         ) : (
           <a href={url} rel="noopener noreferrer" target="_blank">
-            <File className="h-5 w-5 text-[var(--color-text-tertiary)]" />
+            <File className="text-fg-muted h-5 w-5" />
           </a>
         )}
         <div className="min-w-0 flex-1">
           <a
-            className="block truncate text-[var(--color-text-secondary)] hover:underline"
+            className="text-fg-secondary block truncate hover:underline"
             href={url}
             rel="noopener noreferrer"
             target="_blank"
           >
             {att.filename}
           </a>
-          <p className="text-xs text-[var(--color-text-tertiary)]">
-            {formatSize(att.size)}
-          </p>
+          <p className="text-fg-muted text-xs">{formatSize(att.size)}</p>
         </div>
         {isExtractable(att.content_type) && (
           <button
-            className="shrink-0 rounded-md px-2 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+            className="text-fg-muted hover:bg-bg-secondary shrink-0 rounded-md px-2 py-0.5 text-xs transition-colors"
             disabled={loading}
             onClick={fetchContent}
             title="Show extracted text"
@@ -251,8 +247,8 @@ function AttachmentItem({
 
       {/* extracted text panel */}
       {showContent && extractedText && (
-        <div className="border-t border-[var(--color-border-default)] px-3 py-2">
-          <pre className="max-h-48 overflow-auto text-xs whitespace-pre-wrap text-[var(--color-text-secondary)]">
+        <div className="border-border border-t px-3 py-2">
+          <pre className="text-fg-secondary max-h-48 overflow-auto text-xs whitespace-pre-wrap">
             {extractedText}
           </pre>
         </div>
@@ -282,7 +278,7 @@ function AttachmentItem({
 
       {/* PDF inline preview — sandbox restricts script execution in PDF viewers */}
       {isPdf && showContent && (
-        <div className="border-t border-[var(--color-border-default)]">
+        <div className="border-border border-t">
           <iframe
             className="h-96 w-full"
             sandbox="allow-same-origin"
@@ -404,7 +400,7 @@ function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
         className={`prose prose-sm max-w-none ${
           isOwn
             ? '[&_*]:text-white [&_a]:text-white/70 [&_code]:bg-white/20'
-            : 'prose-[var(--color-text-primary)]'
+            : 'prose-fg'
         }`}
       >
         <Markdown
@@ -421,7 +417,7 @@ function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
   return (
     <pre
       className={`font-sans text-sm leading-relaxed break-words whitespace-pre-wrap ${
-        isOwn ? 'text-white' : 'text-[var(--color-text-primary)]'
+        isOwn ? 'text-white' : 'text-fg'
       }`}
     >
       {body}

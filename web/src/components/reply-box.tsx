@@ -1,7 +1,7 @@
+import { toast } from '@goliapkg/gds'
 import { useAtomValue } from 'jotai'
 import { Loader2, Send } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import {
@@ -393,14 +393,14 @@ export function ReplyBox({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* mode toggle + recipients */}
-      <div className="flex shrink-0 items-center gap-1 border-b border-[var(--color-border-default)] px-4 py-2 select-none">
+      <div className="border-border flex shrink-0 items-center gap-1 border-b px-4 py-2 select-none">
         {(Object.keys(MODE_LABELS) as ReplyMode[]).map((m) => (
           <button
             aria-pressed={mode === m}
-            className={`cursor-pointer rounded px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] focus-visible:outline-none ${
+            className={`focus-visible:ring-accent cursor-pointer rounded px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none ${
               mode === m
-                ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
-                : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
+                ? 'bg-accent/10 text-accent'
+                : 'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary'
             }`}
             key={m}
             onClick={() => handleModeChange(m)}
@@ -410,7 +410,7 @@ export function ReplyBox({
         ))}
         {mode !== 'forward' && (
           <span
-            className="ml-auto truncate text-xs text-[var(--color-text-tertiary)]"
+            className="text-fg-muted ml-auto truncate text-xs"
             title={mode === 'reply' ? replyRecipients : replyAllRecipients}
           >
             to {mode === 'reply' ? replyRecipients : replyAllRecipients}
@@ -420,32 +420,26 @@ export function ReplyBox({
 
       {/* forward: to field */}
       {mode === 'forward' && (
-        <div className="shrink-0 border-b border-[var(--color-border-default)] px-4 py-2">
+        <div className="border-border shrink-0 border-b px-4 py-2">
           <div className="flex items-center gap-2">
-            <label className="w-16 shrink-0 text-xs text-[var(--color-text-tertiary)]">
-              To
-            </label>
+            <label className="text-fg-muted w-16 shrink-0 text-xs">To</label>
             <ContactAutocomplete
-              className="w-full rounded-md border border-[var(--color-border-default)] bg-transparent px-2 py-1 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-brand-primary)]"
+              className="border-border text-fg placeholder-fg-muted focus:border-accent w-full rounded-md border bg-transparent px-2 py-1 text-sm outline-none"
               onChange={setForwardTo}
               placeholder="recipient@example.com"
               value={forwardTo}
             />
           </div>
-          {error && (
-            <p className="mt-1 text-xs text-[var(--color-status-danger)]">
-              {error}
-            </p>
-          )}
+          {error && <p className="text-danger mt-1 text-xs">{error}</p>}
         </div>
       )}
 
       {/* AI suggestions */}
       {suggestions.length > 0 && (
-        <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-[var(--color-border-default)] px-4 py-2">
+        <div className="border-border flex shrink-0 flex-wrap gap-1.5 border-b px-4 py-2">
           {suggestions.map((s, i) => (
             <button
-              className="max-w-xs truncate rounded-full border border-[var(--color-border-default)] bg-[var(--color-brand-subtle)] px-2.5 py-0.5 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-hover)]"
+              className="border-border bg-accent/10 text-accent hover:bg-bg-secondary max-w-xs truncate rounded-full border px-2.5 py-0.5 text-xs transition-colors"
               key={i}
               onClick={() => applySuggestion(s)}
               title={s}
@@ -454,7 +448,7 @@ export function ReplyBox({
             </button>
           ))}
           <button
-            className="rounded-full px-2 py-0.5 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
+            className="text-fg-muted hover:text-fg-secondary rounded-full px-2 py-0.5 text-xs transition-colors"
             onClick={() => setSuggestions([])}
           >
             Dismiss
@@ -479,10 +473,10 @@ export function ReplyBox({
       </div>
 
       {/* action bar */}
-      <div className="flex shrink-0 flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2 select-none">
+      <div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-t px-4 py-2 select-none">
         {mode !== 'forward' && (
           <button
-            className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
+            className="text-accent hover:bg-accent/10 disabled:text-fg-muted flex h-8 shrink-0 items-center rounded-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             disabled={suggesting || sending}
             onClick={suggest}
             title="AI reply suggestions"
@@ -496,7 +490,7 @@ export function ReplyBox({
         )}
         <div className="relative flex shrink-0">
           <button
-            className="flex h-8 items-center rounded-l-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
+            className="text-accent hover:bg-accent/10 disabled:text-fg-muted flex h-8 items-center rounded-l-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             disabled={polishing || sending}
             onClick={() => polish()}
             title={`Polish (${polishTone})`}
@@ -508,7 +502,7 @@ export function ReplyBox({
             )}
           </button>
           <select
-            className="h-8 appearance-none rounded-r-md border-l border-[var(--color-border-default)] bg-transparent px-1 text-[10px] text-[var(--color-brand-primary)] outline-none hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="border-border text-accent hover:bg-accent/10 h-8 appearance-none rounded-r-md border-l bg-transparent px-1 text-[10px] outline-none disabled:cursor-not-allowed disabled:opacity-50"
             disabled={polishing || sending}
             onChange={(e) => setPolishTone(e.target.value)}
             value={polishTone}
@@ -523,7 +517,7 @@ export function ReplyBox({
         <div className="flex-1" />
 
         <button
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 text-xs font-medium text-white transition-all hover:bg-[var(--color-brand-primary-hover)] hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="bg-accent hover:bg-accent-hover flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={sending}
           onClick={send}
         >

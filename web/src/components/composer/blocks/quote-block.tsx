@@ -20,8 +20,7 @@ export function QuoteBlock({ data, mode, onChange }: Props) {
     editable: false,
     editorProps: {
       attributes: {
-        class:
-          'prose prose-sm max-w-none px-3 py-2 outline-none text-[var(--color-text-tertiary)]',
+        class: 'prose prose-sm max-w-none px-3 py-2 outline-none text-fg-muted',
       },
     },
     extensions: createMinimalExtensions(),
@@ -35,9 +34,9 @@ export function QuoteBlock({ data, mode, onChange }: Props) {
   }, [editor, data.html, data.headerHtml])
 
   return (
-    <div className="border-t border-l-2 border-[var(--color-border-default)]">
+    <div className="border-border border-t border-l-2">
       <button
-        className="flex w-full cursor-pointer items-center gap-1 px-4 py-2 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+        className="text-fg-muted hover:bg-bg-secondary flex w-full cursor-pointer items-center gap-1 px-4 py-2 text-xs transition-colors"
         onClick={() => onChange({ ...data, collapsed: !collapsed })}
         type="button"
       >
@@ -51,7 +50,7 @@ export function QuoteBlock({ data, mode, onChange }: Props) {
           : 'Hide original'}
       </button>
       {!collapsed && (
-        <div className="border-l-2 border-[var(--color-border-default)] opacity-50">
+        <div className="border-border border-l-2 opacity-50">
           <EditorContent editor={editor} />
         </div>
       )}

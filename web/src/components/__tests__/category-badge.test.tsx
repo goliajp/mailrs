@@ -22,7 +22,7 @@ describe('CategoryBadge', () => {
     const { container } = render(<CategoryBadge category="scam" />)
     expect(screen.getByText('Scam')).toBeDefined()
     const span = container.querySelector('span')
-    expect(span?.className).toContain('text-[var(--color-status-danger)]')
+    expect(span?.className).toContain('text-danger')
   })
 
   it('renders unknown category as-is', () => {
@@ -33,8 +33,8 @@ describe('CategoryBadge', () => {
   it('uses fallback styles for unknown category', () => {
     const { container } = render(<CategoryBadge category="unknown" />)
     const span = container.querySelector('span')
-    expect(span?.className).toContain('bg-[var(--color-bg-raised)]')
-    expect(span?.className).toContain('text-[var(--color-text-tertiary)]')
+    expect(span?.className).toContain('bg-surface')
+    expect(span?.className).toContain('text-fg-muted')
   })
 
   it('renders all known categories without error', () => {
@@ -62,35 +62,35 @@ describe('CategoryBadge', () => {
 
 describe('riskColor', () => {
   it('returns danger for score >= 60', () => {
-    expect(riskColor(60)).toBe('text-[var(--color-status-danger)]')
-    expect(riskColor(100)).toBe('text-[var(--color-status-danger)]')
-    expect(riskColor(75)).toBe('text-[var(--color-status-danger)]')
+    expect(riskColor(60)).toBe('text-danger')
+    expect(riskColor(100)).toBe('text-danger')
+    expect(riskColor(75)).toBe('text-danger')
   })
 
   it('returns warning for score 40-59', () => {
-    expect(riskColor(40)).toBe('text-[var(--color-status-warning)]')
-    expect(riskColor(59)).toBe('text-[var(--color-status-warning)]')
-    expect(riskColor(50)).toBe('text-[var(--color-status-warning)]')
+    expect(riskColor(40)).toBe('text-warning')
+    expect(riskColor(59)).toBe('text-warning')
+    expect(riskColor(50)).toBe('text-warning')
   })
 
   it('returns info for score 15-39', () => {
-    expect(riskColor(15)).toBe('text-[var(--color-status-info)]')
-    expect(riskColor(39)).toBe('text-[var(--color-status-info)]')
-    expect(riskColor(25)).toBe('text-[var(--color-status-info)]')
+    expect(riskColor(15)).toBe('text-info')
+    expect(riskColor(39)).toBe('text-info')
+    expect(riskColor(25)).toBe('text-info')
   })
 
   it('returns success for score < 15', () => {
-    expect(riskColor(0)).toBe('text-[var(--color-status-success)]')
-    expect(riskColor(14)).toBe('text-[var(--color-status-success)]')
-    expect(riskColor(1)).toBe('text-[var(--color-status-success)]')
+    expect(riskColor(0)).toBe('text-success')
+    expect(riskColor(14)).toBe('text-success')
+    expect(riskColor(1)).toBe('text-success')
   })
 
   it('handles boundary values exactly', () => {
-    expect(riskColor(14)).toBe('text-[var(--color-status-success)]')
-    expect(riskColor(15)).toBe('text-[var(--color-status-info)]')
-    expect(riskColor(39)).toBe('text-[var(--color-status-info)]')
-    expect(riskColor(40)).toBe('text-[var(--color-status-warning)]')
-    expect(riskColor(59)).toBe('text-[var(--color-status-warning)]')
-    expect(riskColor(60)).toBe('text-[var(--color-status-danger)]')
+    expect(riskColor(14)).toBe('text-success')
+    expect(riskColor(15)).toBe('text-info')
+    expect(riskColor(39)).toBe('text-info')
+    expect(riskColor(40)).toBe('text-warning')
+    expect(riskColor(59)).toBe('text-warning')
+    expect(riskColor(60)).toBe('text-danger')
   })
 })

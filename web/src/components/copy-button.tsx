@@ -45,12 +45,12 @@ export function CopyButton({
   return (
     <button
       aria-label={copied ? 'Copied' : `Copy ${value}`}
-      className={`inline-flex shrink-0 items-center justify-center rounded-md p-0.5 text-[var(--color-text-tertiary)] opacity-0 transition-opacity group-hover/copy:opacity-100 hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] ${className ?? ''}`}
+      className={`text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary inline-flex shrink-0 items-center justify-center rounded-md p-0.5 opacity-0 transition-opacity group-hover/copy:opacity-100 ${className ?? ''}`}
       onClick={handleCopy}
       title={copied ? 'Copied!' : `Copy "${value}"`}
     >
       {copied ? (
-        <Check className="h-3 w-3 text-[var(--color-status-success)]" />
+        <Check className="text-success h-3 w-3" />
       ) : (
         <Copy className="h-3 w-3" />
       )}

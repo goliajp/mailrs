@@ -1,7 +1,12 @@
-export { Avatar } from './avatar'
-export { Badge } from './badge'
-export { Button, type ButtonVariant } from './button'
-export { Card } from './card'
-export { Dialog } from './dialog'
-export { IconButton } from './icon-button'
-export { Input } from './input'
+// re-export from gds — these are used by playground.tsx
+export {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  Dialog,
+  IconButton,
+  Input,
+} from '@goliapkg/gds'
+
+export type { VariantProps as ButtonVariant } from '@goliapkg/gds'

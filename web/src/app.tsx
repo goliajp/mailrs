@@ -1,3 +1,12 @@
+import type React from 'react'
+
+import {
+  AppShell,
+  NotificationToast,
+  Pane,
+  useThemeEffect,
+} from '@goliapkg/gds'
+import { useFonts } from '@goliapkg/gds/systems'
 import { useAtomValue } from 'jotai'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
@@ -5,11 +14,12 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
 import { ErrorBoundary } from '@/components/error-boundary'
-import { Panel, Shell } from '@/layouts/shell'
 import { Chat } from '@/pages/chat'
 import { Dashboard } from '@/pages/dashboard'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
+import { authAtom } from '@/store/auth'
+import { unreadCountAtom } from '@/store/chat'
 
 const Admin = lazy(() =>
   import('@/pages/admin').then((m) => ({ default: m.Admin }))
@@ -23,14 +33,15 @@ const Protocol = lazy(() =>
 const Settings = lazy(() =>
   import('@/pages/settings').then((m) => ({ default: m.Settings }))
 )
-import { authAtom } from '@/store/auth'
-import { unreadCountAtom } from '@/store/chat'
 
 export function App() {
   useDocumentTitle()
+  useThemeEffect()
+  useFonts()
 
   return (
     <ErrorBoundary>
+      <NotificationToast />
       <CommandPalette />
       <Routes>
         <Route element={<Login />} path="/login" />
@@ -46,11 +57,11 @@ export function App() {
         <Route
           element={
             <AuthShell>
-              <PagePanel>
+              <PagePane>
                 <Suspense fallback={<LoadingFallback />}>
                   <Protocol />
                 </Suspense>
-              </PagePanel>
+              </PagePane>
             </AuthShell>
           }
           path="/protocol"
@@ -58,11 +69,11 @@ export function App() {
         <Route
           element={
             <AuthShell>
-              <PagePanel>
+              <PagePane>
                 <Suspense fallback={<LoadingFallback />}>
                   <Admin />
                 </Suspense>
-              </PagePanel>
+              </PagePane>
             </AuthShell>
           }
           path="/admin/*"
@@ -70,11 +81,11 @@ export function App() {
         <Route
           element={
             <AuthShell>
-              <PagePanel>
+              <PagePane>
                 <Suspense fallback={<LoadingFallback />}>
                   <Settings />
                 </Suspense>
-              </PagePanel>
+              </PagePane>
             </AuthShell>
           }
           path="/settings"
@@ -90,9 +101,9 @@ export function App() {
         <Route
           element={
             <AuthShell>
-              <PagePanel>
+              <PagePane>
                 <Dashboard />
-              </PagePanel>
+              </PagePane>
             </AuthShell>
           }
           path="/*"
@@ -105,9 +116,13 @@ export function App() {
 function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
-      <Shell sidebar={<AppSidebar />} statusBar={<StatusBar />}>
+      <AppShell
+        sidebar={<AppSidebar />}
+        sidebarWidth={56}
+        statusBar={<StatusBar />}
+      >
         {children}
-      </Shell>
+      </AppShell>
     </RequireAuth>
   )
 }
@@ -115,13 +130,13 @@ function AuthShell({ children }: { children: React.ReactNode }) {
 function LoadingFallback() {
   return (
     <div className="flex flex-1 items-center justify-center p-8">
-      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-border-default)] border-t-[var(--color-brand-primary)]" />
+      <div className="border-border border-t-accent h-5 w-5 animate-spin rounded-full border-2" />
     </div>
   )
 }
 
-function PagePanel({ children }: { children: React.ReactNode }) {
-  return <Panel className="p-1">{children}</Panel>
+function PagePane({ children }: { children: React.ReactNode }) {
+  return <Pane className="p-1">{children}</Pane>
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -166,26 +181,24 @@ function StatusBar() {
           : 'Home'
 
   return (
-    <div className="flex h-full items-center justify-between px-3 text-[11px] text-[var(--color-text-tertiary)]">
+    <div className="text-fg-muted flex h-full items-center justify-between px-3 text-[11px]">
       <div className="flex items-center gap-2">
         {health && (
           <span className="flex items-center gap-1">
             <span
-              className={`inline-block h-2 w-2 rounded-full ${health.status === 'healthy' ? 'bg-[var(--color-status-success)]' : health.status === 'degraded' ? 'bg-[var(--color-status-warning)]' : 'bg-[var(--color-status-danger)]'}`}
+              className={`inline-block h-2 w-2 rounded-full ${health.status === 'healthy' ? 'bg-success' : health.status === 'degraded' ? 'bg-warning' : 'bg-danger'}`}
             />
             {health.pg ? 'PG' : ''}
             {health.pg && health.valkey ? ' · ' : ''}
             {health.valkey ? 'Valkey' : ''}
           </span>
         )}
-        <span className="text-[var(--color-border-strong)]">·</span>
+        <span className="text-border-strong">·</span>
         <span>{section}</span>
       </div>
       <div className="flex items-center gap-2">
         {auth && <span>{auth.address}</span>}
-        {auth && health && (
-          <span className="text-[var(--color-border-strong)]">·</span>
-        )}
+        {auth && health && <span className="text-border-strong">·</span>}
         {health && <span>v{health.version}</span>}
       </div>
     </div>

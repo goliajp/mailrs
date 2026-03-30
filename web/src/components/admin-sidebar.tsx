@@ -69,31 +69,29 @@ export function AdminSidebar() {
   return (
     <>
       {/* mobile: horizontal tab bar */}
-      <nav className="flex items-center gap-1.5 overflow-x-auto border-b border-[var(--color-border-default)] px-3 py-2 select-none md:hidden">
+      <nav className="border-border flex items-center gap-1.5 overflow-x-auto border-b px-3 py-2 select-none md:hidden">
         {navItems.map((item) => (
           <NavLink
             className={({ isActive }) =>
               `flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors ${
                 isActive
-                  ? 'bg-[var(--color-bg-selected)] font-medium text-[var(--color-text-primary)]'
-                  : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'
+                  ? 'bg-accent/10 text-fg font-medium'
+                  : 'text-fg-muted hover:bg-bg-secondary'
               }`
             }
             key={item.to}
             to={item.to}
           >
-            <span className="text-[var(--color-text-tertiary)]">
-              {item.icon}
-            </span>
+            <span className="text-fg-muted">{item.icon}</span>
             <span>{item.label}</span>
           </NavLink>
         ))}
       </nav>
 
       {/* desktop: vertical sidebar */}
-      <aside className="hidden h-full w-48 shrink-0 flex-col border-r border-[var(--color-border-default)] select-none md:flex">
+      <aside className="border-border hidden h-full w-48 shrink-0 flex-col border-r select-none md:flex">
         <div className="px-3 py-4">
-          <p className="text-xs font-medium tracking-wider text-[var(--color-text-tertiary)] uppercase">
+          <p className="text-fg-muted text-xs font-medium tracking-wider uppercase">
             Server
           </p>
         </div>
@@ -103,16 +101,14 @@ export function AdminSidebar() {
               className={({ isActive }) =>
                 `flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
                   isActive
-                    ? 'bg-[var(--color-bg-selected)] font-medium text-[var(--color-text-primary)]'
-                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                    ? 'bg-accent/10 text-fg font-medium'
+                    : 'text-fg-secondary hover:bg-bg-secondary'
                 }`
               }
               key={item.to}
               to={item.to}
             >
-              <span className="text-[var(--color-text-tertiary)]">
-                {item.icon}
-              </span>
+              <span className="text-fg-muted">{item.icon}</span>
               <span>{item.label}</span>
             </NavLink>
           ))}

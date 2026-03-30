@@ -1,7 +1,7 @@
+import { cx } from '@goliapkg/gds'
 import { useEffect, useState } from 'react'
 
 import { avatarColor, avatarInitial } from '@/lib/avatar'
-import { cn } from '@/lib/cn'
 
 function extractDomain(sender: string): null | string {
   const match = sender.match(/@([a-zA-Z0-9.-]+)/)
@@ -55,7 +55,7 @@ export function SenderAvatar({
     return (
       <img
         alt={initial}
-        className={cn(
+        className={cx(
           `shrink-0 rounded-full object-cover ${sizeClass}`,
           className
         )}
@@ -71,7 +71,7 @@ export function SenderAvatar({
   // colored initials — immediate, no blank state
   return (
     <div
-      className={cn(
+      className={cx(
         `flex shrink-0 items-center justify-center rounded-full font-medium text-white ${sizeClass} ${color}`,
         className
       )}

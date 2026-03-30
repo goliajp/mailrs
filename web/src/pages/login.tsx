@@ -151,9 +151,9 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-base)] px-4">
+    <div className="bg-bg flex min-h-screen items-center justify-center px-4">
       <form
-        className="w-full max-w-sm space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-lg select-none sm:p-8"
+        className="border-border bg-surface w-full max-w-sm space-y-5 rounded-lg border p-6 shadow-lg select-none sm:p-8"
         onSubmit={forgotMode ? (e) => e.preventDefault() : handleSubmit}
       >
         <div className="flex flex-col items-center">
@@ -162,17 +162,17 @@ export function Login() {
             className="mb-3 h-14 w-14 rounded-lg shadow-sm"
             src="/icon.svg"
           />
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+          <h1 className="text-fg text-xl font-semibold tracking-tight">
             Mailrs
           </h1>
-          <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
+          <p className="text-fg-muted mt-1 text-sm">
             {forgotMode ? 'Reset your password' : 'Sign in to your account'}
           </p>
         </div>
 
         {error && !forgotMode && (
           <div
-            className="rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-2 text-sm text-[var(--color-status-danger)]"
+            className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm"
             role="alert"
           >
             {error}
@@ -183,7 +183,7 @@ export function Login() {
           <>
             <div className="space-y-1.5">
               <label
-                className="block text-xs font-medium text-[var(--color-text-secondary)]"
+                className="text-fg-secondary block text-xs font-medium"
                 htmlFor="login-email"
               >
                 Email
@@ -191,7 +191,7 @@ export function Login() {
               <input
                 aria-label="Email address"
                 autoFocus
-                className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
                 id="login-email"
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="you@domain.com"
@@ -203,7 +203,7 @@ export function Login() {
 
             <div className="space-y-1.5">
               <label
-                className="block text-xs font-medium text-[var(--color-text-secondary)]"
+                className="text-fg-secondary block text-xs font-medium"
                 htmlFor="login-password"
               >
                 Password
@@ -211,7 +211,7 @@ export function Login() {
               <div className="relative">
                 <input
                   aria-label="Password"
-                  className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 pr-10 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                  className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 pr-10 text-sm outline-none focus:ring-1"
                   id="login-password"
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -220,7 +220,7 @@ export function Login() {
                 />
                 <button
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute top-1/2 right-2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+                  className="text-fg-muted hover:text-fg-secondary absolute top-1/2 right-2 -translate-y-1/2"
                   onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
                   type="button"
@@ -239,7 +239,7 @@ export function Login() {
         {!forgotMode && totpRequired && (
           <div className="space-y-1.5">
             <label
-              className="block text-xs font-medium text-[var(--color-text-secondary)]"
+              className="text-fg-secondary block text-xs font-medium"
               htmlFor="login-totp"
             >
               Two-Factor Code
@@ -248,7 +248,7 @@ export function Login() {
               aria-label="Two-factor authentication code"
               autoComplete="one-time-code"
               autoFocus
-              className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+              className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
               id="login-totp"
               inputMode="numeric"
               onChange={(e) => setTotpCode(e.target.value)}
@@ -257,7 +257,7 @@ export function Login() {
               type="text"
               value={totpCode}
             />
-            <p className="text-xs text-[var(--color-text-tertiary)]">
+            <p className="text-fg-muted text-xs">
               Enter the code from your authenticator app, or a recovery code
             </p>
           </div>
@@ -269,18 +269,18 @@ export function Login() {
               <label className="flex items-center gap-2">
                 <input
                   checked={rememberMe}
-                  className="h-4 w-4 rounded border-[var(--color-border-default)] focus:ring-[var(--color-focus-ring)]"
+                  className="border-border focus:ring-accent/40 h-4 w-4 rounded"
                   onChange={(e) => setRememberMe(e.target.checked)}
                   type="checkbox"
                 />
-                <span className="text-sm text-[var(--color-text-secondary)]">
+                <span className="text-fg-secondary text-sm">
                   Remember email
                 </span>
               </label>
             )}
 
             <button
-              className="flex w-full items-center justify-center rounded-md bg-[var(--color-brand-primary)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
+              className="bg-accent hover:bg-accent-hover flex w-full items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50"
               disabled={loading}
               type="submit"
             >
@@ -290,7 +290,7 @@ export function Login() {
 
             <div className="text-center">
               <button
-                className="text-sm text-[var(--color-brand-primary)] hover:underline"
+                className="text-accent text-sm hover:underline"
                 onClick={() => {
                   setForgotMode(true)
                   setError('')
@@ -305,14 +305,12 @@ export function Login() {
             {oidcConfig?.enabled && (
               <>
                 <div className="flex items-center gap-3">
-                  <div className="h-px flex-1 bg-[var(--color-border-default)]" />
-                  <span className="text-xs text-[var(--color-text-tertiary)]">
-                    or
-                  </span>
-                  <div className="h-px flex-1 bg-[var(--color-border-default)]" />
+                  <div className="bg-border h-px flex-1" />
+                  <span className="text-fg-muted text-xs">or</span>
+                  <div className="bg-border h-px flex-1" />
                 </div>
                 <a
-                  className="flex w-full items-center justify-center gap-2 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-hover)]"
+                  className="border-border bg-bg-secondary text-fg hover:bg-bg-secondary flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors"
                   href={oidcConfig.login_url}
                 >
                   <ExternalLink className="h-4 w-4" />
@@ -326,21 +324,21 @@ export function Login() {
         {forgotMode && (
           <>
             {forgotMessage && (
-              <div className="rounded-md bg-[var(--color-status-success-subtle)] px-3 py-2 text-sm text-[var(--color-status-success)]">
+              <div className="bg-success/10 text-success rounded-md px-3 py-2 text-sm">
                 {forgotMessage}
               </div>
             )}
 
             <div className="space-y-1.5">
               <label
-                className="block text-xs font-medium text-[var(--color-text-secondary)]"
+                className="text-fg-secondary block text-xs font-medium"
                 htmlFor="forgot-email"
               >
                 Account Email
               </label>
               <input
                 autoFocus
-                className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
                 id="forgot-email"
                 onChange={(e) => setForgotAddress(e.target.value)}
                 placeholder="you@domain.com"
@@ -352,13 +350,13 @@ export function Login() {
 
             <div className="space-y-1.5">
               <label
-                className="block text-xs font-medium text-[var(--color-text-secondary)]"
+                className="text-fg-secondary block text-xs font-medium"
                 htmlFor="forgot-recovery"
               >
                 Recovery Email
               </label>
               <input
-                className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
                 id="forgot-recovery"
                 onChange={(e) => setForgotRecoveryEmail(e.target.value)}
                 placeholder="your-recovery@gmail.com"
@@ -366,14 +364,14 @@ export function Login() {
                 type="email"
                 value={forgotRecoveryEmail}
               />
-              <p className="text-xs text-[var(--color-text-tertiary)]">
+              <p className="text-fg-muted text-xs">
                 Enter the recovery email you configured in Settings. The reset
                 link will be sent there.
               </p>
             </div>
 
             <button
-              className="flex w-full items-center justify-center rounded-md bg-[var(--color-brand-primary)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
+              className="bg-accent hover:bg-accent-hover flex w-full items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50"
               disabled={forgotLoading || !forgotAddress || !forgotRecoveryEmail}
               onClick={handleForgotPassword}
               type="button"
@@ -386,7 +384,7 @@ export function Login() {
 
             <div className="text-center">
               <button
-                className="text-sm text-[var(--color-brand-primary)] hover:underline"
+                className="text-accent text-sm hover:underline"
                 onClick={() => {
                   setForgotMode(false)
                   setForgotMessage('')

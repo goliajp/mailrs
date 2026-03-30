@@ -19,7 +19,7 @@ export function SignatureBlock({ data, disabled, onChange }: Props) {
     editorProps: {
       attributes: {
         class:
-          'prose prose-sm max-w-none px-3 py-1.5 outline-none text-[var(--color-text-tertiary)]',
+          'prose prose-sm max-w-none px-3 py-1.5 outline-none text-fg-muted',
       },
     },
     extensions: createMinimalExtensions(),
@@ -37,10 +37,8 @@ export function SignatureBlock({ data, disabled, onChange }: Props) {
   }, [editor, data.html])
 
   return (
-    <div className="border-t border-dashed border-[var(--color-border-default)] opacity-70">
-      <div className="px-4 pt-2 text-xs text-[var(--color-text-tertiary)]">
-        --{' '}
-      </div>
+    <div className="border-border border-t border-dashed opacity-70">
+      <div className="text-fg-muted px-4 pt-2 text-xs">-- </div>
       <EditorContent editor={editor} />
     </div>
   )

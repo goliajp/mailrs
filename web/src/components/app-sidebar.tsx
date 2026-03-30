@@ -1,6 +1,7 @@
-import type { ThemeMode } from '@/lib/theme'
+import type { ThemeMode } from '@goliapkg/gds'
 import type { LucideIcon } from 'lucide-react'
 
+import { cx } from '@goliapkg/gds'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   Activity,
@@ -17,7 +18,6 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
 
 import { postJson } from '@/lib/api'
-import { cn } from '@/lib/cn'
 import { authAtom } from '@/store/auth'
 import { selectedDomainsAtom, unreadCountAtom } from '@/store/chat'
 import { themeAtom } from '@/store/theme'
@@ -25,11 +25,10 @@ import { themeAtom } from '@/store/theme'
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
 const navBtnBase =
-  'flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]'
+  'flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
 const navBtnInactive =
-  'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]'
-const navBtnActive =
-  'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
+  'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary'
+const navBtnActive = 'bg-accent/10 text-accent'
 
 export function AppSidebar() {
   const auth = useAtomValue(authAtom)
@@ -104,7 +103,7 @@ export function AppSidebar() {
               const label = d.split('.')[0]
               return (
                 <button
-                  className={cn(
+                  className={cx(
                     navBtnBase,
                     active ? navBtnActive : navBtnInactive,
                     'h-8 w-8 text-[9px] font-semibold'
@@ -120,7 +119,7 @@ export function AppSidebar() {
         </div>
 
         {/* separator */}
-        <div className="my-2 h-px w-8 bg-[var(--color-border-default)]" />
+        <div className="bg-border my-2 h-px w-8" />
 
         {/* other nav */}
         <nav className="flex flex-col items-center gap-1.5">
@@ -183,7 +182,7 @@ export function AppSidebar() {
       </aside>
 
       {/* mobile: bottom tab bar */}
-      <nav className="flex items-stretch border-t border-[var(--color-border-default)] bg-[var(--color-bg-raised)] select-none md:hidden">
+      <nav className="border-border bg-surface flex items-stretch border-t select-none md:hidden">
         <MobileNavLink
           active={section === 'home'}
           href="/"
@@ -211,7 +210,7 @@ export function AppSidebar() {
         />
         <button
           aria-label="Sign out"
-          className="flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] text-[var(--color-text-tertiary)] transition-colors"
+          className="text-fg-muted flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] transition-colors"
           onClick={() => setShowLogoutConfirm(true)}
         >
           <LogOut className="h-5 w-5" />
@@ -252,24 +251,22 @@ function LogoutConfirmDialog({
       role="dialog"
     >
       <div
-        className="mx-4 w-full max-w-sm animate-[scaleIn_150ms_ease-out] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-xl"
+        className="border-border bg-surface mx-4 w-full max-w-sm animate-[scaleIn_150ms_ease-out] rounded-lg border p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-base font-semibold text-[var(--color-text-primary)]">
-          Sign out?
-        </h3>
-        <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+        <h3 className="text-fg text-base font-semibold">Sign out?</h3>
+        <p className="text-fg-secondary mt-2 text-sm">
           You will need to sign in again to access your mailbox.
         </p>
         <div className="mt-5 flex justify-end gap-2">
           <button
-            className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+            className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
             onClick={onCancel}
           >
             Cancel
           </button>
           <button
-            className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+            className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
             onClick={onConfirm}
           >
             Sign out
@@ -298,18 +295,16 @@ function MobileNavLink({
     <a
       aria-current={active ? 'page' : undefined}
       aria-label={label}
-      className={cn(
+      className={cx(
         'relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] transition-colors',
-        active
-          ? 'text-[var(--color-brand-primary)]'
-          : 'text-[var(--color-text-tertiary)]'
+        active ? 'text-accent' : 'text-fg-muted'
       )}
       href={href}
     >
       <Icon className="h-5 w-5" />
       <span>{label}</span>
       {badge != null && badge > 0 && (
-        <span className="absolute top-0.5 left-1/2 ml-2 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--color-status-danger)] px-0.5 pb-px text-[10px] leading-none font-bold text-white">
+        <span className="bg-danger absolute top-0.5 left-1/2 ml-2 grid h-4 min-w-4 place-items-center rounded-full px-0.5 pb-px text-[10px] leading-none font-bold text-white">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -334,7 +329,7 @@ function SidebarLink({
     <a
       aria-current={active ? 'page' : undefined}
       aria-label={label}
-      className={cn(
+      className={cx(
         'relative',
         navBtnBase,
         active ? navBtnActive : navBtnInactive
@@ -344,7 +339,7 @@ function SidebarLink({
     >
       <Icon className="h-5 w-5" />
       {badge != null && badge > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--color-status-danger)] px-0.5 pb-px text-[10px] leading-none font-bold text-white">
+        <span className="bg-danger absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full px-0.5 pb-px text-[10px] leading-none font-bold text-white">
           {badge > 99 ? '99+' : badge}
         </span>
       )}

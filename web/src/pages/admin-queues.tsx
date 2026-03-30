@@ -18,23 +18,17 @@ const ALL_STATUSES = [
 type QueueStatus = (typeof ALL_STATUSES)[number]
 
 const statusStyles: Record<string, string> = {
-  bounced:
-    'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]',
-  delivered:
-    'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]',
-  failed:
-    'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]',
-  inflight:
-    'bg-[var(--color-status-info-subtle)] text-[var(--color-status-info)]',
-  pending: 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]',
+  bounced: 'bg-warning/10 text-warning',
+  delivered: 'bg-success/10 text-success',
+  failed: 'bg-danger/10 text-danger',
+  inflight: 'bg-info/10 text-info',
+  pending: 'bg-accent/10 text-accent',
 }
 
 const filterBaseStyle =
   'rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
-const filterActiveStyle =
-  'ring-2 ring-offset-1 ring-[var(--color-border-default)] ring-offset-[var(--color-bg-base)]'
-const filterAllStyle =
-  'bg-[var(--color-border-default)] text-[var(--color-text-secondary)]'
+const filterActiveStyle = 'ring-2 ring-offset-1 ring-border ring-offset-bg'
+const filterAllStyle = 'bg-border text-fg-secondary'
 
 export function AdminQueues() {
   const [queue, setQueue] = useAtom(queueAtom)
@@ -108,7 +102,7 @@ export function AdminQueues() {
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Outbound Queue</h2>
         <button
-          className="rounded-md bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--color-hover)]"
+          className="bg-surface hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
           onClick={loadQueue}
         >
           Refresh
@@ -135,9 +129,9 @@ export function AdminQueues() {
       </div>
 
       {/* table */}
-      <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
+      <div className="border-border overflow-hidden rounded-lg border">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
+          <thead className="border-border bg-bg-secondary border-b">
             <tr>
               <th className="px-4 py-2.5 font-medium">From</th>
               <th className="px-4 py-2.5 font-medium">To</th>
@@ -151,14 +145,12 @@ export function AdminQueues() {
           <tbody>
             {pageItems.map((item) => (
               <tr
-                className="border-b border-[var(--color-border-default)] last:border-0"
+                className="border-border border-b last:border-0"
                 key={item.id}
               >
                 <td className="px-4 py-3 font-medium">{item.sender}</td>
                 <td className="px-4 py-3">{item.recipient}</td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                  {item.domain}
-                </td>
+                <td className="text-fg-secondary px-4 py-3">{item.domain}</td>
                 <td className="px-4 py-3">
                   <span
                     className={`rounded px-1.5 py-0.5 text-xs ${statusStyles[item.status] ?? ''}`}
@@ -167,13 +159,13 @@ export function AdminQueues() {
                   </span>
                 </td>
                 <td className="px-4 py-3 tabular-nums">{item.attempts}</td>
-                <td className="max-w-48 truncate px-4 py-3 text-xs text-[var(--color-text-tertiary)]">
+                <td className="text-fg-muted max-w-48 truncate px-4 py-3 text-xs">
                   {item.last_error ?? '—'}
                 </td>
                 <td className="px-4 py-3 text-right">
                   {item.status === 'failed' && (
                     <button
-                      className="text-xs text-[var(--color-brand-primary)] transition-colors hover:opacity-70"
+                      className="text-accent text-xs transition-colors hover:opacity-70"
                       onClick={() => handleRetry(item.id)}
                     >
                       Retry
@@ -184,10 +176,7 @@ export function AdminQueues() {
             ))}
             {pageItems.length === 0 && (
               <tr>
-                <td
-                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
-                  colSpan={7}
-                >
+                <td className="text-fg-muted px-4 py-8 text-center" colSpan={7}>
                   {statusFilter
                     ? `No ${statusFilter} entries`
                     : 'Queue is empty'}
@@ -201,19 +190,19 @@ export function AdminQueues() {
       {/* pagination */}
       {filtered.length > PAGE_SIZE && (
         <div className="mt-4 flex items-center justify-between text-sm">
-          <span className="text-[var(--color-text-secondary)]">
+          <span className="text-fg-secondary">
             {filtered.length} entries &middot; Page {safePage} / {totalPages}
           </span>
           <div className="flex gap-2">
             <button
-              className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 transition-colors hover:bg-[var(--color-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
               disabled={safePage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             >
               Previous
             </button>
             <button
-              className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 transition-colors hover:bg-[var(--color-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
               disabled={safePage >= totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             >

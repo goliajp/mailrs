@@ -32,16 +32,16 @@ export function AdminAuditLog() {
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Audit Log</h2>
         <button
-          className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+          className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
           onClick={loadEntries}
         >
           Refresh
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
+      <div className="border-border overflow-hidden rounded-lg border">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
+          <thead className="border-border bg-bg-secondary border-b">
             <tr>
               <th className="px-4 py-2.5 font-medium">Time</th>
               <th className="px-4 py-2.5 font-medium">Actor</th>
@@ -53,10 +53,10 @@ export function AdminAuditLog() {
           <tbody>
             {entries.map((entry) => (
               <tr
-                className="border-b border-[var(--color-border-default)] last:border-0"
+                className="border-border border-b last:border-0"
                 key={entry.id}
               >
-                <td className="px-4 py-3 whitespace-nowrap text-[var(--color-text-secondary)]">
+                <td className="text-fg-secondary px-4 py-3 whitespace-nowrap">
                   {formatTime(entry.timestamp)}
                 </td>
                 <td className="px-4 py-3 font-medium">{entry.actor}</td>
@@ -65,20 +65,15 @@ export function AdminAuditLog() {
                 >
                   {entry.action}
                 </td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                  {entry.target}
-                </td>
-                <td className="max-w-xs truncate px-4 py-3 text-[var(--color-text-tertiary)]">
+                <td className="text-fg-secondary px-4 py-3">{entry.target}</td>
+                <td className="text-fg-muted max-w-xs truncate px-4 py-3">
                   {entry.detail}
                 </td>
               </tr>
             ))}
             {entries.length === 0 && (
               <tr>
-                <td
-                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
-                  colSpan={5}
-                >
+                <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
                   No audit log entries
                 </td>
               </tr>
@@ -91,9 +86,9 @@ export function AdminAuditLog() {
 }
 
 function actionColor(action: string): string {
-  if (action === 'login_failed') return 'text-[var(--color-status-danger)]'
-  if (action === 'login') return 'text-[var(--color-status-success)]'
-  return 'text-[var(--color-text-primary)]'
+  if (action === 'login_failed') return 'text-danger'
+  if (action === 'login') return 'text-success'
+  return 'text-fg'
 }
 
 function formatTime(epoch: number): string {

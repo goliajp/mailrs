@@ -1,9 +1,9 @@
 import type { ConversationSummary } from '@/lib/types'
 
+import { toast } from '@goliapkg/gds'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Loader2, Send, Sparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { toast } from 'sonner'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import {
@@ -235,13 +235,11 @@ export function NewConversation() {
   return (
     <div className="flex flex-1 flex-col">
       {/* header — subtle, not shouty */}
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border-default)] px-4 py-2">
-        <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
-          New message
-        </span>
+      <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
+        <span className="text-fg-muted text-xs font-medium">New message</span>
         <button
           aria-label="Close"
-          className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+          className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
           onClick={() => setComposingNew(false)}
         >
           <X className="h-4 w-4" />
@@ -249,17 +247,15 @@ export function NewConversation() {
       </div>
 
       {error && (
-        <div className="mx-4 mt-2 rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-1.5 text-xs text-[var(--color-status-danger)]">
+        <div className="bg-danger/10 text-danger mx-4 mt-2 rounded-md px-3 py-1.5 text-xs">
           {error}
         </div>
       )}
 
       {/* address fields — consistent label width for alignment */}
-      <div className="flex shrink-0 flex-col border-b border-[var(--color-border-default)]">
-        <div className="flex h-9 items-center border-b border-[var(--color-border-default)] px-4">
-          <label className="w-14 shrink-0 text-xs text-[var(--color-text-tertiary)]">
-            To
-          </label>
+      <div className="border-border flex shrink-0 flex-col border-b">
+        <div className="border-border flex h-9 items-center border-b px-4">
+          <label className="text-fg-muted w-14 shrink-0 text-xs">To</label>
           <ContactAutocomplete
             autoFocus
             onChange={setTo}
@@ -268,7 +264,7 @@ export function NewConversation() {
           />
           {!showCcBcc && (
             <button
-              className="shrink-0 text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
+              className="text-fg-muted hover:text-fg-secondary shrink-0 text-xs transition-colors"
               onClick={() => setShowCcBcc(true)}
             >
               Cc/Bcc
@@ -277,20 +273,16 @@ export function NewConversation() {
         </div>
         {showCcBcc && (
           <>
-            <div className="flex h-9 items-center border-b border-[var(--color-border-default)] px-4">
-              <label className="w-14 shrink-0 text-xs text-[var(--color-text-tertiary)]">
-                Cc
-              </label>
+            <div className="border-border flex h-9 items-center border-b px-4">
+              <label className="text-fg-muted w-14 shrink-0 text-xs">Cc</label>
               <ContactAutocomplete
                 onChange={setCc}
                 placeholder="cc@example.com"
                 value={cc}
               />
             </div>
-            <div className="flex h-9 items-center border-b border-[var(--color-border-default)] px-4">
-              <label className="w-14 shrink-0 text-xs text-[var(--color-text-tertiary)]">
-                Bcc
-              </label>
+            <div className="border-border flex h-9 items-center border-b px-4">
+              <label className="text-fg-muted w-14 shrink-0 text-xs">Bcc</label>
               <ContactAutocomplete
                 onChange={setBcc}
                 placeholder="bcc@example.com"
@@ -299,22 +291,22 @@ export function NewConversation() {
             </div>
           </>
         )}
-        <div className="flex h-9 items-center border-b border-[var(--color-border-default)] px-4">
+        <div className="border-border flex h-9 items-center border-b px-4">
           <label
-            className="w-14 shrink-0 text-xs text-[var(--color-text-tertiary)]"
+            className="text-fg-muted w-14 shrink-0 text-xs"
             htmlFor="new-conv-subject"
           >
             Subject
           </label>
           <input
-            className="flex-1 bg-transparent py-2 text-sm text-[var(--color-text-primary)] outline-none"
+            className="text-fg flex-1 bg-transparent py-2 text-sm outline-none"
             id="new-conv-subject"
             onChange={(e) => setSubject(e.target.value)}
             type="text"
             value={subject}
           />
           <button
-            className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-brand-subtle)] hover:text-[var(--color-brand-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="text-fg-muted hover:bg-accent/10 hover:text-accent shrink-0 rounded-md p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             disabled={generatingSubject || sending}
             onClick={generateSubject}
             title="AI generate subject"
@@ -343,9 +335,9 @@ export function NewConversation() {
       </div>
 
       {/* action bar */}
-      <div className="flex shrink-0 flex-wrap items-center gap-1 border-t border-[var(--color-border-default)] px-4 py-2 select-none">
+      <div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-t px-4 py-2 select-none">
         {scheduledAt && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-brand-subtle)] px-2.5 py-0.5 text-xs text-[var(--color-brand-primary)]">
+          <span className="bg-accent/10 text-accent inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs">
             {new Date(scheduledAt).toLocaleString(undefined, {
               day: 'numeric',
               hour: 'numeric',
@@ -365,7 +357,7 @@ export function NewConversation() {
           </span>
         )}
         <button
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-4 text-sm font-medium text-white transition-all hover:bg-[var(--color-brand-primary-hover)] hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="bg-accent hover:bg-accent-hover flex h-8 shrink-0 items-center gap-1.5 rounded-md px-4 text-sm font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={sending}
           onClick={send}
         >
@@ -374,7 +366,7 @@ export function NewConversation() {
         </button>
 
         <button
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${showSchedulePicker ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${showSchedulePicker ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:bg-bg-secondary'}`}
           disabled={sending}
           onClick={() => setShowSchedulePicker((v) => !v)}
           title="Schedule send"
@@ -393,7 +385,7 @@ export function NewConversation() {
         {showSchedulePicker && (
           <input
             aria-label="Schedule send time"
-            className="h-8 w-44 max-w-full shrink-0 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand-primary)]"
+            className="border-border bg-bg-secondary text-fg focus:border-accent h-8 w-44 max-w-full shrink-0 rounded-md border px-2 text-xs outline-none"
             min={(() => {
               const d = new Date()
               return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
@@ -404,10 +396,10 @@ export function NewConversation() {
           />
         )}
 
-        <div className="mx-0.5 h-4 w-px bg-[var(--color-border-default)]" />
+        <div className="bg-border mx-0.5 h-4 w-px" />
 
         <button
-          className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-subtle)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-50"
+          className="text-accent hover:bg-accent/10 disabled:text-fg-muted flex h-8 shrink-0 items-center rounded-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           disabled={polishing || sending}
           onClick={polish}
           title="AI polish"
@@ -417,7 +409,7 @@ export function NewConversation() {
 
         {templates.length > 0 && (
           <select
-            className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 text-xs text-[var(--color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="border-border bg-bg-secondary text-fg-secondary h-8 rounded-md border px-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
             defaultValue=""
             disabled={sending}
             onChange={(e) => {
@@ -438,7 +430,7 @@ export function NewConversation() {
         )}
 
         <div className="flex-1" />
-        <kbd className="mr-1 hidden text-[10px] text-[var(--color-text-tertiary)] select-none sm:inline">
+        <kbd className="text-fg-muted mr-1 hidden text-[10px] select-none sm:inline">
           {typeof navigator !== 'undefined' &&
           /Mac|iPhone|iPad/.test(navigator.userAgent)
             ? '⌘'
@@ -446,7 +438,7 @@ export function NewConversation() {
           ↵
         </kbd>
         <button
-          className="flex h-8 shrink-0 items-center rounded-md px-3 text-xs text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="text-fg-muted hover:bg-bg-secondary flex h-8 shrink-0 items-center rounded-md px-3 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           disabled={sending}
           onClick={() => setComposingNew(false)}
         >
