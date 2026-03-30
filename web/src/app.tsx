@@ -1,9 +1,15 @@
 import type React from 'react'
 
-import { AppShell, Pane, ToastProvider, useThemeEffect } from '@goliapkg/gds'
+import {
+  AppShell,
+  Pane,
+  themeAtom,
+  ToastProvider,
+  useThemeEffect,
+} from '@goliapkg/gds'
 import { useFonts } from '@goliapkg/gds/systems'
-import { useAtomValue } from 'jotai'
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { useAtomValue, useSetAtom } from 'jotai'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 
 import { AppSidebar } from '@/components/app-sidebar'
@@ -31,6 +37,7 @@ const Settings = lazy(() =>
 
 export function App() {
   useDocumentTitle()
+  useMailrsTheme()
   useThemeEffect()
   useFonts()
 
@@ -205,4 +212,24 @@ function useDocumentTitle() {
   useEffect(() => {
     document.title = unreadCount > 0 ? `(${unreadCount}) Mailrs` : 'Mailrs'
   }, [unreadCount])
+}
+
+// set mailrs-specific theme defaults on first render (only if no persisted theme)
+function useMailrsTheme() {
+  const setTheme = useSetAtom(themeAtom)
+  const initialized = useRef(false)
+
+  useEffect(() => {
+    if (initialized.current) return
+    initialized.current = true
+    // only override if user hasn't customized yet
+    if (!localStorage.getItem('gds-theme')) {
+      setTheme((prev) => ({
+        ...prev,
+        elevation: 'subtle',
+        glass: 'subtle',
+        primaryColor: '#3b7ddd',
+      }))
+    }
+  }, [setTheme])
 }
