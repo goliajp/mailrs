@@ -216,7 +216,7 @@ function useDocumentTitle() {
   }, [unreadCount])
 }
 
-// apply zinc-neutral preset on first visit (gds built-in since 2.1.0)
+// ensure zinc-neutral preset is active (one-time migration + default for new users)
 function useMailrsTheme() {
   const setPreset = useSetThemePreset()
   const initialized = useRef(false)
@@ -224,7 +224,13 @@ function useMailrsTheme() {
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
-    if (!localStorage.getItem('gds-theme')) {
+    try {
+      const stored = localStorage.getItem('gds-theme')
+      const parsed = stored ? JSON.parse(stored) : null
+      if (!parsed || parsed.presetId !== 'zinc-neutral') {
+        setPreset('zinc-neutral')
+      }
+    } catch {
       setPreset('zinc-neutral')
     }
   }, [setPreset])
