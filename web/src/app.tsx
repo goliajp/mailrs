@@ -136,17 +136,18 @@ function AuthShell({ children }: { children: React.ReactNode }) {
 }
 
 // apply zinc-neutral preset synchronously at module load time
-// runs before any React render, so useThemeEffect sees the correct state immediately
+// checks atom state (not localStorage) to ensure override fields are populated
 function initMailrsTheme() {
-  try {
-    const stored = localStorage.getItem('gds-theme')
-    const parsed = stored ? JSON.parse(stored) : null
-    if (parsed?.presetId === 'zinc-neutral') return
-  } catch {
-    // ignore parse errors
-  }
   const store = getDefaultStore()
   const current = store.get(themeAtom)
+
+  if (
+    current.presetId === 'zinc-neutral' &&
+    current.colorOverridesDark !== null
+  ) {
+    return
+  }
+
   const preset = themePresets['zinc-neutral']
   store.set(themeAtom, {
     ...current,
