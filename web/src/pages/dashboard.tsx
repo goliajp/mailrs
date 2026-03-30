@@ -1,6 +1,6 @@
 import type { CategoryCount, ConversationSummary } from '@/lib/types'
 
-import { Pane, PaneGroup, ScrollArea } from '@goliapkg/gds'
+import { ScrollArea } from '@goliapkg/gds'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
   AlertTriangle,
@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router'
 
 import { CategoryBadge } from '@/components/category-badge'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { MPane, MPaneGroup } from '@/layouts/pane'
 import { fetchJson } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { authAtom } from '@/store/auth'
@@ -197,8 +198,8 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <PaneGroup>
-        <Pane>
+      <MPaneGroup>
+        <MPane>
           <ScrollArea className="p-4 md:p-6">
             <div className="animate-pulse space-y-6">
               <div className="space-y-2">
@@ -225,14 +226,14 @@ export function Dashboard() {
               </div>
             </div>
           </ScrollArea>
-        </Pane>
-      </PaneGroup>
+        </MPane>
+      </MPaneGroup>
     )
   }
 
   return (
-    <PaneGroup>
-      <Pane>
+    <MPaneGroup>
+      <MPane>
         <ScrollArea className="p-4 md:p-6">
           {/* greeting + actions */}
           <div className="mb-6 flex items-start justify-between">
@@ -562,8 +563,8 @@ export function Dashboard() {
             <Shortcut keys="?" label="All shortcuts" />
           </div>
         </ScrollArea>
-      </Pane>
-    </PaneGroup>
+      </MPane>
+    </MPaneGroup>
   )
 }
 

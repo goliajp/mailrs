@@ -1,7 +1,6 @@
 import type { ConversationSummary, ThreadMessage } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
-import { Pane, PaneGroup } from '@goliapkg/gds'
 import DOMPurify from 'dompurify'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
@@ -28,6 +27,7 @@ import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { StructuredDataCard } from '@/components/structured-data-card'
+import { MPane, MPaneGroup } from '@/layouts/pane'
 import {
   deleteJson,
   type FeedbackAction,
@@ -374,7 +374,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // empty state
   if (!selectedId) {
     return (
-      <Pane center>
+      <MPane center>
         <div className="text-fg-muted text-center">
           <Mail className="mx-auto mb-3 h-10 w-10" strokeWidth={1.5} />
           <p className="text-sm font-medium">No conversation selected</p>
@@ -382,7 +382,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             Choose an email from the list to read it here
           </p>
         </div>
-      </Pane>
+      </MPane>
     )
   }
 
@@ -422,9 +422,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   return (
-    <PaneGroup>
+    <MPaneGroup>
       {/* content panel */}
-      <Pane className="flex-[2]">
+      <MPane className="flex-[2]">
         {/* header bar at top of content panel */}
         <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-1.5 select-none">
           {onBack && (
@@ -645,10 +645,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             )}
           </div>
         </div>
-      </Pane>
+      </MPane>
 
       {/* handle panel (conversation timeline + reply) */}
-      <Pane>
+      <MPane>
         {/* panel header — only show when multiple messages */}
         {messages.length > 1 && (
           <div className="border-border flex shrink-0 items-center border-b px-4 py-1.5 select-none">
@@ -826,7 +826,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             />
           </div>
         </div>
-      </Pane>
+      </MPane>
 
       {/* delete confirm dialog */}
       {showDeleteConfirm && (
@@ -866,7 +866,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           </div>
         </div>
       )}
-    </PaneGroup>
+    </MPaneGroup>
   )
 }
 
