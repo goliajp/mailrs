@@ -331,6 +331,54 @@ pub(super) async fn remove_account(
     }
 }
 
+#[derive(Deserialize)]
+pub(super) struct UpdateAccountRequest {
+    pub display_name: String,
+}
+
+pub(super) async fn update_account(
+    Path(target_address): Path<String>,
+    AuthUser { ref address, ref permissions, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<UpdateAccountRequest>,
+) -> impl IntoResponse {
+    if let Some(err) = require_permission(permissions, "admin.accounts") {
+        return err;
+    }
+    if req.display_name.len() > super::MAX_ADMIN_FIELD_LEN {
+        return Json(ApiResult {
+            success: false,
+            message: Some("display name too long".into()),
+        });
+    }
+    let Some(ref ds) = state.domain_store else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("domain store not configured".into()),
+        });
+    };
+    match ds.update_account_display_name(&target_address, &req.display_name).await {
+        Ok(true) => {
+            ds.log_audit(address, "account_updated", &target_address, &format!("display_name={}", req.display_name)).await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
+        Ok(false) => Json(ApiResult {
+            success: false,
+            message: Some("account not found".into()),
+        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "admin operation failed");
+            Json(ApiResult {
+                success: false,
+                message: Some("operation failed".into()),
+            })
+        }
+    }
+}
+
 pub(super) async fn list_aliases(
     AuthUser { .. }: AuthUser,
     State(state): State<Arc<WebState>>,

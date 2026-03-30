@@ -475,6 +475,24 @@ impl DomainStore {
         Ok(())
     }
 
+    pub async fn update_account_display_name(&self, address: &str, display_name: &str) -> Result<bool> {
+        let pool = self.pg()?;
+        let rows = sqlx::query(
+            "UPDATE accounts SET display_name = $2 WHERE address = $1",
+        )
+        .bind(address)
+        .bind(display_name)
+        .execute(pool)
+        .await?
+        .rows_affected();
+        if rows > 0 {
+            // invalidate caches
+            self.account_cache.remove(address);
+            self.valkey_del(&format!("acct:{address}")).await;
+        }
+        Ok(rows > 0)
+    }
+
     pub async fn get_account_with_hash(&self, address: &str) -> Result<Option<(Account, String)>> {
         // try valkey cache
         let cache_key = format!("acct:{address}");
