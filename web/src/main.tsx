@@ -1,6 +1,3 @@
-import '@goliapkg/gds/tokens.css'
-import '@goliapkg/gds/theme.css'
-import '@goliapkg/gds/fonts.css'
 import '@/index.css'
 
 import { StrictMode } from 'react'
