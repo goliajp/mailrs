@@ -1,7 +1,7 @@
 import type { DomainInfo } from '@/lib/types'
 
+import { toast } from '@goliapkg/gds'
 import { Fragment, useCallback, useEffect, useState } from 'react'
-import { toast } from 'sonner'
 
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
 
@@ -99,7 +99,7 @@ export function AdminGroups() {
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Groups</h2>
         <button
-          className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+          className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
           onClick={() => setAdding(true)}
         >
           Add Group
@@ -107,16 +107,16 @@ export function AdminGroups() {
       </div>
 
       {adding && (
-        <div className="mb-4 space-y-2 rounded-lg border border-[var(--color-border-default)] p-4">
+        <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
           <div className="flex gap-2">
             <input
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Group name"
               value={form.name}
             />
             <select
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, domain: e.target.value })}
               value={form.domain}
             >
@@ -129,20 +129,20 @@ export function AdminGroups() {
             </select>
           </div>
           <input
-            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+            className="border-border bg-bg-secondary w-full rounded-md border px-3 py-1.5 text-sm"
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             placeholder="Description"
             value={form.description}
           />
           <div className="flex gap-2">
             <button
-              className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)]"
+              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
               onClick={handleAdd}
             >
               Save
             </button>
             <button
-              className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
               onClick={() => setAdding(false)}
             >
               Cancel
@@ -151,9 +151,9 @@ export function AdminGroups() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
+      <div className="border-border overflow-hidden rounded-lg border">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
+          <thead className="border-border bg-bg-secondary border-b">
             <tr>
               <th className="px-4 py-2.5 font-medium">Name</th>
               <th className="px-4 py-2.5 font-medium">Domain</th>
@@ -165,24 +165,24 @@ export function AdminGroups() {
           <tbody>
             {groups.map((group) => (
               <Fragment key={group.id}>
-                <tr className="border-b border-[var(--color-border-default)] last:border-0">
+                <tr className="border-border border-b last:border-0">
                   <td className="px-4 py-3 font-medium">{group.name}</td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                  <td className="text-fg-secondary px-4 py-3">
                     {group.domain ?? '(Global)'}
                   </td>
                   <td className="px-4 py-3">
                     {group.is_builtin && (
-                      <span className="inline-block rounded bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs font-medium text-[var(--color-text-secondary)]">
+                      <span className="bg-surface text-fg-secondary inline-block rounded px-2 py-0.5 text-xs font-medium">
                         builtin
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                  <td className="text-fg-secondary px-4 py-3">
                     {group.description}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
-                      className="mr-3 text-xs text-[var(--color-brand-primary)] hover:opacity-80"
+                      className="text-accent mr-3 text-xs hover:opacity-80"
                       onClick={() =>
                         setExpandedId(expandedId === group.id ? null : group.id)
                       }
@@ -191,7 +191,7 @@ export function AdminGroups() {
                     </button>
                     {!group.is_builtin && (
                       <button
-                        className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
+                        className="text-danger text-xs transition-colors hover:opacity-70"
                         onClick={() => setDeleteTarget(group.id)}
                       >
                         Delete
@@ -214,10 +214,7 @@ export function AdminGroups() {
             ))}
             {groups.length === 0 && (
               <tr>
-                <td
-                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
-                  colSpan={5}
-                >
+                <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
                   No groups configured
                 </td>
               </tr>
@@ -228,19 +225,19 @@ export function AdminGroups() {
 
       {deleteTarget !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg">
-            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
+          <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
+            <p className="text-fg-secondary mb-4 text-sm">
               Delete this group? This cannot be undone.
             </p>
             <div className="flex justify-end gap-2">
               <button
-                className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+                className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
                 onClick={() => setDeleteTarget(null)}
               >
                 Cancel
               </button>
               <button
-                className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
                 onClick={() => handleDelete(deleteTarget)}
               >
                 Delete
@@ -329,23 +326,19 @@ function GroupDetail({
   }
 
   if (!data) {
-    return (
-      <div className="px-4 py-3 text-sm text-[var(--color-text-tertiary)]">
-        Loading...
-      </div>
-    )
+    return <div className="text-fg-muted px-4 py-3 text-sm">Loading...</div>
   }
 
   return (
     <div className="space-y-4 px-4 pt-1 pb-4">
       <div>
-        <h4 className="mb-2 text-xs font-medium text-[var(--color-text-secondary)]">
+        <h4 className="text-fg-secondary mb-2 text-xs font-medium">
           Permissions
         </h4>
         <div className="flex flex-wrap gap-2">
           {allPermissions.map((perm) => (
             <label
-              className="flex items-center gap-1.5 rounded px-2 py-1 text-xs hover:bg-[var(--color-hover)]"
+              className="hover:bg-bg-secondary flex items-center gap-1.5 rounded px-2 py-1 text-xs"
               key={perm}
             >
               <input
@@ -357,7 +350,7 @@ function GroupDetail({
             </label>
           ))}
           {allPermissions.length === 0 && (
-            <span className="text-xs text-[var(--color-text-tertiary)]">
+            <span className="text-fg-muted text-xs">
               No permissions available
             </span>
           )}
@@ -365,19 +358,17 @@ function GroupDetail({
       </div>
 
       <div>
-        <h4 className="mb-2 text-xs font-medium text-[var(--color-text-secondary)]">
-          Members
-        </h4>
+        <h4 className="text-fg-secondary mb-2 text-xs font-medium">Members</h4>
         <div className="mb-2 flex gap-2">
           <input
-            className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+            className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
             onChange={(e) => setNewMember(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAddMember()}
             placeholder="user@example.com"
             value={newMember}
           />
           <button
-            className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)]"
+            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
             onClick={handleAddMember}
           >
             Add
@@ -387,12 +378,12 @@ function GroupDetail({
           <div className="flex flex-wrap gap-1.5">
             {data.members.map((addr) => (
               <span
-                className="inline-flex items-center gap-1 rounded bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs font-medium text-[var(--color-text-secondary)]"
+                className="bg-surface text-fg-secondary inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
                 key={addr}
               >
                 {addr}
                 <button
-                  className="text-[var(--color-status-danger)] hover:opacity-70"
+                  className="text-danger hover:opacity-70"
                   onClick={() => handleRemoveMember(addr)}
                 >
                   x
@@ -401,9 +392,7 @@ function GroupDetail({
             ))}
           </div>
         ) : (
-          <span className="text-xs text-[var(--color-text-tertiary)]">
-            No members
-          </span>
+          <span className="text-fg-muted text-xs">No members</span>
         )}
       </div>
     </div>

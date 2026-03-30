@@ -87,8 +87,7 @@ export function ContactAutocomplete({
       <input
         autoFocus={autoFocus}
         className={
-          className ||
-          'w-full bg-transparent py-2 text-sm text-[var(--color-text-primary)] outline-none'
+          className || 'text-fg w-full bg-transparent py-2 text-sm outline-none'
         }
         onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
         onChange={(e) => handleChange(e.target.value)}
@@ -99,13 +98,13 @@ export function ContactAutocomplete({
         value={value}
       />
       {showSuggestions && (
-        <div className="absolute top-full left-0 z-50 mt-1 w-full max-w-72 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] shadow-lg">
+        <div className="border-border bg-surface absolute top-full left-0 z-50 mt-1 w-full max-w-72 rounded-lg border shadow-lg">
           {suggestions.map((s, i) => (
             <button
               className={`w-full px-3 py-2 text-left text-sm transition-colors ${
                 i === activeIndex
-                  ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
-                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-fg-secondary hover:bg-bg-secondary'
               }`}
               key={s}
               onMouseDown={() => selectSuggestion(s)}

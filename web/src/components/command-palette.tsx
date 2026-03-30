@@ -117,17 +117,14 @@ export function CommandPalette() {
       onClick={close}
     >
       <div
-        className="mx-auto mt-[20vh] max-w-lg overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] shadow-2xl"
+        className="border-border bg-surface mx-auto mt-[20vh] max-w-lg overflow-hidden rounded-xl border shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* search input */}
-        <div className="flex items-center border-b border-[var(--color-border-default)] px-4">
-          <Search
-            className="shrink-0 text-[var(--color-text-tertiary)]"
-            size={18}
-          />
+        <div className="border-border flex items-center border-b px-4">
+          <Search className="text-fg-muted shrink-0" size={18} />
           <input
-            className="w-full bg-transparent px-3 py-3 text-lg text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]"
+            className="text-fg placeholder:text-fg-muted w-full bg-transparent px-3 py-3 text-lg outline-none"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a command or search..."
@@ -135,7 +132,7 @@ export function CommandPalette() {
             type="text"
             value={query}
           />
-          <kbd className="shrink-0 rounded border border-[var(--color-border-default)] px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)]">
+          <kbd className="border-border text-fg-muted shrink-0 rounded border px-1.5 py-0.5 text-xs">
             ESC
           </kbd>
         </div>
@@ -143,13 +140,13 @@ export function CommandPalette() {
         {/* results */}
         <div className="max-h-80 overflow-y-auto py-2" ref={listRef}>
           {commands.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-[var(--color-text-tertiary)]">
+            <div className="text-fg-muted px-4 py-8 text-center text-sm">
               No results found
             </div>
           ) : (
             groups.map((group) => (
               <div key={group.category}>
-                <div className="px-4 py-1.5 text-xs font-medium tracking-wider text-[var(--color-text-tertiary)] uppercase">
+                <div className="text-fg-muted px-4 py-1.5 text-xs font-medium tracking-wider uppercase">
                   {group.category}
                 </div>
                 {group.commands.map((cmd) => {
@@ -160,20 +157,18 @@ export function CommandPalette() {
                     <button
                       className={`flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                         isSelected
-                          ? 'bg-[var(--color-bg-selected)] text-[var(--color-text-primary)]'
-                          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]'
+                          ? 'bg-accent/10 text-fg'
+                          : 'text-fg-secondary hover:bg-bg-secondary'
                       }`}
                       data-selected={isSelected}
                       key={cmd.id}
                       onClick={() => cmd.action()}
                       onMouseEnter={() => setSelectedIndex(idx)}
                     >
-                      <span className="shrink-0 text-[var(--color-text-tertiary)]">
-                        {cmd.icon}
-                      </span>
+                      <span className="text-fg-muted shrink-0">{cmd.icon}</span>
                       <span className="flex-1 text-sm">{cmd.label}</span>
                       {cmd.shortcut && (
-                        <kbd className="rounded border border-[var(--color-border-default)] px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)]">
+                        <kbd className="border-border text-fg-muted rounded border px-1.5 py-0.5 text-xs">
                           {cmd.shortcut}
                         </kbd>
                       )}

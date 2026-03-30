@@ -1,8 +1,8 @@
 import type { AliasInfo, DomainInfo } from '@/lib/types'
 
+import { toast } from '@goliapkg/gds'
 import { useAtom } from 'jotai'
 import { useCallback, useEffect, useState } from 'react'
-import { toast } from 'sonner'
 
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { aliasesAtom, domainsAtom } from '@/store/admin'
@@ -87,7 +87,7 @@ export function AdminAliases() {
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Aliases</h2>
         <button
-          className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+          className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
           onClick={() => setAdding(true)}
         >
           Add Alias
@@ -95,10 +95,10 @@ export function AdminAliases() {
       </div>
 
       {adding && (
-        <div className="mb-4 space-y-2 rounded-lg border border-[var(--color-border-default)] p-4">
+        <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
           <div className="flex gap-2">
             <input
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) =>
                 setForm({ ...form, source_address: e.target.value })
               }
@@ -106,7 +106,7 @@ export function AdminAliases() {
               value={form.source_address}
             />
             <input
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) =>
                 setForm({ ...form, target_address: e.target.value })
               }
@@ -116,7 +116,7 @@ export function AdminAliases() {
           </div>
           <div className="flex gap-2">
             <select
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, domain: e.target.value })}
               value={form.domain}
             >
@@ -128,7 +128,7 @@ export function AdminAliases() {
               ))}
             </select>
             <select
-              className="w-36 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary w-36 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, alias_type: e.target.value })}
               value={form.alias_type}
             >
@@ -138,13 +138,13 @@ export function AdminAliases() {
           </div>
           <div className="flex gap-2">
             <button
-              className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)]"
+              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
               onClick={handleAdd}
             >
               Save
             </button>
             <button
-              className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
               onClick={() => setAdding(false)}
             >
               Cancel
@@ -153,9 +153,9 @@ export function AdminAliases() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
+      <div className="border-border overflow-hidden rounded-lg border">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
+          <thead className="border-border bg-bg-secondary border-b">
             <tr>
               <th className="px-4 py-2.5 font-medium">Source</th>
               <th className="px-4 py-2.5 font-medium">Target</th>
@@ -167,24 +167,22 @@ export function AdminAliases() {
           <tbody>
             {aliases.map((alias) => (
               <tr
-                className="border-b border-[var(--color-border-default)] last:border-0"
+                className="border-border border-b last:border-0"
                 key={alias.id}
               >
                 <td className="px-4 py-3 font-medium">
                   {alias.source_address}
                 </td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                <td className="text-fg-secondary px-4 py-3">
                   {alias.target_address}
                 </td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                  {alias.domain}
-                </td>
+                <td className="text-fg-secondary px-4 py-3">{alias.domain}</td>
                 <td className="px-4 py-3">
                   <span
                     className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
                       alias.alias_type === 'forward'
-                        ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]'
-                        : 'bg-[var(--color-bg-raised)] text-[var(--color-text-secondary)]'
+                        ? 'bg-accent/10 text-accent'
+                        : 'bg-surface text-fg-secondary'
                     }`}
                   >
                     {alias.alias_type}
@@ -192,7 +190,7 @@ export function AdminAliases() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <button
-                    className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
+                    className="text-danger text-xs transition-colors hover:opacity-70"
                     onClick={() => setDeleteTarget(alias.id)}
                   >
                     Delete
@@ -202,10 +200,7 @@ export function AdminAliases() {
             ))}
             {aliases.length === 0 && (
               <tr>
-                <td
-                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
-                  colSpan={5}
-                >
+                <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
                   No aliases configured
                 </td>
               </tr>
@@ -216,19 +211,19 @@ export function AdminAliases() {
 
       {deleteTarget !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg">
-            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
+          <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
+            <p className="text-fg-secondary mb-4 text-sm">
               Delete this alias? This cannot be undone.
             </p>
             <div className="flex justify-end gap-2">
               <button
-                className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+                className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
                 onClick={() => setDeleteTarget(null)}
               >
                 Cancel
               </button>
               <button
-                className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
                 onClick={() => handleDelete(deleteTarget)}
               >
                 Delete

@@ -1,6 +1,6 @@
+import { toast } from '@goliapkg/gds'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
-import { toast } from 'sonner'
 
 import { postJson } from '@/lib/api'
 import {

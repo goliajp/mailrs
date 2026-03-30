@@ -215,7 +215,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
           {children}
           <button
             aria-label="Remove block"
-            className="absolute top-1 right-2 z-10 rounded-full bg-[var(--color-bg-overlay)] p-0.5 text-[var(--color-text-tertiary)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-[var(--color-status-danger-subtle)] hover:text-[var(--color-status-danger)]"
+            className="bg-surface text-fg-muted hover:bg-danger/10 hover:text-danger absolute top-1 right-2 z-10 rounded-full p-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
             onClick={() => removeBlock(id)}
             type="button"
           >
@@ -252,7 +252,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
               </div>
               <button
                 aria-label="Remove divider"
-                className="ml-2 shrink-0 rounded-full bg-[var(--color-bg-overlay)] p-0.5 text-[var(--color-text-tertiary)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-[var(--color-status-danger-subtle)] hover:text-[var(--color-status-danger)]"
+                className="bg-surface text-fg-muted hover:bg-danger/10 hover:text-danger ml-2 shrink-0 rounded-full p-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
                 onClick={() => removeBlock(block.id)}
                 type="button"
               >
@@ -318,8 +318,8 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
         onDrop={handleDrop}
       >
         {dragging && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-[var(--color-brand-primary)] bg-[var(--color-brand-subtle)]">
-            <p className="text-sm font-medium text-[var(--color-brand-primary)]">
+          <div className="border-accent bg-accent/10 absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed">
+            <p className="text-accent text-sm font-medium">
               Drop files to attach
             </p>
           </div>
@@ -334,7 +334,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
         </div>
 
         {/* add block bar */}
-        <div className="flex shrink-0 items-center border-t border-[var(--color-border-default)] px-4 py-1.5">
+        <div className="border-border flex shrink-0 items-center border-t px-4 py-1.5">
           <AddBlockMenu
             onAdd={(type) => addBlock(type)}
             onAddFile={handleFileSelect}

@@ -1,13 +1,13 @@
+import { toast } from '@goliapkg/gds'
 import { useCallback, useEffect, useState } from 'react'
-import { toast } from 'sonner'
 
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
 
-interface ApiResult {
+type ApiResult = {
   success: boolean
 }
 
-interface AppInfo {
+type AppInfo = {
   active: boolean
   app_id: string
   created_at: string
@@ -18,14 +18,14 @@ interface AppInfo {
   scopes: string
 }
 
-interface CreateAppResponse {
+type CreateAppResponse = {
   api_key: CreatedKey
   app_id: string
   name: string
   scopes: string
 }
 
-interface CreatedKey {
+type CreatedKey = {
   id: string
   key: string
   prefix: string
@@ -150,7 +150,7 @@ export function AdminApps() {
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Apps</h2>
         <button
-          className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+          className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
           onClick={() => setAdding(true)}
         >
           Add App
@@ -158,24 +158,24 @@ export function AdminApps() {
       </div>
 
       {createdKey && (
-        <div className="mb-4 rounded-lg border border-[var(--color-status-warning)] bg-[var(--color-status-warning-subtle)] p-4">
+        <div className="border-warning bg-warning/10 mb-4 rounded-lg border p-4">
           <p className="mb-2 text-sm font-semibold">API Key Created</p>
-          <p className="mb-2 text-xs text-[var(--color-text-secondary)]">
+          <p className="text-fg-secondary mb-2 text-xs">
             Copy this key now. It will not be shown again.
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 rounded bg-[var(--color-bg-sunken)] px-3 py-1.5 font-mono text-sm">
+            <code className="bg-bg-secondary flex-1 rounded px-3 py-1.5 font-mono text-sm">
               {createdKey.key}
             </code>
             <button
-              className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
               onClick={() => copyToClipboard(createdKey.key)}
             >
               Copy
             </button>
           </div>
           <button
-            className="mt-2 text-xs text-[var(--color-text-secondary)] transition-colors hover:opacity-70"
+            className="text-fg-secondary mt-2 text-xs transition-colors hover:opacity-70"
             onClick={() => setCreatedKey(null)}
           >
             Dismiss
@@ -184,16 +184,16 @@ export function AdminApps() {
       )}
 
       {adding && (
-        <div className="mb-4 space-y-2 rounded-lg border border-[var(--color-border-default)] p-4">
+        <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
           <div className="flex gap-2">
             <input
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="App name"
               value={form.name}
             />
             <input
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) =>
                 setForm({ ...form, description: e.target.value })
               }
@@ -219,13 +219,13 @@ export function AdminApps() {
           )}
           <div className="flex gap-2">
             <button
-              className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)]"
+              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
               onClick={handleAdd}
             >
               Save
             </button>
             <button
-              className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
               onClick={() => setAdding(false)}
             >
               Cancel
@@ -234,9 +234,9 @@ export function AdminApps() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
+      <div className="border-border overflow-hidden rounded-lg border">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
+          <thead className="border-border bg-bg-secondary border-b">
             <tr>
               <th className="px-4 py-2.5 font-medium">Name</th>
               <th className="px-4 py-2.5 font-medium">Scopes</th>
@@ -249,7 +249,7 @@ export function AdminApps() {
             {apps.map((app) => (
               <>
                 <tr
-                  className="border-b border-[var(--color-border-default)] last:border-0"
+                  className="border-border border-b last:border-0"
                   key={app.app_id}
                 >
                   <td className="px-4 py-3 font-medium">{app.name}</td>
@@ -263,8 +263,8 @@ export function AdminApps() {
                               <span
                                 className={
                                   scope === 'internal.rpc'
-                                    ? 'inline-block rounded bg-[var(--color-status-success-subtle)] px-2 py-0.5 text-xs font-medium text-[var(--color-status-success)]'
-                                    : 'inline-block rounded bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs font-medium text-[var(--color-text-secondary)]'
+                                    ? 'bg-success/10 text-success inline-block rounded px-2 py-0.5 text-xs font-medium'
+                                    : 'bg-surface text-fg-secondary inline-block rounded px-2 py-0.5 text-xs font-medium'
                                 }
                                 key={scope}
                               >
@@ -274,12 +274,12 @@ export function AdminApps() {
                         : null}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                  <td className="text-fg-secondary px-4 py-3">
                     {app.owner_address}
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className="max-w-[120px] truncate font-mono text-xs text-[var(--color-text-tertiary)]"
+                      className="text-fg-muted max-w-[120px] truncate font-mono text-xs"
                       title={app.app_id}
                     >
                       {app.app_id}
@@ -288,13 +288,13 @@ export function AdminApps() {
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
                       <button
-                        className="text-xs text-[var(--color-brand-primary)] transition-colors hover:opacity-70"
+                        className="text-accent text-xs transition-colors hover:opacity-70"
                         onClick={() => handleExpand(app)}
                       >
                         {expandedAppId === app.app_id ? 'Collapse' : 'Scopes'}
                       </button>
                       <button
-                        className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
+                        className="text-danger text-xs transition-colors hover:opacity-70"
                         onClick={() => setDeleteTarget(app.app_id)}
                       >
                         Delete
@@ -304,12 +304,12 @@ export function AdminApps() {
                 </tr>
                 {expandedAppId === app.app_id && (
                   <tr
-                    className="border-b border-[var(--color-border-default)] last:border-0"
+                    className="border-border border-b last:border-0"
                     key={`${app.app_id}-edit`}
                   >
                     <td className="px-4 py-3" colSpan={5}>
-                      <div className="space-y-2 rounded-lg border border-[var(--color-border-default)] p-3">
-                        <p className="text-xs font-medium text-[var(--color-text-secondary)]">
+                      <div className="border-border space-y-2 rounded-lg border p-3">
+                        <p className="text-fg-secondary text-xs font-medium">
                           Edit Scopes
                         </p>
                         <div className="flex flex-wrap gap-2">
@@ -331,14 +331,14 @@ export function AdminApps() {
                         </div>
                         <div className="flex gap-2">
                           <button
-                            className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)] disabled:opacity-50"
+                            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
                             disabled={savingScopes}
                             onClick={() => handleSaveScopes(app.app_id)}
                           >
                             {savingScopes ? 'Saving...' : 'Save'}
                           </button>
                           <button
-                            className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+                            className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
                             onClick={() => setExpandedAppId(null)}
                           >
                             Cancel
@@ -352,10 +352,7 @@ export function AdminApps() {
             ))}
             {apps.length === 0 && (
               <tr>
-                <td
-                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
-                  colSpan={5}
-                >
+                <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
                   No apps configured
                 </td>
               </tr>
@@ -370,23 +367,23 @@ export function AdminApps() {
           onClick={() => setDeleteTarget(null)}
         >
           <div
-            className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg"
+            className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
-            <p className="mb-4 text-sm text-[var(--color-text-tertiary)]">
+            <p className="text-fg-muted mb-4 text-sm">
               Are you sure you want to delete this app? This action cannot be
               undone.
             </p>
             <div className="flex justify-end gap-2">
               <button
-                className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+                className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
                 onClick={() => setDeleteTarget(null)}
               >
                 Cancel
               </button>
               <button
-                className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
                 onClick={() => handleDelete(deleteTarget)}
               >
                 Delete

@@ -61,7 +61,7 @@ export function RenderPreview({ html }: { html: string }) {
   if (previews.length === 0 && !loading && !error) {
     return (
       <button
-        className="rounded-md bg-[var(--color-bg-raised)] px-3 py-1.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+        className="bg-surface text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-xs transition-colors"
         onClick={render}
       >
         Preview in clients
@@ -74,14 +74,12 @@ export function RenderPreview({ html }: { html: string }) {
   return (
     <div className="flex flex-col gap-2">
       {loading && (
-        <div className="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
-          <div className="h-3 w-3 animate-spin rounded-full border border-[var(--color-border-default)] border-t-[var(--color-brand-primary)]" />
+        <div className="text-fg-muted flex items-center gap-2 text-xs">
+          <div className="border-border border-t-accent h-3 w-3 animate-spin rounded-full border" />
           Rendering previews...
         </div>
       )}
-      {error && (
-        <p className="text-xs text-[var(--color-status-danger)]">{error}</p>
-      )}
+      {error && <p className="text-danger text-xs">{error}</p>}
       {previews.length > 0 && (
         <>
           <div className="flex gap-1">
@@ -89,8 +87,8 @@ export function RenderPreview({ html }: { html: string }) {
               <button
                 className={`rounded-md px-2 py-1 text-xs transition-colors ${
                   activeTab === p.name
-                    ? 'bg-[var(--color-brand-primary)] text-white'
-                    : 'bg-[var(--color-bg-raised)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                    ? 'bg-accent text-white'
+                    : 'bg-surface text-fg-secondary hover:bg-bg-secondary'
                 }`}
                 key={p.name}
                 onClick={() => setActiveTab(p.name)}
@@ -100,7 +98,7 @@ export function RenderPreview({ html }: { html: string }) {
             ))}
           </div>
           {active && (
-            <div className="overflow-auto rounded-md border border-[var(--color-border-default)] bg-white">
+            <div className="border-border overflow-auto rounded-md border bg-white">
               <img
                 alt={`${active.name} preview`}
                 className="block"

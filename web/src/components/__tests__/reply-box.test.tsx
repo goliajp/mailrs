@@ -112,7 +112,7 @@ describe('ReplyBox', () => {
     )
 
     const replyButton = screen.getByText('Reply')
-    expect(replyButton.className).toContain('bg-[var(--color-brand-subtle)]')
+    expect(replyButton.className).toContain('bg-accent/10')
   })
 
   it('calls onModeChange when switching to reply-all', () => {
@@ -212,7 +212,7 @@ describe('ReplyBox', () => {
     )
 
     const forwardButton = screen.getByText('Forward')
-    expect(forwardButton.className).toContain('bg-[var(--color-brand-subtle)]')
+    expect(forwardButton.className).toContain('bg-accent/10')
   })
 
   it('does not highlight inactive mode buttons', () => {

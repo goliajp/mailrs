@@ -54,29 +54,26 @@ export function ResetPassword() {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-sunken)]">
-        <div className="w-full max-w-sm space-y-4 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg">
+      <div className="bg-bg-secondary flex min-h-screen items-center justify-center">
+        <div className="border-border bg-surface w-full max-w-sm space-y-4 rounded-lg border p-8 shadow-lg">
           <div className="flex flex-col items-center">
             <img
               alt="mailrs"
               className="mb-3 h-14 w-14 rounded-lg shadow-sm"
               src="/icon.svg"
             />
-            <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+            <h1 className="text-fg text-xl font-semibold tracking-tight">
               mailrs
             </h1>
           </div>
           <div
-            className="rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-2 text-sm text-[var(--color-status-danger)]"
+            className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm"
             role="alert"
           >
             Invalid or missing reset token
           </div>
           <div className="text-center">
-            <a
-              className="text-sm text-[var(--color-brand-primary)] hover:underline"
-              href="/login"
-            >
+            <a className="text-accent text-sm hover:underline" href="/login">
               Back to sign in
             </a>
           </div>
@@ -87,27 +84,24 @@ export function ResetPassword() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-sunken)]">
-        <div className="w-full max-w-sm space-y-4 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg">
+      <div className="bg-bg-secondary flex min-h-screen items-center justify-center">
+        <div className="border-border bg-surface w-full max-w-sm space-y-4 rounded-lg border p-8 shadow-lg">
           <div className="flex flex-col items-center">
             <img
               alt="mailrs"
               className="mb-3 h-14 w-14 rounded-lg shadow-sm"
               src="/icon.svg"
             />
-            <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+            <h1 className="text-fg text-xl font-semibold tracking-tight">
               mailrs
             </h1>
           </div>
-          <div className="rounded-md bg-[var(--color-status-success-subtle)] px-3 py-2 text-sm text-[var(--color-status-success)]">
+          <div className="bg-success/10 text-success rounded-md px-3 py-2 text-sm">
             Password reset successfully. You can now sign in with your new
             password.
           </div>
           <div className="text-center">
-            <a
-              className="text-sm text-[var(--color-brand-primary)] hover:underline"
-              href="/login"
-            >
+            <a className="text-accent text-sm hover:underline" href="/login">
               Sign in
             </a>
           </div>
@@ -117,9 +111,9 @@ export function ResetPassword() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-sunken)]">
+    <div className="bg-bg-secondary flex min-h-screen items-center justify-center">
       <form
-        className="w-full max-w-sm space-y-5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-8 shadow-lg select-none"
+        className="border-border bg-surface w-full max-w-sm space-y-5 rounded-lg border p-8 shadow-lg select-none"
         onSubmit={handleSubmit}
       >
         <div className="flex flex-col items-center">
@@ -128,17 +122,15 @@ export function ResetPassword() {
             className="mb-3 h-14 w-14 rounded-lg shadow-sm"
             src="/icon.svg"
           />
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+          <h1 className="text-fg text-xl font-semibold tracking-tight">
             mailrs
           </h1>
-          <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
-            Set your new password
-          </p>
+          <p className="text-fg-muted mt-1 text-sm">Set your new password</p>
         </div>
 
         {error && (
           <div
-            className="rounded-md bg-[var(--color-status-danger-subtle)] px-3 py-2 text-sm text-[var(--color-status-danger)]"
+            className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm"
             role="alert"
           >
             {error}
@@ -147,7 +139,7 @@ export function ResetPassword() {
 
         <div className="space-y-1.5">
           <label
-            className="block text-sm font-medium text-[var(--color-text-secondary)]"
+            className="text-fg-secondary block text-sm font-medium"
             htmlFor="reset-password"
           >
             New Password
@@ -155,7 +147,7 @@ export function ResetPassword() {
           <input
             aria-label="New password"
             autoFocus
-            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+            className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
             id="reset-password"
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -166,14 +158,14 @@ export function ResetPassword() {
 
         <div className="space-y-1.5">
           <label
-            className="block text-sm font-medium text-[var(--color-text-secondary)]"
+            className="text-fg-secondary block text-sm font-medium"
             htmlFor="reset-confirm"
           >
             Confirm Password
           </label>
           <input
             aria-label="Confirm password"
-            className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+            className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
             id="reset-confirm"
             onChange={(e) => setConfirm(e.target.value)}
             required
@@ -183,7 +175,7 @@ export function ResetPassword() {
         </div>
 
         <button
-          className="flex w-full items-center justify-center rounded-md bg-[var(--color-brand-primary)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:opacity-50"
+          className="bg-accent hover:bg-accent-hover flex w-full items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50"
           disabled={loading}
           type="submit"
         >
@@ -192,10 +184,7 @@ export function ResetPassword() {
         </button>
 
         <div className="text-center">
-          <a
-            className="text-sm text-[var(--color-brand-primary)] hover:underline"
-            href="/login"
-          >
+          <a className="text-accent text-sm hover:underline" href="/login">
             Back to sign in
           </a>
         </div>

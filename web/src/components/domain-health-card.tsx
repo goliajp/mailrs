@@ -8,32 +8,32 @@ const statusConfig: Record<
   { bg: string; border: string; dot: string; label: string; text: string }
 > = {
   fail: {
-    bg: 'bg-[var(--color-status-danger-subtle)]',
-    border: 'border-[var(--color-status-danger-subtle)]',
-    dot: 'bg-[var(--color-status-danger)]',
+    bg: 'bg-danger/10',
+    border: 'border-danger/10',
+    dot: 'bg-danger',
     label: 'Fail',
-    text: 'text-[var(--color-status-danger)]',
+    text: 'text-danger',
   },
   pass: {
-    bg: 'bg-[var(--color-status-success-subtle)]',
-    border: 'border-[var(--color-status-success-subtle)]',
-    dot: 'bg-[var(--color-status-success)]',
+    bg: 'bg-success/10',
+    border: 'border-success/10',
+    dot: 'bg-success',
     label: 'Pass',
-    text: 'text-[var(--color-status-success)]',
+    text: 'text-success',
   },
   skip: {
-    bg: 'bg-[var(--color-bg-sunken)]',
-    border: 'border-[var(--color-border-default)]',
-    dot: 'bg-[var(--color-text-tertiary)]',
+    bg: 'bg-bg-secondary',
+    border: 'border-border',
+    dot: 'bg-fg-muted',
     label: 'Skip',
-    text: 'text-[var(--color-text-tertiary)]',
+    text: 'text-fg-muted',
   },
   warn: {
-    bg: 'bg-[var(--color-status-warning-subtle)]',
-    border: 'border-[var(--color-status-warning-subtle)]',
-    dot: 'bg-[var(--color-status-warning)]',
+    bg: 'bg-warning/10',
+    border: 'border-warning/10',
+    dot: 'bg-warning',
     label: 'Warn',
-    text: 'text-[var(--color-status-warning)]',
+    text: 'text-warning',
   },
 }
 
@@ -55,19 +55,15 @@ export function DomainHealthCard({
   })
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] shadow-sm">
+    <div className="border-border bg-surface overflow-hidden rounded-lg border shadow-sm">
       {/* header */}
-      <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-4 py-3">
+      <div className="border-border flex items-center justify-between border-b px-4 py-3">
         <div>
-          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
-            Health Check
-          </h3>
-          <p className="text-xs text-[var(--color-text-secondary)]">
-            Last checked at {timeStr}
-          </p>
+          <h3 className="text-fg text-sm font-semibold">Health Check</h3>
+          <p className="text-fg-secondary text-xs">Last checked at {timeStr}</p>
         </div>
         <button
-          className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-bg-raised)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)] disabled:opacity-50"
+          className="bg-surface text-fg-secondary hover:bg-bg-secondary inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
           disabled={checking}
           onClick={onRecheck}
         >
@@ -83,7 +79,7 @@ export function DomainHealthCard({
       </div>
 
       {/* summary bar */}
-      <div className="border-b border-[var(--color-border-default)] px-4 py-3">
+      <div className="border-border border-b px-4 py-3">
         <SummaryBar checks={report.checks} />
       </div>
 
@@ -112,7 +108,7 @@ function CheckResultCard({ check }: { check: CheckResult }) {
       >
         <StatusBadge status={check.status} />
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium text-[var(--color-text-primary)]">
+          <span className="text-fg block text-sm font-medium">
             {check.name}
           </span>
           <span className={`block text-xs ${config.text}`}>
@@ -121,7 +117,7 @@ function CheckResultCard({ check }: { check: CheckResult }) {
         </span>
         {hasDetails && (
           <svg
-            className={`h-4 w-4 shrink-0 text-[var(--color-text-tertiary)] transition-transform ${expanded ? 'rotate-180' : ''}`}
+            className={`text-fg-muted h-4 w-4 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             strokeWidth={2}
@@ -140,7 +136,7 @@ function CheckResultCard({ check }: { check: CheckResult }) {
           <div className="space-y-1">
             {check.details.map((detail, i) => (
               <pre
-                className="rounded-md bg-[var(--color-bg-sunken)] px-2 py-1 font-mono text-xs break-all whitespace-pre-wrap text-[var(--color-text-secondary)]"
+                className="bg-bg-secondary text-fg-secondary rounded-md px-2 py-1 font-mono text-xs break-all whitespace-pre-wrap"
                 key={i}
               >
                 {detail}
@@ -189,16 +185,16 @@ function SummaryBar({ checks }: { checks: CheckResult[] }) {
 
   return (
     <div className="flex items-center gap-4">
-      <div className="flex h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-raised)]">
+      <div className="bg-surface flex h-2 flex-1 overflow-hidden rounded-full">
         {(['pass', 'warn', 'fail', 'skip'] as const).map((status) => {
           const count = counts[status] ?? 0
           if (count === 0) return null
           const pct = Math.round((count / total) * 100)
           const colors: Record<CheckStatus, string> = {
-            fail: 'bg-[var(--color-status-danger)]',
-            pass: 'bg-[var(--color-status-success)]',
-            skip: 'bg-[var(--color-border-default)]',
-            warn: 'bg-[var(--color-status-warning)]',
+            fail: 'bg-danger',
+            pass: 'bg-success',
+            skip: 'bg-border',
+            warn: 'bg-warning',
           }
           return (
             <div
@@ -208,26 +204,18 @@ function SummaryBar({ checks }: { checks: CheckResult[] }) {
           )
         })}
       </div>
-      <div className="flex shrink-0 gap-3 text-xs text-[var(--color-text-secondary)]">
+      <div className="text-fg-secondary flex shrink-0 gap-3 text-xs">
         {counts.pass ? (
-          <span className="text-[var(--color-status-success)]">
-            {counts.pass} pass
-          </span>
+          <span className="text-success">{counts.pass} pass</span>
         ) : null}
         {counts.warn ? (
-          <span className="text-[var(--color-status-warning)]">
-            {counts.warn} warn
-          </span>
+          <span className="text-warning">{counts.warn} warn</span>
         ) : null}
         {counts.fail ? (
-          <span className="text-[var(--color-status-danger)]">
-            {counts.fail} fail
-          </span>
+          <span className="text-danger">{counts.fail} fail</span>
         ) : null}
         {counts.skip ? (
-          <span className="text-[var(--color-text-secondary)]">
-            {counts.skip} skip
-          </span>
+          <span className="text-fg-secondary">{counts.skip} skip</span>
         ) : null}
       </div>
     </div>

@@ -28,7 +28,7 @@ export function AiAnalysisPanel({ message }: Props) {
     actions.length > 0
 
   return (
-    <div className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-5 py-2">
+    <div className="border-border bg-bg-secondary border-b px-5 py-2">
       {/* summary — always visible, clickable to expand */}
       <button
         className="flex w-full items-start gap-1.5 text-left"
@@ -36,32 +36,30 @@ export function AiAnalysisPanel({ message }: Props) {
       >
         {hasDetails ? (
           expanded ? (
-            <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
+            <ChevronDown className="text-fg-muted mt-0.5 h-3.5 w-3.5 shrink-0" />
           ) : (
-            <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
+            <ChevronRight className="text-fg-muted mt-0.5 h-3.5 w-3.5 shrink-0" />
           )
         ) : null}
         <div className="min-w-0 flex-1">
           {message.summary ? (
-            <p className="text-sm text-[var(--color-text-secondary)] select-text">
+            <p className="text-fg-secondary text-sm select-text">
               {message.summary}
             </p>
           ) : hasDetails ? (
-            <p className="text-xs text-[var(--color-text-tertiary)]">
-              AI analysis details
-            </p>
+            <p className="text-fg-muted text-xs">AI analysis details</p>
           ) : null}
 
           {/* deadline */}
           {hasDeadline && (
-            <p className="mt-1 text-xs font-medium text-[var(--color-status-danger)] select-text">
+            <p className="text-danger mt-1 text-xs font-medium select-text">
               Deadline: {message.action_deadline}
             </p>
           )}
 
           {/* risk reason */}
           {message.risk_score > 0 && message.risk_reason && (
-            <p className="mt-1 text-xs text-[var(--color-status-warning)] select-text">
+            <p className="text-warning mt-1 text-xs select-text">
               Risk: {message.risk_reason}
             </p>
           )}
@@ -72,13 +70,13 @@ export function AiAnalysisPanel({ message }: Props) {
         <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
           {people.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium tracking-wide text-[var(--color-text-tertiary)] uppercase">
+              <span className="text-fg-muted text-xs font-medium tracking-wide uppercase">
                 People
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
                 {people.map((p, i) => (
                   <span
-                    className="inline-flex max-w-full items-center gap-1 truncate rounded bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)] select-text"
+                    className="bg-accent/10 text-accent inline-flex max-w-full items-center gap-1 truncate rounded px-2 py-0.5 text-xs select-text"
                     key={i}
                   >
                     {p.label}
@@ -94,13 +92,13 @@ export function AiAnalysisPanel({ message }: Props) {
 
           {dates.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium tracking-wide text-[var(--color-text-tertiary)] uppercase">
+              <span className="text-fg-muted text-xs font-medium tracking-wide uppercase">
                 Dates
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
                 {dates.map((d, i) => (
                   <span
-                    className="inline-flex items-center rounded bg-[var(--color-status-success-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-success)] select-text"
+                    className="bg-success/10 text-success inline-flex items-center rounded px-2 py-0.5 text-xs select-text"
                     key={i}
                     title={d.context}
                   >
@@ -113,13 +111,13 @@ export function AiAnalysisPanel({ message }: Props) {
 
           {amounts.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium tracking-wide text-[var(--color-text-tertiary)] uppercase">
+              <span className="text-fg-muted text-xs font-medium tracking-wide uppercase">
                 Amounts
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
                 {amounts.map((a, i) => (
                   <span
-                    className="inline-flex items-center rounded bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-warning)] select-text"
+                    className="bg-warning/10 text-warning inline-flex items-center rounded px-2 py-0.5 text-xs select-text"
                     key={i}
                     title={a.context}
                   >
@@ -132,16 +130,16 @@ export function AiAnalysisPanel({ message }: Props) {
 
           {actions.length > 0 && (
             <div className="min-w-0">
-              <span className="text-xs font-medium tracking-wide text-[var(--color-text-tertiary)] uppercase">
+              <span className="text-fg-muted text-xs font-medium tracking-wide uppercase">
                 Action Items
               </span>
               <ul className="mt-0.5 space-y-0.5">
                 {actions.map((item, i) => (
                   <li
-                    className="flex items-start gap-1.5 text-xs break-words text-[var(--color-text-secondary)] select-text"
+                    className="text-fg-secondary flex items-start gap-1.5 text-xs break-words select-text"
                     key={i}
                   >
-                    <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-brand-primary)]" />
+                    <span className="bg-accent mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full" />
                     {item}
                   </li>
                 ))}

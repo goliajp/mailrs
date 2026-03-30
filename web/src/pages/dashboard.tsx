@@ -1,5 +1,6 @@
 import type { CategoryCount, ConversationSummary } from '@/lib/types'
 
+import { Pane, PaneGroup, ScrollArea } from '@goliapkg/gds'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
   AlertTriangle,
@@ -23,7 +24,6 @@ import { useNavigate } from 'react-router'
 
 import { CategoryBadge } from '@/components/category-badge'
 import { SenderAvatar } from '@/components/sender-avatar'
-import { Panel, PanelRow, Scroll } from '@/layouts/shell'
 import { fetchJson } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { authAtom } from '@/store/auth'
@@ -197,59 +197,50 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <PanelRow>
-        <Panel>
-          <Scroll className="p-4 md:p-6">
+      <PaneGroup>
+        <Pane>
+          <ScrollArea className="p-4 md:p-6">
             <div className="animate-pulse space-y-6">
               <div className="space-y-2">
-                <div className="h-6 w-48 rounded bg-[var(--color-border-default)]" />
-                <div className="h-4 w-64 rounded bg-[var(--color-border-default)]" />
+                <div className="bg-border h-6 w-48 rounded" />
+                <div className="bg-border h-4 w-64 rounded" />
               </div>
-              <div className="h-10 w-full rounded-lg bg-[var(--color-border-default)]" />
+              <div className="bg-border h-10 w-full rounded-lg" />
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div
-                    className="h-16 rounded-lg bg-[var(--color-border-default)]"
-                    key={i}
-                  />
+                  <div className="bg-border h-16 rounded-lg" key={i} />
                 ))}
               </div>
               <div className="grid gap-6 lg:grid-cols-3">
                 <div className="space-y-3 lg:col-span-2">
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div
-                      className="h-14 rounded-lg bg-[var(--color-border-default)]"
-                      key={i}
-                    />
+                    <div className="bg-border h-14 rounded-lg" key={i} />
                   ))}
                 </div>
                 <div className="space-y-3">
                   {Array.from({ length: 3 }).map((_, i) => (
-                    <div
-                      className="h-24 rounded-lg bg-[var(--color-border-default)]"
-                      key={i}
-                    />
+                    <div className="bg-border h-24 rounded-lg" key={i} />
                   ))}
                 </div>
               </div>
             </div>
-          </Scroll>
-        </Panel>
-      </PanelRow>
+          </ScrollArea>
+        </Pane>
+      </PaneGroup>
     )
   }
 
   return (
-    <PanelRow>
-      <Panel>
-        <Scroll className="p-4 md:p-6">
+    <PaneGroup>
+      <Pane>
+        <ScrollArea className="p-4 md:p-6">
           {/* greeting + actions */}
           <div className="mb-6 flex items-start justify-between">
             <div>
-              <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">
+              <h1 className="text-fg text-xl font-semibold">
                 {greeting}, {displayName}
               </h1>
-              <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
+              <p className="text-fg-muted mt-1 text-sm">
                 {new Date().toLocaleDateString('en', {
                   day: 'numeric',
                   month: 'long',
@@ -261,7 +252,7 @@ export function Dashboard() {
             <div className="flex items-center gap-2">
               <button
                 className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]',
+                  'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary flex h-8 w-8 items-center justify-center rounded-md transition-colors',
                   refreshing && 'animate-spin'
                 )}
                 onClick={() => load(true)}
@@ -270,7 +261,7 @@ export function Dashboard() {
                 <RefreshCw className="h-4 w-4" />
               </button>
               <button
-                className="flex items-center gap-1.5 rounded-md bg-[var(--color-brand-primary)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-hover)]"
+                className="bg-accent hover:bg-accent-hover flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors"
                 onClick={handleCompose}
               >
                 <Pen className="h-3.5 w-3.5" />
@@ -284,10 +275,10 @@ export function Dashboard() {
             <div className="relative">
               <Search
                 aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]"
+                className="text-fg-muted pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
               />
               <input
-                className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] py-2.5 pr-4 pl-9 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-brand-primary)] focus:outline-none"
+                className="border-border bg-surface text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent w-full rounded-lg border py-2.5 pr-4 pl-9 text-sm focus:ring-1 focus:outline-none"
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search emails..."
                 type="text"
@@ -397,13 +388,13 @@ export function Dashboard() {
                 pinned.length === 0 && (
                   <>
                     <Section icon={Mail} title="Inbox">
-                      <div className="flex flex-col items-center gap-2 py-6 text-[var(--color-text-tertiary)]">
+                      <div className="text-fg-muted flex flex-col items-center gap-2 py-6">
                         <Shield aria-hidden="true" className="h-8 w-8" />
                         <p className="text-sm">
                           All caught up — no unread emails
                         </p>
                         <button
-                          className="mt-2 flex items-center gap-1.5 rounded-md bg-[var(--color-brand-subtle)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-primary)] transition-colors hover:bg-[var(--color-brand-primary)] hover:text-white"
+                          className="bg-accent/10 text-accent hover:bg-accent mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:text-white"
                           onClick={handleCompose}
                         >
                           <Plus className="h-3.5 w-3.5" />
@@ -444,7 +435,7 @@ export function Dashboard() {
                   <div className="space-y-0.5">
                     {securityAlerts.map((c) => (
                       <button
-                        className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-[var(--color-hover)]"
+                        className="hover:bg-bg-secondary flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors"
                         key={c.thread_id}
                         onClick={() => goToThread(c.thread_id)}
                       >
@@ -452,10 +443,10 @@ export function Dashboard() {
                           <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">
+                          <p className="text-fg truncate text-sm font-medium">
                             {c.subject || '(no subject)'}
                           </p>
-                          <p className="truncate text-xs text-[var(--color-status-danger)]">
+                          <p className="text-danger truncate text-xs">
                             {c.category}
                           </p>
                         </div>
@@ -487,7 +478,7 @@ export function Dashboard() {
                   <div className="space-y-0.5">
                     {topSenders.map((s) => (
                       <div
-                        className="flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--color-hover)]"
+                        className="hover:bg-bg-secondary flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors"
                         key={s.email}
                       >
                         <SenderAvatar
@@ -495,14 +486,14 @@ export function Dashboard() {
                           size={28}
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">
+                          <p className="text-fg truncate text-sm font-medium">
                             {s.name}
                           </p>
-                          <p className="truncate text-xs text-[var(--color-text-tertiary)]">
+                          <p className="text-fg-muted truncate text-xs">
                             {s.email}
                           </p>
                         </div>
-                        <span className="shrink-0 rounded-full bg-[var(--color-bg-sunken)] px-1.5 py-0.5 text-[10px] text-[var(--color-text-tertiary)] tabular-nums">
+                        <span className="bg-bg-secondary text-fg-muted shrink-0 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums">
                           {s.count}
                         </span>
                       </div>
@@ -516,18 +507,14 @@ export function Dashboard() {
                 <Section icon={Mail} title="Mailbox">
                   <div className="space-y-2 px-2 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="text-[var(--color-text-tertiary)]">
-                        Total emails
-                      </span>
-                      <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
+                      <span className="text-fg-muted">Total emails</span>
+                      <span className="text-fg font-medium tabular-nums">
                         {totalMessages.toLocaleString()}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[var(--color-text-tertiary)]">
-                        Storage
-                      </span>
-                      <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
+                      <span className="text-fg-muted">Storage</span>
+                      <span className="text-fg font-medium tabular-nums">
                         {formatBytes(storageBytes)}
                       </span>
                     </div>
@@ -544,19 +531,17 @@ export function Dashboard() {
                       .slice(0, 8)
                       .map((f) => (
                         <div
-                          className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-[var(--color-hover)]"
+                          className="hover:bg-bg-secondary flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors"
                           key={f.name}
                         >
-                          <span className="text-[var(--color-text-secondary)]">
-                            {f.name}
-                          </span>
+                          <span className="text-fg-secondary">{f.name}</span>
                           <div className="flex items-center gap-2">
                             {f.unseen > 0 && (
-                              <span className="rounded-full bg-[var(--color-brand-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-brand-primary)]">
+                              <span className="bg-accent/10 text-accent rounded-full px-1.5 py-0.5 text-[10px] font-medium">
                                 {f.unseen}
                               </span>
                             )}
-                            <span className="text-xs text-[var(--color-text-tertiary)] tabular-nums">
+                            <span className="text-fg-muted text-xs tabular-nums">
                               {f.total}
                             </span>
                           </div>
@@ -569,16 +554,16 @@ export function Dashboard() {
           </div>
 
           {/* keyboard shortcuts hint */}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-[var(--color-text-tertiary)]">
+          <div className="text-fg-muted mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs">
             <Shortcut keys="⌘K" label="Command palette" />
             <Shortcut keys="C" label="Compose" />
             <Shortcut keys="/" label="Search" />
             <Shortcut keys="J/K" label="Navigate" />
             <Shortcut keys="?" label="All shortcuts" />
           </div>
-        </Scroll>
-      </Panel>
-    </PanelRow>
+        </ScrollArea>
+      </Pane>
+    </PaneGroup>
   )
 }
 
@@ -616,7 +601,7 @@ function formatRelative(ts: number): string {
 function Shortcut({ keys, label }: { keys: string; label: string }) {
   return (
     <span className="flex items-center gap-1.5">
-      <kbd className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-secondary)]">
+      <kbd className="border-border bg-surface text-fg-secondary rounded border px-1.5 py-0.5 font-mono text-[10px]">
         {keys}
       </kbd>
       <span>{label}</span>
@@ -641,7 +626,7 @@ function useGreeting() {
 }
 
 const COLOR_MAP = {
-  brand: 'bg-[var(--color-brand-subtle)] text-[var(--color-brand-primary)]',
+  brand: 'bg-accent/10 text-accent',
   danger: 'bg-red-500/10 text-red-500',
   info: 'bg-blue-500/10 text-blue-500',
   warning: 'bg-amber-500/10 text-amber-500',
@@ -658,7 +643,7 @@ function ConversationRow({
   const isUnread = c.unread_count > 0
   return (
     <button
-      className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-[var(--color-hover)]"
+      className="hover:bg-bg-secondary flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors"
       onClick={onClick}
     >
       <SenderAvatar sender={sender} size={32} />
@@ -666,7 +651,7 @@ function ConversationRow({
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              'truncate text-sm text-[var(--color-text-primary)]',
+              'text-fg truncate text-sm',
               isUnread ? 'font-semibold' : 'font-medium'
             )}
           >
@@ -682,32 +667,28 @@ function ConversationRow({
           {c.pinned && (
             <Pin
               aria-label="Pinned"
-              className="h-3 w-3 shrink-0 text-[var(--color-text-tertiary)]"
+              className="text-fg-muted h-3 w-3 shrink-0"
             />
           )}
         </div>
         <p
           className={cn(
             'truncate text-xs',
-            isUnread
-              ? 'font-medium text-[var(--color-text-primary)]'
-              : 'text-[var(--color-text-secondary)]'
+            isUnread ? 'text-fg font-medium' : 'text-fg-secondary'
           )}
         >
           {c.subject || '(no subject)'}
         </p>
         {c.snippet && (
-          <p className="mt-0.5 truncate text-xs text-[var(--color-text-tertiary)]">
-            {c.snippet}
-          </p>
+          <p className="text-fg-muted mt-0.5 truncate text-xs">{c.snippet}</p>
         )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className="text-xs text-[var(--color-text-tertiary)] tabular-nums">
+        <span className="text-fg-muted text-xs tabular-nums">
           {formatRelative(c.last_date)}
         </span>
         {isUnread && (
-          <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-1 text-[10px] font-medium text-white">
+          <span className="bg-accent flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-[10px] font-medium text-white">
             {c.unread_count}
           </span>
         )}
@@ -728,20 +709,15 @@ function Section({
   title: string
 }) {
   return (
-    <div className="rounded-lg border border-[var(--color-border-default)]">
-      <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-4 py-2.5">
+    <div className="border-border rounded-lg border">
+      <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <Icon
-            aria-hidden="true"
-            className="h-4 w-4 text-[var(--color-text-tertiary)]"
-          />
-          <h3 className="text-sm font-medium text-[var(--color-text-primary)]">
-            {title}
-          </h3>
+          <Icon aria-hidden="true" className="text-fg-muted h-4 w-4" />
+          <h3 className="text-fg text-sm font-medium">{title}</h3>
         </div>
         {action && (
           <button
-            className="flex items-center gap-1 text-xs text-[var(--color-brand-primary)] transition-colors hover:text-[var(--color-brand-hover)]"
+            className="text-accent hover:text-accent-hover flex items-center gap-1 text-xs transition-colors"
             onClick={action.onClick}
           >
             {action.label}
@@ -770,10 +746,8 @@ function StatCard({
   return (
     <button
       className={cn(
-        'flex items-center gap-3 rounded-lg border border-[var(--color-border-default)] px-4 py-3 text-left transition-colors',
-        onClick
-          ? 'cursor-pointer hover:bg-[var(--color-hover)]'
-          : 'cursor-default'
+        'border-border flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors',
+        onClick ? 'hover:bg-bg-secondary cursor-pointer' : 'cursor-default'
       )}
       onClick={onClick}
     >
@@ -786,10 +760,8 @@ function StatCard({
         <Icon aria-hidden="true" className="h-4.5 w-4.5" />
       </div>
       <div>
-        <p className="text-2xl font-semibold text-[var(--color-text-primary)] tabular-nums">
-          {value}
-        </p>
-        <p className="text-xs text-[var(--color-text-tertiary)]">{label}</p>
+        <p className="text-fg text-2xl font-semibold tabular-nums">{value}</p>
+        <p className="text-fg-muted text-xs">{label}</p>
       </div>
     </button>
   )
@@ -817,14 +789,12 @@ function CategoryBar({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-[var(--color-text-secondary)] capitalize">
-          {category}
-        </span>
-        <span className="text-[var(--color-text-tertiary)] tabular-nums">
+        <span className="text-fg-secondary capitalize">{category}</span>
+        <span className="text-fg-muted tabular-nums">
           {count} ({pct}%)
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-bg-sunken)]">
+      <div className="bg-bg-secondary h-1.5 overflow-hidden rounded-full">
         <div
           className={cn(
             'h-full rounded-full transition-all',

@@ -1,8 +1,8 @@
-import type { ThemeMode } from '@/lib/theme'
+import type { ThemeMode } from '@goliapkg/gds'
 
+import { toast } from '@goliapkg/gds'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useState } from 'react'
-import { toast } from 'sonner'
 
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
 import { authAtom, getToken } from '@/store/auth'
@@ -15,7 +15,7 @@ import { themeAtom } from '@/store/theme'
 
 // --- types ---
 
-interface AgentKey {
+type AgentKey = {
   created_at: string
   expires_at: null | string
   id: string
@@ -32,23 +32,23 @@ type Category =
   | 'signatures'
   | 'webhooks'
 
-interface CreatedAgentKey {
+type CreatedAgentKey = {
   id: string
   key: string
   prefix: string
 }
 
-interface CreatedWebhook {
+type CreatedWebhook = {
   id: string
   signing_secret: string
 }
 
-interface KeyStatus {
+type KeyStatus = {
   pgp_fingerprint: null | string
   smime_fingerprint: null | string
 }
 
-interface Signature {
+type Signature = {
   html_content: string
   id: number
   is_default: boolean
@@ -56,17 +56,17 @@ interface Signature {
   text_content: string
 }
 
-interface TotpSetup {
+type TotpSetup = {
   qr_url: string
   recovery_codes: string[]
   secret: string
 }
 
-interface TotpStatus {
+type TotpStatus = {
   enabled: boolean
 }
 
-interface Webhook {
+type Webhook = {
   active: boolean
   created_at: string
   event_type: string
@@ -97,14 +97,14 @@ const THEME_OPTIONS: { label: string; value: ThemeMode }[] = [
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
 
 const inputClass =
-  'w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm focus:border-[var(--color-brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]'
+  'w-full rounded-md border border-border bg-bg-secondary px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40'
 const btnPrimary =
-  'rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90 disabled:opacity-50'
+  'rounded-md bg-fg px-3 py-1.5 text-sm font-medium text-bg transition-colors hover:opacity-90 disabled:opacity-50'
 const btnDanger =
-  'rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50'
+  'rounded-md bg-danger px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50'
 const btnSecondary =
-  'rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]'
-const cardClass = 'rounded-lg border border-[var(--color-border-default)] p-4'
+  'rounded-md px-3 py-1.5 text-sm text-fg-secondary transition-colors hover:bg-bg-secondary'
+const cardClass = 'rounded-lg border border-border p-4'
 
 // --- main component ---
 
@@ -113,19 +113,19 @@ export function Settings() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="border-b border-[var(--color-border-default)] px-4 py-3 sm:px-6">
+      <header className="border-border border-b px-4 py-3 sm:px-6">
         <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
         {/* sidebar - horizontal on mobile, vertical on desktop */}
-        <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--color-border-default)] p-2 sm:w-48 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-3">
+        <nav className="border-border flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-48 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-3">
           {CATEGORIES.map((cat) => (
             <button
               className={`rounded-md px-3 py-1.5 text-left text-sm whitespace-nowrap transition-colors ${
                 active === cat.key
-                  ? 'bg-[var(--color-brand-primary)] text-[var(--color-brand-primary-text)]'
-                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                  ? 'bg-accent text-accent-fg'
+                  : 'text-fg-secondary hover:bg-bg-secondary'
               }`}
               key={cat.key}
               onClick={() => setActive(cat.key)}
@@ -230,22 +230,22 @@ function AccountSection() {
       <div className={cardClass}>
         <div className="space-y-3">
           <Field label="Email">
-            <span className="text-sm text-[var(--color-text-secondary)]">
+            <span className="text-fg-secondary text-sm">
               {auth?.address ?? '-'}
             </span>
           </Field>
           <Field label="Display Name">
-            <span className="text-sm text-[var(--color-text-secondary)]">
+            <span className="text-fg-secondary text-sm">
               {auth?.display_name || '-'}
             </span>
           </Field>
           <Field label="Permissions">
-            <span className="text-sm text-[var(--color-text-secondary)]">
+            <span className="text-fg-secondary text-sm">
               {auth?.permissions?.join(', ') || '-'}
             </span>
           </Field>
           <Field label="Domains">
-            <span className="text-sm text-[var(--color-text-secondary)]">
+            <span className="text-fg-secondary text-sm">
               {auth?.accessible_domains?.join(', ') || '-'}
             </span>
           </Field>
@@ -254,7 +254,7 @@ function AccountSection() {
 
       <div className={cardClass}>
         <h3 className="mb-3 text-sm font-medium">Recovery Email</h3>
-        <p className="mb-2 text-xs text-[var(--color-text-tertiary)]">
+        <p className="text-fg-muted mb-2 text-xs">
           Used to receive password reset links. Must be an external email
           address you can access independently.
         </p>
@@ -282,7 +282,7 @@ function AccountSection() {
         <div className="space-y-2">
           <div>
             <label
-              className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]"
+              className="text-fg-secondary mb-1 block text-xs font-medium"
               htmlFor="settings-current-pw"
             >
               Current password
@@ -298,7 +298,7 @@ function AccountSection() {
           </div>
           <div>
             <label
-              className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]"
+              className="text-fg-secondary mb-1 block text-xs font-medium"
               htmlFor="settings-new-pw"
             >
               New password
@@ -314,7 +314,7 @@ function AccountSection() {
           </div>
           <div>
             <label
-              className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]"
+              className="text-fg-secondary mb-1 block text-xs font-medium"
               htmlFor="settings-confirm-pw"
             >
               Confirm new password
@@ -340,7 +340,7 @@ function AccountSection() {
 
       <div className={cardClass}>
         <h3 className="mb-2 text-sm font-medium">Export Mailbox</h3>
-        <p className="mb-3 text-xs text-[var(--color-text-tertiary)]">
+        <p className="text-fg-muted mb-3 text-xs">
           Download all your emails as an MBOX file
         </p>
         <button
@@ -353,7 +353,7 @@ function AccountSection() {
         </button>
       </div>
 
-      <div className="border-t border-[var(--color-border-default)] pt-4">
+      <div className="border-border border-t pt-4">
         <button
           className={btnDanger}
           onClick={() => setShowLogoutConfirm(true)}
@@ -361,7 +361,7 @@ function AccountSection() {
           Sign out
         </button>
         {auth?.address && (
-          <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">
+          <p className="text-fg-muted mt-2 text-xs">
             Signed in as {auth.address}
           </p>
         )}
@@ -448,13 +448,13 @@ function ApiKeysSection() {
       </div>
 
       {createdKey && (
-        <div className="rounded-lg border border-[var(--color-status-warning)] bg-[var(--color-status-warning-subtle)] p-4">
+        <div className="border-warning bg-warning/10 rounded-lg border p-4">
           <p className="mb-2 text-sm font-semibold">API Key Created</p>
-          <p className="mb-2 text-xs text-[var(--color-text-secondary)]">
+          <p className="text-fg-secondary mb-2 text-xs">
             Copy this key now. It will not be shown again.
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 rounded bg-[var(--color-bg-sunken)] px-3 py-1.5 font-mono text-sm">
+            <code className="bg-bg-secondary flex-1 rounded px-3 py-1.5 font-mono text-sm">
               {createdKey.key}
             </code>
             <button
@@ -465,7 +465,7 @@ function ApiKeysSection() {
             </button>
           </div>
           <button
-            className="mt-2 text-xs text-[var(--color-text-secondary)] transition-colors hover:opacity-70"
+            className="text-fg-secondary mt-2 text-xs transition-colors hover:opacity-70"
             onClick={() => setCreatedKey(null)}
           >
             Dismiss
@@ -503,7 +503,7 @@ function ApiKeysSection() {
       )}
 
       {keys.length === 0 && !adding && (
-        <p className="text-sm text-[var(--color-text-tertiary)]">No API keys</p>
+        <p className="text-fg-muted text-sm">No API keys</p>
       )}
 
       {keys.map((k) => (
@@ -511,17 +511,17 @@ function ApiKeysSection() {
           <div className="flex items-center justify-between">
             <div>
               <span className="text-sm font-medium">{k.name}</span>
-              <span className="ml-2 font-mono text-xs text-[var(--color-text-tertiary)]">
+              <span className="text-fg-muted ml-2 font-mono text-xs">
                 {k.prefix}...
               </span>
               {k.expires_at && (
-                <span className="ml-2 text-xs text-[var(--color-text-tertiary)]">
+                <span className="text-fg-muted ml-2 text-xs">
                   expires {new Date(k.expires_at).toLocaleDateString()}
                 </span>
               )}
             </div>
             <button
-              className="text-xs text-[var(--color-status-danger)]"
+              className="text-danger text-xs"
               onClick={() => setDeleteTarget(k.id)}
             >
               Revoke
@@ -594,8 +594,8 @@ function AppearanceSection() {
               <button
                 className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
                   theme === opt.value
-                    ? 'bg-[var(--color-brand-primary)] text-[var(--color-brand-primary-text)]'
-                    : 'bg-[var(--color-bg-raised)] text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                    ? 'bg-accent text-accent-fg'
+                    : 'bg-surface text-fg-secondary hover:bg-bg-secondary'
                 }`}
                 key={opt.value}
                 onClick={() => setTheme(opt.value)}
@@ -610,7 +610,7 @@ function AppearanceSection() {
       <div className={cardClass}>
         <Field label="Page size">
           <select
-            className="rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] focus:border-[var(--color-brand-primary)] focus:ring-1 focus:ring-[var(--color-focus-ring)] focus:outline-none"
+            className="border-border bg-surface text-fg-secondary focus:border-accent focus:ring-accent/40 rounded-md border px-3 py-1.5 text-sm focus:ring-1 focus:outline-none"
             onChange={(e) => setPageSize(Number(e.target.value))}
             value={pageSize}
           >
@@ -632,9 +632,7 @@ function AppearanceSection() {
                 onChange={(v) => handleNotificationToggle(v)}
               />
               {notificationError && (
-                <p className="text-xs text-[var(--color-status-danger)]">
-                  {notificationError}
-                </p>
+                <p className="text-danger text-xs">{notificationError}</p>
               )}
             </div>
           </Field>
@@ -675,12 +673,10 @@ function ConfirmDialog({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg"
+        className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
-          {message}
-        </p>
+        <p className="text-fg-secondary mb-4 text-sm">{message}</p>
         <div className="flex justify-end gap-2">
           <button className={btnSecondary} onClick={onCancel}>
             Cancel
@@ -759,7 +755,7 @@ function EncryptionKeysSection() {
       <div className={cardClass + ' space-y-4'}>
         <h3 className="text-sm font-medium">PGP Key</h3>
         <Field label="Fingerprint">
-          <span className="font-mono text-xs text-[var(--color-text-secondary)]">
+          <span className="text-fg-secondary font-mono text-xs">
             {status?.pgp_fingerprint ?? 'Not configured'}
           </span>
         </Field>
@@ -793,7 +789,7 @@ function EncryptionKeysSection() {
       <div className={cardClass + ' space-y-4'}>
         <h3 className="text-sm font-medium">S/MIME Certificate</h3>
         <Field label="Fingerprint">
-          <span className="font-mono text-xs text-[var(--color-text-secondary)]">
+          <span className="text-fg-secondary font-mono text-xs">
             {status?.smime_fingerprint ?? 'Not configured'}
           </span>
         </Field>
@@ -849,9 +845,7 @@ function Field({
 }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <span className="text-sm font-medium text-[var(--color-text-secondary)]">
-        {label}
-      </span>
+      <span className="text-fg-secondary text-sm font-medium">{label}</span>
       {children}
     </div>
   )
@@ -929,7 +923,7 @@ function SecuritySection() {
 
   if (loading)
     return (
-      <div className="flex items-center gap-2 py-4 text-sm text-[var(--color-text-tertiary)]">
+      <div className="text-fg-muted flex items-center gap-2 py-4 text-sm">
         <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
         Loading...
       </div>
@@ -944,8 +938,8 @@ function SecuritySection() {
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
               status?.enabled
-                ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
-                : 'bg-[var(--color-bg-raised)] text-[var(--color-text-tertiary)]'
+                ? 'bg-success/10 text-success'
+                : 'bg-surface text-fg-muted'
             }`}
           >
             {status?.enabled ? 'Enabled' : 'Disabled'}
@@ -962,23 +956,23 @@ function SecuritySection() {
       {setup && (
         <div className={cardClass + ' space-y-4'}>
           <h3 className="text-sm font-medium">Scan QR Code</h3>
-          <div className="rounded-md bg-[var(--color-bg-raised)] p-3">
-            <p className="font-mono text-xs break-all text-[var(--color-text-secondary)]">
+          <div className="bg-surface rounded-md p-3">
+            <p className="text-fg-secondary font-mono text-xs break-all">
               {setup.qr_url}
             </p>
           </div>
 
           {setup.recovery_codes.length > 0 && (
-            <div className="rounded-lg border border-[var(--color-status-warning)] bg-[var(--color-status-warning-subtle)] p-3">
+            <div className="border-warning bg-warning/10 rounded-lg border p-3">
               <p className="mb-2 text-sm font-semibold">Recovery Codes</p>
-              <p className="mb-2 text-xs text-[var(--color-text-secondary)]">
+              <p className="text-fg-secondary mb-2 text-xs">
                 Save these codes in a safe place. Each code can only be used
                 once.
               </p>
               <div className="grid grid-cols-2 gap-1">
                 {setup.recovery_codes.map((rc) => (
                   <code
-                    className="rounded bg-[var(--color-bg-sunken)] px-2 py-1 font-mono text-xs"
+                    className="bg-bg-secondary rounded px-2 py-1 font-mono text-xs"
                     key={rc}
                   >
                     {rc}
@@ -1110,7 +1104,7 @@ function SignaturesSection() {
             value={editing.name ?? ''}
           />
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+            <label className="text-fg-secondary mb-1 block text-xs font-medium">
               Text content
             </label>
             <textarea
@@ -1123,7 +1117,7 @@ function SignaturesSection() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+            <label className="text-fg-secondary mb-1 block text-xs font-medium">
               HTML content
             </label>
             <textarea
@@ -1161,9 +1155,7 @@ function SignaturesSection() {
       )}
 
       {signatures.length === 0 && !editing && (
-        <p className="text-sm text-[var(--color-text-tertiary)]">
-          No signatures configured
-        </p>
+        <p className="text-fg-muted text-sm">No signatures configured</p>
       )}
 
       {signatures.map((sig) => (
@@ -1172,12 +1164,12 @@ function SignaturesSection() {
             <div>
               <span className="text-sm font-medium">{sig.name}</span>
               {sig.is_default && (
-                <span className="ml-2 rounded-full bg-[var(--color-status-success-subtle)] px-2 py-0.5 text-xs text-[var(--color-status-success)]">
+                <span className="bg-success/10 text-success ml-2 rounded-full px-2 py-0.5 text-xs">
                   Default
                 </span>
               )}
               {sig.text_content && (
-                <p className="mt-1 text-xs whitespace-pre-wrap text-[var(--color-text-tertiary)]">
+                <p className="text-fg-muted mt-1 text-xs whitespace-pre-wrap">
                   {sig.text_content.slice(0, 120)}
                   {sig.text_content.length > 120 ? '...' : ''}
                 </p>
@@ -1185,13 +1177,13 @@ function SignaturesSection() {
             </div>
             <div className="flex gap-2">
               <button
-                className="text-xs text-[var(--color-brand-primary)]"
+                className="text-accent text-xs"
                 onClick={() => setEditing(sig)}
               >
                 Edit
               </button>
               <button
-                className="text-xs text-[var(--color-status-danger)]"
+                className="text-danger text-xs"
                 onClick={() => setDeleteTarget(sig.id)}
               >
                 Delete
@@ -1223,9 +1215,7 @@ function Toggle({
     <button
       aria-checked={checked}
       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-        checked
-          ? 'bg-[var(--color-brand-primary)]'
-          : 'bg-[var(--color-border-strong)]'
+        checked ? 'bg-accent' : 'bg-border-strong'
       }`}
       onClick={() => onChange(!checked)}
       role="switch"
@@ -1324,13 +1314,13 @@ function WebhooksSection() {
       </div>
 
       {createdSecret && (
-        <div className="rounded-lg border border-[var(--color-status-warning)] bg-[var(--color-status-warning-subtle)] p-4">
+        <div className="border-warning bg-warning/10 rounded-lg border p-4">
           <p className="mb-2 text-sm font-semibold">Signing Secret</p>
-          <p className="mb-2 text-xs text-[var(--color-text-secondary)]">
+          <p className="text-fg-secondary mb-2 text-xs">
             Copy this secret now. It will not be shown again.
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 rounded bg-[var(--color-bg-sunken)] px-3 py-1.5 font-mono text-sm">
+            <code className="bg-bg-secondary flex-1 rounded px-3 py-1.5 font-mono text-sm">
               {createdSecret}
             </code>
             <button
@@ -1341,7 +1331,7 @@ function WebhooksSection() {
             </button>
           </div>
           <button
-            className="mt-2 text-xs text-[var(--color-text-secondary)] transition-colors hover:opacity-70"
+            className="text-fg-secondary mt-2 text-xs transition-colors hover:opacity-70"
             onClick={() => setCreatedSecret(null)}
           >
             Dismiss
@@ -1359,7 +1349,7 @@ function WebhooksSection() {
             value={form.url}
           />
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+            <label className="text-fg-secondary mb-1 block text-xs font-medium">
               Event type
             </label>
             <select
@@ -1404,9 +1394,7 @@ function WebhooksSection() {
       )}
 
       {webhooks.length === 0 && !adding && (
-        <p className="text-sm text-[var(--color-text-tertiary)]">
-          No webhooks configured
-        </p>
+        <p className="text-fg-muted text-sm">No webhooks configured</p>
       )}
 
       {webhooks.map((wh) => (
@@ -1417,24 +1405,24 @@ function WebhooksSection() {
                 {wh.url}
               </p>
               <div className="mt-1 flex flex-wrap gap-2">
-                <span className="rounded-full bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]">
+                <span className="bg-accent/10 text-accent rounded-full px-2 py-0.5 text-xs">
                   {wh.event_type}
                 </span>
                 {wh.filter_sender && (
-                  <span className="rounded-full bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs text-[var(--color-text-tertiary)]">
+                  <span className="bg-surface text-fg-muted rounded-full px-2 py-0.5 text-xs">
                     sender: {wh.filter_sender}
                   </span>
                 )}
                 {wh.filter_thread_id && (
-                  <span className="rounded-full bg-[var(--color-bg-raised)] px-2 py-0.5 text-xs text-[var(--color-text-tertiary)]">
+                  <span className="bg-surface text-fg-muted rounded-full px-2 py-0.5 text-xs">
                     thread: {wh.filter_thread_id}
                   </span>
                 )}
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                     wh.active
-                      ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
-                      : 'bg-[var(--color-bg-raised)] text-[var(--color-text-tertiary)]'
+                      ? 'bg-success/10 text-success'
+                      : 'bg-surface text-fg-muted'
                   }`}
                 >
                   {wh.active ? 'Active' : 'Inactive'}
@@ -1442,7 +1430,7 @@ function WebhooksSection() {
               </div>
             </div>
             <button
-              className="ml-3 text-xs text-[var(--color-status-danger)]"
+              className="text-danger ml-3 text-xs"
               onClick={() => setDeleteTarget(wh.id)}
             >
               Delete

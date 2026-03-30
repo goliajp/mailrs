@@ -38,6 +38,7 @@ export default defineConfig({
       },
     },
     environment: 'jsdom',
+    setupFiles: ['./src/test-setup.ts'],
   },
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -47,7 +48,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
           editor: [
             '@tiptap/react',
             '@tiptap/starter-kit',
@@ -57,7 +57,6 @@ export default defineConfig({
             'react-markdown',
             'remark-gfm',
             'rehype-highlight',
-            'highlight.js',
           ],
         },
       },

@@ -1,5 +1,7 @@
 import type { ConversationSummary, ThreadMessage } from '@/lib/types'
 
+import { toast } from '@goliapkg/gds'
+import { Pane, PaneGroup } from '@goliapkg/gds'
 import DOMPurify from 'dompurify'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
@@ -18,7 +20,6 @@ import {
   X,
 } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from 'sonner'
 
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
@@ -27,7 +28,6 @@ import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { StructuredDataCard } from '@/components/structured-data-card'
-import { Panel, PanelRow } from '@/layouts/shell'
 import {
   deleteJson,
   type FeedbackAction,
@@ -374,15 +374,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // empty state
   if (!selectedId) {
     return (
-      <Panel center>
-        <div className="text-center text-[var(--color-text-tertiary)]">
+      <Pane center>
+        <div className="text-fg-muted text-center">
           <Mail className="mx-auto mb-3 h-10 w-10" strokeWidth={1.5} />
           <p className="text-sm font-medium">No conversation selected</p>
           <p className="mt-1 text-xs">
             Choose an email from the list to read it here
           </p>
         </div>
-      </Panel>
+      </Pane>
     )
   }
 
@@ -422,14 +422,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   return (
-    <PanelRow>
+    <PaneGroup>
       {/* content panel */}
-      <Panel className="flex-[2]">
+      <Pane className="flex-[2]">
         {/* header bar at top of content panel */}
-        <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border-default)] px-3 py-1.5 select-none">
+        <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-1.5 select-none">
           {onBack && (
             <button
-              className="shrink-0 rounded-md p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)] md:hidden"
+              className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary shrink-0 rounded-md p-1 md:hidden"
               onClick={onBack}
               title="Back"
             >
@@ -437,11 +437,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             </button>
           )}
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <h2 className="truncate text-sm font-semibold text-[var(--color-text-primary)] select-text">
+            <h2 className="text-fg truncate text-sm font-semibold select-text">
               {subject || '(no subject)'}
             </h2>
             {messages.length > 1 && (
-              <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">
+              <span className="text-fg-muted shrink-0 text-xs">
                 {selectedMsgIdx != null ? `${selectedMsgIdx + 1}/` : ''}
                 {messages.length}
               </span>
@@ -474,9 +474,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             </HdrBtn>
             <HdrBtn
               className={
-                isFlagged
-                  ? 'text-[var(--color-status-warning)] hover:text-[var(--color-status-warning)]'
-                  : undefined
+                isFlagged ? 'text-warning hover:text-warning' : undefined
               }
               onClick={isFlagged ? handleUnstar : handleStar}
               title={isFlagged ? 'Unstar' : 'Star'}
@@ -487,7 +485,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               />
             </HdrBtn>
             <HdrBtn
-              className="hover:text-[var(--color-status-danger)]"
+              className="hover:text-danger"
               onClick={() => setShowDeleteConfirm(true)}
               title="Delete"
             >
@@ -502,8 +500,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         {/* email body area */}
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           {loadingThread && messages.length > 0 && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--color-bg-base)]/80">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-border-default)] border-t-[var(--color-brand-primary)]" />
+            <div className="bg-bg/80 absolute inset-0 z-10 flex items-center justify-center">
+              <div className="border-border border-t-accent h-5 w-5 animate-spin rounded-full border-2" />
             </div>
           )}
           <div
@@ -513,7 +511,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             {selectedMsg ? (
               <>
                 {/* email header (sender info) */}
-                <div className="shrink-0 border-b border-[var(--color-border-default)] px-4 py-2">
+                <div className="border-border shrink-0 border-b px-4 py-2">
                   <div className="flex items-start gap-2.5">
                     <SenderAvatar
                       className="mt-0.5"
@@ -523,7 +521,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <p
-                          className={`text-sm font-medium select-text ${extractEmail(selectedMsg.sender) === myEmail ? 'text-[var(--color-brand-primary)]' : 'text-[var(--color-text-primary)]'}`}
+                          className={`text-sm font-medium select-text ${extractEmail(selectedMsg.sender) === myEmail ? 'text-accent' : 'text-fg'}`}
                         >
                           {extractEmail(selectedMsg.sender) === myEmail
                             ? 'Me'
@@ -566,20 +564,20 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           />
                         </div>
                       </div>
-                      <p className="text-xs text-[var(--color-text-tertiary)] select-text">
+                      <p className="text-fg-muted text-xs select-text">
                         <Copyable value={extractEmail(selectedMsg.sender)}>
                           <span>{extractEmail(selectedMsg.sender)}</span>
                         </Copyable>
                       </p>
-                      <p className="text-xs text-[var(--color-text-tertiary)] select-text">
+                      <p className="text-fg-muted text-xs select-text">
                         to {formatRecipients(selectedMsg.recipients)}
                       </p>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-[var(--color-text-tertiary)]">
+                        <span className="text-fg-muted text-xs">
                           {formatFullDate(selectedMsg.internal_date)}
                         </span>
                         {selectedMsg.action_deadline && (
-                          <span className="rounded bg-[var(--color-status-warning-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-status-warning)]">
+                          <span className="bg-warning/10 text-warning rounded px-2 py-0.5 text-[11px] font-medium">
                             Due: {selectedMsg.action_deadline}
                           </span>
                         )}
@@ -587,8 +585,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           <span
                             className={`rounded px-2 py-0.5 text-[11px] font-medium ${
                               selectedMsg.risk_score >= 60
-                                ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
-                                : 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
+                                ? 'bg-danger/10 text-danger'
+                                : 'bg-warning/10 text-warning'
                             }`}
                           >
                             {selectedMsg.risk_score >= 60
@@ -611,7 +609,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
                 {/* email body */}
                 {selectedMsg.html_body && (
-                  <div className="border-b border-[var(--color-border-default)]">
+                  <div className="border-border border-b">
                     <MessageBubble
                       attachments={[]}
                       htmlBody={selectedMsg.html_body}
@@ -623,7 +621,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 )}
                 {!selectedMsg.html_body && (
                   <div className="px-4 py-3 select-text">
-                    <div className="font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap text-[var(--color-text-primary)]">
+                    <div className="text-fg font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap">
                       {highlightMentions(
                         selectedMsg.clean_text ||
                           selectedMsg.text_body ||
@@ -640,21 +638,21 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 />
               </>
             ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-2 py-12 text-sm text-[var(--color-text-tertiary)]">
+              <div className="text-fg-muted flex h-full flex-col items-center justify-center gap-2 py-12 text-sm">
                 <Mail className="h-8 w-8" strokeWidth={1.5} />
                 <p>Select a message to preview</p>
               </div>
             )}
           </div>
         </div>
-      </Panel>
+      </Pane>
 
       {/* handle panel (conversation timeline + reply) */}
-      <Panel>
+      <Pane>
         {/* panel header — only show when multiple messages */}
         {messages.length > 1 && (
-          <div className="flex shrink-0 items-center border-b border-[var(--color-border-default)] px-4 py-1.5 select-none">
-            <span className="text-xs font-medium text-[var(--color-text-tertiary)]">
+          <div className="border-border flex shrink-0 items-center border-b px-4 py-1.5 select-none">
+            <span className="text-fg-muted text-xs font-medium">
               Conversation ({messages.length})
             </span>
           </div>
@@ -666,16 +664,16 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <div className="animate-pulse space-y-4">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div
-                    className="flex gap-3 border-b border-[var(--color-border-default)] py-3"
+                    className="border-border flex gap-3 border-b py-3"
                     key={i}
                   >
-                    <div className="h-7 w-7 shrink-0 rounded-full bg-[var(--color-border-default)]" />
+                    <div className="bg-border h-7 w-7 shrink-0 rounded-full" />
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex items-center gap-2">
-                        <div className="h-3.5 w-20 rounded bg-[var(--color-border-default)]" />
-                        <div className="h-3 w-12 rounded bg-[var(--color-border-default)]" />
+                        <div className="bg-border h-3.5 w-20 rounded" />
+                        <div className="bg-border h-3 w-12 rounded" />
                       </div>
-                      <div className="h-10 w-full rounded bg-[var(--color-border-default)]" />
+                      <div className="bg-border h-10 w-full rounded" />
                     </div>
                   </div>
                 ))}
@@ -694,7 +692,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                   <>
                     {hasCollapsed && (
                       <button
-                        className="mx-auto mb-2 block text-xs font-medium text-[var(--color-brand-primary)] hover:text-[var(--color-brand-primary-hover)]"
+                        className="text-accent hover:text-accent-hover mx-auto mb-2 block text-xs font-medium"
                         onClick={() => setShowAllMessages(true)}
                       >
                         Show {messages.length - VISIBLE_RECENT} earlier messages
@@ -727,10 +725,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                             />
                           )}
                           <div
-                            className={`flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] focus-visible:outline-none ${
+                            className={`focus-visible:ring-accent/50 flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none ${
                               isSelected
-                                ? 'bg-[var(--color-bg-selected)]'
-                                : 'hover:bg-[var(--color-hover)]'
+                                ? 'bg-accent/10'
+                                : 'hover:bg-bg-secondary'
                             } ${isOwn ? 'ml-6' : ''}`}
                             onClick={() => setSelectedMsgIdx(idx)}
                             onKeyDown={(e) => {
@@ -744,11 +742,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <span
-                                  className={`text-sm font-semibold ${isOwn ? 'text-[var(--color-brand-primary)]' : 'text-[var(--color-text-primary)]'}`}
+                                  className={`text-sm font-semibold ${isOwn ? 'text-accent' : 'text-fg'}`}
                                 >
                                   {isOwn ? 'Me' : name}
                                 </span>
-                                <span className="text-xs text-[var(--color-text-tertiary)]">
+                                <span className="text-fg-muted text-xs">
                                   {formatDate(msg.internal_date)}
                                   {msg.attachments.length > 0 && (
                                     <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />
@@ -757,7 +755,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                               </div>
                               <div className="relative mt-1">
                                 <div
-                                  className={`text-[13px] leading-relaxed text-[var(--color-text-primary)] select-text ${isExpanded ? '' : 'line-clamp-5'}`}
+                                  className={`text-fg text-[13px] leading-relaxed select-text ${isExpanded ? '' : 'line-clamp-5'}`}
                                 >
                                   {highlightMentions(
                                     isExpanded ? fullText : snippet,
@@ -767,13 +765,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                 </div>
                                 {isLong && !isExpanded && (
                                   <div
-                                    className={`absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t ${isSelected ? 'from-[var(--color-bg-selected)]' : 'from-[var(--color-bg-raised)]'}`}
+                                    className={`absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t ${isSelected ? 'from-accent/10' : 'from-surface'}`}
                                   />
                                 )}
                               </div>
                               {isLong && (
                                 <button
-                                  className="mt-1.5 block text-xs font-medium text-[var(--color-brand-primary)] select-none hover:underline"
+                                  className="text-accent mt-1.5 block text-xs font-medium select-none hover:underline"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     setExpandedBubbles((prev) => {
@@ -799,7 +797,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <div ref={bottomRef} />
             </div>
           </div>
-          <div className="flex min-h-[160px] flex-[1] basis-0 flex-col border-t border-[var(--color-border-default)]">
+          <div className="border-border flex min-h-[160px] flex-[1] basis-0 flex-col border-t">
             <ReplyBox
               forwardAttachmentsUid={fwdUid}
               forwardMessageId={fwdMessageId}
@@ -828,7 +826,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             />
           </div>
         </div>
-      </Panel>
+      </Pane>
 
       {/* delete confirm dialog */}
       {showDeleteConfirm && (
@@ -842,24 +840,24 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           role="dialog"
         >
           <div
-            className="mx-4 w-full max-w-sm animate-[scaleIn_150ms_ease-out] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] p-6 shadow-lg"
+            className="border-border bg-surface mx-4 w-full max-w-sm animate-[scaleIn_150ms_ease-out] rounded-lg border p-6 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
+            <h3 className="text-fg text-sm font-semibold">
               Delete conversation?
             </h3>
-            <p className="mt-1.5 text-sm text-[var(--color-text-tertiary)]">
+            <p className="text-fg-muted mt-1.5 text-sm">
               This will permanently delete all messages.
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
-                className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+                className="border-border text-fg-secondary hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-sm transition-colors"
                 onClick={() => setShowDeleteConfirm(false)}
               >
                 Cancel
               </button>
               <button
-                className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
                 onClick={handleDelete}
               >
                 Delete
@@ -868,14 +866,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           </div>
         </div>
       )}
-    </PanelRow>
+    </PaneGroup>
   )
 }
 
 function BubbleDateDivider({ label }: { label: string }) {
   return (
     <div className="flex justify-center py-2 select-none">
-      <span className="rounded-full bg-[var(--color-bg-sunken)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--color-text-tertiary)]">
+      <span className="bg-bg-secondary text-fg-muted rounded-full px-2.5 py-0.5 text-[10px] font-medium">
         {label}
       </span>
     </div>
@@ -953,7 +951,7 @@ function HdrBtn({
 }) {
   return (
     <button
-      className={`flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)] ${className ?? ''}`}
+      className={`text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors ${className ?? ''}`}
       onClick={onClick}
       title={title}
     >
@@ -989,7 +987,7 @@ function SmBtn({
 }) {
   return (
     <button
-      className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-all duration-150 hover:bg-[var(--color-active)] hover:text-[var(--color-text-secondary)]"
+      className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150"
       onClick={onClick}
       title={title}
     >
@@ -1053,30 +1051,30 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
   return (
     <div className="relative" ref={ref}>
       <button
-        className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
+        className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded-md p-1 transition-colors"
         onClick={() => setOpen((p) => !p)}
         title="Sender feedback"
       >
         <MoreVertical className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="absolute top-full right-0 z-50 mt-1 w-48 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)] py-1 shadow-lg">
+        <div className="border-border bg-surface absolute top-full right-0 z-50 mt-1 w-48 rounded-lg border py-1 shadow-lg">
           {confirming ? (
             <div className="px-3 py-2">
-              <p className="text-xs text-[var(--color-text-secondary)]">
+              <p className="text-fg-secondary text-xs">
                 {confirming === 'block'
                   ? 'Block this sender?'
                   : 'Report as spam?'}
               </p>
               <div className="mt-2 flex gap-2">
                 <button
-                  className="rounded px-2 py-1 text-xs text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]"
+                  className="text-fg-muted hover:bg-bg-secondary rounded px-2 py-1 text-xs"
                   onClick={() => setConfirming(null)}
                 >
                   Cancel
                 </button>
                 <button
-                  className="rounded bg-[var(--color-status-danger)] px-2 py-1 text-xs text-white hover:opacity-90"
+                  className="bg-danger rounded px-2 py-1 text-xs text-white hover:opacity-90"
                   onClick={() => executeAction(confirming)}
                 >
                   Confirm
@@ -1085,15 +1083,15 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
             </div>
           ) : (
             <>
-              <p className="truncate px-3 py-1 text-[11px] text-[var(--color-text-tertiary)]">
+              <p className="text-fg-muted truncate px-3 py-1 text-[11px]">
                 {senderEmail}
               </p>
               {FEEDBACK_ITEMS.map((item) => (
                 <button
                   className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
                     item.action === 'block' || item.action === 'mark_spam'
-                      ? 'text-[var(--color-status-danger)] hover:bg-[var(--color-status-danger-subtle)]'
-                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                      ? 'text-danger hover:bg-danger/10'
+                      : 'text-fg-secondary hover:bg-bg-secondary'
                   }`}
                   key={item.action}
                   onClick={() => handleAction(item.action)}

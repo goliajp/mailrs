@@ -1,13 +1,16 @@
+import { useSetThemeMode, useTheme } from '@goliapkg/gds'
 import { atom } from 'jotai'
 
-import { setTheme as applyTheme, getTheme, type ThemeMode } from '@/lib/theme'
+type ThemeMode = 'dark' | 'light' | 'system'
 
-const baseThemeAtom = atom<ThemeMode>(getTheme())
+const baseThemeAtom = atom<ThemeMode>('system')
 
 export const themeAtom = atom(
   (get) => get(baseThemeAtom),
   (_get, set, value: ThemeMode) => {
-    applyTheme(value)
     set(baseThemeAtom, value)
   }
 )
+
+export { useSetThemeMode, useTheme }
+export type { ThemeMode }

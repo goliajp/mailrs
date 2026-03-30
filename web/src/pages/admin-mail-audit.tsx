@@ -117,19 +117,19 @@ export function AdminMailAudit() {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="mb-6">
           <div className="mb-1 flex items-center gap-2">
-            <Eye className="h-5 w-5 text-[var(--color-text-tertiary)]" />
+            <Eye className="text-fg-muted h-5 w-5" />
             <h2 className="text-lg font-semibold">Mail Audit</h2>
           </div>
-          <p className="text-sm text-[var(--color-text-tertiary)]">
+          <p className="text-fg-muted text-sm">
             Select an account to review their email conversations
           </p>
         </div>
 
         <div className="mb-4 flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+            <Search className="text-fg-muted absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
             <input
-              className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] py-2 pr-3 pl-9 text-sm outline-none focus:border-[var(--color-border-focus)]"
+              className="border-border bg-bg focus:border-accent w-full rounded-lg border py-2 pr-3 pl-9 text-sm outline-none"
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search accounts..."
               type="text"
@@ -138,9 +138,9 @@ export function AdminMailAudit() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
+        <div className="border-border overflow-hidden rounded-lg border">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
+            <thead className="border-border bg-bg-secondary border-b">
               <tr>
                 <th className="px-4 py-2.5 font-medium">Account</th>
                 <th className="px-4 py-2.5 font-medium">Domain</th>
@@ -152,26 +152,24 @@ export function AdminMailAudit() {
             <tbody>
               {filteredAccounts.map((a) => (
                 <tr
-                  className="border-b border-[var(--color-border-default)] last:border-0 hover:bg-[var(--color-hover)]"
+                  className="border-border hover:bg-bg-secondary border-b last:border-0"
                   key={a.address}
                 >
                   <td className="px-4 py-3 font-medium">{a.address}</td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                    {a.domain}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                  <td className="text-fg-secondary px-4 py-3">{a.domain}</td>
+                  <td className="text-fg-secondary px-4 py-3">
                     {a.display_name || '—'}
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${a.active ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]' : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-tertiary)]'}`}
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${a.active ? 'bg-success/10 text-success' : 'bg-bg-secondary text-fg-muted'}`}
                     >
                       {a.active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <button
-                      className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1 text-xs font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+                      className="bg-fg text-bg rounded-md px-3 py-1 text-xs font-medium transition-colors hover:opacity-90"
                       onClick={() => handleSelectAccount(a.address)}
                     >
                       View Mail
@@ -182,7 +180,7 @@ export function AdminMailAudit() {
               {filteredAccounts.length === 0 && (
                 <tr>
                   <td
-                    className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
+                    className="text-fg-muted px-4 py-8 text-center"
                     colSpan={5}
                   >
                     {accounts.length === 0
@@ -202,9 +200,9 @@ export function AdminMailAudit() {
   if (selectedThread) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-[var(--color-border-default)] px-6 py-3">
+        <div className="border-border flex items-center gap-3 border-b px-6 py-3">
           <button
-            className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+            className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
             onClick={() => {
               setSelectedThread(null)
               setMessages([])
@@ -213,7 +211,7 @@ export function AdminMailAudit() {
             <ChevronLeft className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-[var(--color-status-warning)]">
+            <p className="text-warning text-xs">
               Audit Mode — {selectedAccount}
             </p>
             <p className="truncate text-sm font-medium">
@@ -223,15 +221,13 @@ export function AdminMailAudit() {
         </div>
         <div className="flex-1 overflow-y-auto px-6">
           {loading && (
-            <p className="py-8 text-center text-sm text-[var(--color-text-tertiary)]">
-              Loading...
-            </p>
+            <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>
           )}
           {messages.map((msg) => (
             <MessageView key={msg.id} msg={msg} targetUser={selectedAccount} />
           ))}
           {!loading && messages.length === 0 && (
-            <p className="py-8 text-center text-sm text-[var(--color-text-tertiary)]">
+            <p className="text-fg-muted py-8 text-center text-sm">
               No messages
             </p>
           )}
@@ -243,9 +239,9 @@ export function AdminMailAudit() {
   // account selected: show conversations
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex items-center gap-3 border-b border-[var(--color-border-default)] px-6 py-3">
+      <div className="border-border flex items-center gap-3 border-b px-6 py-3">
         <button
-          className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+          className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
           onClick={() => {
             setSelectedAccount(null)
             setConversations([])
@@ -254,22 +250,18 @@ export function AdminMailAudit() {
           <ChevronLeft className="h-5 w-5" />
         </button>
         <div>
-          <p className="text-xs text-[var(--color-status-warning)]">
-            Audit Mode
-          </p>
+          <p className="text-warning text-xs">Audit Mode</p>
           <p className="text-sm font-medium">{selectedAccount}</p>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {loading && (
-          <p className="py-8 text-center text-sm text-[var(--color-text-tertiary)]">
-            Loading...
-          </p>
+          <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>
         )}
         {conversations.map((c) => (
           <button
-            className="flex w-full items-start gap-3 border-b border-[var(--color-border-default)] px-6 py-3 text-left transition-colors hover:bg-[var(--color-hover)]"
+            className="border-border hover:bg-bg-secondary flex w-full items-start gap-3 border-b px-6 py-3 text-left transition-colors"
             key={c.thread_id}
             onClick={() => loadThread(c.thread_id)}
           >
@@ -278,24 +270,24 @@ export function AdminMailAudit() {
                 <p className="truncate text-sm font-medium">
                   {c.subject || '(no subject)'}
                 </p>
-                <span className="shrink-0 rounded-full bg-[var(--color-bg-sunken)] px-1.5 py-0.5 text-[10px] text-[var(--color-text-tertiary)]">
+                <span className="bg-bg-secondary text-fg-muted shrink-0 rounded-full px-1.5 py-0.5 text-[10px]">
                   {c.message_count}
                 </span>
               </div>
-              <p className="truncate text-xs text-[var(--color-text-secondary)]">
+              <p className="text-fg-secondary truncate text-xs">
                 {c.participants.join(', ')}
               </p>
-              <p className="mt-0.5 truncate text-xs text-[var(--color-text-tertiary)]">
+              <p className="text-fg-muted mt-0.5 truncate text-xs">
                 {c.snippet}
               </p>
             </div>
-            <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">
+            <span className="text-fg-muted shrink-0 text-xs">
               {formatDate(c.last_date)}
             </span>
           </button>
         ))}
         {!loading && conversations.length === 0 && (
-          <p className="py-8 text-center text-sm text-[var(--color-text-tertiary)]">
+          <p className="text-fg-muted py-8 text-center text-sm">
             No conversations found
           </p>
         )}
@@ -371,20 +363,18 @@ function MessageView({
   const token = getToken() ?? ''
 
   return (
-    <div className="border-b border-[var(--color-border-default)] py-4">
+    <div className="border-border border-b py-4">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{msg.sender}</p>
-          <p className="truncate text-xs text-[var(--color-text-tertiary)]">
-            To: {msg.recipients}
-          </p>
+          <p className="text-fg-muted truncate text-xs">To: {msg.recipients}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <span className="text-xs text-[var(--color-text-tertiary)]">
+          <span className="text-fg-muted text-xs">
             {formatFullDate(msg.internal_date)}
           </span>
           <a
-            className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)]"
+            className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
             href={`/api/admin/audit/messages/${msg.uid}/raw?target_user=${encodeURIComponent(targetUser)}&token=${encodeURIComponent(token)}`}
             title="Download .eml"
           >
@@ -394,22 +384,20 @@ function MessageView({
       </div>
 
       {msg.risk_score > 0 && (
-        <div className="mb-2 rounded-md bg-[var(--color-status-danger-subtle)] px-2 py-1 text-xs text-[var(--color-status-danger)]">
+        <div className="bg-danger/10 text-danger mb-2 rounded-md px-2 py-1 text-xs">
           Risk score: {msg.risk_score}
         </div>
       )}
 
-      <div className="rounded-lg border border-[var(--color-border-default)] bg-white">
+      <div className="border-border rounded-lg border bg-white">
         {msg.html_body ? (
           <HtmlFrame html={msg.html_body} />
         ) : msg.text_body ? (
-          <pre className="max-h-96 overflow-auto p-3 text-sm whitespace-pre-wrap text-[var(--color-text-secondary)]">
+          <pre className="text-fg-secondary max-h-96 overflow-auto p-3 text-sm whitespace-pre-wrap">
             {msg.text_body}
           </pre>
         ) : (
-          <p className="p-3 text-sm text-[var(--color-text-tertiary)]">
-            (no content)
-          </p>
+          <p className="text-fg-muted p-3 text-sm">(no content)</p>
         )}
       </div>
 
@@ -417,7 +405,7 @@ function MessageView({
         <div className="mt-2 flex flex-wrap gap-2">
           {msg.attachments.map((att, i) => (
             <a
-              className="rounded-md border border-[var(--color-border-default)] px-2 py-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              className="border-border text-fg-secondary hover:bg-bg-secondary rounded-md border px-2 py-1 text-xs transition-colors"
               href={`/api/mail/messages/${msg.uid}/attachments/${i}?token=${encodeURIComponent(token)}`}
               key={i}
               rel="noopener noreferrer"

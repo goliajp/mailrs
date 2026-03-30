@@ -1,20 +1,20 @@
 import type { AccountInfo, QuotaInfo } from '@/lib/types'
 
+import { toast } from '@goliapkg/gds'
 import { useAtom } from 'jotai'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { toast } from 'sonner'
 
 import { Copyable } from '@/components/copy-button'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { accountsAtom } from '@/store/admin'
 
-interface GroupInfo {
+type GroupInfo = {
   description: string
   id: number
   name: string
 }
 
-interface SieveState {
+type SieveState = {
   error: null | string
   script: string
   status: 'deleting' | 'idle' | 'loaded' | 'loading' | 'saving'
@@ -108,13 +108,13 @@ export function AdminAccounts() {
       <div className="mb-6 flex items-center justify-between gap-3">
         <h2 className="shrink-0 text-lg font-semibold">Accounts</h2>
         <input
-          className="min-w-0 flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm outline-none placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-brand-primary)]"
+          className="border-border bg-bg-secondary placeholder:text-fg-muted focus:border-accent min-w-0 flex-1 rounded-md border px-3 py-1.5 text-sm outline-none"
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter accounts..."
           value={filter}
         />
         <button
-          className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-on-inverted)] transition-colors hover:opacity-90"
+          className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
           onClick={() => setAdding(true)}
         >
           Add Account
@@ -122,16 +122,16 @@ export function AdminAccounts() {
       </div>
 
       {adding && (
-        <div className="mb-4 space-y-2 rounded-lg border border-[var(--color-border-default)] p-4">
+        <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
           <div className="flex gap-2">
             <input
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, address: e.target.value })}
               placeholder="user@example.com"
               value={form.address}
             />
             <input
-              className="w-40 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary w-40 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, domain: e.target.value })}
               placeholder="example.com"
               value={form.domain}
@@ -139,7 +139,7 @@ export function AdminAccounts() {
           </div>
           <div className="flex gap-2">
             <input
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) =>
                 setForm({ ...form, displayName: e.target.value })
               }
@@ -147,7 +147,7 @@ export function AdminAccounts() {
               value={form.displayName}
             />
             <input
-              className="flex-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-3 py-1.5 text-sm"
+              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder="Password"
               type="password"
@@ -156,13 +156,13 @@ export function AdminAccounts() {
           </div>
           <div className="flex gap-2">
             <button
-              className="rounded-md bg-[var(--color-bg-inverted)] px-3 py-1.5 text-sm text-[var(--color-text-on-inverted)]"
+              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
               onClick={handleAdd}
             >
               Save
             </button>
             <button
-              className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+              className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
               onClick={() => setAdding(false)}
             >
               Cancel
@@ -171,9 +171,9 @@ export function AdminAccounts() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-[var(--color-border-default)]">
+      <div className="border-border overflow-x-auto rounded-lg border">
         <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-bg-sunken)]">
+          <thead className="border-border bg-bg-secondary border-b">
             <tr>
               <th className="px-4 py-2.5 font-medium">Address</th>
               <th className="px-4 py-2.5 font-medium">Display Name</th>
@@ -187,16 +187,16 @@ export function AdminAccounts() {
           <tbody>
             {paged.map((account) => (
               <tr
-                className="border-b border-[var(--color-border-default)] last:border-0"
+                className="border-border border-b last:border-0"
                 key={account.address}
               >
                 <td className="px-4 py-3 font-medium">
                   <Copyable value={account.address}>{account.address}</Copyable>
                 </td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)] select-text">
+                <td className="text-fg-secondary px-4 py-3 select-text">
                   {account.display_name}
                 </td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                <td className="text-fg-secondary px-4 py-3">
                   {account.domain}
                 </td>
                 <td className="px-4 py-3">
@@ -204,9 +204,9 @@ export function AdminAccounts() {
                 </td>
                 <td className="px-4 py-3">
                   {account.active ? (
-                    <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-status-success)]" />
+                    <span className="bg-success inline-block h-2 w-2 rounded-full" />
                   ) : (
-                    <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-border-default)]" />
+                    <span className="bg-border inline-block h-2 w-2 rounded-full" />
                   )}
                 </td>
                 <td className="px-4 py-3">
@@ -217,7 +217,7 @@ export function AdminAccounts() {
                     <GroupsCell address={account.address} />
                     <SieveCell address={account.address} />
                     <button
-                      className="text-xs text-[var(--color-status-danger)] transition-colors hover:opacity-70"
+                      className="text-danger text-xs transition-colors hover:opacity-70"
                       onClick={() => setDeleteTarget(account.address)}
                     >
                       Delete
@@ -228,10 +228,7 @@ export function AdminAccounts() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td
-                  className="px-4 py-8 text-center text-[var(--color-text-tertiary)]"
-                  colSpan={7}
-                >
+                <td className="text-fg-muted px-4 py-8 text-center" colSpan={7}>
                   {accounts.length === 0
                     ? 'No accounts configured'
                     : 'No accounts match the filter'}
@@ -243,7 +240,7 @@ export function AdminAccounts() {
       </div>
 
       {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-between text-sm text-[var(--color-text-secondary)]">
+        <div className="text-fg-secondary mt-4 flex items-center justify-between text-sm">
           <span>
             Showing {safePage * PAGE_SIZE + 1}--
             {Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of{' '}
@@ -251,14 +248,14 @@ export function AdminAccounts() {
           </span>
           <div className="flex gap-1">
             <button
-              className="rounded-md px-2.5 py-1 hover:bg-[var(--color-hover)] disabled:opacity-40"
+              className="hover:bg-bg-secondary rounded-md px-2.5 py-1 disabled:opacity-40"
               disabled={safePage === 0}
               onClick={() => setPage((p) => Math.max(0, p - 1))}
             >
               Prev
             </button>
             <button
-              className="rounded-md px-2.5 py-1 hover:bg-[var(--color-hover)] disabled:opacity-40"
+              className="hover:bg-bg-secondary rounded-md px-2.5 py-1 disabled:opacity-40"
               disabled={safePage >= totalPages - 1}
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             >
@@ -302,26 +299,24 @@ function DeleteConfirmDialog({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-sm rounded-lg bg-[var(--color-bg-raised)] p-6 shadow-lg"
+        className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
-        <p className="mb-4 text-sm text-[var(--color-text-tertiary)]">
+        <p className="text-fg-muted mb-4 text-sm">
           Are you sure you want to delete{' '}
-          <span className="font-medium text-[var(--color-text-primary)]">
-            {address}
-          </span>
-          ? This action cannot be undone.
+          <span className="text-fg font-medium">{address}</span>? This action
+          cannot be undone.
         </p>
         <div className="flex justify-end gap-2">
           <button
-            className="rounded-md px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-hover)]"
+            className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
             onClick={onCancel}
           >
             Cancel
           </button>
           <button
-            className="rounded-md bg-[var(--color-status-danger)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+            className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
             onClick={onConfirm}
           >
             Delete
@@ -360,21 +355,14 @@ function GroupsCell({ address }: { address: string }) {
 
   if (groups === null && !loading) {
     return (
-      <button
-        className="text-xs text-[var(--color-brand-primary)] hover:opacity-80"
-        onClick={load}
-      >
+      <button className="text-accent text-xs hover:opacity-80" onClick={load}>
         Groups
       </button>
     )
   }
 
   if (loading) {
-    return (
-      <span className="text-xs text-[var(--color-text-tertiary)]">
-        Loading...
-      </span>
-    )
+    return <span className="text-fg-muted text-xs">Loading...</span>
   }
 
   return (
@@ -382,7 +370,7 @@ function GroupsCell({ address }: { address: string }) {
       {groups && groups.length > 0 ? (
         groups.map((g) => (
           <span
-            className="rounded-full bg-[var(--color-brand-subtle)] px-2 py-0.5 text-xs text-[var(--color-brand-primary)]"
+            className="bg-accent/10 text-accent rounded-full px-2 py-0.5 text-xs"
             key={g.id}
             title={g.description}
           >
@@ -390,12 +378,10 @@ function GroupsCell({ address }: { address: string }) {
           </span>
         ))
       ) : (
-        <span className="text-xs text-[var(--color-text-tertiary)]">
-          No groups
-        </span>
+        <span className="text-fg-muted text-xs">No groups</span>
       )}
       <button
-        className="ml-1 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+        className="text-fg-muted hover:text-fg-secondary ml-1 text-xs"
         onClick={() => setGroups(null)}
       >
         Close
@@ -439,7 +425,7 @@ function PasswordCell({
   if (!editing) {
     return (
       <button
-        className="text-xs text-[var(--color-brand-primary)] hover:opacity-80"
+        className="text-accent text-xs hover:opacity-80"
         onClick={() => setEditing(true)}
       >
         Change
@@ -451,7 +437,7 @@ function PasswordCell({
     <div className="flex items-center gap-1.5">
       <input
         autoFocus
-        className="w-28 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 py-0.5 text-xs"
+        className="border-border bg-bg-secondary w-28 rounded-md border px-2 py-0.5 text-xs"
         disabled={saving}
         onChange={(e) => setPassword(e.target.value)}
         onKeyDown={(e) => {
@@ -466,14 +452,14 @@ function PasswordCell({
         value={password}
       />
       <button
-        className="text-xs text-[var(--color-status-success)] hover:opacity-80 disabled:opacity-50"
+        className="text-success text-xs hover:opacity-80 disabled:opacity-50"
         disabled={saving || !password.trim()}
         onClick={handleSave}
       >
         {saving ? '...' : 'Save'}
       </button>
       <button
-        className="text-xs text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-secondary)]"
+        className="text-fg-muted hover:text-fg-secondary text-xs transition-colors"
         disabled={saving}
         onClick={() => {
           setPassword('')
@@ -508,19 +494,11 @@ function QuotaCell({ address }: { address: string }) {
   }, [address])
 
   if (quota.status === 'loading') {
-    return (
-      <span className="text-xs text-[var(--color-text-tertiary)]">
-        Loading...
-      </span>
-    )
+    return <span className="text-fg-muted text-xs">Loading...</span>
   }
 
   if (quota.status === 'none') {
-    return (
-      <span className="text-xs text-[var(--color-text-tertiary)]">
-        No quota set
-      </span>
-    )
+    return <span className="text-fg-muted text-xs">No quota set</span>
   }
 
   const totalBytes = quota.quotaBytes
@@ -528,12 +506,10 @@ function QuotaCell({ address }: { address: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[var(--color-border-default)]">
-        <div className="h-full w-0 rounded-full bg-[var(--color-brand-primary)]" />
+      <div className="bg-border h-1.5 w-20 overflow-hidden rounded-full">
+        <div className="bg-accent h-full w-0 rounded-full" />
       </div>
-      <span className="text-xs text-[var(--color-text-secondary)]">
-        {formatted}
-      </span>
+      <span className="text-fg-secondary text-xs">{formatted}</span>
     </div>
   )
 }
@@ -587,27 +563,20 @@ function SieveCell({ address }: { address: string }) {
 
   if (state.status === 'idle') {
     return (
-      <button
-        className="text-xs text-[var(--color-brand-primary)] hover:opacity-80"
-        onClick={load}
-      >
+      <button className="text-accent text-xs hover:opacity-80" onClick={load}>
         Sieve
       </button>
     )
   }
 
   if (state.status === 'loading') {
-    return (
-      <span className="text-xs text-[var(--color-text-tertiary)]">
-        Loading...
-      </span>
-    )
+    return <span className="text-fg-muted text-xs">Loading...</span>
   }
 
   return (
     <div className="space-y-2">
       <textarea
-        className="w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-sunken)] px-2 py-1.5 font-mono text-xs"
+        className="border-border bg-bg-secondary w-full rounded-md border px-2 py-1.5 font-mono text-xs"
         disabled={state.status === 'saving' || state.status === 'deleting'}
         onChange={(e) =>
           setState((prev) => ({ ...prev, script: e.target.value }))
@@ -616,28 +585,24 @@ function SieveCell({ address }: { address: string }) {
         rows={6}
         value={state.script}
       />
-      {state.error && (
-        <p className="text-xs text-[var(--color-status-danger)]">
-          {state.error}
-        </p>
-      )}
+      {state.error && <p className="text-danger text-xs">{state.error}</p>}
       <div className="flex gap-1.5">
         <button
-          className="text-xs text-[var(--color-status-success)] hover:opacity-80 disabled:opacity-50"
+          className="text-success text-xs hover:opacity-80 disabled:opacity-50"
           disabled={state.status === 'saving'}
           onClick={save}
         >
           {state.status === 'saving' ? '...' : 'Save'}
         </button>
         <button
-          className="text-xs text-[var(--color-status-danger)] hover:opacity-80 disabled:opacity-50"
+          className="text-danger text-xs hover:opacity-80 disabled:opacity-50"
           disabled={state.status === 'deleting'}
           onClick={remove}
         >
           {state.status === 'deleting' ? '...' : 'Delete'}
         </button>
         <button
-          className="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+          className="text-fg-muted hover:text-fg-secondary text-xs"
           onClick={() => setState({ error: null, script: '', status: 'idle' })}
         >
           Close

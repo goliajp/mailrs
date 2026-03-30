@@ -35,12 +35,12 @@ export function AttachmentPreview({
     .filter(({ att }) => !isImageAttachment(att))
 
   return (
-    <div className="border-t border-[var(--color-border-default)] px-4 py-3">
+    <div className="border-border border-t px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-xs font-medium tracking-wide text-[var(--color-text-tertiary)] uppercase select-none">
+        <span className="text-fg-muted text-xs font-medium tracking-wide uppercase select-none">
           Attachments ({attachments.length})
         </span>
-        <div className="h-px flex-1 bg-[var(--color-border-default)]" />
+        <div className="bg-border h-px flex-1" />
       </div>
 
       {/* image thumbnails grid */}
@@ -89,21 +89,21 @@ function FileRow({
 
   return (
     <a
-      className="flex items-center gap-2 rounded-md border border-[var(--color-border-default)] px-3 py-2 text-sm transition-colors hover:bg-[var(--color-hover)]"
+      className="border-border hover:bg-bg-secondary flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
       href={url}
       rel="noopener noreferrer"
       target="_blank"
     >
       {isPdf ? (
-        <PdfIcon className="h-5 w-5 shrink-0 text-[var(--color-status-danger)]" />
+        <PdfIcon className="text-danger h-5 w-5 shrink-0" />
       ) : (
-        <FileIcon className="h-5 w-5 shrink-0 text-[var(--color-text-tertiary)]" />
+        <FileIcon className="text-fg-muted h-5 w-5 shrink-0" />
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[var(--color-text-secondary)]">
+        <p className="text-fg-secondary truncate">
           <Copyable value={att.filename}>{att.filename}</Copyable>
         </p>
-        <p className="text-xs text-[var(--color-text-tertiary)]">
+        <p className="text-fg-muted text-xs">
           {att.content_type} · {formatSize(att.size)}
         </p>
       </div>
@@ -178,7 +178,7 @@ function ImageThumbnail({
     <>
       <div className="group relative overflow-hidden">
         <button
-          className="block overflow-hidden rounded-md border border-[var(--color-border-default)] transition-shadow hover:shadow-md"
+          className="border-border block overflow-hidden rounded-md border transition-shadow hover:shadow-md"
           onClick={() => setLightboxOpen(true)}
           title={`${att.filename} - click to enlarge`}
         >
@@ -189,11 +189,9 @@ function ImageThumbnail({
             src={url}
           />
         </button>
-        <p className="mt-1 truncate text-xs text-[var(--color-text-tertiary)]">
+        <p className="text-fg-muted mt-1 truncate text-xs">
           <Copyable value={att.filename}>{att.filename}</Copyable>
-          <span className="ml-1 text-[var(--color-text-tertiary)]">
-            ({formatSize(att.size)})
-          </span>
+          <span className="text-fg-muted ml-1">({formatSize(att.size)})</span>
         </p>
       </div>
       {lightboxOpen && (

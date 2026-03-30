@@ -1,71 +1,71 @@
 const styles: Record<string, { bg: string; label: string; text: string }> = {
   finance: {
-    bg: 'bg-[var(--color-status-warning-subtle)]',
+    bg: 'bg-warning/10',
     label: 'Finance',
-    text: 'text-[var(--color-status-warning)]',
+    text: 'text-warning',
   },
   general: {
-    bg: 'bg-[var(--color-bg-raised)]',
+    bg: 'bg-surface',
     label: 'General',
-    text: 'text-[var(--color-text-secondary)]',
+    text: 'text-fg-secondary',
   },
   newsletter: {
-    bg: 'bg-[var(--color-status-danger-subtle)]',
+    bg: 'bg-danger/10',
     label: 'Newsletter',
-    text: 'text-[var(--color-status-danger)]',
+    text: 'text-danger',
   },
   notification: {
-    bg: 'bg-[var(--color-brand-subtle)]',
+    bg: 'bg-accent/10',
     label: 'Notification',
-    text: 'text-[var(--color-brand-primary)]',
+    text: 'text-accent',
   },
   personal: {
-    bg: 'bg-[var(--color-status-success-subtle)]',
+    bg: 'bg-success/10',
     label: 'Personal',
-    text: 'text-[var(--color-status-success)]',
+    text: 'text-success',
   },
   promotion: {
-    bg: 'bg-[var(--color-status-warning-subtle)]',
+    bg: 'bg-warning/10',
     label: 'Promotion',
-    text: 'text-[var(--color-status-warning)]',
+    text: 'text-warning',
   },
   receipt: {
-    bg: 'bg-[var(--color-status-success-subtle)]',
+    bg: 'bg-success/10',
     label: 'Receipt',
-    text: 'text-[var(--color-status-success)]',
+    text: 'text-success',
   },
   scam: {
-    bg: 'bg-[var(--color-status-danger-subtle)]',
+    bg: 'bg-danger/10',
     label: 'Scam',
-    text: 'text-[var(--color-status-danger)]',
+    text: 'text-danger',
   },
   shipping: {
-    bg: 'bg-[var(--color-status-info-subtle)]',
+    bg: 'bg-info/10',
     label: 'Shipping',
-    text: 'text-[var(--color-status-info)]',
+    text: 'text-info',
   },
   spam: {
-    bg: 'bg-[var(--color-status-warning-subtle)]',
+    bg: 'bg-warning/10',
     label: 'Spam',
-    text: 'text-[var(--color-status-warning)]',
+    text: 'text-warning',
   },
   travel: {
-    bg: 'bg-[var(--color-status-info-subtle)]',
+    bg: 'bg-info/10',
     label: 'Travel',
-    text: 'text-[var(--color-status-info)]',
+    text: 'text-info',
   },
   work: {
-    bg: 'bg-[var(--color-brand-subtle)]',
+    bg: 'bg-accent/10',
     label: 'Work',
-    text: 'text-[var(--color-brand-primary)]',
+    text: 'text-accent',
   },
 }
 
 export function CategoryBadge({ category }: { category: string }) {
   const s = styles[category] ?? {
-    bg: 'bg-[var(--color-bg-raised)]',
+    bg: 'bg-surface',
     label: category,
-    text: 'text-[var(--color-text-tertiary)]',
+    text: 'text-fg-muted',
   }
   return (
     <span
@@ -78,10 +78,10 @@ export function CategoryBadge({ category }: { category: string }) {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function riskColor(score: number): string {
-  if (score >= 60) return 'text-[var(--color-status-danger)]'
-  if (score >= 40) return 'text-[var(--color-status-warning)]'
-  if (score >= 15) return 'text-[var(--color-status-info)]'
-  return 'text-[var(--color-status-success)]'
+  if (score >= 60) return 'text-danger'
+  if (score >= 40) return 'text-warning'
+  if (score >= 15) return 'text-info'
+  return 'text-success'
 }
 
 const importanceStyles: Record<
@@ -89,40 +89,40 @@ const importanceStyles: Record<
   { bg: string; icon: string; label: string; text: string }
 > = {
   critical: {
-    bg: 'bg-[var(--color-status-danger-subtle)]',
+    bg: 'bg-danger/10',
     icon: '!!',
     label: 'Critical',
-    text: 'text-[var(--color-status-danger)]',
+    text: 'text-danger',
   },
   important: {
-    bg: 'bg-[var(--color-status-warning-subtle)]',
+    bg: 'bg-warning/10',
     icon: '!',
     label: 'Important',
-    text: 'text-[var(--color-status-warning)]',
+    text: 'text-warning',
   },
   low: {
-    bg: 'bg-[var(--color-bg-sunken)]',
+    bg: 'bg-bg-secondary',
     icon: '',
     label: 'Low',
-    text: 'text-[var(--color-text-tertiary)]',
+    text: 'text-fg-muted',
   },
   noise: {
-    bg: 'bg-[var(--color-bg-sunken)]',
+    bg: 'bg-bg-secondary',
     icon: '',
     label: 'Noise',
-    text: 'text-[var(--color-text-tertiary)]',
+    text: 'text-fg-muted',
   },
   normal: {
-    bg: 'bg-[var(--color-bg-raised)]',
+    bg: 'bg-surface',
     icon: '',
     label: 'Normal',
-    text: 'text-[var(--color-text-tertiary)]',
+    text: 'text-fg-muted',
   },
 }
 
 export function ActionBadge() {
   return (
-    <span className="inline-flex items-center gap-0.5 rounded-full bg-[var(--color-brand-subtle)] px-1.5 py-0.5 text-xs font-medium text-[var(--color-brand-primary)] select-none">
+    <span className="bg-accent/10 text-accent inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-medium select-none">
       Action
     </span>
   )
@@ -146,25 +146,25 @@ export function IntentBadge({ intent }: { intent: string }) {
   if (!intent || intent === 'inform') return null
   const intentStyles: Record<string, { bg: string; text: string }> = {
     alert: {
-      bg: 'bg-[var(--color-status-danger-subtle)]',
-      text: 'text-[var(--color-status-danger)]',
+      bg: 'bg-danger/10',
+      text: 'text-danger',
     },
     confirm: {
-      bg: 'bg-[var(--color-status-success-subtle)]',
-      text: 'text-[var(--color-status-success)]',
+      bg: 'bg-success/10',
+      text: 'text-success',
     },
     request: {
-      bg: 'bg-[var(--color-brand-subtle)]',
-      text: 'text-[var(--color-brand-primary)]',
+      bg: 'bg-accent/10',
+      text: 'text-accent',
     },
     social: {
-      bg: 'bg-[var(--color-status-info-subtle)]',
-      text: 'text-[var(--color-status-info)]',
+      bg: 'bg-info/10',
+      text: 'text-info',
     },
   }
   const s = intentStyles[intent] ?? {
-    bg: 'bg-[var(--color-bg-raised)]',
-    text: 'text-[var(--color-text-tertiary)]',
+    bg: 'bg-surface',
+    text: 'text-fg-muted',
   }
   return (
     <span

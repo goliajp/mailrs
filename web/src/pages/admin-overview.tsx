@@ -80,11 +80,7 @@ export function AdminOverview() {
   }, [refresh])
 
   if (error) {
-    return (
-      <div className="p-6 text-sm text-[var(--color-status-danger)]">
-        {error}
-      </div>
-    )
+    return <div className="text-danger p-6 text-sm">{error}</div>
   }
 
   const activeConns =
@@ -132,9 +128,7 @@ export function AdminOverview() {
       {/* service health */}
       {health && (
         <div className="mb-6">
-          <h2 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">
-            Services
-          </h2>
+          <h2 className="text-fg-muted mb-3 text-sm font-medium">Services</h2>
           <div className="flex flex-wrap gap-3">
             <ServicePill
               detail={health.pg ? 'up' : 'down'}
@@ -171,39 +165,36 @@ export function AdminOverview() {
 
 function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
   return (
-    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
-      <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">
+    <div className="border-border bg-surface rounded-lg border p-4">
+      <h3 className="text-fg-muted mb-3 text-sm font-medium">
         Recent Audit Log
       </h3>
       {entries.length === 0 ? (
-        <p className="text-sm text-[var(--color-text-tertiary)]">No entries</p>
+        <p className="text-fg-muted text-sm">No entries</p>
       ) : (
         <table className="w-full text-xs">
           <tbody>
             {entries.map((e) => {
               const ip = e.detail.replace(/^ip=/, '').trim()
               return (
-                <tr
-                  className="border-b border-[var(--color-border-default)] last:border-0"
-                  key={e.id}
-                >
-                  <td className="py-1.5 pr-2 whitespace-nowrap text-[var(--color-text-tertiary)]">
+                <tr className="border-border border-b last:border-0" key={e.id}>
+                  <td className="text-fg-muted py-1.5 pr-2 whitespace-nowrap">
                     {formatRelativeTime(e.timestamp)}
                   </td>
                   <td className="py-1.5 pr-2 whitespace-nowrap">
                     <span
                       className={`rounded px-1.5 py-0.5 font-medium ${
                         e.action === 'login_failed'
-                          ? 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+                          ? 'bg-danger/10 text-danger'
                           : e.action === 'login'
-                            ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
-                            : 'bg-[var(--color-bg-sunken)] text-[var(--color-text-secondary)]'
+                            ? 'bg-success/10 text-success'
+                            : 'bg-bg-secondary text-fg-secondary'
                       }`}
                     >
                       {e.action.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="py-1.5 text-right text-[var(--color-text-tertiary)] tabular-nums">
+                  <td className="text-fg-muted py-1.5 text-right tabular-nums">
                     {ip || e.target}
                   </td>
                 </tr>
@@ -250,14 +241,10 @@ function MetricCard({
   value: string
 }) {
   return (
-    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
-      <p className="text-sm text-[var(--color-text-tertiary)]">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">
-        {value}
-      </p>
-      {sub && (
-        <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">{sub}</p>
-      )}
+    <div className="border-border bg-surface rounded-lg border p-4">
+      <p className="text-fg-muted text-sm">{label}</p>
+      <p className="text-fg mt-1 text-2xl font-bold">{value}</p>
+      {sub && <p className="text-fg-muted mt-1 text-xs">{sub}</p>}
     </div>
   )
 }
@@ -272,13 +259,9 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline gap-2 text-xs">
-      <span className="shrink-0 text-[var(--color-text-tertiary)]">
-        {label}
-      </span>
-      <span className="min-w-0 flex-1 border-b border-dotted border-[var(--color-border-default)]" />
-      <span className="shrink-0 text-right text-[var(--color-text-primary)]">
-        {value}
-      </span>
+      <span className="text-fg-muted shrink-0">{label}</span>
+      <span className="border-border min-w-0 flex-1 border-b border-dotted" />
+      <span className="text-fg shrink-0 text-right">{value}</span>
     </div>
   )
 }
@@ -293,26 +276,20 @@ function ServicePill({
   ok: boolean
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-4 py-3">
+    <div className="border-border bg-surface flex items-center gap-2 rounded-lg border px-4 py-3">
       <span
-        className={`h-2.5 w-2.5 rounded-full ${ok ? 'bg-[var(--color-status-success)]' : 'bg-[var(--color-status-danger)]'}`}
+        className={`h-2.5 w-2.5 rounded-full ${ok ? 'bg-success' : 'bg-danger'}`}
       />
-      <span className="text-sm font-medium text-[var(--color-text-primary)]">
-        {name}
-      </span>
-      {detail && (
-        <span className="text-xs text-[var(--color-text-tertiary)]">
-          {detail}
-        </span>
-      )}
+      <span className="text-fg text-sm font-medium">{name}</span>
+      {detail && <span className="text-fg-muted text-xs">{detail}</span>}
     </div>
   )
 }
 
 function SmtpConfigPanel({ config }: { config: SmtpConfig }) {
   return (
-    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-4">
-      <h3 className="mb-3 text-sm font-medium text-[var(--color-text-tertiary)]">
+    <div className="border-border bg-surface rounded-lg border p-4">
+      <h3 className="text-fg-muted mb-3 text-sm font-medium">
         SMTP Configuration
       </h3>
       <div className="space-y-2">
@@ -340,30 +317,28 @@ function SmtpConfigPanel({ config }: { config: SmtpConfig }) {
 function StatusBanner({ health }: { health: HealthInfo }) {
   const statusColor =
     health.status === 'healthy'
-      ? 'bg-[var(--color-status-success-subtle)] text-[var(--color-status-success)]'
+      ? 'bg-success/10 text-success'
       : health.status === 'degraded'
-        ? 'bg-[var(--color-status-warning-subtle)] text-[var(--color-status-warning)]'
-        : 'bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]'
+        ? 'bg-warning/10 text-warning'
+        : 'bg-danger/10 text-danger'
 
   const dotColor =
     health.status === 'healthy'
-      ? 'bg-[var(--color-status-success)]'
+      ? 'bg-success'
       : health.status === 'degraded'
-        ? 'bg-[var(--color-status-warning)]'
-        : 'bg-[var(--color-status-danger)]'
+        ? 'bg-warning'
+        : 'bg-danger'
 
   return (
-    <div className="flex items-center gap-4 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-5 py-3">
+    <div className="border-border bg-surface flex items-center gap-4 rounded-lg border px-5 py-3">
       <span
         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}
       >
         <span className={`h-2 w-2 rounded-full ${dotColor}`} />
         {health.status.charAt(0).toUpperCase() + health.status.slice(1)}
       </span>
-      <span className="text-sm text-[var(--color-text-tertiary)]">
-        v{health.version}
-      </span>
-      <span className="text-sm text-[var(--color-text-tertiary)]">
+      <span className="text-fg-muted text-sm">v{health.version}</span>
+      <span className="text-fg-muted text-sm">
         Uptime {formatUptime(health.uptime_secs)}
       </span>
     </div>

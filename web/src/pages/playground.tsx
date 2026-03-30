@@ -1,4 +1,4 @@
-import type { ThemeMode } from '@/lib/theme'
+import type { ThemeMode } from '@goliapkg/gds'
 
 import { useAtom } from 'jotai'
 import { Moon, Plus, Search, Star, Sun, Trash2, X } from 'lucide-react'
@@ -21,26 +21,24 @@ export function Playground() {
   const [inputValue, setInputValue] = useState('')
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-base)] p-6">
+    <div className="bg-bg min-h-screen p-6">
       <div className="mx-auto max-w-4xl space-y-10">
         {/* header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">
-              Component Playground
-            </h1>
-            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+            <h1 className="text-fg text-2xl font-bold">Component Playground</h1>
+            <p className="text-fg-secondary mt-1 text-sm">
               Design token system &middot; All components render with CSS custom
               properties
             </p>
           </div>
-          <div className="flex items-center gap-1 border border-[var(--color-border-default)] p-0.5">
+          <div className="border-border flex items-center gap-1 border p-0.5">
             {(['light', 'dark', 'system'] as ThemeMode[]).map((m) => (
               <button
                 className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
                   theme === m
-                    ? 'bg-[var(--color-brand-primary)] text-white'
-                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]'
+                    ? 'bg-accent text-white'
+                    : 'text-fg-secondary hover:bg-bg-secondary'
                 }`}
                 key={m}
                 onClick={() => setTheme(m)}
@@ -58,28 +56,28 @@ export function Playground() {
           <Row label="Surfaces">
             {(
               [
-                '--color-bg-base',
-                '--color-bg-raised',
-                '--color-bg-overlay',
-                '--color-bg-sunken',
+                '--gds-bg',
+                '--gds-surface',
+                '--gds-surface-raised',
+                '--gds-bg-secondary',
               ] as const
             ).map((v) => (
               <div className="flex flex-col items-center gap-1" key={v}>
                 <div
-                  className="h-12 w-12 border border-[var(--color-border-default)]"
+                  className="border-border h-12 w-12 border"
                   style={{ background: `var(${v})` }}
                 />
-                <span className="text-[10px] text-[var(--color-text-tertiary)]">
-                  {v.replace('--color-bg-', '')}
+                <span className="text-fg-muted text-[10px]">
+                  {v.replace('--gds-', '')}
                 </span>
               </div>
             ))}
           </Row>
           <Row label="Text">
             {[
-              { label: 'primary', v: '--color-text-primary' },
-              { label: 'secondary', v: '--color-text-secondary' },
-              { label: 'tertiary', v: '--color-text-tertiary' },
+              { label: 'primary', v: '--gds-fg' },
+              { label: 'secondary', v: '--gds-fg-secondary' },
+              { label: 'tertiary', v: '--gds-fg-muted' },
             ].map(({ label, v }) => (
               <span
                 className="text-sm font-medium"
@@ -95,11 +93,9 @@ export function Playground() {
               <div className="flex items-center gap-1.5" key={s}>
                 <div
                   className="h-3 w-3 rounded-full"
-                  style={{ background: `var(--color-status-${s})` }}
+                  style={{ background: `var(--gds-${s})` }}
                 />
-                <span className="text-xs text-[var(--color-text-secondary)]">
-                  {s}
-                </span>
+                <span className="text-fg-secondary text-xs">{s}</span>
               </div>
             ))}
           </Row>
@@ -108,8 +104,8 @@ export function Playground() {
               <div
                 className="flex h-8 w-20 items-center justify-center text-xs font-medium"
                 style={{
-                  background: 'var(--color-brand-primary)',
-                  color: 'var(--color-brand-primary-text)',
+                  background: 'var(--gds-accent)',
+                  color: 'var(--gds-accent-fg)',
                 }}
               >
                 Primary
@@ -117,17 +113,18 @@ export function Playground() {
               <div
                 className="flex h-8 w-20 items-center justify-center text-xs font-medium"
                 style={{
-                  background: 'var(--color-brand-primary-hover)',
-                  color: 'var(--color-brand-primary-text)',
+                  background: 'var(--gds-accent-hover)',
+                  color: 'var(--gds-accent-fg)',
                 }}
               >
                 Hover
               </div>
               <div
-                className="flex h-8 w-20 items-center justify-center border border-[var(--color-border-default)] text-xs font-medium"
+                className="border-border flex h-8 w-20 items-center justify-center border text-xs font-medium"
                 style={{
-                  background: 'var(--color-brand-subtle)',
-                  color: 'var(--color-brand-primary)',
+                  background:
+                    'color-mix(in srgb, var(--gds-accent) 10%, transparent)',
+                  color: 'var(--gds-accent)',
                 }}
               >
                 Subtle
@@ -291,7 +288,7 @@ export function Playground() {
             open={dialogOpen}
             title="Confirm action"
           >
-            <p className="text-sm text-[var(--color-text-secondary)]">
+            <p className="text-fg-secondary text-sm">
               Are you sure you want to proceed? This action cannot be undone.
             </p>
             <div className="mt-4 flex justify-end gap-2">
@@ -316,22 +313,16 @@ export function Playground() {
         {/* typography scale */}
         <Section title="Typography">
           <div className="space-y-2">
-            <p className="text-2xl font-bold text-[var(--color-text-primary)]">
-              Heading 2XL (20px)
-            </p>
-            <p className="text-xl font-semibold text-[var(--color-text-primary)]">
-              Heading XL (18px)
-            </p>
-            <p className="text-lg font-semibold text-[var(--color-text-primary)]">
-              Heading LG (16px)
-            </p>
-            <p className="text-sm text-[var(--color-text-primary)]">
+            <p className="text-fg text-2xl font-bold">Heading 2XL (20px)</p>
+            <p className="text-fg text-xl font-semibold">Heading XL (18px)</p>
+            <p className="text-fg text-lg font-semibold">Heading LG (16px)</p>
+            <p className="text-fg text-sm">
               Body base (14px) — The quick brown fox jumps over the lazy dog.
             </p>
-            <p className="text-[13px] text-[var(--color-text-secondary)]">
+            <p className="text-fg-secondary text-[13px]">
               Body SM (13px) — Secondary text for descriptions and metadata.
             </p>
-            <p className="text-[11px] text-[var(--color-text-tertiary)]">
+            <p className="text-fg-muted text-[11px]">
               Caption XS (11px) — Timestamps, counts, and fine print.
             </p>
           </div>
@@ -341,20 +332,20 @@ export function Playground() {
         <Section title="Shadows">
           <Row label="Elevation levels">
             <div
-              className="h-16 w-24 border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-2 text-xs text-[var(--color-text-secondary)]"
-              style={{ boxShadow: 'var(--shadow-sm)' }}
+              className="border-border bg-surface text-fg-secondary h-16 w-24 border p-2 text-xs"
+              style={{ boxShadow: 'var(--gds-shadow-sm)' }}
             >
               sm
             </div>
             <div
-              className="h-16 w-24 border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-2 text-xs text-[var(--color-text-secondary)]"
-              style={{ boxShadow: 'var(--shadow-md)' }}
+              className="border-border bg-surface text-fg-secondary h-16 w-24 border p-2 text-xs"
+              style={{ boxShadow: 'var(--gds-shadow-md)' }}
             >
               md
             </div>
             <div
-              className="h-16 w-24 border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-2 text-xs text-[var(--color-text-secondary)]"
-              style={{ boxShadow: 'var(--shadow-lg)' }}
+              className="border-border bg-surface text-fg-secondary h-16 w-24 border p-2 text-xs"
+              style={{ boxShadow: 'var(--gds-shadow-lg)' }}
             >
               lg
             </div>
@@ -367,18 +358,16 @@ export function Playground() {
             {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
               <div className="flex flex-col items-center gap-1" key={n}>
                 <div
-                  className="bg-[var(--color-brand-primary)]"
+                  className="bg-accent"
                   style={{ height: `${n * 4}px`, width: `${n * 4}px` }}
                 />
-                <span className="text-[10px] text-[var(--color-text-tertiary)]">
-                  {n}
-                </span>
+                <span className="text-fg-muted text-[10px]">{n}</span>
               </div>
             ))}
           </div>
         </Section>
 
-        <footer className="border-t border-[var(--color-border-default)] pt-4 text-xs text-[var(--color-text-tertiary)]">
+        <footer className="border-border text-fg-muted border-t pt-4 text-xs">
           mailrs design system &middot; Tokens auto-switch between light/dark
           via CSS custom properties
         </footer>
@@ -396,9 +385,7 @@ function Row({
 }) {
   return (
     <div>
-      <p className="mb-1.5 text-xs font-medium text-[var(--color-text-tertiary)]">
-        {label}
-      </p>
+      <p className="text-fg-muted mb-1.5 text-xs font-medium">{label}</p>
       <div className="flex flex-wrap items-center gap-2">{children}</div>
     </div>
   )
@@ -413,9 +400,7 @@ function Section({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
-        {title}
-      </h2>
+      <h2 className="text-fg text-lg font-semibold">{title}</h2>
       <div className="space-y-4">{children}</div>
     </section>
   )

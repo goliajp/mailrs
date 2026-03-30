@@ -1,10 +1,10 @@
 import React from 'react'
 
-interface Props {
+type Props = {
   children: React.ReactNode
 }
 
-interface State {
+type State = {
   error?: Error
   hasError: boolean
 }
@@ -31,13 +31,13 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-sunken)]">
-          <div className="w-full max-w-md rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-6 py-8 shadow-lg">
+        <div className="bg-bg-secondary flex min-h-screen items-center justify-center">
+          <div className="border-border bg-surface w-full max-w-md rounded-lg border px-6 py-8 shadow-lg">
             <div className="text-center">
               <div className="mb-4 flex justify-center">
-                <div className="rounded-md bg-[var(--color-status-danger-subtle)] p-3">
+                <div className="bg-danger/10 rounded-md p-3">
                   <svg
-                    className="h-8 w-8 text-[var(--color-status-danger)]"
+                    className="text-danger h-8 w-8"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -51,24 +51,22 @@ export class ErrorBoundary extends React.Component<Props, State> {
                   </svg>
                 </div>
               </div>
-              <h1 className="mb-2 text-2xl font-bold text-[var(--color-text-primary)]">
-                出错了
-              </h1>
-              <p className="mb-4 text-[var(--color-text-secondary)]">
+              <h1 className="text-fg mb-2 text-2xl font-bold">出错了</h1>
+              <p className="text-fg-secondary mb-4">
                 应用程序遇到了一个意外错误。请尝试重新加载页面。
               </p>
               {this.state.error && (
                 <details className="mb-6 text-left">
-                  <summary className="cursor-pointer text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+                  <summary className="text-fg-secondary hover:text-fg cursor-pointer text-sm font-medium">
                     查看错误详情
                   </summary>
-                  <pre className="mt-2 overflow-auto rounded-md bg-[var(--color-bg-sunken)] p-3 text-xs text-[var(--color-text-secondary)]">
+                  <pre className="bg-bg-secondary text-fg-secondary mt-2 overflow-auto rounded-md p-3 text-xs">
                     {this.state.error.toString()}
                   </pre>
                 </details>
               )}
               <button
-                className="w-full rounded-md bg-[var(--color-brand-primary)] px-4 py-2 font-semibold text-white transition-colors hover:bg-[var(--color-brand-primary-hover)]"
+                className="bg-accent hover:bg-accent-hover w-full rounded-md px-4 py-2 font-semibold text-white transition-colors"
                 onClick={this.handleReload}
               >
                 重新加载

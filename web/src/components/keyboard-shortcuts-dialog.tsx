@@ -80,16 +80,16 @@ export function KeyboardShortcutsDialog({ onClose, open }: Props) {
     >
       {/* panel — stop propagation so clicks inside don't close */}
       <div
-        className="w-full max-w-sm rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] p-6 shadow-lg select-none"
+        className="border-border bg-surface w-full max-w-sm rounded-lg border p-6 shadow-lg select-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
+          <h2 className="text-fg text-base font-semibold">
             Keyboard Shortcuts
           </h2>
           <button
             aria-label="Close"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text-secondary)]"
+            className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
             onClick={onClose}
           >
             <X className="h-4 w-4" />
@@ -99,7 +99,7 @@ export function KeyboardShortcutsDialog({ onClose, open }: Props) {
         <div className="space-y-5">
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.title}>
-              <p className="mb-2 text-xs font-medium tracking-wider text-[var(--color-text-tertiary)] uppercase">
+              <p className="text-fg-muted mb-2 text-xs font-medium tracking-wider uppercase">
                 {group.title}
               </p>
               <ul className="space-y-1.5">
@@ -108,13 +108,13 @@ export function KeyboardShortcutsDialog({ onClose, open }: Props) {
                     className="flex items-center justify-between gap-4"
                     key={shortcut.description}
                   >
-                    <span className="text-sm text-[var(--color-text-secondary)]">
+                    <span className="text-fg-secondary text-sm">
                       {shortcut.description}
                     </span>
                     <span className="flex shrink-0 gap-1">
                       {shortcut.keys.map((key) => (
                         <kbd
-                          className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1.5 font-mono text-xs text-[var(--color-text-secondary)]"
+                          className="border-border bg-surface text-fg-secondary inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded border px-1.5 font-mono text-xs"
                           key={key}
                         >
                           {key}
@@ -128,13 +128,13 @@ export function KeyboardShortcutsDialog({ onClose, open }: Props) {
           ))}
         </div>
 
-        <p className="mt-5 text-center text-xs text-[var(--color-text-tertiary)]">
+        <p className="text-fg-muted mt-5 text-center text-xs">
           Press{' '}
-          <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1 font-mono text-xs text-[var(--color-text-secondary)]">
+          <kbd className="border-border bg-surface text-fg-secondary inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border px-1 font-mono text-xs">
             ?
           </kbd>{' '}
           or{' '}
-          <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] px-1 font-mono text-xs text-[var(--color-text-secondary)]">
+          <kbd className="border-border bg-surface text-fg-secondary inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border px-1 font-mono text-xs">
             Esc
           </kbd>{' '}
           to close
