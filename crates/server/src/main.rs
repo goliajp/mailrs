@@ -39,6 +39,8 @@ mod totp;
 mod users;
 mod valkey_store;
 mod mcp;
+mod oidc_jwt;
+mod oidc_store;
 mod web;
 mod webhook;
 
@@ -274,6 +276,13 @@ async fn main() {
     } else {
         None
     };
+
+    // OIDC provider: ensure signing key exists
+    if let Some(ref pool) = pg_pool {
+        if let Err(e) = oidc_jwt::ensure_signing_key(pool).await {
+            tracing::warn!(error = %e, "failed to ensure oidc signing key");
+        }
+    }
 
     // DMARC report store (PG-backed)
     let dmarc_report_store = pg_pool
