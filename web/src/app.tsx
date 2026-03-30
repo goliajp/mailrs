@@ -2,12 +2,12 @@ import type React from 'react'
 
 import {
   AppShell,
-  themeAtom,
   ToastProvider,
+  useFonts,
+  useSetThemePreset,
   useThemeEffect,
 } from '@goliapkg/gds'
-import { useFonts } from '@goliapkg/gds/systems'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 
@@ -216,23 +216,16 @@ function useDocumentTitle() {
   }, [unreadCount])
 }
 
-// mailrs colors are defined statically in index.css via --mr-* variables
-// and mapped to Tailwind via @theme overrides, so no JS color injection needed
+// apply zinc-neutral preset on first visit (gds built-in since 2.1.0)
 function useMailrsTheme() {
-  const theme = useAtomValue(themeAtom)
-  const setTheme = useSetAtom(themeAtom)
+  const setPreset = useSetThemePreset()
   const initialized = useRef(false)
 
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
     if (!localStorage.getItem('gds-theme')) {
-      setTheme({
-        ...theme,
-        elevation: 'subtle' as const,
-        glass: 'subtle' as const,
-        primaryColor: '#3b7ddd',
-      })
+      setPreset('zinc-neutral')
     }
-  }, [setTheme, theme])
+  }, [setPreset])
 }
