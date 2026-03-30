@@ -1,3 +1,5 @@
+import type { ThemeToggleMode } from '@goliapkg/gds'
+
 import {
   Avatar,
   Badge,
@@ -33,7 +35,7 @@ export function Playground() {
             </p>
           </div>
           <ThemeToggle
-            mode={mode as 'dark' | 'light'}
+            mode={mode as ThemeToggleMode}
             onChange={(m) => setMode(m)}
           />
         </div>
