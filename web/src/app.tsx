@@ -2,13 +2,15 @@ import type React from 'react'
 
 import {
   AppShell,
+  themeAtom,
+  themePresets,
   ToastProvider,
   useFonts,
-  useSetThemePreset,
   useThemeEffect,
 } from '@goliapkg/gds'
 import { useAtomValue } from 'jotai'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { getDefaultStore } from 'jotai'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 
 import { AppSidebar } from '@/components/app-sidebar'
@@ -35,9 +37,11 @@ const Settings = lazy(() =>
   import('@/pages/settings').then((m) => ({ default: m.Settings }))
 )
 
+// apply zinc-neutral preset before first render — no effect race conditions
+initMailrsTheme()
+
 export function App() {
   useDocumentTitle()
-  useMailrsTheme()
   useThemeEffect()
   useFonts()
 
@@ -131,6 +135,27 @@ function AuthShell({ children }: { children: React.ReactNode }) {
   )
 }
 
+// apply zinc-neutral preset synchronously at module load time
+// runs before any React render, so useThemeEffect sees the correct state immediately
+function initMailrsTheme() {
+  try {
+    const stored = localStorage.getItem('gds-theme')
+    const parsed = stored ? JSON.parse(stored) : null
+    if (parsed?.presetId === 'zinc-neutral') return
+  } catch {
+    // ignore parse errors
+  }
+  const store = getDefaultStore()
+  const current = store.get(themeAtom)
+  const preset = themePresets['zinc-neutral']
+  store.set(themeAtom, {
+    ...current,
+    ...preset,
+    colorOverrides: null,
+    presetId: 'zinc-neutral',
+  })
+}
+
 function LoadingFallback() {
   return (
     <div className="flex flex-1 items-center justify-center p-8">
@@ -214,24 +239,4 @@ function useDocumentTitle() {
   useEffect(() => {
     document.title = unreadCount > 0 ? `(${unreadCount}) Mailrs` : 'Mailrs'
   }, [unreadCount])
-}
-
-// ensure zinc-neutral preset is active (one-time migration + default for new users)
-function useMailrsTheme() {
-  const setPreset = useSetThemePreset()
-  const initialized = useRef(false)
-
-  useEffect(() => {
-    if (initialized.current) return
-    initialized.current = true
-    try {
-      const stored = localStorage.getItem('gds-theme')
-      const parsed = stored ? JSON.parse(stored) : null
-      if (!parsed || parsed.presetId !== 'zinc-neutral') {
-        setPreset('zinc-neutral')
-      }
-    } catch {
-      setPreset('zinc-neutral')
-    }
-  }, [setPreset])
 }
