@@ -54,6 +54,7 @@ if [ "$WEB_ONLY" = false ]; then
     echo 'MAILRS_AI_ANALYSIS_ENABLED=true'
     echo 'MAILRS_LLM_URL=https://devops.golia.jp/api/llm/complete'
     echo "MAILRS_LLM_API_KEY=${MAILRS_LLM_API_KEY:-}"
+    echo 'MAILRS_WEBHOOK_URL=https://api.golia.jp/api/internal/mail-webhook'
   } > /tmp/mailrs-deploy-env
   $SCP /tmp/mailrs-deploy-env "$SSH_HOST:$REMOTE_DIR/.env"
   rm -f /tmp/mailrs-deploy-env
