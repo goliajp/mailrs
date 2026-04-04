@@ -73,10 +73,7 @@ export function Chat() {
 
   // request notification permission
   useEffect(() => {
-    if (
-      typeof Notification !== 'undefined' &&
-      Notification.permission === 'default'
-    ) {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission()
     }
   }, [])
@@ -121,8 +118,7 @@ export function Chat() {
       let path = `/conversations?limit=${PAGE_SIZE}`
       if (before) path += `&before=${before}`
       if (category) path += `&category=${encodeURIComponent(category)}`
-      if (domains && domains.length > 0)
-        path += `&domains=${encodeURIComponent(domains.join(','))}`
+      if (domains && domains.length > 0) path += `&domains=${encodeURIComponent(domains.join(','))}`
       if (archived) path += '&archived=true'
       if (f) path += `&folder=${encodeURIComponent(f)}`
       if (unread) path += '&unread=true'
@@ -278,10 +274,7 @@ export function Chat() {
         )}
       </MPaneGroup>
 
-      <KeyboardShortcutsDialog
-        onClose={() => setShortcutsOpen(false)}
-        open={shortcutsOpen}
-      />
+      <KeyboardShortcutsDialog onClose={() => setShortcutsOpen(false)} open={shortcutsOpen} />
     </MPaneGroup>
   )
 }

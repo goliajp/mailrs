@@ -40,14 +40,8 @@ export function QuoteBlock({ data, mode, onChange }: Props) {
         onClick={() => onChange({ ...data, collapsed: !collapsed })}
         type="button"
       >
-        {collapsed ? (
-          <ChevronRight className="h-3 w-3" />
-        ) : (
-          <ChevronDown className="h-3 w-3" />
-        )}
-        {collapsed
-          ? `Show original${mode === 'forward' ? ' (forwarded)' : ''}`
-          : 'Hide original'}
+        {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        {collapsed ? `Show original${mode === 'forward' ? ' (forwarded)' : ''}` : 'Hide original'}
       </button>
       {!collapsed && (
         <div className="border-border border-l-2 opacity-50">

@@ -64,9 +64,7 @@ export function AdminEmailGroups() {
       setAdding(false)
       loadGroups()
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : 'Failed to create email group'
-      )
+      toast.error(e instanceof Error ? e.message : 'Failed to create email group')
     }
   }
 
@@ -78,9 +76,7 @@ export function AdminEmailGroups() {
       if (expandedId === id) setExpandedId(null)
       loadGroups()
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : 'Failed to delete email group'
-      )
+      toast.error(e instanceof Error ? e.message : 'Failed to delete email group')
       setDeleteTarget(null)
     }
   }
@@ -128,18 +124,13 @@ export function AdminEmailGroups() {
             />
             <input
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Description"
               value={form.description}
             />
           </div>
           <div className="flex gap-2">
-            <button
-              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
-              onClick={handleAdd}
-            >
+            <button className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm" onClick={handleAdd}>
               Save
             </button>
             <button
@@ -168,19 +159,13 @@ export function AdminEmailGroups() {
               <Fragment key={group.id}>
                 <tr className="border-border border-b last:border-0">
                   <td className="px-4 py-3 font-medium">{group.address}</td>
-                  <td className="text-fg-secondary px-4 py-3">
-                    {group.domain}
-                  </td>
+                  <td className="text-fg-secondary px-4 py-3">{group.domain}</td>
                   <td className="text-fg-secondary px-4 py-3">{group.name}</td>
-                  <td className="text-fg-secondary px-4 py-3">
-                    {group.description}
-                  </td>
+                  <td className="text-fg-secondary px-4 py-3">{group.description}</td>
                   <td className="px-4 py-3 text-right">
                     <button
                       className="text-accent mr-3 text-xs hover:opacity-80"
-                      onClick={() =>
-                        setExpandedId(expandedId === group.id ? null : group.id)
-                      }
+                      onClick={() => setExpandedId(expandedId === group.id ? null : group.id)}
                     >
                       {expandedId === group.id ? 'Hide' : 'Members'}
                     </button>
@@ -239,21 +224,13 @@ export function AdminEmailGroups() {
   )
 }
 
-function EmailGroupMembers({
-  group,
-  onChanged,
-}: {
-  group: EmailGroupInfo
-  onChanged: () => void
-}) {
+function EmailGroupMembers({ group, onChanged }: { group: EmailGroupInfo; onChanged: () => void }) {
   const [members, setMembers] = useState<null | string[]>(null)
   const [newMember, setNewMember] = useState('')
 
   const load = useCallback(async () => {
     try {
-      const data = await fetchJson<string[]>(
-        `/admin/email-groups/${group.id}/members`
-      )
+      const data = await fetchJson<string[]>(`/admin/email-groups/${group.id}/members`)
       setMembers(data)
     } catch {
       // keep current state
@@ -280,12 +257,9 @@ function EmailGroupMembers({
   }
 
   const handleRemoveMember = async (address: string) => {
-    if (!window.confirm(`Remove member "${address}" from this email group?`))
-      return
+    if (!window.confirm(`Remove member "${address}" from this email group?`)) return
     try {
-      await deleteJson(
-        `/admin/email-groups/${group.id}/members/${encodeURIComponent(address)}`
-      )
+      await deleteJson(`/admin/email-groups/${group.id}/members/${encodeURIComponent(address)}`)
       toast.success(`Member "${address}" removed`)
       load()
       onChanged()

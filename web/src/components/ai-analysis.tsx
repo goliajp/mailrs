@@ -22,10 +22,7 @@ export function AiAnalysisPanel({ message }: Props) {
     : []
   const hasDeadline = !!message.action_deadline
   const hasDetails =
-    people.length > 0 ||
-    dates.length > 0 ||
-    amounts.length > 0 ||
-    actions.length > 0
+    people.length > 0 || dates.length > 0 || amounts.length > 0 || actions.length > 0
 
   return (
     <div className="border-border bg-bg-secondary border-b px-5 py-2">
@@ -43,9 +40,7 @@ export function AiAnalysisPanel({ message }: Props) {
         ) : null}
         <div className="min-w-0 flex-1">
           {message.summary ? (
-            <p className="text-fg-secondary text-sm select-text">
-              {message.summary}
-            </p>
+            <p className="text-fg-secondary text-sm select-text">{message.summary}</p>
           ) : hasDetails ? (
             <p className="text-fg-muted text-xs">AI analysis details</p>
           ) : null}
@@ -59,9 +54,7 @@ export function AiAnalysisPanel({ message }: Props) {
 
           {/* risk reason */}
           {message.risk_score > 0 && message.risk_reason && (
-            <p className="text-warning mt-1 text-xs select-text">
-              Risk: {message.risk_reason}
-            </p>
+            <p className="text-warning mt-1 text-xs select-text">Risk: {message.risk_reason}</p>
           )}
         </div>
       </button>
@@ -161,8 +154,7 @@ function safeAmounts(raw: any[]): { context?: string; text: string }[] {
       continue
     }
     if (a && typeof a === 'object') {
-      const text =
-        a.text || (a.value != null ? `${a.currency ?? ''}${a.value}` : '')
+      const text = a.text || (a.value != null ? `${a.currency ?? ''}${a.value}` : '')
       if (text) results.push({ context: a.context || undefined, text })
     }
   }
@@ -187,9 +179,7 @@ function safeDates(raw: any[]): { context?: string; text: string }[] {
 
 // safely extract display text from potentially malformed AI data
 
-function safePeople(
-  raw: any[]
-): { email?: string; label: string; role?: string }[] {
+function safePeople(raw: any[]): { email?: string; label: string; role?: string }[] {
   if (!Array.isArray(raw)) return []
   const results: { email?: string; label: string; role?: string }[] = []
   for (const p of raw) {

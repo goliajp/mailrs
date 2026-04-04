@@ -30,11 +30,7 @@ export function AttachmentBlock({ data, onRemove }: Props) {
   return (
     <div className="border-border bg-surface flex items-center gap-3 rounded-lg border px-3 py-2">
       {isImage && previewUrl ? (
-        <img
-          alt={data.name}
-          className="h-10 w-10 shrink-0 rounded object-cover"
-          src={previewUrl}
-        />
+        <img alt={data.name} className="h-10 w-10 shrink-0 rounded object-cover" src={previewUrl} />
       ) : (
         <div className="bg-bg-secondary flex h-10 w-10 shrink-0 items-center justify-center rounded">
           <FileIcon className="text-fg-muted h-5 w-5" />

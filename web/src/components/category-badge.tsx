@@ -84,41 +84,39 @@ export function riskColor(score: number): string {
   return 'text-success'
 }
 
-const importanceStyles: Record<
-  string,
-  { bg: string; icon: string; label: string; text: string }
-> = {
-  critical: {
-    bg: 'bg-danger/10',
-    icon: '!!',
-    label: 'Critical',
-    text: 'text-danger',
-  },
-  important: {
-    bg: 'bg-warning/10',
-    icon: '!',
-    label: 'Important',
-    text: 'text-warning',
-  },
-  low: {
-    bg: 'bg-bg-secondary',
-    icon: '',
-    label: 'Low',
-    text: 'text-fg-muted',
-  },
-  noise: {
-    bg: 'bg-bg-secondary',
-    icon: '',
-    label: 'Noise',
-    text: 'text-fg-muted',
-  },
-  normal: {
-    bg: 'bg-surface',
-    icon: '',
-    label: 'Normal',
-    text: 'text-fg-muted',
-  },
-}
+const importanceStyles: Record<string, { bg: string; icon: string; label: string; text: string }> =
+  {
+    critical: {
+      bg: 'bg-danger/10',
+      icon: '!!',
+      label: 'Critical',
+      text: 'text-danger',
+    },
+    important: {
+      bg: 'bg-warning/10',
+      icon: '!',
+      label: 'Important',
+      text: 'text-warning',
+    },
+    low: {
+      bg: 'bg-bg-secondary',
+      icon: '',
+      label: 'Low',
+      text: 'text-fg-muted',
+    },
+    noise: {
+      bg: 'bg-bg-secondary',
+      icon: '',
+      label: 'Noise',
+      text: 'text-fg-muted',
+    },
+    normal: {
+      bg: 'bg-surface',
+      icon: '',
+      label: 'Normal',
+      text: 'text-fg-muted',
+    },
+  }
 
 export function ActionBadge() {
   return (
@@ -129,8 +127,7 @@ export function ActionBadge() {
 }
 
 export function ImportanceBadge({ level }: { level: string }) {
-  if (!level || level === 'normal' || level === 'low' || level === 'noise')
-    return null
+  if (!level || level === 'normal' || level === 'low' || level === 'noise') return null
   const s = importanceStyles[level] ?? importanceStyles.normal
   return (
     <span

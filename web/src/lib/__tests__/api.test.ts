@@ -25,11 +25,7 @@ import { getToken } from '@/store/auth'
 
 const mockGetToken = vi.mocked(getToken)
 
-function makeFetchMock(
-  status: number,
-  body: unknown,
-  isJson = true
-): typeof fetch {
+function makeFetchMock(status: number, body: unknown, isJson = true): typeof fetch {
   return vi.fn().mockResolvedValue({
     blob: vi.fn().mockResolvedValue(body instanceof Blob ? body : new Blob()),
     json: isJson
@@ -55,9 +51,7 @@ describe('authHeaders', () => {
     await fetchJson('/test')
     const call = vi.mocked(fetch).mock.calls[0]
     const opts = call[1] as RequestInit
-    expect((opts.headers as Record<string, string>)['Authorization']).toBe(
-      'Bearer test-token-abc'
-    )
+    expect((opts.headers as Record<string, string>)['Authorization']).toBe('Bearer test-token-abc')
   })
 
   it('omits Authorization header when token is null', async () => {
@@ -65,9 +59,7 @@ describe('authHeaders', () => {
     await fetchJson('/test')
     const call = vi.mocked(fetch).mock.calls[0]
     const opts = call[1] as RequestInit
-    expect(
-      (opts.headers as Record<string, string>)['Authorization']
-    ).toBeUndefined()
+    expect((opts.headers as Record<string, string>)['Authorization']).toBeUndefined()
   })
 })
 
@@ -82,10 +74,7 @@ describe('fetchJson', () => {
     vi.stubGlobal('fetch', makeFetchMock(200, { data: 'hello' }))
     const result = await fetchJson<{ data: string }>('/conversations')
     expect(result).toEqual({ data: 'hello' })
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      '/api/conversations',
-      expect.any(Object)
-    )
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/conversations', expect.any(Object))
   })
 
   it('passes AbortSignal to fetch', async () => {
@@ -146,9 +135,7 @@ describe('postJson', () => {
     const call = vi.mocked(fetch).mock.calls[0]
     const opts = call[1] as RequestInit
     expect(opts.method).toBe('POST')
-    expect((opts.headers as Record<string, string>)['Content-Type']).toBe(
-      'application/json'
-    )
+    expect((opts.headers as Record<string, string>)['Content-Type']).toBe('application/json')
     expect(opts.body).toBe(JSON.stringify(payload))
   })
 
@@ -157,9 +144,7 @@ describe('postJson', () => {
     vi.stubGlobal('fetch', makeFetchMock(200, {}))
     await postJson('/test', {})
     const opts = vi.mocked(fetch).mock.calls[0][1] as RequestInit
-    expect((opts.headers as Record<string, string>)['Authorization']).toBe(
-      'Bearer my-token'
-    )
+    expect((opts.headers as Record<string, string>)['Authorization']).toBe('Bearer my-token')
   })
 })
 
@@ -178,9 +163,7 @@ describe('putJson', () => {
     expect(result).toEqual({ updated: true })
     const opts = vi.mocked(fetch).mock.calls[0][1] as RequestInit
     expect(opts.method).toBe('PUT')
-    expect((opts.headers as Record<string, string>)['Content-Type']).toBe(
-      'application/json'
-    )
+    expect((opts.headers as Record<string, string>)['Content-Type']).toBe('application/json')
   })
 })
 
@@ -217,10 +200,7 @@ describe('fetchBlob', () => {
     vi.stubGlobal('fetch', fetchMock)
     const result = await fetchBlob('/attachment/1')
     expect(result).toBe(blob)
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/attachment/1',
-      expect.any(Object)
-    )
+    expect(fetchMock).toHaveBeenCalledWith('/api/attachment/1', expect.any(Object))
   })
 
   it('throws on 401 and redirects to /login', async () => {
@@ -255,9 +235,7 @@ describe('fetchBlob', () => {
         status: 404,
       } as unknown as Response)
     )
-    await expect(fetchBlob('/attachment/99')).rejects.toThrow(
-      'Download failed: 404'
-    )
+    await expect(fetchBlob('/attachment/99')).rejects.toThrow('Download failed: 404')
   })
 })
 
@@ -290,9 +268,7 @@ describe('getThreadReactions', () => {
     vi.stubGlobal('fetch', makeFetchMock(200, { reactions }))
     const result = await getThreadReactions('thread-abc')
     expect(result).toEqual(reactions)
-    expect(vi.mocked(fetch).mock.calls[0][0]).toBe(
-      '/api/conversations/thread-abc/reactions'
-    )
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/conversations/thread-abc/reactions')
   })
 
   it('encodes threadId in URL', async () => {

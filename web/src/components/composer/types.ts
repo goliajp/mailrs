@@ -29,14 +29,7 @@ export type BlockDataMap = {
   text: TextBlockData
 }
 
-export type BlockType =
-  | 'attachment'
-  | 'code'
-  | 'divider'
-  | 'quote'
-  | 'signature'
-  | 'task'
-  | 'text'
+export type BlockType = 'attachment' | 'code' | 'divider' | 'quote' | 'signature' | 'task' | 'text'
 
 export type CodeBlockData = {
   readonly code: string
@@ -71,9 +64,6 @@ export type TextBlockData = {
   readonly html: string
 }
 
-export function createBlock<T extends BlockType>(
-  type: T,
-  data: BlockDataMap[T]
-): Block<T> {
+export function createBlock<T extends BlockType>(type: T, data: BlockDataMap[T]): Block<T> {
   return { data, id: crypto.randomUUID(), type }
 }

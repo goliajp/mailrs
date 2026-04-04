@@ -22,9 +22,7 @@ import {
   unreadCountAtom,
 } from '../chat'
 
-function makeConversation(
-  overrides: Partial<ConversationSummary> = {}
-): ConversationSummary {
+function makeConversation(overrides: Partial<ConversationSummary> = {}): ConversationSummary {
   return {
     archived: false,
     category: 'inbox',
@@ -62,9 +60,7 @@ describe('unreadCountAtom', () => {
 
   it('updates reactively when conversations change', () => {
     const store = createStore()
-    store.set(conversationsAtom, [
-      makeConversation({ thread_id: 't1', unread_count: 2 }),
-    ])
+    store.set(conversationsAtom, [makeConversation({ thread_id: 't1', unread_count: 2 })])
     expect(store.get(unreadCountAtom)).toBe(2)
 
     store.set(conversationsAtom, [
@@ -85,9 +81,7 @@ describe('unreadCountAtom', () => {
 
   it('handles single conversation correctly', () => {
     const store = createStore()
-    store.set(conversationsAtom, [
-      makeConversation({ thread_id: 't1', unread_count: 12 }),
-    ])
+    store.set(conversationsAtom, [makeConversation({ thread_id: 't1', unread_count: 12 })])
     expect(store.get(unreadCountAtom)).toBe(12)
   })
 })

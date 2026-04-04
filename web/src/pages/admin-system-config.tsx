@@ -95,19 +95,14 @@ export function AdminSystemConfig() {
       <div className="mb-6">
         <h2 className="text-lg font-semibold">System Configuration</h2>
         <p className="text-fg-secondary mt-1 text-sm">
-          Runtime server settings. Changes to database-sourced values take
-          effect immediately.
+          Runtime server settings. Changes to database-sourced values take effect immediately.
         </p>
       </div>
 
-      {loading && (
-        <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>
-      )}
+      {loading && <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>}
 
       {!loading && entries.length === 0 && (
-        <p className="text-fg-muted py-8 text-center text-sm">
-          No configuration entries found
-        </p>
+        <p className="text-fg-muted py-8 text-center text-sm">No configuration entries found</p>
       )}
 
       <div className="flex flex-col gap-4">
@@ -243,21 +238,13 @@ function ConfigField({
         {entry.updated_by && (
           <span className="text-fg-muted text-xs">
             by {entry.updated_by}
-            {entry.updated_at
-              ? ` on ${new Date(entry.updated_at).toLocaleDateString()}`
-              : ''}
+            {entry.updated_at ? ` on ${new Date(entry.updated_at).toLocaleDateString()}` : ''}
           </span>
         )}
       </div>
-      {entry.description && (
-        <p className="text-fg-secondary mb-2 text-xs">{entry.description}</p>
-      )}
+      {entry.description && <p className="text-fg-secondary mb-2 text-xs">{entry.description}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <ConfigControl
-          onChange={setLocalValue}
-          value={localValue}
-          valueType={entry.value_type}
-        />
+        <ConfigControl onChange={setLocalValue} value={localValue} valueType={entry.value_type} />
         <button
           className="bg-fg text-bg inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-90 disabled:opacity-50"
           disabled={!dirty || saving}
@@ -281,13 +268,7 @@ function ConfigField({
   )
 }
 
-function GroupCard({
-  children,
-  group,
-}: {
-  children: ReactNode
-  group: string
-}) {
+function GroupCard({ children, group }: { children: ReactNode; group: string }) {
   const label = GROUP_LABELS[group] ?? group
   return (
     <div className="border-border overflow-hidden rounded-lg border">
@@ -302,9 +283,5 @@ function GroupCard({
 function SourceBadge({ source }: { source: string }) {
   const style = SOURCE_STYLES[source] ?? SOURCE_STYLES.default
   const label = SOURCE_LABELS[source] ?? source
-  return (
-    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${style}`}>
-      {label}
-    </span>
-  )
+  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${style}`}>{label}</span>
 }

@@ -11,9 +11,7 @@ afterEach(() => {
   cleanup()
 })
 
-function makeAttachment(
-  overrides: Partial<AttachmentInfo> = {}
-): AttachmentInfo {
+function makeAttachment(overrides: Partial<AttachmentInfo> = {}): AttachmentInfo {
   return {
     content_type: 'application/pdf',
     filename: 'document.pdf',
@@ -59,14 +57,10 @@ describe('AttachmentPreview', () => {
       }),
     ]
 
-    const { container } = render(
-      <AttachmentPreview attachments={attachments} uid={42} />
-    )
+    const { container } = render(<AttachmentPreview attachments={attachments} uid={42} />)
     const img = container.querySelector('img')
     expect(img).not.toBeNull()
-    expect(img?.getAttribute('src')).toBe(
-      '/api/mail/messages/42/attachments/0?token=test-token'
-    )
+    expect(img?.getAttribute('src')).toBe('/api/mail/messages/42/attachments/0?token=test-token')
     expect(img?.getAttribute('alt')).toBe('photo.jpg')
   })
 
@@ -79,14 +73,10 @@ describe('AttachmentPreview', () => {
       }),
     ]
 
-    const { container } = render(
-      <AttachmentPreview attachments={attachments} uid={5} />
-    )
+    const { container } = render(<AttachmentPreview attachments={attachments} uid={5} />)
     const link = container.querySelector('a')
     expect(link).not.toBeNull()
-    expect(link?.getAttribute('href')).toBe(
-      '/api/mail/messages/5/attachments/0?token=test-token'
-    )
+    expect(link?.getAttribute('href')).toBe('/api/mail/messages/5/attachments/0?token=test-token')
     expect(link?.getAttribute('target')).toBe('_blank')
   })
 
@@ -130,18 +120,14 @@ describe('AttachmentPreview', () => {
       }),
     ]
 
-    const { container } = render(
-      <AttachmentPreview attachments={attachments} uid={1} />
-    )
+    const { container } = render(<AttachmentPreview attachments={attachments} uid={1} />)
     // should render as image thumbnail (img element)
     const img = container.querySelector('img')
     expect(img).not.toBeNull()
   })
 
   it('opens lightbox when image thumbnail is clicked', () => {
-    const attachments = [
-      makeAttachment({ content_type: 'image/jpeg', filename: 'photo.jpg' }),
-    ]
+    const attachments = [makeAttachment({ content_type: 'image/jpeg', filename: 'photo.jpg' })]
 
     render(<AttachmentPreview attachments={attachments} uid={1} />)
 
@@ -156,9 +142,7 @@ describe('AttachmentPreview', () => {
   })
 
   it('closes lightbox when close button is clicked', () => {
-    const attachments = [
-      makeAttachment({ content_type: 'image/jpeg', filename: 'photo.jpg' }),
-    ]
+    const attachments = [makeAttachment({ content_type: 'image/jpeg', filename: 'photo.jpg' })]
 
     render(<AttachmentPreview attachments={attachments} uid={1} />)
 

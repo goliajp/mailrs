@@ -100,9 +100,7 @@ describe('avatarInitial', () => {
 
 describe('extractEmail', () => {
   it('extracts email from "Name <email>" format', () => {
-    expect(extractEmail('Alice Smith <alice@example.com>')).toBe(
-      'alice@example.com'
-    )
+    expect(extractEmail('Alice Smith <alice@example.com>')).toBe('alice@example.com')
   })
 
   it('extracts email from bare angle-bracket format', () => {
@@ -118,15 +116,11 @@ describe('extractEmail', () => {
   })
 
   it('handles quoted display name', () => {
-    expect(extractEmail('"Dave Doe" <dave@example.com>')).toBe(
-      'dave@example.com'
-    )
+    expect(extractEmail('"Dave Doe" <dave@example.com>')).toBe('dave@example.com')
   })
 
   it('handles subdomain emails', () => {
-    expect(extractEmail('Eve <eve@mail.example.co.uk>')).toBe(
-      'eve@mail.example.co.uk'
-    )
+    expect(extractEmail('Eve <eve@mail.example.co.uk>')).toBe('eve@mail.example.co.uk')
   })
 })
 
@@ -220,9 +214,7 @@ describe('extractName', () => {
   })
 
   it('decodes MIME base64 encoded display name', () => {
-    expect(
-      extractName('=?UTF-8?B?6aKG6Iux?= <notifications-noreply@linkedin.com>')
-    ).toBe('领英')
+    expect(extractName('=?UTF-8?B?6aKG6Iux?= <notifications-noreply@linkedin.com>')).toBe('领英')
   })
 
   it('decodes MIME quoted-printable display name', () => {
@@ -232,23 +224,17 @@ describe('extractName', () => {
 
 describe('isMachineGenerated', () => {
   it('detects long hex/uuid strings', () => {
-    expect(
-      isMachineGenerated(
-        '0101019ccdad21d4-3b587183-7366-4b5f-a157-c01ce00c45e1-000000'
-      )
-    ).toBe(true)
+    expect(isMachineGenerated('0101019ccdad21d4-3b587183-7366-4b5f-a157-c01ce00c45e1-000000')).toBe(
+      true
+    )
   })
 
   it('detects digit-heavy tracking IDs', () => {
-    expect(isMachineGenerated('722-YFB-855.0.848.0.0.2733.9.9404639')).toBe(
-      true
-    )
+    expect(isMachineGenerated('722-YFB-855.0.848.0.0.2733.9.9404639')).toBe(true)
   })
 
   it('detects VERP bounce addresses', () => {
-    expect(isMachineGenerated('msprvs1=205268vVROh3y=bounces-265094')).toBe(
-      true
-    )
+    expect(isMachineGenerated('msprvs1=205268vVROh3y=bounces-265094')).toBe(true)
   })
 
   it('detects bounce+ prefixed addresses', () => {
@@ -256,18 +242,12 @@ describe('isMachineGenerated', () => {
   })
 
   it('detects bounces+ prefixed addresses', () => {
-    expect(isMachineGenerated('bounces+46507342-d0da-lihao=golia.jp')).toBe(
-      true
-    )
+    expect(isMachineGenerated('bounces+46507342-d0da-lihao=golia.jp')).toBe(true)
   })
 
   it('detects long no-space strings with digits (tracking IDs)', () => {
-    expect(isMachineGenerated('z-bd148-xiacv7-0-2t4n-005lihaogolia.jp')).toBe(
-      true
-    )
-    expect(isMachineGenerated('z-cap7-xiadwo-0-5piy-005lihaogolia.jp')).toBe(
-      true
-    )
+    expect(isMachineGenerated('z-bd148-xiacv7-0-2t4n-005lihaogolia.jp')).toBe(true)
+    expect(isMachineGenerated('z-cap7-xiadwo-0-5piy-005lihaogolia.jp')).toBe(true)
   })
 
   it('detects VERP = encoding in long strings', () => {

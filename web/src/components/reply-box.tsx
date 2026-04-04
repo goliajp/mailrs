@@ -4,10 +4,7 @@ import { Loader2, Send } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
-import {
-  StructuredCompose,
-  type StructuredComposeHandle,
-} from '@/components/structured-compose'
+import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
 import { deleteJson, postJson } from '@/lib/api'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { authAtom } from '@/store/auth'
@@ -138,8 +135,7 @@ export function ReplyBox({
   }
 
   const resolveSubject = (): string => {
-    if (mode === 'forward')
-      return subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`
+    if (mode === 'forward') return subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`
     return subject.startsWith('Re:') ? subject : `Re: ${subject}`
   }
 
@@ -214,16 +210,13 @@ export function ReplyBox({
           body: isBackendForward ? assembled.compose.text : assembled.fullText,
           cc: [],
           from: auth?.address ?? '',
-          html_body: isBackendForward
-            ? assembled.compose.html
-            : assembled.fullHtml,
+          html_body: isBackendForward ? assembled.compose.html : assembled.fullHtml,
           subject: resolvedSubject,
           to,
         }
         if (inReplyTo) payload['in_reply_to'] = inReplyTo
         if (currentMode === 'forward') {
-          if (fwdMid && fwdMid.length > 0)
-            payload['forward_message_id'] = fwdMid
+          if (fwdMid && fwdMid.length > 0) payload['forward_message_id'] = fwdMid
           if (fwdUid && fwdUid > 0) payload['forward_attachments_from'] = fwdUid
         }
 
@@ -245,9 +238,7 @@ export function ReplyBox({
                 label: 'Undo',
                 onClick: async () => {
                   try {
-                    await deleteJson(
-                      `/mail/pending/${encodeURIComponent(sentMessageId)}`
-                    )
+                    await deleteJson(`/mail/pending/${encodeURIComponent(sentMessageId)}`)
                     toast.success('Send cancelled')
                   } catch {
                     toast.error('Could not cancel — already delivered')
@@ -262,13 +253,10 @@ export function ReplyBox({
       onSent()
     } catch (err) {
       saveDraftLocal()
-      toast.error(
-        err instanceof Error ? err.message : 'Network error — draft saved',
-        {
-          action: { label: 'Retry', onClick: () => send() },
-          duration: 10000,
-        }
-      )
+      toast.error(err instanceof Error ? err.message : 'Network error — draft saved', {
+        action: { label: 'Retry', onClick: () => send() },
+        duration: 10000,
+      })
     } finally {
       setSending(false)
     }
@@ -296,9 +284,7 @@ export function ReplyBox({
           .filter(Boolean)
           .map((p) => `<p>${escapeHtml(p)}</p>`)
           .join('')
-        editor.commands.setContent(
-          paragraphs || `<p>${escapeHtml(result.polished)}</p>`
-        )
+        editor.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
         toast.success('Text polished', {
           action: {
             label: 'Undo',
@@ -331,20 +317,15 @@ export function ReplyBox({
       const threadContext =
         priorMessages.length > 0
           ? priorMessages
-              .map(
-                (m) => `From: ${m.sender}\n${m.clean_text || m.text_body || ''}`
-              )
+              .map((m) => `From: ${m.sender}\n${m.clean_text || m.text_body || ''}`)
               .join('\n---\n')
           : undefined
-      const result = await postJson<ReplySuggestResult>(
-        '/mail/ai/reply-suggest',
-        {
-          original_body: originalBody,
-          original_sender: originalFrom,
-          original_subject: subject,
-          thread_context: threadContext,
-        }
-      )
+      const result = await postJson<ReplySuggestResult>('/mail/ai/reply-suggest', {
+        original_body: originalBody,
+        original_sender: originalFrom,
+        original_subject: subject,
+        thread_context: threadContext,
+      })
       if (result.success && result.suggestions.length > 0) {
         setSuggestions(result.suggestions)
       } else {
@@ -363,17 +344,13 @@ export function ReplyBox({
       .filter(Boolean)
       .map((p) => `<p>${escapeHtml(p)}</p>`)
       .join('')
-    composeRef.current?.setComposeContent(
-      paragraphs || `<p>${escapeHtml(suggestion)}</p>`
-    )
+    composeRef.current?.setComposeContent(paragraphs || `<p>${escapeHtml(suggestion)}</p>`)
     setSuggestions([])
     toast.success('Suggestion applied')
   }
 
   const quotedHtml =
-    mode === 'forward' && originalHtmlBody
-      ? originalHtmlBody
-      : originalBody || undefined
+    mode === 'forward' && originalHtmlBody ? originalHtmlBody : originalBody || undefined
   const quotedHeaderHtml =
     mode === 'forward'
       ? buildForwardHeaderHtml(originalFrom, originalDate, subject)
@@ -387,8 +364,7 @@ export function ReplyBox({
         ? `On ${originalDate}, ${originalFrom} wrote:\n\n`
         : ''
 
-  const placeholder =
-    mode === 'forward' ? 'Add a message...' : 'Type a reply...'
+  const placeholder = mode === 'forward' ? 'Add a message...' : 'Type a reply...'
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -481,11 +457,7 @@ export function ReplyBox({
             onClick={suggest}
             title="AI reply suggestions"
           >
-            {suggesting ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              'Suggest'
-            )}
+            {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Suggest'}
           </button>
         )}
         <div className="relative flex shrink-0">
@@ -495,11 +467,7 @@ export function ReplyBox({
             onClick={() => polish()}
             title={`Polish (${polishTone})`}
           >
-            {polishing ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              'Polish'
-            )}
+            {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
           </button>
           <select
             className="border-border text-accent hover:bg-accent/10 h-8 appearance-none rounded-r-md border-l bg-transparent px-1 text-[10px] outline-none disabled:cursor-not-allowed disabled:opacity-50"

@@ -140,9 +140,7 @@ export function AdminAccounts() {
           <div className="flex gap-2">
             <input
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) =>
-                setForm({ ...form, displayName: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, displayName: e.target.value })}
               placeholder="Display Name"
               value={form.displayName}
             />
@@ -155,10 +153,7 @@ export function AdminAccounts() {
             />
           </div>
           <div className="flex gap-2">
-            <button
-              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
-              onClick={handleAdd}
-            >
+            <button className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm" onClick={handleAdd}>
               Save
             </button>
             <button
@@ -186,19 +181,14 @@ export function AdminAccounts() {
           </thead>
           <tbody>
             {paged.map((account) => (
-              <tr
-                className="border-border border-b last:border-0"
-                key={account.address}
-              >
+              <tr className="border-border border-b last:border-0" key={account.address}>
                 <td className="px-4 py-3 font-medium">
                   <Copyable value={account.address}>{account.address}</Copyable>
                 </td>
                 <td className="px-4 py-3">
                   <DisplayNameCell account={account} onSaved={loadAccounts} />
                 </td>
-                <td className="text-fg-secondary px-4 py-3">
-                  {account.domain}
-                </td>
+                <td className="text-fg-secondary px-4 py-3">{account.domain}</td>
                 <td className="px-4 py-3">
                   <QuotaCell address={account.address} />
                 </td>
@@ -243,8 +233,7 @@ export function AdminAccounts() {
         <div className="text-fg-secondary mt-4 flex items-center justify-between text-sm">
           <span>
             Showing {safePage * PAGE_SIZE + 1}--
-            {Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of{' '}
-            {filtered.length}
+            {Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
           </span>
           <div className="flex gap-1">
             <button
@@ -304,9 +293,8 @@ function DeleteConfirmDialog({
       >
         <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
         <p className="text-fg-muted mb-4 text-sm">
-          Are you sure you want to delete{' '}
-          <span className="text-fg font-medium">{address}</span>? This action
-          cannot be undone.
+          Are you sure you want to delete <span className="text-fg font-medium">{address}</span>?
+          This action cannot be undone.
         </p>
         <div className="flex justify-end gap-2">
           <button
@@ -327,13 +315,7 @@ function DeleteConfirmDialog({
   )
 }
 
-function DisplayNameCell({
-  account,
-  onSaved,
-}: {
-  account: AccountInfo
-  onSaved: () => void
-}) {
+function DisplayNameCell({ account, onSaved }: { account: AccountInfo; onSaved: () => void }) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(account.display_name)
   const [saving, setSaving] = useState(false)
@@ -353,9 +335,7 @@ function DisplayNameCell({
       setEditing(false)
       onSaved()
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : 'Failed to update display name'
-      )
+      toast.error(e instanceof Error ? e.message : 'Failed to update display name')
     } finally {
       setSaving(false)
     }
@@ -410,8 +390,7 @@ function DisplayNameCell({
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
@@ -470,13 +449,7 @@ function GroupsCell({ address }: { address: string }) {
   )
 }
 
-function PasswordCell({
-  account,
-  onSaved,
-}: {
-  account: AccountInfo
-  onSaved: () => void
-}) {
+function PasswordCell({ account, onSaved }: { account: AccountInfo; onSaved: () => void }) {
   const [editing, setEditing] = useState(false)
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
@@ -504,10 +477,7 @@ function PasswordCell({
 
   if (!editing) {
     return (
-      <button
-        className="text-accent text-xs hover:opacity-80"
-        onClick={() => setEditing(true)}
-      >
+      <button className="text-accent text-xs hover:opacity-80" onClick={() => setEditing(true)}>
         Change
       </button>
     )
@@ -658,9 +628,7 @@ function SieveCell({ address }: { address: string }) {
       <textarea
         className="border-border bg-bg-secondary w-full rounded-md border px-2 py-1.5 font-mono text-xs"
         disabled={state.status === 'saving' || state.status === 'deleting'}
-        onChange={(e) =>
-          setState((prev) => ({ ...prev, script: e.target.value }))
-        }
+        onChange={(e) => setState((prev) => ({ ...prev, script: e.target.value }))}
         placeholder='require "fileinto"; ...'
         rows={6}
         value={state.script}

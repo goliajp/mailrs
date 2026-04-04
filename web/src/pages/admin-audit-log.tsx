@@ -52,23 +52,16 @@ export function AdminAuditLog() {
           </thead>
           <tbody>
             {entries.map((entry) => (
-              <tr
-                className="border-border border-b last:border-0"
-                key={entry.id}
-              >
+              <tr className="border-border border-b last:border-0" key={entry.id}>
                 <td className="text-fg-secondary px-4 py-3 whitespace-nowrap">
                   {formatTime(entry.timestamp)}
                 </td>
                 <td className="px-4 py-3 font-medium">{entry.actor}</td>
-                <td
-                  className={`px-4 py-3 font-medium ${actionColor(entry.action)}`}
-                >
+                <td className={`px-4 py-3 font-medium ${actionColor(entry.action)}`}>
                   {entry.action}
                 </td>
                 <td className="text-fg-secondary px-4 py-3">{entry.target}</td>
-                <td className="text-fg-muted max-w-xs truncate px-4 py-3">
-                  {entry.detail}
-                </td>
+                <td className="text-fg-muted max-w-xs truncate px-4 py-3">{entry.detail}</td>
               </tr>
             ))}
             {entries.length === 0 && (

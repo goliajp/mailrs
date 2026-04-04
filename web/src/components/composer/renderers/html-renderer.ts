@@ -47,9 +47,7 @@ export function renderBlockHtml(block: AnyBlock): string {
       const items = d.items
         .map((item) => {
           const check = item.checked ? '☑' : '☐'
-          const style = item.checked
-            ? 'text-decoration:line-through;color:#888'
-            : ''
+          const style = item.checked ? 'text-decoration:line-through;color:#888' : ''
           return `<li style="list-style:none;padding:2px 0;${style}">${check} ${escapeHtml(item.text)}</li>`
         })
         .join('')
@@ -108,9 +106,7 @@ export function renderBlockText(block: AnyBlock): string {
       const d = block.data as {
         items: ReadonlyArray<{ checked: boolean; text: string }>
       }
-      return d.items
-        .map((item) => `${item.checked ? '[x]' : '[ ]'} ${item.text}`)
-        .join('\n')
+      return d.items.map((item) => `${item.checked ? '[x]' : '[ ]'} ${item.text}`).join('\n')
     }
 
     case 'text': {

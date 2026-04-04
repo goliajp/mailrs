@@ -97,9 +97,7 @@ export function AdminSidebar() {
       {/* desktop: vertical sidebar */}
       <aside className="border-border hidden h-full w-48 shrink-0 flex-col border-r select-none md:flex">
         <div className="px-3 py-4">
-          <p className="text-fg-muted text-xs font-medium tracking-wider uppercase">
-            Server
-          </p>
+          <p className="text-fg-muted text-xs font-medium tracking-wider uppercase">Server</p>
         </div>
         <nav className="flex-1 px-3">
           {navItems.map((item) => (

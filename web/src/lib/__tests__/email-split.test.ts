@@ -43,8 +43,7 @@ describe('splitTextEmail', () => {
   })
 
   it('extracts both signature and quoted text', () => {
-    const text =
-      'Reply body\n\n-- \nSig line\n\nOn Tue, Feb 2 wrote:\n> quoted line'
+    const text = 'Reply body\n\n-- \nSig line\n\nOn Tue, Feb 2 wrote:\n> quoted line'
     const result = splitTextEmail(text)
     expect(result.body).toBe('Reply body')
     expect(result.signature).toBe('Sig line')
@@ -71,13 +70,10 @@ describe('splitTextEmail', () => {
   })
 
   it('handles multi-level quoting', () => {
-    const text =
-      'My reply\n\nOn Mon wrote:\n> First level\n>> Second level\n>>> Third level'
+    const text = 'My reply\n\nOn Mon wrote:\n> First level\n>> Second level\n>>> Third level'
     const result = splitTextEmail(text)
     expect(result.body).toBe('My reply')
-    expect(result.quoted).toBe(
-      'On Mon wrote:\n> First level\n>> Second level\n>>> Third level'
-    )
+    expect(result.quoted).toBe('On Mon wrote:\n> First level\n>> Second level\n>>> Third level')
   })
 
   it('handles "wrote:" on same line without "On" prefix', () => {
@@ -105,8 +101,7 @@ describe('splitHtmlEmail', () => {
   })
 
   it('extracts Gmail signature (.gmail_signature)', () => {
-    const html =
-      '<div><p>Body text</p><div class="gmail_signature">-- <br>John</div></div>'
+    const html = '<div><p>Body text</p><div class="gmail_signature">-- <br>John</div></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Body text')
     expect(result.body).not.toContain('gmail_signature')
@@ -141,24 +136,21 @@ describe('splitHtmlEmail', () => {
   })
 
   it('extracts Apple Mail blockquote[type="cite"]', () => {
-    const html =
-      '<div><p>My reply</p><blockquote type="cite"><p>Quoted text</p></blockquote></div>'
+    const html = '<div><p>My reply</p><blockquote type="cite"><p>Quoted text</p></blockquote></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('My reply')
     expect(result.quoted).toContain('Quoted text')
   })
 
   it('extracts trailing blockquote as quoted text', () => {
-    const html =
-      '<div><p>Reply</p><blockquote><p>Quoted at end</p></blockquote></div>'
+    const html = '<div><p>Reply</p><blockquote><p>Quoted at end</p></blockquote></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Reply')
     expect(result.quoted).toContain('Quoted at end')
   })
 
   it('does not extract blockquote in middle of content', () => {
-    const html =
-      '<div><p>Before</p><blockquote><p>Middle quote</p></blockquote><p>After</p></div>'
+    const html = '<div><p>Before</p><blockquote><p>Middle quote</p></blockquote><p>After</p></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Before')
     expect(result.body).toContain('Middle quote')
@@ -174,8 +166,7 @@ describe('splitHtmlEmail', () => {
   })
 
   it('extracts #appendonsend and following siblings', () => {
-    const html =
-      '<div><p>Reply</p><div id="appendonsend"></div><div>Forwarded content</div></div>'
+    const html = '<div><p>Reply</p><div id="appendonsend"></div><div>Forwarded content</div></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Reply')
     expect(result.quoted).toContain('Forwarded content')

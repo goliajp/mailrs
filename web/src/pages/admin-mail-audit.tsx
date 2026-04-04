@@ -105,9 +105,7 @@ export function AdminMailAudit() {
     if (!search) return accounts
     const q = search.toLowerCase()
     return accounts.filter(
-      (a) =>
-        a.address.toLowerCase().includes(q) ||
-        a.display_name.toLowerCase().includes(q)
+      (a) => a.address.toLowerCase().includes(q) || a.display_name.toLowerCase().includes(q)
     )
   }, [accounts, search])
 
@@ -157,9 +155,7 @@ export function AdminMailAudit() {
                 >
                   <td className="px-4 py-3 font-medium">{a.address}</td>
                   <td className="text-fg-secondary px-4 py-3">{a.domain}</td>
-                  <td className="text-fg-secondary px-4 py-3">
-                    {a.display_name || '—'}
-                  </td>
+                  <td className="text-fg-secondary px-4 py-3">{a.display_name || '—'}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${a.active ? 'bg-success/10 text-success' : 'bg-bg-secondary text-fg-muted'}`}
@@ -179,10 +175,7 @@ export function AdminMailAudit() {
               ))}
               {filteredAccounts.length === 0 && (
                 <tr>
-                  <td
-                    className="text-fg-muted px-4 py-8 text-center"
-                    colSpan={5}
-                  >
+                  <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
                     {accounts.length === 0
                       ? 'No auditable accounts (requires admin.impersonate permission)'
                       : 'No matches'}
@@ -211,25 +204,17 @@ export function AdminMailAudit() {
             <ChevronLeft className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="text-warning text-xs">
-              Audit Mode — {selectedAccount}
-            </p>
-            <p className="truncate text-sm font-medium">
-              {messages[0]?.subject || selectedThread}
-            </p>
+            <p className="text-warning text-xs">Audit Mode — {selectedAccount}</p>
+            <p className="truncate text-sm font-medium">{messages[0]?.subject || selectedThread}</p>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-6">
-          {loading && (
-            <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>
-          )}
+          {loading && <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>}
           {messages.map((msg) => (
             <MessageView key={msg.id} msg={msg} targetUser={selectedAccount} />
           ))}
           {!loading && messages.length === 0 && (
-            <p className="text-fg-muted py-8 text-center text-sm">
-              No messages
-            </p>
+            <p className="text-fg-muted py-8 text-center text-sm">No messages</p>
           )}
         </div>
       </div>
@@ -256,9 +241,7 @@ export function AdminMailAudit() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {loading && (
-          <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>
-        )}
+        {loading && <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>}
         {conversations.map((c) => (
           <button
             className="border-border hover:bg-bg-secondary flex w-full items-start gap-3 border-b px-6 py-3 text-left transition-colors"
@@ -267,29 +250,19 @@ export function AdminMailAudit() {
           >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <p className="truncate text-sm font-medium">
-                  {c.subject || '(no subject)'}
-                </p>
+                <p className="truncate text-sm font-medium">{c.subject || '(no subject)'}</p>
                 <span className="bg-bg-secondary text-fg-muted shrink-0 rounded-full px-1.5 py-0.5 text-[10px]">
                   {c.message_count}
                 </span>
               </div>
-              <p className="text-fg-secondary truncate text-xs">
-                {c.participants.join(', ')}
-              </p>
-              <p className="text-fg-muted mt-0.5 truncate text-xs">
-                {c.snippet}
-              </p>
+              <p className="text-fg-secondary truncate text-xs">{c.participants.join(', ')}</p>
+              <p className="text-fg-muted mt-0.5 truncate text-xs">{c.snippet}</p>
             </div>
-            <span className="text-fg-muted shrink-0 text-xs">
-              {formatDate(c.last_date)}
-            </span>
+            <span className="text-fg-muted shrink-0 text-xs">{formatDate(c.last_date)}</span>
           </button>
         ))}
         {!loading && conversations.length === 0 && (
-          <p className="text-fg-muted py-8 text-center text-sm">
-            No conversations found
-          </p>
+          <p className="text-fg-muted py-8 text-center text-sm">No conversations found</p>
         )}
       </div>
     </div>
@@ -353,13 +326,7 @@ function HtmlFrame({ html }: { html: string }) {
   )
 }
 
-function MessageView({
-  msg,
-  targetUser,
-}: {
-  msg: AuditMessage
-  targetUser: string
-}) {
+function MessageView({ msg, targetUser }: { msg: AuditMessage; targetUser: string }) {
   const token = getToken() ?? ''
 
   return (
@@ -370,9 +337,7 @@ function MessageView({
           <p className="text-fg-muted truncate text-xs">To: {msg.recipients}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <span className="text-fg-muted text-xs">
-            {formatFullDate(msg.internal_date)}
-          </span>
+          <span className="text-fg-muted text-xs">{formatFullDate(msg.internal_date)}</span>
           <a
             className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
             href={`/api/admin/audit/messages/${msg.uid}/raw?target_user=${encodeURIComponent(targetUser)}&token=${encodeURIComponent(token)}`}

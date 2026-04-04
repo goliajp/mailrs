@@ -15,15 +15,7 @@ import {
   Star,
   X,
 } from 'lucide-react'
-import {
-  Fragment,
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ContextMenu, useContextMenu } from '@/components/context-menu'
@@ -58,14 +50,7 @@ type ApiResult = {
   message?: string
   success: boolean
 }
-type BatchAction =
-  | 'archive'
-  | 'delete'
-  | 'read'
-  | 'star'
-  | 'unarchive'
-  | 'unread'
-  | 'unstar'
+type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar'
 
 type BatchResult = {
   failed: number
@@ -110,23 +95,19 @@ const ConversationItem = memo(function ConversationItem({
   const contextItems: ContextMenuItem[] = [
     {
       label: hasUnread ? 'Mark as read' : 'Mark as unread',
-      onClick: () =>
-        onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread'),
+      onClick: () => onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread'),
     },
     {
       label: isFlagged ? 'Unstar' : 'Star',
-      onClick: () =>
-        onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star'),
+      onClick: () => onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star'),
     },
     {
       label: isPinned ? 'Unpin' : 'Pin',
-      onClick: () =>
-        onContextAction(convo.thread_id, isPinned ? 'unpin' : 'pin'),
+      onClick: () => onContextAction(convo.thread_id, isPinned ? 'unpin' : 'pin'),
     },
     {
       label: isArchived ? 'Unarchive' : 'Archive',
-      onClick: () =>
-        onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive'),
+      onClick: () => onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive'),
     },
     {
       label: 'Snooze until tomorrow',
@@ -191,10 +172,7 @@ const ConversationItem = memo(function ConversationItem({
             >
               {name}
               {convo.participants.length > 1 && (
-                <span className="text-fg-muted">
-                  {' '}
-                  +{convo.participants.length - 1}
-                </span>
+                <span className="text-fg-muted"> +{convo.participants.length - 1}</span>
               )}
             </span>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -210,10 +188,7 @@ const ConversationItem = memo(function ConversationItem({
                     className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-0.5"
                     onClick={(e) => {
                       e.stopPropagation()
-                      onContextAction(
-                        convo.thread_id,
-                        isArchived ? 'unarchive' : 'archive'
-                      )
+                      onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive')
                     }}
                     title={isArchived ? 'Unarchive' : 'Archive'}
                   >
@@ -223,24 +198,15 @@ const ConversationItem = memo(function ConversationItem({
                     className={`hover:bg-bg-secondary rounded p-0.5 ${isFlagged ? 'text-warning' : 'text-fg-muted hover:text-fg-secondary'}`}
                     onClick={(e) => {
                       e.stopPropagation()
-                      onContextAction(
-                        convo.thread_id,
-                        isFlagged ? 'unstar' : 'star'
-                      )
+                      onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star')
                     }}
                     title={isFlagged ? 'Unstar' : 'Star'}
                   >
-                    <Star
-                      className="h-3.5 w-3.5"
-                      fill={isFlagged ? 'currentColor' : 'none'}
-                    />
+                    <Star className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
                   </button>
                 </span>
               ) : (
-                <span
-                  className="text-fg-muted text-xs"
-                  title={formatFullDate(convo.last_date)}
-                >
+                <span className="text-fg-muted text-xs" title={formatFullDate(convo.last_date)}>
                   {formatDate(convo.last_date)}
                 </span>
               )}
@@ -253,10 +219,7 @@ const ConversationItem = memo(function ConversationItem({
               {convo.subject || '(no subject)'}
             </p>
             {isFlagged && (
-              <Star
-                className="text-warning h-3.5 w-3.5 shrink-0"
-                fill="currentColor"
-              />
+              <Star className="text-warning h-3.5 w-3.5 shrink-0" fill="currentColor" />
             )}
             <ImportanceBadge level={convo.importance_level} />
             {convo.category && convo.category !== 'general' && (
@@ -268,16 +231,10 @@ const ConversationItem = memo(function ConversationItem({
               </span>
             )}
           </div>
-          {convo.snippet && (
-            <p className="text-fg-muted truncate text-xs">{convo.snippet}</p>
-          )}
+          {convo.snippet && <p className="text-fg-muted truncate text-xs">{convo.snippet}</p>}
         </div>
       </button>
-      <ContextMenu
-        items={contextItems}
-        onClose={ctx.close}
-        position={ctx.position}
-      />
+      <ContextMenu items={contextItems} onClose={ctx.close} position={ctx.position} />
     </div>
   )
 })
@@ -393,9 +350,7 @@ function FilterBar() {
   const hasAdvancedFilters =
     sortOrder !== 'newest' ||
     showArchived ||
-    (activeCategory !== null &&
-      activeCategory !== 'spam' &&
-      activeCategory !== 'scam') ||
+    (activeCategory !== null && activeCategory !== 'spam' && activeCategory !== 'scam') ||
     selectedDomains.length > 0 ||
     section === 'important' ||
     section === 'other'
@@ -419,9 +374,7 @@ function FilterBar() {
                   : t.value === 'unread'
                     ? 'bg-accent/10 text-accent'
                     : 'bg-border text-fg-secondary'
-        const ring = isActive
-          ? 'ring-2 ring-offset-1 ring-border ring-offset-bg'
-          : ''
+        const ring = isActive ? 'ring-2 ring-offset-1 ring-border ring-offset-bg' : ''
         return (
           <button
             className={`${base} ${color} ${ring}`}
@@ -459,16 +412,12 @@ function FilterBar() {
           <div className="border-border bg-surface absolute top-full right-0 z-50 mt-1 w-56 rounded-lg border p-3 text-xs shadow-lg">
             {/* sort */}
             <div className="mb-3">
-              <label className="text-fg-muted mb-1 block font-medium">
-                Sort
-              </label>
+              <label className="text-fg-muted mb-1 block font-medium">Sort</label>
               <div className="flex gap-1">
                 {(['newest', 'oldest', 'unread'] as SortOrder[]).map((s) => (
                   <button
                     className={`rounded-md px-2 py-0.5 capitalize transition-colors ${
-                      sortOrder === s
-                        ? 'bg-fg text-bg'
-                        : 'text-fg-secondary hover:bg-bg-secondary'
+                      sortOrder === s ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
                     }`}
                     key={s}
                     onClick={() => setSortOrder(s)}
@@ -481,15 +430,11 @@ function FilterBar() {
 
             {/* view: active / archived */}
             <div className="mb-3">
-              <label className="text-fg-muted mb-1 block font-medium">
-                View
-              </label>
+              <label className="text-fg-muted mb-1 block font-medium">View</label>
               <div className="flex gap-1">
                 <button
                   className={`rounded-md px-2 py-0.5 transition-colors ${
-                    !showArchived
-                      ? 'bg-fg text-bg'
-                      : 'text-fg-secondary hover:bg-bg-secondary'
+                    !showArchived ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
                   }`}
                   onClick={() => setShowArchived(false)}
                 >
@@ -497,9 +442,7 @@ function FilterBar() {
                 </button>
                 <button
                   className={`rounded-md px-2 py-0.5 transition-colors ${
-                    showArchived
-                      ? 'bg-fg text-bg'
-                      : 'text-fg-secondary hover:bg-bg-secondary'
+                    showArchived ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
                   }`}
                   onClick={() => setShowArchived(true)}
                 >
@@ -510,38 +453,26 @@ function FilterBar() {
 
             {/* priority */}
             <div className="mb-3">
-              <label className="text-fg-muted mb-1 block font-medium">
-                Priority
-              </label>
+              <label className="text-fg-muted mb-1 block font-medium">Priority</label>
               <div className="flex flex-wrap gap-1">
-                {([null, 'important', 'other'] as ImportanceSection[]).map(
-                  (s) => (
-                    <button
-                      className={`rounded-md px-2 py-0.5 transition-colors ${
-                        section === s
-                          ? 'bg-fg text-bg'
-                          : 'text-fg-secondary hover:bg-bg-secondary'
-                      }`}
-                      key={s ?? 'all'}
-                      onClick={() => setSection(section === s ? null : s)}
-                    >
-                      {s === null
-                        ? 'All'
-                        : s === 'important'
-                          ? 'Important'
-                          : 'Other'}
-                    </button>
-                  )
-                )}
+                {([null, 'important', 'other'] as ImportanceSection[]).map((s) => (
+                  <button
+                    className={`rounded-md px-2 py-0.5 transition-colors ${
+                      section === s ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
+                    }`}
+                    key={s ?? 'all'}
+                    onClick={() => setSection(section === s ? null : s)}
+                  >
+                    {s === null ? 'All' : s === 'important' ? 'Important' : 'Other'}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* categories */}
             {categories.length > 0 && (
               <div className="mb-3">
-                <label className="text-fg-muted mb-1 block font-medium">
-                  Category
-                </label>
+                <label className="text-fg-muted mb-1 block font-medium">Category</label>
                 <div className="flex flex-wrap gap-1">
                   <button
                     className={`rounded-md px-2 py-0.5 transition-colors ${
@@ -562,9 +493,7 @@ function FilterBar() {
                       }`}
                       key={cat.category}
                       onClick={() =>
-                        setActiveCategory(
-                          activeCategory === cat.category ? null : cat.category
-                        )
+                        setActiveCategory(activeCategory === cat.category ? null : cat.category)
                       }
                     >
                       {cat.category}
@@ -618,9 +547,7 @@ export function ConversationList({
 
   // batch mode state
   const [batchMode, setBatchMode] = useAtom(batchModeAtom)
-  const [selectedThreadIds, setSelectedThreadIds] = useAtom(
-    selectedThreadIdsAtom
-  )
+  const [selectedThreadIds, setSelectedThreadIds] = useAtom(selectedThreadIdsAtom)
   const [batchLoading, setBatchLoading] = useState(false)
 
   // refs to avoid stale closures in observer callback
@@ -699,8 +626,7 @@ export function ConversationList({
           action,
           thread_ids: ids,
         })
-        const msg =
-          result.message ?? (result.success ? 'Done' : 'Some operations failed')
+        const msg = result.message ?? (result.success ? 'Done' : 'Some operations failed')
         if (result.success) {
           toast.success(msg)
         } else {
@@ -710,9 +636,7 @@ export function ConversationList({
         // trigger list refresh
         onLoadMoreRef.current()
       } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : 'Batch operation failed'
-        )
+        toast.error(err instanceof Error ? err.message : 'Batch operation failed')
       } finally {
         setBatchLoading(false)
       }
@@ -727,10 +651,7 @@ export function ConversationList({
       const snapshot = conversations
 
       // optimistic update for all actions
-      const optimistic: Record<
-        string,
-        (c: ConversationSummary) => ConversationSummary
-      > = {
+      const optimistic: Record<string, (c: ConversationSummary) => ConversationSummary> = {
         archive: (c) => ({ ...c, archived: true }),
         pin: (c) => ({ ...c, pinned: true }),
         read: (c) => ({ ...c, unread_count: 0 }),
@@ -742,9 +663,7 @@ export function ConversationList({
       }
       if (optimistic[action]) {
         setConversations((prev) =>
-          prev.map((c) =>
-            c.thread_id === threadId ? optimistic[action](c) : c
-          )
+          prev.map((c) => (c.thread_id === threadId ? optimistic[action](c) : c))
         )
       }
 
@@ -754,18 +673,14 @@ export function ConversationList({
           tomorrow.setDate(tomorrow.getDate() + 1)
           tomorrow.setHours(9, 0, 0, 0)
           await snoozeConversation(threadId, tomorrow.toISOString())
-          setConversations((prev) =>
-            prev.filter((c) => c.thread_id !== threadId)
-          )
+          setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
           toast.success('Snoozed until tomorrow 9:00')
         } else if (action === 'delete') {
           await postJson<BatchResult>('/conversations/batch', {
             action,
             thread_ids: [threadId],
           })
-          setConversations((prev) =>
-            prev.filter((c) => c.thread_id !== threadId)
-          )
+          setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
           toast.success('Deleted')
         } else if (
           action === 'pin' ||
@@ -773,10 +688,7 @@ export function ConversationList({
           action === 'archive' ||
           action === 'unarchive'
         ) {
-          await postJson<ApiResult>(
-            `/conversations/${encodeURIComponent(threadId)}/${action}`,
-            {}
-          )
+          await postJson<ApiResult>(`/conversations/${encodeURIComponent(threadId)}/${action}`, {})
           const labels: Record<string, string> = {
             archive: 'Archived',
             pin: 'Pinned',
@@ -808,9 +720,7 @@ export function ConversationList({
 
   // apply client-side filtering + sort
   const sortedConversations = useMemo(() => {
-    let visible = showArchived
-      ? conversations
-      : conversations.filter((c) => !c.archived)
+    let visible = showArchived ? conversations : conversations.filter((c) => !c.archived)
 
     // hide sent-only threads from inbox view (show them only in Sent tab)
     // a thread with replies from others should appear in both inbox and sent
@@ -834,9 +744,7 @@ export function ConversationList({
       visible = visible.filter((c) => c.requires_action)
     } else if (importanceSection === 'important') {
       visible = visible.filter(
-        (c) =>
-          c.importance_level === 'critical' ||
-          c.importance_level === 'important'
+        (c) => c.importance_level === 'critical' || c.importance_level === 'important'
       )
     } else if (importanceSection === 'other') {
       visible = visible.filter(
@@ -850,20 +758,10 @@ export function ConversationList({
     if (sortOrder === 'oldest') {
       unpinned.sort((a, b) => a.last_date - b.last_date)
     } else if (sortOrder === 'unread') {
-      unpinned.sort(
-        (a, b) => b.unread_count - a.unread_count || b.last_date - a.last_date
-      )
+      unpinned.sort((a, b) => b.unread_count - a.unread_count || b.last_date - a.last_date)
     }
     return [...pinned, ...unpinned]
-  }, [
-    conversations,
-    sortOrder,
-    showArchived,
-    importanceSection,
-    quickFilter,
-    folder,
-    myEmail,
-  ])
+  }, [conversations, sortOrder, showArchived, importanceSection, quickFilter, folder, myEmail])
 
   // sync visible conversation ids to store for keyboard nav
   const setVisibleIds = useSetAtom(visibleConversationIdsAtom)
@@ -914,14 +812,10 @@ export function ConversationList({
         {/* batch select toggle — hidden during search */}
         {!isSearching && (
           <button
-            aria-label={
-              batchMode ? 'Exit batch select mode' : 'Enter batch select mode'
-            }
+            aria-label={batchMode ? 'Exit batch select mode' : 'Enter batch select mode'}
             aria-pressed={batchMode}
             className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150 ${
-              batchMode
-                ? 'bg-accent/10 text-accent'
-                : 'text-fg-muted hover:bg-bg-secondary'
+              batchMode ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:bg-bg-secondary'
             }`}
             onClick={() => {
               if (batchMode) {
@@ -950,9 +844,7 @@ export function ConversationList({
                   action: 'read',
                   thread_ids: unreadIds,
                 })
-                setConversations((prev) =>
-                  prev.map((c) => ({ ...c, unread_count: 0 }))
-                )
+                setConversations((prev) => prev.map((c) => ({ ...c, unread_count: 0 })))
                 toast.success(`Marked ${unreadIds.length} as read`)
               } catch {
                 toast.error('Failed')
@@ -989,11 +881,7 @@ export function ConversationList({
           <ConversationSkeleton />
         ) : conversations.length === 0 ? (
           <div className="text-fg-muted flex flex-col items-center justify-center p-8 text-center">
-            <Mail
-              aria-hidden="true"
-              className="text-fg-muted mb-3 h-10 w-10"
-              strokeWidth={1}
-            />
+            <Mail aria-hidden="true" className="text-fg-muted mb-3 h-10 w-10" strokeWidth={1} />
             <p className="text-sm font-medium">
               {isSearching
                 ? 'No results found'
@@ -1007,9 +895,7 @@ export function ConversationList({
                         ? 'No archived conversations'
                         : 'All caught up!'}
             </p>
-            <p className="mt-1 text-xs">
-              {isSearching ? 'Try a different search term' : ''}
-            </p>
+            <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : ''}</p>
           </div>
         ) : (
           (() => {
@@ -1047,9 +933,7 @@ export function ConversationList({
         )}
 
         {!hasMore && conversations.length > 0 && (
-          <div className="text-fg-muted py-3 text-center text-xs">
-            No more conversations
-          </div>
+          <div className="text-fg-muted py-3 text-center text-xs">No more conversations</div>
         )}
       </div>
 

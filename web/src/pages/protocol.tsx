@@ -10,8 +10,7 @@ export function Protocol() {
   const [selectedId, setSelectedId] = useState<null | number>(null)
 
   const connList = Array.from(connections.values())
-  const selectedConn =
-    selectedId !== null ? (connections.get(selectedId) ?? null) : null
+  const selectedConn = selectedId !== null ? (connections.get(selectedId) ?? null) : null
 
   return (
     <div className="flex h-full flex-col">
@@ -24,12 +23,8 @@ export function Protocol() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div
-            className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-success' : 'bg-danger'}`}
-          />
-          <span className="text-fg-muted text-xs">
-            {connected ? 'connected' : 'disconnected'}
-          </span>
+          <div className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-success' : 'bg-danger'}`} />
+          <span className="text-fg-muted text-xs">{connected ? 'connected' : 'disconnected'}</span>
         </div>
       </div>
 
@@ -73,9 +68,7 @@ export function Protocol() {
               />
             ))}
             {connList.length === 0 && (
-              <div className="text-fg-muted p-4 text-center text-xs">
-                no active connections
-              </div>
+              <div className="text-fg-muted p-4 text-center text-xs">no active connections</div>
             )}
           </div>
         </div>
@@ -83,9 +76,7 @@ export function Protocol() {
         {/* center: conversation */}
         <div className="flex flex-1 flex-col">
           <div className="border-border text-fg-muted border-b px-4 py-2 text-xs font-medium tracking-wider uppercase">
-            {selectedConn
-              ? `Session #${selectedConn.id} — ${selectedConn.addr}`
-              : 'Conversation'}
+            {selectedConn ? `Session #${selectedConn.id} — ${selectedConn.addr}` : 'Conversation'}
           </div>
           <div className="flex-1 overflow-hidden">
             <ConversationView conn={selectedConn} />
@@ -118,9 +109,7 @@ function ConnectionRow({
   return (
     <button
       className={`flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm transition-colors ${
-        selected
-          ? 'bg-accent/20 text-fg'
-          : 'text-fg-secondary hover:bg-bg-secondary'
+        selected ? 'bg-accent/20 text-fg' : 'text-fg-secondary hover:bg-bg-secondary'
       }`}
       onClick={onClick}
     >
@@ -128,9 +117,7 @@ function ConnectionRow({
       <span className="truncate">{conn.addr}</span>
       <div className="ml-auto flex items-center gap-1.5">
         {conn.tls && (
-          <span className="bg-success/10 text-success rounded-md px-1.5 py-0.5 text-xs">
-            TLS
-          </span>
+          <span className="bg-success/10 text-success rounded-md px-1.5 py-0.5 text-xs">TLS</span>
         )}
         {conn.authenticated && (
           <span className="bg-accent/10 text-accent rounded-md px-1.5 py-0.5 text-xs">
@@ -168,24 +155,17 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
       {conn.lines.map((line, i) => {
         const isServer = line.direction === 'server'
         return (
-          <div
-            className={`flex gap-2 ${isServer ? '' : 'flex-row-reverse'}`}
-            key={i}
-          >
+          <div className={`flex gap-2 ${isServer ? '' : 'flex-row-reverse'}`} key={i}>
             <div
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                isServer
-                  ? 'bg-success/10 text-success'
-                  : 'bg-accent/10 text-accent'
+                isServer ? 'bg-success/10 text-success' : 'bg-accent/10 text-accent'
               }`}
             >
               {isServer ? 'S' : 'C'}
             </div>
             <div
               className={`max-w-[80%] rounded-md px-3 py-1.5 font-mono text-xs leading-relaxed ${
-                isServer
-                  ? 'bg-bg-secondary text-success'
-                  : 'bg-bg-secondary text-accent'
+                isServer ? 'bg-bg-secondary text-success' : 'bg-bg-secondary text-accent'
               }`}
             >
               {line.text.split('\r\n').map((l, j) => (
@@ -237,10 +217,7 @@ function EventLog({ events }: { events: SmtpEvent[] }) {
         .reverse()
         .slice(0, 100)
         .map((event, i) => (
-          <div
-            className="flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs"
-            key={i}
-          >
+          <div className="flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs" key={i}>
             <span className="text-fg-muted">#{event.id}</span>
             <EventBadge type={event.type} />
             <span className="text-fg-muted truncate">{formatEvent(event)}</span>
@@ -292,9 +269,7 @@ function StatusCard({
   return (
     <div className="border-border bg-bg-secondary rounded-lg border p-3">
       <div className="text-fg-muted text-xs">{label}</div>
-      <div className={`mt-1 text-2xl font-bold tabular-nums ${color}`}>
-        {value}
-      </div>
+      <div className={`mt-1 text-2xl font-bold tabular-nums ${color}`}>{value}</div>
     </div>
   )
 }

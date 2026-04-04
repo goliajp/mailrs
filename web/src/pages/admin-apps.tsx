@@ -113,11 +113,7 @@ export function AdminApps() {
     }
   }
 
-  const toggleScope = (
-    scope: string,
-    set: Set<string>,
-    setter: (s: Set<string>) => void
-  ) => {
+  const toggleScope = (scope: string, set: Set<string>, setter: (s: Set<string>) => void) => {
     const next = new Set(set)
     if (next.has(scope)) {
       next.delete(scope)
@@ -133,9 +129,7 @@ export function AdminApps() {
       return
     }
     setExpandedAppId(app.app_id)
-    const currentScopes = app.scopes
-      ? app.scopes.split(',').filter(Boolean)
-      : []
+    const currentScopes = app.scopes ? app.scopes.split(',').filter(Boolean) : []
     setEditScopes(new Set(currentScopes))
   }
 
@@ -194,9 +188,7 @@ export function AdminApps() {
             />
             <input
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Description"
               value={form.description}
             />
@@ -207,9 +199,7 @@ export function AdminApps() {
                 <label className="flex items-center gap-1.5 text-sm" key={perm}>
                   <input
                     checked={selectedScopes.has(perm)}
-                    onChange={() =>
-                      toggleScope(perm, selectedScopes, setSelectedScopes)
-                    }
+                    onChange={() => toggleScope(perm, selectedScopes, setSelectedScopes)}
                     type="checkbox"
                   />
                   {perm}
@@ -218,10 +208,7 @@ export function AdminApps() {
             </div>
           )}
           <div className="flex gap-2">
-            <button
-              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
-              onClick={handleAdd}
-            >
+            <button className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm" onClick={handleAdd}>
               Save
             </button>
             <button
@@ -248,10 +235,7 @@ export function AdminApps() {
           <tbody>
             {apps.map((app) => (
               <>
-                <tr
-                  className="border-border border-b last:border-0"
-                  key={app.app_id}
-                >
+                <tr className="border-border border-b last:border-0" key={app.app_id}>
                   <td className="px-4 py-3 font-medium">{app.name}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
@@ -274,9 +258,7 @@ export function AdminApps() {
                         : null}
                     </div>
                   </td>
-                  <td className="text-fg-secondary px-4 py-3">
-                    {app.owner_address}
-                  </td>
+                  <td className="text-fg-secondary px-4 py-3">{app.owner_address}</td>
                   <td className="px-4 py-3">
                     <span
                       className="text-fg-muted max-w-[120px] truncate font-mono text-xs"
@@ -303,26 +285,16 @@ export function AdminApps() {
                   </td>
                 </tr>
                 {expandedAppId === app.app_id && (
-                  <tr
-                    className="border-border border-b last:border-0"
-                    key={`${app.app_id}-edit`}
-                  >
+                  <tr className="border-border border-b last:border-0" key={`${app.app_id}-edit`}>
                     <td className="px-4 py-3" colSpan={5}>
                       <div className="border-border space-y-2 rounded-lg border p-3">
-                        <p className="text-fg-secondary text-xs font-medium">
-                          Edit Scopes
-                        </p>
+                        <p className="text-fg-secondary text-xs font-medium">Edit Scopes</p>
                         <div className="flex flex-wrap gap-2">
                           {permissions.map((perm) => (
-                            <label
-                              className="flex items-center gap-1.5 text-sm"
-                              key={perm}
-                            >
+                            <label className="flex items-center gap-1.5 text-sm" key={perm}>
                               <input
                                 checked={editScopes.has(perm)}
-                                onChange={() =>
-                                  toggleScope(perm, editScopes, setEditScopes)
-                                }
+                                onChange={() => toggleScope(perm, editScopes, setEditScopes)}
                                 type="checkbox"
                               />
                               {perm}
@@ -372,8 +344,7 @@ export function AdminApps() {
           >
             <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
             <p className="text-fg-muted mb-4 text-sm">
-              Are you sure you want to delete this app? This action cannot be
-              undone.
+              Are you sure you want to delete this app? This action cannot be undone.
             </p>
             <div className="flex justify-end gap-2">
               <button

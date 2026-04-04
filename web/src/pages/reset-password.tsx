@@ -57,19 +57,10 @@ export function ResetPassword() {
       <div className="bg-bg-secondary flex min-h-screen items-center justify-center">
         <div className="border-border bg-surface w-full max-w-sm space-y-4 rounded-lg border p-8 shadow-lg">
           <div className="flex flex-col items-center">
-            <img
-              alt="mailrs"
-              className="mb-3 h-14 w-14 rounded-lg shadow-sm"
-              src="/icon.svg"
-            />
-            <h1 className="text-fg text-xl font-semibold tracking-tight">
-              mailrs
-            </h1>
+            <img alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" src="/icon.svg" />
+            <h1 className="text-fg text-xl font-semibold tracking-tight">mailrs</h1>
           </div>
-          <div
-            className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm"
-            role="alert"
-          >
+          <div className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm" role="alert">
             Invalid or missing reset token
           </div>
           <div className="text-center">
@@ -87,18 +78,11 @@ export function ResetPassword() {
       <div className="bg-bg-secondary flex min-h-screen items-center justify-center">
         <div className="border-border bg-surface w-full max-w-sm space-y-4 rounded-lg border p-8 shadow-lg">
           <div className="flex flex-col items-center">
-            <img
-              alt="mailrs"
-              className="mb-3 h-14 w-14 rounded-lg shadow-sm"
-              src="/icon.svg"
-            />
-            <h1 className="text-fg text-xl font-semibold tracking-tight">
-              mailrs
-            </h1>
+            <img alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" src="/icon.svg" />
+            <h1 className="text-fg text-xl font-semibold tracking-tight">mailrs</h1>
           </div>
           <div className="bg-success/10 text-success rounded-md px-3 py-2 text-sm">
-            Password reset successfully. You can now sign in with your new
-            password.
+            Password reset successfully. You can now sign in with your new password.
           </div>
           <div className="text-center">
             <a className="text-accent text-sm hover:underline" href="/login">
@@ -117,31 +101,19 @@ export function ResetPassword() {
         onSubmit={handleSubmit}
       >
         <div className="flex flex-col items-center">
-          <img
-            alt="mailrs"
-            className="mb-3 h-14 w-14 rounded-lg shadow-sm"
-            src="/icon.svg"
-          />
-          <h1 className="text-fg text-xl font-semibold tracking-tight">
-            mailrs
-          </h1>
+          <img alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" src="/icon.svg" />
+          <h1 className="text-fg text-xl font-semibold tracking-tight">mailrs</h1>
           <p className="text-fg-muted mt-1 text-sm">Set your new password</p>
         </div>
 
         {error && (
-          <div
-            className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm"
-            role="alert"
-          >
+          <div className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm" role="alert">
             {error}
           </div>
         )}
 
         <div className="space-y-1.5">
-          <label
-            className="text-fg-secondary block text-sm font-medium"
-            htmlFor="reset-password"
-          >
+          <label className="text-fg-secondary block text-sm font-medium" htmlFor="reset-password">
             New Password
           </label>
           <input
@@ -157,10 +129,7 @@ export function ResetPassword() {
         </div>
 
         <div className="space-y-1.5">
-          <label
-            className="text-fg-secondary block text-sm font-medium"
-            htmlFor="reset-confirm"
-          >
+          <label className="text-fg-secondary block text-sm font-medium" htmlFor="reset-confirm">
             Confirm Password
           </label>
           <input

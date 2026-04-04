@@ -84,9 +84,7 @@ export function KeyboardShortcutsDialog({ onClose, open }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-fg text-base font-semibold">
-            Keyboard Shortcuts
-          </h2>
+          <h2 className="text-fg text-base font-semibold">Keyboard Shortcuts</h2>
           <button
             aria-label="Close"
             className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
@@ -108,9 +106,7 @@ export function KeyboardShortcutsDialog({ onClose, open }: Props) {
                     className="flex items-center justify-between gap-4"
                     key={shortcut.description}
                   >
-                    <span className="text-fg-secondary text-sm">
-                      {shortcut.description}
-                    </span>
+                    <span className="text-fg-secondary text-sm">{shortcut.description}</span>
                     <span className="flex shrink-0 gap-1">
                       {shortcut.keys.map((key) => (
                         <kbd

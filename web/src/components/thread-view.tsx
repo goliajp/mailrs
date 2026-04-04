@@ -28,13 +28,7 @@ import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { StructuredDataCard } from '@/components/structured-data-card'
 import { MPane, MPaneGroup } from '@/layouts/pane'
-import {
-  deleteJson,
-  type FeedbackAction,
-  fetchJson,
-  postJson,
-  recordFeedback,
-} from '@/lib/api'
+import { deleteJson, type FeedbackAction, fetchJson, postJson, recordFeedback } from '@/lib/api'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
@@ -119,10 +113,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
       try {
         const doms = domainsRef.current
-        const domainsParam =
-          doms.length > 0
-            ? `?domains=${encodeURIComponent(doms.join(','))}`
-            : ''
+        const domainsParam = doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
         const data = await fetchJson<ThreadMessage[]>(
           `/conversations/${encodeURIComponent(threadId)}${domainsParam}`,
           controller.signal
@@ -132,31 +123,22 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         if (data.length > 0) setSelectedMsgIdx(data.length - 1)
         contentScrollRef.current?.scrollTo(0, 0)
         // scroll timeline to latest message
-        requestAnimationFrame(() =>
-          bottomRef.current?.scrollIntoView({ behavior: 'instant' })
-        )
+        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
 
         const crossAll = crossAccountReadRef.current
         const readParam =
-          crossAll && doms.length > 0
-            ? `?domains=${encodeURIComponent(doms.join(','))}`
-            : ''
-        postJson(
-          `/conversations/${encodeURIComponent(threadId)}/read${readParam}`,
-          {}
-        ).catch(() => {})
+          crossAll && doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
+        postJson(`/conversations/${encodeURIComponent(threadId)}/read${readParam}`, {}).catch(
+          () => {}
+        )
         setIsRead(true)
         // update unread_count locally instead of re-fetching entire list
         setConversations((prev) =>
-          prev.map((c) =>
-            c.thread_id === threadId ? { ...c, unread_count: 0 } : c
-          )
+          prev.map((c) => (c.thread_id === threadId ? { ...c, unread_count: 0 } : c))
         )
       } catch (err) {
         if (!controller.signal.aborted) {
-          toast.error(
-            err instanceof Error ? err.message : 'Failed to load messages'
-          )
+          toast.error(err instanceof Error ? err.message : 'Failed to load messages')
         }
       } finally {
         setLoadingThread(false)
@@ -171,10 +153,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     let path = sq
       ? `/conversations/search?q=${encodeURIComponent(sq)}&limit=50`
       : '/conversations?limit=50'
-    if (categoryRef.current)
-      path += `&category=${encodeURIComponent(categoryRef.current)}`
-    if (doms.length > 0)
-      path += `&domains=${encodeURIComponent(doms.join(','))}`
+    if (categoryRef.current) path += `&category=${encodeURIComponent(categoryRef.current)}`
+    if (doms.length > 0) path += `&domains=${encodeURIComponent(doms.join(','))}`
     const f = folderRef.current
     if (f) path += `&folder=${encodeURIComponent(f)}`
     try {
@@ -188,16 +168,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const handleMarkUnread = useCallback(async () => {
     if (!selectedId) return
     try {
-      await postJson(
-        `/conversations/${encodeURIComponent(selectedId)}/unread`,
-        {}
-      )
+      await postJson(`/conversations/${encodeURIComponent(selectedId)}/unread`, {})
       setIsRead(false)
       setConversations((prev) =>
         prev.map((c) =>
-          c.thread_id === selectedId
-            ? { ...c, unread_count: c.unread_count + 1 }
-            : c
+          c.thread_id === selectedId ? { ...c, unread_count: c.unread_count + 1 } : c
         )
       )
       toast.success('Marked as unread')
@@ -212,18 +187,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       const doms = domainsRef.current
       const crossAll = crossAccountReadRef.current
       const domainsParam =
-        crossAll && doms.length > 0
-          ? `?domains=${encodeURIComponent(doms.join(','))}`
-          : ''
-      await postJson(
-        `/conversations/${encodeURIComponent(selectedId)}/read${domainsParam}`,
-        {}
-      )
+        crossAll && doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
+      await postJson(`/conversations/${encodeURIComponent(selectedId)}/read${domainsParam}`, {})
       setIsRead(true)
       setConversations((prev) =>
-        prev.map((c) =>
-          c.thread_id === selectedId ? { ...c, unread_count: 0 } : c
-        )
+        prev.map((c) => (c.thread_id === selectedId ? { ...c, unread_count: 0 } : c))
       )
       toast.success('Marked as read')
     } catch (err) {
@@ -234,15 +202,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const handleStar = useCallback(async () => {
     if (!selectedId) return
     try {
-      await postJson(
-        `/conversations/${encodeURIComponent(selectedId)}/star`,
-        {}
-      )
+      await postJson(`/conversations/${encodeURIComponent(selectedId)}/star`, {})
       setIsFlagged(true)
       setConversations((prev) =>
-        prev.map((c) =>
-          c.thread_id === selectedId ? { ...c, flagged: true } : c
-        )
+        prev.map((c) => (c.thread_id === selectedId ? { ...c, flagged: true } : c))
       )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed')
@@ -252,15 +215,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const handleUnstar = useCallback(async () => {
     if (!selectedId) return
     try {
-      await postJson(
-        `/conversations/${encodeURIComponent(selectedId)}/unstar`,
-        {}
-      )
+      await postJson(`/conversations/${encodeURIComponent(selectedId)}/unstar`, {})
       setIsFlagged(false)
       setConversations((prev) =>
-        prev.map((c) =>
-          c.thread_id === selectedId ? { ...c, flagged: false } : c
-        )
+        prev.map((c) => (c.thread_id === selectedId ? { ...c, flagged: false } : c))
       )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed')
@@ -285,8 +243,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const handlePrint = useCallback((msg: ThreadMessage) => {
     const w = window.open('', '_blank')
     if (!w) return
-    const esc = (s: string) =>
-      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const body = msg.html_body
       ? DOMPurify.sanitize(msg.html_body)
       : `<pre style="white-space:pre-wrap;word-break:break-word;font-family:sans-serif;font-size:14px;line-height:1.6">${esc(msg.clean_text || msg.text_body || '')}</pre>`
@@ -297,38 +254,33 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     w.onload = () => w.print()
   }, [])
 
-  const handleDownloadEml = useCallback(
-    async (uid: number, subject: string) => {
-      try {
-        const token = getToken()
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-        const res = await fetch(`/api/mail/messages/${uid}/raw`, { headers })
-        if (!res.ok) {
-          toast.error('Download failed')
-          return
-        }
-        const blob = await res.blob()
-        const safeName = subject
-          .replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u30ff _-]/g, '_')
-          .trim()
-        const url = URL.createObjectURL(blob)
-        try {
-          const a = document.createElement('a')
-          a.href = url
-          a.download = safeName ? `${safeName}.eml` : `message-${uid}.eml`
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-        } finally {
-          setTimeout(() => URL.revokeObjectURL(url), 1000)
-        }
-      } catch {
+  const handleDownloadEml = useCallback(async (uid: number, subject: string) => {
+    try {
+      const token = getToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const res = await fetch(`/api/mail/messages/${uid}/raw`, { headers })
+      if (!res.ok) {
         toast.error('Download failed')
+        return
       }
-    },
-    []
-  )
+      const blob = await res.blob()
+      const safeName = subject.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u30ff _-]/g, '_').trim()
+      const url = URL.createObjectURL(blob)
+      try {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = safeName ? `${safeName}.eml` : `message-${uid}.eml`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+      }
+    } catch {
+      toast.error('Download failed')
+    }
+  }, [])
 
   const handleForwardMsg = useCallback((msg: ThreadMessage) => {
     setForwardSource({
@@ -356,9 +308,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setReplyMode('reply')
     setExpandedBubbles(new Set())
     setShowAllMessages(false)
-    const existing = conversationsRef.current.find(
-      (c) => c.thread_id === selectedId
-    )
+    const existing = conversationsRef.current.find((c) => c.thread_id === selectedId)
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
     loadMessages(selectedId)
@@ -378,9 +328,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         <div className="text-fg-muted text-center">
           <Mail className="mx-auto mb-3 h-10 w-10" strokeWidth={1.5} />
           <p className="text-sm font-medium">No conversation selected</p>
-          <p className="mt-1 text-xs">
-            Choose an email from the list to read it here
-          </p>
+          <p className="mt-1 text-xs">Choose an email from the list to read it here</p>
         </div>
       </MPane>
     )
@@ -412,10 +360,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdSubject = forwardSource?.subject ?? subject
   const fwdMsg = forwardSource ? null : (selectedMsg ?? lastMsg)
   const fwdOriginalBody =
-    forwardSource?.body ??
-    fwdMsg?.text_body ??
-    fwdMsg?.clean_text ??
-    lastMsgBody
+    forwardSource?.body ?? fwdMsg?.text_body ?? fwdMsg?.clean_text ?? lastMsgBody
   const fwdOriginalHtml = forwardSource?.htmlBody ?? fwdMsg?.html_body ?? null
   const fwdUid = forwardSource?.uid ?? fwdMsg?.uid ?? null
   const fwdMessageId = forwardSource?.messageId ?? fwdMsg?.message_id ?? null
@@ -466,23 +411,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               onClick={isRead ? handleMarkUnread : handleMarkRead}
               title={isRead ? 'Mark unread' : 'Mark read'}
             >
-              {isRead ? (
-                <Mail className="h-4 w-4" />
-              ) : (
-                <MailOpen className="h-4 w-4" />
-              )}
+              {isRead ? <Mail className="h-4 w-4" /> : <MailOpen className="h-4 w-4" />}
             </HdrBtn>
             <HdrBtn
-              className={
-                isFlagged ? 'text-warning hover:text-warning' : undefined
-              }
+              className={isFlagged ? 'text-warning hover:text-warning' : undefined}
               onClick={isFlagged ? handleUnstar : handleStar}
               title={isFlagged ? 'Unstar' : 'Star'}
             >
-              <Star
-                className="h-4 w-4"
-                fill={isFlagged ? 'currentColor' : 'none'}
-              />
+              <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
             </HdrBtn>
             <HdrBtn
               className="hover:text-danger"
@@ -504,20 +440,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <div className="border-border border-t-accent h-5 w-5 animate-spin rounded-full border-2" />
             </div>
           )}
-          <div
-            className="min-w-0 flex-1 overflow-y-auto"
-            ref={contentScrollRef}
-          >
+          <div className="min-w-0 flex-1 overflow-y-auto" ref={contentScrollRef}>
             {selectedMsg ? (
               <>
                 {/* email header (sender info) */}
                 <div className="border-border shrink-0 border-b px-4 py-2">
                   <div className="flex items-start gap-2.5">
-                    <SenderAvatar
-                      className="mt-0.5"
-                      sender={selectedMsg.sender}
-                      size={28}
-                    />
+                    <SenderAvatar className="mt-0.5" sender={selectedMsg.sender} size={28} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <p
@@ -536,32 +465,19 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           )}
                         </p>
                         <div className="flex shrink-0 items-center gap-0.5">
-                          <SmBtn
-                            onClick={() => handleForwardMsg(selectedMsg)}
-                            title="Forward"
-                          >
+                          <SmBtn onClick={() => handleForwardMsg(selectedMsg)} title="Forward">
                             <Forward className="h-3.5 w-3.5" />
                           </SmBtn>
-                          <SmBtn
-                            onClick={() => handlePrint(selectedMsg)}
-                            title="Print"
-                          >
+                          <SmBtn onClick={() => handlePrint(selectedMsg)} title="Print">
                             <Printer className="h-3.5 w-3.5" />
                           </SmBtn>
                           <SmBtn
-                            onClick={() =>
-                              handleDownloadEml(
-                                selectedMsg.uid,
-                                selectedMsg.subject
-                              )
-                            }
+                            onClick={() => handleDownloadEml(selectedMsg.uid, selectedMsg.subject)}
                             title="Download .eml"
                           >
                             <Download className="h-3.5 w-3.5" />
                           </SmBtn>
-                          <FeedbackMenu
-                            senderEmail={extractEmail(selectedMsg.sender)}
-                          />
+                          <FeedbackMenu senderEmail={extractEmail(selectedMsg.sender)} />
                         </div>
                       </div>
                       <p className="text-fg-muted text-xs select-text">
@@ -589,9 +505,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                 : 'bg-warning/10 text-warning'
                             }`}
                           >
-                            {selectedMsg.risk_score >= 60
-                              ? 'Dangerous'
-                              : 'Suspicious'}
+                            {selectedMsg.risk_score >= 60 ? 'Dangerous' : 'Suspicious'}
                           </span>
                         )}
                       </div>
@@ -623,19 +537,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                   <div className="px-4 py-3 select-text">
                     <div className="text-fg font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap">
                       {highlightMentions(
-                        selectedMsg.clean_text ||
-                          selectedMsg.text_body ||
-                          '(no text content)',
+                        selectedMsg.clean_text || selectedMsg.text_body || '(no text content)',
                         myEmail,
                         auth?.display_name
                       )}
                     </div>
                   </div>
                 )}
-                <AttachmentPreview
-                  attachments={selectedMsg.attachments}
-                  uid={selectedMsg.uid}
-                />
+                <AttachmentPreview attachments={selectedMsg.attachments} uid={selectedMsg.uid} />
               </>
             ) : (
               <div className="text-fg-muted flex h-full flex-col items-center justify-center gap-2 py-12 text-sm">
@@ -663,10 +572,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             {loadingThread && messages.length === 0 && (
               <div className="animate-pulse space-y-4">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div
-                    className="border-border flex gap-3 border-b py-3"
-                    key={i}
-                  >
+                  <div className="border-border flex gap-3 border-b py-3" key={i}>
                     <div className="bg-border h-7 w-7 shrink-0 rounded-full" />
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex items-center gap-2">
@@ -683,9 +589,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               {(() => {
                 const VISIBLE_RECENT = 3
                 const hasCollapsed = messages.length > 5 && !showAllMessages
-                const visibleMessages = hasCollapsed
-                  ? messages.slice(-VISIBLE_RECENT)
-                  : messages
+                const visibleMessages = hasCollapsed ? messages.slice(-VISIBLE_RECENT) : messages
                 let prevDateGroup = ''
 
                 return (
@@ -706,34 +610,25 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                       const isSelected = selectedMsgIdx === idx
                       const fullText = bubbleText(msg)
                       const isLong = fullText.length > 300
-                      const snippet = isLong
-                        ? smartTruncate(fullText, 300)
-                        : fullText
+                      const snippet = isLong ? smartTruncate(fullText, 300) : fullText
                       const isExpanded = expandedBubbles.has(idx)
 
-                      const msgDateGroup = new Date(
-                        msg.internal_date * 1000
-                      ).toDateString()
+                      const msgDateGroup = new Date(msg.internal_date * 1000).toDateString()
                       const showDivider = msgDateGroup !== prevDateGroup
                       prevDateGroup = msgDateGroup
 
                       return (
                         <Fragment key={msg.id}>
                           {showDivider && (
-                            <BubbleDateDivider
-                              label={bubbleDateLabel(msg.internal_date)}
-                            />
+                            <BubbleDateDivider label={bubbleDateLabel(msg.internal_date)} />
                           )}
                           <div
                             className={`focus-visible:ring-accent/50 flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none ${
-                              isSelected
-                                ? 'bg-accent/10'
-                                : 'hover:bg-bg-secondary'
+                              isSelected ? 'bg-accent/10' : 'hover:bg-bg-secondary'
                             } ${isOwn ? 'ml-6' : ''}`}
                             onClick={() => setSelectedMsgIdx(idx)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ')
-                                e.currentTarget.click()
+                              if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click()
                             }}
                             role="button"
                             tabIndex={0}
@@ -815,12 +710,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               originalDate={fwdOriginalDate}
               originalFrom={fwdOriginalFrom}
               originalHtmlBody={fwdOriginalHtml}
-              replyAllRecipients={
-                replyAllRecipients || extractEmail(messages[0]?.sender ?? '')
-              }
-              replyRecipients={
-                replyRecipients || extractEmail(messages[0]?.sender ?? '')
-              }
+              replyAllRecipients={replyAllRecipients || extractEmail(messages[0]?.sender ?? '')}
+              replyRecipients={replyRecipients || extractEmail(messages[0]?.sender ?? '')}
               subject={fwdSubject}
               threadId={selectedId}
             />
@@ -843,9 +734,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             className="border-border bg-surface mx-4 w-full max-w-sm animate-[scaleIn_150ms_ease-out] rounded-lg border p-6 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-fg text-sm font-semibold">
-              Delete conversation?
-            </h3>
+            <h3 className="text-fg text-sm font-semibold">Delete conversation?</h3>
             <p className="text-fg-muted mt-1.5 text-sm">
               This will permanently delete all messages.
             </p>
@@ -881,9 +770,7 @@ function BubbleDateDivider({ label }: { label: string }) {
 }
 
 const bubbleDateLabel = (ts: number | string) =>
-  dateGroupLabel(
-    typeof ts === 'number' ? ts : Math.floor(new Date(ts).getTime() / 1000)
-  )
+  dateGroupLabel(typeof ts === 'number' ? ts : Math.floor(new Date(ts).getTime() / 1000))
 
 // strip invisible unicode: ZWJ, ZWNJ, ZW space, BOM, soft hyphen, directional marks, etc.
 const INVISIBLE_RE =
@@ -1062,9 +949,7 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
           {confirming ? (
             <div className="px-3 py-2">
               <p className="text-fg-secondary text-xs">
-                {confirming === 'block'
-                  ? 'Block this sender?'
-                  : 'Report as spam?'}
+                {confirming === 'block' ? 'Block this sender?' : 'Report as spam?'}
               </p>
               <div className="mt-2 flex gap-2">
                 <button
@@ -1083,9 +968,7 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
             </div>
           ) : (
             <>
-              <p className="text-fg-muted truncate px-3 py-1 text-[11px]">
-                {senderEmail}
-              </p>
+              <p className="text-fg-muted truncate px-3 py-1 text-[11px]">{senderEmail}</p>
               {FEEDBACK_ITEMS.map((item) => (
                 <button
                   className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${

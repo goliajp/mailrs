@@ -18,8 +18,7 @@ export function SignatureBlock({ data, disabled, onChange }: Props) {
     editable: !disabled,
     editorProps: {
       attributes: {
-        class:
-          'prose prose-sm max-w-none px-3 py-1.5 outline-none text-fg-muted',
+        class: 'prose prose-sm max-w-none px-3 py-1.5 outline-none text-fg-muted',
       },
     },
     extensions: createMinimalExtensions(),

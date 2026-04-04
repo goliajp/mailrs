@@ -12,11 +12,7 @@ import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
 import { getToken } from '@/store/auth'
 
-function CodeBlock({
-  children,
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLElement>) {
+function CodeBlock({ children, className, ...props }: React.HTMLAttributes<HTMLElement>) {
   const [copied, setCopied] = useState(false)
   const code = String(children).replace(/\n$/, '')
   const lang = className?.replace('language-', '') ?? ''
@@ -53,13 +49,8 @@ function looksLikeMarkdown(text: string): boolean {
 }
 
 const markdownComponents = {
-  code: ({
-    children,
-    className,
-    ...props
-  }: React.HTMLAttributes<HTMLElement>) => {
-    const isBlock =
-      className?.startsWith('language-') || String(children).includes('\n')
+  code: ({ children, className, ...props }: React.HTMLAttributes<HTMLElement>) => {
+    const isBlock = className?.startsWith('language-') || String(children).includes('\n')
     if (isBlock) {
       return (
         <CodeBlock className={className} {...props}>
@@ -81,16 +72,13 @@ const CJK_FONTS =
 // inject CJK fallback fonts into all font-family declarations so kana
 // renders correctly on non-Japanese locale systems
 function injectCjkFonts(html: string): string {
-  return html.replace(
-    /font-family\s*:\s*([^;}"]+)/gi,
-    (match, fonts: string) => {
-      if (fonts.includes('Hiragino')) return match
-      const trimmed = fonts.trimEnd()
-      const endsWithSemiLike = trimmed.endsWith(',')
-      const base = endsWithSemiLike ? trimmed.slice(0, -1) : trimmed
-      return `font-family: ${base}, ${CJK_FONTS}`
-    }
-  )
+  return html.replace(/font-family\s*:\s*([^;}"]+)/gi, (match, fonts: string) => {
+    if (fonts.includes('Hiragino')) return match
+    const trimmed = fonts.trimEnd()
+    const endsWithSemiLike = trimmed.endsWith(',')
+    const base = endsWithSemiLike ? trimmed.slice(0, -1) : trimmed
+    return `font-family: ${base}, ${CJK_FONTS}`
+  })
 }
 
 // dedicated DOMPurify instance avoids global hook race conditions in concurrent renders
@@ -116,10 +104,7 @@ export function MessageBubble({
   uid: number
 }) {
   const hasAttachments = attachments.length > 0
-  const { isHtml, parts } = useMemo(
-    () => splitEmail(textBody, htmlBody),
-    [textBody, htmlBody]
-  )
+  const { isHtml, parts } = useMemo(() => splitEmail(textBody, htmlBody), [textBody, htmlBody])
 
   return (
     <div>
@@ -153,15 +138,7 @@ export function MessageBubble({
   )
 }
 
-function AttachmentItem({
-  att,
-  index,
-  uid,
-}: {
-  att: AttachmentInfo
-  index: number
-  uid: number
-}) {
+function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: number; uid: number }) {
   const isImage = att.content_type.startsWith('image/')
   const isPdf = att.content_type === 'application/pdf'
   const token = getToken() ?? ''
@@ -181,10 +158,7 @@ function AttachmentItem({
       const t = getToken()
       const headers: Record<string, string> = {}
       if (t) headers['Authorization'] = `Bearer ${t}`
-      const res = await fetch(
-        `/api/mail/messages/${uid}/attachments/${index}/content`,
-        { headers }
-      )
+      const res = await fetch(`/api/mail/messages/${uid}/attachments/${index}/content`, { headers })
       if (!res.ok) {
         setExtractedText('')
         setShowContent(false)
@@ -375,17 +349,7 @@ function proxyExternalUrls(html: string): string {
 
 function sanitizeEmail(html: string): string {
   const clean = emailPurifier.sanitize(html, {
-    ADD_ATTR: [
-      'style',
-      'align',
-      'dir',
-      'bgcolor',
-      'color',
-      'face',
-      'size',
-      'target',
-      'rel',
-    ],
+    ADD_ATTR: ['style', 'align', 'dir', 'bgcolor', 'color', 'face', 'size', 'target', 'rel'],
     ADD_TAGS: ['style'],
     ALLOW_UNKNOWN_PROTOCOLS: false,
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
@@ -398,9 +362,7 @@ function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
     return (
       <div
         className={`prose prose-sm max-w-none ${
-          isOwn
-            ? '[&_*]:text-white [&_a]:text-white/70 [&_code]:bg-white/20'
-            : 'prose-fg'
+          isOwn ? '[&_*]:text-white [&_a]:text-white/70 [&_code]:bg-white/20' : 'prose-fg'
         }`}
       >
         <Markdown

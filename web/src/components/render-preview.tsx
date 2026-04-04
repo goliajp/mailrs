@@ -43,9 +43,7 @@ export function RenderPreview({ html }: { html: string }) {
         setPreviews(result.previews)
         setActiveTab(result.previews[0].name)
         if (result.errors && result.errors.length > 0) {
-          setError(
-            `${result.errors.length} preset(s) failed: ${result.errors.join('; ')}`
-          )
+          setError(`${result.errors.length} preset(s) failed: ${result.errors.join('; ')}`)
         }
       } else {
         const detail = result.errors?.join('; ') ?? 'unknown'
@@ -99,11 +97,7 @@ export function RenderPreview({ html }: { html: string }) {
           </div>
           {active && (
             <div className="border-border overflow-auto rounded-md border bg-white">
-              <img
-                alt={`${active.name} preview`}
-                className="block"
-                src={active.image_url}
-              />
+              <img alt={`${active.name} preview`} className="block" src={active.image_url} />
             </div>
           )}
         </>

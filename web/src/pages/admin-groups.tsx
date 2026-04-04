@@ -135,10 +135,7 @@ export function AdminGroups() {
             value={form.description}
           />
           <div className="flex gap-2">
-            <button
-              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
-              onClick={handleAdd}
-            >
+            <button className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm" onClick={handleAdd}>
               Save
             </button>
             <button
@@ -167,9 +164,7 @@ export function AdminGroups() {
               <Fragment key={group.id}>
                 <tr className="border-border border-b last:border-0">
                   <td className="px-4 py-3 font-medium">{group.name}</td>
-                  <td className="text-fg-secondary px-4 py-3">
-                    {group.domain ?? '(Global)'}
-                  </td>
+                  <td className="text-fg-secondary px-4 py-3">{group.domain ?? '(Global)'}</td>
                   <td className="px-4 py-3">
                     {group.is_builtin && (
                       <span className="bg-surface text-fg-secondary inline-block rounded px-2 py-0.5 text-xs font-medium">
@@ -177,15 +172,11 @@ export function AdminGroups() {
                       </span>
                     )}
                   </td>
-                  <td className="text-fg-secondary px-4 py-3">
-                    {group.description}
-                  </td>
+                  <td className="text-fg-secondary px-4 py-3">{group.description}</td>
                   <td className="px-4 py-3 text-right">
                     <button
                       className="text-accent mr-3 text-xs hover:opacity-80"
-                      onClick={() =>
-                        setExpandedId(expandedId === group.id ? null : group.id)
-                      }
+                      onClick={() => setExpandedId(expandedId === group.id ? null : group.id)}
                     >
                       {expandedId === group.id ? 'Hide' : 'Manage'}
                     </button>
@@ -290,9 +281,7 @@ function GroupDetail({
       setData({ ...data, permissions: updated })
       toast.success('Permissions updated')
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : 'Failed to update permissions'
-      )
+      toast.error(e instanceof Error ? e.message : 'Failed to update permissions')
     }
   }
 
@@ -314,9 +303,7 @@ function GroupDetail({
   const handleRemoveMember = async (address: string) => {
     if (!window.confirm(`Remove member "${address}" from this group?`)) return
     try {
-      await deleteJson(
-        `/admin/groups/${group.id}/members/${encodeURIComponent(address)}`
-      )
+      await deleteJson(`/admin/groups/${group.id}/members/${encodeURIComponent(address)}`)
       toast.success(`Member "${address}" removed`)
       load()
       onChanged()
@@ -332,9 +319,7 @@ function GroupDetail({
   return (
     <div className="space-y-4 px-4 pt-1 pb-4">
       <div>
-        <h4 className="text-fg-secondary mb-2 text-xs font-medium">
-          Permissions
-        </h4>
+        <h4 className="text-fg-secondary mb-2 text-xs font-medium">Permissions</h4>
         <div className="flex flex-wrap gap-2">
           {allPermissions.map((perm) => (
             <label
@@ -350,9 +335,7 @@ function GroupDetail({
             </label>
           ))}
           {allPermissions.length === 0 && (
-            <span className="text-fg-muted text-xs">
-              No permissions available
-            </span>
+            <span className="text-fg-muted text-xs">No permissions available</span>
           )}
         </div>
       </div>

@@ -24,18 +24,10 @@ import { ResetPassword } from '@/pages/reset-password'
 import { authAtom } from '@/store/auth'
 import { unreadCountAtom } from '@/store/chat'
 
-const Admin = lazy(() =>
-  import('@/pages/admin').then((m) => ({ default: m.Admin }))
-)
-const Playground = lazy(() =>
-  import('@/pages/playground').then((m) => ({ default: m.Playground }))
-)
-const Protocol = lazy(() =>
-  import('@/pages/protocol').then((m) => ({ default: m.Protocol }))
-)
-const Settings = lazy(() =>
-  import('@/pages/settings').then((m) => ({ default: m.Settings }))
-)
+const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
+const Playground = lazy(() => import('@/pages/playground').then((m) => ({ default: m.Playground })))
+const Protocol = lazy(() => import('@/pages/protocol').then((m) => ({ default: m.Protocol })))
+const Settings = lazy(() => import('@/pages/settings').then((m) => ({ default: m.Settings })))
 
 // apply zinc-neutral preset before first render — no effect race conditions
 initMailrsTheme()
@@ -122,13 +114,7 @@ export function App() {
 function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
-      <AppShell
-        gap={6}
-        padded
-        sidebar={<AppSidebar />}
-        sidebarWidth={56}
-        statusBar={<StatusBar />}
-      >
+      <AppShell gap={6} padded sidebar={<AppSidebar />} sidebarWidth={56} statusBar={<StatusBar />}>
         {children}
       </AppShell>
     </RequireAuth>
@@ -141,10 +127,7 @@ function initMailrsTheme() {
   const store = getDefaultStore()
   const current = store.get(themeAtom)
 
-  if (
-    current.presetId === 'zinc-neutral' &&
-    current.colorOverridesDark !== null
-  ) {
+  if (current.presetId === 'zinc-neutral' && current.colorOverridesDark !== null) {
     return
   }
 

@@ -46,9 +46,7 @@ function makeMessage(overrides: Partial<ThreadMessage> = {}): ThreadMessage {
 
 describe('AiAnalysisPanel', () => {
   it('returns null when message is not ai_analyzed', () => {
-    const { container } = render(
-      <AiAnalysisPanel message={makeMessage({ ai_analyzed: false })} />
-    )
+    const { container } = render(<AiAnalysisPanel message={makeMessage({ ai_analyzed: false })} />)
     expect(container.innerHTML).toBe('')
   })
 
@@ -95,10 +93,7 @@ describe('AiAnalysisPanel', () => {
       <AiAnalysisPanel
         message={makeMessage({
           ai_analyzed: true,
-          people: [
-            { name: 'John Doe', role: 'Manager' },
-            { name: 'Jane Smith' },
-          ],
+          people: [{ name: 'John Doe', role: 'Manager' }, { name: 'Jane Smith' }],
         })}
       />
     )
@@ -115,9 +110,7 @@ describe('AiAnalysisPanel', () => {
       <AiAnalysisPanel
         message={makeMessage({
           ai_analyzed: true,
-          dates: [
-            { context: 'deadline', iso_date: '2025-03-15', text: 'March 15' },
-          ],
+          dates: [{ context: 'deadline', iso_date: '2025-03-15', text: 'March 15' }],
         })}
       />
     )

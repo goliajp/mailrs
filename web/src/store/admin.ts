@@ -1,9 +1,4 @@
-import type {
-  AccountInfo,
-  AliasInfo,
-  DomainInfo,
-  QueueEntry,
-} from '@/lib/types'
+import type { AccountInfo, AliasInfo, DomainInfo, QueueEntry } from '@/lib/types'
 
 import { atom } from 'jotai'
 

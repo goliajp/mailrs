@@ -1,11 +1,7 @@
 import type { ReactNode } from 'react'
 
 // patterns that might refer to the current user
-export function highlightMentions(
-  text: string,
-  myEmail: string,
-  myName?: string
-): ReactNode[] {
+export function highlightMentions(text: string, myEmail: string, myName?: string): ReactNode[] {
   if (!text || !myEmail) return [text]
 
   // build patterns: @email, @name, @firstname
@@ -22,10 +18,7 @@ export function highlightMentions(
   // escape for regex
   const escaped = patterns.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   // match @pattern or standalone pattern (case insensitive)
-  const regex = new RegExp(
-    `(@(?:${escaped.join('|')})|\\b(?:${escaped.join('|')})\\b)`,
-    'gi'
-  )
+  const regex = new RegExp(`(@(?:${escaped.join('|')})|\\b(?:${escaped.join('|')})\\b)`, 'gi')
 
   const parts: ReactNode[] = []
   let lastIndex = 0

@@ -60,17 +60,10 @@ export function AdminOverview() {
   const [error, setError] = useState('')
 
   const refresh = useCallback(() => {
-    fetchJson<HealthInfo>('/health').then(setHealth, () =>
-      setError('Failed to load health')
-    )
-    fetchJson<StatusInfo>('/status').then(setStatus, () =>
-      setError('Failed to load status')
-    )
+    fetchJson<HealthInfo>('/health').then(setHealth, () => setError('Failed to load health'))
+    fetchJson<StatusInfo>('/status').then(setStatus, () => setError('Failed to load status'))
     fetchJson<SmtpConfig>('/admin/config/smtp').then(setSmtp, () => {})
-    fetchJson<AuditEntry[]>('/admin/audit-log?limit=10').then(
-      setAudit,
-      () => {}
-    )
+    fetchJson<AuditEntry[]>('/admin/audit-log?limit=10').then(setAudit, () => {})
   }, [])
 
   useEffect(() => {
@@ -83,12 +76,9 @@ export function AdminOverview() {
     return <div className="text-danger p-6 text-sm">{error}</div>
   }
 
-  const activeConns =
-    status?.active_connections ?? health?.total_connections ?? 0
+  const activeConns = status?.active_connections ?? health?.total_connections ?? 0
   const totalMsgs = status?.total_messages ?? health?.total_messages ?? 0
-  const queuePending = status?.queue
-    ? status.queue.pending + status.queue.inflight
-    : 0
+  const queuePending = status?.queue ? status.queue.pending + status.queue.inflight : 0
   const queueFailed = status?.queue?.failed ?? 0
   const activeSessions = health?.active_sessions ?? 0
 
@@ -113,16 +103,10 @@ export function AdminOverview() {
         <MetricCard label="Total Messages" value={formatNumber(totalMsgs)} />
         <MetricCard
           label="Queue Pending"
-          sub={
-            queueFailed > 0 ? `${formatNumber(queueFailed)} failed` : '0 failed'
-          }
+          sub={queueFailed > 0 ? `${formatNumber(queueFailed)} failed` : '0 failed'}
           value={formatNumber(queuePending)}
         />
-        <MetricCard
-          label="Active Users"
-          sub="sessions"
-          value={formatNumber(activeSessions)}
-        />
+        <MetricCard label="Active Users" sub="sessions" value={formatNumber(activeSessions)} />
       </div>
 
       {/* service health */}
@@ -130,16 +114,8 @@ export function AdminOverview() {
         <div className="mb-6">
           <h2 className="text-fg-muted mb-3 text-sm font-medium">Services</h2>
           <div className="flex flex-wrap gap-3">
-            <ServicePill
-              detail={health.pg ? 'up' : 'down'}
-              name="PostgreSQL"
-              ok={health.pg}
-            />
-            <ServicePill
-              detail={health.valkey ? 'up' : 'down'}
-              name="Valkey"
-              ok={health.valkey}
-            />
+            <ServicePill detail={health.pg ? 'up' : 'down'} name="PostgreSQL" ok={health.pg} />
+            <ServicePill detail={health.valkey ? 'up' : 'down'} name="Valkey" ok={health.valkey} />
             <ServicePill
               detail={smtp ? `:${smtp.smtp_port}` : undefined}
               name="SMTP"
@@ -166,9 +142,7 @@ export function AdminOverview() {
 function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
   return (
     <div className="border-border bg-surface rounded-lg border p-4">
-      <h3 className="text-fg-muted mb-3 text-sm font-medium">
-        Recent Audit Log
-      </h3>
+      <h3 className="text-fg-muted mb-3 text-sm font-medium">Recent Audit Log</h3>
       {entries.length === 0 ? (
         <p className="text-fg-muted text-sm">No entries</p>
       ) : (
@@ -194,9 +168,7 @@ function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
                       {e.action.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="text-fg-muted py-1.5 text-right tabular-nums">
-                    {ip || e.target}
-                  </td>
+                  <td className="text-fg-muted py-1.5 text-right tabular-nums">{ip || e.target}</td>
                 </tr>
               )
             })}
@@ -231,15 +203,7 @@ function formatUptime(secs: number): string {
   return `${mins}m`
 }
 
-function MetricCard({
-  label,
-  sub,
-  value,
-}: {
-  label: string
-  sub?: string
-  value: string
-}) {
+function MetricCard({ label, sub, value }: { label: string; sub?: string; value: string }) {
   return (
     <div className="border-border bg-surface rounded-lg border p-4">
       <p className="text-fg-muted text-sm">{label}</p>
@@ -249,14 +213,7 @@ function MetricCard({
   )
 }
 
-function Row({
-  label,
-  value,
-}: {
-  label: string
-  mono?: boolean
-  value: string
-}) {
+function Row({ label, value }: { label: string; mono?: boolean; value: string }) {
   return (
     <div className="flex items-baseline gap-2 text-xs">
       <span className="text-fg-muted shrink-0">{label}</span>
@@ -266,20 +223,10 @@ function Row({
   )
 }
 
-function ServicePill({
-  detail,
-  name,
-  ok,
-}: {
-  detail?: string
-  name: string
-  ok: boolean
-}) {
+function ServicePill({ detail, name, ok }: { detail?: string; name: string; ok: boolean }) {
   return (
     <div className="border-border bg-surface flex items-center gap-2 rounded-lg border px-4 py-3">
-      <span
-        className={`h-2.5 w-2.5 rounded-full ${ok ? 'bg-success' : 'bg-danger'}`}
-      />
+      <span className={`h-2.5 w-2.5 rounded-full ${ok ? 'bg-success' : 'bg-danger'}`} />
       <span className="text-fg text-sm font-medium">{name}</span>
       {detail && <span className="text-fg-muted text-xs">{detail}</span>}
     </div>
@@ -289,9 +236,7 @@ function ServicePill({
 function SmtpConfigPanel({ config }: { config: SmtpConfig }) {
   return (
     <div className="border-border bg-surface rounded-lg border p-4">
-      <h3 className="text-fg-muted mb-3 text-sm font-medium">
-        SMTP Configuration
-      </h3>
+      <h3 className="text-fg-muted mb-3 text-sm font-medium">SMTP Configuration</h3>
       <div className="space-y-2">
         <Row label="Hostname" mono value={config.hostname} />
         <Row
@@ -302,10 +247,7 @@ function SmtpConfigPanel({ config }: { config: SmtpConfig }) {
         <Row label="Domains" mono value={config.local_domains.join(', ')} />
         <Row label="TLS" value={config.tls_enabled ? 'Enabled' : 'Disabled'} />
         {config.max_message_size != null && (
-          <Row
-            label="Max Size"
-            value={`${Math.round(config.max_message_size / 1024 / 1024)}MB`}
-          />
+          <Row label="Max Size" value={`${Math.round(config.max_message_size / 1024 / 1024)}MB`} />
         )}
       </div>
     </div>
@@ -338,9 +280,7 @@ function StatusBanner({ health }: { health: HealthInfo }) {
         {health.status.charAt(0).toUpperCase() + health.status.slice(1)}
       </span>
       <span className="text-fg-muted text-sm">v{health.version}</span>
-      <span className="text-fg-muted text-sm">
-        Uptime {formatUptime(health.uptime_secs)}
-      </span>
+      <span className="text-fg-muted text-sm">Uptime {formatUptime(health.uptime_secs)}</span>
     </div>
   )
 }

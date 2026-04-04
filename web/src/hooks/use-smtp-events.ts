@@ -1,9 +1,4 @@
-import type {
-  ConnectionInfo,
-  ConversationLine,
-  ServerStatus,
-  SmtpEvent,
-} from '@/lib/types'
+import type { ConnectionInfo, ConversationLine, ServerStatus, SmtpEvent } from '@/lib/types'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -11,17 +6,13 @@ function getWsUrl() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
   const token = localStorage.getItem('mailrs_auth')
   const parsed = token ? JSON.parse(token) : null
-  const tokenParam = parsed?.token
-    ? `?token=${encodeURIComponent(parsed.token)}`
-    : ''
+  const tokenParam = parsed?.token ? `?token=${encodeURIComponent(parsed.token)}` : ''
   return `${proto}//${location.host}/api/events${tokenParam}`
 }
 const STATUS_URL = '/api/status'
 
 export function useSmtpEvents() {
-  const [connections, setConnections] = useState<Map<number, ConnectionInfo>>(
-    new Map()
-  )
+  const [connections, setConnections] = useState<Map<number, ConnectionInfo>>(new Map())
   const [events, setEvents] = useState<SmtpEvent[]>([])
   const [status, setStatus] = useState<null | ServerStatus>(null)
   const [connected, setConnected] = useState(false)
