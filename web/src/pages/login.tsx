@@ -142,7 +142,14 @@ export function Login() {
         localStorage.removeItem('mailrs_saved_email')
       }
       setAuth(auth)
-      navigate('/', { replace: true })
+
+      // follow return_to if present (OIDC authorize flow)
+      const returnTo = searchParams.get('return_to')
+      if (returnTo) {
+        window.location.href = returnTo
+      } else {
+        navigate('/', { replace: true })
+      }
     } catch {
       setError('Network error')
     } finally {

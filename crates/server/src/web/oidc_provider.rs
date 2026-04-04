@@ -677,19 +677,31 @@ fn try_extract_session(
     state: &Arc<WebState>,
     headers: &axum::http::HeaderMap,
 ) -> Option<(String, String)> {
-    let auth_header = headers
+    // try Authorization header first
+    let token_from_header = headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .map(|t| t.to_string());
 
-    let token = auth_header.strip_prefix("Bearer ")?;
+    // fall back to mailrs_session cookie (set after login for OIDC redirect flow)
+    let token_from_cookie = headers
+        .get("cookie")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookies| {
+            cookies.split(';').find_map(|c| {
+                c.trim().strip_prefix("mailrs_session=").map(|v| v.to_string())
+            })
+        });
+
+    let token = token_from_header.or(token_from_cookie)?;
 
     // only check session tokens (not API keys)
     if token.starts_with("mlrs_") {
         return None;
     }
 
-    let session = state.sessions.get(token)?;
+    let session = state.sessions.get(&token)?;
     if session.created_at.elapsed() < super::SESSION_TTL {
         Some((session.address.clone(), session.display_name.clone()))
     } else {
