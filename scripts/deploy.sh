@@ -51,7 +51,7 @@ if [ "$WEB_ONLY" = false ]; then
   # upload .env with secrets
   echo "==> uploading .env"
   {
-    echo 'MAILRS_AI_ANALYSIS_ENABLED=true'
+    echo 'MAILRS_AI_ANALYSIS_ENABLED=false'
     echo 'MAILRS_LLM_URL=https://devops.golia.jp/api/llm/complete'
     echo "MAILRS_LLM_API_KEY=${MAILRS_LLM_API_KEY:-}"
     echo 'MAILRS_WEBHOOK_URL=https://api.golia.jp/api/internal/mail-webhook'
