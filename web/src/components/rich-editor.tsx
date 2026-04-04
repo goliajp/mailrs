@@ -114,12 +114,7 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
   const addLink = () => {
     const url = window.prompt('URL')
     if (url) {
-      editor
-        .chain()
-        .focus()
-        .extendMarkRange('link')
-        .setLink({ href: url })
-        .run()
+      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
     }
   }
   const addImage = () => {
@@ -213,11 +208,7 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
       >
         1.
       </ToolbarButton>
-      <ToolbarButton
-        active={editor.isActive('link')}
-        onClick={addLink}
-        title="Link"
-      >
+      <ToolbarButton active={editor.isActive('link')} onClick={addLink} title="Link">
         <span className="text-xs">Link</span>
       </ToolbarButton>
 
@@ -242,9 +233,7 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
           <span className="text-xs">Img</span>
         </ToolbarButton>
         <ToolbarButton
-          onClick={() =>
-            editor.chain().focus().insertTable({ cols: 3, rows: 3 }).run()
-          }
+          onClick={() => editor.chain().focus().insertTable({ cols: 3, rows: 3 }).run()}
           title="Table"
         >
           <span className="text-xs">Table</span>
@@ -272,19 +261,11 @@ export function getEditorContent(editor: Editor | null): {
   }
 }
 
-function ToolbarButton({
-  active,
-  children,
-  disabled,
-  onClick,
-  title,
-}: ToolbarButtonProps) {
+function ToolbarButton({ active, children, disabled, onClick, title }: ToolbarButtonProps) {
   return (
     <button
       className={`rounded-md px-1.5 py-1 text-xs transition-colors ${
-        active
-          ? 'bg-border text-fg'
-          : 'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary'
+        active ? 'bg-border text-fg' : 'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary'
       } disabled:opacity-50`}
       disabled={disabled}
       onClick={onClick}

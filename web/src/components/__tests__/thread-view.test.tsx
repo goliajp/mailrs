@@ -1,13 +1,7 @@
 import type { ConversationSummary, ThreadMessage } from '@/lib/types'
 import type { ReactNode } from 'react'
 
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,11 +22,7 @@ vi.stubGlobal('localStorage', {
 })
 
 import { authAtom } from '@/store/auth'
-import {
-  conversationsAtom,
-  selectedThreadIdAtom,
-  threadMessagesAtom,
-} from '@/store/chat'
+import { conversationsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
 
 vi.mock('@/lib/api', () => ({
   deleteJson: vi.fn(() => Promise.resolve({ success: true })),
@@ -64,13 +54,7 @@ vi.mock('@/components/ai-analysis', () => ({
 }))
 
 vi.mock('@/components/attachment-preview', () => ({
-  AttachmentPreview: ({
-    attachments,
-    uid,
-  }: {
-    attachments: unknown[]
-    uid: number
-  }) => (
+  AttachmentPreview: ({ attachments, uid }: { attachments: unknown[]; uid: number }) => (
     <div data-testid="attachment-preview">
       {attachments.length} attachment(s) for uid {uid}
     </div>
@@ -78,16 +62,8 @@ vi.mock('@/components/attachment-preview', () => ({
 }))
 
 vi.mock('@/components/message-bubble', () => ({
-  MessageBubble: ({
-    htmlBody,
-    textBody,
-  }: {
-    htmlBody: null | string
-    textBody: null | string
-  }) => (
-    <div data-testid="message-bubble">
-      {htmlBody ? 'HTML' : textBody ? 'TEXT' : 'EMPTY'}
-    </div>
+  MessageBubble: ({ htmlBody, textBody }: { htmlBody: null | string; textBody: null | string }) => (
+    <div data-testid="message-bubble">{htmlBody ? 'HTML' : textBody ? 'TEXT' : 'EMPTY'}</div>
   ),
 }))
 
@@ -98,24 +74,16 @@ vi.mock('@/components/category-badge', () => ({
       <span data-testid="category-badge">{category}</span>
     ) : null,
   ImportanceBadge: ({ level }: { level: string }) =>
-    level && level !== 'normal' ? (
-      <span data-testid="importance-badge">{level}</span>
-    ) : null,
+    level && level !== 'normal' ? <span data-testid="importance-badge">{level}</span> : null,
   IntentBadge: ({ intent }: { intent: string }) =>
-    intent && intent !== 'inform' ? (
-      <span data-testid="intent-badge">{intent}</span>
-    ) : null,
+    intent && intent !== 'inform' ? <span data-testid="intent-badge">{intent}</span> : null,
 }))
 
 vi.mock('@/components/reply-box', () => ({
-  ReplyBox: ({ mode }: { mode: string }) => (
-    <div data-testid="reply-box">mode: {mode}</div>
-  ),
+  ReplyBox: ({ mode }: { mode: string }) => <div data-testid="reply-box">mode: {mode}</div>,
 }))
 
-function makeConversation(
-  overrides: Partial<ConversationSummary> = {}
-): ConversationSummary {
+function makeConversation(overrides: Partial<ConversationSummary> = {}): ConversationSummary {
   return {
     archived: false,
     category: 'general',
@@ -277,9 +245,7 @@ describe('ThreadView — with messages', () => {
   })
 
   it('renders sender name in chat bubble', () => {
-    store.set(threadMessagesAtom, [
-      makeMessage({ sender: 'Charlie Brown <charlie@example.com>' }),
-    ])
+    store.set(threadMessagesAtom, [makeMessage({ sender: 'Charlie Brown <charlie@example.com>' })])
     render(
       <Wrapper store={store}>
         <ThreadView />
@@ -316,26 +282,18 @@ describe('ThreadView — selected message detail', () => {
   })
 
   it('renders plain text in raw email panel', async () => {
-    await renderAndWait(
-      makeMessage({ html_body: null, text_body: 'Plain text email body here' })
-    )
+    await renderAndWait(makeMessage({ html_body: null, text_body: 'Plain text email body here' }))
     // text appears in both raw panel and chat bubble snippet, use getAllByText
-    expect(
-      screen.getAllByText(/Plain text email body here/).length
-    ).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/Plain text email body here/).length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders attachment preview', async () => {
     await renderAndWait(
       makeMessage({
-        attachments: [
-          { content_type: 'application/pdf', filename: 'doc.pdf', size: 1024 },
-        ],
+        attachments: [{ content_type: 'application/pdf', filename: 'doc.pdf', size: 1024 }],
       })
     )
-    expect(screen.getByTestId('attachment-preview').textContent).toContain(
-      '1 attachment(s)'
-    )
+    expect(screen.getByTestId('attachment-preview').textContent).toContain('1 attachment(s)')
   })
 
   it('shows risk badge for analyzed messages', async () => {

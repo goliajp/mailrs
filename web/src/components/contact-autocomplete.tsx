@@ -32,9 +32,7 @@ export function ContactAutocomplete({
     }
     debounceRef.current = setTimeout(async () => {
       try {
-        const data = await fetchJson<string[]>(
-          `/contacts?q=${encodeURIComponent(query)}&limit=5`
-        )
+        const data = await fetchJson<string[]>(`/contacts?q=${encodeURIComponent(query)}&limit=5`)
         setSuggestions(data)
         setShowSuggestions(data.length > 0)
         setActiveIndex(-1)
@@ -86,9 +84,7 @@ export function ContactAutocomplete({
     <div className="relative flex-1" ref={containerRef}>
       <input
         autoFocus={autoFocus}
-        className={
-          className || 'text-fg w-full bg-transparent py-2 text-sm outline-none'
-        }
+        className={className || 'text-fg w-full bg-transparent py-2 text-sm outline-none'}
         onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
         onChange={(e) => handleChange(e.target.value)}
         onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}

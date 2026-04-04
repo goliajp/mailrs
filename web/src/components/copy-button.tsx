@@ -12,9 +12,7 @@ export function Copyable({
   value: string
 }) {
   return (
-    <span
-      className={`group/copy inline-flex items-center gap-0.5 ${className ?? ''}`}
-    >
+    <span className={`group/copy inline-flex items-center gap-0.5 ${className ?? ''}`}>
       <span className="select-text">{children}</span>
       <CopyButton value={value} />
     </span>
@@ -22,13 +20,7 @@ export function Copyable({
 }
 
 // inline copy button shown on hover next to copyable identifiers
-export function CopyButton({
-  className,
-  value,
-}: {
-  className?: string
-  value: string
-}) {
+export function CopyButton({ className, value }: { className?: string; value: string }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = useCallback(
@@ -49,11 +41,7 @@ export function CopyButton({
       onClick={handleCopy}
       title={copied ? 'Copied!' : `Copy "${value}"`}
     >
-      {copied ? (
-        <Check className="text-success h-3 w-3" />
-      ) : (
-        <Copy className="h-3 w-3" />
-      )}
+      {copied ? <Check className="text-success h-3 w-3" /> : <Copy className="h-3 w-3" />}
     </button>
   )
 }

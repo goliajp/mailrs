@@ -112,10 +112,7 @@ export function CommandPalette() {
   let flatIndex = 0
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-      onClick={close}
-    >
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={close}>
       <div
         className="border-border bg-surface mx-auto mt-[20vh] max-w-lg overflow-hidden rounded-xl border shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -140,9 +137,7 @@ export function CommandPalette() {
         {/* results */}
         <div className="max-h-80 overflow-y-auto py-2" ref={listRef}>
           {commands.length === 0 ? (
-            <div className="text-fg-muted px-4 py-8 text-center text-sm">
-              No results found
-            </div>
+            <div className="text-fg-muted px-4 py-8 text-center text-sm">No results found</div>
           ) : (
             groups.map((group) => (
               <div key={group.category}>
@@ -286,8 +281,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         id: 'action-toggle-theme',
         label: 'Toggle Theme',
         action: () => {
-          const next =
-            theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark'
+          const next = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark'
           setTheme(next)
           onClose()
         },
@@ -308,11 +302,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         id: 'action-logout',
         label: 'Logout',
         action: () => {
-          if (
-            !window.confirm(
-              'Sign out? You will need to sign in again to access your mailbox.'
-            )
-          )
+          if (!window.confirm('Sign out? You will need to sign in again to access your mailbox.'))
             return
           setAuth(null)
           navigate('/login')
@@ -329,9 +319,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
     const filtered =
       trimmed === ''
         ? staticCommands
-        : staticCommands.filter((cmd) =>
-            cmd.label.toLowerCase().includes(trimmed)
-          )
+        : staticCommands.filter((cmd) => cmd.label.toLowerCase().includes(trimmed))
 
     // add dynamic search command when there's a query
     if (trimmed !== '') {

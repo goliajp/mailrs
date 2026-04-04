@@ -61,8 +61,7 @@ export function splitHtmlEmail(html: string): EmailParts {
   // Outlook: #divRplyFwdMsg + all following siblings
   if (!quoted) {
     const outlookDiv =
-      doc.body.querySelector('#divRplyFwdMsg') ??
-      doc.body.querySelector('#appendonsend')
+      doc.body.querySelector('#divRplyFwdMsg') ?? doc.body.querySelector('#appendonsend')
     if (outlookDiv) {
       const parts: string[] = []
       let node: Element | null = outlookDiv
@@ -92,11 +91,7 @@ export function splitHtmlEmail(html: string): EmailParts {
       const parts: string[] = [mozPrefix.outerHTML]
       let next: Element | null = mozPrefix.nextElementSibling
       mozPrefix.remove()
-      while (
-        next &&
-        next.tagName === 'BLOCKQUOTE' &&
-        next.getAttribute('type') === 'cite'
-      ) {
+      while (next && next.tagName === 'BLOCKQUOTE' && next.getAttribute('type') === 'cite') {
         parts.push(next.outerHTML)
         const following = next.nextElementSibling
         next.remove()

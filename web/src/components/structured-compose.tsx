@@ -149,13 +149,10 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
     )
 
     // click empty space → focus first text editor
-    const handleAreaClick = useCallback(
-      (e: React.MouseEvent<HTMLDivElement>) => {
-        if (e.target !== scrollAreaRef.current) return
-        textEditorRef.current?.commands.focus('end')
-      },
-      []
-    )
+    const handleAreaClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+      if (e.target !== scrollAreaRef.current) return
+      textEditorRef.current?.commands.focus('end')
+    }, [])
 
     const handleFileSelect = useCallback(() => {
       if (fileInputRef.current) {
@@ -319,9 +316,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
       >
         {dragging && (
           <div className="border-accent bg-accent/10 absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed">
-            <p className="text-accent text-sm font-medium">
-              Drop files to attach
-            </p>
+            <p className="text-accent text-sm font-medium">Drop files to attach</p>
           </div>
         )}
         {/* block content area */}
@@ -335,10 +330,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
 
         {/* add block bar */}
         <div className="border-border flex shrink-0 items-center border-t px-4 py-1.5">
-          <AddBlockMenu
-            onAdd={(type) => addBlock(type)}
-            onAddFile={handleFileSelect}
-          />
+          <AddBlockMenu onAdd={(type) => addBlock(type)} onAddFile={handleFileSelect} />
           <input
             className="hidden"
             multiple

@@ -8,13 +8,7 @@ import { queueAtom } from '@/store/admin'
 
 const PAGE_SIZE = 20
 
-const ALL_STATUSES = [
-  'pending',
-  'inflight',
-  'delivered',
-  'failed',
-  'bounced',
-] as const
+const ALL_STATUSES = ['pending', 'inflight', 'delivered', 'failed', 'bounced'] as const
 type QueueStatus = (typeof ALL_STATUSES)[number]
 
 const statusStyles: Record<string, string> = {
@@ -25,8 +19,7 @@ const statusStyles: Record<string, string> = {
   pending: 'bg-accent/10 text-accent',
 }
 
-const filterBaseStyle =
-  'rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
+const filterBaseStyle = 'rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
 const filterActiveStyle = 'ring-2 ring-offset-1 ring-border ring-offset-bg'
 const filterAllStyle = 'bg-border text-fg-secondary'
 
@@ -75,8 +68,7 @@ export function AdminQueues() {
   }, [queue])
 
   const filtered = useMemo(
-    () =>
-      statusFilter ? queue.filter((q) => q.status === statusFilter) : queue,
+    () => (statusFilter ? queue.filter((q) => q.status === statusFilter) : queue),
     [queue, statusFilter]
   )
 
@@ -144,10 +136,7 @@ export function AdminQueues() {
           </thead>
           <tbody>
             {pageItems.map((item) => (
-              <tr
-                className="border-border border-b last:border-0"
-                key={item.id}
-              >
+              <tr className="border-border border-b last:border-0" key={item.id}>
                 <td className="px-4 py-3 font-medium">{item.sender}</td>
                 <td className="px-4 py-3">{item.recipient}</td>
                 <td className="text-fg-secondary px-4 py-3">{item.domain}</td>
@@ -177,9 +166,7 @@ export function AdminQueues() {
             {pageItems.length === 0 && (
               <tr>
                 <td className="text-fg-muted px-4 py-8 text-center" colSpan={7}>
-                  {statusFilter
-                    ? `No ${statusFilter} entries`
-                    : 'Queue is empty'}
+                  {statusFilter ? `No ${statusFilter} entries` : 'Queue is empty'}
                 </td>
               </tr>
             )}

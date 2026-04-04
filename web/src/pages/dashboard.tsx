@@ -28,11 +28,7 @@ import { MPane, MPaneGroup } from '@/layouts/pane'
 import { fetchJson } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { authAtom } from '@/store/auth'
-import {
-  composingNewAtom,
-  searchQueryAtom,
-  selectedThreadIdAtom,
-} from '@/store/chat'
+import { composingNewAtom, searchQueryAtom, selectedThreadIdAtom } from '@/store/chat'
 
 type DashboardData = {
   conversations: ConversationSummary[]
@@ -115,9 +111,7 @@ export function Dashboard() {
   )
 
   const totalUnread =
-    data?.stats?.unread_messages ??
-    data?.folders.find((f) => f.name === 'INBOX')?.unseen ??
-    0
+    data?.stats?.unread_messages ?? data?.folders.find((f) => f.name === 'INBOX')?.unseen ?? 0
   const totalMessages = data?.stats?.total_messages ?? 0
   const storageBytes = data?.stats?.storage_bytes ?? 0
   const {
@@ -145,10 +139,7 @@ export function Dashboard() {
       .slice(0, 8)
     const attentionIds = new Set(attentionList.map((c) => c.thread_id))
 
-    const senderMap = new Map<
-      string,
-      { count: number; email: string; name: string }
-    >()
+    const senderMap = new Map<string, { count: number; email: string; name: string }>()
     for (const c of convos) {
       for (const p of c.participants) {
         if (p === auth?.address) continue
@@ -160,31 +151,21 @@ export function Dashboard() {
     }
 
     return {
-      importantCount: convos.filter(
-        (c) => c.importance_level === 'high' && c.unread_count > 0
-      ).length,
+      importantCount: convos.filter((c) => c.importance_level === 'high' && c.unread_count > 0)
+        .length,
       needsAttention: attentionList,
       pinned: pinnedList,
       recentUnread: convos
         .filter(
-          (c) =>
-            c.unread_count > 0 &&
-            !pinnedIds.has(c.thread_id) &&
-            !attentionIds.has(c.thread_id)
+          (c) => c.unread_count > 0 && !pinnedIds.has(c.thread_id) && !attentionIds.has(c.thread_id)
         )
         .slice(0, 8),
       securityAlerts: convos
-        .filter(
-          (c) =>
-            c.unread_count > 0 &&
-            (c.category === 'spam' || c.category === 'scam')
-        )
+        .filter((c) => c.unread_count > 0 && (c.category === 'spam' || c.category === 'scam'))
         .slice(0, 5),
       starredCount: convos.filter((c) => c.flagged).length,
       todayCount: convos.filter((c) => c.last_date >= todayTs).length,
-      topSenders: [...senderMap.values()]
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 6),
+      topSenders: [...senderMap.values()].sort((a, b) => b.count - a.count).slice(0, 6),
     }
   }, [data?.conversations, auth?.address])
 
@@ -384,48 +365,44 @@ export function Dashboard() {
               )}
 
               {/* all caught up */}
-              {needsAttention.length === 0 &&
-                recentUnread.length === 0 &&
-                pinned.length === 0 && (
-                  <>
-                    <Section icon={Mail} title="Inbox">
-                      <div className="text-fg-muted flex flex-col items-center gap-2 py-6">
-                        <Shield aria-hidden="true" className="h-8 w-8" />
-                        <p className="text-sm">
-                          All caught up — no unread emails
-                        </p>
-                        <button
-                          className="bg-accent/10 text-accent hover:bg-accent mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:text-white"
-                          onClick={handleCompose}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Compose new email
-                        </button>
+              {needsAttention.length === 0 && recentUnread.length === 0 && pinned.length === 0 && (
+                <>
+                  <Section icon={Mail} title="Inbox">
+                    <div className="text-fg-muted flex flex-col items-center gap-2 py-6">
+                      <Shield aria-hidden="true" className="h-8 w-8" />
+                      <p className="text-sm">All caught up — no unread emails</p>
+                      <button
+                        className="bg-accent/10 text-accent hover:bg-accent mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:text-white"
+                        onClick={handleCompose}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Compose new email
+                      </button>
+                    </div>
+                  </Section>
+                  {/* show recent conversations even if all read */}
+                  {(data?.conversations.slice(0, 5).length ?? 0) > 0 && (
+                    <Section
+                      action={{
+                        label: 'Open inbox',
+                        onClick: () => navigate('/mail'),
+                      }}
+                      icon={Clock}
+                      title="Recent Activity"
+                    >
+                      <div className="space-y-0.5">
+                        {data!.conversations.slice(0, 5).map((c) => (
+                          <ConversationRow
+                            conversation={c}
+                            key={c.thread_id}
+                            onClick={() => goToThread(c.thread_id)}
+                          />
+                        ))}
                       </div>
                     </Section>
-                    {/* show recent conversations even if all read */}
-                    {(data?.conversations.slice(0, 5).length ?? 0) > 0 && (
-                      <Section
-                        action={{
-                          label: 'Open inbox',
-                          onClick: () => navigate('/mail'),
-                        }}
-                        icon={Clock}
-                        title="Recent Activity"
-                      >
-                        <div className="space-y-0.5">
-                          {data!.conversations.slice(0, 5).map((c) => (
-                            <ConversationRow
-                              conversation={c}
-                              key={c.thread_id}
-                              onClick={() => goToThread(c.thread_id)}
-                            />
-                          ))}
-                        </div>
-                      </Section>
-                    )}
-                  </>
-                )}
+                  )}
+                </>
+              )}
             </div>
 
             {/* right column: insights */}
@@ -447,9 +424,7 @@ export function Dashboard() {
                           <p className="text-fg truncate text-sm font-medium">
                             {c.subject || '(no subject)'}
                           </p>
-                          <p className="text-danger truncate text-xs">
-                            {c.category}
-                          </p>
+                          <p className="text-danger truncate text-xs">{c.category}</p>
                         </div>
                       </button>
                     ))}
@@ -482,17 +457,10 @@ export function Dashboard() {
                         className="hover:bg-bg-secondary flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors"
                         key={s.email}
                       >
-                        <SenderAvatar
-                          sender={`${s.name} <${s.email}>`}
-                          size={28}
-                        />
+                        <SenderAvatar sender={`${s.name} <${s.email}>`} size={28} />
                         <div className="min-w-0 flex-1">
-                          <p className="text-fg truncate text-sm font-medium">
-                            {s.name}
-                          </p>
-                          <p className="text-fg-muted truncate text-xs">
-                            {s.email}
-                          </p>
+                          <p className="text-fg truncate text-sm font-medium">{s.name}</p>
+                          <p className="text-fg-muted truncate text-xs">{s.email}</p>
                         </div>
                         <span className="bg-bg-secondary text-fg-muted shrink-0 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums">
                           {s.count}
@@ -542,9 +510,7 @@ export function Dashboard() {
                                 {f.unseen}
                               </span>
                             )}
-                            <span className="text-fg-muted text-xs tabular-nums">
-                              {f.total}
-                            </span>
+                            <span className="text-fg-muted text-xs tabular-nums">{f.total}</span>
                           </div>
                         </div>
                       ))}
@@ -651,43 +617,25 @@ function ConversationRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span
-            className={cn(
-              'text-fg truncate text-sm',
-              isUnread ? 'font-semibold' : 'font-medium'
-            )}
+            className={cn('text-fg truncate text-sm', isUnread ? 'font-semibold' : 'font-medium')}
           >
             {extractName(sender)}
           </span>
           <CategoryBadge category={c.category} />
           {c.flagged && (
-            <Star
-              aria-label="Starred"
-              className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500"
-            />
+            <Star aria-label="Starred" className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
           )}
-          {c.pinned && (
-            <Pin
-              aria-label="Pinned"
-              className="text-fg-muted h-3 w-3 shrink-0"
-            />
-          )}
+          {c.pinned && <Pin aria-label="Pinned" className="text-fg-muted h-3 w-3 shrink-0" />}
         </div>
         <p
-          className={cn(
-            'truncate text-xs',
-            isUnread ? 'text-fg font-medium' : 'text-fg-secondary'
-          )}
+          className={cn('truncate text-xs', isUnread ? 'text-fg font-medium' : 'text-fg-secondary')}
         >
           {c.subject || '(no subject)'}
         </p>
-        {c.snippet && (
-          <p className="text-fg-muted mt-0.5 truncate text-xs">{c.snippet}</p>
-        )}
+        {c.snippet && <p className="text-fg-muted mt-0.5 truncate text-xs">{c.snippet}</p>}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className="text-fg-muted text-xs tabular-nums">
-          {formatRelative(c.last_date)}
-        </span>
+        <span className="text-fg-muted text-xs tabular-nums">{formatRelative(c.last_date)}</span>
         {isUnread && (
           <span className="bg-accent flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-[10px] font-medium text-white">
             {c.unread_count}
@@ -752,12 +700,7 @@ function StatCard({
       )}
       onClick={onClick}
     >
-      <div
-        className={cn(
-          'flex h-9 w-9 items-center justify-center rounded-lg',
-          COLOR_MAP[color]
-        )}
-      >
+      <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', COLOR_MAP[color])}>
         <Icon aria-hidden="true" className="h-4.5 w-4.5" />
       </div>
       <div>

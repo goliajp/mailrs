@@ -6,19 +6,12 @@ import { Loader2, Send, Sparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
-import {
-  StructuredCompose,
-  type StructuredComposeHandle,
-} from '@/components/structured-compose'
+import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { escapeHtml } from '@/lib/html-utils'
 import { getToken } from '@/store/auth'
 import { authAtom } from '@/store/auth'
-import {
-  composingNewAtom,
-  conversationsAtom,
-  selectedThreadIdAtom,
-} from '@/store/chat'
+import { composingNewAtom, conversationsAtom, selectedThreadIdAtom } from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
 type PolishResult = { message?: string; polished?: string; success: boolean }
@@ -79,9 +72,7 @@ export function NewConversation() {
           .filter(Boolean)
           .map((p) => `<p>${escapeHtml(p)}</p>`)
           .join('')
-        editor.commands.setContent(
-          paragraphs || `<p>${escapeHtml(result.polished)}</p>`
-        )
+        editor.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
         toast.success('Text polished')
       } else {
         toast.error(result.message ?? 'Polish failed')
@@ -163,8 +154,7 @@ export function NewConversation() {
         for (const r of ccList) formData.append('cc', r)
         for (const r of bccList) formData.append('bcc', r)
         for (const f of attachmentFiles) formData.append('attachments', f)
-        if (scheduledAt)
-          formData.append('scheduled_at', new Date(scheduledAt).toISOString())
+        if (scheduledAt) formData.append('scheduled_at', new Date(scheduledAt).toISOString())
 
         const token = getToken()
         const res = await fetch('/api/mail/send-multipart', {
@@ -188,9 +178,7 @@ export function NewConversation() {
           in_reply_to: null,
           subject,
           to: recipients,
-          ...(scheduledAt
-            ? { scheduled_at: new Date(scheduledAt).toISOString() }
-            : {}),
+          ...(scheduledAt ? { scheduled_at: new Date(scheduledAt).toISOString() } : {}),
         })
       }
 
@@ -203,9 +191,7 @@ export function NewConversation() {
                   label: 'Undo',
                   onClick: async () => {
                     try {
-                      await deleteJson(
-                        `/mail/pending/${encodeURIComponent(sentMessageId)}`
-                      )
+                      await deleteJson(`/mail/pending/${encodeURIComponent(sentMessageId)}`)
                       toast.success('Send cancelled')
                     } catch {
                       toast.error('Could not cancel — already delivered')
@@ -216,9 +202,7 @@ export function NewConversation() {
               }
             : {}),
         })
-        const convos = await fetchJson<ConversationSummary[]>(
-          '/conversations?limit=50'
-        )
+        const convos = await fetchJson<ConversationSummary[]>('/conversations?limit=50')
         setConversations(convos)
         if (convos.length > 0) setSelectedThread(convos[0].thread_id)
         setComposingNew(false)
@@ -275,27 +259,16 @@ export function NewConversation() {
           <>
             <div className="border-border flex h-9 items-center border-b px-4">
               <label className="text-fg-muted w-14 shrink-0 text-xs">Cc</label>
-              <ContactAutocomplete
-                onChange={setCc}
-                placeholder="cc@example.com"
-                value={cc}
-              />
+              <ContactAutocomplete onChange={setCc} placeholder="cc@example.com" value={cc} />
             </div>
             <div className="border-border flex h-9 items-center border-b px-4">
               <label className="text-fg-muted w-14 shrink-0 text-xs">Bcc</label>
-              <ContactAutocomplete
-                onChange={setBcc}
-                placeholder="bcc@example.com"
-                value={bcc}
-              />
+              <ContactAutocomplete onChange={setBcc} placeholder="bcc@example.com" value={bcc} />
             </div>
           </>
         )}
         <div className="border-border flex h-9 items-center border-b px-4">
-          <label
-            className="text-fg-muted w-14 shrink-0 text-xs"
-            htmlFor="new-conv-subject"
-          >
+          <label className="text-fg-muted w-14 shrink-0 text-xs" htmlFor="new-conv-subject">
             Subject
           </label>
           <input
@@ -431,8 +404,7 @@ export function NewConversation() {
 
         <div className="flex-1" />
         <kbd className="text-fg-muted mr-1 hidden text-[10px] select-none sm:inline">
-          {typeof navigator !== 'undefined' &&
-          /Mac|iPhone|iPad/.test(navigator.userAgent)
+          {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
             ? '⌘'
             : 'Ctrl+'}
           ↵

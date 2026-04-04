@@ -37,12 +37,8 @@ type SaveDraftResult = {
   success: boolean
 }
 
-export async function deleteDraft(
-  id: number
-): Promise<{ message?: string; success: boolean }> {
-  return deleteJson<{ message?: string; success: boolean }>(
-    `/mail/drafts/${id}`
-  )
+export async function deleteDraft(id: number): Promise<{ message?: string; success: boolean }> {
+  return deleteJson<{ message?: string; success: boolean }>(`/mail/drafts/${id}`)
 }
 
 export async function deleteJson<T>(path: string): Promise<T> {
@@ -70,10 +66,7 @@ export async function fetchBlob(path: string): Promise<Blob> {
 
 // --- draft types and API ---
 
-export async function fetchJson<T>(
-  path: string,
-  signal?: AbortSignal
-): Promise<T> {
+export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: authHeaders(),
     signal,
@@ -123,9 +116,7 @@ export async function recordFeedback(
   return postJson('/mail/feedback', { action, sender_email: senderEmail })
 }
 
-export async function saveDraft(
-  draft: SaveDraftRequest
-): Promise<SaveDraftResult> {
+export async function saveDraft(draft: SaveDraftRequest): Promise<SaveDraftResult> {
   return postJson<SaveDraftResult>('/mail/drafts', draft)
 }
 

@@ -10,8 +10,7 @@ export function decodeMimeHeader(value: string): string {
             // base64
             const binary = atob(encoded)
             const bytes = new Uint8Array(binary.length)
-            for (let i = 0; i < binary.length; i++)
-              bytes[i] = binary.charCodeAt(i)
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
             return new TextDecoder(charset).decode(bytes)
           }
           // quoted-printable
@@ -21,8 +20,7 @@ export function decodeMimeHeader(value: string): string {
               String.fromCharCode(parseInt(hex, 16))
             )
           const bytes = new Uint8Array(decoded.length)
-          for (let i = 0; i < decoded.length; i++)
-            bytes[i] = decoded.charCodeAt(i)
+          for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i)
           return new TextDecoder(charset).decode(bytes)
         } catch {
           return encoded
@@ -93,17 +91,7 @@ export function isMachineGenerated(s: string): boolean {
 
 // extract the brand/registrable domain label
 // e.g. "notify.cloudflare.com" → "cloudflare", "em8742.bsm.freee.work" → "freee"
-const SECONDARY_TLDS = new Set([
-  'ac',
-  'co',
-  'com',
-  'edu',
-  'gov',
-  'ne',
-  'net',
-  'or',
-  'org',
-])
+const SECONDARY_TLDS = new Set(['ac', 'co', 'com', 'edu', 'gov', 'ne', 'net', 'or', 'org'])
 
 // extract a human-readable display name from a "Name <email>" or raw email string
 export function extractName(sender: string): string {

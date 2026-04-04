@@ -7,16 +7,7 @@ import { Copyable } from '@/components/copy-button'
 import { formatSize } from '@/lib/format'
 import { getToken } from '@/store/auth'
 
-const IMAGE_EXTENSIONS = new Set([
-  'bmp',
-  'gif',
-  'ico',
-  'jpeg',
-  'jpg',
-  'png',
-  'svg',
-  'webp',
-])
+const IMAGE_EXTENSIONS = new Set(['bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'svg', 'webp'])
 
 export function AttachmentPreview({
   attachments,
@@ -75,15 +66,7 @@ function FileIcon({ className }: { className?: string }) {
 }
 
 // non-image file row
-function FileRow({
-  att,
-  index,
-  uid,
-}: {
-  att: AttachmentInfo
-  index: number
-  uid: number
-}) {
+function FileRow({ att, index, uid }: { att: AttachmentInfo; index: number; uid: number }) {
   const url = attachmentUrl(uid, index)
   const isPdf = isPdfAttachment(att)
 
@@ -112,15 +95,7 @@ function FileRow({
 }
 
 // lightbox modal for full-size image preview
-function ImageLightbox({
-  alt,
-  onClose,
-  src,
-}: {
-  alt: string
-  onClose: () => void
-  src: string
-}) {
+function ImageLightbox({ alt, onClose, src }: { alt: string; onClose: () => void; src: string }) {
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
       if (e.target === e.currentTarget) onClose()
@@ -162,15 +137,7 @@ function ImageLightbox({
 }
 
 // single image thumbnail with click-to-expand
-function ImageThumbnail({
-  att,
-  index,
-  uid,
-}: {
-  att: AttachmentInfo
-  index: number
-  uid: number
-}) {
+function ImageThumbnail({ att, index, uid }: { att: AttachmentInfo; index: number; uid: number }) {
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const url = attachmentUrl(uid, index)
 
@@ -182,12 +149,7 @@ function ImageThumbnail({
           onClick={() => setLightboxOpen(true)}
           title={`${att.filename} - click to enlarge`}
         >
-          <img
-            alt={att.filename}
-            className="max-h-32 object-contain"
-            loading="lazy"
-            src={url}
-          />
+          <img alt={att.filename} className="max-h-32 object-contain" loading="lazy" src={url} />
         </button>
         <p className="text-fg-muted mt-1 truncate text-xs">
           <Copyable value={att.filename}>{att.filename}</Copyable>
@@ -195,11 +157,7 @@ function ImageThumbnail({
         </p>
       </div>
       {lightboxOpen && (
-        <ImageLightbox
-          alt={att.filename}
-          onClose={() => setLightboxOpen(false)}
-          src={url}
-        />
+        <ImageLightbox alt={att.filename} onClose={() => setLightboxOpen(false)} src={url} />
       )}
     </>
   )

@@ -30,32 +30,24 @@ export function Playground() {
           <div>
             <h1 className="text-fg text-2xl font-bold">Component Playground</h1>
             <p className="text-fg-secondary mt-1 text-sm">
-              GDS design system &middot; All components render with CSS custom
-              properties
+              GDS design system &middot; All components render with CSS custom properties
             </p>
           </div>
-          <ThemeToggle
-            mode={mode as ThemeToggleMode}
-            onChange={(m) => setMode(m)}
-          />
+          <ThemeToggle mode={mode as ThemeToggleMode} onChange={(m) => setMode(m)} />
         </div>
 
         {/* color tokens */}
         <Section title="Color Tokens">
           <Row label="Surfaces">
-            {(['--gds-bg', '--gds-surface', '--gds-bg-secondary'] as const).map(
-              (v) => (
-                <div className="flex flex-col items-center gap-1" key={v}>
-                  <div
-                    className="border-border h-12 w-12 border"
-                    style={{ background: `var(${v})` }}
-                  />
-                  <span className="text-fg-muted text-[10px]">
-                    {v.replace('--gds-', '')}
-                  </span>
-                </div>
-              )
-            )}
+            {(['--gds-bg', '--gds-surface', '--gds-bg-secondary'] as const).map((v) => (
+              <div className="flex flex-col items-center gap-1" key={v}>
+                <div
+                  className="border-border h-12 w-12 border"
+                  style={{ background: `var(${v})` }}
+                />
+                <span className="text-fg-muted text-[10px]">{v.replace('--gds-', '')}</span>
+              </div>
+            ))}
           </Row>
           <Row label="Text">
             {[
@@ -63,11 +55,7 @@ export function Playground() {
               { label: 'secondary', v: '--gds-fg-secondary' },
               { label: 'muted', v: '--gds-fg-muted' },
             ].map(({ label, v }) => (
-              <span
-                className="text-sm font-medium"
-                key={v}
-                style={{ color: `var(${v})` }}
-              >
+              <span className="text-sm font-medium" key={v} style={{ color: `var(${v})` }}>
                 {label}
               </span>
             ))}
@@ -75,10 +63,7 @@ export function Playground() {
           <Row label="Status">
             {(['success', 'warning', 'danger', 'info'] as const).map((s) => (
               <div className="flex items-center gap-1.5" key={s}>
-                <div
-                  className="h-3 w-3 rounded-full"
-                  style={{ background: `var(--gds-${s})` }}
-                />
+                <div className="h-3 w-3 rounded-full" style={{ background: `var(--gds-${s})` }} />
                 <span className="text-fg-secondary text-xs">{s}</span>
               </div>
             ))}
@@ -106,8 +91,7 @@ export function Playground() {
               <div
                 className="border-border flex h-8 w-20 items-center justify-center border text-xs font-medium"
                 style={{
-                  background:
-                    'color-mix(in srgb, var(--gds-accent) 10%, transparent)',
+                  background: 'color-mix(in srgb, var(--gds-accent) 10%, transparent)',
                   color: 'var(--gds-accent)',
                 }}
               >
@@ -247,27 +231,15 @@ export function Playground() {
               Open Dialog
             </Button>
           </Row>
-          <Dialog
-            onClose={() => setDialogOpen(false)}
-            open={dialogOpen}
-            title="Confirm action"
-          >
+          <Dialog onClose={() => setDialogOpen(false)} open={dialogOpen} title="Confirm action">
             <p className="text-fg-secondary text-sm">
               Are you sure you want to proceed? This action cannot be undone.
             </p>
             <div className="mt-4 flex justify-end gap-2">
-              <Button
-                onClick={() => setDialogOpen(false)}
-                size="sm"
-                variant="ghost"
-              >
+              <Button onClick={() => setDialogOpen(false)} size="sm" variant="ghost">
                 Cancel
               </Button>
-              <Button
-                onClick={() => setDialogOpen(false)}
-                size="sm"
-                variant="danger"
-              >
+              <Button onClick={() => setDialogOpen(false)} size="sm" variant="danger">
                 Confirm
               </Button>
             </div>
@@ -312,10 +284,7 @@ export function Playground() {
           <div className="flex items-end gap-1">
             {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
               <div className="flex flex-col items-center gap-1" key={n}>
-                <div
-                  className="bg-accent"
-                  style={{ height: `${n * 4}px`, width: `${n * 4}px` }}
-                />
+                <div className="bg-accent" style={{ height: `${n * 4}px`, width: `${n * 4}px` }} />
                 <span className="text-fg-muted text-[10px]">{n}</span>
               </div>
             ))}
@@ -330,13 +299,7 @@ export function Playground() {
   )
 }
 
-function Row({
-  children,
-  label,
-}: {
-  children: React.ReactNode
-  label: string
-}) {
+function Row({ children, label }: { children: React.ReactNode; label: string }) {
   return (
     <div>
       <p className="text-fg-muted mb-1.5 text-xs font-medium">{label}</p>
@@ -345,13 +308,7 @@ function Row({
   )
 }
 
-function Section({
-  children,
-  title,
-}: {
-  children: React.ReactNode
-  title: string
-}) {
+function Section({ children, title }: { children: React.ReactNode; title: string }) {
   return (
     <section className="space-y-3">
       <h2 className="text-fg text-lg font-semibold">{title}</h2>

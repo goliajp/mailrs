@@ -25,10 +25,7 @@ export function playNotificationSound(): void {
 
       // fade out smoothly to avoid click artifacts
       gainNode.gain.setValueAtTime(GAIN, ctx.currentTime)
-      gainNode.gain.exponentialRampToValueAtTime(
-        0.001,
-        ctx.currentTime + DURATION_MS / 1000
-      )
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + DURATION_MS / 1000)
 
       oscillator.start(ctx.currentTime)
       oscillator.stop(ctx.currentTime + DURATION_MS / 1000)

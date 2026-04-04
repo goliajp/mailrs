@@ -19,10 +19,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
   const actions = data.actions ?? []
 
   const hasContent =
-    reservations.length > 0 ||
-    orders.length > 0 ||
-    events.length > 0 ||
-    actions.length > 0
+    reservations.length > 0 || orders.length > 0 || events.length > 0 || actions.length > 0
 
   if (!hasContent) return null
 
@@ -33,10 +30,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
       </p>
       <div className="space-y-2">
         {reservations.map((r, i) => (
-          <div
-            className="border-border bg-bg-secondary rounded-lg border p-4"
-            key={`res-${i}`}
-          >
+          <div className="border-border bg-bg-secondary rounded-lg border p-4" key={`res-${i}`}>
             <div className="flex items-center gap-2">
               <ReservationIcon kind={r.type} />
               <span className="text-fg-secondary text-xs font-medium capitalize">
@@ -59,11 +53,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
                   {r.flight_number && (
                     <>
                       {' '}
-                      (
-                      <Copyable value={r.flight_number}>
-                        {r.flight_number}
-                      </Copyable>
-                      )
+                      (<Copyable value={r.flight_number}>{r.flight_number}</Copyable>)
                     </>
                   )}
                 </p>
@@ -80,15 +70,10 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         ))}
 
         {orders.map((o, i) => (
-          <div
-            className="border-border bg-bg-secondary rounded-lg border p-4"
-            key={`ord-${i}`}
-          >
+          <div className="border-border bg-bg-secondary rounded-lg border p-4" key={`ord-${i}`}>
             <div className="flex items-center gap-2">
               <ShoppingBag className="text-success h-4 w-4" />
-              <span className="text-fg-secondary text-xs font-medium">
-                Order
-              </span>
+              <span className="text-fg-secondary text-xs font-medium">Order</span>
               {o.order_number && (
                 <Copyable value={o.order_number}>
                   <span className="bg-border text-fg-secondary rounded px-1.5 py-0.5 font-mono text-[11px]">
@@ -96,9 +81,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
                   </span>
                 </Copyable>
               )}
-              {o.merchant && (
-                <span className="text-fg-secondary text-xs">{o.merchant}</span>
-              )}
+              {o.merchant && <span className="text-fg-secondary text-xs">{o.merchant}</span>}
             </div>
             {o.items.length > 0 && (
               <ul className="text-fg-secondary mt-1.5 space-y-0.5 text-xs select-text">
@@ -108,9 +91,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
                     {item.quantity && item.quantity > 1 && (
                       <span className="text-fg-muted">x{item.quantity}</span>
                     )}
-                    {item.price && (
-                      <span className="text-fg-secondary">{item.price}</span>
-                    )}
+                    {item.price && <span className="text-fg-secondary">{item.price}</span>}
                   </li>
                 ))}
               </ul>
@@ -125,15 +106,10 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         ))}
 
         {events.map((e, i) => (
-          <div
-            className="border-border bg-bg-secondary rounded-lg border p-4"
-            key={`evt-${i}`}
-          >
+          <div className="border-border bg-bg-secondary rounded-lg border p-4" key={`evt-${i}`}>
             <div className="flex items-center gap-2">
               <Calendar className="text-accent h-4 w-4" />
-              <span className="text-fg-secondary text-xs font-medium select-text">
-                {e.name}
-              </span>
+              <span className="text-fg-secondary text-xs font-medium select-text">{e.name}</span>
             </div>
             <div className="text-fg-secondary mt-1 space-y-0.5 text-xs select-text">
               {e.start_date && (
@@ -158,10 +134,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
         ))}
 
         {actions.map((a, i) => (
-          <div
-            className="border-border bg-bg-secondary rounded-lg border p-4"
-            key={`act-${i}`}
-          >
+          <div className="border-border bg-bg-secondary rounded-lg border p-4" key={`act-${i}`}>
             <div className="flex items-center gap-2">
               <ExternalLink className="text-accent h-4 w-4" />
               <span className="text-fg-secondary text-xs font-medium">

@@ -1,9 +1,4 @@
-import type {
-  AccountInfo,
-  AliasInfo,
-  DomainInfo,
-  QueueEntry,
-} from '@/lib/types'
+import type { AccountInfo, AliasInfo, DomainInfo, QueueEntry } from '@/lib/types'
 
 import { createStore } from 'jotai/vanilla'
 import { describe, expect, it } from 'vitest'

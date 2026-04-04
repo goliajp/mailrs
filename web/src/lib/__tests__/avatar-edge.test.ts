@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  avatarColor,
-  avatarInitial,
-  extractEmail,
-  extractName,
-} from '../avatar'
+import { avatarColor, avatarInitial, extractEmail, extractName } from '../avatar'
 
 describe('avatarColor edge cases', () => {
   it('handles very long email addresses', () => {
@@ -63,9 +58,7 @@ describe('extractEmail edge cases', () => {
   })
 
   it('handles email with plus addressing', () => {
-    expect(extractEmail('User <user+tag@example.com>')).toBe(
-      'user+tag@example.com'
-    )
+    expect(extractEmail('User <user+tag@example.com>')).toBe('user+tag@example.com')
   })
 
   it('returns empty string as-is', () => {
@@ -77,9 +70,7 @@ describe('extractEmail edge cases', () => {
   })
 
   it('handles multiple @ signs in display name', () => {
-    expect(extractEmail('"user@work" <user@personal.com>')).toBe(
-      'user@personal.com'
-    )
+    expect(extractEmail('"user@work" <user@personal.com>')).toBe('user@personal.com')
   })
 })
 

@@ -3,17 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 
 import { cx } from '@goliapkg/gds'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import {
-  Activity,
-  Home,
-  Inbox,
-  LogOut,
-  Monitor,
-  Moon,
-  Server,
-  Settings,
-  Sun,
-} from 'lucide-react'
+import { Activity, Home, Inbox, LogOut, Monitor, Moon, Server, Settings, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
 
@@ -26,8 +16,7 @@ const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
 const navBtnBase =
   'flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
-const navBtnInactive =
-  'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary'
+const navBtnInactive = 'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary'
 const navBtnActive = 'bg-accent/10 text-accent'
 
 export function AppSidebar() {
@@ -78,12 +67,7 @@ export function AppSidebar() {
         </div>
 
         {/* home */}
-        <SidebarLink
-          active={section === 'home'}
-          href="/"
-          icon={Home}
-          label="Home"
-        />
+        <SidebarLink active={section === 'home'} href="/" icon={Home} label="Home" />
 
         {/* inbox + domain group */}
         <div className="mt-1 flex flex-col items-center gap-0.5">
@@ -97,9 +81,7 @@ export function AppSidebar() {
           {domains.length > 0 &&
             domains.map((d) => {
               const active =
-                section === 'mail' &&
-                selectedDomains.length === 1 &&
-                selectedDomains[0] === d
+                section === 'mail' && selectedDomains.length === 1 && selectedDomains[0] === d
               const label = d.split('.')[0]
               return (
                 <button
@@ -123,12 +105,7 @@ export function AppSidebar() {
 
         {/* other nav */}
         <nav className="flex flex-col items-center gap-1.5">
-          <SidebarLink
-            active={section === 'server'}
-            href="/admin"
-            icon={Server}
-            label="Server"
-          />
+          <SidebarLink active={section === 'server'} href="/admin" icon={Server} label="Server" />
           <SidebarLink
             active={section === 'monitor'}
             href="/protocol"
@@ -174,21 +151,13 @@ export function AppSidebar() {
         </div>
 
         {showLogoutConfirm && (
-          <LogoutConfirmDialog
-            onCancel={() => setShowLogoutConfirm(false)}
-            onConfirm={doLogout}
-          />
+          <LogoutConfirmDialog onCancel={() => setShowLogoutConfirm(false)} onConfirm={doLogout} />
         )}
       </aside>
 
       {/* mobile: bottom tab bar */}
       <nav className="border-border bg-surface flex items-stretch border-t select-none md:hidden">
-        <MobileNavLink
-          active={section === 'home'}
-          href="/"
-          icon={Home}
-          label="Home"
-        />
+        <MobileNavLink active={section === 'home'} href="/" icon={Home} label="Home" />
         <MobileNavLink
           active={section === 'mail'}
           badge={unreadCount}
@@ -196,12 +165,7 @@ export function AppSidebar() {
           icon={Inbox}
           label="Mail"
         />
-        <MobileNavLink
-          active={section === 'server'}
-          href="/admin"
-          icon={Server}
-          label="Admin"
-        />
+        <MobileNavLink active={section === 'server'} href="/admin" icon={Server} label="Admin" />
         <MobileNavLink
           active={section === 'settings'}
           href="/settings"
@@ -218,10 +182,7 @@ export function AppSidebar() {
         </button>
 
         {showLogoutConfirm && (
-          <LogoutConfirmDialog
-            onCancel={() => setShowLogoutConfirm(false)}
-            onConfirm={doLogout}
-          />
+          <LogoutConfirmDialog onCancel={() => setShowLogoutConfirm(false)} onConfirm={doLogout} />
         )}
       </nav>
     </>
@@ -329,11 +290,7 @@ function SidebarLink({
     <a
       aria-current={active ? 'page' : undefined}
       aria-label={label}
-      className={cx(
-        'relative',
-        navBtnBase,
-        active ? navBtnActive : navBtnInactive
-      )}
+      className={cx('relative', navBtnBase, active ? navBtnActive : navBtnInactive)}
       href={href}
       title={label}
     >

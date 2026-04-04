@@ -1,16 +1,8 @@
-export function buildForwardHeader(
-  from: string,
-  date: string,
-  subject: string
-): string {
+export function buildForwardHeader(from: string, date: string, subject: string): string {
   return `---------- Forwarded message ----------\nFrom: ${from}\nDate: ${date}\nSubject: ${subject}\n`
 }
 
-export function buildForwardHeaderHtml(
-  from: string,
-  date: string,
-  subject: string
-): string {
+export function buildForwardHeaderHtml(from: string, date: string, subject: string): string {
   return `<p style="color:#888">---------- Forwarded message ----------<br>From: ${escapeHtml(from)}<br>Date: ${escapeHtml(date)}<br>Subject: ${escapeHtml(subject)}</p>`
 }
 

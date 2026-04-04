@@ -6,11 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
 import { authAtom, getToken } from '@/store/auth'
-import {
-  notificationsAtom,
-  notificationSoundAtom,
-  pageSizeAtom,
-} from '@/store/settings'
+import { notificationsAtom, notificationSoundAtom, pageSizeAtom } from '@/store/settings'
 import { themeModeAtom } from '@/store/theme'
 
 // --- types ---
@@ -178,9 +174,7 @@ function AccountSection() {
       await postJson('/auth/recovery-email', { recovery_email: recoveryEmail })
       toast.success('Recovery email updated')
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : 'Failed to update recovery email'
-      )
+      toast.error(e instanceof Error ? e.message : 'Failed to update recovery email')
     } finally {
       setSavingRecovery(false)
     }
@@ -230,14 +224,10 @@ function AccountSection() {
       <div className={cardClass}>
         <div className="space-y-3">
           <Field label="Email">
-            <span className="text-fg-secondary text-sm">
-              {auth?.address ?? '-'}
-            </span>
+            <span className="text-fg-secondary text-sm">{auth?.address ?? '-'}</span>
           </Field>
           <Field label="Display Name">
-            <span className="text-fg-secondary text-sm">
-              {auth?.display_name || '-'}
-            </span>
+            <span className="text-fg-secondary text-sm">{auth?.display_name || '-'}</span>
           </Field>
           <Field label="Permissions">
             <span className="text-fg-secondary text-sm">
@@ -255,8 +245,8 @@ function AccountSection() {
       <div className={cardClass}>
         <h3 className="mb-3 text-sm font-medium">Recovery Email</h3>
         <p className="text-fg-muted mb-2 text-xs">
-          Used to receive password reset links. Must be an external email
-          address you can access independently.
+          Used to receive password reset links. Must be an external email address you can access
+          independently.
         </p>
         <div className="flex gap-2">
           <input
@@ -328,11 +318,7 @@ function AccountSection() {
               value={pw.confirm}
             />
           </div>
-          <button
-            className={btnPrimary}
-            disabled={saving}
-            onClick={handlePasswordChange}
-          >
+          <button className={btnPrimary} disabled={saving} onClick={handlePasswordChange}>
             {saving ? 'Saving...' : 'Update Password'}
           </button>
         </div>
@@ -340,31 +326,20 @@ function AccountSection() {
 
       <div className={cardClass}>
         <h3 className="mb-2 text-sm font-medium">Export Mailbox</h3>
-        <p className="text-fg-muted mb-3 text-xs">
-          Download all your emails as an MBOX file
-        </p>
+        <p className="text-fg-muted mb-3 text-xs">Download all your emails as an MBOX file</p>
         <button
           className={btnPrimary}
-          onClick={() =>
-            window.open(`/api/mail/export?token=${getToken()}`, '_blank')
-          }
+          onClick={() => window.open(`/api/mail/export?token=${getToken()}`, '_blank')}
         >
           Export as MBOX
         </button>
       </div>
 
       <div className="border-border border-t pt-4">
-        <button
-          className={btnDanger}
-          onClick={() => setShowLogoutConfirm(true)}
-        >
+        <button className={btnDanger} onClick={() => setShowLogoutConfirm(true)}>
           Sign out
         </button>
-        {auth?.address && (
-          <p className="text-fg-muted mt-2 text-xs">
-            Signed in as {auth.address}
-          </p>
-        )}
+        {auth?.address && <p className="text-fg-muted mt-2 text-xs">Signed in as {auth.address}</p>}
       </div>
 
       {showLogoutConfirm && (
@@ -403,9 +378,7 @@ function ApiKeysSection() {
   const handleCreate = async () => {
     if (!form.name.trim()) return
     try {
-      const expires_in_days = form.expires_in_days
-        ? parseInt(form.expires_in_days, 10)
-        : undefined
+      const expires_in_days = form.expires_in_days ? parseInt(form.expires_in_days, 10) : undefined
       const data = await postJson<CreatedAgentKey>('/agent/keys', {
         expires_in_days,
         name: form.name.trim(),
@@ -433,9 +406,7 @@ function ApiKeysSection() {
   }
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => toast.success('Copied to clipboard'))
+    navigator.clipboard.writeText(text).then(() => toast.success('Copied to clipboard'))
   }
 
   return (
@@ -457,10 +428,7 @@ function ApiKeysSection() {
             <code className="bg-bg-secondary flex-1 rounded px-3 py-1.5 font-mono text-sm">
               {createdKey.key}
             </code>
-            <button
-              className={btnPrimary}
-              onClick={() => copyToClipboard(createdKey.key)}
-            >
+            <button className={btnPrimary} onClick={() => copyToClipboard(createdKey.key)}>
               Copy
             </button>
           </div>
@@ -484,9 +452,7 @@ function ApiKeysSection() {
           <input
             className={inputClass}
             min="1"
-            onChange={(e) =>
-              setForm({ ...form, expires_in_days: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, expires_in_days: e.target.value })}
             placeholder="Expires in days (optional)"
             type="number"
             value={form.expires_in_days}
@@ -502,28 +468,21 @@ function ApiKeysSection() {
         </div>
       )}
 
-      {keys.length === 0 && !adding && (
-        <p className="text-fg-muted text-sm">No API keys</p>
-      )}
+      {keys.length === 0 && !adding && <p className="text-fg-muted text-sm">No API keys</p>}
 
       {keys.map((k) => (
         <div className={cardClass} key={k.id}>
           <div className="flex items-center justify-between">
             <div>
               <span className="text-sm font-medium">{k.name}</span>
-              <span className="text-fg-muted ml-2 font-mono text-xs">
-                {k.prefix}...
-              </span>
+              <span className="text-fg-muted ml-2 font-mono text-xs">{k.prefix}...</span>
               {k.expires_at && (
                 <span className="text-fg-muted ml-2 text-xs">
                   expires {new Date(k.expires_at).toLocaleDateString()}
                 </span>
               )}
             </div>
-            <button
-              className="text-danger text-xs"
-              onClick={() => setDeleteTarget(k.id)}
-            >
+            <button className="text-danger text-xs" onClick={() => setDeleteTarget(k.id)}>
               Revoke
             </button>
           </div>
@@ -547,19 +506,13 @@ function AppearanceSection() {
   const [theme, setTheme] = useAtom(themeModeAtom)
   const [pageSize, setPageSize] = useAtom(pageSizeAtom)
   const [notifications, setNotifications] = useAtom(notificationsAtom)
-  const [notificationSound, setNotificationSound] = useAtom(
-    notificationSoundAtom
-  )
-  const [notificationError, setNotificationError] = useState<null | string>(
-    null
-  )
+  const [notificationSound, setNotificationSound] = useAtom(notificationSoundAtom)
+  const [notificationError, setNotificationError] = useState<null | string>(null)
 
   const handleNotificationToggle = useCallback(
     async (enabled: boolean) => {
       if (typeof Notification === 'undefined') {
-        setNotificationError(
-          'Browser notifications are not supported on this device.'
-        )
+        setNotificationError('Browser notifications are not supported on this device.')
         return
       }
       if (enabled && Notification.permission === 'default') {
@@ -627,20 +580,12 @@ function AppearanceSection() {
         <div className="space-y-3">
           <Field label="Browser notifications">
             <div className="flex flex-col items-end gap-1">
-              <Toggle
-                checked={notifications}
-                onChange={(v) => handleNotificationToggle(v)}
-              />
-              {notificationError && (
-                <p className="text-danger text-xs">{notificationError}</p>
-              )}
+              <Toggle checked={notifications} onChange={(v) => handleNotificationToggle(v)} />
+              {notificationError && <p className="text-danger text-xs">{notificationError}</p>}
             </div>
           </Field>
           <Field label="Notification sound">
-            <Toggle
-              checked={notificationSound}
-              onChange={setNotificationSound}
-            />
+            <Toggle checked={notificationSound} onChange={setNotificationSound} />
           </Field>
         </div>
       </div>
@@ -697,9 +642,7 @@ function EncryptionKeysSection() {
   const [pgpKey, setPgpKey] = useState('')
   const [smimeCert, setSmimeCert] = useState('')
   const [saving, setSaving] = useState<null | string>(null)
-  const [deleteKeyTarget, setDeleteKeyTarget] = useState<
-    'pgp' | 'smime' | null
-  >(null)
+  const [deleteKeyTarget, setDeleteKeyTarget] = useState<'pgp' | 'smime' | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -740,9 +683,7 @@ function EncryptionKeysSection() {
       toast.success(`${type.toUpperCase()} key deleted`)
       load()
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : `Failed to delete ${type} key`
-      )
+      toast.error(e instanceof Error ? e.message : `Failed to delete ${type} key`)
     } finally {
       setSaving(null)
     }
@@ -836,13 +777,7 @@ function EncryptionKeysSection() {
 
 // --- webhooks section ---
 
-function Field({
-  children,
-  label,
-}: {
-  children: React.ReactNode
-  label: string
-}) {
+function Field({ children, label }: { children: React.ReactNode; label: string }) {
   return (
     <div className="flex items-center justify-between gap-4">
       <span className="text-fg-secondary text-sm font-medium">{label}</span>
@@ -937,9 +872,7 @@ function SecuritySection() {
         <Field label="Status">
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              status?.enabled
-                ? 'bg-success/10 text-success'
-                : 'bg-surface text-fg-muted'
+              status?.enabled ? 'bg-success/10 text-success' : 'bg-surface text-fg-muted'
             }`}
           >
             {status?.enabled ? 'Enabled' : 'Disabled'}
@@ -957,24 +890,18 @@ function SecuritySection() {
         <div className={cardClass + ' space-y-4'}>
           <h3 className="text-sm font-medium">Scan QR Code</h3>
           <div className="bg-surface rounded-md p-3">
-            <p className="text-fg-secondary font-mono text-xs break-all">
-              {setup.qr_url}
-            </p>
+            <p className="text-fg-secondary font-mono text-xs break-all">{setup.qr_url}</p>
           </div>
 
           {setup.recovery_codes.length > 0 && (
             <div className="border-warning bg-warning/10 rounded-lg border p-3">
               <p className="mb-2 text-sm font-semibold">Recovery Codes</p>
               <p className="text-fg-secondary mb-2 text-xs">
-                Save these codes in a safe place. Each code can only be used
-                once.
+                Save these codes in a safe place. Each code can only be used once.
               </p>
               <div className="grid grid-cols-2 gap-1">
                 {setup.recovery_codes.map((rc) => (
-                  <code
-                    className="bg-bg-secondary rounded px-2 py-1 font-mono text-xs"
-                    key={rc}
-                  >
+                  <code className="bg-bg-secondary rounded px-2 py-1 font-mono text-xs" key={rc}>
                     {rc}
                   </code>
                 ))}
@@ -989,11 +916,7 @@ function SecuritySection() {
               placeholder="Enter TOTP code"
               value={code}
             />
-            <button
-              className={btnPrimary}
-              disabled={submitting}
-              onClick={handleEnable}
-            >
+            <button className={btnPrimary} disabled={submitting} onClick={handleEnable}>
               {submitting ? 'Verifying...' : 'Verify & Enable'}
             </button>
           </div>
@@ -1010,11 +933,7 @@ function SecuritySection() {
               placeholder="Enter TOTP code"
               value={code}
             />
-            <button
-              className={btnDanger}
-              disabled={submitting}
-              onClick={handleDisable}
-            >
+            <button className={btnDanger} disabled={submitting} onClick={handleDisable}>
               {submitting ? 'Disabling...' : 'Disable 2FA'}
             </button>
           </div>
@@ -1104,27 +1023,19 @@ function SignaturesSection() {
             value={editing.name ?? ''}
           />
           <div>
-            <label className="text-fg-secondary mb-1 block text-xs font-medium">
-              Text content
-            </label>
+            <label className="text-fg-secondary mb-1 block text-xs font-medium">Text content</label>
             <textarea
               className={inputClass}
-              onChange={(e) =>
-                setEditing({ ...editing, text_content: e.target.value })
-              }
+              onChange={(e) => setEditing({ ...editing, text_content: e.target.value })}
               rows={3}
               value={editing.text_content ?? ''}
             />
           </div>
           <div>
-            <label className="text-fg-secondary mb-1 block text-xs font-medium">
-              HTML content
-            </label>
+            <label className="text-fg-secondary mb-1 block text-xs font-medium">HTML content</label>
             <textarea
               className={inputClass}
-              onChange={(e) =>
-                setEditing({ ...editing, html_content: e.target.value })
-              }
+              onChange={(e) => setEditing({ ...editing, html_content: e.target.value })}
               rows={3}
               value={editing.html_content ?? ''}
             />
@@ -1132,19 +1043,13 @@ function SignaturesSection() {
           <label className="flex items-center gap-2 text-sm">
             <input
               checked={editing.is_default ?? false}
-              onChange={(e) =>
-                setEditing({ ...editing, is_default: e.target.checked })
-              }
+              onChange={(e) => setEditing({ ...editing, is_default: e.target.checked })}
               type="checkbox"
             />
             Default signature
           </label>
           <div className="flex gap-2">
-            <button
-              className={btnPrimary}
-              disabled={saving}
-              onClick={handleSave}
-            >
+            <button className={btnPrimary} disabled={saving} onClick={handleSave}>
               {saving ? 'Saving...' : 'Save'}
             </button>
             <button className={btnSecondary} onClick={() => setEditing(null)}>
@@ -1176,16 +1081,10 @@ function SignaturesSection() {
               )}
             </div>
             <div className="flex gap-2">
-              <button
-                className="text-accent text-xs"
-                onClick={() => setEditing(sig)}
-              >
+              <button className="text-accent text-xs" onClick={() => setEditing(sig)}>
                 Edit
               </button>
-              <button
-                className="text-danger text-xs"
-                onClick={() => setDeleteTarget(sig.id)}
-              >
+              <button className="text-danger text-xs" onClick={() => setDeleteTarget(sig.id)}>
                 Delete
               </button>
             </div>
@@ -1204,13 +1103,7 @@ function SignaturesSection() {
   )
 }
 
-function Toggle({
-  checked,
-  onChange,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-}) {
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
       aria-checked={checked}
@@ -1262,12 +1155,8 @@ function WebhooksSection() {
       const data = await postJson<CreatedWebhook>('/agent/webhooks', {
         event_type: form.event_type,
         url: form.url.trim(),
-        ...(form.filter_sender.trim()
-          ? { filter_sender: form.filter_sender.trim() }
-          : {}),
-        ...(form.filter_thread_id.trim()
-          ? { filter_thread_id: form.filter_thread_id.trim() }
-          : {}),
+        ...(form.filter_sender.trim() ? { filter_sender: form.filter_sender.trim() } : {}),
+        ...(form.filter_thread_id.trim() ? { filter_thread_id: form.filter_thread_id.trim() } : {}),
       })
       toast.success('Webhook created')
       setCreatedSecret(data.signing_secret)
@@ -1299,9 +1188,7 @@ function WebhooksSection() {
   }
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => toast.success('Copied to clipboard'))
+    navigator.clipboard.writeText(text).then(() => toast.success('Copied to clipboard'))
   }
 
   return (
@@ -1323,10 +1210,7 @@ function WebhooksSection() {
             <code className="bg-bg-secondary flex-1 rounded px-3 py-1.5 font-mono text-sm">
               {createdSecret}
             </code>
-            <button
-              className={btnPrimary}
-              onClick={() => copyToClipboard(createdSecret)}
-            >
+            <button className={btnPrimary} onClick={() => copyToClipboard(createdSecret)}>
               Copy
             </button>
           </div>
@@ -1349,9 +1233,7 @@ function WebhooksSection() {
             value={form.url}
           />
           <div>
-            <label className="text-fg-secondary mb-1 block text-xs font-medium">
-              Event type
-            </label>
+            <label className="text-fg-secondary mb-1 block text-xs font-medium">Event type</label>
             <select
               className={inputClass}
               onChange={(e) => setForm({ ...form, event_type: e.target.value })}
@@ -1364,26 +1246,18 @@ function WebhooksSection() {
           </div>
           <input
             className={inputClass}
-            onChange={(e) =>
-              setForm({ ...form, filter_sender: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, filter_sender: e.target.value })}
             placeholder="Filter by sender (optional)"
             value={form.filter_sender}
           />
           <input
             className={inputClass}
-            onChange={(e) =>
-              setForm({ ...form, filter_thread_id: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, filter_thread_id: e.target.value })}
             placeholder="Filter by thread ID (optional)"
             value={form.filter_thread_id}
           />
           <div className="flex gap-2">
-            <button
-              className={btnPrimary}
-              disabled={creating}
-              onClick={handleCreate}
-            >
+            <button className={btnPrimary} disabled={creating} onClick={handleCreate}>
               {creating ? 'Creating…' : 'Create'}
             </button>
             <button className={btnSecondary} onClick={() => setAdding(false)}>
@@ -1420,19 +1294,14 @@ function WebhooksSection() {
                 )}
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                    wh.active
-                      ? 'bg-success/10 text-success'
-                      : 'bg-surface text-fg-muted'
+                    wh.active ? 'bg-success/10 text-success' : 'bg-surface text-fg-muted'
                   }`}
                 >
                   {wh.active ? 'Active' : 'Inactive'}
                 </span>
               </div>
             </div>
-            <button
-              className="text-danger ml-3 text-xs"
-              onClick={() => setDeleteTarget(wh.id)}
-            >
+            <button className="text-danger ml-3 text-xs" onClick={() => setDeleteTarget(wh.id)}>
               Delete
             </button>
           </div>

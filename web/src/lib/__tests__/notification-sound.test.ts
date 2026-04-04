@@ -28,29 +28,25 @@ function makeAudioContextClass(state: AudioContext['state'] = 'running') {
 
   class MockAudioContextInstance {
     close = vi.fn()
+
     currentTime = 0
     destination = {}
     gainNode = makeMockGainNode()
     oscillator = makeMockOscillator()
-
     resume = vi.fn(() => Promise.resolve())
 
     state: AudioContext['state'] = state
 
-    createGain(): MockGainNode {
-      return this.gainNode
+    constructor() {
+      instances.push(this)
     }
 
-    createOscillator(): MockOscillator {
-      return this.oscillator
-    }
+    createGain = (): MockGainNode => this.gainNode
+
+    createOscillator = (): MockOscillator => this.oscillator
   }
 
-  const Ctor = vi.fn(() => {
-    const instance = new MockAudioContextInstance()
-    instances.push(instance)
-    return instance
-  })
+  const Ctor = vi.fn().mockImplementation(MockAudioContextInstance as any)
 
   return { Ctor, instances }
 }
@@ -93,7 +89,7 @@ describe('playNotificationSound', () => {
     playNotificationSound()
 
     // let micro-task queue flush (the .then() inside playNotificationSound)
-    await Promise.resolve()
+    await new Promise((r) => setTimeout(r, 0))
 
     expect(Ctor).toHaveBeenCalledTimes(1)
     const ctx = instances[0]
@@ -139,9 +135,13 @@ describe('playNotificationSound', () => {
   it('does nothing when AudioContext constructor throws', async () => {
     vi.stubGlobal(
       'AudioContext',
-      vi.fn(() => {
-        throw new Error('not allowed')
-      })
+      vi.fn().mockImplementation(
+        class {
+          constructor() {
+            throw new Error('not allowed')
+          }
+        } as any
+      )
     )
 
     const { playNotificationSound } = await import('../notification-sound')

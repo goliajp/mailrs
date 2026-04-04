@@ -35,7 +35,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 mail-auth = "0.7"
 argon2 = "0.5"
 password-hash = "0.5"
-rand_core = { version = "0.6", features = ["getrandom"] }
+rand_core = { version = "0.6", features = ["std"] }
 mail-parser = "0.10"
 urlencoding = "2"
 base64 = "0.22"
@@ -44,7 +44,7 @@ arc-swap = "1"
 x509-parser = "0.16"
 sieve-rs = "0.7"
 flate2 = "1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }
 html2text = "0.14"
 mime_guess = "2"
 pdf-extract = "0.7"

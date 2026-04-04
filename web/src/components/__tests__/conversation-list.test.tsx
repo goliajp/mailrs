@@ -51,17 +51,16 @@ function makeLocalStorageMock(): Storage {
 vi.stubGlobal('localStorage', makeLocalStorageMock())
 
 // mock IntersectionObserver
-const mockIntersectionObserver = vi.fn()
-mockIntersectionObserver.mockReturnValue({
-  disconnect: vi.fn(),
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-})
+const mockIntersectionObserver = vi.fn().mockImplementation(
+  class {
+    disconnect = vi.fn()
+    observe = vi.fn()
+    unobserve = vi.fn()
+  } as any
+)
 vi.stubGlobal('IntersectionObserver', mockIntersectionObserver)
 
-function makeConversation(
-  overrides: Partial<ConversationSummary> = {}
-): ConversationSummary {
+function makeConversation(overrides: Partial<ConversationSummary> = {}): ConversationSummary {
   return {
     archived: false,
     category: 'general',
@@ -406,11 +405,7 @@ describe('ConversationItem rendering', () => {
   it('shows participant count when multiple participants', () => {
     store.set(conversationsAtom, [
       makeConversation({
-        participants: [
-          'alice@example.com',
-          'bob@example.com',
-          'charlie@example.com',
-        ],
+        participants: ['alice@example.com', 'bob@example.com', 'charlie@example.com'],
       }),
     ])
 
@@ -424,9 +419,7 @@ describe('ConversationItem rendering', () => {
   })
 
   it('shows snippet when available', () => {
-    store.set(conversationsAtom, [
-      makeConversation({ snippet: 'This is a preview...' }),
-    ])
+    store.set(conversationsAtom, [makeConversation({ snippet: 'This is a preview...' })])
 
     render(
       <Wrapper store={store}>

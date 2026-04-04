@@ -25,9 +25,7 @@ describe('escapeHtml', () => {
   })
 
   it('escapes mixed special characters', () => {
-    expect(escapeHtml('<a href="x">&</a>')).toBe(
-      '&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;'
-    )
+    expect(escapeHtml('<a href="x">&</a>')).toBe('&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;')
   })
 
   it('returns empty string unchanged', () => {
@@ -70,11 +68,7 @@ describe('formatFileSize', () => {
 
 describe('buildForwardHeader', () => {
   it('formats forward header with all fields', () => {
-    const result = buildForwardHeader(
-      'alice@example.com',
-      '2024-01-15',
-      'Test Subject'
-    )
+    const result = buildForwardHeader('alice@example.com', '2024-01-15', 'Test Subject')
     expect(result).toBe(
       '---------- Forwarded message ----------\n' +
         'From: alice@example.com\n' +
@@ -93,11 +87,7 @@ describe('buildForwardHeader', () => {
 
 describe('buildForwardHeaderHtml', () => {
   it('formats forward header as HTML', () => {
-    const result = buildForwardHeaderHtml(
-      'bob@example.com',
-      '2024-03-01',
-      'Hello'
-    )
+    const result = buildForwardHeaderHtml('bob@example.com', '2024-03-01', 'Hello')
     expect(result).toContain('---------- Forwarded message ----------')
     expect(result).toContain('From: bob@example.com')
     expect(result).toContain('Date: 2024-03-01')
@@ -111,9 +101,7 @@ describe('buildForwardHeaderHtml', () => {
       '2024 & beyond',
       'Re: "important"'
     )
-    expect(result).toContain(
-      '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
-    )
+    expect(result).toContain('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;')
     expect(result).toContain('2024 &amp; beyond')
     expect(result).toContain('Re: &quot;important&quot;')
     expect(result).not.toContain('<script>')

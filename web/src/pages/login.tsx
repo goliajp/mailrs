@@ -17,16 +17,12 @@ export function Login() {
   const setAuth = useSetAtom(authAtom)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [address, setAddress] = useState(
-    () => localStorage.getItem('mailrs_saved_email') ?? ''
-  )
+  const [address, setAddress] = useState(() => localStorage.getItem('mailrs_saved_email') ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [oidcConfig, setOidcConfig] = useState<null | OidcClientConfig>(null)
-  const [rememberMe, setRememberMe] = useState(
-    () => !!localStorage.getItem('mailrs_saved_email')
-  )
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('mailrs_saved_email'))
   const [showPassword, setShowPassword] = useState(false)
   const [totpRequired, setTotpRequired] = useState(false)
   const [totpCode, setTotpCode] = useState('')
@@ -88,13 +84,9 @@ export function Login() {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       })
-      setForgotMessage(
-        'If the account and recovery email match, a reset link has been sent.'
-      )
+      setForgotMessage('If the account and recovery email match, a reset link has been sent.')
     } catch {
-      setForgotMessage(
-        'If the account and recovery email match, a reset link has been sent.'
-      )
+      setForgotMessage('If the account and recovery email match, a reset link has been sent.')
     } finally {
       setForgotLoading(false)
     }
@@ -164,24 +156,15 @@ export function Login() {
         onSubmit={forgotMode ? (e) => e.preventDefault() : handleSubmit}
       >
         <div className="flex flex-col items-center">
-          <img
-            alt="mailrs"
-            className="mb-3 h-14 w-14 rounded-lg shadow-sm"
-            src="/icon.svg"
-          />
-          <h1 className="text-fg text-xl font-semibold tracking-tight">
-            Mailrs
-          </h1>
+          <img alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" src="/icon.svg" />
+          <h1 className="text-fg text-xl font-semibold tracking-tight">Mailrs</h1>
           <p className="text-fg-muted mt-1 text-sm">
             {forgotMode ? 'Reset your password' : 'Sign in to your account'}
           </p>
         </div>
 
         {error && !forgotMode && (
-          <div
-            className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm"
-            role="alert"
-          >
+          <div className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm" role="alert">
             {error}
           </div>
         )}
@@ -189,10 +172,7 @@ export function Login() {
         {!forgotMode && (
           <>
             <div className="space-y-1.5">
-              <label
-                className="text-fg-secondary block text-xs font-medium"
-                htmlFor="login-email"
-              >
+              <label className="text-fg-secondary block text-xs font-medium" htmlFor="login-email">
                 Email
               </label>
               <input
@@ -232,11 +212,7 @@ export function Login() {
                   tabIndex={-1}
                   type="button"
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
@@ -245,10 +221,7 @@ export function Login() {
 
         {!forgotMode && totpRequired && (
           <div className="space-y-1.5">
-            <label
-              className="text-fg-secondary block text-xs font-medium"
-              htmlFor="login-totp"
-            >
+            <label className="text-fg-secondary block text-xs font-medium" htmlFor="login-totp">
               Two-Factor Code
             </label>
             <input
@@ -280,9 +253,7 @@ export function Login() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   type="checkbox"
                 />
-                <span className="text-fg-secondary text-sm">
-                  Remember email
-                </span>
+                <span className="text-fg-secondary text-sm">Remember email</span>
               </label>
             )}
 
@@ -337,10 +308,7 @@ export function Login() {
             )}
 
             <div className="space-y-1.5">
-              <label
-                className="text-fg-secondary block text-xs font-medium"
-                htmlFor="forgot-email"
-              >
+              <label className="text-fg-secondary block text-xs font-medium" htmlFor="forgot-email">
                 Account Email
               </label>
               <input
@@ -372,8 +340,8 @@ export function Login() {
                 value={forgotRecoveryEmail}
               />
               <p className="text-fg-muted text-xs">
-                Enter the recovery email you configured in Settings. The reset
-                link will be sent there.
+                Enter the recovery email you configured in Settings. The reset link will be sent
+                there.
               </p>
             </div>
 
@@ -383,9 +351,7 @@ export function Login() {
               onClick={handleForgotPassword}
               type="button"
             >
-              {forgotLoading && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {forgotLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {forgotLoading ? 'Sending...' : 'Send Reset Link'}
             </button>
 

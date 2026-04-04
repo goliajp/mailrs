@@ -20,8 +20,7 @@ export function AddBlockMenu({ onAdd, onAddFile }: Props) {
   useEffect(() => {
     if (!open) return
     const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node))
-        setOpen(false)
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)

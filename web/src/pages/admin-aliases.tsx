@@ -43,12 +43,7 @@ export function AdminAliases() {
   }, [loadAliases, loadDomains])
 
   const handleAdd = async () => {
-    if (
-      !form.source_address.trim() ||
-      !form.target_address.trim() ||
-      !form.domain
-    )
-      return
+    if (!form.source_address.trim() || !form.target_address.trim() || !form.domain) return
     try {
       await postJson('/admin/aliases', {
         alias_type: form.alias_type,
@@ -99,17 +94,13 @@ export function AdminAliases() {
           <div className="flex gap-2">
             <input
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) =>
-                setForm({ ...form, source_address: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, source_address: e.target.value })}
               placeholder="admin@example.com"
               value={form.source_address}
             />
             <input
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) =>
-                setForm({ ...form, target_address: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, target_address: e.target.value })}
               placeholder="user@example.com"
               value={form.target_address}
             />
@@ -137,10 +128,7 @@ export function AdminAliases() {
             </select>
           </div>
           <div className="flex gap-2">
-            <button
-              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
-              onClick={handleAdd}
-            >
+            <button className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm" onClick={handleAdd}>
               Save
             </button>
             <button
@@ -166,16 +154,9 @@ export function AdminAliases() {
           </thead>
           <tbody>
             {aliases.map((alias) => (
-              <tr
-                className="border-border border-b last:border-0"
-                key={alias.id}
-              >
-                <td className="px-4 py-3 font-medium">
-                  {alias.source_address}
-                </td>
-                <td className="text-fg-secondary px-4 py-3">
-                  {alias.target_address}
-                </td>
+              <tr className="border-border border-b last:border-0" key={alias.id}>
+                <td className="px-4 py-3 font-medium">{alias.source_address}</td>
+                <td className="text-fg-secondary px-4 py-3">{alias.target_address}</td>
                 <td className="text-fg-secondary px-4 py-3">{alias.domain}</td>
                 <td className="px-4 py-3">
                   <span

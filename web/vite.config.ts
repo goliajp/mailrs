@@ -1,6 +1,13 @@
+import { resolve } from 'node:path'
+
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
+
+const chunkGroups: Record<string, string[]> = {
+  editor: ['@tiptap/react', '@tiptap/starter-kit', '@tiptap/core'],
+  markdown: ['react-markdown', 'remark-gfm', 'rehype-highlight'],
+}
 
 export default defineConfig({
   test: {
@@ -42,22 +49,17 @@ export default defineConfig({
   },
   plugins: [react(), tailwindcss()],
   resolve: {
-    alias: { '@': '/src' },
+    alias: { '@': resolve(import.meta.dirname, 'src') },
   },
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          editor: [
-            '@tiptap/react',
-            '@tiptap/starter-kit',
-            '@tiptap/core',
-          ],
-          markdown: [
-            'react-markdown',
-            'remark-gfm',
-            'rehype-highlight',
-          ],
+        manualChunks(id) {
+          for (const [name, deps] of Object.entries(chunkGroups)) {
+            if (deps.some((dep) => id.includes(`node_modules/${dep}`))) {
+              return name
+            }
+          }
         },
       },
     },
@@ -65,8 +67,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3200',
         changeOrigin: true,
+        target: 'http://localhost:3200',
       },
     },
   },

@@ -17,9 +17,7 @@ type Options = {
 
 export function useBlockComposer(options: Options) {
   const initializedRef = useRef(false)
-  const [blocks, setBlocks] = useState<AnyBlock[]>(() =>
-    buildInitialBlocks(options)
-  )
+  const [blocks, setBlocks] = useState<AnyBlock[]>(() => buildInitialBlocks(options))
 
   // reinitialize when mode/quoted content changes
   useEffect(() => {
@@ -50,8 +48,7 @@ export function useBlockComposer(options: Options) {
         createBlock('task', {
           items: [{ checked: false, id: crypto.randomUUID(), text: '' }],
         }),
-      text: () =>
-        createBlock('text', { content: '', format: 'rich', html: '' }),
+      text: () => createBlock('text', { content: '', format: 'rich', html: '' }),
     }
     const block = defaults[type]()
     setBlocks((prev) => {
@@ -82,12 +79,9 @@ export function useBlockComposer(options: Options) {
     setBlocks((prev) => prev.filter((b) => b.id !== id))
   }, [])
 
-  const updateBlock = useCallback(
-    (id: string, data: BlockDataMap[BlockType]) => {
-      setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, data } : b)))
-    },
-    []
-  )
+  const updateBlock = useCallback((id: string, data: BlockDataMap[BlockType]) => {
+    setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, data } : b)))
+  }, [])
 
   const moveBlock = useCallback((fromIndex: number, toIndex: number) => {
     setBlocks((prev) => {
@@ -119,9 +113,7 @@ export function useBlockComposer(options: Options) {
 }
 
 function buildInitialBlocks(options: Options): AnyBlock[] {
-  const blocks: AnyBlock[] = [
-    createBlock('text', { content: '', format: 'rich', html: '' }),
-  ]
+  const blocks: AnyBlock[] = [createBlock('text', { content: '', format: 'rich', html: '' })]
 
   if (options.signatureEnabled && options.signature?.trim()) {
     blocks.push(

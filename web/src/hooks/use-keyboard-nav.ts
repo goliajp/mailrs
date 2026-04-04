@@ -32,9 +32,7 @@ export function useKeyboardNav() {
     let gPending = false // for g+i, g+s chord sequences
     function scrollToThread() {
       requestAnimationFrame(() => {
-        document
-          .querySelector(`[aria-selected="true"]`)
-          ?.scrollIntoView({ block: 'nearest' })
+        document.querySelector(`[aria-selected="true"]`)?.scrollIntoView({ block: 'nearest' })
       })
     }
 
@@ -52,9 +50,7 @@ export function useKeyboardNav() {
           })
             .then(() => {
               toast.success('Deleted')
-              setConversations((prev) =>
-                prev.filter((c) => c.thread_id !== selectedThreadId)
-              )
+              setConversations((prev) => prev.filter((c) => c.thread_id !== selectedThreadId))
               const idx = visibleIds.indexOf(selectedThreadId)
               const next = visibleIds[idx + 1] ?? visibleIds[idx - 1] ?? null
               setSelectedThreadId(next)
@@ -116,28 +112,20 @@ export function useKeyboardNav() {
           // archive current thread
           if (!selectedThreadId) break
           e.preventDefault()
-          const convo = conversations.find(
-            (c) => c.thread_id === selectedThreadId
-          )
+          const convo = conversations.find((c) => c.thread_id === selectedThreadId)
           const action = convo?.archived ? 'unarchive' : 'archive'
-          postJson(
-            `/conversations/${encodeURIComponent(selectedThreadId)}/${action}`,
-            {}
-          )
+          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${action}`, {})
             .then(() => {
               toast.success(action === 'archive' ? 'Archived' : 'Unarchived')
               setConversations((prev) =>
                 prev.map((c) =>
-                  c.thread_id === selectedThreadId
-                    ? { ...c, archived: action === 'archive' }
-                    : c
+                  c.thread_id === selectedThreadId ? { ...c, archived: action === 'archive' } : c
                 )
               )
               // auto-advance to next thread after archive
               if (action === 'archive') {
                 const archIdx = visibleIds.indexOf(selectedThreadId)
-                const nextId =
-                  visibleIds[archIdx + 1] ?? visibleIds[archIdx - 1] ?? null
+                const nextId = visibleIds[archIdx + 1] ?? visibleIds[archIdx - 1] ?? null
                 if (nextId) setSelectedThreadId(nextId)
               }
             })
@@ -165,11 +153,9 @@ export function useKeyboardNav() {
           e.preventDefault()
           setMobileView('thread')
           setTimeout(() => {
-            document
-              .querySelectorAll<HTMLButtonElement>('button[aria-pressed]')
-              .forEach((btn) => {
-                if (btn.textContent === 'Forward') btn.click()
-              })
+            document.querySelectorAll<HTMLButtonElement>('button[aria-pressed]').forEach((btn) => {
+              if (btn.textContent === 'Forward') btn.click()
+            })
           }, 100)
           break
         }
@@ -189,18 +175,14 @@ export function useKeyboardNav() {
           // Shift+I: mark read and go to next
           if (!selectedThreadId) break
           e.preventDefault()
-          postJson(
-            `/conversations/${encodeURIComponent(selectedThreadId)}/read`,
-            {}
-          ).catch(() => {})
+          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/read`, {}).catch(
+            () => {}
+          )
           setConversations((prev) =>
-            prev.map((c) =>
-              c.thread_id === selectedThreadId ? { ...c, unread_count: 0 } : c
-            )
+            prev.map((c) => (c.thread_id === selectedThreadId ? { ...c, unread_count: 0 } : c))
           )
           const readIdx = visibleIds.indexOf(selectedThreadId)
-          const nextThread =
-            visibleIds[readIdx + 1] ?? visibleIds[readIdx - 1] ?? null
+          const nextThread = visibleIds[readIdx + 1] ?? visibleIds[readIdx - 1] ?? null
           if (nextThread) setSelectedThreadId(nextThread)
           break
         }
@@ -228,22 +210,13 @@ export function useKeyboardNav() {
           // pin/unpin current thread
           if (!selectedThreadId) break
           e.preventDefault()
-          const pinned = conversations.find(
-            (c) => c.thread_id === selectedThreadId
-          )?.pinned
+          const pinned = conversations.find((c) => c.thread_id === selectedThreadId)?.pinned
           const pinAct = pinned ? 'unpin' : 'pin'
-          postJson(
-            `/conversations/${encodeURIComponent(selectedThreadId)}/${pinAct}`,
-            {}
-          )
+          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${pinAct}`, {})
             .then(() => {
               toast.success(pinned ? 'Unpinned' : 'Pinned')
               setConversations((prev) =>
-                prev.map((c) =>
-                  c.thread_id === selectedThreadId
-                    ? { ...c, pinned: !pinned }
-                    : c
-                )
+                prev.map((c) => (c.thread_id === selectedThreadId ? { ...c, pinned: !pinned } : c))
               )
             })
             .catch(() => toast.error('Failed'))
@@ -269,20 +242,13 @@ export function useKeyboardNav() {
           // star/unstar current thread
           if (!selectedThreadId) break
           e.preventDefault()
-          const flagged = conversations.find(
-            (c) => c.thread_id === selectedThreadId
-          )?.flagged
+          const flagged = conversations.find((c) => c.thread_id === selectedThreadId)?.flagged
           const act = flagged ? 'unstar' : 'star'
-          postJson(
-            `/conversations/${encodeURIComponent(selectedThreadId)}/${act}`,
-            {}
-          )
+          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${act}`, {})
             .then(() => {
               setConversations((prev) =>
                 prev.map((c) =>
-                  c.thread_id === selectedThreadId
-                    ? { ...c, flagged: act === 'star' }
-                    : c
+                  c.thread_id === selectedThreadId ? { ...c, flagged: act === 'star' } : c
                 )
               )
             })

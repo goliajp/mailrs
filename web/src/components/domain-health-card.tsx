@@ -43,11 +43,7 @@ type DomainHealthCardProps = {
   readonly report: DomainCheckReport
 }
 
-export function DomainHealthCard({
-  checking,
-  onRecheck,
-  report,
-}: DomainHealthCardProps) {
+export function DomainHealthCard({ checking, onRecheck, report }: DomainHealthCardProps) {
   const checkedAt = new Date(report.checked_at * 1000)
   const timeStr = checkedAt.toLocaleTimeString([], {
     hour: '2-digit',
@@ -99,21 +95,15 @@ function CheckResultCard({ check }: { check: CheckResult }) {
   const hasDetails = check.details.length > 0
 
   return (
-    <div
-      className={`rounded-lg border ${config.border} ${config.bg} transition-colors`}
-    >
+    <div className={`rounded-lg border ${config.border} ${config.bg} transition-colors`}>
       <button
         className={`flex w-full items-center gap-3 px-3 py-2.5 text-left ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
         onClick={() => hasDetails && setExpanded(!expanded)}
       >
         <StatusBadge status={check.status} />
         <span className="min-w-0 flex-1">
-          <span className="text-fg block text-sm font-medium">
-            {check.name}
-          </span>
-          <span className={`block text-xs ${config.text}`}>
-            {check.message}
-          </span>
+          <span className="text-fg block text-sm font-medium">{check.name}</span>
+          <span className={`block text-xs ${config.text}`}>{check.message}</span>
         </span>
         {hasDetails && (
           <svg
@@ -123,11 +113,7 @@ function CheckResultCard({ check }: { check: CheckResult }) {
             strokeWidth={2}
             viewBox="0 0 24 24"
           >
-            <path
-              d="M19 9l-7 7-7-7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )}
       </button>
@@ -197,26 +183,15 @@ function SummaryBar({ checks }: { checks: CheckResult[] }) {
             warn: 'bg-warning',
           }
           return (
-            <div
-              className={`${colors[status]} ${pctToWidth(pct)} transition-all`}
-              key={status}
-            />
+            <div className={`${colors[status]} ${pctToWidth(pct)} transition-all`} key={status} />
           )
         })}
       </div>
       <div className="text-fg-secondary flex shrink-0 gap-3 text-xs">
-        {counts.pass ? (
-          <span className="text-success">{counts.pass} pass</span>
-        ) : null}
-        {counts.warn ? (
-          <span className="text-warning">{counts.warn} warn</span>
-        ) : null}
-        {counts.fail ? (
-          <span className="text-danger">{counts.fail} fail</span>
-        ) : null}
-        {counts.skip ? (
-          <span className="text-fg-secondary">{counts.skip} skip</span>
-        ) : null}
+        {counts.pass ? <span className="text-success">{counts.pass} pass</span> : null}
+        {counts.warn ? <span className="text-warning">{counts.warn} warn</span> : null}
+        {counts.fail ? <span className="text-danger">{counts.fail} fail</span> : null}
+        {counts.skip ? <span className="text-fg-secondary">{counts.skip} skip</span> : null}
       </div>
     </div>
   )

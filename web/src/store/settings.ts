@@ -116,11 +116,7 @@ export const signatureEnabledAtom = atom(
 // standard email signature separator
 const SIG_SEPARATOR = '\n\n-- \n'
 
-export function appendSignature(
-  body: string,
-  signature: string,
-  enabled: boolean
-): string {
+export function appendSignature(body: string, signature: string, enabled: boolean): string {
   if (!enabled || !signature.trim()) return body
   return body + SIG_SEPARATOR + signature
 }

@@ -103,10 +103,7 @@ export function AdminDomains() {
             placeholder="example.com"
             value={newDomain}
           />
-          <button
-            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
-            onClick={handleAdd}
-          >
+          <button className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm" onClick={handleAdd}>
             Save
           </button>
           <button
@@ -185,9 +182,8 @@ export function AdminDomains() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
             <p className="text-fg-secondary mb-4 text-sm">
-              Delete domain{' '}
-              <span className="text-fg font-medium">{deleteTarget}</span>? This
-              will also remove all associated accounts and aliases.
+              Delete domain <span className="text-fg font-medium">{deleteTarget}</span>? This will
+              also remove all associated accounts and aliases.
             </p>
             <div className="flex justify-end gap-2">
               <button

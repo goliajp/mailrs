@@ -156,9 +156,7 @@ describe('ReplyBox', () => {
       </Wrapper>
     )
 
-    expect(
-      screen.getByText('to alice@example.com, bob@example.com')
-    ).toBeDefined()
+    expect(screen.getByText('to alice@example.com, bob@example.com')).toBeDefined()
   })
 
   it('shows forward To field in forward mode', () => {

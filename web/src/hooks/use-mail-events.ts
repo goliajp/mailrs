@@ -1,9 +1,4 @@
-import type {
-  ConversationSummary,
-  NewMessageEvent,
-  SmtpEvent,
-  ThreadMessage,
-} from '@/lib/types'
+import type { ConversationSummary, NewMessageEvent, SmtpEvent, ThreadMessage } from '@/lib/types'
 
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useRef } from 'react'
@@ -126,11 +121,8 @@ export function useMailEvents(user: string) {
     const tid = selectedRef.current
     if (!tid) return
     const doms = domainsRef.current
-    const domainsParam =
-      doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
-    fetchJson<ThreadMessage[]>(
-      `/conversations/${encodeURIComponent(tid)}${domainsParam}`
-    ).then(
+    const domainsParam = doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
+    fetchJson<ThreadMessage[]>(`/conversations/${encodeURIComponent(tid)}${domainsParam}`).then(
       (data) => setThreadMessages(data),
       () => {}
     )
@@ -153,12 +145,8 @@ export function useMailEvents(user: string) {
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
       const token = localStorage.getItem('mailrs_auth')
       const parsed = token ? JSON.parse(token) : null
-      const tokenParam = parsed?.token
-        ? `?token=${encodeURIComponent(parsed.token)}`
-        : ''
-      const ws = new WebSocket(
-        `${proto}//${location.host}/api/events${tokenParam}`
-      )
+      const tokenParam = parsed?.token ? `?token=${encodeURIComponent(parsed.token)}` : ''
+      const ws = new WebSocket(`${proto}//${location.host}/api/events${tokenParam}`)
       wsRef.current = ws
 
       ws.onopen = () => {
@@ -179,10 +167,7 @@ export function useMailEvents(user: string) {
               refreshConversations()
 
               // refresh current thread if the new message belongs to it
-              if (
-                selectedRef.current &&
-                msg.thread_id === selectedRef.current
-              ) {
+              if (selectedRef.current && msg.thread_id === selectedRef.current) {
                 refreshThread()
               }
 
