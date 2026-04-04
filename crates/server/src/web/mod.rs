@@ -25,6 +25,7 @@ mod jmap;
 pub(crate) mod mail;
 mod oidc_provider;
 mod templates;
+mod system_config;
 mod webhook;
 pub(crate) mod rate_limit;
 mod request_id;
@@ -94,6 +95,7 @@ pub struct WebState {
     pub oidc_config: Option<OidcConfig>,
     pub meili: Option<Arc<crate::search_index::MeiliClient>>,
     pub render_preview: Option<Arc<crate::render_preview::RenderPreviewClient>>,
+    pub system_config: Option<Arc<crate::system_config::SystemConfigStore>>,
 }
 
 /// spawn a background task to clean up expired sessions and stale rate-limit buckets every hour
@@ -152,6 +154,7 @@ impl WebState {
             oidc_config: None,
             meili: None,
             render_preview: None,
+            system_config: None,
         }
     }
 
@@ -225,6 +228,11 @@ impl WebState {
 
     pub fn with_render_preview(mut self, client: Arc<crate::render_preview::RenderPreviewClient>) -> Self {
         self.render_preview = Some(client);
+        self
+    }
+
+    pub fn with_system_config(mut self, store: Arc<crate::system_config::SystemConfigStore>) -> Self {
+        self.system_config = Some(store);
         self
     }
 
@@ -931,6 +939,9 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         )
         // smtp config
         .route("/api/admin/config/smtp", get(admin::get_smtp_config))
+        // system config (runtime-editable)
+        .route("/api/admin/system-config", get(system_config::list_config))
+        .route("/api/admin/system-config/{key}", put(system_config::update_config).delete(system_config::reset_config))
         // JMAP
         .route("/.well-known/jmap", get(jmap::jmap_session))
         .route("/jmap", post(jmap::jmap_api))

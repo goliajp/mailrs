@@ -11,6 +11,7 @@ import { AdminGroups } from '@/pages/admin-groups'
 import { AdminMailAudit } from '@/pages/admin-mail-audit'
 import { AdminOverview } from '@/pages/admin-overview'
 import { AdminQueues } from '@/pages/admin-queues'
+import { AdminSystemConfig } from '@/pages/admin-system-config'
 
 export function Admin() {
   return (
@@ -28,6 +29,7 @@ export function Admin() {
           <Route element={<AdminQueues />} path="queues" />
           <Route element={<AdminAuditLog />} path="audit-log" />
           <Route element={<AdminMailAudit />} path="mail-audit" />
+          <Route element={<AdminSystemConfig />} path="system-config" />
           <Route element={<Navigate replace to="overview" />} path="*" />
         </Routes>
       </div>

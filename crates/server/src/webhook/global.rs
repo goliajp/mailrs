@@ -5,6 +5,7 @@ use serde::Serialize;
 use tokio::sync::{watch, Semaphore};
 
 use crate::event_bus::{EventBus, SmtpEvent};
+use crate::system_config::SystemConfigStore;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct GlobalWebhookPayload {
@@ -41,11 +42,10 @@ fn build_payload(
     }
 }
 
-/// fire-and-forget global webhook listener
+/// fire-and-forget global webhook listener (reads URL/key from SystemConfigStore on each event)
 pub async fn run(
     event_bus: &EventBus,
-    url: String,
-    api_key: Option<String>,
+    config_store: Arc<SystemConfigStore>,
     mut shutdown: watch::Receiver<bool>,
 ) {
     let client = reqwest::Client::builder()
@@ -62,6 +62,14 @@ pub async fn run(
             event = rx.recv() => {
                 match event {
                     Ok(SmtpEvent::NewMessage { user, sender, subject, snippet, .. }) => {
+                        // read url/key from config store each time (runtime-changeable)
+                        let cfg = config_store.get();
+                        let url = match cfg.webhook_url {
+                            Some(ref u) if !u.is_empty() => u.clone(),
+                            _ => continue, // no webhook configured, skip
+                        };
+                        let api_key = cfg.webhook_api_key.clone();
+
                         let permit = match semaphore.clone().try_acquire_owned() {
                             Ok(p) => p,
                             Err(_) => {
@@ -71,8 +79,6 @@ pub async fn run(
                         };
                         let payload = build_payload(&user, &sender, &subject, &snippet);
                         let client = client.clone();
-                        let url = url.clone();
-                        let api_key = api_key.clone();
                         tokio::spawn(async move {
                             send_webhook(&client, &url, api_key.as_deref(), &payload).await;
                             drop(permit);

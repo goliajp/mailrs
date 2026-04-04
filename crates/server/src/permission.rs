@@ -16,6 +16,7 @@ pub const ALL_PERMISSIONS: &[&str] = &[
     "admin.impersonate",
     "internal.rpc",
     "admin.oauth_clients",
+    "admin.system_config",
 ];
 
 /// group info loaded from the database

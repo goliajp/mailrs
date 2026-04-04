@@ -7,6 +7,7 @@ import {
   ListOrdered,
   Mail,
   ScrollText,
+  Settings,
   Shield,
   Users,
 } from 'lucide-react'
@@ -62,6 +63,11 @@ const navItems = [
     icon: <ScrollText className="h-4 w-4" />,
     label: 'Audit Log',
     to: '/admin/audit-log',
+  },
+  {
+    icon: <Settings className="h-4 w-4" />,
+    label: 'System Config',
+    to: '/admin/system-config',
   },
 ]
 

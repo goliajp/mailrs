@@ -1600,6 +1600,83 @@ impl MailMcpService {
 
         self.json_result(&items)
     }
+
+    // --- system config tools ---
+
+    #[tool(description = "Get all system configuration entries with current values, types, sources (database/env/default), and metadata. Requires admin.system_config permission.")]
+    async fn get_system_config(
+        &self,
+        Parameters(_params): Parameters<GetSystemConfigParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.system_config")?;
+
+        let store = self
+            .web_state
+            .system_config
+            .as_ref()
+            .ok_or_else(|| McpError::internal_error("system config store not available", None))?;
+
+        let entries = store.get_all_entries();
+        let items: Vec<serde_json::Value> = entries
+            .into_iter()
+            .map(|e| {
+                serde_json::json!({
+                    "key": e.key,
+                    "value": e.value,
+                    "value_type": e.value_type,
+                    "group": e.group,
+                    "description": e.description,
+                    "source": e.source,
+                    "updated_at": e.updated_at,
+                    "updated_by": e.updated_by,
+                })
+            })
+            .collect();
+
+        self.json_result(&items)
+    }
+
+    #[tool(description = "Set a system configuration value. Validates key and value type. Requires admin.system_config permission. Use get_system_config to see available keys.")]
+    async fn set_system_config(
+        &self,
+        Parameters(params): Parameters<SetSystemConfigParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.system_config")?;
+
+        let store = self
+            .web_state
+            .system_config
+            .as_ref()
+            .ok_or_else(|| McpError::internal_error("system config store not available", None))?;
+
+        store
+            .set(&params.key, &params.value, &self.auth_user.address)
+            .await
+            .map_err(|e| McpError::invalid_params(e, None))?;
+
+        self.ok_result("updated", &format!("{} = {}", params.key, params.value))
+    }
+
+    #[tool(description = "Reset a system configuration key to its default value (removes database override). Requires admin.system_config permission.")]
+    async fn reset_system_config(
+        &self,
+        Parameters(params): Parameters<ResetSystemConfigParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.system_config")?;
+
+        let store = self
+            .web_state
+            .system_config
+            .as_ref()
+            .ok_or_else(|| McpError::internal_error("system config store not available", None))?;
+
+        store
+            .delete(&params.key)
+            .await
+            .map_err(|e| McpError::invalid_params(e, None))?;
+
+        self.ok_result("reset", &format!("{} reverted to default", params.key))
+    }
 }
 
 #[tool_handler]

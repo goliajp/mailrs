@@ -439,6 +439,25 @@ pub(crate) struct GetRecipientKeyParams {
     pub key_type: String,
 }
 
+// --- system config ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GetSystemConfigParams {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct SetSystemConfigParams {
+    /// config key (e.g. "webhook_url", "ai_analysis_enabled")
+    pub key: String,
+    /// new value as string
+    pub value: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ResetSystemConfigParams {
+    /// config key to reset to default
+    pub key: String,
+}
+
 // --- mail audit ---
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -913,5 +932,41 @@ mod tests {
         let params: AuditReadThreadParams = serde_json::from_str(json).unwrap();
         assert_eq!(params.target_user, "roro@golia.jp");
         assert_eq!(params.thread_id, "abc123");
+    }
+
+    #[test]
+    fn get_system_config_params_empty() {
+        let json = r#"{}"#;
+        let _params: GetSystemConfigParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn set_system_config_params_schema() {
+        let schema = schema_for!(SetSystemConfigParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("key"));
+        assert!(json.contains("value"));
+    }
+
+    #[test]
+    fn set_system_config_params_deserialize() {
+        let json = r#"{"key": "webhook_url", "value": "https://example.com/hook"}"#;
+        let params: SetSystemConfigParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.key, "webhook_url");
+        assert_eq!(params.value, "https://example.com/hook");
+    }
+
+    #[test]
+    fn reset_system_config_params_schema() {
+        let schema = schema_for!(ResetSystemConfigParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("key"));
+    }
+
+    #[test]
+    fn reset_system_config_params_deserialize() {
+        let json = r#"{"key": "ai_analysis_enabled"}"#;
+        let params: ResetSystemConfigParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.key, "ai_analysis_enabled");
     }
 }
