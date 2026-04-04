@@ -104,6 +104,8 @@ services:
       MAILRS_MEILI_URL: http://meilisearch:7700
       MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
       MAILRS_CHROME_CDP_URL: ws://chromium:9222
+      MAILRS_WEBHOOK_URL: ${MAILRS_WEBHOOK_URL:-}
+      MAILRS_WEBHOOK_API_KEY: ${MAILRS_WEBHOOK_API_KEY:-}
     volumes:
       - mailrs-data:/data
       - ./certs:/certs:ro
