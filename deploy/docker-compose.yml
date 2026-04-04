@@ -35,27 +35,38 @@ services:
       - "993:993"
       - "3100:3100"
     environment:
+      # core
       MAILRS_HOSTNAME: ${MAILRS_HOSTNAME:-mail.golia.ai}
       MAILRS_MAILDIR: /data/maildir
       MAILRS_PG_URL: postgres://mailrs:${MAILRS_PG_PASSWORD:-mailrs}@postgres:5432/mailrs
       MAILRS_VALKEY_URL: redis://valkey:6379
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
       MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com
+      # tls
       MAILRS_TLS_CERT: /certs/fullchain.pem
       MAILRS_TLS_KEY: /certs/privkey.pem
+      # auth
       MAILRS_USERS_FILE: /data/users.toml
+      # dkim
       MAILRS_DKIM_SELECTOR: mail
       MAILRS_DKIM_DOMAIN: golia.jp
       MAILRS_DKIM_PRIVATE_KEY: /dkim/golia.jp.key
+      # acme
       MAILRS_ACME_EMAIL: ${MAILRS_ACME_EMAIL:-}
       MAILRS_ACME_DOMAINS: ${MAILRS_ACME_DOMAINS:-}
       MAILRS_ACME_DIR: /data/acme
       MAILRS_ACME_STAGING: ${MAILRS_ACME_STAGING:-false}
+      # ai analysis
       MAILRS_AI_ANALYSIS_ENABLED: "${MAILRS_AI_ANALYSIS_ENABLED:-false}"
       MAILRS_LLM_URL: "${MAILRS_LLM_URL:-}"
       MAILRS_LLM_API_KEY: "${MAILRS_LLM_API_KEY:-}"
-      MAILRS_ANTISPAM_ENABLED: "false"
+      # anti-spam
+      MAILRS_ANTISPAM_ENABLED: "${MAILRS_ANTISPAM_ENABLED:-false}"
+      # chrome cdp
       MAILRS_CHROME_CDP_URL: ws://chromium:9222
+      # webhook
+      MAILRS_WEBHOOK_URL: "${MAILRS_WEBHOOK_URL:-}"
+      MAILRS_WEBHOOK_API_KEY: "${MAILRS_WEBHOOK_API_KEY:-}"
     volumes:
       - mailrs-data:/data
       - ./certs:/certs:ro

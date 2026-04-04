@@ -15,7 +15,7 @@ SSH_KEY="${SSH_KEY:-$HOME/keys/aws.pem}"
 SSH_HOST="${SSH_HOST:-root@t02.golia.jp}"
 REMOTE_DIR="/apps/mailrs"
 TARGET="aarch64-unknown-linux-gnu"
-DIST_DIR="dist/$TARGET"
+DEPLOY_DIR="deploy"
 
 SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no"
 SCP="scp $SSH_OPTS"
@@ -44,8 +44,8 @@ $SCP -r web/dist/* "$SSH_HOST:$REMOTE_DIR/web/"
 
 if [ "$WEB_ONLY" = false ]; then
   echo "==> uploading deployment configs"
-  $SCP "$DIST_DIR/Dockerfile" "$SSH_HOST:$REMOTE_DIR/Dockerfile"
-  $SCP "$DIST_DIR/docker-compose.yml" "$SSH_HOST:$REMOTE_DIR/docker-compose.yml"
+  $SCP "$DEPLOY_DIR/Dockerfile" "$SSH_HOST:$REMOTE_DIR/Dockerfile"
+  $SCP "$DEPLOY_DIR/docker-compose.yml" "$SSH_HOST:$REMOTE_DIR/docker-compose.yml"
   $SCP scripts/init-schema.sql "$SSH_HOST:$REMOTE_DIR/init-schema.sql"
 
   # upload .env with secrets
