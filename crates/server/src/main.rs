@@ -805,6 +805,18 @@ async fn main() {
         }
     }
 
+    // global webhook (fire-and-forget POST on new mail)
+    if let Some(ref url) = cfg.webhook_url {
+        let url = url.clone();
+        let api_key = cfg.webhook_api_key.clone();
+        let eb = event_bus.clone();
+        let rx = shutdown_rx.clone();
+        tokio::spawn(async move {
+            webhook::global::run(&eb, url, api_key, rx).await;
+        });
+        eprintln!("global webhook enabled");
+    }
+
     // webhook listener + delivery worker
     if let Some(ref pool) = pg_pool {
         let pool_clone = pool.clone();
