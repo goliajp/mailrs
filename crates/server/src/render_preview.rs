@@ -383,7 +383,7 @@ fn restore_proxy_urls(html: &str) -> String {
         let after = &remaining[idx + 21..]; // skip "/api/proxy/image?url="
 
         // find the end of the URL (either & for token param, or quote char)
-        let end = after.find(|c: char| c == '"' || c == '\'' || c == '&')
+        let end = after.find(['"', '\'', '&'])
             .unwrap_or(after.len());
         let encoded_url = &after[..end];
         match urlencoding::decode(encoded_url) {
@@ -396,7 +396,7 @@ fn restore_proxy_urls(html: &str) -> String {
 
         // skip past any &token=... parameter
         let skip_to = if end < after.len() && after.as_bytes()[end] == b'&' {
-            after[end..].find(|c: char| c == '"' || c == '\'')
+            after[end..].find(['"', '\''])
                 .unwrap_or(after.len() - end) + end
         } else {
             end
