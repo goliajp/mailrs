@@ -1083,7 +1083,7 @@ pub(super) async fn jmap_eventsource(
 ) -> axum::response::sse::Sse<impl futures_util::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>> {
     use axum::response::sse::{Event, KeepAlive, Sse};
 
-    let ping_secs = params.ping.unwrap_or(30).max(5).min(300) as u64;
+    let ping_secs = params.ping.unwrap_or(30).clamp(5, 300) as u64;
     let rx = state.event_bus.subscribe();
 
     let stream = futures_util::stream::unfold(

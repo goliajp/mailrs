@@ -192,7 +192,8 @@ pub fn spawn_indexer(
             interval.tick().await;
 
             // fetch unindexed messages from PG
-            let rows: Vec<(i64, String, Option<String>, String, Option<String>, Option<String>, i64, String)> = match sqlx::query_as(
+            type MessageRow = (i64, String, Option<String>, String, Option<String>, Option<String>, i64, String);
+            let rows: Vec<MessageRow> = match sqlx::query_as(
                 "SELECT m.id, m.thread_id, m.subject, m.sender, m.text_body, m.clean_text, m.internal_date, mb.user_address \
                  FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id \
                  WHERE m.id > $1 \
