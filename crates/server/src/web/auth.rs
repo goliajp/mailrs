@@ -230,6 +230,37 @@ async fn verify_api_key(
 }
 
 pub(super) async fn login(
+    state: State<Arc<WebState>>,
+    addr: ConnectInfo<SocketAddr>,
+    req: Json<LoginRequest>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let resp = login_inner(state, addr, req).await.into_response();
+    // if login succeeded (200), extract token from body and set as cookie
+    // so OIDC authorize redirect (browser navigation) can find the session
+    if resp.status() == StatusCode::OK {
+        // read token from response body
+        let (parts, body) = resp.into_parts();
+        let bytes = axum::body::to_bytes(body, 4096).await.unwrap_or_default();
+        if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+            if let Some(token) = val["token"].as_str() {
+                let cookie = format!(
+                    "mailrs_session={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600"
+                );
+                let mut parts = parts;
+                parts.headers.insert(
+                    axum::http::header::SET_COOKIE,
+                    cookie.parse().unwrap(),
+                );
+                return axum::response::Response::from_parts(parts, axum::body::Body::from(bytes));
+            }
+        }
+        return axum::response::Response::from_parts(parts, axum::body::Body::from(bytes));
+    }
+    resp
+}
+
+async fn login_inner(
     State(state): State<Arc<WebState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(req): Json<LoginRequest>,
