@@ -90,6 +90,9 @@ pub struct ServerConfig {
     pub ldap_bind_password: Option<String>,
     pub ldap_base_dn: Option<String>,
     pub ldap_user_filter: Option<String>,
+    // global webhook (fire-and-forget POST on new mail)
+    pub webhook_url: Option<String>,
+    pub webhook_api_key: Option<String>,
 }
 
 impl Default for ServerConfig {
@@ -152,6 +155,8 @@ impl Default for ServerConfig {
             ldap_bind_password: None,
             ldap_base_dn: None,
             ldap_user_filter: None,
+            webhook_url: None,
+            webhook_api_key: None,
         }
     }
 }
@@ -414,6 +419,17 @@ impl ServerConfig {
         if let Ok(v) = std::env::var("MAILRS_LDAP_USER_FILTER") {
             if !v.is_empty() {
                 cfg.ldap_user_filter = Some(v);
+            }
+        }
+        // global webhook
+        if let Ok(v) = std::env::var("MAILRS_WEBHOOK_URL") {
+            if !v.is_empty() {
+                cfg.webhook_url = Some(v);
+            }
+        }
+        if let Ok(v) = std::env::var("MAILRS_WEBHOOK_API_KEY") {
+            if !v.is_empty() {
+                cfg.webhook_api_key = Some(v);
             }
         }
 
