@@ -34,6 +34,7 @@ mod reputation;
 mod search_index;
 mod sieve;
 mod smtp_session;
+pub(crate) mod system_config;
 mod tls;
 mod totp;
 mod users;
@@ -388,6 +389,28 @@ async fn main() {
     } else {
         None
     };
+    // system config store (runtime-editable config from DB)
+    let system_config_store = {
+        let env_defaults = system_config::RuntimeConfig::from_server_config(&cfg);
+        let store = Arc::new(system_config::SystemConfigStore::new(
+            pg_pool.clone(),
+            valkey_conn.clone(),
+            env_defaults,
+        ));
+        if pg_pool.is_some() {
+            if let Err(e) = store.load_from_db().await {
+                tracing::warn!("failed to load system config from DB: {e}");
+            }
+        }
+        let store_bg = store.clone();
+        let rx = shutdown_rx.clone();
+        tokio::spawn(async move {
+            system_config::reload_task(store_bg, rx).await;
+        });
+        store
+    };
+    ws = ws.with_system_config(system_config_store.clone());
+
     // OIDC client (Sign in with external IdP)
     if let (Ok(client_id), Ok(client_secret), Ok(issuer)) = (
         std::env::var("MAILRS_OIDC_CLIENT_ID"),
@@ -805,14 +828,13 @@ async fn main() {
         }
     }
 
-    // global webhook (fire-and-forget POST on new mail)
-    if let Some(ref url) = cfg.webhook_url {
-        let url = url.clone();
-        let api_key = cfg.webhook_api_key.clone();
+    // global webhook (fire-and-forget POST on new mail, reads URL from system config store)
+    {
         let eb = event_bus.clone();
+        let store = system_config_store.clone();
         let rx = shutdown_rx.clone();
         tokio::spawn(async move {
-            webhook::global::run(&eb, url, api_key, rx).await;
+            webhook::global::run(&eb, store, rx).await;
         });
         eprintln!("global webhook enabled");
     }
