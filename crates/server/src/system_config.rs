@@ -146,7 +146,6 @@ struct ConfigRow {
 // -- SystemConfigStore --
 
 const VALKEY_KEY: &str = "syscfg:all";
-const VALKEY_TTL: u64 = 300;
 const RELOAD_INTERVAL: Duration = Duration::from_secs(60);
 
 pub struct SystemConfigStore {
@@ -185,17 +184,18 @@ impl SystemConfigStore {
             return Ok(());
         };
 
-        // try valkey first
-        if let Some(cached) = self.valkey_get::<RuntimeConfig>(VALKEY_KEY).await {
-            self.current.store(Arc::new(cached));
-            return Ok(());
-        }
-
-        let rows: Vec<ConfigRow> = sqlx::query_as(
+        let rows: Vec<ConfigRow> = match sqlx::query_as(
             "SELECT key, value, value_type, updated_at, updated_by FROM system_config",
         )
         .fetch_all(pool)
-        .await?;
+        .await
+        {
+            Ok(rows) => rows,
+            Err(e) => {
+                tracing::warn!("failed to load system_config from DB: {e}");
+                return Err(e);
+            }
+        };
 
         let mut merged = self.env_defaults.clone();
         let mut db_keys = std::collections::HashMap::new();
@@ -212,9 +212,6 @@ impl SystemConfigStore {
         if let Ok(mut guard) = self.db_keys.write() {
             *guard = db_keys;
         }
-
-        // cache in valkey
-        self.valkey_set(VALKEY_KEY, &merged, VALKEY_TTL).await;
 
         self.current.store(Arc::new(merged));
         Ok(())
@@ -318,30 +315,6 @@ impl SystemConfigStore {
     }
 
     // -- valkey helpers --
-
-    async fn valkey_get<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
-        let mut conn = self.valkey.clone()?;
-        let val: Option<String> = redis::cmd("GET")
-            .arg(key)
-            .query_async(&mut conn)
-            .await
-            .ok()?;
-        val.and_then(|s| serde_json::from_str(&s).ok())
-    }
-
-    async fn valkey_set(&self, key: &str, val: &impl serde::Serialize, ttl_secs: u64) {
-        if let Some(mut conn) = self.valkey.clone() {
-            if let Ok(json) = serde_json::to_string(val) {
-                let _: std::result::Result<(), _> = redis::cmd("SET")
-                    .arg(key)
-                    .arg(&json)
-                    .arg("EX")
-                    .arg(ttl_secs)
-                    .query_async(&mut conn)
-                    .await;
-            }
-        }
-    }
 
     async fn valkey_del(&self, key: &str) {
         if let Some(mut conn) = self.valkey.clone() {

@@ -216,3 +216,12 @@ CREATE TABLE IF NOT EXISTS webhook_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_webhook_outbox_pending ON webhook_outbox(status, next_retry)
     WHERE status = 'pending';
+
+-- system config: runtime-editable configuration
+CREATE TABLE IF NOT EXISTS system_config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    value_type TEXT NOT NULL DEFAULT 'string',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_by TEXT NOT NULL DEFAULT ''
+);

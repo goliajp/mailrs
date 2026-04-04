@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::Deserialize;
@@ -13,10 +14,14 @@ pub(super) async fn list_config(
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if !permissions.has("admin.system_config") {
-        return Json(serde_json::json!({
-            "success": false,
-            "message": "insufficient permissions"
-        })).into_response();
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "success": false,
+                "message": "insufficient permissions"
+            })),
+        )
+            .into_response();
     }
 
     let entries = match state.system_config {
@@ -38,12 +43,16 @@ pub(super) async fn update_config(
     State(state): State<Arc<WebState>>,
     Path(key): Path<String>,
     Json(req): Json<UpdateConfigRequest>,
-) -> Json<ApiResult> {
+) -> impl IntoResponse {
     if !permissions.has("admin.system_config") {
-        return Json(ApiResult {
-            success: false,
-            message: Some("insufficient permissions".into()),
-        });
+        return (
+            StatusCode::FORBIDDEN,
+            Json(ApiResult {
+                success: false,
+                message: Some("insufficient permissions".into()),
+            }),
+        )
+            .into_response();
     }
 
     let store = match state.system_config {
@@ -52,7 +61,8 @@ pub(super) async fn update_config(
             return Json(ApiResult {
                 success: false,
                 message: Some("system config not available".into()),
-            });
+            })
+            .into_response();
         }
     };
 
@@ -60,7 +70,8 @@ pub(super) async fn update_config(
         return Json(ApiResult {
             success: false,
             message: Some(e),
-        });
+        })
+        .into_response();
     }
 
     // audit log
@@ -73,6 +84,7 @@ pub(super) async fn update_config(
         success: true,
         message: None,
     })
+    .into_response()
 }
 
 /// DELETE /api/admin/system-config/:key
@@ -80,12 +92,16 @@ pub(super) async fn reset_config(
     AuthUser { ref address, ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Path(key): Path<String>,
-) -> Json<ApiResult> {
+) -> impl IntoResponse {
     if !permissions.has("admin.system_config") {
-        return Json(ApiResult {
-            success: false,
-            message: Some("insufficient permissions".into()),
-        });
+        return (
+            StatusCode::FORBIDDEN,
+            Json(ApiResult {
+                success: false,
+                message: Some("insufficient permissions".into()),
+            }),
+        )
+            .into_response();
     }
 
     let store = match state.system_config {
@@ -94,7 +110,8 @@ pub(super) async fn reset_config(
             return Json(ApiResult {
                 success: false,
                 message: Some("system config not available".into()),
-            });
+            })
+            .into_response();
         }
     };
 
@@ -102,7 +119,8 @@ pub(super) async fn reset_config(
         return Json(ApiResult {
             success: false,
             message: Some(e),
-        });
+        })
+        .into_response();
     }
 
     // audit log
@@ -115,4 +133,5 @@ pub(super) async fn reset_config(
         success: true,
         message: None,
     })
+    .into_response()
 }

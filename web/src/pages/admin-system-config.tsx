@@ -42,15 +42,24 @@ export function AdminSystemConfig() {
   const [entries, setEntries] = useState<ConfigEntry[]>([])
   const [loading, setLoading] = useState(true)
 
+  const [error, setError] = useState<null | string>(null)
+
   const loadConfig = useCallback(async () => {
     try {
+      setError(null)
       const data = await fetchJson<{
-        entries: ConfigEntry[]
+        entries?: ConfigEntry[]
+        message?: string
         success: boolean
       }>('/admin/system-config')
-      setEntries(data.entries ?? [])
-    } catch {
-      // keep current state on error
+      if (!data.success) {
+        setError(data.message ?? 'Failed to load configuration')
+        setEntries([])
+      } else {
+        setEntries(data.entries ?? [])
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load configuration')
     } finally {
       setLoading(false)
     }
@@ -101,7 +110,9 @@ export function AdminSystemConfig() {
 
       {loading && <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>}
 
-      {!loading && entries.length === 0 && (
+      {!loading && error && <p className="py-8 text-center text-sm text-red-500">{error}</p>}
+
+      {!loading && !error && entries.length === 0 && (
         <p className="text-fg-muted py-8 text-center text-sm">No configuration entries found</p>
       )}
 
