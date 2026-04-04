@@ -48,7 +48,7 @@ export function AdminSystemConfig() {
         entries: ConfigEntry[]
         success: boolean
       }>('/admin/system-config')
-      setEntries(data.entries)
+      setEntries(data.entries ?? [])
     } catch {
       // keep current state on error
     } finally {
