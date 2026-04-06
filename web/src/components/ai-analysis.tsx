@@ -69,13 +69,15 @@ export function AiAnalysisPanel({ message }: Props) {
               <div className="mt-0.5 flex flex-wrap gap-1">
                 {people.map((p, i) => (
                   <span
-                    className="bg-accent/10 text-accent inline-flex max-w-full items-center gap-1 truncate rounded px-2 py-0.5 text-xs select-text"
+                    className="bg-accent/10 text-accent inline-flex max-w-full items-center gap-1 overflow-hidden rounded px-2 py-0.5 text-xs select-text"
                     key={i}
                   >
                     {p.label}
                     {p.role && <span className="opacity-70">({p.role})</span>}
                     {p.email && p.email !== p.label && (
-                      <Copyable value={p.email}>{p.email}</Copyable>
+                      <span className="min-w-0 truncate">
+                        <Copyable value={p.email}>{p.email}</Copyable>
+                      </span>
                     )}
                   </span>
                 ))}

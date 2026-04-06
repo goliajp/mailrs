@@ -505,7 +505,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           <span>{extractEmail(selectedMsg.sender)}</span>
                         </Copyable>
                       </p>
-                      <p className="text-fg-muted text-xs select-text">
+                      <p className="text-fg-muted truncate text-xs select-text">
                         to {formatRecipients(selectedMsg.recipients)}
                       </p>
                       <div className="flex items-center gap-1.5">

@@ -262,9 +262,13 @@ const ConversationItem = memo(function ConversationItem({
             {isFlagged && (
               <Star className="text-warning h-3.5 w-3.5 shrink-0" fill="currentColor" />
             )}
-            <ImportanceBadge level={convo.importance_level} />
+            <span className="shrink-0">
+              <ImportanceBadge level={convo.importance_level} />
+            </span>
             {convo.category && convo.category !== 'general' && (
-              <CategoryBadge category={convo.category} />
+              <span className="shrink-0">
+                <CategoryBadge category={convo.category} />
+              </span>
             )}
             {hasUnread && (
               <span className="bg-accent flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-medium text-white">
