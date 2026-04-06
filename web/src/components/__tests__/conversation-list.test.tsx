@@ -28,6 +28,22 @@ vi.mock('sonner', () => ({
   },
 }))
 
+// mock virtualizer — jsdom has zero-height elements so virtualizer won't render
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getTotalSize: () => count * 72,
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, i) => ({
+        index: i,
+        key: i,
+        size: 72,
+        start: i * 72,
+        measureElement: () => {},
+      })),
+    measureElement: () => {},
+  }),
+}))
+
 // mock localStorage
 function makeLocalStorageMock(): Storage {
   const store: Record<string, string> = {}

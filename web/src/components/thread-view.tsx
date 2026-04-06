@@ -22,6 +22,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
+import { BottomSheet } from '@/components/bottom-sheet'
 import { Copyable } from '@/components/copy-button'
 import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
@@ -493,13 +494,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           {formatFullDate(selectedMsg.internal_date)}
                         </span>
                         {selectedMsg.action_deadline && (
-                          <span className="bg-warning/10 text-warning rounded px-2 py-0.5 text-[11px] font-medium">
+                          <span className="bg-warning/10 text-warning rounded px-2 py-0.5 text-xs font-medium md:text-[11px]">
                             Due: {selectedMsg.action_deadline}
                           </span>
                         )}
                         {selectedMsg.risk_score >= 40 && (
                           <span
-                            className={`rounded px-2 py-0.5 text-[11px] font-medium ${
+                            className={`rounded px-2 py-0.5 text-xs font-medium md:text-[11px] ${
                               selectedMsg.risk_score >= 60
                                 ? 'bg-danger/10 text-danger'
                                 : 'bg-warning/10 text-warning'
@@ -721,39 +722,24 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
       {/* delete confirm dialog */}
       {showDeleteConfirm && (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex animate-[fadeIn_150ms_ease-out] items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={() => setShowDeleteConfirm(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setShowDeleteConfirm(false)
-          }}
-          role="dialog"
-        >
-          <div
-            className="border-border bg-surface mx-4 w-full max-w-sm animate-[scaleIn_150ms_ease-out] rounded-lg border p-6 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-fg text-sm font-semibold">Delete conversation?</h3>
-            <p className="text-fg-muted mt-1.5 text-sm">
-              This will permanently delete all messages.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                className="border-border text-fg-secondary hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-sm transition-colors"
-                onClick={() => setShowDeleteConfirm(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
-                onClick={handleDelete}
-              >
-                Delete
-              </button>
-            </div>
+        <BottomSheet onClose={() => setShowDeleteConfirm(false)} open>
+          <h3 className="text-fg text-sm font-semibold">Delete conversation?</h3>
+          <p className="text-fg-muted mt-1.5 text-sm">This will permanently delete all messages.</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              className="border-border text-fg-secondary hover:bg-bg-secondary rounded-md border px-3 py-2 text-sm transition-colors"
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="bg-danger rounded-md px-3 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
+              onClick={handleDelete}
+            >
+              Delete
+            </button>
           </div>
-        </div>
+        </BottomSheet>
       )}
     </MPaneGroup>
   )
@@ -762,7 +748,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 function BubbleDateDivider({ label }: { label: string }) {
   return (
     <div className="flex justify-center py-2 select-none">
-      <span className="bg-bg-secondary text-fg-muted rounded-full px-2.5 py-0.5 text-[10px] font-medium">
+      <span className="bg-bg-secondary text-fg-muted rounded-full px-2.5 py-0.5 text-xs font-medium md:text-[10px]">
         {label}
       </span>
     </div>
@@ -968,7 +954,9 @@ function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
             </div>
           ) : (
             <>
-              <p className="text-fg-muted truncate px-3 py-1 text-[11px]">{senderEmail}</p>
+              <p className="text-fg-muted truncate px-3 py-1 text-xs md:text-[11px]">
+                {senderEmail}
+              </p>
               {FEEDBACK_ITEMS.map((item) => (
                 <button
                   className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${

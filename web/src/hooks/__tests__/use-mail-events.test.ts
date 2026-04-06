@@ -15,6 +15,7 @@ vi.mock('@/lib/api', () => ({ fetchJson: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/notification-sound', () => ({ playNotificationSound: vi.fn() }))
 vi.mock('@/store/chat', () => ({
   categoryFilterAtom: Symbol('category'),
+  connectionStatusAtom: Symbol('connectionStatus'),
   conversationsAtom: Symbol('conversations'),
   folderAtom: Symbol('folder'),
   importanceSectionAtom: Symbol('section'),

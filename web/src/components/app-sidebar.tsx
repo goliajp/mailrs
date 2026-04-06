@@ -4,9 +4,10 @@ import type { LucideIcon } from 'lucide-react'
 import { cx } from '@goliapkg/gds'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Activity, Home, Inbox, LogOut, Monitor, Moon, Server, Settings, Sun } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router'
+import { useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router'
 
+import { BottomSheet } from '@/components/bottom-sheet'
 import { postJson } from '@/lib/api'
 import { authAtom } from '@/store/auth'
 import { selectedDomainsAtom, unreadCountAtom } from '@/store/chat'
@@ -36,6 +37,8 @@ export function AppSidebar() {
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
   const domains = auth?.accessible_domains ?? []
 
+  const navigate = useNavigate()
+
   const doLogout = async () => {
     try {
       await postJson('/auth/logout', {})
@@ -43,7 +46,7 @@ export function AppSidebar() {
       // ignore
     }
     setAuth(null)
-    window.location.href = '/login'
+    navigate('/login')
   }
 
   // determine active section from current path
@@ -156,7 +159,10 @@ export function AppSidebar() {
       </aside>
 
       {/* mobile: bottom tab bar */}
-      <nav className="border-border bg-surface flex items-stretch border-t select-none md:hidden">
+      <nav
+        className="border-border bg-surface flex items-stretch border-t select-none md:hidden"
+        style={{ paddingBottom: 'var(--safe-area-bottom)' }}
+      >
         <MobileNavLink active={section === 'home'} href="/" icon={Home} label="Home" />
         <MobileNavLink
           active={section === 'mail'}
@@ -174,7 +180,7 @@ export function AppSidebar() {
         />
         <button
           aria-label="Sign out"
-          className="text-fg-muted flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] transition-colors"
+          className="text-fg-muted flex flex-1 flex-col items-center gap-0.5 py-1.5 text-xs transition-colors md:text-[10px]"
           onClick={() => setShowLogoutConfirm(true)}
         >
           <LogOut className="h-5 w-5" />
@@ -196,45 +202,27 @@ function LogoutConfirmDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onCancel])
-
   return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex animate-[fadeIn_150ms_ease-out] items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={onCancel}
-      role="dialog"
-    >
-      <div
-        className="border-border bg-surface mx-4 w-full max-w-sm animate-[scaleIn_150ms_ease-out] rounded-lg border p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-fg text-base font-semibold">Sign out?</h3>
-        <p className="text-fg-secondary mt-2 text-sm">
-          You will need to sign in again to access your mailbox.
-        </p>
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
-            onClick={onConfirm}
-          >
-            Sign out
-          </button>
-        </div>
+    <BottomSheet onClose={onCancel} open>
+      <h3 className="text-fg text-base font-semibold">Sign out?</h3>
+      <p className="text-fg-secondary mt-2 text-sm">
+        You will need to sign in again to access your mailbox.
+      </p>
+      <div className="mt-5 flex justify-end gap-2">
+        <button
+          className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-2 text-sm transition-colors"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        <button
+          className="bg-danger rounded-md px-3 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
+          onClick={onConfirm}
+        >
+          Sign out
+        </button>
       </div>
-    </div>
+    </BottomSheet>
   )
 }
 
@@ -253,14 +241,14 @@ function MobileNavLink({
   label: string
 }) {
   return (
-    <a
+    <Link
       aria-current={active ? 'page' : undefined}
       aria-label={label}
       className={cx(
-        'relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] transition-colors',
+        'relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-xs transition-colors md:text-[10px]',
         active ? 'text-accent' : 'text-fg-muted'
       )}
-      href={href}
+      to={href}
     >
       <Icon className="h-5 w-5" />
       <span>{label}</span>
@@ -269,7 +257,7 @@ function MobileNavLink({
           {badge > 99 ? '99+' : badge}
         </span>
       )}
-    </a>
+    </Link>
   )
 }
 
@@ -287,12 +275,12 @@ function SidebarLink({
   label: string
 }) {
   return (
-    <a
+    <Link
       aria-current={active ? 'page' : undefined}
       aria-label={label}
       className={cx('relative', navBtnBase, active ? navBtnActive : navBtnInactive)}
-      href={href}
       title={label}
+      to={href}
     >
       <Icon className="h-5 w-5" />
       {badge != null && badge > 0 && (
@@ -300,6 +288,6 @@ function SidebarLink({
           {badge > 99 ? '99+' : badge}
         </span>
       )}
-    </a>
+    </Link>
   )
 }

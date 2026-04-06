@@ -7,6 +7,10 @@
 
 html {
   color-scheme: light dark;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
 }
 
 body {
@@ -14,6 +18,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: var(--gds-bg);
   color: var(--gds-fg);
+  overscroll-behavior: contain;
 }
 
 ::-webkit-scrollbar {
@@ -143,4 +148,38 @@ label,
 [role='menuitem'] {
   user-select: none;
   -webkit-user-select: none;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* mobile touch target: ensure minimum 44x44px hit area without changing visual size */
+@media (hover: none) {
+  .touch-target {
+    position: relative;
+  }
+  .touch-target::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

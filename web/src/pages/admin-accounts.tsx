@@ -5,6 +5,8 @@ import { useAtom } from 'jotai'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Copyable } from '@/components/copy-button'
+import { MobileModal } from '@/components/mobile-modal'
+import { ScrollableTable } from '@/components/scrollable-table'
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
 import { accountsAtom } from '@/store/admin'
 
@@ -166,7 +168,7 @@ export function AdminAccounts() {
         </div>
       )}
 
-      <div className="border-border overflow-x-auto rounded-lg border">
+      <ScrollableTable>
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="border-border bg-bg-secondary border-b">
             <tr>
@@ -227,7 +229,7 @@ export function AdminAccounts() {
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
 
       {totalPages > 1 && (
         <div className="text-fg-secondary mt-4 flex items-center justify-between text-sm">
@@ -274,19 +276,8 @@ function DeleteConfirmDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onCancel])
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onCancel}
-    >
+    <MobileModal onClose={onCancel} open>
       <div
         className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg"
         onClick={(e) => e.stopPropagation()}
@@ -311,7 +302,7 @@ function DeleteConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </MobileModal>
   )
 }
 

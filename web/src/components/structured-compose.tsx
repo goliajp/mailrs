@@ -212,7 +212,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
           {children}
           <button
             aria-label="Remove block"
-            className="bg-surface text-fg-muted hover:bg-danger/10 hover:text-danger absolute top-1 right-2 z-10 rounded-full p-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+            className="touch-target bg-surface text-fg-muted hover:bg-danger/10 hover:text-danger absolute top-1 right-2 z-10 rounded-full p-1 opacity-100 shadow-sm transition-opacity md:p-0.5 md:opacity-0 md:group-hover:opacity-100"
             onClick={() => removeBlock(id)}
             type="button"
           >
@@ -249,7 +249,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
               </div>
               <button
                 aria-label="Remove divider"
-                className="bg-surface text-fg-muted hover:bg-danger/10 hover:text-danger ml-2 shrink-0 rounded-full p-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                className="touch-target bg-surface text-fg-muted hover:bg-danger/10 hover:text-danger ml-2 shrink-0 rounded-full p-1 opacity-100 shadow-sm transition-opacity md:p-0.5 md:opacity-0 md:group-hover:opacity-100"
                 onClick={() => removeBlock(block.id)}
                 type="button"
               >

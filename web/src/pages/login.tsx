@@ -177,6 +177,7 @@ export function Login() {
               </label>
               <input
                 aria-label="Email address"
+                autoComplete="email"
                 autoFocus
                 className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
                 id="login-email"
@@ -198,6 +199,7 @@ export function Login() {
               <div className="relative">
                 <input
                   aria-label="Password"
+                  autoComplete="current-password"
                   className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 pr-10 text-sm outline-none focus:ring-1"
                   id="login-password"
                   onChange={(e) => setPassword(e.target.value)}

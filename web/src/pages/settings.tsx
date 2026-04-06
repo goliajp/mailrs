@@ -4,6 +4,7 @@ import { toast } from '@goliapkg/gds'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useState } from 'react'
 
+import { MobileModal } from '@/components/mobile-modal'
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
 import { authAtom, getToken } from '@/store/auth'
 import { notificationsAtom, notificationSoundAtom, pageSizeAtom } from '@/store/settings'
@@ -604,19 +605,8 @@ function ConfirmDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onCancel])
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onCancel}
-    >
+    <MobileModal onClose={onCancel} open>
       <div
         className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg"
         onClick={(e) => e.stopPropagation()}
@@ -631,7 +621,7 @@ function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </MobileModal>
   )
 }
 

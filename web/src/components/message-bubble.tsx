@@ -7,6 +7,7 @@ import Markdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 
+import { MobileModal } from '@/components/mobile-modal'
 import { RenderPreview } from '@/components/render-preview'
 import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
@@ -26,13 +27,13 @@ function CodeBlock({ children, className, ...props }: React.HTMLAttributes<HTMLE
   return (
     <div className="group relative overflow-hidden">
       {lang && (
-        <span className="text-fg-muted absolute top-2 right-10 text-[11px] opacity-0 transition-opacity group-hover:opacity-100">
+        <span className="text-fg-muted absolute top-2 right-10 text-xs opacity-100 transition-opacity md:text-[11px] md:opacity-0 md:group-hover:opacity-100">
           {lang}
         </span>
       )}
       <button
         aria-label={copied ? 'Copied to clipboard' : 'Copy code'}
-        className="text-fg-muted hover:bg-bg-secondary hover:text-fg absolute top-2 right-2 rounded-md px-1.5 py-0.5 text-[11px] opacity-0 transition-opacity group-hover:opacity-100"
+        className="touch-target text-fg-muted hover:bg-bg-secondary hover:text-fg absolute top-2 right-2 rounded-md px-1.5 py-0.5 text-xs opacity-100 transition-opacity md:text-[11px] md:opacity-0 md:group-hover:opacity-100"
         onClick={copy}
       >
         {copied ? 'Copied!' : 'Copy'}
@@ -230,24 +231,22 @@ function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: numbe
 
       {/* image lightbox */}
       {lightbox && isImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-          onClick={() => setLightbox(false)}
-        >
-          <img
-            alt={att.filename}
-            className="max-h-[90vh] max-w-[90vw] rounded-md object-contain"
-            onClick={(e) => e.stopPropagation()}
-            src={url}
-          />
-          <button
-            className="absolute top-4 right-4 rounded-md bg-black/50 px-3 py-1 text-white transition-colors hover:bg-black/70"
-            onClick={() => setLightbox(false)}
-            type="button"
-          >
-            &times;
-          </button>
-        </div>
+        <MobileModal className="bg-black/60" onClose={() => setLightbox(false)} open>
+          <div onClick={(e) => e.stopPropagation()}>
+            <img
+              alt={att.filename}
+              className="max-h-[90vh] max-w-[90vw] rounded-md object-contain"
+              src={url}
+            />
+            <button
+              className="absolute top-4 right-4 rounded-md bg-black/50 px-3 py-1 text-white transition-colors hover:bg-black/70"
+              onClick={() => setLightbox(false)}
+              type="button"
+            >
+              &times;
+            </button>
+          </div>
+        </MobileModal>
       )}
 
       {/* PDF inline preview — sandbox restricts script execution in PDF viewers */}

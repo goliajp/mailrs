@@ -6,6 +6,8 @@ import { Fragment, useCallback, useEffect, useState } from 'react'
 
 import { Copyable } from '@/components/copy-button'
 import { DomainHealthCard } from '@/components/domain-health-card'
+import { MobileModal } from '@/components/mobile-modal'
+import { ScrollableTable } from '@/components/scrollable-table'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { domainsAtom } from '@/store/admin'
 
@@ -116,70 +118,72 @@ export function AdminDomains() {
       )}
 
       <div className="border-border overflow-hidden rounded-lg border">
-        <table className="w-full text-left text-sm">
-          <thead className="border-border bg-bg-secondary border-b">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">Domain</th>
-              <th className="px-4 py-2.5 font-medium">Created</th>
-              <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {domains.map((domain) => (
-              <Fragment key={domain.name}>
-                <tr className="border-border border-b last:border-0">
-                  <td className="px-4 py-3 font-medium">
-                    <Copyable value={domain.name}>{domain.name}</Copyable>
-                  </td>
-                  <td className="text-fg-secondary px-4 py-3">
-                    {new Date(domain.created_at * 1000).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      className="text-accent mr-3 text-xs hover:opacity-80 disabled:opacity-50"
-                      disabled={checking === domain.name}
-                      onClick={() => toggleReport(domain.name)}
-                    >
-                      {checking === domain.name
-                        ? 'Checking...'
-                        : reports[domain.name]
-                          ? 'Hide'
-                          : 'Check'}
-                    </button>
-                    <button
-                      className="text-danger text-xs transition-colors hover:opacity-70"
-                      onClick={() => setDeleteTarget(domain.name)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-                {reports[domain.name] && (
-                  <tr>
-                    <td className="px-4 pt-1 pb-4" colSpan={3}>
-                      <DomainHealthCard
-                        checking={checking === domain.name}
-                        onRecheck={() => handleCheck(domain.name)}
-                        report={reports[domain.name]}
-                      />
+        <ScrollableTable>
+          <table className="w-full text-left text-sm">
+            <thead className="border-border bg-bg-secondary border-b">
+              <tr>
+                <th className="px-4 py-2.5 font-medium">Domain</th>
+                <th className="px-4 py-2.5 font-medium">Created</th>
+                <th className="px-4 py-2.5 text-right font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {domains.map((domain) => (
+                <Fragment key={domain.name}>
+                  <tr className="border-border border-b last:border-0">
+                    <td className="px-4 py-3 font-medium">
+                      <Copyable value={domain.name}>{domain.name}</Copyable>
+                    </td>
+                    <td className="text-fg-secondary px-4 py-3">
+                      {new Date(domain.created_at * 1000).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        className="text-accent mr-3 text-xs hover:opacity-80 disabled:opacity-50"
+                        disabled={checking === domain.name}
+                        onClick={() => toggleReport(domain.name)}
+                      >
+                        {checking === domain.name
+                          ? 'Checking...'
+                          : reports[domain.name]
+                            ? 'Hide'
+                            : 'Check'}
+                      </button>
+                      <button
+                        className="text-danger text-xs transition-colors hover:opacity-70"
+                        onClick={() => setDeleteTarget(domain.name)}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
-                )}
-              </Fragment>
-            ))}
-            {domains.length === 0 && (
-              <tr>
-                <td className="text-fg-muted px-4 py-8 text-center" colSpan={3}>
-                  No domains configured
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  {reports[domain.name] && (
+                    <tr>
+                      <td className="px-4 pt-1 pb-4" colSpan={3}>
+                        <DomainHealthCard
+                          checking={checking === domain.name}
+                          onRecheck={() => handleCheck(domain.name)}
+                          report={reports[domain.name]}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+              {domains.length === 0 && (
+                <tr>
+                  <td className="text-fg-muted px-4 py-8 text-center" colSpan={3}>
+                    No domains configured
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </ScrollableTable>
       </div>
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <MobileModal onClose={() => setDeleteTarget(null)} open>
           <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
             <p className="text-fg-secondary mb-4 text-sm">
               Delete domain <span className="text-fg font-medium">{deleteTarget}</span>? This will
@@ -200,7 +204,7 @@ export function AdminDomains() {
               </button>
             </div>
           </div>
-        </div>
+        </MobileModal>
       )}
     </div>
   )

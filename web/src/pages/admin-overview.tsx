@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson } from '@/lib/api'
 
 // --- types ---
@@ -146,34 +147,38 @@ function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
       {entries.length === 0 ? (
         <p className="text-fg-muted text-sm">No entries</p>
       ) : (
-        <table className="w-full text-xs">
-          <tbody>
-            {entries.map((e) => {
-              const ip = e.detail.replace(/^ip=/, '').trim()
-              return (
-                <tr className="border-border border-b last:border-0" key={e.id}>
-                  <td className="text-fg-muted py-1.5 pr-2 whitespace-nowrap">
-                    {formatRelativeTime(e.timestamp)}
-                  </td>
-                  <td className="py-1.5 pr-2 whitespace-nowrap">
-                    <span
-                      className={`rounded px-1.5 py-0.5 font-medium ${
-                        e.action === 'login_failed'
-                          ? 'bg-danger/10 text-danger'
-                          : e.action === 'login'
-                            ? 'bg-success/10 text-success'
-                            : 'bg-bg-secondary text-fg-secondary'
-                      }`}
-                    >
-                      {e.action.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="text-fg-muted py-1.5 text-right tabular-nums">{ip || e.target}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <ScrollableTable>
+          <table className="w-full text-xs">
+            <tbody>
+              {entries.map((e) => {
+                const ip = e.detail.replace(/^ip=/, '').trim()
+                return (
+                  <tr className="border-border border-b last:border-0" key={e.id}>
+                    <td className="text-fg-muted py-1.5 pr-2 whitespace-nowrap">
+                      {formatRelativeTime(e.timestamp)}
+                    </td>
+                    <td className="py-1.5 pr-2 whitespace-nowrap">
+                      <span
+                        className={`rounded px-1.5 py-0.5 font-medium ${
+                          e.action === 'login_failed'
+                            ? 'bg-danger/10 text-danger'
+                            : e.action === 'login'
+                              ? 'bg-success/10 text-success'
+                              : 'bg-bg-secondary text-fg-secondary'
+                        }`}
+                      >
+                        {e.action.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="text-fg-muted py-1.5 text-right tabular-nums">
+                      {ip || e.target}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </ScrollableTable>
       )}
     </div>
   )

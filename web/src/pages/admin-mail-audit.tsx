@@ -3,6 +3,7 @@ import type { AttachmentInfo } from '@/lib/types'
 import { ChevronLeft, Download, Eye, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson } from '@/lib/api'
 import { getToken } from '@/store/auth'
 
@@ -137,53 +138,55 @@ export function AdminMailAudit() {
         </div>
 
         <div className="border-border overflow-hidden rounded-lg border">
-          <table className="w-full text-left text-sm">
-            <thead className="border-border bg-bg-secondary border-b">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Account</th>
-                <th className="px-4 py-2.5 font-medium">Domain</th>
-                <th className="px-4 py-2.5 font-medium">Name</th>
-                <th className="px-4 py-2.5 font-medium">Status</th>
-                <th className="px-4 py-2.5 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAccounts.map((a) => (
-                <tr
-                  className="border-border hover:bg-bg-secondary border-b last:border-0"
-                  key={a.address}
-                >
-                  <td className="px-4 py-3 font-medium">{a.address}</td>
-                  <td className="text-fg-secondary px-4 py-3">{a.domain}</td>
-                  <td className="text-fg-secondary px-4 py-3">{a.display_name || '—'}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${a.active ? 'bg-success/10 text-success' : 'bg-bg-secondary text-fg-muted'}`}
-                    >
-                      {a.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      className="bg-fg text-bg rounded-md px-3 py-1 text-xs font-medium transition-colors hover:opacity-90"
-                      onClick={() => handleSelectAccount(a.address)}
-                    >
-                      View Mail
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filteredAccounts.length === 0 && (
+          <ScrollableTable>
+            <table className="w-full text-left text-sm">
+              <thead className="border-border bg-bg-secondary border-b">
                 <tr>
-                  <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
-                    {accounts.length === 0
-                      ? 'No auditable accounts (requires admin.impersonate permission)'
-                      : 'No matches'}
-                  </td>
+                  <th className="px-4 py-2.5 font-medium">Account</th>
+                  <th className="px-4 py-2.5 font-medium">Domain</th>
+                  <th className="px-4 py-2.5 font-medium">Name</th>
+                  <th className="px-4 py-2.5 font-medium">Status</th>
+                  <th className="px-4 py-2.5 font-medium" />
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredAccounts.map((a) => (
+                  <tr
+                    className="border-border hover:bg-bg-secondary border-b last:border-0"
+                    key={a.address}
+                  >
+                    <td className="px-4 py-3 font-medium">{a.address}</td>
+                    <td className="text-fg-secondary px-4 py-3">{a.domain}</td>
+                    <td className="text-fg-secondary px-4 py-3">{a.display_name || '—'}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${a.active ? 'bg-success/10 text-success' : 'bg-bg-secondary text-fg-muted'}`}
+                      >
+                        {a.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        className="bg-fg text-bg rounded-md px-3 py-1 text-xs font-medium transition-colors hover:opacity-90"
+                        onClick={() => handleSelectAccount(a.address)}
+                      >
+                        View Mail
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredAccounts.length === 0 && (
+                  <tr>
+                    <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
+                      {accounts.length === 0
+                        ? 'No auditable accounts (requires admin.impersonate permission)'
+                        : 'No matches'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </ScrollableTable>
         </div>
       </div>
     )
@@ -251,7 +254,7 @@ export function AdminMailAudit() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <p className="truncate text-sm font-medium">{c.subject || '(no subject)'}</p>
-                <span className="bg-bg-secondary text-fg-muted shrink-0 rounded-full px-1.5 py-0.5 text-[10px]">
+                <span className="bg-bg-secondary text-fg-muted shrink-0 rounded-full px-1.5 py-0.5 text-xs md:text-[10px]">
                   {c.message_count}
                 </span>
               </div>

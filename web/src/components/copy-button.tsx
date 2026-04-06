@@ -37,7 +37,7 @@ export function CopyButton({ className, value }: { className?: string; value: st
   return (
     <button
       aria-label={copied ? 'Copied' : `Copy ${value}`}
-      className={`text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary inline-flex shrink-0 items-center justify-center rounded-md p-0.5 opacity-0 transition-opacity group-hover/copy:opacity-100 ${className ?? ''}`}
+      className={`touch-target text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary inline-flex shrink-0 items-center justify-center rounded-md p-1 opacity-100 transition-opacity md:p-0.5 md:opacity-0 md:group-hover/copy:opacity-100 ${className ?? ''}`}
       onClick={handleCopy}
       title={copied ? 'Copied!' : `Copy "${value}"`}
     >

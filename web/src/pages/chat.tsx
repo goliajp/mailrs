@@ -260,6 +260,18 @@ export function Chat() {
       <MPane className={showThread ? 'hidden md:flex' : ''} width={480}>
         <ConversationList
           onLoadMore={loadMore}
+          onRefresh={() =>
+            loadConversations({
+              archived: showArchived || undefined,
+              category: categoryFilter,
+              domains: selectedDomains.length > 0 ? selectedDomains : undefined,
+              folder,
+              query: searchQuery || undefined,
+              section: importanceSection,
+              starred: quickFilter === 'starred' || undefined,
+              unread: quickFilter === 'unread' || undefined,
+            })
+          }
           onSelectConversation={() => setMobileView('thread')}
         />
       </MPane>

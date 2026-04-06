@@ -3,6 +3,8 @@ import type { DomainInfo } from '@/lib/types'
 import { toast } from '@goliapkg/gds'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 
+import { MobileModal } from '@/components/mobile-modal'
+import { ScrollableTable } from '@/components/scrollable-table'
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
 
 type ExpandedData = {
@@ -148,7 +150,7 @@ export function AdminGroups() {
         </div>
       )}
 
-      <div className="border-border overflow-hidden rounded-lg border">
+      <ScrollableTable>
         <table className="w-full text-left text-sm">
           <thead className="border-border bg-bg-secondary border-b">
             <tr>
@@ -212,10 +214,10 @@ export function AdminGroups() {
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
 
       {deleteTarget !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <MobileModal onClose={() => setDeleteTarget(null)} open>
           <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
             <p className="text-fg-secondary mb-4 text-sm">
               Delete this group? This cannot be undone.
@@ -235,7 +237,7 @@ export function AdminGroups() {
               </button>
             </div>
           </div>
-        </div>
+        </MobileModal>
       )}
     </div>
   )
