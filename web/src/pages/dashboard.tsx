@@ -181,7 +181,7 @@ export function Dashboard() {
     return (
       <MPaneGroup>
         <MPane>
-          <ScrollArea className="p-4 md:p-6">
+          <ScrollArea className="max-w-full overflow-x-hidden p-4 md:p-6">
             <div className="animate-pulse space-y-6">
               <div className="space-y-2">
                 <div className="bg-border h-6 w-48 rounded" />
@@ -215,7 +215,7 @@ export function Dashboard() {
   return (
     <MPaneGroup>
       <MPane>
-        <ScrollArea className="p-4 md:p-6">
+        <ScrollArea className="max-w-full overflow-x-hidden p-4 md:p-6">
           {/* greeting + actions */}
           <div className="mb-6 flex items-start justify-between">
             <div>
