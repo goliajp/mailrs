@@ -304,7 +304,7 @@ export function Dashboard() {
           {/* main content grid */}
           <div className="grid gap-6 lg:grid-cols-3">
             {/* left column */}
-            <div className="space-y-6 lg:col-span-2">
+            <div className="min-w-0 space-y-6 lg:col-span-2">
               {/* pinned */}
               {pinned.length > 0 && (
                 <Section icon={Pin} title="Pinned">
@@ -658,7 +658,7 @@ function Section({
   title: string
 }) {
   return (
-    <div className="border-border rounded-lg border">
+    <div className="border-border overflow-hidden rounded-lg border">
       <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
         <div className="flex items-center gap-2">
           <Icon aria-hidden="true" className="text-fg-muted h-4 w-4" />
