@@ -7,6 +7,7 @@ import { fetchJson } from '@/lib/api'
 import { playNotificationSound } from '@/lib/notification-sound'
 import {
   categoryFilterAtom,
+  connectionStatusAtom,
   conversationsAtom,
   folderAtom,
   importanceSectionAtom,
@@ -20,9 +21,12 @@ import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 
 const POLL_INTERVAL = 60_000
 const WS_PING_INTERVAL = 30_000
+const RECONNECT_BASE = 1_000
+const RECONNECT_MAX = 30_000
 
 export function useMailEvents(user: string) {
   const setConversations = useSetAtom(conversationsAtom)
+  const setConnectionStatus = useSetAtom(connectionStatusAtom)
   const setThreadMessages = useSetAtom(threadMessagesAtom)
   const selectedThreadId = useAtomValue(selectedThreadIdAtom)
   const categoryFilter = useAtomValue(categoryFilterAtom)
@@ -136,9 +140,11 @@ export function useMailEvents(user: string) {
   useEffect(() => {
     if (!user) return
     let closed = false
+    let reconnectDelay = RECONNECT_BASE
 
     function connect() {
       if (closed) return
+      if (!navigator.onLine) return
       // clear previous ping timer
       if (pingTimer.current) clearInterval(pingTimer.current)
 
@@ -150,6 +156,8 @@ export function useMailEvents(user: string) {
       wsRef.current = ws
 
       ws.onopen = () => {
+        reconnectDelay = RECONNECT_BASE
+        setConnectionStatus('connected')
         // send periodic pings to keep connection alive and detect dead sockets
         pingTimer.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
@@ -194,8 +202,10 @@ export function useMailEvents(user: string) {
 
       ws.onclose = () => {
         if (pingTimer.current) clearInterval(pingTimer.current)
+        setConnectionStatus(navigator.onLine ? 'connecting' : 'offline')
         if (!closed) {
-          reconnectTimer.current = setTimeout(connect, 3000)
+          reconnectTimer.current = setTimeout(connect, reconnectDelay)
+          reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX)
         }
       }
 
@@ -233,14 +243,37 @@ export function useMailEvents(user: string) {
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
 
+    // reconnect immediately when device comes back online
+    function onOnline() {
+      reconnectDelay = RECONNECT_BASE
+      if (
+        wsRef.current &&
+        wsRef.current.readyState !== WebSocket.OPEN &&
+        wsRef.current.readyState !== WebSocket.CONNECTING
+      ) {
+        connect()
+      }
+      refreshAll()
+    }
+
+    function onOffline() {
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+      setConnectionStatus('offline')
+    }
+
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+
     return () => {
       closed = true
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       if (pingTimer.current) clearInterval(pingTimer.current)
       if (pollTimer.current) clearInterval(pollTimer.current)
       document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
       wsRef.current?.close()
       wsRef.current = null
     }
-  }, [user, refreshConversations, refreshThread, refreshAll])
+  }, [user, refreshConversations, refreshThread, refreshAll, setConnectionStatus])
 }

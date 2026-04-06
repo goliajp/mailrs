@@ -2,6 +2,7 @@ import type { ContextMenuItem } from '@/components/context-menu'
 import type { CategoryCount, ConversationSummary } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   Check,
@@ -15,11 +16,12 @@ import {
   Star,
   X,
 } from 'lucide-react'
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
-import { ContextMenu, useContextMenu } from '@/components/context-menu'
+import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { SwipeableRow } from '@/components/swipeable-row'
 import { fetchJson, postJson, snoozeConversation } from '@/lib/api'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
@@ -132,6 +134,9 @@ const ConversationItem = memo(function ConversationItem({
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onTouchEnd={ctx.onTouchEnd}
+      onTouchMove={ctx.onTouchMove}
+      onTouchStart={ctx.onTouchStart}
       role="listitem"
     >
       <button
@@ -177,13 +182,39 @@ const ConversationItem = memo(function ConversationItem({
             </span>
             <div className="flex shrink-0 items-center gap-1.5">
               {convo.message_count > 1 && (
-                <span className="bg-bg-secondary text-fg-muted rounded px-1 py-px text-[10px] tabular-nums">
+                <span className="bg-bg-secondary text-fg-muted rounded px-1 py-px text-xs tabular-nums md:text-[10px]">
                   {convo.message_count}
                 </span>
               )}
               {isPinned && <Pin className="text-accent h-3 w-3" />}
+              {/* mobile: always show action buttons; desktop: show on hover */}
+              {!batchMode && (
+                <span className={`flex items-center gap-0.5 ${hovered ? '' : 'hidden'} md:hidden`}>
+                  <button
+                    className="touch-target text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-1"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive')
+                    }}
+                    title={isArchived ? 'Unarchive' : 'Archive'}
+                  >
+                    <Mail className="h-4 w-4" />
+                  </button>
+                  <button
+                    className={`touch-target rounded p-1 ${isFlagged ? 'text-warning' : 'text-fg-muted hover:text-fg-secondary'}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star')
+                    }}
+                    title={isFlagged ? 'Unstar' : 'Star'}
+                  >
+                    <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
+                  </button>
+                </span>
+              )}
+              {/* desktop: hover actions */}
               {hovered && !batchMode ? (
-                <span className="flex items-center gap-0.5">
+                <span className="hidden items-center gap-0.5 md:flex">
                   <button
                     className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-0.5"
                     onClick={(e) => {
@@ -206,10 +237,20 @@ const ConversationItem = memo(function ConversationItem({
                   </button>
                 </span>
               ) : (
-                <span className="text-fg-muted text-xs" title={formatFullDate(convo.last_date)}>
+                <span
+                  className="text-fg-muted hidden text-xs md:inline"
+                  title={formatFullDate(convo.last_date)}
+                >
                   {formatDate(convo.last_date)}
                 </span>
               )}
+              {/* mobile: always show timestamp */}
+              <span
+                className="text-fg-muted text-xs md:hidden"
+                title={formatFullDate(convo.last_date)}
+              >
+                {formatDate(convo.last_date)}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -235,6 +276,7 @@ const ConversationItem = memo(function ConversationItem({
         </div>
       </button>
       <ContextMenu items={contextItems} onClose={ctx.close} position={ctx.position} />
+      <ActionSheet items={contextItems} onClose={ctx.close} open={ctx.actionSheetOpen} />
     </div>
   )
 })
@@ -528,11 +570,19 @@ function FilterBar() {
 
 const dateLabel = dateGroupLabel
 
+type VirtualListItem =
+  | { convo: ConversationSummary; type: 'conversation' }
+  | { label: string; type: 'divider' }
+  | { type: 'end' }
+  | { type: 'sentinel' }
+
 export function ConversationList({
   onLoadMore,
+  onRefresh,
   onSelectConversation,
 }: {
   onLoadMore: () => void
+  onRefresh?: () => Promise<void> | void
   onSelectConversation?: () => void
 }) {
   const auth = useAtomValue(authAtom)
@@ -871,71 +921,27 @@ export function ConversationList({
 
       <FilterBar />
 
-      <div
-        aria-label="Conversations"
-        className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-14' : ''}`}
-        ref={scrollContainerRef}
-        role="list"
-      >
-        {initialLoading && conversations.length === 0 ? (
-          <ConversationSkeleton />
-        ) : conversations.length === 0 ? (
-          <div className="text-fg-muted flex flex-col items-center justify-center p-8 text-center">
-            <Mail aria-hidden="true" className="text-fg-muted mb-3 h-10 w-10" strokeWidth={1} />
-            <p className="text-sm font-medium">
-              {isSearching
-                ? 'No results found'
-                : folder === 'Sent'
-                  ? 'No sent messages'
-                  : folder === 'Drafts'
-                    ? 'No drafts'
-                    : folder === 'Trash'
-                      ? 'Trash is empty'
-                      : showArchived
-                        ? 'No archived conversations'
-                        : 'All caught up!'}
-            </p>
-            <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : ''}</p>
-          </div>
-        ) : (
-          (() => {
-            let prevGroup = ''
-            return sortedConversations.map((c) => {
-              const group = dateLabel(c.last_date)
-              const showDivider = group !== prevGroup
-              prevGroup = group
-              return (
-                <Fragment key={c.thread_id}>
-                  {showDivider && <DateDivider label={group} />}
-                  <ConversationItem
-                    batchMode={batchMode}
-                    checked={selectedThreadIds.has(c.thread_id)}
-                    convo={c}
-                    myEmail={myEmail}
-                    onContextAction={handleContextAction}
-                    onSelect={handleSelect}
-                    onToggleCheck={toggleThreadCheck}
-                    selected={selectedId === c.thread_id}
-                  />
-                </Fragment>
-              )
-            })
-          })()
-        )}
-
-        {/* infinite scroll sentinel */}
-        {hasMore && conversations.length > 0 && (
-          <div className="flex justify-center py-4" ref={sentinelCallback}>
-            {loadingMore && (
-              <div className="border-border border-t-fg-secondary h-5 w-5 animate-spin rounded-full border-2" />
-            )}
-          </div>
-        )}
-
-        {!hasMore && conversations.length > 0 && (
-          <div className="text-fg-muted py-3 text-center text-xs">No more conversations</div>
-        )}
-      </div>
+      <VirtualConversationList
+        batchMode={batchMode}
+        conversations={sortedConversations}
+        dateLabel={dateLabel}
+        folder={folder}
+        hasBatchBar={hasBatchBar}
+        hasMore={hasMore}
+        initialLoading={initialLoading}
+        isSearching={isSearching}
+        loadingMore={loadingMore}
+        myEmail={myEmail}
+        onContextAction={handleContextAction}
+        onLoadMore={sentinelCallback}
+        onRefresh={onRefresh}
+        onSelect={handleSelect}
+        onToggleCheck={toggleThreadCheck}
+        scrollContainerRef={scrollContainerRef}
+        selectedId={selectedId}
+        selectedThreadIds={selectedThreadIds}
+        showArchived={showArchived}
+      />
 
       {/* floating batch action bar */}
       {hasBatchBar && (
@@ -1042,9 +1048,245 @@ function ConversationSkeleton() {
 function DateDivider({ label }: { label: string }) {
   return (
     <div className="sticky top-0 z-10 flex justify-center py-1.5 select-none">
-      <span className="bg-bg-secondary text-fg-muted rounded-full px-2.5 py-0.5 text-[10px] font-medium">
+      <span className="bg-bg-secondary text-fg-muted rounded-full px-2.5 py-0.5 text-xs font-medium md:text-[10px]">
         {label}
       </span>
+    </div>
+  )
+}
+
+function VirtualConversationList({
+  batchMode,
+  conversations,
+  dateLabel,
+  folder,
+  hasBatchBar,
+  hasMore,
+  initialLoading,
+  isSearching,
+  loadingMore,
+  myEmail,
+  onContextAction,
+  onLoadMore,
+  onRefresh,
+  onSelect,
+  onToggleCheck,
+  scrollContainerRef,
+  selectedId,
+  selectedThreadIds,
+  showArchived,
+}: {
+  batchMode: boolean
+  conversations: ConversationSummary[]
+  dateLabel: (ts: number) => string
+  folder: null | string
+  hasBatchBar: boolean
+  hasMore: boolean
+  initialLoading: boolean
+  isSearching: boolean
+  loadingMore: boolean
+  myEmail: string
+  onContextAction: (threadId: string, action: SingleAction) => void
+  onLoadMore: (node: HTMLDivElement | null) => void
+  onRefresh?: () => Promise<void> | void
+  onSelect: (threadId: string) => void
+  onToggleCheck: (threadId: string) => void
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>
+  selectedId: null | string
+  selectedThreadIds: Set<string>
+  showArchived: boolean
+}) {
+  // build flat list of items
+  const items = useMemo<VirtualListItem[]>(() => {
+    if (conversations.length === 0) return []
+    const result: VirtualListItem[] = []
+    let prevGroup = ''
+    for (const c of conversations) {
+      const group = dateLabel(c.last_date)
+      if (group !== prevGroup) {
+        result.push({ label: group, type: 'divider' })
+        prevGroup = group
+      }
+      result.push({ convo: c, type: 'conversation' })
+    }
+    if (hasMore) result.push({ type: 'sentinel' })
+    else result.push({ type: 'end' })
+    return result
+  }, [conversations, dateLabel, hasMore])
+
+  const parentRef = useRef<HTMLDivElement>(null)
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    overscan: 10,
+    estimateSize: (index) => {
+      const item = items[index]
+      if (item.type === 'divider') return 32
+      if (item.type === 'sentinel' || item.type === 'end') return 48
+      return 72
+    },
+    getScrollElement: () => parentRef.current,
+  })
+
+  // pull-to-refresh state (must be before early returns)
+  const [pullDistance, setPullDistance] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const pullStartY = useRef(0)
+  const isPulling = useRef(false)
+
+  const handlePullStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (!onRefresh || !parentRef.current || parentRef.current.scrollTop > 0) return
+      pullStartY.current = e.touches[0].clientY
+      isPulling.current = true
+    },
+    [onRefresh]
+  )
+
+  const handlePullMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!isPulling.current || refreshing) return
+      const dy = e.touches[0].clientY - pullStartY.current
+      if (dy > 0) {
+        setPullDistance(Math.min(80, dy * 0.4))
+      } else {
+        isPulling.current = false
+        setPullDistance(0)
+      }
+    },
+    [refreshing]
+  )
+
+  const handlePullEnd = useCallback(async () => {
+    if (!isPulling.current || !onRefresh) return
+    isPulling.current = false
+    if (pullDistance >= 60) {
+      setRefreshing(true)
+      try {
+        await onRefresh()
+      } finally {
+        setRefreshing(false)
+      }
+    }
+    setPullDistance(0)
+  }, [pullDistance, onRefresh])
+
+  if (initialLoading && conversations.length === 0) {
+    return (
+      <div
+        className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-14' : ''}`}
+        ref={scrollContainerRef}
+        role="list"
+      >
+        <ConversationSkeleton />
+      </div>
+    )
+  }
+
+  if (conversations.length === 0) {
+    return (
+      <div
+        className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-14' : ''}`}
+        ref={scrollContainerRef}
+        role="list"
+      >
+        <div className="text-fg-muted flex flex-col items-center justify-center p-8 text-center">
+          <Mail aria-hidden="true" className="text-fg-muted mb-3 h-10 w-10" strokeWidth={1} />
+          <p className="text-sm font-medium">
+            {isSearching
+              ? 'No results found'
+              : folder === 'Sent'
+                ? 'No sent messages'
+                : folder === 'Drafts'
+                  ? 'No drafts'
+                  : folder === 'Trash'
+                    ? 'Trash is empty'
+                    : showArchived
+                      ? 'No archived conversations'
+                      : 'All caught up!'}
+          </p>
+          <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : ''}</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      aria-label="Conversations"
+      className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-14' : ''}`}
+      onTouchEnd={handlePullEnd}
+      onTouchMove={handlePullMove}
+      onTouchStart={handlePullStart}
+      ref={(node) => {
+        // share ref between virtualizer and external scroll container
+        ;(parentRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+        if (scrollContainerRef && 'current' in scrollContainerRef) {
+          ;(scrollContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+        }
+      }}
+      role="list"
+    >
+      {/* pull-to-refresh indicator */}
+      {(pullDistance > 0 || refreshing) && (
+        <div
+          className="flex items-center justify-center md:hidden"
+          style={{ height: refreshing ? 40 : pullDistance }}
+        >
+          <div
+            className={`border-border border-t-accent h-5 w-5 rounded-full border-2 ${refreshing ? 'animate-spin' : ''}`}
+            style={refreshing ? undefined : { transform: `rotate(${pullDistance * 4}deg)` }}
+          />
+        </div>
+      )}
+      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const item = items[virtualItem.index]
+          return (
+            <div
+              className="absolute top-0 left-0 w-full"
+              data-index={virtualItem.index}
+              key={virtualItem.index}
+              ref={virtualizer.measureElement}
+              style={{ transform: `translateY(${virtualItem.start}px)` }}
+            >
+              {item.type === 'divider' && <DateDivider label={item.label} />}
+              {item.type === 'conversation' && (
+                <SwipeableRow
+                  onSwipeLeft={() => onContextAction(item.convo.thread_id, 'delete')}
+                  onSwipeRight={() =>
+                    onContextAction(
+                      item.convo.thread_id,
+                      item.convo.archived ? 'unarchive' : 'archive'
+                    )
+                  }
+                >
+                  <ConversationItem
+                    batchMode={batchMode}
+                    checked={selectedThreadIds.has(item.convo.thread_id)}
+                    convo={item.convo}
+                    myEmail={myEmail}
+                    onContextAction={onContextAction}
+                    onSelect={onSelect}
+                    onToggleCheck={onToggleCheck}
+                    selected={selectedId === item.convo.thread_id}
+                  />
+                </SwipeableRow>
+              )}
+              {item.type === 'sentinel' && (
+                <div className="flex justify-center py-4" ref={onLoadMore}>
+                  {loadingMore && (
+                    <div className="border-border border-t-fg-secondary h-5 w-5 animate-spin rounded-full border-2" />
+                  )}
+                </div>
+              )}
+              {item.type === 'end' && (
+                <div className="text-fg-muted py-3 text-center text-xs">No more conversations</div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

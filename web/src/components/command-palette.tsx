@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
+import { MobileModal } from '@/components/mobile-modal'
 import { authAtom } from '@/store/auth'
 import { composingNewAtom } from '@/store/chat'
 import { themeModeAtom } from '@/store/theme'
@@ -112,7 +113,7 @@ export function CommandPalette() {
   let flatIndex = 0
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={close}>
+    <MobileModal className="items-start" onClose={close} open>
       <div
         className="border-border bg-surface mx-auto mt-[20vh] max-w-lg overflow-hidden rounded-xl border shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -175,7 +176,7 @@ export function CommandPalette() {
           )}
         </div>
       </div>
-    </div>
+    </MobileModal>
   )
 }
 

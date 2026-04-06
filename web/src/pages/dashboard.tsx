@@ -462,7 +462,7 @@ export function Dashboard() {
                           <p className="text-fg truncate text-sm font-medium">{s.name}</p>
                           <p className="text-fg-muted truncate text-xs">{s.email}</p>
                         </div>
-                        <span className="bg-bg-secondary text-fg-muted shrink-0 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums">
+                        <span className="bg-bg-secondary text-fg-muted shrink-0 rounded-full px-1.5 py-0.5 text-xs tabular-nums md:text-[10px]">
                           {s.count}
                         </span>
                       </div>
@@ -506,7 +506,7 @@ export function Dashboard() {
                           <span className="text-fg-secondary">{f.name}</span>
                           <div className="flex items-center gap-2">
                             {f.unseen > 0 && (
-                              <span className="bg-accent/10 text-accent rounded-full px-1.5 py-0.5 text-[10px] font-medium">
+                              <span className="bg-accent/10 text-accent rounded-full px-1.5 py-0.5 text-xs font-medium md:text-[10px]">
                                 {f.unseen}
                               </span>
                             )}

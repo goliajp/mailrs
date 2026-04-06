@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
-import { useEffect } from 'react'
+
+import { MobileModal } from '@/components/mobile-modal'
 
 type ShortcutEntry = {
   description: string
@@ -53,31 +54,10 @@ type Props = {
 }
 
 export function KeyboardShortcutsDialog({ onClose, open }: Props) {
-  useEffect(() => {
-    if (!open) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === '?') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, onClose])
-
   if (!open) return null
 
   return (
-    // overlay
-    <div
-      aria-label="Keyboard shortcuts"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
-      role="dialog"
-    >
+    <MobileModal onClose={onClose} open>
       {/* panel — stop propagation so clicks inside don't close */}
       <div
         className="border-border bg-surface w-full max-w-sm rounded-lg border p-6 shadow-lg select-none"
@@ -136,6 +116,6 @@ export function KeyboardShortcutsDialog({ onClose, open }: Props) {
           to close
         </p>
       </div>
-    </div>
+    </MobileModal>
   )
 }

@@ -6,6 +6,7 @@ import {
   themePresets,
   ToastProvider,
   useFonts,
+  useResolvedMode,
   useThemeEffect,
 } from '@goliapkg/gds'
 import { useAtomValue } from 'jotai'
@@ -22,7 +23,7 @@ import { Dashboard } from '@/pages/dashboard'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 import { authAtom } from '@/store/auth'
-import { unreadCountAtom } from '@/store/chat'
+import { connectionStatusAtom, unreadCountAtom } from '@/store/chat'
 
 const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
 const Playground = lazy(() => import('@/pages/playground').then((m) => ({ default: m.Playground })))
@@ -36,6 +37,7 @@ export function App() {
   useDocumentTitle()
   useThemeEffect()
   useFonts()
+  useThemeColor()
 
   return (
     <ErrorBoundary>
@@ -160,6 +162,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function StatusBar() {
   const auth = useAtomValue(authAtom)
+  const wsStatus = useAtomValue(connectionStatusAtom)
   const location = useLocation()
   const [health, setHealth] = useState<null | {
     pg: boolean
@@ -206,6 +209,13 @@ function StatusBar() {
             {health.valkey ? 'Valkey' : ''}
           </span>
         )}
+        <span className="flex items-center gap-1">
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${wsStatus === 'connected' ? 'bg-success' : wsStatus === 'connecting' ? 'bg-warning' : 'bg-danger'}`}
+            title={`WS: ${wsStatus}`}
+          />
+          <span className="hidden sm:inline">{wsStatus === 'offline' ? 'Offline' : ''}</span>
+        </span>
         <span className="text-border-strong">·</span>
         <span>{section}</span>
       </div>
@@ -223,4 +233,15 @@ function useDocumentTitle() {
   useEffect(() => {
     document.title = unreadCount > 0 ? `(${unreadCount}) Mailrs` : 'Mailrs'
   }, [unreadCount])
+}
+
+// sync <meta name="theme-color"> with dark/light mode
+function useThemeColor() {
+  const mode = useResolvedMode()
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) {
+      meta.setAttribute('content', mode === 'dark' ? '#09090b' : '#dc2626')
+    }
+  }, [mode])
 }

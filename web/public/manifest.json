@@ -8,6 +8,7 @@
   "theme_color": "#dc2626",
   "background_color": "#09090b",
   "orientation": "portrait-primary",
+  "categories": ["email", "productivity"],
   "icons": [
     {
       "src": "/icon.svg?v=8",

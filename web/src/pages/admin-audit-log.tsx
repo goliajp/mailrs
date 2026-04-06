@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson } from '@/lib/api'
 
 type AuditEntry = {
@@ -39,7 +40,7 @@ export function AdminAuditLog() {
         </button>
       </div>
 
-      <div className="border-border overflow-hidden rounded-lg border">
+      <ScrollableTable>
         <table className="w-full text-left text-sm">
           <thead className="border-border bg-bg-secondary border-b">
             <tr>
@@ -73,7 +74,7 @@ export function AdminAuditLog() {
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
     </div>
   )
 }

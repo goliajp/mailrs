@@ -1,9 +1,10 @@
 import type { AttachmentInfo } from '@/lib/types'
 
 import { File, FileText, X } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 
 import { Copyable } from '@/components/copy-button'
+import { MobileModal } from '@/components/mobile-modal'
 import { formatSize } from '@/lib/format'
 import { getToken } from '@/store/auth'
 
@@ -96,43 +97,23 @@ function FileRow({ att, index, uid }: { att: AttachmentInfo; index: number; uid:
 
 // lightbox modal for full-size image preview
 function ImageLightbox({ alt, onClose, src }: { alt: string; onClose: () => void; src: string }) {
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) onClose()
-    },
-    [onClose]
-  )
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    },
-    [onClose]
-  )
-
   return (
-    <div
-      aria-label={`Image preview: ${alt}`}
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-      onClick={handleBackdropClick}
-      onKeyDown={handleKeyDown}
-      role="dialog"
-      tabIndex={-1}
-    >
-      <button
-        aria-label="Close preview"
-        className="absolute top-4 right-4 rounded-md bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
-        onClick={onClose}
-      >
-        <X className="h-5 w-5" />
-      </button>
-      <img
-        alt={alt}
-        className="max-h-[90vh] max-w-[90vw] rounded-md object-contain shadow-lg"
-        src={src}
-      />
-    </div>
+    <MobileModal className="bg-black/70" onClose={onClose} open>
+      <div aria-label={`Image preview: ${alt}`} onClick={(e) => e.stopPropagation()}>
+        <button
+          aria-label="Close preview"
+          className="absolute top-4 right-4 rounded-md bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+          onClick={onClose}
+        >
+          <X className="h-5 w-5" />
+        </button>
+        <img
+          alt={alt}
+          className="max-h-[90vh] max-w-[90vw] rounded-md object-contain shadow-lg"
+          src={src}
+        />
+      </div>
+    </MobileModal>
   )
 }
 

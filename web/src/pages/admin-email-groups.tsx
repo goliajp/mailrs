@@ -3,6 +3,8 @@ import type { DomainInfo } from '@/lib/types'
 import { toast } from '@goliapkg/gds'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 
+import { MobileModal } from '@/components/mobile-modal'
+import { ScrollableTable } from '@/components/scrollable-table'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 
 type EmailGroupInfo = {
@@ -144,61 +146,63 @@ export function AdminEmailGroups() {
       )}
 
       <div className="border-border overflow-hidden rounded-lg border">
-        <table className="w-full text-left text-sm">
-          <thead className="border-border bg-bg-secondary border-b">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">Address</th>
-              <th className="px-4 py-2.5 font-medium">Domain</th>
-              <th className="px-4 py-2.5 font-medium">Name</th>
-              <th className="px-4 py-2.5 font-medium">Description</th>
-              <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((group) => (
-              <Fragment key={group.id}>
-                <tr className="border-border border-b last:border-0">
-                  <td className="px-4 py-3 font-medium">{group.address}</td>
-                  <td className="text-fg-secondary px-4 py-3">{group.domain}</td>
-                  <td className="text-fg-secondary px-4 py-3">{group.name}</td>
-                  <td className="text-fg-secondary px-4 py-3">{group.description}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      className="text-accent mr-3 text-xs hover:opacity-80"
-                      onClick={() => setExpandedId(expandedId === group.id ? null : group.id)}
-                    >
-                      {expandedId === group.id ? 'Hide' : 'Members'}
-                    </button>
-                    <button
-                      className="text-danger text-xs transition-colors hover:opacity-70"
-                      onClick={() => setDeleteTarget(group.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-                {expandedId === group.id && (
-                  <tr>
-                    <td colSpan={5}>
-                      <EmailGroupMembers group={group} onChanged={loadGroups} />
+        <ScrollableTable>
+          <table className="w-full text-left text-sm">
+            <thead className="border-border bg-bg-secondary border-b">
+              <tr>
+                <th className="px-4 py-2.5 font-medium">Address</th>
+                <th className="px-4 py-2.5 font-medium">Domain</th>
+                <th className="px-4 py-2.5 font-medium">Name</th>
+                <th className="px-4 py-2.5 font-medium">Description</th>
+                <th className="px-4 py-2.5 text-right font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((group) => (
+                <Fragment key={group.id}>
+                  <tr className="border-border border-b last:border-0">
+                    <td className="px-4 py-3 font-medium">{group.address}</td>
+                    <td className="text-fg-secondary px-4 py-3">{group.domain}</td>
+                    <td className="text-fg-secondary px-4 py-3">{group.name}</td>
+                    <td className="text-fg-secondary px-4 py-3">{group.description}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        className="text-accent mr-3 text-xs hover:opacity-80"
+                        onClick={() => setExpandedId(expandedId === group.id ? null : group.id)}
+                      >
+                        {expandedId === group.id ? 'Hide' : 'Members'}
+                      </button>
+                      <button
+                        className="text-danger text-xs transition-colors hover:opacity-70"
+                        onClick={() => setDeleteTarget(group.id)}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
-                )}
-              </Fragment>
-            ))}
-            {groups.length === 0 && (
-              <tr>
-                <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
-                  No email groups configured
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  {expandedId === group.id && (
+                    <tr>
+                      <td colSpan={5}>
+                        <EmailGroupMembers group={group} onChanged={loadGroups} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+              {groups.length === 0 && (
+                <tr>
+                  <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
+                    No email groups configured
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </ScrollableTable>
       </div>
 
       {deleteTarget !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <MobileModal onClose={() => setDeleteTarget(null)} open>
           <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
             <p className="text-fg-secondary mb-4 text-sm">
               Delete this email group? This cannot be undone.
@@ -218,7 +222,7 @@ export function AdminEmailGroups() {
               </button>
             </div>
           </div>
-        </div>
+        </MobileModal>
       )}
     </div>
   )

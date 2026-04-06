@@ -103,7 +103,7 @@ export function ContactAutocomplete({
                   : 'text-fg-secondary hover:bg-bg-secondary'
               }`}
               key={s}
-              onMouseDown={() => selectSuggestion(s)}
+              onPointerDown={() => selectSuggestion(s)}
             >
               {s}
             </button>

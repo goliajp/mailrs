@@ -48,3 +48,7 @@ export const shortcutsDialogOpenAtom = atom(false)
 
 // visible conversation ids in display order (synced from conversation-list)
 export const visibleConversationIdsAtom = atom<string[]>([])
+
+// websocket connection status
+export type ConnectionStatus = 'connected' | 'connecting' | 'offline'
+export const connectionStatusAtom = atom<ConnectionStatus>('connecting')

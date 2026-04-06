@@ -97,15 +97,22 @@ export function useSmtpEvents() {
   useEffect(() => {
     let ws: WebSocket
     let retryTimeout: ReturnType<typeof setTimeout>
+    let retryDelay = 1000
+    const RETRY_MAX = 30_000
 
     const connect = () => {
+      if (!navigator.onLine) return
       ws = new WebSocket(getWsUrl())
       wsRef.current = ws
 
-      ws.onopen = () => setConnected(true)
+      ws.onopen = () => {
+        setConnected(true)
+        retryDelay = 1000
+      }
       ws.onclose = () => {
         setConnected(false)
-        retryTimeout = setTimeout(connect, 2000)
+        retryTimeout = setTimeout(connect, retryDelay)
+        retryDelay = Math.min(retryDelay * 2, RETRY_MAX)
       }
       ws.onerror = () => ws.close()
       ws.onmessage = (msg) => {
@@ -118,9 +125,22 @@ export function useSmtpEvents() {
       }
     }
 
+    const onOnline = () => {
+      retryDelay = 1000
+      if (ws && ws.readyState !== WebSocket.OPEN && ws.readyState !== WebSocket.CONNECTING) {
+        connect()
+      }
+    }
+    const onOffline = () => clearTimeout(retryTimeout)
+
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+
     connect()
     return () => {
       clearTimeout(retryTimeout)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
       ws?.close()
     }
   }, [handleEvent])

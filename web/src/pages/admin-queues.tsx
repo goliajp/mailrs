@@ -3,6 +3,7 @@ import type { QueueEntry } from '@/lib/types'
 import { useAtom } from 'jotai'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson, postJson } from '@/lib/api'
 import { queueAtom } from '@/store/admin'
 
@@ -122,56 +123,58 @@ export function AdminQueues() {
 
       {/* table */}
       <div className="border-border overflow-hidden rounded-lg border">
-        <table className="w-full text-left text-sm">
-          <thead className="border-border bg-bg-secondary border-b">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">From</th>
-              <th className="px-4 py-2.5 font-medium">To</th>
-              <th className="px-4 py-2.5 font-medium">Domain</th>
-              <th className="px-4 py-2.5 font-medium">Status</th>
-              <th className="px-4 py-2.5 font-medium">Attempts</th>
-              <th className="px-4 py-2.5 font-medium">Error</th>
-              <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map((item) => (
-              <tr className="border-border border-b last:border-0" key={item.id}>
-                <td className="px-4 py-3 font-medium">{item.sender}</td>
-                <td className="px-4 py-3">{item.recipient}</td>
-                <td className="text-fg-secondary px-4 py-3">{item.domain}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-xs ${statusStyles[item.status] ?? ''}`}
-                  >
-                    {item.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 tabular-nums">{item.attempts}</td>
-                <td className="text-fg-muted max-w-48 truncate px-4 py-3 text-xs">
-                  {item.last_error ?? '—'}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  {item.status === 'failed' && (
-                    <button
-                      className="text-accent text-xs transition-colors hover:opacity-70"
-                      onClick={() => handleRetry(item.id)}
-                    >
-                      Retry
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {pageItems.length === 0 && (
+        <ScrollableTable>
+          <table className="w-full text-left text-sm">
+            <thead className="border-border bg-bg-secondary border-b">
               <tr>
-                <td className="text-fg-muted px-4 py-8 text-center" colSpan={7}>
-                  {statusFilter ? `No ${statusFilter} entries` : 'Queue is empty'}
-                </td>
+                <th className="px-4 py-2.5 font-medium">From</th>
+                <th className="px-4 py-2.5 font-medium">To</th>
+                <th className="px-4 py-2.5 font-medium">Domain</th>
+                <th className="px-4 py-2.5 font-medium">Status</th>
+                <th className="px-4 py-2.5 font-medium">Attempts</th>
+                <th className="px-4 py-2.5 font-medium">Error</th>
+                <th className="px-4 py-2.5 text-right font-medium">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {pageItems.map((item) => (
+                <tr className="border-border border-b last:border-0" key={item.id}>
+                  <td className="px-4 py-3 font-medium">{item.sender}</td>
+                  <td className="px-4 py-3">{item.recipient}</td>
+                  <td className="text-fg-secondary px-4 py-3">{item.domain}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-xs ${statusStyles[item.status] ?? ''}`}
+                    >
+                      {item.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 tabular-nums">{item.attempts}</td>
+                  <td className="text-fg-muted max-w-48 truncate px-4 py-3 text-xs">
+                    {item.last_error ?? '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {item.status === 'failed' && (
+                      <button
+                        className="text-accent text-xs transition-colors hover:opacity-70"
+                        onClick={() => handleRetry(item.id)}
+                      >
+                        Retry
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {pageItems.length === 0 && (
+                <tr>
+                  <td className="text-fg-muted px-4 py-8 text-center" colSpan={7}>
+                    {statusFilter ? `No ${statusFilter} entries` : 'Queue is empty'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </ScrollableTable>
       </div>
 
       {/* pagination */}
