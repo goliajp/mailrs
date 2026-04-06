@@ -52,3 +52,10 @@ export const visibleConversationIdsAtom = atom<string[]>([])
 // websocket connection status
 export type ConnectionStatus = 'connected' | 'connecting' | 'offline'
 export const connectionStatusAtom = atom<ConnectionStatus>('connecting')
+
+// mobile thread view: toggle between email content and conversation timeline
+export type MobileThreadTab = 'content' | 'conversation'
+export const mobileThreadTabAtom = atom<MobileThreadTab>('content')
+
+// mobile full-screen reply composer
+export const mobileReplyOpenAtom = atom(false)

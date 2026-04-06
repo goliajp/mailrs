@@ -269,8 +269,8 @@ export function Dashboard() {
             </div>
           </form>
 
-          {/* stat cards */}
-          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {/* stat cards — horizontal scroll on mobile, grid on desktop */}
+          <div className="scrollbar-hide mb-6 flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-4">
             <StatCard
               color="brand"
               icon={MailOpen}
@@ -695,7 +695,8 @@ function StatCard({
   return (
     <button
       className={cn(
-        'border-border flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors',
+        'border-border flex shrink-0 items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors md:shrink',
+        'w-[140px] md:w-auto',
         onClick ? 'hover:bg-bg-secondary cursor-pointer' : 'cursor-default'
       )}
       onClick={onClick}

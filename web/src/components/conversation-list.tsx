@@ -399,37 +399,39 @@ function FilterBar() {
 
   return (
     <div className="border-border flex items-center gap-1 border-b px-3 py-1.5">
-      {/* main tabs */}
-      {VIEW_TABS.map((t) => {
-        const isActive = activeTab === t.value
-        const base =
-          'shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
-        const color =
-          t.value === 'spam'
-            ? 'bg-danger/10 text-danger'
-            : t.value === 'action'
+      {/* main tabs — horizontally scrollable on mobile */}
+      <div className="scrollbar-hide flex snap-x snap-mandatory items-center gap-1 overflow-x-auto scroll-smooth md:overflow-x-visible">
+        {VIEW_TABS.map((t) => {
+          const isActive = activeTab === t.value
+          const base =
+            'snap-start shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
+          const color =
+            t.value === 'spam'
               ? 'bg-danger/10 text-danger'
-              : t.value === 'starred'
-                ? 'bg-warning/10 text-warning'
-                : t.value === 'sent'
-                  ? 'bg-success/10 text-success'
-                  : t.value === 'unread'
-                    ? 'bg-accent/10 text-accent'
-                    : 'bg-border text-fg-secondary'
-        const ring = isActive ? 'ring-2 ring-offset-1 ring-border ring-offset-bg' : ''
-        return (
-          <button
-            className={`${base} ${color} ${ring}`}
-            key={t.value}
-            onClick={() => handleTab(t.value)}
-          >
-            {t.label}
-            {t.value === 'action' && actionCount > 0 && (
-              <span className="ml-1 opacity-70">{actionCount}</span>
-            )}
-          </button>
-        )
-      })}
+              : t.value === 'action'
+                ? 'bg-danger/10 text-danger'
+                : t.value === 'starred'
+                  ? 'bg-warning/10 text-warning'
+                  : t.value === 'sent'
+                    ? 'bg-success/10 text-success'
+                    : t.value === 'unread'
+                      ? 'bg-accent/10 text-accent'
+                      : 'bg-border text-fg-secondary'
+          const ring = isActive ? 'ring-2 ring-offset-1 ring-border ring-offset-bg' : ''
+          return (
+            <button
+              className={`${base} ${color} ${ring}`}
+              key={t.value}
+              onClick={() => handleTab(t.value)}
+            >
+              {t.label}
+              {t.value === 'action' && actionCount > 0 && (
+                <span className="ml-1 opacity-70">{actionCount}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
 
       {/* filter dropdown toggle */}
       <div className="relative ml-auto" ref={panelRef}>
