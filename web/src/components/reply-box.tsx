@@ -386,7 +386,7 @@ export function ReplyBox({
         ))}
         {mode !== 'forward' && (
           <span
-            className="text-fg-muted ml-auto truncate text-xs"
+            className="text-fg-muted ml-auto min-w-0 truncate text-xs"
             title={mode === 'reply' ? replyRecipients : replyAllRecipients}
           >
             to {mode === 'reply' ? replyRecipients : replyAllRecipients}

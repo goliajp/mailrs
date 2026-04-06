@@ -231,12 +231,12 @@ function AccountSection() {
             <span className="text-fg-secondary text-sm">{auth?.display_name || '-'}</span>
           </Field>
           <Field label="Permissions">
-            <span className="text-fg-secondary text-sm">
+            <span className="text-fg-secondary text-sm break-all">
               {auth?.permissions?.join(', ') || '-'}
             </span>
           </Field>
           <Field label="Domains">
-            <span className="text-fg-secondary text-sm">
+            <span className="text-fg-secondary text-sm break-all">
               {auth?.accessible_domains?.join(', ') || '-'}
             </span>
           </Field>
