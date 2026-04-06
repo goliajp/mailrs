@@ -150,6 +150,15 @@ label,
   -webkit-user-select: none;
 }
 
+/* hide scrollbar for horizontal scroll containers */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes slideUp {
   from {
     transform: translateY(100%);

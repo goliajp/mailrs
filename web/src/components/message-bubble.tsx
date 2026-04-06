@@ -265,49 +265,33 @@ function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: numbe
 }
 
 // render html email inside a sandboxed iframe for full css isolation
-// auto-scales wide emails to fit mobile viewport (like Gmail mobile)
+// uses viewport width=680 inside iframe so browser natively scales wide emails
 function HtmlFrame({ html }: { html: string }) {
   const ref = useRef<HTMLIFrameElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
   const [height, setHeight] = useState(200)
-  const [scale, setScale] = useState(1)
 
   const srcdoc = useMemo(() => {
     const sanitized = sanitizeEmail(html)
-    // remove table-layout:fixed so we can measure true content width for scaling
+    // viewport width=680: browser auto-scales content to fit container
+    // on desktop this is a no-op (container is >= 680px), on mobile it shrinks
     return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=680"><meta name="referrer" content="no-referrer">
 <style>
-  body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Segoe UI', Roboto, 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-size: 14px; line-height: 1.6; color: #1a1a1a; background: #fff; word-wrap: break-word; overflow-wrap: break-word; }
-  .mail-wrap { margin: 0 auto; padding: 12px; box-sizing: border-box; }
+  body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Segoe UI', Roboto, 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-size: 14px; line-height: 1.6; color: #1a1a1a; background: #fff; word-wrap: break-word; overflow-wrap: break-word; overflow-x: hidden; }
+  .mail-wrap { max-width: 680px; margin: 0 auto; padding: 12px; box-sizing: border-box; }
   img { max-width: 100%; height: auto; }
   a { color: #2563eb; }
   pre { overflow-x: auto; }
   blockquote { border-left: 3px solid #d4d4d8; padding-left: 12px; margin: 8px 0; color: #71717a; }
-  @media (min-width: 720px) { .mail-wrap { max-width: 680px; } }
 </style>
 </head><body><div class="mail-wrap">${sanitized}</div></body></html>`
   }, [html])
 
-  const measure = useCallback(() => {
-    const iframe = ref.current
-    const container = containerRef.current
-    if (!iframe || !container) return
-    const doc = iframe.contentDocument
-    if (!doc?.body) return
-
-    const contentWidth = doc.body.scrollWidth
-    const contentHeight = doc.body.scrollHeight
-    const containerWidth = container.clientWidth
-
-    // auto-scale: if content is wider than container, shrink to fit
-    if (contentWidth > containerWidth && containerWidth > 0) {
-      const s = Math.max(0.4, containerWidth / contentWidth)
-      setScale(s)
-      setHeight(contentHeight * s + 24)
-    } else {
-      setScale(1)
-      if (contentHeight > 0) setHeight(contentHeight + 24)
+  const resize = useCallback(() => {
+    const doc = ref.current?.contentDocument
+    if (doc?.body) {
+      const h = doc.body.scrollHeight
+      if (h > 0) setHeight(h + 24)
     }
   }, [])
 
@@ -315,44 +299,27 @@ function HtmlFrame({ html }: { html: string }) {
     const iframe = ref.current
     if (!iframe) return
     const onLoad = () => {
-      measure()
-      // observe content size changes (lazy-loaded images etc)
+      resize()
       const doc = iframe.contentDocument
       if (doc?.body) {
-        const observer = new ResizeObserver(measure)
+        const observer = new ResizeObserver(resize)
         observer.observe(doc.body)
         return () => observer.disconnect()
       }
     }
     iframe.addEventListener('load', onLoad)
     return () => iframe.removeEventListener('load', onLoad)
-  }, [measure])
-
-  // re-measure on container resize (orientation change, etc)
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-    const observer = new ResizeObserver(measure)
-    observer.observe(container)
-    return () => observer.disconnect()
-  }, [measure])
+  }, [resize])
 
   return (
-    <div className="overflow-hidden" ref={containerRef}>
-      <iframe
-        className="block border-none"
-        ref={ref}
-        sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-        srcDoc={srcdoc}
-        style={{
-          height: scale < 1 ? height / scale : height,
-          transform: scale < 1 ? `scale(${scale})` : undefined,
-          transformOrigin: 'top left',
-          width: scale < 1 ? `${100 / scale}%` : '100%',
-        }}
-        title="email content"
-      />
-    </div>
+    <iframe
+      className="block w-full border-none"
+      ref={ref}
+      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+      srcDoc={srcdoc}
+      style={{ height }}
+      title="email content"
+    />
   )
 }
 

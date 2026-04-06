@@ -116,7 +116,14 @@ export function App() {
 function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
-      <AppShell gap={6} padded sidebar={<AppSidebar />} sidebarWidth={56} statusBar={<StatusBar />}>
+      <AppShell
+        className="max-md:!gap-0 max-md:!p-0"
+        gap={6}
+        padded
+        sidebar={<AppSidebar />}
+        sidebarWidth={56}
+        statusBar={<StatusBar />}
+      >
         {children}
       </AppShell>
     </RequireAuth>

@@ -2,7 +2,7 @@ import type { ConversationSummary, ThreadMessage } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
 import DOMPurify from 'dompurify'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   ArrowLeft,
   ChevronDown,
@@ -11,9 +11,11 @@ import {
   Forward,
   Mail,
   MailOpen,
+  MessageSquare,
   MoreVertical,
   Paperclip,
   Printer,
+  Reply,
   Star,
   Trash2,
   X,
@@ -25,6 +27,7 @@ import { AttachmentPreview } from '@/components/attachment-preview'
 import { BottomSheet } from '@/components/bottom-sheet'
 import { Copyable } from '@/components/copy-button'
 import { MessageBubble } from '@/components/message-bubble'
+import { MobileModal } from '@/components/mobile-modal'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { StructuredDataCard } from '@/components/structured-data-card'
@@ -40,6 +43,8 @@ import {
   conversationsAtom,
   crossAccountReadAtom,
   folderAtom,
+  mobileReplyOpenAtom,
+  mobileThreadTabAtom,
   searchQueryAtom,
   selectedDomainsAtom,
   selectedThreadIdAtom,
@@ -95,6 +100,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const contentScrollRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const [mobileThreadTab, setMobileThreadTab] = useAtom(mobileThreadTabAtom)
+  const [mobileReplyOpen, setMobileReplyOpen] = useAtom(mobileReplyOpenAtom)
   const [selectedMsgIdx, setSelectedMsgIdx] = useState<null | number>(null)
   const [isRead, setIsRead] = useState(true)
   const [isFlagged, setIsFlagged] = useState(false)
@@ -309,6 +316,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setReplyMode('reply')
     setExpandedBubbles(new Set())
     setShowAllMessages(false)
+    setMobileThreadTab('content')
+    setMobileReplyOpen(false)
     const existing = conversationsRef.current.find((c) => c.thread_id === selectedId)
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
@@ -316,7 +325,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     return () => {
       abortRef.current?.abort()
     }
-  }, [selectedId, loadMessages, setMessages])
+  }, [selectedId, loadMessages, setMessages, setMobileThreadTab, setMobileReplyOpen])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -369,8 +378,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   return (
     <MPaneGroup>
-      {/* content panel */}
-      <MPane className="flex-[2]">
+      {/* content panel — full width on mobile, flex-[2] on desktop */}
+      <MPane className={`flex-[2] ${mobileThreadTab === 'conversation' ? 'hidden md:flex' : ''}`}>
         {/* header bar at top of content panel */}
         <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-1.5 select-none">
           {onBack && (
@@ -428,6 +437,16 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             >
               <Trash2 className="h-4 w-4" />
             </HdrBtn>
+            {/* mobile: toggle to conversation timeline */}
+            {messages.length > 1 && (
+              <HdrBtn
+                className="md:hidden"
+                onClick={() => setMobileThreadTab('conversation')}
+                title="Thread"
+              >
+                <MessageSquare className="h-4 w-4" />
+              </HdrBtn>
+            )}
             <HdrBtn onClick={() => setSelectedId(null)} title="Close">
               <X className="h-4 w-4" />
             </HdrBtn>
@@ -555,21 +574,36 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
             )}
           </div>
         </div>
+
+        {/* mobile: floating reply button */}
+        <button
+          className="bg-accent fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg active:opacity-80 md:hidden"
+          onClick={() => setMobileReplyOpen(true)}
+          style={{ bottom: 'calc(60px + var(--safe-area-bottom))' }}
+          title="Reply"
+        >
+          <Reply className="h-6 w-6" />
+        </button>
       </MPane>
 
-      {/* handle panel (conversation timeline + reply) */}
-      <MPane>
-        {/* panel header — only show when multiple messages */}
-        {messages.length > 1 && (
-          <div className="border-border flex shrink-0 items-center border-b px-4 py-1.5 select-none">
-            <span className="text-fg-muted text-xs font-medium">
-              Conversation ({messages.length})
-            </span>
-          </div>
-        )}
+      {/* handle panel (conversation timeline + reply) — hidden on mobile content tab */}
+      <MPane className={mobileThreadTab === 'content' ? 'hidden md:flex' : ''}>
+        {/* panel header */}
+        <div className="border-border flex shrink-0 items-center gap-2 border-b px-4 py-1.5 select-none">
+          <button
+            className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary shrink-0 rounded-md p-1 md:hidden"
+            onClick={() => setMobileThreadTab('content')}
+            title="Back to email"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <span className="text-fg-muted text-xs font-medium">
+            Conversation{messages.length > 1 ? ` (${messages.length})` : ''}
+          </span>
+        </div>
         {/* timeline + reply box */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="min-h-0 flex-[3] basis-0 overflow-y-auto px-4 py-3">
+          <div className="min-h-0 flex-1 basis-0 overflow-y-auto px-4 py-3 md:flex-[3]">
             {loadingThread && messages.length === 0 && (
               <div className="animate-pulse space-y-4">
                 {Array.from({ length: 4 }).map((_, i) => (
@@ -693,7 +727,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <div ref={bottomRef} />
             </div>
           </div>
-          <div className="border-border flex min-h-[160px] flex-[1] basis-0 flex-col border-t">
+          <div className="border-border hidden min-h-[160px] flex-[1] basis-0 flex-col border-t md:flex">
             <ReplyBox
               forwardAttachmentsUid={fwdUid}
               forwardMessageId={fwdMessageId}
@@ -719,6 +753,57 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           </div>
         </div>
       </MPane>
+
+      {/* mobile: full-screen reply composer */}
+      {mobileReplyOpen && (
+        <MobileModal className="items-end md:hidden" onClose={() => setMobileReplyOpen(false)} open>
+          <div
+            className="bg-surface flex h-[90dvh] w-full flex-col rounded-t-2xl"
+            onClick={(e) => e.stopPropagation()}
+            style={{ paddingBottom: 'var(--safe-area-bottom)' }}
+          >
+            {/* header */}
+            <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-3">
+              <button
+                className="text-fg-muted hover:text-fg-secondary"
+                onClick={() => setMobileReplyOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <span className="text-fg truncate text-sm font-medium">
+                {subject || '(no subject)'}
+              </span>
+              <div className="w-5" />
+            </div>
+            {/* reply box with full height */}
+            <div className="min-h-0 flex-1">
+              <ReplyBox
+                forwardAttachmentsUid={fwdUid}
+                forwardMessageId={fwdMessageId}
+                lastMessageId={fwdLastMessageId}
+                mode={replyMode}
+                onModeChange={(m) => {
+                  setReplyMode(m)
+                  if (m !== 'forward') setForwardSource(null)
+                }}
+                onSent={() => {
+                  setForwardSource(null)
+                  setMobileReplyOpen(false)
+                  loadMessages(selectedId)
+                }}
+                originalBody={fwdOriginalBody}
+                originalDate={fwdOriginalDate}
+                originalFrom={fwdOriginalFrom}
+                originalHtmlBody={fwdOriginalHtml}
+                replyAllRecipients={replyAllRecipients || extractEmail(messages[0]?.sender ?? '')}
+                replyRecipients={replyRecipients || extractEmail(messages[0]?.sender ?? '')}
+                subject={fwdSubject}
+                threadId={selectedId}
+              />
+            </div>
+          </div>
+        </MobileModal>
+      )}
 
       {/* delete confirm dialog */}
       {showDeleteConfirm && (
