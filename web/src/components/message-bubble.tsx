@@ -275,12 +275,14 @@ function HtmlFrame({ html }: { html: string }) {
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
 <style>
   body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Segoe UI', Roboto, 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-size: 14px; line-height: 1.6; color: #1a1a1a; background: #fff; word-wrap: break-word; overflow-wrap: break-word; overflow-x: hidden; }
-  .mail-wrap { max-width: 680px; margin: 0 auto; padding: 12px; }
+  .mail-wrap { max-width: 100%; margin: 0 auto; padding: 12px; overflow-x: auto; box-sizing: border-box; }
   img { max-width: 100%; height: auto; }
-  table { max-width: 100% !important; }
+  table { max-width: 100% !important; table-layout: fixed; overflow-wrap: break-word; }
+  td, th { max-width: 100%; overflow-wrap: break-word; word-break: break-word; }
   a { color: #2563eb; }
   pre { overflow-x: auto; }
   blockquote { border-left: 3px solid #d4d4d8; padding-left: 12px; margin: 8px 0; color: #71717a; }
+  @media (min-width: 720px) { .mail-wrap { max-width: 680px; } }
 </style>
 </head><body><div class="mail-wrap">${sanitized}</div></body></html>`
   }, [html])
