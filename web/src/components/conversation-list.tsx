@@ -582,6 +582,9 @@ type VirtualListItem =
   | { type: 'end' }
   | { type: 'sentinel' }
 
+// module-level: survives component unmount/remount on mobile view switching
+let savedScrollTop = 0
+
 export function ConversationList({
   onLoadMore,
   onRefresh,
@@ -615,6 +618,15 @@ export function ConversationList({
   // observer ref to clean up when sentinel unmounts
   const observerRef = useRef<IntersectionObserver | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // save scroll position when leaving list, restore when coming back
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (el && savedScrollTop > 0) {
+      el.scrollTop = savedScrollTop
+      savedScrollTop = 0
+    }
+  }, [])
 
   // callback ref: called when sentinel mounts/unmounts
   const sentinelCallback = useCallback((node: HTMLDivElement | null) => {
@@ -828,6 +840,10 @@ export function ConversationList({
   // stable callbacks that accept threadId to avoid inline closures in the map
   const handleSelect = useCallback(
     (threadId: string) => {
+      // save scroll position before navigating to thread
+      if (scrollContainerRef.current) {
+        savedScrollTop = scrollContainerRef.current.scrollTop
+      }
       setSelectedId(threadId)
       setComposingNew(false)
       onSelectConversation?.()
