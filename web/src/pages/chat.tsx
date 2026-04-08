@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef } from 'react'
 
 import { ConversationList } from '@/components/conversation-list'
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
+import { MobileMail } from '@/components/mobile-mail'
 import { NewConversation } from '@/components/new-conversation'
 import { ThreadView } from '@/components/thread-view'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
@@ -244,49 +245,79 @@ export function Chat() {
     setHasMore,
   ])
 
-  // auto-select first conversation when list loads and nothing is selected
+  // auto-select first conversation on desktop (desktop shows list + detail side by side)
   useEffect(() => {
-    if (!selectedThreadId && !composingNew && conversations.length > 0) {
+    if (
+      window.innerWidth >= 768 &&
+      !selectedThreadId &&
+      !composingNew &&
+      conversations.length > 0
+    ) {
       setSelectedThreadId(conversations[0].thread_id)
     }
   }, [conversations, selectedThreadId, composingNew, setSelectedThreadId])
 
-  // mobile: show list or thread exclusively; desktop: show both side by side
-  const showList = mobileView === 'list'
-  const showThread = mobileView === 'thread'
+  const refreshConversations = useCallback(
+    () =>
+      loadConversations({
+        archived: showArchived || undefined,
+        category: categoryFilter,
+        domains: selectedDomains.length > 0 ? selectedDomains : undefined,
+        folder,
+        query: searchQuery || undefined,
+        section: importanceSection,
+        starred: quickFilter === 'starred' || undefined,
+        unread: quickFilter === 'unread' || undefined,
+      }),
+    [
+      loadConversations,
+      showArchived,
+      categoryFilter,
+      selectedDomains,
+      folder,
+      searchQuery,
+      importanceSection,
+      quickFilter,
+    ]
+  )
 
   return (
-    <MPaneGroup>
-      <MPane className={showThread ? 'hidden md:flex' : ''} width={480}>
-        <ConversationList
-          onLoadMore={loadMore}
-          onRefresh={() =>
-            loadConversations({
-              archived: showArchived || undefined,
-              category: categoryFilter,
-              domains: selectedDomains.length > 0 ? selectedDomains : undefined,
-              folder,
-              query: searchQuery || undefined,
-              section: importanceSection,
-              starred: quickFilter === 'starred' || undefined,
-              unread: quickFilter === 'unread' || undefined,
-            })
-          }
-          onSelectConversation={() => setMobileView('thread')}
-        />
-      </MPane>
-
-      <MPaneGroup className={showList ? 'hidden md:flex' : ''}>
-        {composingNew ? (
-          <MPane>
-            <NewConversation />
-          </MPane>
+    <>
+      {/* ─── MOBILE: full-screen view switching ─── */}
+      <div className="h-full md:hidden">
+        {mobileView === 'list' ? (
+          <ConversationList
+            onLoadMore={loadMore}
+            onRefresh={refreshConversations}
+            onSelectConversation={() => setMobileView('thread')}
+          />
         ) : (
-          <ThreadView onBack={() => setMobileView('list')} />
+          <MobileMail />
         )}
-      </MPaneGroup>
+      </div>
 
-      <KeyboardShortcutsDialog onClose={() => setShortcutsOpen(false)} open={shortcutsOpen} />
-    </MPaneGroup>
+      {/* ─── DESKTOP: side-by-side pane layout (unchanged) ─── */}
+      <MPaneGroup className="hidden md:flex">
+        <MPane width={480}>
+          <ConversationList
+            onLoadMore={loadMore}
+            onRefresh={refreshConversations}
+            onSelectConversation={() => setMobileView('thread')}
+          />
+        </MPane>
+
+        <MPaneGroup>
+          {composingNew ? (
+            <MPane>
+              <NewConversation />
+            </MPane>
+          ) : (
+            <ThreadView onBack={() => setMobileView('list')} />
+          )}
+        </MPaneGroup>
+
+        <KeyboardShortcutsDialog onClose={() => setShortcutsOpen(false)} open={shortcutsOpen} />
+      </MPaneGroup>
+    </>
   )
 }

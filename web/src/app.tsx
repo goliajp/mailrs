@@ -17,6 +17,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { MobileShell } from '@/components/mobile-shell'
 import { MPane } from '@/layouts/pane'
 import { Chat } from '@/pages/chat'
 import { Dashboard } from '@/pages/dashboard'
@@ -116,16 +117,22 @@ export function App() {
 function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
-      <AppShell
-        className="max-md:!gap-0 max-md:!p-0"
-        gap={6}
-        padded
-        sidebar={<AppSidebar />}
-        sidebarWidth={56}
-        statusBar={<StatusBar />}
-      >
-        {children}
-      </AppShell>
+      {/* desktop: AppShell with sidebar + status bar */}
+      <div className="hidden md:contents">
+        <AppShell
+          gap={6}
+          padded
+          sidebar={<AppSidebar />}
+          sidebarWidth={56}
+          statusBar={<StatusBar />}
+        >
+          {children}
+        </AppShell>
+      </div>
+      {/* mobile: independent shell with bottom nav */}
+      <div className="contents md:hidden">
+        <MobileShell>{children}</MobileShell>
+      </div>
     </RequireAuth>
   )
 }
