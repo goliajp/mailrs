@@ -16,7 +16,8 @@ export const loadingMoreAtom = atom(false)
 export const categoryFilterAtom = atom<null | string>(null)
 export const selectedDomainsAtom = atom<string[]>([])
 export const initialLoadingAtom = atom(true)
-export const mobileViewAtom = atom<'list' | 'thread'>('list')
+export type MobileView = 'conversation' | 'list' | 'reply' | 'thread'
+export const mobileViewAtom = atom<MobileView>('list')
 
 export type SortOrder = 'newest' | 'oldest' | 'unread'
 export const sortOrderAtom = atom<SortOrder>('newest')
