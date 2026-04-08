@@ -165,7 +165,14 @@ function LoadingFallback() {
 }
 
 function PagePane({ children }: { children: React.ReactNode }) {
-  return <MPane className="p-1">{children}</MPane>
+  return (
+    <>
+      {/* desktop: MPane with padding and rounded corners */}
+      <MPane className="hidden p-1 md:flex">{children}</MPane>
+      {/* mobile: plain full-height container */}
+      <div className="h-full overflow-y-auto md:hidden">{children}</div>
+    </>
+  )
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
