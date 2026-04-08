@@ -23,8 +23,8 @@ impl WebRateLimiter {
                 refill_rate: 10.0 / 60.0,
             }),
             general: RateLimiter::new(TokenBucketConfig {
-                capacity: 100,
-                refill_rate: 100.0 / 60.0,
+                capacity: 300,
+                refill_rate: 300.0 / 60.0,
             }),
         }
     }
@@ -98,10 +98,10 @@ mod tests {
     }
 
     #[test]
-    fn general_limiter_allows_100_then_rejects() {
+    fn general_limiter_allows_300_then_rejects() {
         let limiter = WebRateLimiter::new();
         let ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 0, 0, 2));
-        for _ in 0..100 {
+        for _ in 0..300 {
             assert!(limiter.general.check(ip));
         }
         assert!(!limiter.general.check(ip));

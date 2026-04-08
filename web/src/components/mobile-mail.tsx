@@ -196,9 +196,15 @@ function MobileThreadView() {
   const [loading, setLoading] = useState(false)
   const [selectedMsgIdx, setSelectedMsgIdx] = useState<null | number>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const loadedThreadRef = useRef<null | string>(null)
 
   useEffect(() => {
     if (!selectedId) return
+    // skip re-fetch if messages are already loaded for this thread
+    if (loadedThreadRef.current === selectedId && messages.length > 0) {
+      if (selectedMsgIdx == null) setSelectedMsgIdx(messages.length - 1)
+      return
+    }
     let cancelled = false
     setLoading(true)
     setSelectedMsgIdx(null)
@@ -206,6 +212,7 @@ function MobileThreadView() {
       .then((data) => {
         if (!cancelled) {
           setMessages(data)
+          loadedThreadRef.current = selectedId
           if (data.length > 0) setSelectedMsgIdx(data.length - 1)
         }
       })
@@ -215,7 +222,7 @@ function MobileThreadView() {
     return () => {
       cancelled = true
     }
-  }, [selectedId, setMessages])
+  }, [selectedId, setMessages, messages.length, selectedMsgIdx])
 
   useEffect(() => {
     scrollRef.current?.scrollTo(0, 0)

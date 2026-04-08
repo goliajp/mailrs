@@ -2,6 +2,7 @@ import type { ConversationSummary } from '@/lib/types'
 
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router'
 
 import { ConversationList } from '@/components/conversation-list'
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
@@ -50,9 +51,33 @@ export function Chat() {
   const quickFilter = useAtomValue(quickFilterAtom)
   const importanceSection = useAtomValue(importanceSectionAtom)
   const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
+  const [searchParams, setSearchParams] = useSearchParams()
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const firstLoadDone = useRef(false)
   const prevSearchRef = useRef(searchQuery)
+
+  // restore state from URL on mount
+  const initializedRef = useRef(false)
+  useEffect(() => {
+    if (initializedRef.current) return
+    initializedRef.current = true
+    const urlThread = searchParams.get('thread')
+    const urlView = searchParams.get('view') as 'conversation' | 'list' | 'reply' | 'thread' | null
+    if (urlThread) setSelectedThreadId(urlThread)
+    if (urlView) setMobileView(urlView)
+  }, [searchParams, setSelectedThreadId, setMobileView])
+
+  // sync state TO URL when it changes
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (selectedThreadId) params.set('thread', selectedThreadId)
+    if (mobileView !== 'list') params.set('view', mobileView)
+    const newSearch = params.toString()
+    const currentSearch = searchParams.toString()
+    if (newSearch !== currentSearch) {
+      setSearchParams(params, { replace: true })
+    }
+  }, [selectedThreadId, mobileView, searchParams, setSearchParams])
 
   // keep a ref so loadMore always sees latest
   const conversationsRef = useRef(conversations)
