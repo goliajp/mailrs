@@ -45,11 +45,3 @@ When creating PRs:
 4. Include test plan with TODOs
 5. Push with `-u` flag if new branch
 6. PRs target `develop` by default, not `main`
-
-## Feature Implementation Workflow
-
-0. **Research & Reuse** — search GitHub (`gh search repos/code`), package registries, and open-source projects before writing anything new
-1. **Plan** — break down into phases, identify dependencies and risks
-2. **TDD** — write tests first (RED → GREEN → REFACTOR), verify 80%+ coverage
-3. **Code Review** — address CRITICAL and HIGH issues before committing
-4. **Commit & Push** — follow commit message format above
