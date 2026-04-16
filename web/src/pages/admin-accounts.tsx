@@ -63,12 +63,16 @@ export function AdminAccounts() {
   const handleAdd = async () => {
     if (!form.address.trim() || !form.domain.trim()) return
     try {
-      await postJson('/admin/accounts', {
+      const result = await postJson<{ message?: string; success: boolean }>('/admin/accounts', {
         address: form.address.trim(),
         display_name: form.displayName.trim(),
         domain: form.domain.trim(),
         password: form.password,
       })
+      if (!result.success) {
+        toast.error(result.message ?? 'Failed to add account')
+        return
+      }
       toast.success(`Account "${form.address.trim()}" added`)
       setForm({ address: '', displayName: '', domain: '', password: '' })
       setAdding(false)
