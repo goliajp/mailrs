@@ -240,6 +240,15 @@ pub(super) async fn add_account(
         });
     };
 
+    // verify domain exists
+    let domains = ds.list_domains().await.unwrap_or_default();
+    if !domains.iter().any(|d| d.name == req.domain) {
+        return Json(ApiResult {
+            success: false,
+            message: Some(format!("domain '{}' does not exist", req.domain)),
+        });
+    }
+
     // validate and hash password
     let password_hash = if req.password.is_empty() {
         String::new()
@@ -279,11 +288,27 @@ pub(super) async fn add_account(
             })
         }
         Err(e) => {
-            tracing::warn!(error = %e, "admin operation failed");
+            tracing::warn!(error = %e, "admin add_account failed");
+            let msg = match &e {
+                crate::domain_store::StoreError::Pg(sqlx_err) => {
+                    if let Some(db_err) = sqlx_err.as_database_error() {
+                        if db_err.constraint() == Some("accounts_domain_fkey") {
+                            format!("domain '{}' does not exist", req.domain)
+                        } else if db_err.is_unique_violation() {
+                            format!("account '{}' already exists", req.address)
+                        } else {
+                            "database error".into()
+                        }
+                    } else {
+                        "database error".into()
+                    }
+                }
+                _ => "operation failed".into(),
+            };
             Json(ApiResult {
                 success: false,
-                message: Some("operation failed".into()),
-        })
+                message: Some(msg),
+            })
         },
     }
 }
