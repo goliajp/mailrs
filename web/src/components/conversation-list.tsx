@@ -345,38 +345,26 @@ function FilterBar() {
             ? quickFilter
             : 'all'
 
+  // chips behave like Gmail tabs: clicking the active one is a no-op,
+  // users clear filters by clicking All
   const handleTab = (tab: string) => {
+    if (tab === activeTab) return
+    setActiveCategory(null)
+    setFolder(null)
+    setQuickFilter('all')
+    setSection(null)
     if (tab === 'spam') {
-      setFolder(null)
-      setQuickFilter('all')
-      setSection(null)
-      setActiveCategory(activeCategory === 'spam' ? null : 'spam')
+      setActiveCategory('spam')
     } else if (tab === 'sent') {
-      setActiveCategory(null)
-      setQuickFilter('all')
-      setSection(null)
-      setFolder(folder === 'Sent' ? null : 'Sent')
+      setFolder('Sent')
     } else if (tab === 'action') {
-      setActiveCategory(null)
-      setFolder(null)
-      setQuickFilter('all')
-      setSection(section === 'action' ? null : 'action')
+      setSection('action')
     } else if (tab === 'unread') {
-      setActiveCategory(null)
-      setFolder(null)
-      setSection(null)
-      setQuickFilter(quickFilter === 'unread' ? 'all' : 'unread')
+      setQuickFilter('unread')
     } else if (tab === 'starred') {
-      setActiveCategory(null)
-      setFolder(null)
-      setSection(null)
-      setQuickFilter(quickFilter === 'starred' ? 'all' : 'starred')
-    } else {
-      setActiveCategory(null)
-      setFolder(null)
-      setQuickFilter('all')
-      setSection(null)
+      setQuickFilter('starred')
     }
+    // tab === 'all' → all filters cleared above
   }
 
   // action count for badge
