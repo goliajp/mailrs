@@ -15,6 +15,11 @@ let mockWs: {
 }
 
 class MockWebSocket {
+  static CLOSED = 3
+  static CLOSING = 2
+  static CONNECTING = 0
+  static OPEN = 1
+
   close = vi.fn()
   onclose: ((ev?: unknown) => void) | null = null
   onerror: ((ev?: unknown) => void) | null = null
@@ -243,5 +248,106 @@ describe('useSmtpEvents', () => {
 
     // fetch is called once immediately for status
     expect(mockFetch).toHaveBeenCalledWith('/api/status')
+  })
+
+  it('closes ws on unmount', async () => {
+    const { unmount } = await renderSmtpEvents()
+    const ws = mockWs
+
+    unmount()
+
+    expect(ws.close).toHaveBeenCalled()
+  })
+
+  it('reconnects on online event when socket is closed', async () => {
+    const listeners: Record<string, ((ev?: unknown) => void)[]> = {}
+    vi.spyOn(window, 'addEventListener').mockImplementation((type, fn) => {
+      ;(listeners[type as string] ||= []).push(fn as (ev?: unknown) => void)
+    })
+    vi.spyOn(window, 'removeEventListener').mockImplementation(() => {})
+
+    await renderSmtpEvents()
+    const firstWs = mockWs
+    firstWs.readyState = 3 // CLOSED
+
+    act(() => {
+      for (const fn of listeners.online ?? []) fn()
+    })
+
+    expect(mockWs).not.toBe(firstWs)
+  })
+
+  it('does not reconnect on online event when socket is open', async () => {
+    const listeners: Record<string, ((ev?: unknown) => void)[]> = {}
+    vi.spyOn(window, 'addEventListener').mockImplementation((type, fn) => {
+      ;(listeners[type as string] ||= []).push(fn as (ev?: unknown) => void)
+    })
+    vi.spyOn(window, 'removeEventListener').mockImplementation(() => {})
+
+    await renderSmtpEvents()
+    const firstWs = mockWs
+    firstWs.readyState = 1 // OPEN
+
+    act(() => {
+      for (const fn of listeners.online ?? []) fn()
+    })
+
+    expect(mockWs).toBe(firstWs)
+  })
+
+  it('cancels reconnect timer on offline event', async () => {
+    const listeners: Record<string, ((ev?: unknown) => void)[]> = {}
+    vi.spyOn(window, 'addEventListener').mockImplementation((type, fn) => {
+      ;(listeners[type as string] ||= []).push(fn as (ev?: unknown) => void)
+    })
+    vi.spyOn(window, 'removeEventListener').mockImplementation(() => {})
+
+    await renderSmtpEvents()
+
+    // schedule a reconnect, then fire offline before it runs
+    act(() => {
+      mockWs.onclose?.()
+    })
+    const beforeCount = mockWs ? 1 : 0
+    act(() => {
+      for (const fn of listeners.offline ?? []) fn()
+    })
+
+    // advance past the reconnect delay — no new ws should be constructed
+    const wsBefore = mockWs
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+    expect(mockWs).toBe(wsBefore)
+    expect(beforeCount).toBe(1)
+  })
+
+  it('closes ws when error fires', async () => {
+    await renderSmtpEvents()
+    const ws = mockWs
+
+    act(() => {
+      ws.onerror?.()
+    })
+
+    expect(ws.close).toHaveBeenCalled()
+  })
+
+  it('ignores malformed JSON messages', async () => {
+    await renderSmtpEvents()
+
+    expect(() =>
+      act(() => {
+        mockWs.onmessage?.({ data: 'not-json' })
+      })
+    ).not.toThrow()
+  })
+
+  it('skips initial connect when offline', async () => {
+    vi.stubGlobal('navigator', { onLine: false })
+
+    const { result } = await renderSmtpEvents()
+
+    expect(result.current.connected).toBe(false)
   })
 })
