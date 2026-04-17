@@ -648,11 +648,25 @@ impl MailboxStore {
         row.map(|r| r.0).unwrap_or(0)
     }
 
+    /// count unseen messages for the user, mirroring the conversation-list
+    /// default filters: excludes spam/scam categories and currently-snoozed
+    /// threads, so the dashboard tally matches what the inbox view shows
     pub async fn count_unseen(&self, user: &str) -> i64 {
         let row: Result<(i64,), _> = sqlx::query_as(
             "SELECT COUNT(*) FROM messages m
              JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE mb.user_address = $1 AND m.flags & 1 = 0",
+             WHERE mb.user_address = $1
+               AND m.flags & 1 = 0
+               AND NOT EXISTS (
+                 SELECT 1 FROM email_analysis ea
+                 WHERE ea.message_id = m.id AND ea.category IN ('spam', 'scam')
+               )
+               AND NOT EXISTS (
+                 SELECT 1 FROM snoozed_conversations sc
+                 WHERE sc.thread_id = m.thread_id
+                   AND sc.account_address = mb.user_address
+                   AND sc.snoozed_until > NOW()
+               )",
         )
         .bind(user)
         .fetch_one(&self.pool)
