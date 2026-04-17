@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   appendSignature,
   notificationsAtom,
+  notificationSoundAtom,
   pageSizeAtom,
   signatureAtom,
   signatureEnabledAtom,
@@ -170,6 +171,190 @@ describe('signatureEnabledAtom', () => {
     store.set(signatureEnabledAtom, false)
     expect(store.get(signatureEnabledAtom)).toBe(false)
     expect(mockStorage.getItem('mailrs_signature_enabled')).toBe('false')
+  })
+})
+
+describe('notificationSoundAtom', () => {
+  let mockStorage: Storage
+
+  beforeEach(() => {
+    mockStorage = makeLocalStorageMock()
+    vi.stubGlobal('localStorage', mockStorage)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('persists true to localStorage', () => {
+    const store = createStore()
+    store.set(notificationSoundAtom, true)
+    expect(store.get(notificationSoundAtom)).toBe(true)
+    expect(mockStorage.getItem('mailrs_notification_sound')).toBe('true')
+  })
+
+  it('persists false to localStorage', () => {
+    const store = createStore()
+    store.set(notificationSoundAtom, false)
+    expect(store.get(notificationSoundAtom)).toBe(false)
+    expect(mockStorage.getItem('mailrs_notification_sound')).toBe('false')
+  })
+
+  it('toggles between true and false', () => {
+    const store = createStore()
+    store.set(notificationSoundAtom, false)
+    store.set(notificationSoundAtom, true)
+    expect(store.get(notificationSoundAtom)).toBe(true)
+  })
+})
+
+describe('settings module load behavior', () => {
+  afterEach(() => {
+    vi.resetModules()
+    vi.unstubAllGlobals()
+  })
+
+  async function importFresh() {
+    return await import('../settings')
+  }
+
+  it('defaults pageSize to 50 when no value stored', async () => {
+    vi.resetModules()
+    vi.stubGlobal('localStorage', makeLocalStorageMock())
+    const { pageSizeAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(50)
+  })
+
+  it('falls back to default pageSize when stored value is non-numeric', async () => {
+    vi.resetModules()
+    const storage = makeLocalStorageMock()
+    storage.setItem('mailrs_page_size', 'not-a-number')
+    vi.stubGlobal('localStorage', storage)
+    const { pageSizeAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(50)
+  })
+
+  it('falls back to default pageSize when stored value is out of range', async () => {
+    vi.resetModules()
+    const storage = makeLocalStorageMock()
+    storage.setItem('mailrs_page_size', '5')
+    vi.stubGlobal('localStorage', storage)
+    const { pageSizeAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(50)
+  })
+
+  it('falls back to default pageSize when localStorage throws', async () => {
+    vi.resetModules()
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('blocked')
+      },
+      setItem: () => {},
+    })
+    const { pageSizeAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(50)
+  })
+
+  it('reads stored notifications=false', async () => {
+    vi.resetModules()
+    const storage = makeLocalStorageMock()
+    storage.setItem('mailrs_notifications', 'false')
+    vi.stubGlobal('localStorage', storage)
+    const { notificationsAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(false)
+  })
+
+  it('defaults notifications to true when localStorage throws', async () => {
+    vi.resetModules()
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('blocked')
+      },
+      setItem: () => {},
+    })
+    const { notificationsAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(true)
+  })
+
+  it('defaults notification sound to true when nothing stored', async () => {
+    vi.resetModules()
+    vi.stubGlobal('localStorage', makeLocalStorageMock())
+    const { notificationSoundAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(true)
+  })
+
+  it('reads stored notification sound=false', async () => {
+    vi.resetModules()
+    const storage = makeLocalStorageMock()
+    storage.setItem('mailrs_notification_sound', 'false')
+    vi.stubGlobal('localStorage', storage)
+    const { notificationSoundAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(false)
+  })
+
+  it('defaults notification sound to true when localStorage throws', async () => {
+    vi.resetModules()
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('blocked')
+      },
+      setItem: () => {},
+    })
+    const { notificationSoundAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(true)
+  })
+
+  it('defaults signature to empty string when localStorage throws', async () => {
+    vi.resetModules()
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('blocked')
+      },
+      setItem: () => {},
+    })
+    const { signatureAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe('')
+  })
+
+  it('defaults signatureEnabled to false when nothing stored', async () => {
+    vi.resetModules()
+    vi.stubGlobal('localStorage', makeLocalStorageMock())
+    const { signatureEnabledAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(false)
+  })
+
+  it('reads stored signatureEnabled=true', async () => {
+    vi.resetModules()
+    const storage = makeLocalStorageMock()
+    storage.setItem('mailrs_signature_enabled', 'true')
+    vi.stubGlobal('localStorage', storage)
+    const { signatureEnabledAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(true)
+  })
+
+  it('defaults signatureEnabled to false when localStorage throws', async () => {
+    vi.resetModules()
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('blocked')
+      },
+      setItem: () => {},
+    })
+    const { signatureEnabledAtom: fresh } = await importFresh()
+    const store = createStore()
+    expect(store.get(fresh)).toBe(false)
   })
 })
 
