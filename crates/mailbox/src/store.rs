@@ -648,42 +648,47 @@ impl MailboxStore {
         row.map(|r| r.0).unwrap_or(0)
     }
 
-    /// count unseen messages for the user, mirroring the conversation-list
-    /// default filters so the dashboard tally matches what the inbox view
-    /// shows. excludes:
-    ///   - spam/scam categories
-    ///   - currently-snoozed threads
-    ///   - archived messages
-    ///   - messages with no thread_id (drafts, malformed)
-    ///   - messages in Drafts/Trash/Junk (their own folders, not "inbox unread")
-    ///   - threads where the user is the only participant (their own sends
-    ///     before any reply — the conversation list hides these client-side)
+    /// count unread *threads* for the user, mirroring `list_conversations`
+    /// thread-level aggregation so the dashboard tally matches what the
+    /// inbox view shows. a thread counts when:
+    ///   - it has at least one unseen message
+    ///   - none of its messages are archived (matches list HAVING BOOL_OR)
+    ///   - it isn't snoozed, isn't spam/scam, has a non-empty thread_id
+    ///   - at least one message has a sender other than the user (the
+    ///     conversation list hides "sent-only" threads client-side)
+    /// the function name keeps "unseen" for back-compat but the count is
+    /// thread-level — `unread_messages` in the API was always displayed as
+    /// "Unread N" without specifying messages vs threads, and threads are
+    /// what the user actually sees in the list
     pub async fn count_unseen(&self, user: &str) -> i64 {
         let row: Result<(i64,), _> = sqlx::query_as(
-            "SELECT COUNT(*) FROM messages m
-             JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE mb.user_address = $1
-               AND m.flags & 1 = 0
-               AND m.thread_id != ''
-               AND COALESCE(m.archived, false) = false
-               AND mb.name NOT IN ('Drafts', 'Trash', 'Junk')
-               AND NOT EXISTS (
-                 SELECT 1 FROM email_analysis ea
-                 WHERE ea.message_id = m.id AND ea.category IN ('spam', 'scam')
-               )
-               AND NOT EXISTS (
-                 SELECT 1 FROM snoozed_conversations sc
-                 WHERE sc.thread_id = m.thread_id
-                   AND sc.account_address = mb.user_address
-                   AND sc.snoozed_until > NOW()
-               )
-               AND EXISTS (
-                 SELECT 1 FROM messages m2
-                 JOIN mailboxes mb2 ON m2.mailbox_id = mb2.id
-                 WHERE m2.thread_id = m.thread_id
-                   AND mb2.user_address = $1
-                   AND LOWER(m2.sender) NOT LIKE '%' || LOWER($1) || '%'
-               )",
+            "SELECT COUNT(*) FROM (
+               SELECT m.thread_id
+               FROM messages m
+               JOIN mailboxes mb ON m.mailbox_id = mb.id
+               WHERE mb.user_address = $1
+                 AND m.thread_id != ''
+                 AND NOT EXISTS (
+                   SELECT 1 FROM snoozed_conversations sc
+                   WHERE sc.thread_id = m.thread_id
+                     AND sc.account_address = mb.user_address
+                     AND sc.snoozed_until > NOW()
+                 )
+                 AND NOT EXISTS (
+                   SELECT 1 FROM email_analysis ea
+                   WHERE ea.message_id = m.id AND ea.category IN ('spam', 'scam')
+                 )
+                 AND EXISTS (
+                   SELECT 1 FROM messages m2
+                   JOIN mailboxes mb2 ON m2.mailbox_id = mb2.id
+                   WHERE m2.thread_id = m.thread_id
+                     AND mb2.user_address = $1
+                     AND LOWER(m2.sender) NOT LIKE '%' || LOWER($1) || '%'
+                 )
+               GROUP BY m.thread_id
+               HAVING BOOL_OR(m.archived) = false
+                  AND COUNT(*) FILTER (WHERE (m.flags & 1) = 0) > 0
+             ) t",
         )
         .bind(user)
         .fetch_one(&self.pool)
