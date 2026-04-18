@@ -19,9 +19,14 @@ export const MPane = forwardRef<HTMLDivElement, PaneProps>(function MPane(
   )
 })
 
+// GDS PaneGroup ships with `min-h-0` but no `min-w-0`, so a flex child whose
+// content has a wide intrinsic min (e.g. an email iframe rendered at the
+// content's natural pixel width before transform-scale) can grow past its
+// share, push the fixed-width sibling pane off screen, and overflow the page
+// horizontally. forcing `min-w-0` everywhere lets flex shrink properly.
 export const MPaneGroup = forwardRef<HTMLDivElement, PaneGroupProps>(function MPaneGroup(
   { className, ...props },
   ref
 ) {
-  return <PaneGroup className={cx('gap-0 md:gap-1.5', className)} ref={ref} {...props} />
+  return <PaneGroup className={cx('min-w-0 gap-0 md:gap-1.5', className)} ref={ref} {...props} />
 })
