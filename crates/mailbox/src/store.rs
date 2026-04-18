@@ -649,14 +649,24 @@ impl MailboxStore {
     }
 
     /// count unseen messages for the user, mirroring the conversation-list
-    /// default filters: excludes spam/scam categories and currently-snoozed
-    /// threads, so the dashboard tally matches what the inbox view shows
+    /// default filters so the dashboard tally matches what the inbox view
+    /// shows. excludes:
+    ///   - spam/scam categories
+    ///   - currently-snoozed threads
+    ///   - archived messages
+    ///   - messages with no thread_id (drafts, malformed)
+    ///   - messages in Drafts/Trash/Junk (their own folders, not "inbox unread")
+    ///   - threads where the user is the only participant (their own sends
+    ///     before any reply — the conversation list hides these client-side)
     pub async fn count_unseen(&self, user: &str) -> i64 {
         let row: Result<(i64,), _> = sqlx::query_as(
             "SELECT COUNT(*) FROM messages m
              JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE mb.user_address = $1
                AND m.flags & 1 = 0
+               AND m.thread_id != ''
+               AND COALESCE(m.archived, false) = false
+               AND mb.name NOT IN ('Drafts', 'Trash', 'Junk')
                AND NOT EXISTS (
                  SELECT 1 FROM email_analysis ea
                  WHERE ea.message_id = m.id AND ea.category IN ('spam', 'scam')
@@ -666,6 +676,13 @@ impl MailboxStore {
                  WHERE sc.thread_id = m.thread_id
                    AND sc.account_address = mb.user_address
                    AND sc.snoozed_until > NOW()
+               )
+               AND EXISTS (
+                 SELECT 1 FROM messages m2
+                 JOIN mailboxes mb2 ON m2.mailbox_id = mb2.id
+                 WHERE m2.thread_id = m.thread_id
+                   AND mb2.user_address = $1
+                   AND LOWER(m2.sender) NOT LIKE '%' || LOWER($1) || '%'
                )",
         )
         .bind(user)
