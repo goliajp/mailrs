@@ -64,6 +64,25 @@ export function NewConversation() {
       .catch(() => {})
   }, [])
 
+  // composer opens by flipping an atom, which doesn't push a history entry.
+  // without this, browser Back leaves /mail entirely and lands wherever the
+  // user navigated from (often home). push a sentinel on mount so Back can
+  // pop it, and handle popstate by closing the composer instead of letting
+  // the pop cascade further up the stack
+  useEffect(() => {
+    window.history.pushState({ composerSentinel: true }, '')
+
+    const onPop = () => {
+      setComposingNew(false)
+      setReplySource(null)
+    }
+    window.addEventListener('popstate', onPop)
+
+    return () => {
+      window.removeEventListener('popstate', onPop)
+    }
+  }, [setComposingNew, setReplySource])
+
   const applyTemplate = (t: TemplateInfo) => {
     setSubject(t.subject)
     if (t.html_body) composeRef.current?.setComposeContent(t.html_body)
@@ -125,6 +144,14 @@ export function NewConversation() {
   }
 
   const closeComposer = () => {
+    // when our sentinel is still on top, pop it so Back afterwards lands on
+    // the thread underneath. popstate will re-run the close handlers, which
+    // is idempotent
+    const state = window.history.state as null | { composerSentinel?: boolean }
+    if (state?.composerSentinel) {
+      window.history.back()
+      return
+    }
     setComposingNew(false)
     setReplySource(null)
   }
