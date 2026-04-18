@@ -29,7 +29,10 @@ export function TextBlock({ disabled, getEditorRef, onChange, onSubmit, placehol
     editable: !disabled,
     editorProps: {
       attributes: {
-        class: PROSE_CLASS + ' min-h-[3rem]',
+        // give the text block a comfortable minimum height so the empty
+        // state doesn't leave a cavernous gap between the placeholder and
+        // the next block (signature / quoted original)
+        class: PROSE_CLASS + ' min-h-[16rem]',
         style: 'cursor:text',
       },
       handleKeyDown: (_view, event) => {
