@@ -3,6 +3,7 @@ import type { TextBlockData } from '../types'
 import { type Editor, EditorContent, useEditor } from '@tiptap/react'
 import { useCallback, useEffect, useRef } from 'react'
 
+import { MentionPicker } from '@/components/composer/mention-picker'
 import {
   createEditorExtensions,
   EditorToolbar,
@@ -93,6 +94,7 @@ export function TextBlock({ disabled, getEditorRef, onChange, onSubmit, placehol
       <div className={`flex-1 cursor-text ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
         <EditorContent editor={editor} />
       </div>
+      <MentionPicker editor={editor} />
     </div>
   )
 }
