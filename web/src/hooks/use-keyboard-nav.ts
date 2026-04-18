@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { postJson } from '@/lib/api'
 import {
   categoryFilterAtom,
+  composeReplySourceAtom,
   composingNewAtom,
   conversationsAtom,
   folderAtom,
@@ -21,6 +22,7 @@ export function useKeyboardNav() {
   const visibleIds = useAtomValue(visibleConversationIdsAtom)
   const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
+  const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
   const setShortcutsOpen = useSetAtom(shortcutsDialogOpenAtom)
   const setFolder = useSetAtom(folderAtom)
@@ -200,6 +202,7 @@ export function useKeyboardNav() {
 
         case 'n': {
           e.preventDefault()
+          setComposeReplySource(null)
           setComposingNew(true)
           setSelectedThreadId(null)
           setMobileView('thread')
@@ -308,6 +311,7 @@ export function useKeyboardNav() {
     selectedThreadId,
     setSelectedThreadId,
     setComposingNew,
+    setComposeReplySource,
     setConversations,
     setMobileView,
     setShortcutsOpen,

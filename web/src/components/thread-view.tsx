@@ -40,6 +40,8 @@ import { getToken } from '@/store/auth'
 import { authAtom } from '@/store/auth'
 import {
   categoryFilterAtom,
+  composeReplySourceAtom,
+  composingNewAtom,
   conversationsAtom,
   crossAccountReadAtom,
   folderAtom,
@@ -102,6 +104,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const abortRef = useRef<AbortController | null>(null)
   const [mobileThreadTab, setMobileThreadTab] = useAtom(mobileThreadTabAtom)
   const [mobileReplyOpen, setMobileReplyOpen] = useAtom(mobileReplyOpenAtom)
+  const setComposingNew = useSetAtom(composingNewAtom)
+  const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const [selectedMsgIdx, setSelectedMsgIdx] = useState<null | number>(null)
   const [isRead, setIsRead] = useState(true)
   const [isFlagged, setIsFlagged] = useState(false)
@@ -303,6 +307,27 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setReplyMode('forward')
   }, [])
 
+  // open the full-screen composer (same UI as "new email") pre-filled as
+  // a reply to this message. mirrors handleForwardMsg's shape but routes
+  // through NewConversation via composeReplySourceAtom
+  const handleReplyMsg = useCallback(
+    (msg: ThreadMessage) => {
+      if (!selectedId) return
+      setComposeReplySource({
+        htmlBody: msg.html_body || null,
+        internalDate: msg.internal_date,
+        messageId: msg.message_id,
+        sender: msg.sender,
+        subject: msg.subject || '',
+        textBody: msg.text_body || msg.clean_text || null,
+        threadId: selectedId,
+        uid: msg.uid,
+      })
+      setComposingNew(true)
+    },
+    [selectedId, setComposeReplySource, setComposingNew]
+  )
+
   useEffect(() => {
     if (!selectedId) {
       setMessages([])
@@ -485,6 +510,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           )}
                         </p>
                         <div className="flex shrink-0 items-center gap-0.5">
+                          <SmBtn onClick={() => handleReplyMsg(selectedMsg)} title="Reply">
+                            <Reply className="h-3.5 w-3.5" />
+                          </SmBtn>
                           <SmBtn onClick={() => handleForwardMsg(selectedMsg)} title="Forward">
                             <Forward className="h-3.5 w-3.5" />
                           </SmBtn>
