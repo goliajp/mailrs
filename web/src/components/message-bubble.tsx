@@ -264,13 +264,17 @@ function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: numbe
   )
 }
 
-// render html email inside a sandboxed iframe for full css isolation
-// auto-scales wide content via CSS zoom to fit container width
+// render html email inside a sandboxed iframe for full css isolation.
+// CSS containment + isolation on the wrapper guarantee the email's layout
+// can never bleed into the surrounding app, even if a clever payload tries.
+// wide content is fitted via transform: scale() — `zoom` is non-standard and
+// in some Blink layouts can disturb sibling/parent metrics
 function HtmlFrame({ html }: { html: string }) {
   const ref = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [height, setHeight] = useState(200)
-  const [zoom, setZoom] = useState(1)
+  const [scale, setScale] = useState(1)
+  const [containerWidth, setContainerWidth] = useState(0)
 
   const srcdoc = useMemo(() => {
     const sanitized = sanitizeEmail(html)
@@ -298,10 +302,10 @@ function HtmlFrame({ html }: { html: string }) {
     const containerW = container.clientWidth
     const contentH = doc.body.scrollHeight
 
-    // zoom down if content wider than container
-    const z = contentW > containerW && containerW > 0 ? containerW / contentW : 1
-    setZoom(z)
-    setHeight(contentH * z + 24)
+    const s = contentW > containerW && containerW > 0 ? containerW / contentW : 1
+    setScale(s)
+    setContainerWidth(containerW)
+    setHeight(contentH * s + 24)
   }, [])
 
   useEffect(() => {
@@ -329,14 +333,29 @@ function HtmlFrame({ html }: { html: string }) {
     return () => obs.disconnect()
   }, [measure])
 
+  // when scaling down, give the iframe its natural width so the content
+  // doesn't reflow under the smaller container; the transform shrinks it
+  // back into view, and the wrapper's contain locks the box so nothing
+  // bleeds out
+  const iframeWidth = scale < 1 && containerWidth > 0 ? `${containerWidth / scale}px` : '100%'
+  const iframeHeight = scale < 1 ? `${height / scale}px` : `${height}px`
+
   return (
-    <div className="overflow-hidden" ref={containerRef}>
+    <div
+      className="relative isolate overflow-hidden [contain:layout_style_paint]"
+      ref={containerRef}
+      style={{ height: `${height}px` }}
+    >
       <iframe
-        className="block w-full border-none"
+        className="block origin-top-left border-none"
         ref={ref}
         sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
         srcDoc={srcdoc}
-        style={{ height, zoom: zoom < 1 ? zoom : undefined }}
+        style={{
+          height: iframeHeight,
+          transform: scale < 1 ? `scale(${scale})` : undefined,
+          width: iframeWidth,
+        }}
         title="email content"
       />
     </div>
