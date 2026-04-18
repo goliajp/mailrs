@@ -895,7 +895,8 @@ impl MailboxStore {
                     BOOL_OR(m.archived),
                     COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
-                    COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false)
+                    COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false),
+                    COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {where_clause}
              GROUP BY m.thread_id HAVING {having_clause}
@@ -903,7 +904,7 @@ impl MailboxStore {
         );
 
         // bind parameters in order
-        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool)>(&sql);
+        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String)>(&sql);
 
         if let Some(doms) = domains {
             if doms.is_empty() {
@@ -949,6 +950,7 @@ impl MailboxStore {
                 importance_level: r.11,
                 importance_score: r.12,
                 requires_action: r.13,
+                last_sender: r.14,
             })
             .collect())
     }
@@ -1008,13 +1010,14 @@ impl MailboxStore {
                     BOOL_OR(m.archived),
                     COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
-                    COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false)
+                    COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false),
+                    COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {user_condition} AND {tid_filter}
              GROUP BY m.thread_id"
         );
 
-        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool)>(&sql);
+        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String)>(&sql);
 
         if let Some(doms) = domains {
             if doms.is_empty() {
@@ -1054,6 +1057,7 @@ impl MailboxStore {
                     importance_level: r.11,
                     importance_score: r.12,
                     requires_action: r.13,
+                    last_sender: r.14,
                 };
                 (tid, cs)
             })
@@ -1664,7 +1668,8 @@ impl MailboxStore {
                     BOOL_OR(m.archived),
                     COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
-                    COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false)
+                    COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false),
+                    COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {user_filter} AND thread_id != ''
                {search_filter}
@@ -1677,7 +1682,7 @@ impl MailboxStore {
         let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
         let pattern = format!("%{escaped}%");
 
-        let mut q = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool)>(&sql);
+        let mut q = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String)>(&sql);
 
         for b in &user_binds {
             q = q.bind(b);
@@ -1708,6 +1713,7 @@ impl MailboxStore {
                 importance_level: r.11,
                 importance_score: r.12,
                 requires_action: r.13,
+                last_sender: r.14,
             })
             .collect())
     }
@@ -2699,6 +2705,7 @@ mod tests {
             flagged: true, snippet: "preview text".into(),
             pinned: false, archived: false,
             importance_level: "normal".into(), importance_score: 0.0, requires_action: false,
+            last_sender: "alice".into(),
         };
         let cloned = cs.clone();
         assert_eq!(cloned.thread_id, "t1");
@@ -2719,6 +2726,7 @@ mod tests {
             flagged: false, snippet: "".into(),
             pinned: true, archived: true,
             importance_level: "normal".into(), importance_score: 0.0, requires_action: false,
+            last_sender: "a".into(),
         };
         let debug = format!("{:?}", cs);
         assert!(debug.contains("ConversationSummary"));
