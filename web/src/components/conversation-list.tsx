@@ -780,13 +780,8 @@ export function ConversationList({
   const sortedConversations = useMemo(() => {
     let visible = showArchived ? conversations : conversations.filter((c) => !c.archived)
 
-    // hide threads where my most recent message is the latest in the
-    // thread — i.e. everything I sent that nobody has replied to yet. they
-    // still show up under Sent; this keeps the default inbox view a feed
-    // of things *to read*, not a mirror of my outbox
-    if (folder !== 'Sent' && myEmail) {
-      visible = visible.filter((c) => extractEmail(c.last_sender) !== myEmail)
-    }
+    // "hide my own latest sends from All" is enforced by the server in
+    // list_conversations when folder != Sent; no client filter needed
 
     // quick filter
     if (quickFilter === 'unread') {
@@ -818,7 +813,7 @@ export function ConversationList({
       unpinned.sort((a, b) => b.unread_count - a.unread_count || b.last_date - a.last_date)
     }
     return [...pinned, ...unpinned]
-  }, [conversations, sortOrder, showArchived, importanceSection, quickFilter, folder, myEmail])
+  }, [conversations, sortOrder, showArchived, importanceSection, quickFilter])
 
   // sync visible conversation ids to store for keyboard nav
   const setVisibleIds = useSetAtom(visibleConversationIdsAtom)
