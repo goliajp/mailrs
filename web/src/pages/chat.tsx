@@ -187,10 +187,11 @@ export function Chat() {
       } catch {
         // keep current
       } finally {
-        if (!firstLoadDone.current) {
-          firstLoadDone.current = true
-          setInitialLoading(false)
-        }
+        // clear loading on every fetch, not just the first — otherwise a
+        // filter-change refetch (which clears conversations before fetching)
+        // would leave the UI stuck showing the empty state
+        firstLoadDone.current = true
+        if (!append) setInitialLoading(false)
       }
     },
     [setConversations, setHasMore, setInitialLoading, buildPath]
@@ -232,6 +233,9 @@ export function Chat() {
     prevSearchRef.current = searchQuery
 
     const doLoad = () => {
+      // flip loading true before clearing so the UI shows the skeleton
+      // instead of the "All caught up!" empty state while refetching
+      setInitialLoading(true)
       setConversations([])
       setHasMore(true)
       loadConversations({
@@ -268,6 +272,7 @@ export function Chat() {
     loadConversations,
     setConversations,
     setHasMore,
+    setInitialLoading,
   ])
 
   // auto-select first conversation on desktop (desktop shows list + detail side by side)
