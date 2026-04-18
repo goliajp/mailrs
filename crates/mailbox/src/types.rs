@@ -63,6 +63,9 @@ pub struct ConversationSummary {
     pub importance_score: f32,
     /// whether any message in the thread requires action
     pub requires_action: bool,
+    /// sender of the most recent message in the thread (used client-side
+    /// to hide "sent by me" threads from the default inbox view)
+    pub last_sender: String,
 }
 
 /// AI analysis result stored in email_analysis table

@@ -75,6 +75,7 @@ export type ConversationSummary = {
   importance_level: string
   importance_score: number
   last_date: number
+  last_sender: string
   message_count: number
   participants: string[]
   pinned: boolean

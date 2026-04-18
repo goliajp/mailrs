@@ -780,13 +780,12 @@ export function ConversationList({
   const sortedConversations = useMemo(() => {
     let visible = showArchived ? conversations : conversations.filter((c) => !c.archived)
 
-    // hide sent-only threads from inbox view (show them only in Sent tab)
-    // a thread with replies from others should appear in both inbox and sent
+    // hide threads where my most recent message is the latest in the
+    // thread — i.e. everything I sent that nobody has replied to yet. they
+    // still show up under Sent; this keeps the default inbox view a feed
+    // of things *to read*, not a mirror of my outbox
     if (folder !== 'Sent' && myEmail) {
-      visible = visible.filter((c) => {
-        const emails = c.participants.map((p) => extractEmail(p))
-        return !emails.every((e) => e === myEmail)
-      })
+      visible = visible.filter((c) => extractEmail(c.last_sender) !== myEmail)
     }
 
     // quick filter
