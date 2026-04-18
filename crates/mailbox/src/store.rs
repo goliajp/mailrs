@@ -654,8 +654,8 @@ impl MailboxStore {
     ///   - it has at least one unseen message
     ///   - none of its messages are archived (matches list HAVING BOOL_OR)
     ///   - it isn't snoozed, isn't spam/scam, has a non-empty thread_id
-    ///   - at least one message has a sender other than the user (the
-    ///     conversation list hides "sent-only" threads client-side)
+    ///   - the newest message's sender isn't the user (same "don't show
+    ///     my own outbox in All" filter list_conversations applies)
     /// the function name keeps "unseen" for back-compat but the count is
     /// thread-level — `unread_messages` in the API was always displayed as
     /// "Unread N" without specifying messages vs threads, and threads are
@@ -678,16 +678,10 @@ impl MailboxStore {
                    SELECT 1 FROM email_analysis ea
                    WHERE ea.message_id = m.id AND ea.category IN ('spam', 'scam')
                  )
-                 AND EXISTS (
-                   SELECT 1 FROM messages m2
-                   JOIN mailboxes mb2 ON m2.mailbox_id = mb2.id
-                   WHERE m2.thread_id = m.thread_id
-                     AND mb2.user_address = $1
-                     AND LOWER(m2.sender) NOT LIKE '%' || LOWER($1) || '%'
-                 )
                GROUP BY m.thread_id
                HAVING BOOL_OR(m.archived) = false
                   AND COUNT(*) FILTER (WHERE (m.flags & 1) = 0) > 0
+                  AND LOWER(COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')) NOT LIKE '%' || LOWER($1) || '%'
              ) t",
         )
         .bind(user)
@@ -850,10 +844,26 @@ impl MailboxStore {
             );
         }
 
+        // when the caller isn't explicitly looking at Sent, hide threads
+        // whose newest message was sent by the user — "stuff I dispatched
+        // that hasn't been replied to" belongs in Sent, not in the feed
+        // of things to read. this is the last bind slot (no further params
+        // follow), so we claim param_idx without bumping it
+        let hide_my_latest_bind_idx = if folder != Some("Sent") {
+            Some(param_idx)
+        } else {
+            None
+        };
+
         let where_clause = conditions.join(" AND ");
 
         // build HAVING clause with optional filters
         let mut having_parts = vec![archived_filter.to_string()];
+        if let Some(idx) = hide_my_latest_bind_idx {
+            having_parts.push(format!(
+                "LOWER(COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')) NOT LIKE '%' || LOWER(${idx}) || '%'"
+            ));
+        }
         if unread == Some(true) {
             having_parts.push(format!("{unread_expr} > 0"));
         }
@@ -929,6 +939,11 @@ impl MailboxStore {
         }
         if let Some(cat) = category {
             query = query.bind(cat);
+        }
+        // matches the HAVING clause that excludes "last sender is me";
+        // bound at the position reserved in hide_my_latest_bind_idx above
+        if hide_my_latest_bind_idx.is_some() {
+            query = query.bind(user);
         }
 
         let rows = query.fetch_all(&self.pool).await?;
