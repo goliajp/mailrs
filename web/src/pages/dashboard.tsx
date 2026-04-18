@@ -28,7 +28,12 @@ import { MPane, MPaneGroup } from '@/layouts/pane'
 import { fetchJson } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { authAtom } from '@/store/auth'
-import { composingNewAtom, searchQueryAtom, selectedThreadIdAtom } from '@/store/chat'
+import {
+  composingNewAtom,
+  quickFilterAtom,
+  searchQueryAtom,
+  selectedThreadIdAtom,
+} from '@/store/chat'
 
 type DashboardData = {
   conversations: ConversationSummary[]
@@ -54,6 +59,7 @@ export function Dashboard() {
   const setSelectedThread = useSetAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const setSearchQuery = useSetAtom(searchQueryAtom)
+  const setQuickFilter = useSetAtom(quickFilterAtom)
   const [data, setData] = useState<DashboardData | null>(null)
   const [searchInput, setSearchInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -364,19 +370,42 @@ export function Dashboard() {
                 </Section>
               )}
 
-              {/* all caught up */}
+              {/* all caught up — but only when the server agrees there's
+                  truly 0 unread. recentUnread is computed from the top-200
+                  conversation fetch, so it can be empty even when an older
+                  unread thread is sitting further down the list */}
               {needsAttention.length === 0 && recentUnread.length === 0 && pinned.length === 0 && (
                 <>
                   <Section icon={Mail} title="Inbox">
                     <div className="text-fg-muted flex flex-col items-center gap-2 py-6">
                       <Shield aria-hidden="true" className="h-8 w-8" />
-                      <p className="text-sm">All caught up — no unread emails</p>
+                      <p className="text-sm">
+                        {totalUnread > 0
+                          ? `${totalUnread} unread further down — open inbox to see`
+                          : 'All caught up — no unread emails'}
+                      </p>
                       <button
                         className="bg-accent/10 text-accent hover:bg-accent mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:text-white"
-                        onClick={handleCompose}
+                        onClick={
+                          totalUnread > 0
+                            ? () => {
+                                setQuickFilter('unread')
+                                navigate('/mail')
+                              }
+                            : handleCompose
+                        }
                       >
-                        <Plus className="h-3.5 w-3.5" />
-                        Compose new email
+                        {totalUnread > 0 ? (
+                          <>
+                            <Mail className="h-3.5 w-3.5" />
+                            Open inbox
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-3.5 w-3.5" />
+                            Compose new email
+                          </>
+                        )}
                       </button>
                     </div>
                   </Section>
