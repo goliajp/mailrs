@@ -1,8 +1,9 @@
 import type { AttachmentInfo } from '@/lib/types'
 
 import { ChevronLeft, Download, Eye, Search } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { HtmlFrame } from '@/components/html-frame'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson } from '@/lib/api'
 import { getToken } from '@/store/auth'
@@ -285,50 +286,6 @@ function formatFullDate(epoch: number): string {
   return new Date(epoch * 1000).toLocaleString()
 }
 
-function HtmlFrame({ html }: { html: string }) {
-  const ref = useRef<HTMLIFrameElement>(null)
-  const [height, setHeight] = useState(200)
-
-  const srcdoc = useMemo(() => {
-    const sanitized = sanitizeEmail(html)
-    return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  body { margin: 0; padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.6; color: #1a1a1a; background: #fff; word-wrap: break-word; overflow-wrap: break-word; }
-  img { max-width: 100%; height: auto; }
-  a { color: #0066cc; }
-  table { max-width: 100%; }
-  pre, code { white-space: pre-wrap; }
-</style></head><body>${sanitized}</body></html>`
-  }, [html])
-
-  useEffect(() => {
-    const iframe = ref.current
-    if (!iframe) return
-    const onLoad = () => {
-      try {
-        const h = iframe.contentDocument?.documentElement?.scrollHeight
-        if (h && h > 50) setHeight(Math.min(h + 16, 800))
-      } catch {
-        // cross-origin
-      }
-    }
-    iframe.addEventListener('load', onLoad)
-    return () => iframe.removeEventListener('load', onLoad)
-  }, [srcdoc])
-
-  return (
-    <iframe
-      className="block w-full border-none"
-      ref={ref}
-      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-      srcDoc={srcdoc}
-      style={{ height }}
-      title="email content"
-    />
-  )
-}
-
 function MessageView({ msg, targetUser }: { msg: AuditMessage; targetUser: string }) {
   const token = getToken() ?? ''
 
@@ -386,12 +343,4 @@ function MessageView({ msg, targetUser }: { msg: AuditMessage; targetUser: strin
       )}
     </div>
   )
-}
-
-// sanitize html for safe iframe rendering
-function sanitizeEmail(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
-    .replace(/on\w+\s*=\s*\S+/gi, '')
 }

@@ -1,10 +1,8 @@
 import type { QuoteBlockData } from '../types'
 
-import { EditorContent, useEditor } from '@tiptap/react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { useEffect, useRef } from 'react'
 
-import { createMinimalExtensions } from '@/components/rich-editor'
+import { HtmlFrame } from '@/components/html-frame'
 
 type Props = {
   data: QuoteBlockData
@@ -13,25 +11,10 @@ type Props = {
 }
 
 export function QuoteBlock({ data, mode, onChange }: Props) {
-  const initializedRef = useRef(false)
   const collapsed = data.collapsed
-
-  const editor = useEditor({
-    editable: false,
-    editorProps: {
-      attributes: {
-        class: 'prose prose-sm max-w-none px-3 py-2 outline-none text-fg-muted',
-      },
-    },
-    extensions: createMinimalExtensions(),
-  })
-
-  useEffect(() => {
-    if (!editor || initializedRef.current || !data.html) return
-    const html = data.headerHtml ? data.headerHtml + data.html : data.html
-    editor.commands.setContent(html)
-    initializedRef.current = true
-  }, [editor, data.html, data.headerHtml])
+  // stitch the "On Date, Sender wrote:" header onto the body so the
+  // preview matches what will actually be sent
+  const previewHtml = data.headerHtml ? data.headerHtml + data.html : data.html
 
   return (
     <div className="border-border border-t border-l-2">
@@ -43,9 +26,13 @@ export function QuoteBlock({ data, mode, onChange }: Props) {
         {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         {collapsed ? `Show original${mode === 'forward' ? ' (forwarded)' : ''}` : 'Hide original'}
       </button>
-      {!collapsed && (
-        <div className="border-border border-l-2 opacity-50">
-          <EditorContent editor={editor} />
+      {!collapsed && previewHtml && (
+        <div className="border-border border-l-2">
+          {/* iframe preserves the sender's styling (tables, inline css,
+              images) that a Tiptap-based preview would have flattened.
+              capped height keeps long newsletters from pushing the editor
+              off-screen — user scrolls inside the preview box */}
+          <HtmlFrame html={previewHtml} maxHeight="50vh" />
         </div>
       )}
     </div>
