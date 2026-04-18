@@ -1033,25 +1033,6 @@ function BatchActionBar({
   )
 }
 
-function ConversationSkeleton() {
-  return (
-    <div className="animate-pulse">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div className="flex items-start gap-3 px-4 py-3" key={i}>
-          <div className="bg-border h-9 w-9 shrink-0 rounded-full" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="bg-border h-3.5 w-24 rounded" />
-              <div className="bg-border h-3 w-10 rounded" />
-            </div>
-            <div className="bg-border h-3 w-40 rounded" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function DateDivider({ label }: { label: string }) {
   return (
     <div className="sticky top-0 z-10 flex justify-center py-1.5 select-none">
@@ -1181,11 +1162,15 @@ function VirtualConversationList({
   if (initialLoading && conversations.length === 0) {
     return (
       <div
-        className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-14' : ''}`}
+        aria-busy="true"
+        className={`flex flex-1 items-center justify-center overflow-y-auto ${hasBatchBar ? 'pb-14' : ''}`}
         ref={scrollContainerRef}
         role="list"
       >
-        <ConversationSkeleton />
+        <div
+          aria-label="Loading conversations"
+          className="border-border border-t-accent h-8 w-8 animate-spin rounded-full border-2"
+        />
       </div>
     )
   }
