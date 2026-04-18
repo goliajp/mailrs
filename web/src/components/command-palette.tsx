@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router'
 
 import { MobileModal } from '@/components/mobile-modal'
 import { authAtom } from '@/store/auth'
-import { composingNewAtom } from '@/store/chat'
+import { composeReplySourceAtom, composingNewAtom } from '@/store/chat'
 import { themeModeAtom } from '@/store/theme'
 
 type Command = {
@@ -198,6 +198,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
   const navigate = useNavigate()
   const setAuth = useSetAtom(authAtom)
   const setComposing = useSetAtom(composingNewAtom)
+  const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setTheme = useSetAtom(themeModeAtom)
   const theme = useAtomValue(themeModeAtom)
 
@@ -271,6 +272,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         label: 'Compose New Email',
         shortcut: 'C',
         action: () => {
+          setComposeReplySource(null)
           setComposing(true)
           navigate('/mail')
           onClose()
@@ -311,7 +313,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         },
       },
     ],
-    [navigate, onClose, setAuth, setComposing, setTheme, theme]
+    [navigate, onClose, setAuth, setComposeReplySource, setComposing, setTheme, theme]
   )
 
   return useMemo(() => {

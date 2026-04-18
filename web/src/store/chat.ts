@@ -60,3 +60,18 @@ export const mobileThreadTabAtom = atom<MobileThreadTab>('content')
 
 // mobile full-screen reply composer
 export const mobileReplyOpenAtom = atom(false)
+
+// when non-null, the full-screen composer (NewConversation) opens pre-filled
+// as a reply to this message. set alongside composingNewAtom=true by the
+// Reply button; cleared when the composer closes or after send
+export type ComposeReplySource = {
+  htmlBody: null | string
+  internalDate: number
+  messageId: string
+  sender: string
+  subject: string
+  textBody: null | string
+  threadId: string
+  uid: number
+}
+export const composeReplySourceAtom = atom<ComposeReplySource | null>(null)

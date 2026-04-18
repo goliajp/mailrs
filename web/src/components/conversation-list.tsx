@@ -29,6 +29,7 @@ import { authAtom } from '@/store/auth'
 import {
   batchModeAtom,
   categoryFilterAtom,
+  composeReplySourceAtom,
   composingNewAtom,
   conversationsAtom,
   folderAtom,
@@ -587,6 +588,7 @@ export function ConversationList({
   const [conversations, setConversations] = useAtom(conversationsAtom)
   const [selectedId, setSelectedId] = useAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
+  const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
   const hasMore = useAtomValue(hasMoreAtom)
   const loadingMore = useAtomValue(loadingMoreAtom)
@@ -920,6 +922,7 @@ export function ConversationList({
           aria-label="New conversation"
           className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
           onClick={() => {
+            setComposeReplySource(null)
             setComposingNew(true)
             setSelectedId(null)
           }}

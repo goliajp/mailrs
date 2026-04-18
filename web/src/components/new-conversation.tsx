@@ -8,10 +8,16 @@ import { useEffect, useRef, useState } from 'react'
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
 import { getToken } from '@/store/auth'
 import { authAtom } from '@/store/auth'
-import { composingNewAtom, conversationsAtom, selectedThreadIdAtom } from '@/store/chat'
+import {
+  composeReplySourceAtom,
+  composingNewAtom,
+  conversationsAtom,
+  selectedThreadIdAtom,
+} from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
 type PolishResult = { message?: string; polished?: string; success: boolean }
@@ -32,12 +38,17 @@ export function NewConversation() {
   const setComposingNew = useSetAtom(composingNewAtom)
   const setSelectedThread = useSetAtom(selectedThreadIdAtom)
   const setConversations = useSetAtom(conversationsAtom)
+  const replySource = useAtomValue(composeReplySourceAtom)
+  const setReplySource = useSetAtom(composeReplySourceAtom)
+  const isReply = replySource !== null
 
-  const [to, setTo] = useState('')
+  const [to, setTo] = useState(() => (replySource ? extractReplyAddress(replySource.sender) : ''))
   const [cc, setCc] = useState('')
   const [bcc, setBcc] = useState('')
   const [showCcBcc, setShowCcBcc] = useState(false)
-  const [subject, setSubject] = useState('')
+  const [subject, setSubject] = useState(() =>
+    replySource ? withReplyPrefix(replySource.subject) : ''
+  )
   const [sending, setSending] = useState(false)
   const [polishing, setPolishing] = useState(false)
   const [generatingSubject, setGeneratingSubject] = useState(false)
@@ -113,6 +124,11 @@ export function NewConversation() {
     }
   }
 
+  const closeComposer = () => {
+    setComposingNew(false)
+    setReplySource(null)
+  }
+
   const send = async () => {
     if (sending) return
     const recipients = to
@@ -154,6 +170,7 @@ export function NewConversation() {
         for (const r of ccList) formData.append('cc', r)
         for (const r of bccList) formData.append('bcc', r)
         for (const f of attachmentFiles) formData.append('attachments', f)
+        if (replySource?.messageId) formData.append('in_reply_to', replySource.messageId)
         if (scheduledAt) formData.append('scheduled_at', new Date(scheduledAt).toISOString())
 
         const token = getToken()
@@ -175,7 +192,7 @@ export function NewConversation() {
           cc: ccList,
           from: auth?.address ?? '',
           html_body: content.fullHtml,
-          in_reply_to: null,
+          in_reply_to: replySource?.messageId ?? null,
           subject,
           to: recipients,
           ...(scheduledAt ? { scheduled_at: new Date(scheduledAt).toISOString() } : {}),
@@ -205,7 +222,7 @@ export function NewConversation() {
         const convos = await fetchJson<ConversationSummary[]>('/conversations?limit=50')
         setConversations(convos)
         if (convos.length > 0) setSelectedThread(convos[0].thread_id)
-        setComposingNew(false)
+        closeComposer()
       } else {
         setError(result.message ?? 'Send failed')
       }
@@ -220,11 +237,13 @@ export function NewConversation() {
     <div className="flex flex-1 flex-col">
       {/* header — subtle, not shouty */}
       <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
-        <span className="text-fg-muted text-xs font-medium">New message</span>
+        <span className="text-fg-muted text-xs font-medium">
+          {isReply ? 'Reply' : 'New message'}
+        </span>
         <button
           aria-label="Close"
           className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
-          onClick={() => setComposingNew(false)}
+          onClick={closeComposer}
         >
           <X className="h-4 w-4" />
         </button>
@@ -298,9 +317,22 @@ export function NewConversation() {
       <div className="min-h-0 flex-1">
         <StructuredCompose
           disabled={sending}
-          mode="new"
+          mode={isReply ? 'reply' : 'new'}
           onSubmit={send}
-          placeholder="Write your message..."
+          placeholder={isReply ? 'Type a reply...' : 'Write your message...'}
+          quotedHeader={
+            replySource
+              ? `On ${formatFullDate(replySource.internalDate)}, ${replySource.sender} wrote:\n\n`
+              : undefined
+          }
+          quotedHeaderHtml={
+            replySource
+              ? `<p style="color:#888">On ${escapeHtml(formatFullDate(replySource.internalDate))}, ${escapeHtml(replySource.sender)} wrote:</p>`
+              : undefined
+          }
+          quotedHtml={
+            replySource ? (replySource.htmlBody ?? replySource.textBody ?? undefined) : undefined
+          }
           ref={composeRef}
           signature={signature}
           signatureEnabled={signatureEnabled}
@@ -412,11 +444,23 @@ export function NewConversation() {
         <button
           className="text-fg-muted hover:bg-bg-secondary flex h-8 shrink-0 items-center rounded-md px-3 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           disabled={sending}
-          onClick={() => setComposingNew(false)}
+          onClick={closeComposer}
         >
           Cancel
         </button>
       </div>
     </div>
   )
+}
+
+// pull the bare address out of a "Name <addr@host>" sender field, falling
+// back to the raw string if no angle-bracketed form is present
+function extractReplyAddress(sender: string): string {
+  const match = sender.match(/<([^>]+)>/)
+  return match ? match[1].trim() : sender.trim()
+}
+
+function withReplyPrefix(subject: string): string {
+  const trimmed = subject.trim()
+  return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`
 }

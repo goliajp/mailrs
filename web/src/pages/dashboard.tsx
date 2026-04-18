@@ -29,6 +29,7 @@ import { fetchJson } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { authAtom } from '@/store/auth'
 import {
+  composeReplySourceAtom,
   composingNewAtom,
   quickFilterAtom,
   searchQueryAtom,
@@ -58,6 +59,7 @@ export function Dashboard() {
   const navigate = useNavigate()
   const setSelectedThread = useSetAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
+  const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setSearchQuery = useSetAtom(searchQueryAtom)
   const setQuickFilter = useSetAtom(quickFilterAtom)
   const [data, setData] = useState<DashboardData | null>(null)
@@ -101,9 +103,10 @@ export function Dashboard() {
   )
 
   const handleCompose = useCallback(() => {
+    setComposeReplySource(null)
     setComposingNew(true)
     navigate('/mail')
-  }, [navigate, setComposingNew])
+  }, [navigate, setComposingNew, setComposeReplySource])
 
   const handleSearch = useCallback(
     (e: React.FormEvent) => {
