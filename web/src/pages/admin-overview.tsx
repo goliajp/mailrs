@@ -154,10 +154,10 @@ function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
                 const ip = e.detail.replace(/^ip=/, '').trim()
                 return (
                   <tr className="border-border border-b last:border-0" key={e.id}>
-                    <td className="text-fg-muted py-1.5 pr-2 whitespace-nowrap">
+                    <td className="text-fg-muted px-3 py-2.5 whitespace-nowrap">
                       {formatRelativeTime(e.timestamp)}
                     </td>
-                    <td className="py-1.5 pr-2 whitespace-nowrap">
+                    <td className="px-3 py-2.5 whitespace-nowrap">
                       <span
                         className={`rounded px-1.5 py-0.5 font-medium ${
                           e.action === 'login_failed'
@@ -170,7 +170,7 @@ function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
                         {e.action.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="text-fg-muted py-1.5 text-right tabular-nums">
+                    <td className="text-fg-muted px-3 py-2.5 text-right tabular-nums">
                       {ip || e.target}
                     </td>
                   </tr>
