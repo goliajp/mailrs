@@ -734,7 +734,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   {subjectText}
                                 </div>
                               )}
-                              <BubbleBody msg={msg} myEmail={myEmail} myName={auth?.display_name} />
+                              <BubbleBody
+                                msg={msg}
+                                myEmail={myEmail}
+                                myName={auth?.display_name}
+                                subject={subjectText}
+                              />
                               <BubbleFactChips msg={msg} />
                             </div>
                           </div>
@@ -875,10 +880,12 @@ function BubbleBody({
   msg,
   myEmail,
   myName,
+  subject,
 }: {
   msg: ThreadMessage
   myEmail: string
   myName?: string
+  subject: string
 }) {
   // 1) AI summary is always clean — use it when present
   if (msg.summary) {
@@ -889,15 +896,20 @@ function BubbleBody({
     )
   }
 
-  // 2) cleaned plain-text — only show if it isn't HTML→text dump
+  // 2) cleaned text from html_body or plain text fallback. drop the
+  //    subject if the body opens with it so the preview adds new info
+  //    rather than echoing the line above.
   const text = bubbleText(msg)
   if (text && !looksLikeHtmlDump(text)) {
-    const preview = text.length > 240 ? smartTruncate(text, 240) : text
-    return (
-      <p className="text-fg line-clamp-3 text-[13px] leading-relaxed select-text">
-        {highlightMentions(preview, myEmail, myName)}
-      </p>
-    )
+    const trimmed = stripSubjectFromPreview(text, subject)
+    const preview = trimmed.length > 280 ? smartTruncate(trimmed, 280) : trimmed
+    if (preview.length > 0) {
+      return (
+        <p className="text-fg line-clamp-3 text-[13px] leading-relaxed select-text">
+          {highlightMentions(preview, myEmail, myName)}
+        </p>
+      )
+    }
   }
 
   // 3) html-only or empty — show a clear placeholder; the open thread on
@@ -909,29 +921,66 @@ function BubbleBody({
   )
 }
 
+// strip the subject from the start of preview text. many transactional
+// emails (Stripe receipts, GitHub notifications, etc.) have the subject
+// repeated as the first heading inside the body, so the bubble would
+// show the same line twice (once as the subject row, once as the
+// preview). matches the leading words case-insensitively, with a small
+// allowance for trailing punctuation / sender names.
+function stripSubjectFromPreview(text: string, subject: string): string {
+  if (!subject) return text
+  const normSubject = subject.toLowerCase().trim()
+  if (!normSubject || normSubject.length < 6) return text
+  const normText = text.toLowerCase()
+  // search the first 200 chars for the subject and start the preview
+  // after it (skipping common separator characters)
+  const window = normText.slice(0, Math.min(200, normText.length))
+  const at = window.indexOf(normSubject)
+  if (at === -1) return text
+  let cut = at + normSubject.length
+  while (cut < text.length && /[\s·•|–—\-:,]/.test(text[cut])) cut++
+  const remainder = text.slice(cut).trim()
+  return remainder.length >= 30 ? remainder : text
+}
+
+// regex-extract facts from the rendered preview text directly. AI
+// metadata (msg.amounts / msg.dates / msg.action_items) is sparse in
+// practice — half the marketing/receipt emails arrive without anything
+// in those columns. parsing the visible bubble text guarantees the
+// chips show whenever the email actually contains the data.
+const RX_AMOUNT = /(?:[$€£¥￥]|USD|EUR|GBP|JPY|CNY)\s?\d{1,3}(?:[,，]\d{3})*(?:\.\d{1,2})?/g
+const RX_DATE =
+  /\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:[,\s]+\d{4})?\b/g
+const RX_RECEIPT = /(?:#|No\.?\s*|Number[:\s]+|番号[:：\s]+)([A-Z0-9]{4,}[-A-Z0-9]+)/g
+
 function BubbleFactChips({ msg }: { msg: ThreadMessage }) {
-  const amounts = (msg.amounts || []).slice(0, 2).map((a) => {
-    if (a.value !== undefined && a.currency) return `${a.currency} ${a.value.toLocaleString()}`
-    return a.text
-  })
-  const dates = (msg.dates || [])
-    .filter((d) => d.iso_date || d.text)
-    .slice(0, 2)
-    .map((d) => d.iso_date || d.text)
+  const facts = extractBubbleFacts(msg)
   const actions = (msg.action_items || []).slice(0, 1)
 
-  if (amounts.length === 0 && dates.length === 0 && actions.length === 0) return null
+  if (
+    facts.amounts.length === 0 &&
+    facts.dates.length === 0 &&
+    facts.refs.length === 0 &&
+    actions.length === 0
+  ) {
+    return null
+  }
 
   return (
     <div className="flex flex-wrap gap-1 pt-0.5">
-      {amounts.map((a, i) => (
+      {facts.amounts.map((a, i) => (
         <FactChip key={`amt-${i}`} kind="amount">
           {a}
         </FactChip>
       ))}
-      {dates.map((d, i) => (
+      {facts.dates.map((d, i) => (
         <FactChip key={`date-${i}`} kind="date">
           {d}
+        </FactChip>
+      ))}
+      {facts.refs.map((r, i) => (
+        <FactChip key={`ref-${i}`} kind="ref">
+          {r}
         </FactChip>
       ))}
       {actions.map((a, i) => (
@@ -982,20 +1031,61 @@ function cleanTextForBubble(raw: string): string {
     .trim()
 }
 
+function extractBubbleFacts(msg: ThreadMessage): {
+  amounts: string[]
+  dates: string[]
+  refs: string[]
+} {
+  // pull from AI metadata first; supplement with regex over the body
+  const aiAmounts = (msg.amounts || []).map((a) =>
+    a.value !== undefined && a.currency ? `${a.currency} ${a.value.toLocaleString()}` : a.text
+  )
+  const aiDates = (msg.dates || []).map((d) => d.iso_date || d.text).filter(Boolean)
+
+  const body = msg.html_body
+    ? htmlToPreviewText(msg.html_body)
+    : msg.text_body || msg.clean_text || ''
+
+  const found: { amounts: string[]; dates: string[]; refs: string[] } = {
+    amounts: [],
+    dates: [],
+    refs: [],
+  }
+  if (body) {
+    const amounts = body.match(RX_AMOUNT) || []
+    found.amounts = uniqueShort(amounts, 2)
+    const dates = body.match(RX_DATE) || []
+    found.dates = uniqueShort(dates, 2)
+    const refs: string[] = []
+    let m: null | RegExpExecArray
+    while ((m = RX_RECEIPT.exec(body)) !== null) refs.push(m[1])
+    found.refs = uniqueShort(refs, 1)
+    RX_RECEIPT.lastIndex = 0
+  }
+
+  return {
+    amounts: uniqueShort([...aiAmounts, ...found.amounts], 2),
+    dates: uniqueShort([...aiDates, ...found.dates], 2),
+    refs: found.refs,
+  }
+}
+
 function FactChip({
   children,
   kind,
 }: {
   children: React.ReactNode
-  kind: 'action' | 'amount' | 'date'
+  kind: 'action' | 'amount' | 'date' | 'ref'
 }) {
   const palette =
     kind === 'amount'
       ? 'bg-success/10 text-success'
       : kind === 'date'
         ? 'bg-info/10 text-info'
-        : 'bg-warning/10 text-warning'
-  const icon = kind === 'amount' ? '¥' : kind === 'date' ? '📅' : '⚡'
+        : kind === 'ref'
+          ? 'bg-bg-secondary text-fg-secondary'
+          : 'bg-warning/10 text-warning'
+  const icon = kind === 'amount' ? '💰' : kind === 'date' ? '📅' : kind === 'ref' ? '#' : '⚡'
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${palette}`}
@@ -1038,6 +1128,19 @@ function HdrBtn({
       {children}
     </button>
   )
+}
+
+function uniqueShort(arr: string[], cap: number): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of arr) {
+    const k = item.trim()
+    if (k.length === 0 || seen.has(k.toLowerCase())) continue
+    seen.add(k.toLowerCase())
+    out.push(k)
+    if (out.length >= cap) break
+  }
+  return out
 }
 
 // dedicated DOMPurify instance so this preview path never runs the
