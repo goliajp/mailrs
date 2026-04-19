@@ -1,4 +1,4 @@
-# Performance map — mail.golia.ai (v1.4.27, 2026-04-20)
+# Performance map — mail.golia.ai (v1.4.29, 2026-04-20)
 
 Numbers are median of 3 cold curl runs from a Tokyo residential network unless noted. Network baseline: DNS≈2 ms, TCP+TLS≈25 ms.
 Cold-load page metrics (FCP/LCP/CLS) come from `scripts/cold-load.js` — fresh browser context per page, cache disabled, PerformanceObserver instrumented.
@@ -50,9 +50,11 @@ mail.golia.ai (production, v1.4.21)
 │  ├─ api (open thread)
 │  │  ├─ GET /api/conversations/{id}          46.0 KB   138 ms  ✓
 │  │  └─ GET /api/conversations/{id}/reactions  0   B    37 ms  ✓
-│  ├─ api (search)
-│  │  ├─ GET /api/conversations/search?q=invoice  26.0 KB   105 ms  (TTFB  65)  ✓ topic-06 fixed v1.4.27 (was 634/596)
-│  │  └─ GET /api/conversations/search?q=金额    39.8 KB   645 ms  (TTFB 597)  ⚠ topic-06 (CJK; pg_trgm limitation)
+│  ├─ api (search)  — backed by meilisearch (v1.4.29); PG path is fallback
+│  │  ├─ GET /api/conversations/search?q=invoice  24.8 KB    60 ms  (TTFB  20)  ✓ topic-06 (was 634, −90%)
+│  │  ├─ GET /api/conversations/search?q=meeting  14.6 KB    50 ms  (TTFB  18)  ✓
+│  │  ├─ GET /api/conversations/search?q=金額    111.4 KB   105 ms  (TTFB  40)  ✓ topic-06 fixed v1.4.29 (was 645/597)
+│  │  └─ GET /api/conversations/search?q=ミーティング 1.8 KB  46 ms  (TTFB  20)  ✓ CJK katakana
 │  └─ rendered
 │     ├─ FCP 476 ms · LCP 1140 ms · idle 1850 ms                              ⚠ topic-04 (page weight)
 │     └─ CLS 0.021 ✓ · CPU 387 ms · 93 reqs / 3.46 MB (cold cache)
@@ -120,7 +122,7 @@ mail.golia.ai (production, v1.4.21)
 | [04](topics/04-mail-page-weight.md) | /mail LCP 1140 ms / 10 MB / 93 reqs | low | content-driven |
 | ~~[03](topics/03-login-bundle-bloat.md)~~ | cold-cache JS preload 1.56 MB→600 KB; FCP −30 to −43% | resolved | fixed in v1.4.24 |
 | ~~[05](topics/05-cls-dashboard-admin.md)~~ | dashboard CLS 0.443→0.002, admin 0.223→0.000 | resolved | fixed in v1.4.23 |
-| [06](topics/06-search-conversations-slow.md) | search ASCII 596→65 ms (-89%); CJK still 597 ms | medium | mostly fixed v1.4.27; CJK needs pg_bigm |
+| ~~[06](topics/06-search-conversations-slow.md)~~ | search ASCII 596→20 ms / CJK 597→40 ms (meili) | resolved | fully fixed (v1.4.27 PG + v1.4.29 meili) |
 | ~~[07](topics/07-section-important-slow.md)~~ | `?section=important` 581→304 ms (-48%) | resolved | fixed in v1.4.22 |
 
 Add topics by appending a row above and creating `topics/NN-slug.md` from the template.
