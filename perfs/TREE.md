@@ -1,4 +1,4 @@
-# Performance map — mail.golia.ai (v1.4.21, 2026-04-19)
+# Performance map — mail.golia.ai (v1.4.22, 2026-04-20)
 
 Numbers are median of 3 cold curl runs from a Tokyo residential network unless noted. Network baseline: DNS≈2 ms, TCP+TLS≈25 ms.
 Cold-load page metrics (FCP/LCP/CLS) come from `scripts/cold-load.js` — fresh browser context per page, cache disabled, PerformanceObserver instrumented.
@@ -44,8 +44,9 @@ mail.golia.ai (production, v1.4.21)
 │  │  ├─ ?starred=true                                  254 ms  (TTFB 227)  ⚠ topic-01 (residual)
 │  │  ├─ ?folder=Sent                                    62 ms  ✓
 │  │  ├─ ?category=spam                                 116 ms                ✓
-│  │  ├─ ?section=action                                292 ms  (TTFB 255)  ⚠ topic-07 (peer)
-│  │  └─ ?section=important                             581 ms  (TTFB 376)  ⚠ topic-07 (slowest list variant)
+│  │  ├─ ?section=action                                313 ms  (TTFB 269)  · (peer, unchanged by fix)
+│  │  ├─ ?section=important                             304 ms  (TTFB 266)  ✓ topic-07 fixed v1.4.22 (was 581/376)
+│  │  └─ ?section=other                                 297 ms  (TTFB 257)  ✓ topic-07 fixed v1.4.22
 │  ├─ api (open thread)
 │  │  ├─ GET /api/conversations/{id}          46.0 KB   138 ms  ✓
 │  │  └─ GET /api/conversations/{id}/reactions  0   B    37 ms  ✓
@@ -120,6 +121,6 @@ mail.golia.ai (production, v1.4.21)
 | [04](topics/04-mail-page-weight.md) | /mail LCP 1140 ms / 10 MB / 93 reqs | low | content-driven |
 | [05](topics/05-cls-dashboard-admin.md) | /dashboard CLS 0.443 (poor) + /admin 0.223 | high | layout jank |
 | [06](topics/06-search-conversations-slow.md) | `/api/conversations/search` 596 ms TTFB | high | every keystroke in search bar |
-| [07](topics/07-section-important-slow.md) | `?section=important` 581 ms (slowest list) | medium | importance sections |
+| ~~[07](topics/07-section-important-slow.md)~~ | `?section=important` 581→304 ms (-48%) | resolved | fixed in v1.4.22 |
 
 Add topics by appending a row above and creating `topics/NN-slug.md` from the template.

@@ -1,6 +1,6 @@
 # Topic 07: `?section=important` 581 ms total (slowest list variant)
 
-**Status:** open
+**Status:** fixed (v1.4.22)
 **Severity:** medium
 **First observed:** 2026-04-19 (data/2026-04-19/sweep.txt)
 **Owner:** —
@@ -57,8 +57,33 @@ Recommendation: **a**, same shape as topic-01 fix-a, single-line change in the H
 
 ## Decision
 
-—
+Apply fix-a (ordered aggregate) in `crates/mailbox/src/store.rs::list_conversations`:
+
+- HAVING for `section=important` and `section=other` switched from
+  `(SELECT m_imp.importance_level … LIMIT 1)` to
+  `(array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1]`.
+- The same expression is used in the SELECT-list (lines 912 / 1032 / 1687),
+  so PG computes it once per group and reuses across HAVING + projection.
+- Released as v1.4.22 on 2026-04-20.
 
 ## Verification
 
-—
+prod EXPLAIN ANALYZE (data file: `data/2026-04-20/explain-b3.txt`):
+
+```
+BEFORE  Execution Time: 352.589 ms
+AFTER   Execution Time: 208.486 ms        (-41%)
+```
+
+post-deploy curl (median of 3 runs):
+
+| variant | before (v1.4.21) | after (v1.4.22) | Δ |
+|---|---:|---:|---:|
+| `?section=important` | 376 ms TTFB / 581 ms total | **266 ms TTFB / 304 ms total** | **−110 ms / −277 ms (−48% total)** |
+| `?section=other` | not previously measured | 257 ms TTFB / 297 ms total | new baseline |
+| `?section=action` (control, different SubPlan) | 255 ms / 292 ms | 269 ms / 313 ms | unchanged ✓ |
+
+The total-time win is bigger than the TTFB win because the smaller payload
+also reduces in-PG row materialisation cost. `section=action` is the
+control: it uses a `BOOL_OR(EXISTS …)` over `email_analysis`, not the
+importance SubPlan, so this fix shouldn't move it — and it didn't.
