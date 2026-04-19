@@ -1,4 +1,4 @@
-# Performance map — mail.golia.ai (v1.4.24, 2026-04-20)
+# Performance map — mail.golia.ai (v1.4.25, 2026-04-20)
 
 Numbers are median of 3 cold curl runs from a Tokyo residential network unless noted. Network baseline: DNS≈2 ms, TCP+TLS≈25 ms.
 Cold-load page metrics (FCP/LCP/CLS) come from `scripts/cold-load.js` — fresh browser context per page, cache disabled, PerformanceObserver instrumented.
@@ -26,8 +26,8 @@ mail.golia.ai (production, v1.4.21)
 │     └─ total transfer 3.14 MB (cold)
 │
 ├─ /dashboard  (auth)
-│  ├─ api (Promise.all, gated by slowest ≈ 320 ms after v1.4.21)
-│  │  ├─ GET /api/conversations?limit=200    73.4 KB   323 ms  (TTFB 271)  ⚠ topic-01 (was 354 → 271)
+│  ├─ api (Promise.all, gated by slowest ≈ 312 ms after fix-a + fix-c)
+│  │  ├─ GET /api/conversations?limit=200    73.1 KB   312 ms  (TTFB 258)  ⚠ topic-01 (was 354 → 258, −27%)
 │  │  ├─ GET /api/mail/stats                  0.5 KB   202 ms  (TTFB 175)  ⚠ topic-02
 │  │  └─ GET /api/mail/folders                0.3 KB    56 ms  (TTFB  31)  ✓
 │  └─ rendered
@@ -36,16 +36,16 @@ mail.golia.ai (production, v1.4.21)
 │
 ├─ /mail  (auth, chat list)
 │  ├─ api (initial)
-│  │  ├─ GET /api/conversations?limit=50      36.1 KB   308 ms  (TTFB 270)  ⚠ topic-01 (was 379 → 308)
+│  │  ├─ GET /api/conversations?limit=50      36.2 KB   306 ms  (TTFB 267)  ⚠ topic-01 (was 379 → 306, −19%)
 │  │  ├─ GET /api/conversations/categories     0.4 KB    89 ms  ✓
 │  │  └─ GET /api/conversations/action-count   0   B    79 ms  ✓
 │  ├─ api (tab / section / category switches)
-│  │  ├─ ?unread=true                                   258 ms  (TTFB 231)  ⚠ topic-01 (residual)
-│  │  ├─ ?starred=true                                  254 ms  (TTFB 227)  ⚠ topic-01 (residual)
-│  │  ├─ ?folder=Sent                                    62 ms  ✓
-│  │  ├─ ?category=spam                                 116 ms                ✓
-│  │  ├─ ?section=action                                313 ms  (TTFB 269)  · (peer, unchanged by fix)
-│  │  ├─ ?section=important                             304 ms  (TTFB 266)  ✓ topic-07 fixed v1.4.22 (was 581/376)
+│  │  ├─ ?unread=true                                   243 ms  (TTFB 217)  · improved by fix-c v1.4.25
+│  │  ├─ ?starred=true                                  243 ms  (TTFB 218)  · improved by fix-c v1.4.25
+│  │  ├─ ?folder=Sent                                    59 ms  ✓
+│  │  ├─ ?category=spam                                 109 ms                ✓
+│  │  ├─ ?section=action                                313 ms  (TTFB 269)  · (uses different SubPlan)
+│  │  ├─ ?section=important                             261 ms  (TTFB 222)  ✓ topic-07/B4 (was 581→261, −55%)
 │  │  └─ ?section=other                                 297 ms  (TTFB 257)  ✓ topic-07 fixed v1.4.22
 │  ├─ api (open thread)
 │  │  ├─ GET /api/conversations/{id}          46.0 KB   138 ms  ✓
@@ -115,7 +115,7 @@ mail.golia.ai (production, v1.4.21)
 
 | # | title | severity | scope |
 |---|---|---|---|
-| [01](topics/01-conversations-slow.md) | `/api/conversations` TTFB residual 270–280 ms | medium | dashboard + /mail; partially fixed v1.4.21 |
+| [01](topics/01-conversations-slow.md) | `/api/conversations` TTFB residual ~260 ms | low | mostly fixed (fix-a v1.4.21 + fix-c v1.4.25); fix-d snapshot still open |
 | [02](topics/02-mail-stats-slow.md) | `/api/mail/stats` 174 ms for 0.5 KB | medium | dashboard |
 | [04](topics/04-mail-page-weight.md) | /mail LCP 1140 ms / 10 MB / 93 reqs | low | content-driven |
 | ~~[03](topics/03-login-bundle-bloat.md)~~ | cold-cache JS preload 1.56 MB→600 KB; FCP −30 to −43% | resolved | fixed in v1.4.24 |
