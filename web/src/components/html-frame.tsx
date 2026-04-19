@@ -19,14 +19,19 @@ function injectCjkFonts(html: string): string {
 }
 
 // rewrite external image / link URLs to route through our proxy so we can
-// strip trackers and bypass CSP img-src 'self'
+// strip trackers and bypass CSP img-src 'self'. also marks every <img> as
+// loading=lazy + decoding=async so browser only fetches what enters the
+// viewport when the user scrolls, instead of the iframe pulling all
+// inline images upfront (perfs/topic-04 / B8).
 function proxyExternalUrls(html: string): string {
   const token = getToken()
   const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
   let result = html.replace(
-    /(<img\b[^>]*\bsrc\s*=\s*["'])(https?:\/\/[^"']+)(["'])/gi,
-    (_match, before, url, after) =>
-      `${before}/api/proxy/image?url=${encodeURIComponent(url)}${tokenParam}${after}`
+    /(<img\b)([^>]*\bsrc\s*=\s*["'])(https?:\/\/[^"']+)(["'])/gi,
+    (_match, openTag, before, url, after) => {
+      const lazyAttrs = /\bloading\s*=/i.test(openTag) ? '' : ' loading="lazy" decoding="async"'
+      return `${openTag}${lazyAttrs}${before}/api/proxy/image?url=${encodeURIComponent(url)}${tokenParam}${after}`
+    }
   )
   result = result.replace(
     /(<a\b[^>]*\bhref\s*=\s*["'])(https?:\/\/[^"']+)(["'])/gi,
@@ -34,6 +39,19 @@ function proxyExternalUrls(html: string): string {
       `${before}/api/proxy/link?url=${encodeURIComponent(url)}${tokenParam}${after}`
   )
   return result
+}
+
+// drop common 1×1 tracking-pixel images (open-rate beacons). matches
+// the explicit width/height attributes a tracker writes alongside a
+// remote-loaded image. defensive only: real content images are never
+// authored at width=1 height=1.
+function stripTrackingPixels(html: string): string {
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    const w = /\bwidth\s*=\s*["']?\s*1\s*["']?/i.test(tag)
+    const h = /\bheight\s*=\s*["']?\s*1\s*["']?/i.test(tag)
+    const inlineSize = /\bstyle\s*=\s*["'][^"']*\b(?:width|height)\s*:\s*1px[^"']*["']/i.test(tag)
+    return w && h ? '' : inlineSize && (w || h) ? '' : tag
+  })
 }
 
 // dedicated DOMPurify instance avoids global hook race conditions in
@@ -156,5 +174,5 @@ function sanitizeEmail(html: string): string {
     ALLOW_UNKNOWN_PROTOCOLS: false,
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
   })
-  return proxyExternalUrls(injectCjkFonts(clean))
+  return proxyExternalUrls(injectCjkFonts(stripTrackingPixels(clean)))
 }
