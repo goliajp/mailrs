@@ -1,4 +1,4 @@
-# Performance map — mail.golia.ai (v1.4.23, 2026-04-20)
+# Performance map — mail.golia.ai (v1.4.24, 2026-04-20)
 
 Numbers are median of 3 cold curl runs from a Tokyo residential network unless noted. Network baseline: DNS≈2 ms, TCP+TLS≈25 ms.
 Cold-load page metrics (FCP/LCP/CLS) come from `scripts/cold-load.js` — fresh browser context per page, cache disabled, PerformanceObserver instrumented.
@@ -117,8 +117,8 @@ mail.golia.ai (production, v1.4.21)
 |---|---|---|---|
 | [01](topics/01-conversations-slow.md) | `/api/conversations` TTFB residual 270–280 ms | medium | dashboard + /mail; partially fixed v1.4.21 |
 | [02](topics/02-mail-stats-slow.md) | `/api/mail/stats` 174 ms for 0.5 KB | medium | dashboard |
-| [03](topics/03-login-bundle-bloat.md) | `/login` preloads 875 KB unused JS | medium | login cold-start |
 | [04](topics/04-mail-page-weight.md) | /mail LCP 1140 ms / 10 MB / 93 reqs | low | content-driven |
+| ~~[03](topics/03-login-bundle-bloat.md)~~ | cold-cache JS preload 1.56 MB→600 KB; FCP −30 to −43% | resolved | fixed in v1.4.24 |
 | ~~[05](topics/05-cls-dashboard-admin.md)~~ | dashboard CLS 0.443→0.002, admin 0.223→0.000 | resolved | fixed in v1.4.23 |
 | [06](topics/06-search-conversations-slow.md) | `/api/conversations/search` 596 ms TTFB | high | every keystroke in search bar |
 | ~~[07](topics/07-section-important-slow.md)~~ | `?section=important` 581→304 ms (-48%) | resolved | fixed in v1.4.22 |
