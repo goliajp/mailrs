@@ -1,4 +1,4 @@
-# Performance map — mail.golia.ai (v1.4.22, 2026-04-20)
+# Performance map — mail.golia.ai (v1.4.23, 2026-04-20)
 
 Numbers are median of 3 cold curl runs from a Tokyo residential network unless noted. Network baseline: DNS≈2 ms, TCP+TLS≈25 ms.
 Cold-load page metrics (FCP/LCP/CLS) come from `scripts/cold-load.js` — fresh browser context per page, cache disabled, PerformanceObserver instrumented.
@@ -31,8 +31,8 @@ mail.golia.ai (production, v1.4.21)
 │  │  ├─ GET /api/mail/stats                  0.5 KB   202 ms  (TTFB 175)  ⚠ topic-02
 │  │  └─ GET /api/mail/folders                0.3 KB    56 ms  (TTFB  31)  ✓
 │  └─ rendered
-│     ├─ FCP 316 ms · LCP 892 ms · idle 1516 ms
-│     └─ CLS 0.443                                                          ⚠ topic-05 (Web Vitals "poor")
+│     ├─ FCP 332 ms · LCP 1004 ms · idle 2006 ms
+│     └─ CLS 0.002 ✓ (was 0.443 before topic-05 fix in v1.4.23)
 │
 ├─ /mail  (auth, chat list)
 │  ├─ api (initial)
@@ -60,7 +60,7 @@ mail.golia.ai (production, v1.4.21)
 ├─ /admin/*  (auth, admin)  — every list endpoint ≤ 115 ms total
 │  ├─ /admin   (overview)           /api/admin/audit/accounts       40 ms  ✓
 │  │                                /api/admin/audit-log?limit=10   38 ms  ✓
-│  │                                CLS 0.223                              ⚠ topic-05 (needs improvement)
+│  │                                CLS 0.000 ✓ (was 0.223 before topic-05 fix in v1.4.23)
 │  ├─ /admin/domains                /api/admin/domains              37 ms  ✓
 │  ├─ /admin/accounts               /api/admin/accounts             45 ms  ✓
 │  ├─ /admin/aliases                /api/admin/aliases              38 ms  ✓
@@ -119,7 +119,7 @@ mail.golia.ai (production, v1.4.21)
 | [02](topics/02-mail-stats-slow.md) | `/api/mail/stats` 174 ms for 0.5 KB | medium | dashboard |
 | [03](topics/03-login-bundle-bloat.md) | `/login` preloads 875 KB unused JS | medium | login cold-start |
 | [04](topics/04-mail-page-weight.md) | /mail LCP 1140 ms / 10 MB / 93 reqs | low | content-driven |
-| [05](topics/05-cls-dashboard-admin.md) | /dashboard CLS 0.443 (poor) + /admin 0.223 | high | layout jank |
+| ~~[05](topics/05-cls-dashboard-admin.md)~~ | dashboard CLS 0.443→0.002, admin 0.223→0.000 | resolved | fixed in v1.4.23 |
 | [06](topics/06-search-conversations-slow.md) | `/api/conversations/search` 596 ms TTFB | high | every keystroke in search bar |
 | ~~[07](topics/07-section-important-slow.md)~~ | `?section=important` 581→304 ms (-48%) | resolved | fixed in v1.4.22 |
 
