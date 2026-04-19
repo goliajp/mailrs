@@ -1,0 +1,59 @@
+=== /login (no auth) ===
+POST /api/auth/login                            200      0.5 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  14ms  total=   41ms
+
+=== /dashboard ===
+GET  /api/conversations?limit=200               200     73.4 KB   dns=   3ms  tcp=  11ms  tls=  13ms  ttfb= 271ms  total=  323ms
+GET  /api/mail/stats                            200      0.5 KB   dns=   2ms  tcp=  12ms  tls=  13ms  ttfb= 175ms  total=  202ms
+GET  /api/mail/folders                          200      0.3 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  31ms  total=   56ms
+
+=== /mail (chat list) — initial ===
+GET  /api/conversations?limit=50                200     36.1 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb= 270ms  total=  308ms
+GET  /api/conversations/categories              200      0.4 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  64ms  total=   89ms
+GET  /api/conversations/action-count            200      0.0 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  53ms  total=   79ms
+
+=== /mail tab switches ===
+GET  /api/conversations?limit=50&unread=true    200      0.0 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb= 231ms  total=  258ms
+GET  /api/conversations?limit=50&starred=true   200      0.0 KB   dns=   3ms  tcp=  11ms  tls=  13ms  ttfb= 227ms  total=  254ms
+GET  /api/conversations?limit=50&folder=Sent    200     28.6 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  23ms  total=   62ms
+GET  /api/conversations?limit=50&category=spam  200     37.0 KB   dns=   2ms  tcp=  11ms  tls=  15ms  ttfb=  75ms  total=  116ms
+GET  /api/conversations?limit=50&section=action  200     32.2 KB   dns=   2ms  tcp=  11ms  tls=  12ms  ttfb= 255ms  total=  292ms
+GET  /api/conversations?limit=50&section=important  200     15.7 KB   dns=   2ms  tcp=  11ms  tls=  16ms  ttfb= 376ms  total=  581ms
+
+=== /mail open thread ===
+GET  /api/conversations/<id>                    200     46.0 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  91ms  total=  138ms
+GET  /api/conversations/<id>/reactions          200      0.0 KB   dns=   2ms  tcp=  11ms  tls=  12ms  ttfb=  12ms  total=   37ms
+
+=== /mail search ===
+GET  /api/conversations/search?q=invoice        200     25.3 KB   dns=   2ms  tcp=  11ms  tls=  14ms  ttfb= 596ms  total=  634ms
+GET  /api/conversations/search?q=金额         200     11.0 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb= 576ms  total=  612ms
+
+=== /settings ===
+GET  /api/auth/recovery-email                   200      0.0 KB   dns=   2ms  tcp=  12ms  tls=  13ms  ttfb=  12ms  total=   39ms
+GET  /api/auth/totp/status                      200      0.0 KB   dns=   2ms  tcp=  10ms  tls=  13ms  ttfb=  12ms  total=   37ms
+GET  /api/mail/keys/status                      400      0.0 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  11ms  total=   37ms
+GET  /api/mail/signatures                       200      0.0 KB   dns=   2ms  tcp=  11ms  tls=  14ms  ttfb=  15ms  total=   42ms
+GET  /api/agent/keys                            200      6.0 KB   dns=   2ms  tcp=  12ms  tls=  13ms  ttfb=  13ms  total=   41ms
+GET  /api/agent/webhooks                        200      0.0 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  13ms  total=   39ms
+
+=== /admin overview ===
+GET  /api/admin/audit/accounts                  200      1.7 KB   dns=   2ms  tcp=  10ms  tls=  13ms  ttfb=  14ms  total=   40ms
+GET  /api/admin/audit-log?limit=10              200      1.1 KB   dns=   2ms  tcp=  10ms  tls=  13ms  ttfb=  13ms  total=   38ms
+
+=== /admin/* listing endpoints ===
+GET  /api/admin/domains                         200      0.1 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  11ms  total=   37ms
+GET  /api/admin/accounts                        200      1.7 KB   dns=   2ms  tcp=  12ms  tls=  14ms  ttfb=  16ms  total=   45ms
+GET  /api/admin/aliases                         200      0.3 KB   dns=   2ms  tcp=  10ms  tls=  13ms  ttfb=  13ms  total=   38ms
+GET  /api/admin/apps                            200      0.2 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  12ms  total=   39ms
+GET  /api/admin/groups                          200      0.5 KB   dns=   2ms  tcp=  13ms  tls=  14ms  ttfb=  17ms  total=   47ms
+GET  /api/admin/permissions                     200      0.2 KB   dns=   2ms  tcp=  46ms  tls=  44ms  ttfb=  21ms  total=  114ms
+GET  /api/admin/email-groups                    200      0.1 KB   dns=   2ms  tcp=  31ms  tls=  16ms  ttfb=  17ms  total=   67ms
+GET  /api/queue                                 200      8.4 KB   dns=   2ms  tcp=  28ms  tls=  25ms  ttfb=  60ms  total=  115ms
+GET  /api/admin/audit-log?limit=200             200     22.0 KB   dns=   3ms  tcp=  22ms  tls=  24ms  ttfb=  25ms  total=   98ms
+GET  /api/admin/config/smtp                     200      0.2 KB   dns=   2ms  tcp=  23ms  tls=  27ms  ttfb=  23ms  total=   75ms
+GET  /api/health                                200      0.2 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  11ms  total=   36ms
+GET  /api/status                                200      0.2 KB   dns=   2ms  tcp=  12ms  tls=  13ms  ttfb=  12ms  total=   40ms
+
+=== misc surfaces ===
+GET  /api/contacts?q=&limit=20                  200      1.0 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  54ms  total=   80ms
+GET  /api/bimi/golia.jp                         200      0.0 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  11ms  total=   37ms
+GET  /api/conversations/batch (size 3)          422      0.1 KB   dns=   2ms  tcp=  11ms  tls=  13ms  ttfb=  12ms  total=   39ms
