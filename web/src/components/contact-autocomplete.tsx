@@ -94,10 +94,10 @@ export function ContactAutocomplete({
         value={value}
       />
       {showSuggestions && (
-        <div className="border-border bg-surface absolute top-full left-0 z-50 mt-1 w-full max-w-72 rounded-lg border shadow-lg">
+        <div className="border-border bg-surface absolute top-full left-0 z-50 mt-1 w-full max-w-md rounded-lg border shadow-lg">
           {suggestions.map((s, i) => (
             <button
-              className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+              className={`block w-full px-3 py-2 text-left text-sm break-all whitespace-normal transition-colors ${
                 i === activeIndex
                   ? 'bg-accent/10 text-accent'
                   : 'text-fg-secondary hover:bg-bg-secondary'
