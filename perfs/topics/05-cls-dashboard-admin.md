@@ -1,6 +1,6 @@
 # Topic 05: /dashboard CLS 0.443 + /admin CLS 0.223 (Web Vitals "poor")
 
-**Status:** open
+**Status:** fixed (v1.4.23)
 **Severity:** high (user-perceived layout jank)
 **First observed:** 2026-04-19 (data/2026-04-19/cold-load.txt)
 **Owner:** —
@@ -40,8 +40,43 @@ CLS column captures cumulative layout shift up to 400 ms after `networkidle2`.
 
 ## Decision
 
-—
+Stop swapping the DOM tree on data arrival. Render the loaded layout's
+shape always, replace data-driven content with same-sized placeholders
+during loading.
+
+`web/src/pages/dashboard.tsx`:
+- removed the early-return skeleton branch
+- `StatCard` accepts `loading`; renders a fixed-width placeholder bar
+  in the value column (so digit width 0→N doesn't push the card)
+- left + right columns render `SectionSkeleton` placeholders during
+  loading; the rest of the layout structure is identical to loaded
+
+`web/src/pages/admin-overview.tsx`:
+- `StatusBanner` wrapped in a `min-h-[60px]` container with a
+  `BannerSkeleton` fallback
+- `MetricCard` accepts `loading`, fixed-height value row, sub line
+  always rendered (with empty string) for stable height
+- Services section reserves `min-h-[88px]` and renders pill-shaped
+  placeholders before /api/health resolves
+- `SmtpConfigPanel` falls back to `PanelSkeleton` until /api/admin/config/smtp
+
+Released as v1.4.23 on 2026-04-20.
 
 ## Verification
 
-—
+Cold-load run after deploy (`data/2026-04-20/cold-load-v1.4.23.txt`):
+
+| page | CLS before (v1.4.22) | CLS after (v1.4.23) | Web Vitals band |
+|---|---:|---:|---|
+| /dashboard | 0.443 | **0.002** | ✓ good (was poor) |
+| /admin (overview) | 0.223 | **0.000** | ✓ good (was needs improvement) |
+| /mail | 0.021 | 0.010 | ✓ good (unchanged) |
+| /admin/* sub-pages | ≤ 0.015 | ≤ 0.015 | ✓ good (unchanged) |
+| /login | 0.000 | 0.000 | ✓ good |
+
+Trade-offs: /dashboard idle moved 1516 → 2006 ms, LCP 892 → 1004 ms
+because the placeholder skeleton is rendered before data arrives,
+giving the browser more painting work up front. The user perceives
+LCP roughly the same (still under 1.1 s, "needs improvement" band)
+but no longer experiences the layout jump — that's the tradeoff
+B1+B7 was meant to make.
