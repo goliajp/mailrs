@@ -279,8 +279,14 @@ export function Dashboard() {
             />
           </div>
 
-          {/* main content grid */}
-          <div className="grid gap-6 lg:grid-cols-3">
+          {/* main content grid — reserve a generous min-height so the
+              transition from loading skeletons (fixed 2 left + 2 right)
+              to the real layout (variable section count: pinned + needs-
+              attention + recent + insights) doesn't shift content already
+              visible above. layout was structurally stable in v1.4.23 but
+              section-count variance still produced CLS up to 0.21
+              (perfs/topic-05 followup) */}
+          <div className="grid min-h-[700px] gap-6 lg:grid-cols-3">
             {/* left column */}
             <div className="min-w-0 space-y-6 lg:col-span-2">
               {loading && (
