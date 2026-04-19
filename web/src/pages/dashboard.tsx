@@ -186,41 +186,6 @@ export function Dashboard() {
 
   const displayName = auth?.display_name || auth?.address?.split('@')[0] || ''
 
-  if (loading) {
-    return (
-      <MPaneGroup>
-        <MPane>
-          <ScrollArea className="max-w-full overflow-x-hidden p-4 md:p-6">
-            <div className="animate-pulse space-y-6">
-              <div className="space-y-2">
-                <div className="bg-border h-6 w-48 rounded" />
-                <div className="bg-border h-4 w-64 rounded" />
-              </div>
-              <div className="bg-border h-10 w-full rounded-lg" />
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div className="bg-border h-16 rounded-lg" key={i} />
-                ))}
-              </div>
-              <div className="grid gap-6 lg:grid-cols-3">
-                <div className="space-y-3 lg:col-span-2">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div className="bg-border h-14 rounded-lg" key={i} />
-                  ))}
-                </div>
-                <div className="space-y-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div className="bg-border h-24 rounded-lg" key={i} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </ScrollArea>
-        </MPane>
-      </MPaneGroup>
-    )
-  }
-
   return (
     <MPaneGroup>
       <MPane>
@@ -284,6 +249,7 @@ export function Dashboard() {
               color="brand"
               icon={MailOpen}
               label="Unread"
+              loading={loading}
               onClick={() => navigate('/mail')}
               value={totalUnread}
             />
@@ -291,6 +257,7 @@ export function Dashboard() {
               color="info"
               icon={Clock}
               label="Today"
+              loading={loading}
               onClick={() => navigate('/mail')}
               value={todayCount}
             />
@@ -298,6 +265,7 @@ export function Dashboard() {
               color="warning"
               icon={Star}
               label="Starred"
+              loading={loading}
               onClick={() => navigate('/mail')}
               value={starredCount}
             />
@@ -305,6 +273,7 @@ export function Dashboard() {
               color="danger"
               icon={AlertTriangle}
               label="Important"
+              loading={loading}
               onClick={() => navigate('/mail')}
               value={importantCount}
             />
@@ -314,6 +283,12 @@ export function Dashboard() {
           <div className="grid gap-6 lg:grid-cols-3">
             {/* left column */}
             <div className="min-w-0 space-y-6 lg:col-span-2">
+              {loading && (
+                <>
+                  <SectionSkeleton rows={4} />
+                  <SectionSkeleton rows={3} />
+                </>
+              )}
               {/* pinned */}
               {pinned.length > 0 && (
                 <Section icon={Pin} title="Pinned">
@@ -439,6 +414,12 @@ export function Dashboard() {
 
             {/* right column: insights */}
             <div className="space-y-6">
+              {loading && (
+                <>
+                  <SectionSkeleton rows={3} />
+                  <SectionSkeleton rows={4} />
+                </>
+              )}
               {/* security alerts */}
               {securityAlerts.length > 0 && (
                 <Section icon={ShieldAlert} title="Security Alerts">
@@ -711,16 +692,40 @@ function Section({
   )
 }
 
+function SectionSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="border-border overflow-hidden rounded-lg border">
+      <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
+        <div className="bg-border h-4 w-24 animate-pulse rounded" />
+        <div className="bg-border h-3 w-12 animate-pulse rounded" />
+      </div>
+      <div className="space-y-0.5 p-2">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div className="flex items-center gap-3 px-2 py-2" key={i}>
+            <div className="bg-border h-8 w-8 shrink-0 animate-pulse rounded-full" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="bg-border h-3.5 w-1/3 animate-pulse rounded" />
+              <div className="bg-border h-3 w-2/3 animate-pulse rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function StatCard({
   color,
   icon: Icon,
   label,
+  loading,
   onClick,
   value,
 }: {
   color: keyof typeof COLOR_MAP
   icon: typeof Mail
   label: string
+  loading?: boolean
   onClick?: () => void
   value: number
 }) {
@@ -729,15 +734,21 @@ function StatCard({
       className={cn(
         'border-border flex shrink-0 items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors md:shrink',
         'w-[140px] md:w-auto',
-        onClick ? 'hover:bg-bg-secondary cursor-pointer' : 'cursor-default'
+        onClick && !loading ? 'hover:bg-bg-secondary cursor-pointer' : 'cursor-default'
       )}
-      onClick={onClick}
+      onClick={loading ? undefined : onClick}
     >
       <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', COLOR_MAP[color])}>
         <Icon aria-hidden="true" className="h-4.5 w-4.5" />
       </div>
-      <div>
-        <p className="text-fg text-2xl font-semibold tabular-nums">{value}</p>
+      {/* fixed width on the value column so digits widening from 0→N
+          doesn't push the card and shift its neighbours (perfs/topics/05) */}
+      <div className="min-w-[2.5rem]">
+        {loading ? (
+          <div className="bg-border h-7 w-10 animate-pulse rounded" />
+        ) : (
+          <p className="text-fg text-2xl font-semibold tabular-nums">{value}</p>
+        )}
         <p className="text-fg-muted text-xs">{label}</p>
       </div>
     </button>
