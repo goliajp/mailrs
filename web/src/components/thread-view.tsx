@@ -946,7 +946,14 @@ function BubbleFactChips({ msg }: { msg: ThreadMessage }) {
 function bubbleText(msg: ThreadMessage): string {
   // prefer AI summary — always clean and readable
   if (msg.summary) return msg.summary
-  // fall back to cleaned raw text
+  // when html exists, extract the visible text from it. this avoids the
+  // text/plain dump (markdown-table style `|cell |cell |`) that html-only
+  // senders often produce; htmlToPreviewText reads the same words a human
+  // would read in the rendered email.
+  if (msg.html_body) {
+    const fromHtml = htmlToPreviewText(msg.html_body)
+    if (fromHtml.length > 0) return fromHtml
+  }
   const raw = msg.new_content || msg.clean_text || msg.text_body || ''
   if (!raw) return ''
   return cleanTextForBubble(raw)
@@ -1033,19 +1040,37 @@ function HdrBtn({
   )
 }
 
-// detect text that's mostly HTML→plain conversion noise (markdown table
-// borders, run-together cells, jammed brackets). these strings dominate
-// receipts and notification emails authored as html-only and look like
-// `|cell |cell |cell |` in the bubble; for those the right answer is to
-// fall back to a placeholder + fact chips, not render the noise.
+// dedicated DOMPurify instance so this preview path never runs the
+// global hooks (e.g. anchor target=_blank) that the message body uses
+const previewPurifier = DOMPurify()
+function htmlToPreviewText(html: string): string {
+  // strip ALL tags — keep only text-node content. that's what a human
+  // would actually read in the rendered email
+  const stripped = previewPurifier.sanitize(html, { ALLOWED_ATTR: [], ALLOWED_TAGS: [] })
+  return stripped
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// last-resort detection: when only a text/plain part exists and it looks
+// like html-to-text noise (markdown-table dump, jammed brackets), drop
+// it rather than render garbage. lower threshold + extra heuristic for
+// any single line carrying 4+ pipes (clear table-row signature).
 function looksLikeHtmlDump(text: string): boolean {
   if (!text || text.length < 40) return false
   const noise = (text.match(/[|{}[\]<>]/g) || []).length
-  if (noise / text.length > 0.06) return true
+  if (noise / text.length > 0.05) return true
   const lines = text.split('\n')
-  if (lines.length < 5) return false
-  const longLines = lines.filter((l) => l.length > 200).length
-  return longLines / lines.length > 0.3
+  if (lines.length >= 5) {
+    const longLines = lines.filter((l) => l.length > 200).length
+    if (longLines / lines.length > 0.3) return true
+  }
+  return lines.some((l) => (l.match(/\|/g) || []).length >= 4)
 }
 
 // truncate at nearest sentence/paragraph boundary instead of hard character cut
