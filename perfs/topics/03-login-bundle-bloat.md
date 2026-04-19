@@ -1,6 +1,6 @@
 # Topic 03: `/login` preloads 875 KB of JS the login form never uses
 
-**Status:** open
+**Status:** fixed (v1.4.24)
 **Severity:** medium
 **First observed:** 2026-04-19 (TREE.md, /login)
 **Owner:** —
@@ -49,8 +49,47 @@ TOKEN= ./scripts/timing.sh "l4-mol"   GET https://mail.golia.ai/assets/l4-molecu
 
 ## Decision
 
-—
+Two changes in `web/`:
+
+1. `web/src/app.tsx`: `Chat` and `Dashboard` are now `lazy()` imports
+   alongside the already-lazy Admin / Settings / Playground / Protocol.
+   Every authenticated route is now code-split. The entry chunk is just
+   the auth shell + the public pages (Login, ResetPassword).
+2. `web/vite.config.ts`: removed the `chunkGroups` `manualChunks` config.
+   Forcing `@tiptap/*` and `react-markdown` into named chunks dragged
+   their shared transitive deps (jotai internals, in particular) along
+   with them, so the entry's reference to those shared deps caused vite
+   to hoist `editor.js` into the entry's modulepreload list. Without
+   `manualChunks`, rolldown chunks dynamically along import boundaries
+   and keeps tiptap inside the chat route.
+
+Released as v1.4.24 on 2026-04-20.
 
 ## Verification
 
-—
+Cold-load run after deploy (`data/2026-04-20/cold-load-v1.4.24.txt`),
+compared to v1.4.23:
+
+| page | transfer before | transfer after | Δ | FCP before | FCP after |
+|---|---:|---:|---:|---:|---:|
+| /login | 3140 KB | **2169 KB** | **−971 KB (−31%)** | 344 ms | **228 ms (−34%)** |
+| /dashboard | 3452 KB | **2503 KB** | **−949 KB (−27%)** | 332 ms | **192 ms (−42%)** |
+| /mail | 3285 KB | 3258 KB | unchanged (chat lazy chunk still has to download once) | 332 ms | **188 ms (−43%)** |
+| /admin (overview) | 3227 KB | **2281 KB** | **−946 KB (−29%)** | 376 ms | **236 ms (−37%)** |
+| /admin/* (sub-pages) | ~3225 KB | **~2280 KB** | **~−945 KB** | ~310 ms | **~190 ms** |
+| /settings | 3166 KB | **2195 KB** | **−971 KB (−31%)** | 300 ms | **184 ms (−39%)** |
+
+modulepreload list shrank from 5 chunks (1561 KB) to 4 chunks (~600 KB
+JS+CSS, the rest of transfer is fonts):
+
+```
+before: index 614, editor 376, l4-mol 185, use-theme 14.5, runtime 0.7, markdown 313, css 57.8
+after:  index 469, jsx-runtime 8.5, hooks 50, use-theme 14.8, search 1.5, css 59
+```
+
+Trade-off: LCP on /dashboard moved 1004 → 1100 ms (+96 ms) and on /mail
+984 → 1120 ms (+136 ms) because the lazy chunk needs one extra network
+RTT before render. Justified by the dramatic FCP win across every page,
+plus the ~950 KB transfer cut for users who only ever visit the
+dashboard or admin (most users). The chat lazy chunk (934 KB) is paid
+once on first /mail visit and then cached.
