@@ -1,6 +1,6 @@
 # Topic 01: `/api/conversations` 340–400 ms TTFB
 
-**Status:** investigating (root cause identified, fix not yet built)
+**Status:** partially fixed (v1.4.21) — fix-a deployed, fix-c/d still open
 **Severity:** high
 **First observed:** 2026-04-19 (TREE.md, /dashboard + /mail)
 **Owner:** —
@@ -183,8 +183,59 @@ Recommendation: **a + b first** (one PR each, both reversible). Re-measure. Only
 
 ## Decision
 
-—
+Ship **fix-a** alone (single SQL change in `crates/mailbox/src/store.rs::list_conversations`):
+
+- SELECT-list `last_sender` and HAVING-clause `hide_my_latest` both replaced
+  with `COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], '')`.
+- The aggregate is computed once during the `GroupAggregate` pass instead of
+  16 793 separate index probes per request.
+- Released as v1.4.21 on 2026-04-19.
+
+fix-b (work_mem) deferred — needs broader review of Postgres tuning, only
+buys ~12 ms on top of fix-a in the EXPLAIN.
+
+fix-c (LATERAL email_analysis to kill SubPlan 5 + 8) and fix-d (snapshot
+table) left open. Will only be tackled if the post-deploy TTFB on /mail
+remains in the user-perceptible range (>200 ms).
 
 ## Verification
 
-—
+Re-measured against prod immediately after the v1.4.21 deploy from the
+same Tokyo connection, three runs each, median TTFB shown:
+
+| request | before (v1.4.20) | after (v1.4.21) | Δ |
+|---|---:|---:|---:|
+| `/api/conversations?limit=50` | 340 ms TTFB / 379 ms total | **278 ms TTFB / 324 ms total** | −62 ms / −55 ms (−18%) |
+| `/api/conversations?limit=200` | 354 ms TTFB / 404 ms total | **273 ms TTFB / 326 ms total** | **−81 ms / −78 ms (−23%)** |
+| `/api/conversations?limit=50&unread=true` | 207 ms TTFB / 236 ms total | 229 ms TTFB / 254 ms total | within run-to-run noise |
+| `/api/conversations?limit=50&folder=Sent` (control) | 21 ms TTFB / 58 ms total | 21 ms TTFB / 60 ms total | unchanged ✓ |
+
+The `limit=200` improvement matches the EXPLAIN prediction (354 → 273 ms,
+i.e. exactly the cost of SubPlan 7 disappearing). The `limit=50` win is a
+bit smaller in absolute terms because the unfiltered hot path also has
+SubPlan 5 + 8 fixed-overhead, which fix-a doesn't touch. The `folder=Sent`
+control line confirms the change had no regression on paths that already
+skipped the SubPlan.
+
+The `unread=true` line is intentionally a no-op for fix-a (its HAVING
+clause was already gated by `unread_count > 0`); the small upward drift
+is run-to-run network/CPU jitter, not regression.
+
+Raw data: `data/2026-04-19/explain-conversations-default.txt`,
+`explain-conversations-fix-a.txt`, `explain-conversations-fix-ab.txt`,
+plus the post-deploy `timing.sh` runs above.
+
+### Remaining gap
+
+Even after fix-a, `/api/conversations?limit=50` is still ~280 ms TTFB —
+heavy by absolute standards. Next levers (in priority order):
+
+1. **fix-c (LATERAL email_analysis)** — would kill SubPlan 5 + 8 (~50 ms
+   in the EXPLAIN). Worth doing if /dashboard or /mail still feels slow.
+2. **fix-b (raise `work_mem` from 4 MB to 16+ MB)** — eliminates the
+   7.4 MB external-merge sort, ~12 ms saved on this query and a free win
+   on every other multi-row aggregation. Low risk if concurrency is low,
+   should be reviewed before bumping in prod.
+3. **fix-d (`thread_summary` snapshot table)** — strategic. Brings the
+   endpoint to flat-select latency (sub-50 ms) and stops being O(threads
+   in the user's mailbox). Largest engineering cost.
