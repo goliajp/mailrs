@@ -19,14 +19,16 @@ import { CommandPalette } from '@/components/command-palette'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { MobileShell } from '@/components/mobile-shell'
 import { MPane } from '@/layouts/pane'
-import { Chat } from '@/pages/chat'
-import { Dashboard } from '@/pages/dashboard'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 import { authAtom } from '@/store/auth'
 import { connectionStatusAtom, unreadCountAtom } from '@/store/chat'
 
+// every authenticated page is lazy so the entry chunk is just the shell +
+// auth gate. cuts cold-load JS preload by ~875 KB on /login (perfs/topic-03).
 const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
+const Chat = lazy(() => import('@/pages/chat').then((m) => ({ default: m.Chat })))
+const Dashboard = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.Dashboard })))
 const Playground = lazy(() => import('@/pages/playground').then((m) => ({ default: m.Playground })))
 const Protocol = lazy(() => import('@/pages/protocol').then((m) => ({ default: m.Protocol })))
 const Settings = lazy(() => import('@/pages/settings').then((m) => ({ default: m.Settings })))
@@ -94,7 +96,9 @@ export function App() {
         <Route
           element={
             <AuthShell>
-              <Chat />
+              <Suspense fallback={<LoadingFallback />}>
+                <Chat />
+              </Suspense>
             </AuthShell>
           }
           path="/mail/*"
@@ -103,7 +107,9 @@ export function App() {
           element={
             <AuthShell>
               <PagePane>
-                <Dashboard />
+                <Suspense fallback={<LoadingFallback />}>
+                  <Dashboard />
+                </Suspense>
               </PagePane>
             </AuthShell>
           }
