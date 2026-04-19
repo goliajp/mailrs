@@ -1,4 +1,4 @@
-# Performance map — mail.golia.ai (v1.4.20, 2026-04-19)
+# Performance map — mail.golia.ai (v1.4.21, 2026-04-19)
 
 Numbers are median of 3 cold curl runs from a Tokyo residential network unless noted. Network baseline: DNS≈2 ms, TCP+TLS≈25 ms.
 
@@ -87,7 +87,7 @@ mail.golia.ai (production, v1.4.20)
 
 | # | title | severity | scope |
 |---|---|---|---|
-| [01](topics/01-conversations-slow.md) | `/api/conversations` 340–400 ms TTFB | high | dashboard + /mail |
+| [01](topics/01-conversations-slow.md) | `/api/conversations` TTFB (340→278 ms after fix-a) | high → medium | dashboard + /mail; partially fixed in v1.4.21 |
 | [02](topics/02-mail-stats-slow.md) | `/api/mail/stats` 174 ms for 0.5 KB | medium | dashboard |
 | [03](topics/03-login-bundle-bloat.md) | `/login` preloads 875 KB unused JS | medium | login cold-start |
 | [04](topics/04-mail-page-weight.md) | /mail navigation 10.5 MB / 74 reqs | low | content-driven |
