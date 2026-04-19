@@ -1,4 +1,4 @@
-# Bottlenecks — debug worksheet (v1.4.27, 2026-04-20)
+# Bottlenecks — debug worksheet (v1.4.29, 2026-04-20)
 
 A flat, opinionated punch list. Read top-to-bottom — items at the top hurt the most users per hour. Each row links to a topic file with reproduction, root-cause analysis, fix candidates and (when done) verification.
 
@@ -14,9 +14,11 @@ These are user-perceived on every visit and have a known low-risk fix.
 ~~Web Vitals "poor" band (>0.25). Whole stat-card row + recent-unread list jump as `Promise.all` resolves. Fix is purely frontend: reserve fixed dimensions for skeleton placeholders, pin stat card width, set explicit `aspect-ratio` on avatars.~~
 **Result:** CLS 0.443 → 0.002 (Web Vitals "good"). Achieved by removing the binary skeleton↔layout swap; layout structure is now identical loading vs loaded, only inner content swaps. Dashboard idle paid +500 ms (skeleton renders earlier) — accepted trade-off vs. the layout jump.
 
-### ~~B2 · `/api/conversations/search` 596 ms TTFB~~ → topic-06 → **fixed for ASCII v1.4.27**
-~~Every keystroke in the search bar pays this. Root cause: `OR` chain of 5 ILIKE columns + EXISTS over `attachment_content` defeats index combination.~~
-**Result:** ASCII queries 596 → 65 ms TTFB (−89%). Two changes: (1) CTE UNION so each search column matches its own index, (2) repeat the partial-index WHERE on each ILIKE branch so PG can use the trigram indexes (without it bare ILIKE picked Seq Scan even with the index present — 100× difference in isolation). CJK queries still slow (576 → 597 ms) because `pg_trgm` strips non-ASCII trigrams; would need `pg_bigm` extension or external search engine — out of scope for this pass.
+### ~~B2 · `/api/conversations/search` 596 ms TTFB~~ → topic-06 → **fully fixed (v1.4.27 + v1.4.29)**
+~~OR-chain ILIKE defeats index combination; CJK was a `pg_trgm` limitation.~~
+**Result two-stage:**
+- **v1.4.27 (ASCII):** CTE UNION + repeat partial-index WHERE on each ILIKE branch → 596 → 65 ms (−89%).
+- **v1.4.29 (CJK):** enabled the meilisearch service that was already integrated in code (handler is meili-first / PG-fallback) and accelerated the indexer for first-time backfill. CJK 597 → 40 ms (−93%); ASCII improved further to 20 ms via meili. PG path remains the degraded-mode fallback.
 
 ### ~~B3 · `?section=important` 581 ms total~~ → topic-07 → **fixed in v1.4.22**
 ~~HAVING-clause SubPlan (per-group `LIMIT 1` over `messages` ordered by `importance_score`) — same pattern that topic-01 fix-a already proved fixable. Replace with ordered aggregate.~~
@@ -65,15 +67,15 @@ Real email content. Auto-opens the latest thread, fetches every attachment + ima
 
 ## Suggested order
 
-Remaining order after v1.4.27 (2026-04-20):
+Remaining order after v1.4.29 (2026-04-20):
 
 1. ~~**B3**~~ done v1.4.22 (?section=important 581 → 304 ms).
 2. ~~**B1 + B7**~~ done v1.4.23 (CLS 0.443/0.223 → 0.002/0.000).
 3. ~~**B6**~~ done v1.4.24 (cold cache 1.56 MB → 600 KB, FCP −30 to −43%).
 4. ~~**B4**~~ done v1.4.25 (fix-c LEFT JOIN; total topic-01 chain limit=200 −27%, section=important −55%).
 5. ~~**B5**~~ done v1.4.26 (mail/stats cached, TTFB 175 → 12 ms on hit).
-6. ~~**B2**~~ done v1.4.27 (ASCII search 596 → 65 ms; CJK still slow, deferred).
-7. **B8** (needs product input).
+6. ~~**B2**~~ done v1.4.27 + v1.4.29 (search 596 → 20 ms ASCII, 597 → 40 ms CJK via meili).
+7. **B8** (needs product input — /mail page weight is content-driven).
 
 ---
 
