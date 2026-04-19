@@ -1,0 +1,70 @@
+SET
+=== fix-c + work_mem 32MB ===
+                                                                                           QUERY PLAN                                                                                            
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=3983.09..3983.21 rows=50 width=290) (actual time=242.654..242.669 rows=50.00 loops=1)
+   Buffers: shared hit=46325
+   ->  Sort  (cost=3983.09..3984.20 rows=445 width=290) (actual time=242.653..242.662 rows=50.00 loops=1)
+         Sort Key: (bool_or(m.pinned)) DESC, (max(m.internal_date)) DESC
+         Sort Method: top-N heapsort  Memory: 60kB
+         Buffers: shared hit=46325
+         ->  GroupAggregate  (cost=3449.16..3968.31 rows=445 width=290) (actual time=69.837..233.221 rows=16612.00 loops=1)
+               Group Key: m.thread_id
+               Filter: ((NOT bool_or(m.archived)) AND (lower(COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], ''::text)) !~~ '%lihao@golia.jp%'::text))
+               Rows Removed by Filter: 186
+               Buffers: shared hit=46317
+               ->  Incremental Sort  (cost=3449.16..3897.03 rows=891 width=369) (actual time=69.737..127.527 rows=17283.00 loops=1)
+                     Sort Key: m.thread_id, m.sender
+                     Presorted Key: m.thread_id
+                     Full-sort Groups: 539  Sort Method: quicksort  Average Memory: 35kB  Peak Memory: 35kB
+                     Buffers: shared hit=46314
+                     ->  Nested Loop Left Join  (cost=3448.69..3856.93 rows=891 width=369) (actual time=69.534..115.167 rows=17283.00 loops=1)
+                           Filter: (COALESCE(ea.category, 'general'::text) <> ALL ('{spam,scam}'::text[]))
+                           Rows Removed by Filter: 1482
+                           Buffers: shared hit=46314
+                           ->  Merge Anti Join  (cost=3448.41..3452.92 rows=900 width=368) (actual time=69.505..79.398 rows=18765.00 loops=1)
+                                 Merge Cond: (m.thread_id = sc.thread_id)
+                                 Buffers: shared hit=3075
+                                 ->  Sort  (cost=3430.14..3432.39 rows=900 width=383) (actual time=69.404..72.965 rows=18765.00 loops=1)
+                                       Sort Key: m.thread_id
+                                       Sort Method: quicksort  Memory: 8394kB
+                                       Buffers: shared hit=3072
+                                       ->  Hash Join  (cost=22.55..3385.98 rows=900 width=383) (actual time=0.077..15.579 rows=18765.00 loops=1)
+                                             Hash Cond: (m.mailbox_id = mb.id)
+                                             Buffers: shared hit=3072
+                                             ->  Seq Scan on messages m  (cost=0.00..3310.95 rows=19355 width=376) (actual time=0.019..11.050 rows=19392.00 loops=1)
+                                                   Filter: (thread_id <> ''::text)
+                                                   Buffers: shared hit=3069
+                                             ->  Hash  (cost=22.48..22.48 rows=6 width=23) (actual time=0.044..0.046 rows=6.00 loops=1)
+                                                   Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                                   Buffers: shared hit=3
+                                                   ->  Bitmap Heap Scan on mailboxes mb  (cost=4.19..22.48 rows=6 width=23) (actual time=0.035..0.038 rows=6.00 loops=1)
+                                                         Recheck Cond: (user_address = 'lihao@golia.jp'::text)
+                                                         Heap Blocks: exact=2
+                                                         Buffers: shared hit=3
+                                                         ->  Bitmap Index Scan on mailboxes_user_address_name_key  (cost=0.00..4.19 rows=6 width=0) (actual time=0.026..0.026 rows=6.00 loops=1)
+                                                               Index Cond: (user_address = 'lihao@golia.jp'::text)
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=1
+                                 ->  Sort  (cost=18.27..18.27 rows=1 width=64) (actual time=0.094..0.095 rows=0.00 loops=1)
+                                       Sort Key: sc.thread_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=3
+                                       ->  Bitmap Heap Scan on snoozed_conversations sc  (cost=9.78..18.26 rows=1 width=64) (actual time=0.082..0.083 rows=0.00 loops=1)
+                                             Recheck Cond: (account_address = 'lihao@golia.jp'::text)
+                                             Filter: (snoozed_until > now())
+                                             Buffers: shared hit=3
+                                             ->  Bitmap Index Scan on snoozed_conversations_pkey  (cost=0.00..9.78 rows=4 width=0) (actual time=0.044..0.044 rows=0.00 loops=1)
+                                                   Index Cond: (account_address = 'lihao@golia.jp'::text)
+                                                   Index Searches: 1
+                                                   Buffers: shared hit=3
+                           ->  Index Scan using email_analysis_pkey on email_analysis ea  (cost=0.28..0.44 rows=1 width=18) (actual time=0.001..0.001 rows=0.30 loops=18765)
+                                 Index Cond: (message_id = m.id)
+                                 Index Searches: 18765
+                                 Buffers: shared hit=43239
+ Planning:
+   Buffers: shared hit=740
+ Planning Time: 3.423 ms
+ Execution Time: 243.489 ms
+(64 rows)
+

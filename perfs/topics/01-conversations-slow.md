@@ -1,6 +1,6 @@
 # Topic 01: `/api/conversations` 340–400 ms TTFB
 
-**Status:** partially fixed (v1.4.21) — fix-a deployed, fix-c/d still open
+**Status:** mostly fixed (v1.4.21 fix-a, v1.4.25 fix-c) — fix-d snapshot table still open
 **Severity:** high
 **First observed:** 2026-04-19 (TREE.md, /dashboard + /mail)
 **Owner:** —
@@ -183,13 +183,27 @@ Recommendation: **a + b first** (one PR each, both reversible). Re-measure. Only
 
 ## Decision
 
-Ship **fix-a** alone (single SQL change in `crates/mailbox/src/store.rs::list_conversations`):
+Two ships against `crates/mailbox/src/store.rs::list_conversations`:
 
+**v1.4.21 — fix-a** (per-group SubPlan 7 → ordered aggregate):
 - SELECT-list `last_sender` and HAVING-clause `hide_my_latest` both replaced
   with `COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], '')`.
-- The aggregate is computed once during the `GroupAggregate` pass instead of
-  16 793 separate index probes per request.
-- Released as v1.4.21 on 2026-04-19.
+- Computed once during `GroupAggregate` instead of 16 793 separate index
+  probes per request.
+
+**v1.4.25 — fix-c** (per-row SubPlan 5 + 8 → LEFT JOIN):
+- `LEFT JOIN email_analysis ea ON ea.message_id = m.id` added once.
+- `BOOL_OR((SELECT requires_action FROM email_analysis ea_act ...))` →
+  `BOOL_OR(ea.requires_action)` (kills SubPlan 5, 17 280 loops).
+- `NOT EXISTS (SELECT 1 FROM email_analysis ea_ex WHERE category IN
+  ('spam','scam'))` → `COALESCE(ea.category, 'general') NOT IN
+  ('spam','scam')` (kills SubPlan 8, 18 762 loops).
+- Category filter `m.id IN (SELECT … WHERE category = $N)` simplifies to
+  `ea.category = $N`.
+
+fix-b (`work_mem` to 16+ MB) deferred — server config tuning, separate
+review. fix-d (snapshot `thread_summary` table) still open as a
+medium-term lever.
 
 fix-b (work_mem) deferred — needs broader review of Postgres tuning, only
 buys ~12 ms on top of fix-a in the EXPLAIN.
@@ -200,42 +214,65 @@ remains in the user-perceptible range (>200 ms).
 
 ## Verification
 
-Re-measured against prod immediately after the v1.4.21 deploy from the
-same Tokyo connection, three runs each, median TTFB shown:
+### v1.4.21 — fix-a (per-group SubPlan 7 → ordered aggregate)
+
+Three runs each, median TTFB shown:
 
 | request | before (v1.4.20) | after (v1.4.21) | Δ |
 |---|---:|---:|---:|
-| `/api/conversations?limit=50` | 340 ms TTFB / 379 ms total | **278 ms TTFB / 324 ms total** | −62 ms / −55 ms (−18%) |
-| `/api/conversations?limit=200` | 354 ms TTFB / 404 ms total | **273 ms TTFB / 326 ms total** | **−81 ms / −78 ms (−23%)** |
-| `/api/conversations?limit=50&unread=true` | 207 ms TTFB / 236 ms total | 229 ms TTFB / 254 ms total | within run-to-run noise |
-| `/api/conversations?limit=50&folder=Sent` (control) | 21 ms TTFB / 58 ms total | 21 ms TTFB / 60 ms total | unchanged ✓ |
+| `/api/conversations?limit=50` | 340 ms TTFB / 379 ms total | **278 ms / 324 ms** | −62 / −55 ms (−18%) |
+| `/api/conversations?limit=200` | 354 ms TTFB / 404 ms total | **273 ms / 326 ms** | **−81 / −78 ms (−23%)** |
+| `/api/conversations?limit=50&unread=true` | 207 ms / 236 ms | 229 ms / 254 ms | noise |
+| `/api/conversations?limit=50&folder=Sent` (control) | 21 ms / 58 ms | 21 ms / 60 ms | unchanged ✓ |
 
-The `limit=200` improvement matches the EXPLAIN prediction (354 → 273 ms,
-i.e. exactly the cost of SubPlan 7 disappearing). The `limit=50` win is a
-bit smaller in absolute terms because the unfiltered hot path also has
-SubPlan 5 + 8 fixed-overhead, which fix-a doesn't touch. The `folder=Sent`
-control line confirms the change had no regression on paths that already
-skipped the SubPlan.
+### v1.4.25 — fix-c (per-row SubPlan 5+8 → LEFT JOIN)
 
-The `unread=true` line is intentionally a no-op for fix-a (its HAVING
-clause was already gated by `unread_count > 0`); the small upward drift
-is run-to-run network/CPU jitter, not regression.
+EXPLAIN on prod (data: `data/2026-04-20/explain-b4.txt`):
+- **before fix-c**: 288 ms execution
+- **after fix-c**:  249 ms execution (−14%)
+- after fix-c + work_mem 32 MB: 243 ms (extra −2%, eliminates 7.5 MB
+  external-merge sort to disk; deferred to a separate config change)
 
-Raw data: `data/2026-04-19/explain-conversations-default.txt`,
-`explain-conversations-fix-a.txt`, `explain-conversations-fix-ab.txt`,
-plus the post-deploy `timing.sh` runs above.
+Post-deploy curl, comparing to the immediately-prior baseline (v1.4.24,
+which already had fix-a applied):
+
+| request | v1.4.24 TTFB | v1.4.25 TTFB | Δ |
+|---|---:|---:|---:|
+| `?limit=50` | 270 ms | 267 ms | within noise |
+| `?limit=200` | 271 ms | **258 ms** | −13 ms |
+| `?limit=50&unread=true` | 231 ms | **217 ms** | −14 ms |
+| `?limit=50&starred=true` | 227 ms | **218 ms** | −9 ms |
+| `?limit=50&section=important` | 266 ms | **222 ms** | **−44 ms** |
+| `?limit=50&category=spam` | 75 ms | 70 ms | −5 ms |
+| `?limit=50&folder=Sent` (control) | 21 ms | 21 ms | unchanged ✓ |
+
+fix-c's effect is bigger on filtered variants because they have fewer
+final groups but the same large pool of message rows feeding SubPlan 5+8;
+removing those subqueries removes a per-row cost that the smaller HAVING
+result can no longer amortise.
+
+### Total improvement on /api/conversations (v1.4.20 → v1.4.25)
+
+| variant | initial | after fix-a + B3 + fix-c | total Δ |
+|---|---:|---:|---:|
+| `?limit=200` (dashboard) | 354 ms TTFB / 404 ms total | 258 / 312 ms | **−96 / −92 ms (−27% / −23%)** |
+| `?limit=50` (/mail initial) | 340 / 379 ms | 267 / 306 ms | −73 / −73 ms (−21% / −19%) |
+| `?section=important` | 376 / 581 ms | 222 / 261 ms | **−154 / −320 ms (−41% / −55%)** |
+| `?unread=true` | 207 / 236 ms | 217 / 244 ms | within noise (already small) |
+| `?folder=Sent` (control) | 21 / 58 ms | 21 / 60 ms | unchanged ✓ |
 
 ### Remaining gap
 
-Even after fix-a, `/api/conversations?limit=50` is still ~280 ms TTFB —
-heavy by absolute standards. Next levers (in priority order):
+`/api/conversations?limit=50` is still ~270 ms TTFB. The remaining cost
+is mostly the GroupAggregate over 17k message rows + the external-merge
+sort to disk (still happens at default `work_mem`).
 
-1. **fix-c (LATERAL email_analysis)** — would kill SubPlan 5 + 8 (~50 ms
-   in the EXPLAIN). Worth doing if /dashboard or /mail still feels slow.
-2. **fix-b (raise `work_mem` from 4 MB to 16+ MB)** — eliminates the
-   7.4 MB external-merge sort, ~12 ms saved on this query and a free win
-   on every other multi-row aggregation. Low risk if concurrency is low,
-   should be reviewed before bumping in prod.
-3. **fix-d (`thread_summary` snapshot table)** — strategic. Brings the
-   endpoint to flat-select latency (sub-50 ms) and stops being O(threads
-   in the user's mailbox). Largest engineering cost.
+Next levers:
+
+1. **fix-b (raise `work_mem` from 4 MB to 16+ MB)** — eliminates the
+   7.5 MB sort to disk, ~12 ms saved here and free wins on every other
+   multi-row aggregation. Server-wide setting, should be reviewed.
+2. **fix-d (`thread_summary` snapshot table)** — strategic refactor.
+   Brings the endpoint to flat-select latency (sub-50 ms) and stops
+   being O(threads in user's mailbox). Aligns with the `data-architecture.md`
+   "facts vs derivations" principle (per-thread aggregate is a derivation).
