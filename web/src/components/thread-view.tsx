@@ -115,6 +115,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const [loadingThread, setLoadingThread] = useState(false)
   const [expandedBubbles, setExpandedBubbles] = useState<Set<number>>(new Set())
   const [showAllMessages, setShowAllMessages] = useState(false)
+  // suspends the auto-mark-read effect for the current selection after the
+  // user explicitly marks the thread unread, so we don't immediately undo it
+  const autoMarkSuspendedRef = useRef(false)
 
   const loadMessages = useCallback(
     async (threadId: string) => {
@@ -136,18 +139,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         contentScrollRef.current?.scrollTo(0, 0)
         // scroll timeline to latest message
         requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
-
-        const crossAll = crossAccountReadRef.current
-        const readParam =
-          crossAll && doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
-        postJson(`/conversations/${encodeURIComponent(threadId)}/read${readParam}`, {}).catch(
-          () => {}
-        )
-        setIsRead(true)
-        // update unread_count locally instead of re-fetching entire list
-        setConversations((prev) =>
-          prev.map((c) => (c.thread_id === threadId ? { ...c, unread_count: 0 } : c))
-        )
       } catch (err) {
         if (!controller.signal.aborted) {
           toast.error(err instanceof Error ? err.message : 'Failed to load messages')
@@ -156,7 +147,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         setLoadingThread(false)
       }
     },
-    [setMessages, setConversations]
+    [setMessages]
   )
 
   const refreshConversations = useCallback(async () => {
@@ -181,6 +172,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     if (!selectedId) return
     try {
       await postJson(`/conversations/${encodeURIComponent(selectedId)}/unread`, {})
+      // suspend auto-mark for this selection so the upcoming unread_count
+      // change does not cause the auto-mark effect to immediately re-mark it
+      autoMarkSuspendedRef.current = true
       setIsRead(false)
       setConversations((prev) =>
         prev.map((c) =>
@@ -343,6 +337,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setShowAllMessages(false)
     setMobileThreadTab('content')
     setMobileReplyOpen(false)
+    // re-arm auto-mark-read for the new selection
+    autoMarkSuspendedRef.current = false
     const existing = conversationsRef.current.find((c) => c.thread_id === selectedId)
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
@@ -351,6 +347,29 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       abortRef.current?.abort()
     }
   }, [selectedId, loadMessages, setMessages, setMobileThreadTab, setMobileReplyOpen])
+
+  // auto mark-as-read whenever the currently-displayed thread is unread.
+  // covers: first open, list-filter switch where selection happens to stay
+  // on the same thread, and new-message arrival on the open thread.
+  // suppressed for a given selection after the user explicitly marks unread.
+  useEffect(() => {
+    if (!selectedId) return
+    if (autoMarkSuspendedRef.current) return
+    const conv = conversations.find((c) => c.thread_id === selectedId)
+    if (!conv || conv.unread_count === 0) return
+
+    const doms = domainsRef.current
+    const crossAll = crossAccountReadRef.current
+    const readParam =
+      crossAll && doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
+    postJson(`/conversations/${encodeURIComponent(selectedId)}/read${readParam}`, {}).catch(
+      () => {}
+    )
+    setIsRead(true)
+    setConversations((prev) =>
+      prev.map((c) => (c.thread_id === selectedId ? { ...c, unread_count: 0 } : c))
+    )
+  }, [selectedId, conversations, setConversations])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
