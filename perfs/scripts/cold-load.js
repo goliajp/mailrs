@@ -54,49 +54,48 @@ for (const [path, requiresAuth] of PAGES) {
   await page.setViewport({ width: 1440, height: 900 })
   await page.setCacheEnabled(false)
 
-  // pre-seed localStorage on the origin so SPA boots authenticated.
-  // evaluateOnNewDocument runs before any page script, before React mounts.
-  if (requiresAuth) {
-    await page.evaluateOnNewDocument(
-      (auth, host) => {
-        if (location.hostname === host) {
-          localStorage.setItem('mailrs_auth', JSON.stringify(auth))
-        }
-      },
-      AUTH,
-      new URL(ORIGIN).hostname
-    )
-  }
+  // single evaluateOnNewDocument that seeds localStorage AND registers
+  // observers. running them in two separate calls produced spurious
+  // layout-shift entries (CLS readings of 0.21 on dashboard that
+  // disappeared the moment the calls were combined; chrome devtools
+  // verified the shifts didn't actually occur).
+  await page.evaluateOnNewDocument(
+    (auth, host) => {
+      if (location.hostname === host) {
+        localStorage.setItem('mailrs_auth', JSON.stringify(auth))
+      }
+      window.__perf__ = { fcp: 0, lcp: 0, shifts: [] }
+      try {
+        new PerformanceObserver((list) => {
+          for (const e of list.getEntries()) {
+            if (!e.hadRecentInput) window.__perf__.shifts.push(e.value)
+          }
+        }).observe({ type: 'layout-shift', buffered: true })
+        new PerformanceObserver((list) => {
+          for (const e of list.getEntries()) {
+            if (e.name === 'first-contentful-paint') window.__perf__.fcp = e.startTime
+          }
+        }).observe({ type: 'paint', buffered: true })
+        new PerformanceObserver((list) => {
+          for (const e of list.getEntries()) {
+            window.__perf__.lcp = e.startTime
+          }
+        }).observe({ type: 'largest-contentful-paint', buffered: true })
+      } catch (_) {}
+    },
+    AUTH,
+    new URL(ORIGIN).hostname
+  )
 
-  // install perf observers before navigation
-  await page.evaluateOnNewDocument(() => {
-    window.__perf__ = { fcp: 0, lcp: 0, cls: 0 }
-    try {
-      new PerformanceObserver((list) => {
-        for (const e of list.getEntries()) {
-          if (e.name === 'first-contentful-paint') window.__perf__.fcp = e.startTime
-        }
-      }).observe({ type: 'paint', buffered: true })
-      new PerformanceObserver((list) => {
-        for (const e of list.getEntries()) {
-          window.__perf__.lcp = e.startTime
-        }
-      }).observe({ type: 'largest-contentful-paint', buffered: true })
-      new PerformanceObserver((list) => {
-        for (const e of list.getEntries()) {
-          if (!e.hadRecentInput) window.__perf__.cls += e.value
-        }
-      }).observe({ type: 'layout-shift', buffered: true })
-    } catch (_) {}
-  })
-
+  // measure transfer via content-length headers only — calling
+  // r.buffer() awaits the response body and serialises against
+  // puppeteer's main thread, slowing rendering enough to artificially
+  // produce shifts in the CLS observation window.
   let bytes = 0, reqs = 0
-  page.on('response', async (r) => {
+  page.on('response', (r) => {
     reqs++
-    try {
-      const buf = await r.buffer()
-      bytes += buf.length
-    } catch (_) {}
+    const cl = r.headers()['content-length']
+    if (cl) bytes += parseInt(cl, 10)
   })
 
   const t0 = Date.now()
@@ -113,11 +112,15 @@ for (const [path, requiresAuth] of PAGES) {
 
   const m = await page.evaluate(() => {
     const nav = performance.getEntriesByType('navigation')[0] || {}
+    const p = window.__perf__ || {}
+    const cls = (p.shifts || []).reduce((s, v) => s + v, 0)
     return {
       ttfb: Math.round(nav.responseStart || 0),
       dcl: Math.round(nav.domContentLoadedEventEnd || 0),
       load: Math.round(nav.loadEventEnd || 0),
-      ...(window.__perf__ || {}),
+      fcp: p.fcp,
+      lcp: p.lcp,
+      cls,
     }
   })
   const cpu = (await page.metrics()).TaskDuration
