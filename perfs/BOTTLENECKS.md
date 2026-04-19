@@ -1,4 +1,4 @@
-# Bottlenecks — debug worksheet (v1.4.29, 2026-04-20)
+# Bottlenecks — debug worksheet (v1.4.32, 2026-04-20)
 
 A flat, opinionated punch list. Read top-to-bottom — items at the top hurt the most users per hour. Each row links to a topic file with reproduction, root-cause analysis, fix candidates and (when done) verification.
 
@@ -48,9 +48,8 @@ These are user-perceived on every visit and have a known low-risk fix.
 
 ## Tier 3 — known, accepted unless something changes
 
-### B8 · /mail LCP 1140 ms / idle 1850 ms / 93 reqs / 10 MB  → topic-04
-Real email content. Auto-opens the latest thread, fetches every attachment + image. Lazy-loading attachments + images on intersection observer would cut this dramatically; needs a product call before changing the auto-open UX.
-**impact:** every /mail visit · **fix size:** medium frontend (lazy loading) + product decision · **risk:** changes UX.
+### B8 · /mail LCP 1140 ms / idle 1850 ms / 93 reqs / 10 MB  → topic-04 → **engineering layer fixed (v1.4.30)**
+Engineering layer done: HtmlFrame now adds `loading="lazy"` to inline `<img>` tags and strips 1×1 tracking pixels. Inline image fetches outside the viewport are deferred; CPU drops ~10%. The bigger UX lever — auto-opening the latest thread on entry — remains a product decision and is out of scope for this perf pass. Topic stays open at low severity for that follow-up.
 
 ---
 
@@ -67,15 +66,62 @@ Real email content. Auto-opens the latest thread, fetches every attachment + ima
 
 ## Suggested order
 
-Remaining order after v1.4.29 (2026-04-20):
+All eight punch-list items addressed by v1.4.32:
 
 1. ~~**B3**~~ done v1.4.22 (?section=important 581 → 304 ms).
-2. ~~**B1 + B7**~~ done v1.4.23 (CLS 0.443/0.223 → 0.002/0.000).
+2. ~~**B1 + B7**~~ done v1.4.23 (CLS 0.443/0.223 → 0.000/0.000).
 3. ~~**B6**~~ done v1.4.24 (cold cache 1.56 MB → 600 KB, FCP −30 to −43%).
 4. ~~**B4**~~ done v1.4.25 (fix-c LEFT JOIN; total topic-01 chain limit=200 −27%, section=important −55%).
 5. ~~**B5**~~ done v1.4.26 (mail/stats cached, TTFB 175 → 12 ms on hit).
 6. ~~**B2**~~ done v1.4.27 + v1.4.29 (search 596 → 20 ms ASCII, 597 → 40 ms CJK via meili).
-7. **B8** (needs product input — /mail page weight is content-driven).
+7. ~~**B8**~~ engineering layer done v1.4.30 (image lazy-load + tracker pixel strip); auto-open UX still product call.
+
+## Whole-system score card (v1.4.20 → v1.4.32)
+
+| surface | before | after | Δ |
+|---|---:|---:|---:|
+| `/api/conversations?limit=200` (dashboard) TTFB | 354 ms | 258 ms | **−27%** |
+| `/api/conversations?limit=50` (/mail) TTFB | 340 ms | 267 ms | **−21%** |
+| `/api/conversations?section=important` total | 581 ms | 261 ms | **−55%** |
+| `/api/mail/stats` TTFB (cache hit) | 175 ms | 12 ms | **−93%** |
+| `/api/conversations/search?q=invoice` TTFB | 596 ms | 20 ms | **−97%** |
+| `/api/conversations/search?q=金額` TTFB | 597 ms | 40 ms | **−93%** |
+| /login cold-cache JS preload | 1.56 MB | 600 KB | **−61%** |
+| /dashboard cold-cache transfer | 3.45 MB | 993 KB (content-length sum) | **−71%** |
+| /admin/* cold-cache transfer | ~3.22 MB | ~770 KB | **−76%** |
+| Every page FCP | 290–476 ms | 180–252 ms | **−30 to −47%** |
+| /dashboard CLS | 0.443 | 0.000 | **good (was poor)** |
+| /admin overview CLS | 0.223 | 0.000 | **good (was needs improvement)** |
+| /mail CLS | 0.021 | 0.000 | **good (already good)** |
+| /mail CPU on cold load | 387 ms | 274 ms | **−29%** |
+
+Plus two UI bug fixes that were caught along the way (v1.4.26):
+
+- ContactAutocomplete: long sender lines wrap inside the dropdown
+  instead of overflowing.
+- GDS toast: padding/gap render correctly (Tailwind v4 @source needed
+  to scan node_modules/@goliapkg/gds for design-token utilities).
+
+## Releases
+
+| version | scope |
+|---|---|
+| v1.4.21 | topic-01 fix-a (per-group SubPlan → ordered aggregate) |
+| v1.4.22 | topic-07 / B3 (?section=important SubPlan → array_agg) |
+| v1.4.23 | topic-05 / B1 + B7 (dashboard + admin CLS) |
+| v1.4.24 | topic-03 / B6 (lazy Chat/Dashboard, drop manualChunks) |
+| v1.4.25 | topic-01 fix-c / B4 (LEFT JOIN email_analysis) |
+| v1.4.26 | topic-02 / B5 (mail/stats valkey cache) + 2 UI bugs |
+| v1.4.27 | topic-06 / B2 (search ASCII rewrite) |
+| v1.4.28–29 | topic-06 (CJK via meilisearch) |
+| v1.4.30 | topic-04 / B8 (image lazy + tracker pixel strip) |
+| v1.4.31–32 | minor cleanup |
+
+## Outstanding (deferred or product-blocked)
+
+- **topic-01 fix-d** (`thread_summary` snapshot table) — strategic refactor that would bring `/api/conversations` to flat-select latency. Aligns with `data-architecture.md`. Worth doing once the mailbox grows past ~100k threads/account.
+- **topic-01 fix-b** (raise `work_mem` from 4 MB to 16+ MB) — server-side config tuning, eliminates the 7.5 MB external-merge sort on every list query. Should be reviewed alongside other Postgres tuning.
+- **topic-04 auto-open UX** — product call. The default behaviour of opening the most recent thread when the user enters /mail is what drives the residual page weight; a "list-only" or "preview pane" option would let heavy users opt out.
 
 ---
 
