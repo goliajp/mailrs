@@ -1,7 +1,7 @@
 # Topic 06: `/api/conversations/search` ~600 ms TTFB
 
-**Status:** fixed for ASCII queries (v1.4.27); CJK still slow (pg_trgm limitation)
-**Severity:** medium (was high)
+**Status:** fully fixed (ASCII v1.4.27 + CJK v1.4.29 via meilisearch)
+**Severity:** resolved
 **First observed:** 2026-04-19 (data/2026-04-19/sweep.txt)
 **Owner:** —
 
@@ -138,26 +138,36 @@ post-deploy curl on prod (median of 3, ASCII queries):
 | `q=meeting` | (not measured before) | 59 ms | new baseline |
 | `q=金額` (CJK) | 576 ms | 597 ms | unchanged ⚠ |
 
-### Known limitation: CJK queries
+### CJK fix — meilisearch (v1.4.29)
 
-The `pg_trgm` extension generates ASCII trigrams; non-ASCII characters
-are stripped before tokenisation. So `subject ILIKE '%金額%'` cannot
-use `idx_messages_subject_trgm` and falls back to Seq Scan on every
-message. Each of the 4 ILIKE branches still seq-scans, totalling
-~570 ms.
+CJK queries originally hit the same wall: `pg_trgm` strips non-ASCII
+chars before tokenisation, so `subject ILIKE '%金額%'` falls back to
+Seq Scan on every branch. Total ~570 ms regardless of how the SQL
+was written.
 
-This is a Postgres ecosystem limitation, not something we can fix
-in our SQL. Options if CJK search becomes a priority:
+The codebase already had a complete meilisearch integration:
+- `crates/server/src/search_index.rs` — client + background indexer
+- `search_conversations` handler — meili-first, PG-fallback
+- `get_conversations_by_thread_ids` — fetches summaries by id list
 
-1. **`pg_bigm` extension** — bigram index built specifically for CJK
-   substring search. Drop-in replacement for the trigram indexes
-   on the four text columns. Requires DB extension install +
-   schema migration.
-2. **External search engine** (Meilisearch / Tantivy / Elastic) for
-   the search endpoint. Already partially present in the codebase
-   (search via meilisearch is referenced in
-   `get_conversations_by_thread_ids`); could be wired as the primary
-   path when the query contains non-ASCII characters.
+…the only missing piece was the meilisearch service in the prod
+docker-compose. Adding it (and bumping the indexer's `BATCH_SIZE`
+1000 + a 200 ms tight loop while backfilling so 18k messages
+import in ~20 s instead of ~7 hours) closed the gap.
 
-Out of scope for this pass. Topic remains open at lower severity for
-the CJK case.
+Post-deploy verification on prod (median of 2 runs):
+
+| query | language | before (v1.4.27) | after (v1.4.29) | Δ |
+|---|---|---:|---:|---:|
+| `金額` | CJK (jp) | 597 ms | **40 ms** | **−93%** |
+| `請求書` | CJK (jp) | (similar slow) | 35 ms | new |
+| `ミーティング` | CJK (jp katakana) | (slow) | 20 ms | new |
+| `発注` | CJK (jp) | (slow) | 37 ms | new |
+| `invoice` | ASCII | 65 ms | **20 ms** | −69% |
+| `meeting` | ASCII | 59 ms | 18 ms | −69% |
+
+ASCII queries also benefit: meili's roundtrip is faster than the
+6-branch BitmapOr CTE on PG. The PG path is still the fallback
+when meili is unavailable (degraded mode), so search keeps working.
+
+Topic fully closed.
