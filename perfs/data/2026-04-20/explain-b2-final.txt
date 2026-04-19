@@ -1,0 +1,103 @@
+=== fix: UNION + partial-index WHERE clauses for ILIKE ===
+                                                                                                  QUERY PLAN                                                                                                  
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=4339.46..4339.46 rows=1 width=294) (actual time=44.562..44.578 rows=44.00 loops=1)
+   Buffers: shared hit=1197 read=648 dirtied=2
+   ->  Sort  (cost=4339.46..4339.46 rows=1 width=294) (actual time=44.561..44.572 rows=44.00 loops=1)
+         Sort Key: (max(CASE WHEN (m.search_vector @@ '''invoice'''::tsquery) THEN ts_rank(m.search_vector, '''invoice'''::tsquery) ELSE '0'::real END)) DESC, (max(m.internal_date)) DESC
+         Sort Method: quicksort  Memory: 46kB
+         Buffers: shared hit=1197 read=648 dirtied=2
+         ->  GroupAggregate  (cost=4339.28..4339.45 rows=1 width=294) (actual time=44.128..44.504 rows=44.00 loops=1)
+               Group Key: m.thread_id
+               Filter: (NOT bool_or(m.archived))
+               Buffers: shared hit=1191 read=648 dirtied=2
+               ->  Sort  (cost=4339.28..4339.28 rows=2 width=668) (actual time=44.084..44.096 rows=45.00 loops=1)
+                     Sort Key: m.thread_id, m.sender
+                     Sort Method: quicksort  Memory: 47kB
+                     Buffers: shared hit=1134 read=648 dirtied=2
+                     ->  Nested Loop Left Join  (cost=4031.99..4339.27 rows=2 width=668) (actual time=43.329..43.976 rows=45.00 loops=1)
+                           Buffers: shared hit=1131 read=648 dirtied=2
+                           ->  Nested Loop  (cost=4031.71..4338.39 rows=2 width=667) (actual time=43.321..43.803 rows=45.00 loops=1)
+                                 Buffers: shared hit=1028 read=648 dirtied=2
+                                 ->  Nested Loop  (cost=4031.57..4331.47 rows=39 width=675) (actual time=43.309..43.655 rows=48.00 loops=1)
+                                       Buffers: shared hit=932 read=648 dirtied=2
+                                       ->  Unique  (cost=4031.28..4031.47 rows=39 width=8) (actual time=43.280..43.311 rows=48.00 loops=1)
+                                             Buffers: shared hit=788 read=648 dirtied=2
+                                             ->  Sort  (cost=4031.28..4031.38 rows=39 width=8) (actual time=43.259..43.273 rows=105.00 loops=1)
+                                                   Sort Key: messages.id
+                                                   Sort Method: quicksort  Memory: 25kB
+                                                   Buffers: shared hit=788 read=648 dirtied=2
+                                                   ->  Append  (cost=442.26..4030.25 rows=39 width=8) (actual time=0.387..43.240 rows=105.00 loops=1)
+                                                         Buffers: shared hit=788 read=648 dirtied=2
+                                                         ->  Bitmap Heap Scan on messages  (cost=442.26..557.30 rows=31 width=8) (actual time=0.386..0.498 rows=30.00 loops=1)
+                                                               Recheck Cond: (search_vector @@ '''invoice'''::tsquery)
+                                                               Heap Blocks: exact=29
+                                                               Buffers: shared hit=133
+                                                               ->  Bitmap Index Scan on idx_messages_search_vector  (cost=0.00..442.25 rows=31 width=0) (actual time=0.370..0.371 rows=33.00 loops=1)
+                                                                     Index Cond: (search_vector @@ '''invoice'''::tsquery)
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=104
+                                                         ->  Bitmap Heap Scan on messages messages_1  (cost=111.42..119.30 rows=2 width=8) (actual time=0.165..0.209 rows=19.00 loops=1)
+                                                               Recheck Cond: ((subject ~~* '%invoice%'::text) AND (subject <> ''::text))
+                                                               Heap Blocks: exact=19
+                                                               Buffers: shared hit=45
+                                                               ->  Bitmap Index Scan on idx_messages_subject_trgm  (cost=0.00..111.42 rows=2 width=0) (actual time=0.154..0.155 rows=19.00 loops=1)
+                                                                     Index Cond: (subject ~~* '%invoice%'::text)
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=26
+                                                         ->  Bitmap Heap Scan on messages messages_2  (cost=90.12..94.13 rows=1 width=8) (actual time=0.362..0.423 rows=15.00 loops=1)
+                                                               Recheck Cond: ((sender ~~* '%invoice%'::text) AND (sender <> ''::text))
+                                                               Rows Removed by Index Recheck: 2
+                                                               Heap Blocks: exact=17
+                                                               Buffers: shared hit=37 read=6
+                                                               ->  Bitmap Index Scan on idx_messages_sender_trgm  (cost=0.00..90.12 rows=1 width=0) (actual time=0.351..0.351 rows=19.00 loops=1)
+                                                                     Index Cond: (sender ~~* '%invoice%'::text)
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=20 read=6
+                                                         ->  Bitmap Heap Scan on messages messages_3  (cost=1144.22..1163.69 rows=1 width=8) (actual time=2.823..6.439 rows=10.00 loops=1)
+                                                               Recheck Cond: ((text_body ~~* '%invoice%'::text) AND (text_body <> ''::text))
+                                                               Rows Removed by Index Recheck: 6
+                                                               Heap Blocks: exact=15
+                                                               Buffers: shared hit=83 read=260
+                                                               ->  Bitmap Index Scan on idx_messages_text_body_trgm  (cost=0.00..1144.22 rows=5 width=0) (actual time=2.788..2.788 rows=18.00 loops=1)
+                                                                     Index Cond: (text_body ~~* '%invoice%'::text)
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=9 read=260
+                                                         ->  Sort  (cost=1653.99..1653.99 rows=1 width=8) (actual time=6.991..6.993 rows=10.00 loops=1)
+                                                               Sort Key: messages_4.id
+                                                               Sort Method: quicksort  Memory: 25kB
+                                                               Buffers: shared hit=83 read=382
+                                                               ->  Bitmap Heap Scan on messages messages_4  (cost=1649.96..1653.98 rows=1 width=8) (actual time=2.904..6.981 rows=10.00 loops=1)
+                                                                     Recheck Cond: ((clean_text ~~* '%invoice%'::text) AND (clean_text <> ''::text))
+                                                                     Rows Removed by Index Recheck: 7
+                                                                     Heap Blocks: exact=16
+                                                                     Buffers: shared hit=83 read=382
+                                                                     ->  Bitmap Index Scan on idx_messages_clean_text_trgm  (cost=0.00..1649.96 rows=1 width=0) (actual time=2.694..2.695 rows=19.00 loops=1)
+                                                                           Index Cond: (clean_text ~~* '%invoice%'::text)
+                                                                           Index Searches: 1
+                                                                           Buffers: shared hit=8 read=380
+                                                         ->  Seq Scan on attachment_content  (cost=0.00..441.65 rows=3 width=8) (actual time=0.994..28.644 rows=21.00 loops=1)
+                                                               Filter: (extracted_text ~~* '%invoice%'::text)
+                                                               Rows Removed by Filter: 19438
+                                                               Buffers: shared hit=407 dirtied=2
+                                       ->  Index Scan using messages_pkey on messages m  (cost=0.29..7.69 rows=1 width=675) (actual time=0.007..0.007 rows=1.00 loops=48)
+                                             Index Cond: (id = messages.id)
+                                             Filter: (thread_id <> ''::text)
+                                             Index Searches: 48
+                                             Buffers: shared hit=144
+                                 ->  Index Scan using mailboxes_pkey on mailboxes mb  (cost=0.14..0.18 rows=1 width=8) (actual time=0.003..0.003 rows=0.94 loops=48)
+                                       Index Cond: (id = m.mailbox_id)
+                                       Filter: (user_address = 'lihao@golia.jp'::text)
+                                       Rows Removed by Filter: 0
+                                       Index Searches: 48
+                                       Buffers: shared hit=96
+                           ->  Index Scan using email_analysis_pkey on email_analysis ea  (cost=0.28..0.44 rows=1 width=9) (actual time=0.003..0.003 rows=0.29 loops=45)
+                                 Index Cond: (message_id = m.id)
+                                 Index Searches: 45
+                                 Buffers: shared hit=103
+ Planning:
+   Buffers: shared hit=818
+ Planning Time: 7.894 ms
+ Execution Time: 45.010 ms
+(98 rows)
+
