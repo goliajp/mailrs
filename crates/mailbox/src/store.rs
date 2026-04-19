@@ -833,15 +833,16 @@ impl MailboxStore {
             conditions.push(format!("internal_date < ${param_idx}"));
             param_idx += 1;
         }
+        // perf: SubPlan 5 + 8 (per-row lookups on email_analysis for
+        // requires_action and spam/scam exclusion) collapsed into a single
+        // LEFT JOIN. one merge/hash join instead of ~36k index probes
+        // per request (perfs/topics/01 fix-c).
         if category.is_some() {
-            conditions.push(format!(
-                "m.id IN (SELECT ea_inner.message_id FROM email_analysis ea_inner WHERE ea_inner.category = ${param_idx})"
-            ));
+            conditions.push(format!("ea.category = ${param_idx}"));
         } else {
             // exclude spam/scam from default view — users must select the category explicitly
-            conditions.push(
-                "NOT EXISTS (SELECT 1 FROM email_analysis ea_ex WHERE ea_ex.message_id = m.id AND ea_ex.category IN ('spam', 'scam'))".to_string()
-            );
+            conditions
+                .push("COALESCE(ea.category, 'general') NOT IN ('spam', 'scam')".to_string());
         }
 
         // when the caller isn't explicitly looking at Sent, hide threads
@@ -874,9 +875,9 @@ impl MailboxStore {
             having_parts.push("BOOL_OR((m.flags & 4) != 0) = true".to_string());
         }
         match section {
-            Some("action") => having_parts.push(
-                "COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false) = true".to_string()
-            ),
+            // perf: ea.requires_action comes from the LEFT JOIN above
+            Some("action") => having_parts
+                .push("COALESCE(BOOL_OR(ea.requires_action), false) = true".to_string()),
             // perf: ordered aggregate replaces a per-group SubPlan that ran
             // a LIMIT-1 query on messages for each thread (perfs/topics/07).
             // matches the SELECT-list expression so PG computes it once.
@@ -911,9 +912,11 @@ impl MailboxStore {
                     BOOL_OR(m.archived),
                     COALESCE((array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1], 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
-                    COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false),
+                    COALESCE(BOOL_OR(ea.requires_action), false),
                     COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], '')
-             FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
+             FROM messages m
+                  JOIN mailboxes mb ON m.mailbox_id = mb.id
+                  LEFT JOIN email_analysis ea ON ea.message_id = m.id
              WHERE {where_clause}
              GROUP BY m.thread_id HAVING {having_clause}
              ORDER BY BOOL_OR(m.pinned) DESC, MAX(m.internal_date) DESC LIMIT ${limit_idx}"
