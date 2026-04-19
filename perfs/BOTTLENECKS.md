@@ -1,4 +1,4 @@
-# Bottlenecks — debug worksheet (v1.4.23, 2026-04-20)
+# Bottlenecks — debug worksheet (v1.4.24, 2026-04-20)
 
 A flat, opinionated punch list. Read top-to-bottom — items at the top hurt the most users per hour. Each row links to a topic file with reproduction, root-cause analysis, fix candidates and (when done) verification.
 
@@ -34,9 +34,9 @@ fix-a deployed. Residual cost lives in SubPlan 5 (requires_action per row, 17 28
 Tiny payload, big TTFB → server-side computation. Almost certainly an unindexed `COUNT(*)` over `messages` for total/unread, plus a maildir walk for `storage_bytes`. EXPLAIN not yet captured.
 **impact:** every dashboard load (Promise.all gate) · **fix size:** depends on EXPLAIN — likely indexes · **risk:** low.
 
-### B6 · `/login` preloads 875 KB unused JS  → topic-03
-`<link rel=modulepreload>` of `editor.js` (376 KB), `markdown.js` (313 KB), `l4-molecules.js` (185 KB). The login form needs none of them. Splitting the entry so unauthenticated routes only pull auth code drops cold transfer from 1.98 MB to ~1.1 MB.
-**impact:** every cold-cache visit · **fix size:** vite config + route-level lazy() · **risk:** low if done route by route.
+### ~~B6 · `/login` preloads 875 KB unused JS~~ → topic-03 → **fixed in v1.4.24**
+~~`<link rel=modulepreload>` of `editor.js` (376 KB), `markdown.js` (313 KB), `l4-molecules.js` (185 KB).~~
+**Result:** cold-cache JS preload **1.56 MB → 600 KB (−61%)**. Page transfer dropped 27–31% across every route except /mail (which still has to pull the lazy chat chunk once). FCP improved 30–43% on every page. Trade-off: dashboard/mail LCP +96/+136 ms (one extra RTT to fetch lazy chunk before render).
 
 ### ~~B7 · /admin overview CLS 0.223~~ → topic-05 → **fixed in v1.4.23**
 ~~Same pattern as B1, smaller magnitude (Web Vitals "needs improvement"). The fix for B1 likely covers this too if applied as a generic "reserve space for async sections" pattern.~~
@@ -65,12 +65,12 @@ Real email content. Auto-opens the latest thread, fetches every attachment + ima
 
 ## Suggested order
 
-Remaining order after v1.4.23 (2026-04-20):
+Remaining order after v1.4.24 (2026-04-20):
 
 1. ~~**B3**~~ done v1.4.22 (?section=important 581 → 304 ms).
 2. ~~**B1 + B7**~~ done v1.4.23 (CLS 0.443/0.223 → 0.002/0.000).
-3. **B4** (continue topic-01 with fix-c LATERAL JOIN; pair with `work_mem` bump).
-4. **B6** (route-level code splitting; reduces cold-start for everyone).
+3. ~~**B6**~~ done v1.4.24 (cold cache 1.56 MB → 600 KB, FCP −30 to −43%).
+4. **B4** (continue topic-01 with fix-c LATERAL JOIN; pair with `work_mem` bump).
 5. **B5** (depends on EXPLAIN).
 6. **B2** (search rewrite).
 7. **B8** (needs product input).
