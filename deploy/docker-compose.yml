@@ -26,7 +26,7 @@ services:
 
   meilisearch:
     container_name: mailrs-meilisearch
-    image: getmeili/meilisearch:v1.10
+    image: getmeili/meilisearch:v1.13
     environment:
       MEILI_MASTER_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
       MEILI_NO_ANALYTICS: "true"
