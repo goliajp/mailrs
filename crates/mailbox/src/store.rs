@@ -877,11 +877,14 @@ impl MailboxStore {
             Some("action") => having_parts.push(
                 "COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false) = true".to_string()
             ),
+            // perf: ordered aggregate replaces a per-group SubPlan that ran
+            // a LIMIT-1 query on messages for each thread (perfs/topics/07).
+            // matches the SELECT-list expression so PG computes it once.
             Some("important") => having_parts.push(
-                "COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal') IN ('critical', 'important')".to_string()
+                "COALESCE((array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1], 'normal') IN ('critical', 'important')".to_string()
             ),
             Some("other") => having_parts.push(
-                "COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal') IN ('low', 'noise')".to_string()
+                "COALESCE((array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1], 'normal') IN ('low', 'noise')".to_string()
             ),
             _ => {}
         }
@@ -906,7 +909,7 @@ impl MailboxStore {
                       ''),
                     BOOL_OR(m.pinned),
                     BOOL_OR(m.archived),
-                    COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal'),
+                    COALESCE((array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1], 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
                     COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false),
                     COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], '')
@@ -1026,7 +1029,7 @@ impl MailboxStore {
                       ''),
                     BOOL_OR(m.pinned),
                     BOOL_OR(m.archived),
-                    COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal'),
+                    COALESCE((array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1], 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
                     COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false),
                     COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')
@@ -1684,7 +1687,7 @@ impl MailboxStore {
                       ''),
                     BOOL_OR(m.pinned),
                     BOOL_OR(m.archived),
-                    COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal'),
+                    COALESCE((array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1], 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
                     COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false),
                     COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')
