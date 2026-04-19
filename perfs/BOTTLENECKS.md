@@ -1,4 +1,4 @@
-# Bottlenecks — debug worksheet (v1.4.21, 2026-04-19)
+# Bottlenecks — debug worksheet (v1.4.22, 2026-04-20)
 
 A flat, opinionated punch list. Read top-to-bottom — items at the top hurt the most users per hour. Each row links to a topic file with reproduction, root-cause analysis, fix candidates and (when done) verification.
 
@@ -18,9 +18,9 @@ Web Vitals "poor" band (>0.25). Whole stat-card row + recent-unread list jump as
 Every keystroke in the search bar pays this. Root cause: `OR` chain of 5 ILIKE columns + EXISTS over `attachment_content` defeats index combination, plus the same per-thread correlated subqueries from list_conversations. Fix-a: gate ILIKE on tsvector miss only (CTE).
 **impact:** every search query · **fix size:** medium SQL change · **risk:** low (semantics preserved for tsvector hits).
 
-### B3 · `?section=important` 581 ms total  → topic-07
-HAVING-clause SubPlan (per-group `LIMIT 1` over `messages` ordered by `importance_score`) — same pattern that topic-01 fix-a already proved fixable. Replace with ordered aggregate.
-**impact:** every "Important" tab click · **fix size:** one-line SQL · **risk:** very low.
+### ~~B3 · `?section=important` 581 ms total~~ → topic-07 → **fixed in v1.4.22**
+~~HAVING-clause SubPlan (per-group `LIMIT 1` over `messages` ordered by `importance_score`) — same pattern that topic-01 fix-a already proved fixable. Replace with ordered aggregate.~~
+**Result:** 581 → 304 ms total (−48%); 376 → 266 ms TTFB (−29%). EXPLAIN: 352 → 208 ms (−41%). `section=other` came along for free.
 
 ---
 
@@ -64,9 +64,9 @@ Real email content. Auto-opens the latest thread, fetches every attachment + ima
 
 ## Suggested order
 
-If we tackle one thing per release:
+Remaining order after B3 (2026-04-20):
 
-1. **B3** (one-line SQL, biggest single API improvement after topic-01) — same pattern we already validated.
+1. ~~**B3**~~ done v1.4.22.
 2. **B1 + B7** (one frontend PR addresses both CLS issues).
 3. **B4** (continue topic-01 with fix-c LATERAL JOIN; pair with `work_mem` bump).
 4. **B6** (route-level code splitting; reduces cold-start for everyone).
@@ -74,7 +74,7 @@ If we tackle one thing per release:
 6. **B2** (search rewrite).
 7. **B8** (needs product input).
 
-If we tackle them in parallel, B1/B3/B6 are non-overlapping single-day changes.
+If we tackle them in parallel, B1/B6 are non-overlapping single-day changes.
 
 ---
 
