@@ -3,6 +3,12 @@
 @import '@goliapkg/gds/theme.css';
 @import '@goliapkg/gds/fonts.css';
 
+/* tailwind v4's @utility is demand-based; without this @source the gds-*
+   tokens (gds-gap, gds-pad-x, gds-pad-y, gds-text-body, ...) used inside
+   GDS library code never get generated, breaking toast / tour / other
+   GDS molecules' default spacing. perfs/topic-08 */
+@source '../node_modules/@goliapkg/gds/dist/**/*.{js,jsx,ts,tsx}';
+
 @custom-variant dark (&:where([data-theme-mode="dark"], [data-theme-mode="dark"] *));
 
 html {

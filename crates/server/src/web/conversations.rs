@@ -64,7 +64,7 @@ pub(super) struct ThreadMessageResponse {
     pub structured_data: Option<crate::structured_data::StructuredData>,
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
 pub(super) struct CategoryCount {
     pub category: String,
     pub count: i64,
@@ -843,13 +843,18 @@ pub(super) async fn get_contacts(
 
 // ---- mail stats for dashboard ----
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
 pub(super) struct MailStats {
     pub total_messages: i64,
     pub unread_messages: i64,
     pub storage_bytes: u64,
     pub categories: Vec<CategoryCount>,
 }
+
+/// Valkey TTL for `/api/mail/stats` payload — short enough that user-perceived
+/// staleness is bounded, long enough to absorb the dashboard's 60 s refresh
+/// loop and any tab-focus refetches. perfs/topics/02.
+const MAIL_STATS_TTL_SECS: u64 = 30;
 
 pub(super) async fn get_mail_stats(
     AuthUser { address: ref user, ref permissions, .. }: AuthUser,
@@ -867,6 +872,23 @@ pub(super) async fn get_mail_stats(
 
     let domains = validate_domains(dq.domains.as_deref(), permissions);
 
+    // cache only the simple single-user case; cross-domain views are rare
+    // enough not to warrant per-key cache invalidation work
+    let cache_key = if domains.is_none() {
+        Some(format!("mail:stats:v1:{user}"))
+    } else {
+        None
+    };
+
+    if let (Some(ref key), Some(ref valkey)) = (&cache_key, &state.valkey) {
+        use redis::AsyncCommands;
+        if let Ok(json) = valkey.clone().get::<_, String>(key.as_str()).await {
+            if let Ok(parsed) = serde_json::from_str::<MailStats>(&json) {
+                return Json(parsed);
+            }
+        }
+    }
+
     let total = mb_store.count_messages(user).await;
     let unread = mb_store.count_unseen(user).await;
     let storage = mb_store.user_storage_usage(user).await;
@@ -880,12 +902,24 @@ pub(super) async fn get_mail_stats(
         .map(|(category, count)| CategoryCount { category, count })
         .collect();
 
-    Json(MailStats {
+    let stats = MailStats {
         total_messages: total,
         unread_messages: unread,
         storage_bytes: storage,
         categories,
-    })
+    };
+
+    if let (Some(ref key), Some(ref valkey)) = (&cache_key, &state.valkey) {
+        if let Ok(json) = serde_json::to_string(&stats) {
+            use redis::AsyncCommands;
+            let _: redis::RedisResult<()> = valkey
+                .clone()
+                .set_ex(key.as_str(), json, MAIL_STATS_TTL_SECS)
+                .await;
+        }
+    }
+
+    Json(stats)
 }
 
 /// batch action type
