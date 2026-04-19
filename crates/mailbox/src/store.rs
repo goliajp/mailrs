@@ -860,8 +860,11 @@ impl MailboxStore {
         // build HAVING clause with optional filters
         let mut having_parts = vec![archived_filter.to_string()];
         if let Some(idx) = hide_my_latest_bind_idx {
+            // perf: same expression as the SELECT-list last_sender; computed
+            // once per group during GroupAggregate instead of a per-thread
+            // SubPlan that ran 16k+ index probes per request (perfs/topics/01)
             having_parts.push(format!(
-                "LOWER(COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')) NOT LIKE '%' || LOWER(${idx}) || '%'"
+                "LOWER(COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], '')) NOT LIKE '%' || LOWER(${idx}) || '%'"
             ));
         }
         if unread == Some(true) {
@@ -906,7 +909,7 @@ impl MailboxStore {
                     COALESCE((SELECT m_imp.importance_level FROM messages m_imp WHERE m_imp.thread_id = m.thread_id ORDER BY m_imp.importance_score DESC NULLS LAST LIMIT 1), 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
                     COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false),
-                    COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')
+                    COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], '')
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {where_clause}
              GROUP BY m.thread_id HAVING {having_clause}
