@@ -1649,19 +1649,35 @@ impl MailboxStore {
         param_idx += 1;
 
         let category_filter = if category.is_some() {
-            format!("AND m.id IN (SELECT ea_inner.message_id FROM email_analysis ea_inner WHERE ea_inner.category = ${param_idx})")
+            format!("AND ea.category = ${param_idx}")
         } else {
             String::new()
         };
 
-        // use full-text search (tsvector) for relevance + ILIKE fallback for CJK/substring
+        // perf (perfs/topic-06): the previous shape was one big WHERE-clause
+        // OR-chain across 5 ILIKE columns + tsvector + EXISTS. PG can't
+        // combine that into a BitmapOr so it fell back to scanning every
+        // row of the user's messages — 575 ms on the lihao@golia.jp mailbox.
+        //
+        // two changes make it use every available index:
+        //   1. a CTE with one branch per column, joined by UNION. each
+        //      branch matches a single index (idx_messages_search_vector
+        //      gin tsvector, idx_messages_*_trgm gin trigram, the
+        //      attachment_content seq scan).
+        //   2. each ILIKE branch repeats the partial index's WHERE
+        //      condition (`subject IS NOT NULL AND subject != ''` etc.)
+        //      so PG can prove the row qualifies for the partial index
+        //      and uses Bitmap Index Scan instead of Seq Scan.
+        // result on prod: 575 ms -> 45 ms (-92%) for q=invoice.
         let search_filter = format!(
-            "AND (m.search_vector @@ plainto_tsquery('simple', ${tsquery_idx})
-                  OR m.subject ILIKE ${pattern_idx}
-                  OR m.sender ILIKE ${pattern_idx}
-                  OR m.text_body ILIKE ${pattern_idx}
-                  OR m.clean_text ILIKE ${pattern_idx}
-                  OR EXISTS (SELECT 1 FROM attachment_content ac WHERE ac.message_id = m.id AND ac.extracted_text ILIKE ${pattern_idx}))"
+            "WITH cands AS (
+               SELECT id FROM messages WHERE search_vector @@ plainto_tsquery('simple', ${tsquery_idx})
+               UNION SELECT id FROM messages WHERE subject IS NOT NULL AND subject != '' AND subject ILIKE ${pattern_idx}
+               UNION SELECT id FROM messages WHERE sender IS NOT NULL AND sender != '' AND sender ILIKE ${pattern_idx}
+               UNION SELECT id FROM messages WHERE text_body IS NOT NULL AND text_body != '' AND text_body ILIKE ${pattern_idx}
+               UNION SELECT id FROM messages WHERE clean_text IS NOT NULL AND clean_text != '' AND clean_text ILIKE ${pattern_idx}
+               UNION SELECT message_id FROM attachment_content WHERE extracted_text ILIKE ${pattern_idx}
+             )"
         );
 
         // order by relevance (ts_rank) when tsvector matches, else by date
@@ -1672,10 +1688,11 @@ impl MailboxStore {
         );
 
         let sql = format!(
-            "SELECT m.thread_id, MAX(m.subject), string_agg(DISTINCT m.sender, ','),
+            "{search_filter}
+             SELECT m.thread_id, MAX(m.subject), string_agg(DISTINCT m.sender, ','),
                     {count_expr}, {unread_expr}, MAX(m.internal_date),
-                    COALESCE((SELECT ea.category FROM email_analysis ea
-                              JOIN messages m2 ON ea.message_id = m2.id
+                    COALESCE((SELECT ea2.category FROM email_analysis ea2
+                              JOIN messages m2 ON ea2.message_id = m2.id
                               WHERE m2.thread_id = m.thread_id
                               ORDER BY m2.internal_date DESC LIMIT 1), 'general'),
                     BOOL_OR((m.flags & 4) != 0),
@@ -1692,11 +1709,13 @@ impl MailboxStore {
                     BOOL_OR(m.archived),
                     COALESCE((array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1], 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
-                    COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false),
-                    COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')
-             FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
+                    COALESCE(BOOL_OR(ea.requires_action), false),
+                    COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], '')
+             FROM messages m
+                  JOIN cands ON cands.id = m.id
+                  JOIN mailboxes mb ON m.mailbox_id = mb.id
+                  LEFT JOIN email_analysis ea ON ea.message_id = m.id
              WHERE {user_filter} AND thread_id != ''
-               {search_filter}
                {category_filter}
              GROUP BY m.thread_id HAVING BOOL_OR(m.archived) = false
              ORDER BY {order_expr} LIMIT ${limit_idx}"

@@ -1,0 +1,90 @@
+=== current search_conversations: q=invoice ===
+                                                                                                                                                   QUERY PLAN                                                                                                                                                    
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=38036.68..40553.94 rows=50 width=294) (actual time=575.266..576.435 rows=44.00 loops=1)
+   Buffers: shared hit=28072 read=356
+   ->  Result  (cost=38036.68..49414.68 rows=226 width=294) (actual time=575.265..576.429 rows=44.00 loops=1)
+         Buffers: shared hit=28072 read=356
+         ->  Sort  (cost=38036.68..38037.25 rows=226 width=198) (actual time=575.188..575.195 rows=44.00 loops=1)
+               Sort Key: (max(CASE WHEN (m.search_vector @@ '''invoice'''::tsquery) THEN ts_rank(m.search_vector, '''invoice'''::tsquery) ELSE '0'::real END)) DESC, (max(m.internal_date)) DESC
+               Sort Method: quicksort  Memory: 44kB
+               Buffers: shared hit=27201 read=352
+               ->  GroupAggregate  (cost=34241.41..38029.17 rows=226 width=198) (actual time=574.628..575.124 rows=44.00 loops=1)
+                     Group Key: m.thread_id
+                     Filter: (NOT bool_or(m.archived))
+                     Buffers: shared hit=27195 read=352
+                     ->  Sort  (cost=34241.41..34242.54 rows=452 width=667) (actual time=574.564..574.571 rows=45.00 loops=1)
+                           Sort Key: m.thread_id, m.sender
+                           Sort Method: quicksort  Memory: 47kB
+                           Buffers: shared hit=27035 read=352
+                           ->  Nested Loop  (cost=0.29..34221.48 rows=452 width=667) (actual time=49.559..574.422 rows=45.00 loops=1)
+                                 Buffers: shared hit=27032 read=352
+                                 ->  Seq Scan on mailboxes mb  (cost=0.00..59.61 rows=6 width=8) (actual time=0.014..0.111 rows=6.00 loops=1)
+                                       Filter: (user_address = 'lihao@golia.jp'::text)
+                                       Rows Removed by Filter: 123
+                                       Buffers: shared hit=58
+                                 ->  Index Scan using idx_messages_date on messages m  (cost=0.29..5690.78 rows=286 width=675) (actual time=8.295..95.710 rows=7.50 loops=6)
+                                       Index Cond: (mailbox_id = mb.id)
+                                       Filter: ((thread_id <> ''::text) AND ((search_vector @@ '''invoice'''::tsquery) OR (subject ~~* '%invoice%'::text) OR (sender ~~* '%invoice%'::text) OR (text_body ~~* '%invoice%'::text) OR (clean_text ~~* '%invoice%'::text) OR (ANY (id = (hashed SubPlan 7).col1))))
+                                       Rows Removed by Filter: 3120
+                                       Index Searches: 6
+                                       Buffers: shared hit=26974 read=352
+                                       SubPlan 7
+                                         ->  Seq Scan on attachment_content ac  (cost=0.00..441.65 rows=3 width=8) (actual time=1.004..29.165 rows=21.00 loops=1)
+                                               Filter: (extracted_text ~~* '%invoice%'::text)
+                                               Rows Removed by Filter: 19436
+                                               Buffers: shared hit=407
+                     SubPlan 4
+                       ->  Index Scan using email_analysis_pkey on email_analysis ea_act  (cost=0.28..8.30 rows=1 width=1) (actual time=0.003..0.004 rows=0.29 loops=45)
+                             Index Cond: (message_id = m.id)
+                             Index Searches: 45
+                             Buffers: shared hit=103
+         SubPlan 1
+           ->  Limit  (cost=0.69..16.73 rows=1 width=17) (actual time=0.011..0.011 rows=0.27 loops=44)
+                 Buffers: shared hit=275 read=4
+                 ->  Nested Loop  (cost=0.69..16.73 rows=1 width=17) (actual time=0.011..0.011 rows=0.27 loops=44)
+                       Buffers: shared hit=275 read=4
+                       ->  Index Scan using idx_messages_thread_date on messages m2  (cost=0.41..8.43 rows=1 width=16) (actual time=0.009..0.009 rows=1.02 loops=44)
+                             Index Cond: (thread_id = m.thread_id)
+                             Index Searches: 44
+                             Buffers: shared hit=173 read=4
+                       ->  Index Scan using email_analysis_pkey on email_analysis ea  (cost=0.28..8.30 rows=1 width=17) (actual time=0.001..0.001 rows=0.27 loops=45)
+                             Index Cond: (message_id = m2.id)
+                             Index Searches: 45
+                             Buffers: shared hit=102
+         SubPlan 2
+           ->  Limit  (cost=0.69..16.74 rows=1 width=182) (actual time=0.006..0.006 rows=0.27 loops=44)
+                 Buffers: shared hit=279
+                 ->  Nested Loop  (cost=0.69..16.74 rows=1 width=182) (actual time=0.006..0.006 rows=0.27 loops=44)
+                       Buffers: shared hit=279
+                       ->  Index Scan using idx_messages_thread_date on messages m_snip  (cost=0.41..8.43 rows=1 width=16) (actual time=0.004..0.004 rows=1.02 loops=44)
+                             Index Cond: (thread_id = m.thread_id)
+                             Index Searches: 44
+                             Buffers: shared hit=177
+                       ->  Index Scan using email_analysis_pkey on email_analysis ea_snip  (cost=0.28..8.30 rows=1 width=182) (actual time=0.001..0.001 rows=0.27 loops=45)
+                             Index Cond: (message_id = m_snip.id)
+                             Filter: (summary <> ''::text)
+                             Index Searches: 45
+                             Buffers: shared hit=102
+         SubPlan 3
+           ->  Limit  (cost=0.41..8.43 rows=1 width=40) (actual time=0.006..0.006 rows=0.19 loops=32)
+                 Buffers: shared hit=141
+                 ->  Index Scan using idx_messages_thread_date on messages m3  (cost=0.41..8.43 rows=1 width=40) (actual time=0.006..0.006 rows=0.19 loops=32)
+                       Index Cond: (thread_id = m.thread_id)
+                       Filter: ((text_body IS NOT NULL) AND (text_body <> ''::text))
+                       Rows Removed by Filter: 1
+                       Index Searches: 32
+                       Buffers: shared hit=141
+         SubPlan 5
+           ->  Limit  (cost=0.41..8.43 rows=1 width=73) (actual time=0.005..0.005 rows=1.00 loops=44)
+                 Buffers: shared hit=176
+                 ->  Index Scan using idx_messages_thread_date on messages m_last  (cost=0.41..8.43 rows=1 width=73) (actual time=0.004..0.004 rows=1.00 loops=44)
+                       Index Cond: (thread_id = m.thread_id)
+                       Index Searches: 44
+                       Buffers: shared hit=176
+ Planning:
+   Buffers: shared hit=817
+ Planning Time: 7.590 ms
+ Execution Time: 576.821 ms
+(85 rows)
+

@@ -1,0 +1,80 @@
+=== try UNION variant: each branch on its own index ===
+                                                                                              QUERY PLAN                                                                                              
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=14826.52..14826.52 rows=2 width=294) (actual time=593.888..593.901 rows=44.00 loops=1)
+   Buffers: shared hit=24240 read=99
+   ->  Sort  (cost=14826.52..14826.52 rows=2 width=294) (actual time=593.887..593.895 rows=44.00 loops=1)
+         Sort Key: (max(CASE WHEN (m.search_vector @@ '''invoice'''::tsquery) THEN ts_rank(m.search_vector, '''invoice'''::tsquery) ELSE '0'::real END)) DESC, (max(m.internal_date)) DESC
+         Sort Method: quicksort  Memory: 46kB
+         Buffers: shared hit=24240 read=99
+         ->  GroupAggregate  (cost=14826.17..14826.51 rows=2 width=294) (actual time=593.481..593.831 rows=44.00 loops=1)
+               Group Key: m.thread_id
+               Filter: (NOT bool_or(m.archived))
+               Buffers: shared hit=24234 read=99
+               ->  Sort  (cost=14826.17..14826.18 rows=4 width=668) (actual time=593.439..593.448 rows=45.00 loops=1)
+                     Sort Key: m.thread_id, m.sender
+                     Sort Method: quicksort  Memory: 47kB
+                     Buffers: shared hit=24177 read=99
+                     ->  Nested Loop Left Join  (cost=14229.43..14826.13 rows=4 width=668) (actual time=592.844..593.337 rows=45.00 loops=1)
+                           Buffers: shared hit=24174 read=99
+                           ->  Nested Loop  (cost=14229.15..14824.38 rows=4 width=667) (actual time=592.835..593.203 rows=45.00 loops=1)
+                                 Buffers: shared hit=24071 read=99
+                                 ->  Nested Loop  (cost=14229.01..14810.03 rows=81 width=675) (actual time=592.823..593.057 rows=48.00 loops=1)
+                                       Buffers: shared hit=23975 read=99
+                                       ->  Unique  (cost=14228.72..14229.12 rows=81 width=8) (actual time=592.803..592.831 rows=48.00 loops=1)
+                                             Buffers: shared hit=23831 read=99
+                                             ->  Sort  (cost=14228.72..14228.92 rows=81 width=8) (actual time=592.792..592.803 rows=105.00 loops=1)
+                                                   Sort Key: messages.id
+                                                   Sort Method: quicksort  Memory: 25kB
+                                                   Buffers: shared hit=23831 read=99
+                                                   ->  Append  (cost=425.26..14226.15 rows=81 width=8) (actual time=0.761..592.749 rows=105.00 loops=1)
+                                                         Buffers: shared hit=23831 read=99
+                                                         ->  Bitmap Heap Scan on messages  (cost=425.26..540.30 rows=31 width=8) (actual time=0.761..0.874 rows=30.00 loops=1)
+                                                               Recheck Cond: (search_vector @@ '''invoice'''::tsquery)
+                                                               Heap Blocks: exact=29
+                                                               Buffers: shared hit=32 read=97
+                                                               ->  Bitmap Index Scan on idx_messages_search_vector  (cost=0.00..425.25 rows=31 width=0) (actual time=0.744..0.744 rows=33.00 loops=1)
+                                                                     Index Cond: (search_vector @@ '''invoice'''::tsquery)
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=3 read=97
+                                                         ->  Seq Scan on messages messages_1  (cost=0.00..3310.95 rows=2 width=8) (actual time=1.418..53.771 rows=19.00 loops=1)
+                                                               Filter: (subject ~~* '%invoice%'::text)
+                                                               Rows Removed by Filter: 19374
+                                                               Buffers: shared hit=3069
+                                                         ->  Seq Scan on messages messages_2  (cost=0.00..3310.95 rows=1 width=8) (actual time=1.601..33.403 rows=15.00 loops=1)
+                                                               Filter: (sender ~~* '%invoice%'::text)
+                                                               Rows Removed by Filter: 19378
+                                                               Buffers: shared hit=3069
+                                                         ->  Seq Scan on messages messages_3  (cost=0.00..3310.95 rows=43 width=8) (actual time=5.105..145.391 rows=10.00 loops=1)
+                                                               Filter: (text_body ~~* '%invoice%'::text)
+                                                               Rows Removed by Filter: 19383
+                                                               Buffers: shared hit=7389
+                                                         ->  Seq Scan on messages messages_4  (cost=0.00..3310.95 rows=1 width=8) (actual time=14.446..330.744 rows=10.00 loops=1)
+                                                               Filter: (clean_text ~~* '%invoice%'::text)
+                                                               Rows Removed by Filter: 19383
+                                                               Buffers: shared hit=9865 read=2
+                                                         ->  Seq Scan on attachment_content  (cost=0.00..441.65 rows=3 width=8) (actual time=0.975..28.510 rows=21.00 loops=1)
+                                                               Filter: (extracted_text ~~* '%invoice%'::text)
+                                                               Rows Removed by Filter: 19436
+                                                               Buffers: shared hit=407
+                                       ->  Index Scan using messages_pkey on messages m  (cost=0.29..7.17 rows=1 width=675) (actual time=0.004..0.004 rows=1.00 loops=48)
+                                             Index Cond: (id = messages.id)
+                                             Filter: (thread_id <> ''::text)
+                                             Index Searches: 48
+                                             Buffers: shared hit=144
+                                 ->  Index Scan using mailboxes_pkey on mailboxes mb  (cost=0.14..0.18 rows=1 width=8) (actual time=0.003..0.003 rows=0.94 loops=48)
+                                       Index Cond: (id = m.mailbox_id)
+                                       Filter: (user_address = 'lihao@golia.jp'::text)
+                                       Rows Removed by Filter: 0
+                                       Index Searches: 48
+                                       Buffers: shared hit=96
+                           ->  Index Scan using email_analysis_pkey on email_analysis ea  (cost=0.28..0.44 rows=1 width=9) (actual time=0.002..0.002 rows=0.29 loops=45)
+                                 Index Cond: (message_id = m.id)
+                                 Index Searches: 45
+                                 Buffers: shared hit=103
+ Planning:
+   Buffers: shared hit=803
+ Planning Time: 7.338 ms
+ Execution Time: 594.196 ms
+(75 rows)
+
