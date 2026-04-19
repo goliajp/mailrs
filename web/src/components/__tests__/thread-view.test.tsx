@@ -209,7 +209,8 @@ describe('ThreadView — with messages', () => {
         <ThreadView />
       </Wrapper>
     )
-    expect(screen.getByText('Important Email')).toBeDefined()
+    // subject now appears both in the header and inside the bubble
+    expect(screen.getAllByText('Important Email').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows "(no subject)" when subject is empty', () => {

@@ -113,7 +113,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const [replyMode, setReplyMode] = useState<ReplyMode>('reply')
   const [forwardSource, setForwardSource] = useState<ForwardSource | null>(null)
   const [loadingThread, setLoadingThread] = useState(false)
-  const [expandedBubbles, setExpandedBubbles] = useState<Set<number>>(new Set())
   const [showAllMessages, setShowAllMessages] = useState(false)
   // suspends the auto-mark-read effect for the current selection after the
   // user explicitly marks the thread unread, so we don't immediately undo it
@@ -328,12 +327,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       setSelectedMsgIdx(null)
       setShowDeleteConfirm(false)
       setForwardSource(null)
-      setExpandedBubbles(new Set())
       return
     }
     setForwardSource(null)
     setReplyMode('reply')
-    setExpandedBubbles(new Set())
     setShowAllMessages(false)
     setMobileThreadTab('content')
     setMobileReplyOpen(false)
@@ -690,14 +687,16 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                       const senderEmail = extractEmail(msg.sender)
                       const isOwn = senderEmail === myEmail
                       const isSelected = selectedMsgIdx === idx
-                      const fullText = bubbleText(msg)
-                      const isLong = fullText.length > 300
-                      const snippet = isLong ? smartTruncate(fullText, 300) : fullText
-                      const isExpanded = expandedBubbles.has(idx)
 
                       const msgDateGroup = new Date(msg.internal_date * 1000).toDateString()
                       const showDivider = msgDateGroup !== prevDateGroup
                       prevDateGroup = msgDateGroup
+
+                      // first message in the thread carries the canonical
+                      // subject; later messages only show their own subject
+                      // when it differs (most threads it doesn't)
+                      const showSubject = idx === 0 || msg.subject !== messages[0]?.subject
+                      const subjectText = (msg.subject || '').trim()
 
                       return (
                         <Fragment key={msg.id}>
@@ -716,7 +715,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                             tabIndex={0}
                           >
                             <SenderAvatar sender={msg.sender} size={28} />
-                            <div className="min-w-0 flex-1">
+                            <div className="min-w-0 flex-1 space-y-1">
                               <div className="flex items-center gap-2">
                                 <span
                                   className={`text-sm font-semibold ${isOwn ? 'text-accent' : 'text-fg'}`}
@@ -730,39 +729,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   )}
                                 </span>
                               </div>
-                              <div className="relative mt-1">
-                                <div
-                                  className={`text-fg text-[13px] leading-relaxed select-text ${isExpanded ? '' : 'line-clamp-5'}`}
-                                >
-                                  {highlightMentions(
-                                    isExpanded ? fullText : snippet,
-                                    myEmail,
-                                    auth?.display_name
-                                  )}
+                              {showSubject && subjectText && (
+                                <div className="text-fg truncate text-sm font-medium">
+                                  {subjectText}
                                 </div>
-                                {isLong && !isExpanded && (
-                                  <div
-                                    className={`absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t ${isSelected ? 'from-accent/10' : 'from-surface'}`}
-                                  />
-                                )}
-                              </div>
-                              {isLong && (
-                                <button
-                                  className="text-accent mt-1.5 block text-xs font-medium select-none hover:underline"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setExpandedBubbles((prev) => {
-                                      const next = new Set(prev)
-                                      if (next.has(idx)) next.delete(idx)
-                                      else next.add(idx)
-                                      return next
-                                    })
-                                  }}
-                                  type="button"
-                                >
-                                  {isExpanded ? 'show less' : 'show more'}
-                                </button>
                               )}
+                              <BubbleBody msg={msg} myEmail={myEmail} myName={auth?.display_name} />
+                              <BubbleFactChips msg={msg} />
                             </div>
                           </div>
                         </Fragment>
@@ -898,14 +871,85 @@ const INVISIBLE_RE =
 // box-drawing, table borders, repeated decorative lines
 const NOISE_LINE = /^[\s│┼┬┴├┤┌┐└┘─━═╌╍╎╏║╔╗╚╝╠╣╦╩╬\-=_·•*#|+:>{}[\]~`]+$/
 
+function BubbleBody({
+  msg,
+  myEmail,
+  myName,
+}: {
+  msg: ThreadMessage
+  myEmail: string
+  myName?: string
+}) {
+  // 1) AI summary is always clean — use it when present
+  if (msg.summary) {
+    return (
+      <p className="text-fg line-clamp-3 text-[13px] leading-relaxed select-text">
+        {highlightMentions(msg.summary, myEmail, myName)}
+      </p>
+    )
+  }
+
+  // 2) cleaned plain-text — only show if it isn't HTML→text dump
+  const text = bubbleText(msg)
+  if (text && !looksLikeHtmlDump(text)) {
+    const preview = text.length > 240 ? smartTruncate(text, 240) : text
+    return (
+      <p className="text-fg line-clamp-3 text-[13px] leading-relaxed select-text">
+        {highlightMentions(preview, myEmail, myName)}
+      </p>
+    )
+  }
+
+  // 3) html-only or empty — show a clear placeholder; the open thread on
+  //    the left already renders the rich version
+  return (
+    <p className="text-fg-muted text-xs italic">
+      {msg.html_body ? 'Rich HTML message — click to view full content' : 'No preview available'}
+    </p>
+  )
+}
+
+function BubbleFactChips({ msg }: { msg: ThreadMessage }) {
+  const amounts = (msg.amounts || []).slice(0, 2).map((a) => {
+    if (a.value !== undefined && a.currency) return `${a.currency} ${a.value.toLocaleString()}`
+    return a.text
+  })
+  const dates = (msg.dates || [])
+    .filter((d) => d.iso_date || d.text)
+    .slice(0, 2)
+    .map((d) => d.iso_date || d.text)
+  const actions = (msg.action_items || []).slice(0, 1)
+
+  if (amounts.length === 0 && dates.length === 0 && actions.length === 0) return null
+
+  return (
+    <div className="flex flex-wrap gap-1 pt-0.5">
+      {amounts.map((a, i) => (
+        <FactChip key={`amt-${i}`} kind="amount">
+          {a}
+        </FactChip>
+      ))}
+      {dates.map((d, i) => (
+        <FactChip key={`date-${i}`} kind="date">
+          {d}
+        </FactChip>
+      ))}
+      {actions.map((a, i) => (
+        <FactChip key={`act-${i}`} kind="action">
+          {a}
+        </FactChip>
+      ))}
+    </div>
+  )
+}
+
 function bubbleText(msg: ThreadMessage): string {
   // prefer AI summary — always clean and readable
   if (msg.summary) return msg.summary
   // fall back to cleaned raw text
   const raw = msg.new_content || msg.clean_text || msg.text_body || ''
-  if (!raw) return msg.subject || ''
-  const cleaned = cleanTextForBubble(raw)
-  return cleaned || msg.subject || ''
+  if (!raw) return ''
+  return cleanTextForBubble(raw)
 }
 
 function cleanTextForBubble(raw: string): string {
@@ -929,6 +973,30 @@ function cleanTextForBubble(raw: string): string {
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
+}
+
+function FactChip({
+  children,
+  kind,
+}: {
+  children: React.ReactNode
+  kind: 'action' | 'amount' | 'date'
+}) {
+  const palette =
+    kind === 'amount'
+      ? 'bg-success/10 text-success'
+      : kind === 'date'
+        ? 'bg-info/10 text-info'
+        : 'bg-warning/10 text-warning'
+  const icon = kind === 'amount' ? '¥' : kind === 'date' ? '📅' : '⚡'
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${palette}`}
+    >
+      <span aria-hidden="true">{icon}</span>
+      <span className="max-w-[140px] truncate">{children}</span>
+    </span>
+  )
 }
 
 // format recipients string into a short human-readable form
@@ -963,6 +1031,21 @@ function HdrBtn({
       {children}
     </button>
   )
+}
+
+// detect text that's mostly HTML→plain conversion noise (markdown table
+// borders, run-together cells, jammed brackets). these strings dominate
+// receipts and notification emails authored as html-only and look like
+// `|cell |cell |cell |` in the bubble; for those the right answer is to
+// fall back to a placeholder + fact chips, not render the noise.
+function looksLikeHtmlDump(text: string): boolean {
+  if (!text || text.length < 40) return false
+  const noise = (text.match(/[|{}[\]<>]/g) || []).length
+  if (noise / text.length > 0.06) return true
+  const lines = text.split('\n')
+  if (lines.length < 5) return false
+  const longLines = lines.filter((l) => l.length > 200).length
+  return longLines / lines.length > 0.3
 }
 
 // truncate at nearest sentence/paragraph boundary instead of hard character cut
