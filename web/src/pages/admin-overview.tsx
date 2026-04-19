@@ -87,33 +87,44 @@ export function AdminOverview() {
     <div className="h-full overflow-y-auto p-6">
       <h1 className="mb-6 text-lg font-semibold">Dashboard</h1>
 
-      {/* status banner */}
-      {health && (
-        <div className="mb-6">
-          <StatusBanner health={health} />
-        </div>
-      )}
+      {/* status banner — fixed-height shell so the layout below doesn't
+          jump when /api/health resolves (perfs/topics/05) */}
+      <div className="mb-6 min-h-[60px]">
+        {health ? <StatusBanner health={health} /> : <BannerSkeleton />}
+      </div>
 
-      {/* key metrics */}
+      {/* key metrics — values appear in-place; tabular-nums + min-height
+          on the value line keeps the cards stable */}
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <MetricCard
           label="Active Connections"
+          loading={!health && !status}
           sub={`${formatNumber(health?.total_connections ?? 0)} total`}
           value={formatNumber(activeConns)}
         />
-        <MetricCard label="Total Messages" value={formatNumber(totalMsgs)} />
+        <MetricCard
+          label="Total Messages"
+          loading={!health && !status}
+          value={formatNumber(totalMsgs)}
+        />
         <MetricCard
           label="Queue Pending"
+          loading={!status}
           sub={queueFailed > 0 ? `${formatNumber(queueFailed)} failed` : '0 failed'}
           value={formatNumber(queuePending)}
         />
-        <MetricCard label="Active Users" sub="sessions" value={formatNumber(activeSessions)} />
+        <MetricCard
+          label="Active Users"
+          loading={!health}
+          sub="sessions"
+          value={formatNumber(activeSessions)}
+        />
       </div>
 
-      {/* service health */}
-      {health && (
-        <div className="mb-6">
-          <h2 className="text-fg-muted mb-3 text-sm font-medium">Services</h2>
+      {/* service health — reserved height so pills don't push later sections */}
+      <div className="mb-6 min-h-[88px]">
+        <h2 className="text-fg-muted mb-3 text-sm font-medium">Services</h2>
+        {health ? (
           <div className="flex flex-wrap gap-3">
             <ServicePill detail={health.pg ? 'up' : 'down'} name="PostgreSQL" ok={health.pg} />
             <ServicePill detail={health.valkey ? 'up' : 'down'} name="Valkey" ok={health.valkey} />
@@ -128,12 +139,22 @@ export function AdminOverview() {
               ok={health.pg}
             />
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-wrap gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div className="bg-border h-12 w-32 animate-pulse rounded-lg" key={i} />
+            ))}
+          </div>
+        )}
+      </div>
 
-      {/* quick info: smtp config + audit log */}
+      {/* quick info: smtp config + audit log — reserve height before smtp loads */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {smtp && <SmtpConfigPanel config={smtp} />}
+        {smtp ? (
+          <SmtpConfigPanel config={smtp} />
+        ) : (
+          <PanelSkeleton rows={5} title="SMTP Configuration" />
+        )}
         <AuditLogPanel entries={audit} />
       </div>
     </div>
@@ -184,11 +205,19 @@ function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
   )
 }
 
+function BannerSkeleton() {
+  return (
+    <div className="border-border bg-surface flex items-center gap-4 rounded-lg border px-5 py-3">
+      <div className="bg-border h-5 w-20 animate-pulse rounded-full" />
+      <div className="bg-border h-4 w-12 animate-pulse rounded" />
+      <div className="bg-border h-4 w-24 animate-pulse rounded" />
+    </div>
+  )
+}
+
 function formatNumber(n: number): string {
   return n.toLocaleString('en-US')
 }
-
-// --- sub-components ---
 
 function formatRelativeTime(epochSecs: number): string {
   const now = Math.floor(Date.now() / 1000)
@@ -199,6 +228,8 @@ function formatRelativeTime(epochSecs: number): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
+// --- sub-components ---
+
 function formatUptime(secs: number): string {
   const days = Math.floor(secs / 86400)
   const hours = Math.floor((secs % 86400) / 3600)
@@ -208,12 +239,42 @@ function formatUptime(secs: number): string {
   return `${mins}m`
 }
 
-function MetricCard({ label, sub, value }: { label: string; sub?: string; value: string }) {
+function MetricCard({
+  label,
+  loading,
+  sub,
+  value,
+}: {
+  label: string
+  loading?: boolean
+  sub?: string
+  value: string
+}) {
   return (
     <div className="border-border bg-surface rounded-lg border p-4">
       <p className="text-fg-muted text-sm">{label}</p>
-      <p className="text-fg mt-1 text-2xl font-bold">{value}</p>
-      {sub && <p className="text-fg-muted mt-1 text-xs">{sub}</p>}
+      {/* fixed-height value row prevents reflow when the number arrives */}
+      <div className="mt-1 h-8">
+        {loading ? (
+          <div className="bg-border h-7 w-16 animate-pulse rounded" />
+        ) : (
+          <p className="text-fg text-2xl font-bold tabular-nums">{value}</p>
+        )}
+      </div>
+      <p className="text-fg-muted mt-1 min-h-[16px] text-xs">{sub ?? ''}</p>
+    </div>
+  )
+}
+
+function PanelSkeleton({ rows, title }: { rows: number; title: string }) {
+  return (
+    <div className="border-border bg-surface rounded-lg border p-4">
+      <h3 className="text-fg-muted mb-3 text-sm font-medium">{title}</h3>
+      <div className="space-y-2">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div className="bg-border h-4 w-full animate-pulse rounded" key={i} />
+        ))}
+      </div>
     </div>
   )
 }
