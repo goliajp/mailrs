@@ -1,4 +1,4 @@
-# Performance map — mail.golia.ai (v1.4.29, 2026-04-20)
+# Performance map — mail.golia.ai (v1.4.32, 2026-04-20)
 
 Numbers are median of 3 cold curl runs from a Tokyo residential network unless noted. Network baseline: DNS≈2 ms, TCP+TLS≈25 ms.
 Cold-load page metrics (FCP/LCP/CLS) come from `scripts/cold-load.js` — fresh browser context per page, cache disabled, PerformanceObserver instrumented.
@@ -119,7 +119,7 @@ mail.golia.ai (production, v1.4.21)
 |---|---|---|---|
 | [01](topics/01-conversations-slow.md) | `/api/conversations` TTFB residual ~260 ms | low | mostly fixed (fix-a v1.4.21 + fix-c v1.4.25); fix-d snapshot still open |
 | ~~[02](topics/02-mail-stats-slow.md)~~ | `/api/mail/stats` 175→12 ms TTFB (-93% on cache hit) | resolved | fixed in v1.4.26 (valkey cache) |
-| [04](topics/04-mail-page-weight.md) | /mail LCP 1140 ms / 10 MB / 93 reqs | low | content-driven |
+| [04](topics/04-mail-page-weight.md) | /mail content weight; eng-layer image lazy/tracker strip done | low | engineering done v1.4.30; auto-open UX still product |
 | ~~[03](topics/03-login-bundle-bloat.md)~~ | cold-cache JS preload 1.56 MB→600 KB; FCP −30 to −43% | resolved | fixed in v1.4.24 |
 | ~~[05](topics/05-cls-dashboard-admin.md)~~ | dashboard CLS 0.443→0.002, admin 0.223→0.000 | resolved | fixed in v1.4.23 |
 | ~~[06](topics/06-search-conversations-slow.md)~~ | search ASCII 596→20 ms / CJK 597→40 ms (meili) | resolved | fully fixed (v1.4.27 PG + v1.4.29 meili) |
