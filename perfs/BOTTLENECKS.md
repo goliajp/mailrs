@@ -1,4 +1,4 @@
-# Bottlenecks — debug worksheet (v1.4.25, 2026-04-20)
+# Bottlenecks — debug worksheet (v1.4.26, 2026-04-20)
 
 A flat, opinionated punch list. Read top-to-bottom — items at the top hurt the most users per hour. Each row links to a topic file with reproduction, root-cause analysis, fix candidates and (when done) verification.
 
@@ -30,9 +30,9 @@ Every keystroke in the search bar pays this. Root cause: `OR` chain of 5 ILIKE c
 ~~fix-a deployed. Residual cost lives in SubPlan 5 (requires_action per row, 17 280 loops) + SubPlan 8 (NOT EXISTS spam/scam per row, 18 762 loops) + the external-merge sort to disk.~~
 **Result:** SubPlan 5 + 8 collapsed into a single LEFT JOIN. EXPLAIN 288→249 ms. Real prod TTFB: limit=200 271→258, unread/starred ~227→~218, **section=important 266→222 ms (−44 ms)**. Total topic-01 chain: limit=200 354→258 ms (−27%), section=important 581→261 ms (−55%). Remaining: `work_mem` config bump (fix-b, server config) + thread snapshot table (fix-d, strategic). Severity downgraded to low.
 
-### B5 · `/api/mail/stats` 174 ms TTFB / 0.5 KB  → topic-02
-Tiny payload, big TTFB → server-side computation. Almost certainly an unindexed `COUNT(*)` over `messages` for total/unread, plus a maildir walk for `storage_bytes`. EXPLAIN not yet captured.
-**impact:** every dashboard load (Promise.all gate) · **fix size:** depends on EXPLAIN — likely indexes · **risk:** low.
+### ~~B5 · `/api/mail/stats` 174 ms TTFB / 0.5 KB~~ → topic-02 → **fixed in v1.4.26**
+~~Tiny payload, big TTFB → server-side computation. Almost certainly an unindexed `COUNT(*)` over `messages` for total/unread, plus a maildir walk for `storage_bytes`.~~
+**Result:** EXPLAIN'd it; root cause is `count_unseen` 107 ms (the SubPlan/NOT EXISTS pattern) — but the same fix-a/fix-c shape that worked on `list_conversations` *makes it slower* here, the planner already chose its best plan. Right answer: stop running it on every dashboard tick. Cached `MailStats` JSON in valkey for 30 s. **TTFB on warm cache 175 → 12 ms (−93%).** Cache miss path unchanged. Dashboard is no longer gated by stats.
 
 ### ~~B6 · `/login` preloads 875 KB unused JS~~ → topic-03 → **fixed in v1.4.24**
 ~~`<link rel=modulepreload>` of `editor.js` (376 KB), `markdown.js` (313 KB), `l4-molecules.js` (185 KB).~~
@@ -65,13 +65,13 @@ Real email content. Auto-opens the latest thread, fetches every attachment + ima
 
 ## Suggested order
 
-Remaining order after v1.4.25 (2026-04-20):
+Remaining order after v1.4.26 (2026-04-20):
 
 1. ~~**B3**~~ done v1.4.22 (?section=important 581 → 304 ms).
 2. ~~**B1 + B7**~~ done v1.4.23 (CLS 0.443/0.223 → 0.002/0.000).
 3. ~~**B6**~~ done v1.4.24 (cold cache 1.56 MB → 600 KB, FCP −30 to −43%).
 4. ~~**B4**~~ done v1.4.25 (fix-c LEFT JOIN; total topic-01 chain limit=200 −27%, section=important −55%).
-5. **B5** (depends on EXPLAIN).
+5. ~~**B5**~~ done v1.4.26 (mail/stats cached, TTFB 175 → 12 ms on hit).
 6. **B2** (search rewrite).
 7. **B8** (needs product input).
 
