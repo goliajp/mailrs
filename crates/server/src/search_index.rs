@@ -9,8 +9,12 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 const INDEX_NAME: &str = "messages";
-const BATCH_SIZE: usize = 200;
-const BACKFILL_INTERVAL: Duration = Duration::from_secs(300); // 5 min
+const BATCH_SIZE: usize = 1000;
+// poll for new messages every 30 s once caught up. while a backfill batch
+// is still returning rows, keep going with a short pause so the initial
+// import doesn't take 7+ hours on a 20k-message mailbox.
+const IDLE_INTERVAL: Duration = Duration::from_secs(30);
+const ACTIVE_INTERVAL: Duration = Duration::from_millis(200);
 
 #[derive(Clone)]
 pub struct MeiliClient {
@@ -181,16 +185,11 @@ pub fn spawn_indexer(
             eprintln!("Meilisearch index config failed: {e}");
         }
 
-        // track last indexed message id
+        // track last indexed message id; on first run start from 0 and rely
+        // on meili's id-based deduplication to skip rows already imported
         let mut last_id: i64 = 0;
 
-        // try to get last indexed id from meili stats
-        // (simple approach: just start from 0 on first run, meili deduplicates by id)
-
-        let mut interval = tokio::time::interval(BACKFILL_INTERVAL);
         loop {
-            interval.tick().await;
-
             // fetch unindexed messages from PG
             type MessageRow = (i64, String, Option<String>, String, Option<String>, Option<String>, i64, String);
             let rows: Vec<MessageRow> = match sqlx::query_as(
@@ -207,15 +206,19 @@ pub fn spawn_indexer(
                 Ok(r) => r,
                 Err(e) => {
                     eprintln!("Meilisearch backfill query error: {e}");
+                    tokio::time::sleep(IDLE_INTERVAL).await;
                     continue;
                 }
             };
 
             if rows.is_empty() {
+                // caught up — wait longer before polling again
+                tokio::time::sleep(IDLE_INTERVAL).await;
                 continue;
             }
 
             let max_id = rows.last().map(|r| r.0).unwrap_or(last_id);
+            let row_count = rows.len();
 
             let docs: Vec<MeiliDocument> = rows
                 .into_iter()
@@ -244,6 +247,15 @@ pub fn spawn_indexer(
                 Err(e) => {
                     eprintln!("Meilisearch index error: {e}");
                 }
+            }
+
+            // if the batch was full there's likely more — loop with a tiny
+            // pause to let other queries breathe. once a partial batch comes
+            // back we know we caught up and switch to the idle interval.
+            if row_count == BATCH_SIZE {
+                tokio::time::sleep(ACTIVE_INTERVAL).await;
+            } else {
+                tokio::time::sleep(IDLE_INTERVAL).await;
             }
         }
     });
