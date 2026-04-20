@@ -1146,11 +1146,45 @@ function uniqueShort(arr: string[], cap: number): string[] {
 // dedicated DOMPurify instance so this preview path never runs the
 // global hooks (e.g. anchor target=_blank) that the message body uses
 const previewPurifier = DOMPurify()
+
+// extract a clean reading-order preview from html.
+// the simple "strip all tags, keep textContent" approach pulled in url
+// soup: anchors whose visible text is the URL itself, footer-style
+// '[1]: https://…' link lists, and tracking redirects that stretch
+// hundreds of characters with no break point. all of that overflowed
+// the bubble and added zero signal. we now strip those before
+// collapsing to text.
 function htmlToPreviewText(html: string): string {
-  // strip ALL tags — keep only text-node content. that's what a human
-  // would actually read in the rendered email
-  const stripped = previewPurifier.sanitize(html, { ALLOWED_ATTR: [], ALLOWED_TAGS: [] })
-  return stripped
+  // sanitize with structure preserved (so we can walk anchors), drop
+  // dangerous tags + the noisy ones (head/style/script don't appear in
+  // textContent anyway, but iframe/svg/img title attributes can leak).
+  const cleanHtml = previewPurifier.sanitize(html, {
+    FORBID_ATTR: ['style'],
+    FORBID_TAGS: ['script', 'style', 'svg', 'iframe', 'img'],
+  })
+  // DOMParser is browser-only; we run in vite/jsdom so this is fine
+  const doc = new DOMParser().parseFromString(`<div>${cleanHtml}</div>`, 'text/html')
+  const root = doc.body.firstElementChild ?? doc.body
+
+  // remove anchors whose visible text is just a URL — they're tracking
+  // redirects ('https://c.gle/…' / 'https://email.stripe.com/…') that
+  // bring no information into a tiny preview
+  for (const a of Array.from(root.querySelectorAll('a'))) {
+    const text = (a.textContent || '').trim()
+    const href = a.getAttribute('href') || ''
+    if (text === '' || /^https?:\/\//i.test(text) || text === href) {
+      a.remove()
+    }
+  }
+
+  const text = (root.textContent || '')
+    // footer-style link lists: '[1]: https://…' / '[12]:https://…'
+    .replace(/\[\d+\]:\s*https?:\/\/\S+/gi, '')
+    // standalone bracketed URL refs '[ https://… ]' some clients emit
+    .replace(/\[\s*https?:\/\/\S+\s*\]/gi, '')
+    // any remaining long URL — collapse to placeholder so it can never
+    // overflow the bubble or eat the entire 3-line clamp
+    .replace(/https?:\/\/\S+/gi, '[link]')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
     .replace(/&lt;/gi, '<')
@@ -1158,6 +1192,7 @@ function htmlToPreviewText(html: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/\s+/g, ' ')
     .trim()
+  return text
 }
 
 // last-resort detection: when only a text/plain part exists and it looks
