@@ -2831,10 +2831,14 @@ pub(super) async fn proxy_image(
         .await
     {
         Ok(r) => r,
-        Err(_) => return transparent_png(),
+        Err(e) => {
+            tracing::warn!(target: "imgproxy", url = %url, error = %e, "fetch error");
+            return transparent_png();
+        }
     };
 
     if !resp.status().is_success() {
+        tracing::warn!(target: "imgproxy", url = %url, status = %resp.status(), "non-2xx");
         return transparent_png();
     }
 
@@ -2847,13 +2851,20 @@ pub(super) async fn proxy_image(
 
     // reject non-image responses
     if !content_type.starts_with("image/") {
+        tracing::warn!(target: "imgproxy", url = %url, ct = %content_type, "non-image response");
         return transparent_png();
     }
 
     let body = match resp.bytes().await {
         Ok(b) if b.len() <= IMAGE_PROXY_MAX_BYTES => b.to_vec(),
-        Ok(_) => return transparent_png(),
-        Err(_) => return transparent_png(),
+        Ok(b) => {
+            tracing::warn!(target: "imgproxy", url = %url, size = b.len(), "image too large");
+            return transparent_png();
+        }
+        Err(e) => {
+            tracing::warn!(target: "imgproxy", url = %url, error = %e, "body read error");
+            return transparent_png();
+        }
     };
 
     // cache in valkey (1 hour TTL)
