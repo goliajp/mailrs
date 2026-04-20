@@ -6,18 +6,6 @@ import { getToken } from '@/store/auth'
 const CJK_FONTS =
   "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji'"
 
-// inject CJK fallback fonts into all font-family declarations so kana
-// renders correctly on non-Japanese locale systems
-function injectCjkFonts(html: string): string {
-  return html.replace(/font-family\s*:\s*([^;}"]+)/gi, (match, fonts: string) => {
-    if (fonts.includes('Hiragino')) return match
-    const trimmed = fonts.trimEnd()
-    const endsWithSemiLike = trimmed.endsWith(',')
-    const base = endsWithSemiLike ? trimmed.slice(0, -1) : trimmed
-    return `font-family: ${base}, ${CJK_FONTS}`
-  })
-}
-
 // rewrite external image / link URLs to route through our proxy so we can
 // strip trackers and bypass CSP img-src 'self'.
 //
@@ -30,6 +18,37 @@ function injectCjkFonts(html: string): string {
 // nothing loads. v1.4.30 added lazy attrs and v1.4.31..v1.4.34 saw
 // blank email bodies as a result. decoding="async" is safe; lazy is
 // not, in this layout.
+// HTML attribute values arrive with entity-encoded specials, e.g.
+// LinkedIn signed CDN URLs come through as
+//   src="https://media.licdn.com/…?e=…&amp;v=beta&amp;t=…"
+// (& is required to be entity-encoded inside attribute values per HTML
+// spec). passing that raw string into encodeURIComponent turns the
+// '&amp;' into '%26amp%3B', so the upstream sees a literal '&amp;v='
+// instead of '&v=', the signature mismatches, and licdn returns 403.
+// decode the common entities first so the proxied URL matches the
+// original signed URL byte-for-byte.
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#x27;/gi, "'")
+    .replace(/&#39;/gi, "'")
+}
+
+// inject CJK fallback fonts into all font-family declarations so kana
+// renders correctly on non-Japanese locale systems
+function injectCjkFonts(html: string): string {
+  return html.replace(/font-family\s*:\s*([^;}"]+)/gi, (match, fonts: string) => {
+    if (fonts.includes('Hiragino')) return match
+    const trimmed = fonts.trimEnd()
+    const endsWithSemiLike = trimmed.endsWith(',')
+    const base = endsWithSemiLike ? trimmed.slice(0, -1) : trimmed
+    return `font-family: ${base}, ${CJK_FONTS}`
+  })
+}
+
 function proxyExternalUrls(html: string): string {
   const token = getToken()
   const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
@@ -37,13 +56,16 @@ function proxyExternalUrls(html: string): string {
     /(<img\b)([^>]*\bsrc\s*=\s*["'])(https?:\/\/[^"']+)(["'])/gi,
     (_match, openTag, before, url, after) => {
       const decAttr = /\bdecoding\s*=/i.test(openTag) ? '' : ' decoding="async"'
-      return `${openTag}${decAttr}${before}/api/proxy/image?url=${encodeURIComponent(url)}${tokenParam}${after}`
+      const cleanUrl = decodeHtmlEntities(url)
+      return `${openTag}${decAttr}${before}/api/proxy/image?url=${encodeURIComponent(cleanUrl)}${tokenParam}${after}`
     }
   )
   result = result.replace(
     /(<a\b[^>]*\bhref\s*=\s*["'])(https?:\/\/[^"']+)(["'])/gi,
-    (_match, before, url, after) =>
-      `${before}/api/proxy/link?url=${encodeURIComponent(url)}${tokenParam}${after}`
+    (_match, before, url, after) => {
+      const cleanUrl = decodeHtmlEntities(url)
+      return `${before}/api/proxy/link?url=${encodeURIComponent(cleanUrl)}${tokenParam}${after}`
+    }
   )
   return result
 }
