@@ -1041,11 +1041,20 @@ function extractBubbleFacts(msg: ThreadMessage): {
   dates: string[]
   refs: string[]
 } {
-  // pull from AI metadata first; supplement with regex over the body
-  const aiAmounts = (msg.amounts || []).map((a) =>
-    a.value !== undefined && a.currency ? `${a.currency} ${a.value.toLocaleString()}` : a.text
-  )
-  const aiDates = (msg.dates || []).map((d) => d.iso_date || d.text).filter(Boolean)
+  // pull from AI metadata first; supplement with regex over the body.
+  // a.text / d.text can legitimately be missing on some AI rows, so coerce
+  // to empty string and filter — uniqueShort assumes string[]
+  const aiAmounts = (msg.amounts || [])
+    .map((a) => {
+      if (a.value !== undefined && a.currency) {
+        return `${a.currency} ${a.value.toLocaleString()}`
+      }
+      return a.text ?? ''
+    })
+    .filter((s) => s.length > 0)
+  const aiDates = (msg.dates || [])
+    .map((d) => d.iso_date ?? d.text ?? '')
+    .filter((s) => s.length > 0)
 
   const body = msg.html_body
     ? htmlToPreviewText(msg.html_body)
@@ -1138,11 +1147,16 @@ function HdrBtn({
   )
 }
 
-function uniqueShort(arr: string[], cap: number): string[] {
+function uniqueShort(arr: (null | string | undefined)[], cap: number): string[] {
   // dedupe + collapse substring duplicates ('4月27日' is the same fact
   // as '2026年4月27日' — keep the longer/more specific one). also drops
-  // exact case-insensitive duplicates from upstream sources.
-  const cleaned = arr.map((s) => s.trim()).filter((s) => s.length > 0)
+  // exact case-insensitive duplicates from upstream sources. defensive
+  // type guard: AI metadata fields are nullable in the wire schema, so
+  // callers that forward them (.text / .iso_date) can produce undefined.
+  const cleaned = arr
+    .filter((s): s is string => typeof s === 'string')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
   // process longest first so shorter substrings get absorbed
   cleaned.sort((a, b) => b.length - a.length)
   const out: string[] = []
