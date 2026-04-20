@@ -19,18 +19,25 @@ function injectCjkFonts(html: string): string {
 }
 
 // rewrite external image / link URLs to route through our proxy so we can
-// strip trackers and bypass CSP img-src 'self'. also marks every <img> as
-// loading=lazy + decoding=async so browser only fetches what enters the
-// viewport when the user scrolls, instead of the iframe pulling all
-// inline images upfront (perfs/topic-04 / B8).
+// strip trackers and bypass CSP img-src 'self'.
+//
+// IMPORTANT: do not add loading="lazy" to images here. the email body
+// renders inside a sandboxed iframe whose height is measured from
+// `doc.body.scrollHeight` after the load event. native lazy-loading
+// inside an iframe relies on intersection with the iframe's own
+// viewport, which is initially zero — the iframe stays at the
+// fallback height (200), the images never enter the "viewport", and
+// nothing loads. v1.4.30 added lazy attrs and v1.4.31..v1.4.34 saw
+// blank email bodies as a result. decoding="async" is safe; lazy is
+// not, in this layout.
 function proxyExternalUrls(html: string): string {
   const token = getToken()
   const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
   let result = html.replace(
     /(<img\b)([^>]*\bsrc\s*=\s*["'])(https?:\/\/[^"']+)(["'])/gi,
     (_match, openTag, before, url, after) => {
-      const lazyAttrs = /\bloading\s*=/i.test(openTag) ? '' : ' loading="lazy" decoding="async"'
-      return `${openTag}${lazyAttrs}${before}/api/proxy/image?url=${encodeURIComponent(url)}${tokenParam}${after}`
+      const decAttr = /\bdecoding\s*=/i.test(openTag) ? '' : ' decoding="async"'
+      return `${openTag}${decAttr}${before}/api/proxy/image?url=${encodeURIComponent(url)}${tokenParam}${after}`
     }
   )
   result = result.replace(
