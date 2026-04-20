@@ -949,8 +949,13 @@ function stripSubjectFromPreview(text: string, subject: string): string {
 // in those columns. parsing the visible bubble text guarantees the
 // chips show whenever the email actually contains the data.
 const RX_AMOUNT = /(?:[$€£¥￥]|USD|EUR|GBP|JPY|CNY)\s?\d{1,3}(?:[,，]\d{3})*(?:\.\d{1,2})?/g
+// dates: english month-name form ('April 19, 2026') OR CJK form
+// ('4月27日', '2026年4月27日') — most JP/CN marketing copy uses the
+// latter, so en-only matching missed the half of inboxes that needed it
+// most.
 const RX_DATE =
   /\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:[,\s]+\d{4})?\b/g
+const RX_DATE_CJK = /(?:\d{4}\s*年\s*)?\d{1,2}\s*月\s*\d{1,2}\s*日/g
 const RX_RECEIPT = /(?:#|No\.?\s*|Number[:\s]+|番号[:：\s]+)([A-Z0-9]{4,}[-A-Z0-9]+)/g
 
 function BubbleFactChips({ msg }: { msg: ThreadMessage }) {
@@ -1054,8 +1059,11 @@ function extractBubbleFacts(msg: ThreadMessage): {
   if (body) {
     const amounts = body.match(RX_AMOUNT) || []
     found.amounts = uniqueShort(amounts, 2)
-    const dates = body.match(RX_DATE) || []
-    found.dates = uniqueShort(dates, 2)
+    const dates = [...(body.match(RX_DATE) || []), ...(body.match(RX_DATE_CJK) || [])]
+    found.dates = uniqueShort(
+      dates.map((d) => d.replace(/\s+/g, '')),
+      2
+    )
     const refs: string[] = []
     let m: null | RegExpExecArray
     while ((m = RX_RECEIPT.exec(body)) !== null) refs.push(m[1])
@@ -1190,6 +1198,11 @@ function htmlToPreviewText(html: string): string {
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
+    // clean up footnote leftovers: <sup>1</sup> and <sub>x</sub> get
+    // dropped to bare characters that look like '^' / orphan digits in
+    // the middle of CJK text. strip the common ones.
+    .replace(/[\u00B9\u00B2\u00B3\u2070-\u2079\u2080-\u2089]/g, '')
+    .replace(/(?<=[\p{L}\p{N}])\^(?=[。\s,])/gu, '')
     .replace(/\s+/g, ' ')
     .trim()
   return text
