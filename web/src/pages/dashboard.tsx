@@ -24,7 +24,6 @@ import { useNavigate } from 'react-router'
 
 import { CategoryBadge } from '@/components/category-badge'
 import { SenderAvatar } from '@/components/sender-avatar'
-import { MPane, MPaneGroup } from '@/layouts/pane'
 import { fetchJson } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { authAtom } from '@/store/auth'
@@ -191,147 +190,212 @@ export function Dashboard() {
   const displayName = auth?.display_name || auth?.address?.split('@')[0] || ''
 
   return (
-    <MPaneGroup>
-      <MPane>
-        <ScrollArea className="max-w-full overflow-x-hidden p-4 md:p-6">
-          {/* greeting + actions */}
-          <div className="mb-6 flex items-start justify-between">
-            <div>
-              <h1 className="text-fg text-xl font-semibold">
-                {greeting}, {displayName}
-              </h1>
-              <p className="text-fg-muted mt-1 text-sm">
-                {new Date().toLocaleDateString('en', {
-                  day: 'numeric',
-                  month: 'long',
-                  weekday: 'long',
-                  year: 'numeric',
-                })}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                className={cn(
-                  'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary flex h-8 w-8 items-center justify-center rounded-md transition-colors',
-                  refreshing && 'animate-spin'
-                )}
-                onClick={() => load(true)}
-                title="Refresh"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </button>
-              <button
-                className="bg-accent hover:bg-accent-hover flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors"
-                onClick={handleCompose}
-              >
-                <Pen className="h-3.5 w-3.5" />
-                Compose
-              </button>
-            </div>
-          </div>
+    // no MPaneGroup/MPane wrapper here: app.tsx's PagePane already
+    // renders <MPane> on desktop / a plain scroll div on mobile around
+    // this component. wrapping again produced double <MPane> nesting,
+    // which made the DOM structure differ from the Suspense fallback
+    // (single <div> root) and the user perceived the chunk-load → data-
+    // load transition as 'two different skeletons' (perfs/topic-09).
+    <ScrollArea className="max-w-full overflow-x-hidden p-4 md:p-6">
+      {/* greeting + actions */}
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-fg text-xl font-semibold">
+            {greeting}, {displayName}
+          </h1>
+          <p className="text-fg-muted mt-1 text-sm">
+            {new Date().toLocaleDateString('en', {
+              day: 'numeric',
+              month: 'long',
+              weekday: 'long',
+              year: 'numeric',
+            })}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            className={cn(
+              'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary flex h-8 w-8 items-center justify-center rounded-md transition-colors',
+              refreshing && 'animate-spin'
+            )}
+            onClick={() => load(true)}
+            title="Refresh"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+          <button
+            className="bg-accent hover:bg-accent-hover flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors"
+            onClick={handleCompose}
+          >
+            <Pen className="h-3.5 w-3.5" />
+            Compose
+          </button>
+        </div>
+      </div>
 
-          {/* search bar */}
-          <form className="mb-6" onSubmit={handleSearch}>
-            <div className="relative">
-              <Search
-                aria-hidden="true"
-                className="text-fg-muted pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
-              />
-              <input
-                className="border-border bg-surface text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent w-full rounded-lg border py-2.5 pr-4 pl-9 text-sm focus:ring-1 focus:outline-none"
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search emails..."
-                type="text"
-                value={searchInput}
-              />
-            </div>
-          </form>
+      {/* search bar */}
+      <form className="mb-6" onSubmit={handleSearch}>
+        <div className="relative">
+          <Search
+            aria-hidden="true"
+            className="text-fg-muted pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
+          />
+          <input
+            className="border-border bg-surface text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent w-full rounded-lg border py-2.5 pr-4 pl-9 text-sm focus:ring-1 focus:outline-none"
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search emails..."
+            type="text"
+            value={searchInput}
+          />
+        </div>
+      </form>
 
-          {/* stat cards — horizontal scroll on mobile, grid on desktop */}
-          <div className="scrollbar-hide mb-6 flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-4">
-            <StatCard
-              color="brand"
-              icon={MailOpen}
-              label="Unread"
-              onClick={() => navigate('/mail')}
-              value={totalUnread}
-            />
-            <StatCard
-              color="info"
-              icon={Clock}
-              label="Today"
-              onClick={() => navigate('/mail')}
-              value={todayCount}
-            />
-            <StatCard
-              color="warning"
-              icon={Star}
-              label="Starred"
-              onClick={() => navigate('/mail')}
-              value={starredCount}
-            />
-            <StatCard
-              color="danger"
+      {/* stat cards — horizontal scroll on mobile, grid on desktop */}
+      <div className="scrollbar-hide mb-6 flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-4">
+        <StatCard
+          color="brand"
+          icon={MailOpen}
+          label="Unread"
+          onClick={() => navigate('/mail')}
+          value={totalUnread}
+        />
+        <StatCard
+          color="info"
+          icon={Clock}
+          label="Today"
+          onClick={() => navigate('/mail')}
+          value={todayCount}
+        />
+        <StatCard
+          color="warning"
+          icon={Star}
+          label="Starred"
+          onClick={() => navigate('/mail')}
+          value={starredCount}
+        />
+        <StatCard
+          color="danger"
+          icon={AlertTriangle}
+          label="Important"
+          onClick={() => navigate('/mail')}
+          value={importantCount}
+        />
+      </div>
+
+      {/* main content grid */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* left column */}
+        <div className="min-w-0 space-y-6 lg:col-span-2">
+          {/* pinned */}
+          {pinned.length > 0 && (
+            <Section icon={Pin} title="Pinned">
+              <div className="space-y-0.5">
+                {pinned.map((c) => (
+                  <ConversationRow
+                    conversation={c}
+                    key={c.thread_id}
+                    onClick={() => goToThread(c.thread_id)}
+                  />
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* needs attention */}
+          {needsAttention.length > 0 && (
+            <Section
+              action={{
+                label: 'View all',
+                onClick: () => navigate('/mail'),
+              }}
               icon={AlertTriangle}
-              label="Important"
-              onClick={() => navigate('/mail')}
-              value={importantCount}
-            />
-          </div>
+              title="Needs Attention"
+            >
+              <div className="space-y-0.5">
+                {needsAttention.map((c) => (
+                  <ConversationRow
+                    conversation={c}
+                    key={c.thread_id}
+                    onClick={() => goToThread(c.thread_id)}
+                  />
+                ))}
+              </div>
+            </Section>
+          )}
 
-          {/* main content grid */}
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* left column */}
-            <div className="min-w-0 space-y-6 lg:col-span-2">
-              {/* pinned */}
-              {pinned.length > 0 && (
-                <Section icon={Pin} title="Pinned">
-                  <div className="space-y-0.5">
-                    {pinned.map((c) => (
-                      <ConversationRow
-                        conversation={c}
-                        key={c.thread_id}
-                        onClick={() => goToThread(c.thread_id)}
-                      />
-                    ))}
-                  </div>
-                </Section>
-              )}
+          {/* recent unread */}
+          {recentUnread.length > 0 && (
+            <Section
+              action={{
+                label: 'Open inbox',
+                onClick: () => navigate('/mail'),
+              }}
+              icon={Mail}
+              title="Recent"
+            >
+              <div className="space-y-0.5">
+                {recentUnread.map((c) => (
+                  <ConversationRow
+                    conversation={c}
+                    key={c.thread_id}
+                    onClick={() => goToThread(c.thread_id)}
+                  />
+                ))}
+              </div>
+            </Section>
+          )}
 
-              {/* needs attention */}
-              {needsAttention.length > 0 && (
-                <Section
-                  action={{
-                    label: 'View all',
-                    onClick: () => navigate('/mail'),
-                  }}
-                  icon={AlertTriangle}
-                  title="Needs Attention"
-                >
-                  <div className="space-y-0.5">
-                    {needsAttention.map((c) => (
-                      <ConversationRow
-                        conversation={c}
-                        key={c.thread_id}
-                        onClick={() => goToThread(c.thread_id)}
-                      />
-                    ))}
-                  </div>
-                </Section>
-              )}
-
-              {/* recent unread */}
-              {recentUnread.length > 0 && (
+          {/* all caught up — but only when the server agrees there's
+                  truly 0 unread. recentUnread is computed from the top-200
+                  conversation fetch, so it can be empty even when an older
+                  unread thread is sitting further down the list */}
+          {needsAttention.length === 0 && recentUnread.length === 0 && pinned.length === 0 && (
+            <>
+              <Section icon={Mail} title="Inbox">
+                <div className="text-fg-muted flex flex-col items-center gap-2 py-6">
+                  <Shield aria-hidden="true" className="h-8 w-8" />
+                  <p className="text-sm">
+                    {totalUnread > 0
+                      ? `${totalUnread} unread further down — open inbox to see`
+                      : 'All caught up — no unread emails'}
+                  </p>
+                  <button
+                    className="bg-accent/10 text-accent hover:bg-accent mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:text-white"
+                    onClick={
+                      totalUnread > 0
+                        ? () => {
+                            setQuickFilter('unread')
+                            navigate('/mail')
+                          }
+                        : handleCompose
+                    }
+                  >
+                    {totalUnread > 0 ? (
+                      <>
+                        <Mail className="h-3.5 w-3.5" />
+                        Open inbox
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-3.5 w-3.5" />
+                        Compose new email
+                      </>
+                    )}
+                  </button>
+                </div>
+              </Section>
+              {/* show recent conversations even if all read */}
+              {(data?.conversations.slice(0, 5).length ?? 0) > 0 && (
                 <Section
                   action={{
                     label: 'Open inbox',
                     onClick: () => navigate('/mail'),
                   }}
-                  icon={Mail}
-                  title="Recent"
+                  icon={Clock}
+                  title="Recent Activity"
                 >
                   <div className="space-y-0.5">
-                    {recentUnread.map((c) => (
+                    {data!.conversations.slice(0, 5).map((c) => (
                       <ConversationRow
                         conversation={c}
                         key={c.thread_id}
@@ -341,197 +405,134 @@ export function Dashboard() {
                   </div>
                 </Section>
               )}
+            </>
+          )}
+        </div>
 
-              {/* all caught up — but only when the server agrees there's
-                  truly 0 unread. recentUnread is computed from the top-200
-                  conversation fetch, so it can be empty even when an older
-                  unread thread is sitting further down the list */}
-              {needsAttention.length === 0 && recentUnread.length === 0 && pinned.length === 0 && (
-                <>
-                  <Section icon={Mail} title="Inbox">
-                    <div className="text-fg-muted flex flex-col items-center gap-2 py-6">
-                      <Shield aria-hidden="true" className="h-8 w-8" />
-                      <p className="text-sm">
-                        {totalUnread > 0
-                          ? `${totalUnread} unread further down — open inbox to see`
-                          : 'All caught up — no unread emails'}
+        {/* right column: insights */}
+        <div className="space-y-6">
+          {/* security alerts */}
+          {securityAlerts.length > 0 && (
+            <Section icon={ShieldAlert} title="Security Alerts">
+              <div className="space-y-0.5">
+                {securityAlerts.map((c) => (
+                  <button
+                    className="hover:bg-bg-secondary flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors"
+                    key={c.thread_id}
+                    onClick={() => goToThread(c.thread_id)}
+                  >
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500/10">
+                      <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-fg truncate text-sm font-medium">
+                        {c.subject || '(no subject)'}
                       </p>
-                      <button
-                        className="bg-accent/10 text-accent hover:bg-accent mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:text-white"
-                        onClick={
-                          totalUnread > 0
-                            ? () => {
-                                setQuickFilter('unread')
-                                navigate('/mail')
-                              }
-                            : handleCompose
-                        }
-                      >
-                        {totalUnread > 0 ? (
-                          <>
-                            <Mail className="h-3.5 w-3.5" />
-                            Open inbox
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="h-3.5 w-3.5" />
-                            Compose new email
-                          </>
-                        )}
-                      </button>
+                      <p className="text-danger truncate text-xs">{c.category}</p>
                     </div>
-                  </Section>
-                  {/* show recent conversations even if all read */}
-                  {(data?.conversations.slice(0, 5).length ?? 0) > 0 && (
-                    <Section
-                      action={{
-                        label: 'Open inbox',
-                        onClick: () => navigate('/mail'),
-                      }}
-                      icon={Clock}
-                      title="Recent Activity"
+                  </button>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* category breakdown */}
+          {categoryData.length > 0 && (
+            <Section icon={TrendingUp} title="Categories">
+              <div className="space-y-2.5">
+                {categoryData.map((cat) => (
+                  <CategoryBar
+                    category={cat.category}
+                    count={cat.count}
+                    key={cat.category}
+                    total={totalCategorized}
+                  />
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* top contacts */}
+          {topSenders.length > 0 && (
+            <Section icon={Users} title="Top Contacts">
+              <div className="space-y-0.5">
+                {topSenders.map((s) => (
+                  <div
+                    className="hover:bg-bg-secondary flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors"
+                    key={s.email}
+                  >
+                    <SenderAvatar sender={`${s.name} <${s.email}>`} size={28} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-fg truncate text-sm font-medium">{s.name}</p>
+                      <p className="text-fg-muted truncate text-xs">{s.email}</p>
+                    </div>
+                    <span className="bg-bg-secondary text-fg-muted shrink-0 rounded-full px-1.5 py-0.5 text-xs tabular-nums md:text-[10px]">
+                      {s.count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* mailbox overview */}
+          {totalMessages > 0 && (
+            <Section icon={Mail} title="Mailbox">
+              <div className="space-y-2 px-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-fg-muted">Total emails</span>
+                  <span className="text-fg font-medium tabular-nums">
+                    {totalMessages.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-fg-muted">Storage</span>
+                  <span className="text-fg font-medium tabular-nums">
+                    {formatBytes(storageBytes)}
+                  </span>
+                </div>
+              </div>
+            </Section>
+          )}
+
+          {/* folder stats */}
+          {data && data.folders.length > 0 && (
+            <Section icon={Mail} title="Folders">
+              <div className="space-y-0.5">
+                {data.folders
+                  .filter((f) => f.total > 0)
+                  .slice(0, 8)
+                  .map((f) => (
+                    <div
+                      className="hover:bg-bg-secondary flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors"
+                      key={f.name}
                     >
-                      <div className="space-y-0.5">
-                        {data!.conversations.slice(0, 5).map((c) => (
-                          <ConversationRow
-                            conversation={c}
-                            key={c.thread_id}
-                            onClick={() => goToThread(c.thread_id)}
-                          />
-                        ))}
+                      <span className="text-fg-secondary">{f.name}</span>
+                      <div className="flex items-center gap-2">
+                        {f.unseen > 0 && (
+                          <span className="bg-accent/10 text-accent rounded-full px-1.5 py-0.5 text-xs font-medium md:text-[10px]">
+                            {f.unseen}
+                          </span>
+                        )}
+                        <span className="text-fg-muted text-xs tabular-nums">{f.total}</span>
                       </div>
-                    </Section>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* right column: insights */}
-            <div className="space-y-6">
-              {/* security alerts */}
-              {securityAlerts.length > 0 && (
-                <Section icon={ShieldAlert} title="Security Alerts">
-                  <div className="space-y-0.5">
-                    {securityAlerts.map((c) => (
-                      <button
-                        className="hover:bg-bg-secondary flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors"
-                        key={c.thread_id}
-                        onClick={() => goToThread(c.thread_id)}
-                      >
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500/10">
-                          <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-fg truncate text-sm font-medium">
-                            {c.subject || '(no subject)'}
-                          </p>
-                          <p className="text-danger truncate text-xs">{c.category}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </Section>
-              )}
-
-              {/* category breakdown */}
-              {categoryData.length > 0 && (
-                <Section icon={TrendingUp} title="Categories">
-                  <div className="space-y-2.5">
-                    {categoryData.map((cat) => (
-                      <CategoryBar
-                        category={cat.category}
-                        count={cat.count}
-                        key={cat.category}
-                        total={totalCategorized}
-                      />
-                    ))}
-                  </div>
-                </Section>
-              )}
-
-              {/* top contacts */}
-              {topSenders.length > 0 && (
-                <Section icon={Users} title="Top Contacts">
-                  <div className="space-y-0.5">
-                    {topSenders.map((s) => (
-                      <div
-                        className="hover:bg-bg-secondary flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors"
-                        key={s.email}
-                      >
-                        <SenderAvatar sender={`${s.name} <${s.email}>`} size={28} />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-fg truncate text-sm font-medium">{s.name}</p>
-                          <p className="text-fg-muted truncate text-xs">{s.email}</p>
-                        </div>
-                        <span className="bg-bg-secondary text-fg-muted shrink-0 rounded-full px-1.5 py-0.5 text-xs tabular-nums md:text-[10px]">
-                          {s.count}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </Section>
-              )}
-
-              {/* mailbox overview */}
-              {totalMessages > 0 && (
-                <Section icon={Mail} title="Mailbox">
-                  <div className="space-y-2 px-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-fg-muted">Total emails</span>
-                      <span className="text-fg font-medium tabular-nums">
-                        {totalMessages.toLocaleString()}
-                      </span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-fg-muted">Storage</span>
-                      <span className="text-fg font-medium tabular-nums">
-                        {formatBytes(storageBytes)}
-                      </span>
-                    </div>
-                  </div>
-                </Section>
-              )}
+                  ))}
+              </div>
+            </Section>
+          )}
+        </div>
+      </div>
 
-              {/* folder stats */}
-              {data && data.folders.length > 0 && (
-                <Section icon={Mail} title="Folders">
-                  <div className="space-y-0.5">
-                    {data.folders
-                      .filter((f) => f.total > 0)
-                      .slice(0, 8)
-                      .map((f) => (
-                        <div
-                          className="hover:bg-bg-secondary flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors"
-                          key={f.name}
-                        >
-                          <span className="text-fg-secondary">{f.name}</span>
-                          <div className="flex items-center gap-2">
-                            {f.unseen > 0 && (
-                              <span className="bg-accent/10 text-accent rounded-full px-1.5 py-0.5 text-xs font-medium md:text-[10px]">
-                                {f.unseen}
-                              </span>
-                            )}
-                            <span className="text-fg-muted text-xs tabular-nums">{f.total}</span>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </Section>
-              )}
-            </div>
-          </div>
-
-          {/* keyboard shortcuts hint */}
-          <div className="text-fg-muted mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs">
-            <Shortcut keys="⌘K" label="Command palette" />
-            <Shortcut keys="C" label="Compose" />
-            <Shortcut keys="/" label="Search" />
-            <Shortcut keys="J/K" label="Navigate" />
-            <Shortcut keys="?" label="All shortcuts" />
-          </div>
-        </ScrollArea>
-      </MPane>
-    </MPaneGroup>
+      {/* keyboard shortcuts hint */}
+      <div className="text-fg-muted mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs">
+        <Shortcut keys="⌘K" label="Command palette" />
+        <Shortcut keys="C" label="Compose" />
+        <Shortcut keys="/" label="Search" />
+        <Shortcut keys="J/K" label="Navigate" />
+        <Shortcut keys="?" label="All shortcuts" />
+      </div>
+    </ScrollArea>
   )
 }
 
