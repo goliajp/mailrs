@@ -2824,9 +2824,27 @@ pub(super) async fn proxy_image(
         .build()
         .unwrap_or_default();
 
+    // pose as a real browser. many newspaper / cdn hosts (cn.nikkei.com,
+    // various asahi / nikkan-style sites) return 403 to anything that
+    // doesn't look like a browser, which previously drained every image
+    // request to our 1×1 PNG fallback. also send a referer so lazy hot-
+    // link checks (referer == sender's domain) can succeed when possible.
+    let referer = url
+        .splitn(4, '/')
+        .take(3)
+        .collect::<Vec<_>>()
+        .join("/");
     let resp = match client
         .get(url)
-        .header("User-Agent", "mailrs/image-proxy")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
+             AppleWebKit/537.36 (KHTML, like Gecko) \
+             Chrome/120.0 Safari/537.36",
+        )
+        .header("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
+        .header("Accept-Language", "en-US,en;q=0.9,ja;q=0.8,zh;q=0.7")
+        .header("Referer", &referer)
         .send()
         .await
     {
