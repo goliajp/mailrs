@@ -285,8 +285,12 @@ export function Dashboard() {
             <div className="min-w-0 space-y-6 lg:col-span-2">
               {loading && (
                 <>
-                  <SectionSkeleton rows={4} />
-                  <SectionSkeleton rows={3} />
+                  {/* matches the shape of the most-likely loaded state:
+                      Inbox empty/status box + Recent Activity rows.
+                      different shape per skeleton stops the page from
+                      looking like a wall of identical grey rectangles */}
+                  <InboxStatusSkeleton />
+                  <SectionSkeleton rows={5} />
                 </>
               )}
               {/* pinned */}
@@ -416,8 +420,10 @@ export function Dashboard() {
             <div className="space-y-6">
               {loading && (
                 <>
-                  <SectionSkeleton rows={3} />
-                  <SectionSkeleton rows={4} />
+                  {/* Categories (label + bar) + Top Contacts (avatar + 2 lines + badge)
+                      — same visual rhythm the user will see when data lands */}
+                  <CategoriesSkeleton rows={6} />
+                  <ContactsSkeleton rows={6} />
                 </>
               )}
               {/* security alerts */}
@@ -612,6 +618,52 @@ const COLOR_MAP = {
   warning: 'bg-amber-500/10 text-amber-500',
 } as const
 
+// label + horizontal progress bar pattern used by Categories
+function CategoriesSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="border-border overflow-hidden rounded-lg border">
+      <SkeletonHeader withAction={false} />
+      <div className="space-y-2.5 p-3">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div className="space-y-1" key={i}>
+            <div className="flex items-center justify-between">
+              <div className="bg-border h-3 w-20 animate-pulse rounded" />
+              <div className="bg-border h-3 w-12 animate-pulse rounded" />
+            </div>
+            <div className="bg-bg-secondary relative h-1.5 overflow-hidden rounded-full">
+              <div
+                className="bg-border h-full animate-pulse rounded-full"
+                style={{ width: `${100 - i * 12}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// avatar + 2-line + count badge — Top Contacts shape
+function ContactsSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="border-border overflow-hidden rounded-lg border">
+      <SkeletonHeader withAction={false} />
+      <div className="space-y-0.5 p-2">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div className="flex items-center gap-2.5 px-2 py-1.5" key={i}>
+            <div className="bg-border h-7 w-7 shrink-0 animate-pulse rounded-full" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="bg-border h-3.5 w-2/5 animate-pulse rounded" />
+              <div className="bg-border h-3 w-3/5 animate-pulse rounded" />
+            </div>
+            <div className="bg-border h-4 w-6 shrink-0 animate-pulse rounded-full" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ConversationRow({
   conversation: c,
   onClick,
@@ -659,6 +711,22 @@ function ConversationRow({
   )
 }
 
+// "All caught up — no unread emails" empty state shape: centered icon
+// circle + caption line + button. Same proportions as the live state
+// so the layout doesn't snap when it resolves.
+function InboxStatusSkeleton() {
+  return (
+    <div className="border-border overflow-hidden rounded-lg border">
+      <SkeletonHeader withAction={false} />
+      <div className="flex flex-col items-center gap-2 px-4 py-6">
+        <div className="bg-border h-8 w-8 animate-pulse rounded-full" />
+        <div className="bg-border mt-1 h-3 w-56 animate-pulse rounded" />
+        <div className="bg-border mt-2 h-7 w-32 animate-pulse rounded-md" />
+      </div>
+    </div>
+  )
+}
+
 function Section({
   action,
   children,
@@ -692,13 +760,12 @@ function Section({
   )
 }
 
+// generic rows-of-avatar-and-text section. matches Recent Activity,
+// Pinned, Needs Attention, Recent (the most common shape on the page)
 function SectionSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="border-border overflow-hidden rounded-lg border">
-      <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
-        <div className="bg-border h-4 w-24 animate-pulse rounded" />
-        <div className="bg-border h-3 w-12 animate-pulse rounded" />
-      </div>
+      <SkeletonHeader />
       <div className="space-y-0.5 p-2">
         {Array.from({ length: rows }).map((_, i) => (
           <div className="flex items-center gap-3 px-2 py-2" key={i}>
@@ -707,9 +774,24 @@ function SectionSkeleton({ rows = 3 }: { rows?: number }) {
               <div className="bg-border h-3.5 w-1/3 animate-pulse rounded" />
               <div className="bg-border h-3 w-2/3 animate-pulse rounded" />
             </div>
+            <div className="bg-border h-3 w-10 shrink-0 animate-pulse rounded" />
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// section header used by all skeleton variants — title row + optional
+// "view all" link, in the same shape as the real Section component
+function SkeletonHeader({ withAction = true }: { withAction?: boolean }) {
+  return (
+    <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
+      <div className="flex items-center gap-2">
+        <div className="bg-border h-4 w-4 animate-pulse rounded" />
+        <div className="bg-border h-4 w-24 animate-pulse rounded" />
+      </div>
+      {withAction && <div className="bg-border h-3 w-14 animate-pulse rounded" />}
     </div>
   )
 }
