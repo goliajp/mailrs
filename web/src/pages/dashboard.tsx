@@ -23,7 +23,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { CategoryBadge } from '@/components/category-badge'
-import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { MPane, MPaneGroup } from '@/layouts/pane'
 import { fetchJson } from '@/lib/api'
@@ -65,13 +64,18 @@ export function Dashboard() {
   const setQuickFilter = useSetAtom(quickFilterAtom)
   const [data, setData] = useState<DashboardData | null>(null)
   const [searchInput, setSearchInput] = useState('')
-  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null)
 
+  // no separate `loading` state: the only skeleton the user can see is the
+  // Suspense fallback that renders during the lazy chunk download (app.tsx
+  // → DashboardShellSkeleton). once this component has mounted the chunk
+  // is loaded, so we render the real layout immediately. data-driven
+  // sections (`{pinned.length > 0 && ...}`) naturally start empty and
+  // fill in when the fetch resolves — that swap is one-shot, not a
+  // skeleton-to-skeleton transition.
   const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true)
-    else setRefreshing(true)
+    if (silent) setRefreshing(true)
     try {
       const [conversations, stats, folders] = await Promise.all([
         fetchJson<ConversationSummary[]>('/conversations?limit=200'),
@@ -82,7 +86,6 @@ export function Dashboard() {
     } catch {
       // ignore
     } finally {
-      setLoading(false)
       setRefreshing(false)
     }
   }, [])
@@ -186,19 +189,6 @@ export function Dashboard() {
   const totalCategorized = categoryData.reduce((s, c) => s + c.count, 0)
 
   const displayName = auth?.display_name || auth?.address?.split('@')[0] || ''
-
-  // while data is fetching show the same shell skeleton the Suspense
-  // fallback (app.tsx) renders during chunk download — so the user never
-  // sees a different placeholder shape between the two phases
-  if (loading) {
-    return (
-      <MPaneGroup>
-        <MPane>
-          <DashboardShellSkeleton />
-        </MPane>
-      </MPaneGroup>
-    )
-  }
 
   return (
     <MPaneGroup>
