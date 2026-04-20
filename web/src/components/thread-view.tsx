@@ -1073,7 +1073,7 @@ function extractBubbleFacts(msg: ThreadMessage): {
 
   return {
     amounts: uniqueShort([...aiAmounts, ...found.amounts], 2),
-    dates: uniqueShort([...aiDates, ...found.dates], 2),
+    dates: uniqueShort([...aiDates, ...found.dates], 1),
     refs: found.refs,
   }
 }
@@ -1139,13 +1139,21 @@ function HdrBtn({
 }
 
 function uniqueShort(arr: string[], cap: number): string[] {
-  const seen = new Set<string>()
+  // dedupe + collapse substring duplicates ('4月27日' is the same fact
+  // as '2026年4月27日' — keep the longer/more specific one). also drops
+  // exact case-insensitive duplicates from upstream sources.
+  const cleaned = arr.map((s) => s.trim()).filter((s) => s.length > 0)
+  // process longest first so shorter substrings get absorbed
+  cleaned.sort((a, b) => b.length - a.length)
   const out: string[] = []
-  for (const item of arr) {
-    const k = item.trim()
-    if (k.length === 0 || seen.has(k.toLowerCase())) continue
-    seen.add(k.toLowerCase())
-    out.push(k)
+  for (const item of cleaned) {
+    const lower = item.toLowerCase()
+    const dup = out.some((kept) => {
+      const k = kept.toLowerCase()
+      return k === lower || k.includes(lower) || lower.includes(k)
+    })
+    if (dup) continue
+    out.push(item)
     if (out.length >= cap) break
   }
   return out
