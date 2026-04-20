@@ -16,6 +16,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
+import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { MobileShell } from '@/components/mobile-shell'
 import { MPane } from '@/layouts/pane'
@@ -143,139 +144,6 @@ function AuthShell({ children }: { children: React.ReactNode }) {
         <MobileShell>{children}</MobileShell>
       </div>
     </RequireAuth>
-  )
-}
-
-// shell-level skeleton shown while the lazy Dashboard chunk is still
-// downloading (before dashboard.tsx ever runs). matches the page's broad
-// geometry so the swap from this → dashboard.tsx's own loading state is
-// visually continuous instead of "spinner pops into a four-column grid".
-// kept inline (not lazy) so it ships in the entry chunk and can paint
-// at FCP.
-function DashboardShellSkeleton() {
-  const PulseBox = ({ className }: { className: string }) => (
-    <div className={`bg-border animate-pulse rounded-lg ${className}`} />
-  )
-  return (
-    <div className="h-full overflow-y-auto p-4 md:p-6">
-      {/* greeting row + compose */}
-      <div className="mb-6 flex items-start justify-between">
-        <div className="space-y-2">
-          <PulseBox className="h-6 w-56" />
-          <PulseBox className="h-4 w-44" />
-        </div>
-        <div className="flex items-center gap-2">
-          <PulseBox className="h-8 w-8 rounded-md" />
-          <PulseBox className="h-8 w-24 rounded-md" />
-        </div>
-      </div>
-      {/* search bar */}
-      <PulseBox className="mb-6 h-10 w-full" />
-      {/* 4 stat cards */}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            className="border-border flex items-center gap-3 rounded-lg border px-4 py-3"
-            key={i}
-          >
-            <div className="bg-border h-9 w-9 animate-pulse rounded-lg" />
-            <div className="flex-1 space-y-1.5">
-              <div className="bg-border h-6 w-10 animate-pulse rounded" />
-              <div className="bg-border h-3 w-14 animate-pulse rounded" />
-            </div>
-          </div>
-        ))}
-      </div>
-      {/* main grid: 2/3 left + 1/3 right */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          {/* big inbox status box */}
-          <div className="border-border overflow-hidden rounded-lg border">
-            <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
-              <div className="flex items-center gap-2">
-                <PulseBox className="h-4 w-4" />
-                <PulseBox className="h-4 w-20" />
-              </div>
-            </div>
-            <div className="flex flex-col items-center gap-2 px-4 py-6">
-              <PulseBox className="h-8 w-8 rounded-full" />
-              <PulseBox className="mt-1 h-3 w-56" />
-              <PulseBox className="mt-2 h-7 w-32 rounded-md" />
-            </div>
-          </div>
-          {/* recent activity rows */}
-          <div className="border-border overflow-hidden rounded-lg border">
-            <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
-              <div className="flex items-center gap-2">
-                <PulseBox className="h-4 w-4" />
-                <PulseBox className="h-4 w-24" />
-              </div>
-              <PulseBox className="h-3 w-14" />
-            </div>
-            <div className="space-y-0.5 p-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div className="flex items-center gap-3 px-2 py-2" key={i}>
-                  <div className="bg-border h-8 w-8 animate-pulse rounded-full" />
-                  <div className="flex-1 space-y-1.5">
-                    <PulseBox className="h-3.5 w-1/3" />
-                    <PulseBox className="h-3 w-2/3" />
-                  </div>
-                  <PulseBox className="h-3 w-10" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="space-y-6">
-          {/* categories with bars */}
-          <div className="border-border overflow-hidden rounded-lg border">
-            <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
-              <div className="flex items-center gap-2">
-                <PulseBox className="h-4 w-4" />
-                <PulseBox className="h-4 w-24" />
-              </div>
-            </div>
-            <div className="space-y-2.5 p-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div className="space-y-1" key={i}>
-                  <div className="flex items-center justify-between">
-                    <PulseBox className="h-3 w-20" />
-                    <PulseBox className="h-3 w-12" />
-                  </div>
-                  <div className="bg-bg-secondary h-1.5 overflow-hidden rounded-full">
-                    <div
-                      className="bg-border h-full animate-pulse rounded-full"
-                      style={{ width: `${100 - i * 12}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* top contacts */}
-          <div className="border-border overflow-hidden rounded-lg border">
-            <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
-              <div className="flex items-center gap-2">
-                <PulseBox className="h-4 w-4" />
-                <PulseBox className="h-4 w-24" />
-              </div>
-            </div>
-            <div className="space-y-0.5 p-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div className="flex items-center gap-2.5 px-2 py-1.5" key={i}>
-                  <div className="bg-border h-7 w-7 animate-pulse rounded-full" />
-                  <div className="flex-1 space-y-1">
-                    <PulseBox className="h-3.5 w-2/5" />
-                    <PulseBox className="h-3 w-3/5" />
-                  </div>
-                  <PulseBox className="h-4 w-6 rounded-full" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   )
 }
 
