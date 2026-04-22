@@ -1,0 +1,17 @@
+# Xcode generated
+Mailrs.xcodeproj/
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Apple
+.DS_Store
+
+# SPM
+.build/
+Packages/
+Package.pins
+Package.resolved
+*.xcodeproj.xcworkspace/
