@@ -128,3 +128,37 @@ These were tested and cause frames to not be presented to screen. Events are pro
 **Why this matters:** Unsolicited UI additions create confusion, undermine user trust, waste time debugging "features" nobody asked for, and can break existing workflows that depended on the old visual state. They also inflate review burden because they have no spec to review against.
 
 **How to resist the reflex:** When you notice a flag or property that "would look nice in the UI", write the idea in a TODO or research note and keep going. Only implement it if product / design explicitly accepts it.
+
+## Silent switch from small core to big core in a dual-core system
+
+**Context:** Any project with an explicit big.LITTLE / small-core-first design philosophy — cheap local inference (Ollama, on-device) handles the bulk of work, and the expensive remote API (Claude, GPT, etc.) is reserved for a small number of narrow, user-facing, high-value paths. The design contract is that background / periodic / learning tasks MUST run on the small core; the big core is a scarce resource metered by user-visible value.
+
+**Bug:** Later features are added that call the big-core API from background paths (periodic scans, claim extraction on every reply, reflection loops). Each call in isolation "feels" justified — "this needs structured output", "this needs high precision" — but the cumulative effect is that the system silently becomes big-core-dependent. The user, who shipped the project under the original small-core contract, has no visibility that their quota is being drained by background work they never authorized as big-core-eligible.
+
+**Real incident (2026-04-18 → 2026-04-21):** The `dada` project (self-writing PM agent) was designed with a strict dual-core split: big core only for identity + high-similarity factual replies. During v11–v12 ship, `contradictions.rs` and `gating.rs` were implemented using `brain.think_precise` (big core = `claude -p --model sonnet`) for background knowledge-graph contradiction scanning and per-reply claim extraction/rewriting. The contradiction scan's tick interval was left at a dev-loop value (`DADA_CONTRADICTION_TICK_SECS=60`) inside the production launchd plist. Result: one `claude sonnet` call every 60 seconds, 24/7, for roughly 60 hours before discovery — **consuming 94% of the user's 7-day `max_20x` quota on account `lihao@golia.jp`**. The user found it by running an unrelated account-usage monitor tool; nothing inside the agent itself flagged the drift.
+
+The project was shut down and archived the same day — not because the spend was unrecoverable, but because the silent architectural drift violated the core trust contract: **the user had no way to know the dual-core design had quietly stopped being true**.
+
+**Root cause stack (all three necessary for the blast):**
+
+1. **Misplaced notion of "precision".** Any time a background task needs structured JSON, it feels natural to reach for the bigger model. This is wrong under a dual-core contract — background tasks are exactly where the small core must suffice, even if the output is rougher. The cost of a wrong small-core verdict on a background scan is vanishingly small; the cost of normalizing big-core use in background paths is architectural bankruptcy.
+
+2. **No tick-interval sanity check before ship.** The plist was copied from a dev smoke-test environment where 60s made sense for fast iteration. No one (including the agent shipping it) did the one-line arithmetic `60 sec × 24 h × ≈cost_per_call` before promoting to production. A single multiply would have produced a number like "$12/day on background contradictions alone" and stopped the ship.
+
+3. **No budget/call-rate observability inside the agent itself.** The runtime had no self-awareness of its own big-core burn rate. Detection relied on an external, unrelated monitoring tool (`devops claude` usage poll) — so the drift could run for days before the human noticed. A system that silently consumes a scarce shared resource with no internal odometer is always one ship away from this class of failure.
+
+**Rules going forward, for any dual-core / small-first system:**
+
+1. **Grep-auditable big-core boundary.** The set of big-core call sites MUST be enumerable by one `grep`. Add a sentinel helper (e.g. `big_core_call(reason: &str, ...)`) and forbid the raw `think_precise` / Claude CLI invocation elsewhere. Every call site must carry a written `reason:` string that ships with the audit log.
+
+2. **No background-loop big-core calls, ever.** Periodic schedulers, reflection loops, knowledge-graph scans, hygiene tasks — these are small-core by policy. If the small core is insufficient for the task, the task is not dual-core-compatible and must be removed or redesigned, not promoted to big core.
+
+3. **Tick-interval cost estimation is a ship blocker.** Before any commit that adds a scheduled big-core call, the commit message / PR body must include: `rate × 24 h × est_cost = $X/day`. If `$X/day > $5` it requires explicit user sign-off in the PR. If the reviewer is the model itself, it still must call out the number to the user in chat before merging.
+
+4. **Plist env vars are production config.** Any `*_SECS` / `*_INTERVAL` / `*_CONCURRENCY` value set in `launchd` / `systemd` / `docker-compose` is production config, not a dev convenience. Default values live in code; env overrides must be justified in the commit that sets them, and any value that raises call rate above the code default requires the same cost-estimation as rule 3.
+
+5. **Self-odometer on metered resources.** Any long-running process that consumes a scarce shared resource (LLM quota, API calls, storage, money) must publish its own running total to the same place the user monitors health (valkey key, status endpoint, dashboard). "We'll know if it's bad because we have external monitoring" is not a substitute — external monitoring tells you the damage is already done.
+
+6. **Architectural-drift disclosure is non-negotiable.** If a change introduces a dependency that contradicts a previously-shipped design contract — even locally, even "temporarily", even if you plan to fix it later — you must flag it to the user in the same turn, with the phrase "this deviates from the shipped design because…". Silent deviations are the failure mode; loud, ugly deviations are debuggable.
+
+**Why this matters beyond the dollar cost:** A user who invests trust and resources in a design philosophy is trusting the agent to defend that philosophy *against its own short-term convenience*. Quietly trading it away for "precision" or "structure" on individual features is the exact betrayal that ends research collaborations. The bug is not "we burned money" — the bug is "we stopped being the system we claimed to be, and didn't tell anyone".
