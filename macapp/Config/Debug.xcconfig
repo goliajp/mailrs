@@ -1,0 +1,14 @@
+#include "Shared.xcconfig"
+
+SWIFT_OPTIMIZATION_LEVEL = -Onone
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) DEBUG
+GCC_PREPROCESSOR_DEFINITIONS = $(inherited) DEBUG=1
+ONLY_ACTIVE_ARCH = YES
+ENABLE_TESTABILITY = YES
+
+// Local development: sign ad-hoc / skip signing so we can build without a
+// paid developer account. Flip to automatic + a team for TestFlight / App Store.
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = -
+CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Development
+DEVELOPMENT_TEAM =
