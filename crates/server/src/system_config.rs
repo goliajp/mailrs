@@ -98,11 +98,10 @@ pub fn find_key(key: &str) -> Option<&'static ConfigKeyInfo> {
 
 fn validate_value(info: &ConfigKeyInfo, value: &str) -> Result<(), String> {
     match info.value_type {
-        "bool" => {
-            if value != "true" && value != "false" {
+        "bool"
+            if value != "true" && value != "false" => {
                 return Err(format!("expected 'true' or 'false', got '{value}'"));
             }
-        }
         "f64" => {
             value.parse::<f64>().map_err(|_| format!("expected number, got '{value}'"))?;
         }

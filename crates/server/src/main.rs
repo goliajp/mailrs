@@ -15,6 +15,7 @@ mod event_bus;
 mod fbl;
 mod health;
 mod html_clean;
+mod ical;
 mod imap_codec;
 mod ldap_auth;
 mod importance;
@@ -1068,8 +1069,8 @@ async fn handle_imap_connection<S>(
                             tokio::select! {
                                 event = rx.recv() => {
                                     match event {
-                                        Ok(event_bus::SmtpEvent::NewMessage { ref user, .. }) => {
-                                            if idle_user.as_deref() == Some(user.as_str()) {
+                                        Ok(event_bus::SmtpEvent::NewMessage { ref user, .. })
+                                            if idle_user.as_deref() == Some(user.as_str()) => {
                                                 let updates = session.idle_status_update().await;
                                                 for u in updates {
                                                     if framed.send(u).await.is_err() {
@@ -1077,7 +1078,6 @@ async fn handle_imap_connection<S>(
                                                     }
                                                 }
                                             }
-                                        }
                                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                                         _ => {}
                                     }
