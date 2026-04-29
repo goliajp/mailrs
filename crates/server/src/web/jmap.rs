@@ -738,9 +738,9 @@ async fn handle_email_query(
 
     // sort by date
     if sort_desc {
-        all_messages.sort_by(|a, b| b.internal_date.cmp(&a.internal_date));
+        all_messages.sort_by_key(|a| std::cmp::Reverse(a.internal_date));
     } else {
-        all_messages.sort_by(|a, b| a.internal_date.cmp(&b.internal_date));
+        all_messages.sort_by_key(|a| a.internal_date);
     }
 
     let total = all_messages.len();

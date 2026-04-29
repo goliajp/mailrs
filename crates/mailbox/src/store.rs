@@ -656,6 +656,7 @@ impl MailboxStore {
     ///   - it isn't snoozed, isn't spam/scam, has a non-empty thread_id
     ///   - the newest message's sender isn't the user (same "don't show
     ///     my own outbox in All" filter list_conversations applies)
+    ///
     /// the function name keeps "unseen" for back-compat but the count is
     /// thread-level — `unread_messages` in the API was always displayed as
     /// "Unread N" without specifying messages vs threads, and threads are
