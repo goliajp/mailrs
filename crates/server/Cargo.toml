@@ -17,6 +17,8 @@ rustls-pemfile = "2"
 bytes = "1"
 futures-util = { version = "0.3", features = ["sink"] }
 chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
+rrule = "0.14"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
