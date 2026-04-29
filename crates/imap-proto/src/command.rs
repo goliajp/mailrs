@@ -372,66 +372,57 @@ pub fn parse_search_criteria(criteria: &str) -> Vec<SearchKey> {
             "DRAFT" => keys.push(SearchKey::Draft),
             "UNDRAFT" => keys.push(SearchKey::Undraft),
             "RECENT" => keys.push(SearchKey::Recent),
-            "FROM" => {
-                if i + 1 < tokens.len() {
+            "FROM"
+                if i + 1 < tokens.len() => {
                     i += 1;
                     keys.push(SearchKey::From(unquote(&tokens[i])));
                 }
-            }
-            "TO" => {
-                if i + 1 < tokens.len() {
+            "TO"
+                if i + 1 < tokens.len() => {
                     i += 1;
                     keys.push(SearchKey::To(unquote(&tokens[i])));
                 }
-            }
-            "SUBJECT" => {
-                if i + 1 < tokens.len() {
+            "SUBJECT"
+                if i + 1 < tokens.len() => {
                     i += 1;
                     keys.push(SearchKey::Subject(unquote(&tokens[i])));
                 }
-            }
-            "TEXT" => {
-                if i + 1 < tokens.len() {
+            "TEXT"
+                if i + 1 < tokens.len() => {
                     i += 1;
                     keys.push(SearchKey::Text(unquote(&tokens[i])));
                 }
-            }
-            "BODY" => {
-                if i + 1 < tokens.len() {
+            "BODY"
+                if i + 1 < tokens.len() => {
                     i += 1;
                     keys.push(SearchKey::Body(unquote(&tokens[i])));
                 }
-            }
-            "SINCE" => {
-                if i + 1 < tokens.len() {
+            "SINCE"
+                if i + 1 < tokens.len() => {
                     i += 1;
                     if let Some(ts) = parse_imap_date(&tokens[i]) {
                         keys.push(SearchKey::Since(ts));
                     }
                 }
-            }
-            "BEFORE" => {
-                if i + 1 < tokens.len() {
+            "BEFORE"
+                if i + 1 < tokens.len() => {
                     i += 1;
                     if let Some(ts) = parse_imap_date(&tokens[i]) {
                         keys.push(SearchKey::Before(ts));
                     }
                 }
-            }
-            "ON" => {
-                if i + 1 < tokens.len() {
+            "ON"
+                if i + 1 < tokens.len() => {
                     i += 1;
                     if let Some(ts) = parse_imap_date(&tokens[i]) {
                         keys.push(SearchKey::On(ts));
                     }
                 }
-            }
-            "UID" => {
-                if i + 1 < tokens.len() {
+            "UID"
+                if i + 1 < tokens.len() => {
                     i += 1;
                     keys.push(SearchKey::Uid(tokens[i].clone()));
                 }
-            }
             // skip unknown tokens (e.g. "CHARSET", "UTF-8")
             _ => {}
         }

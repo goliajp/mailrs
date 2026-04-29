@@ -117,11 +117,7 @@ fn extract_jsonld_blocks(html: &str) -> Vec<String> {
     let lower = html.to_lowercase();
     let mut search_from = 0;
 
-    loop {
-        // find <script type="application/ld+json">
-        let Some(tag_start) = lower[search_from..].find("application/ld+json") else {
-            break;
-        };
+    while let Some(tag_start) = lower[search_from..].find("application/ld+json") {
         let abs_tag = search_from + tag_start;
 
         // find the end of the opening <script> tag
