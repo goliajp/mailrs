@@ -17,6 +17,7 @@
 
 pub mod parse;
 pub mod semantics;
+#[allow(clippy::module_inception)]
 pub mod serialize;
 pub mod vtimezone;
 
