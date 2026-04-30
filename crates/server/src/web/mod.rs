@@ -642,6 +642,14 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             get(calendar_api::get_conflicts),
         )
         .route(
+            "/api/calendar/feeds",
+            get(calendar_api::list_feeds).post(calendar_api::create_feed),
+        )
+        .route(
+            "/api/calendar/feeds/{feed_id}",
+            axum::routing::delete(calendar_api::delete_feed),
+        )
+        .route(
             "/api/invites/{message_id}/rsvp",
             post(rsvp::submit_rsvp),
         )
