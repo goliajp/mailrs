@@ -29,6 +29,13 @@ pub(super) struct RsvpRequest {
     #[serde(default)]
     #[allow(dead_code)]
     pub comment: Option<String>,
+    /// When set, the RSVP applies to a single occurrence of a recurring
+    /// series rather than the master (RFC 5545 §3.8.4.4 + RFC 5546 §3.4).
+    /// ISO-8601 UTC instant matching the occurrence's DTSTART. The web
+    /// client passes this through automatically when the inbound invite
+    /// itself carried a RECURRENCE-ID.
+    #[serde(default)]
+    pub recurrence_id: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize)]
@@ -104,7 +111,16 @@ pub(super) async fn submit_rsvp(
         .unwrap_or("Invitation")
         .to_string();
 
-    let reply_ics = build_reply_ics(&invite_payload, &user, &partstat);
+    // Effective recurrence-id: prefer caller-supplied (e.g. the user
+    // explicitly chose "this occurrence" in the UI); fall back to whatever
+    // the invite itself carried (organizer-issued single-instance update).
+    let effective_recurrence_id: Option<DateTime<Utc>> = req.recurrence_id.or_else(|| {
+        invite_payload
+            .get("recurrence_id")
+            .and_then(|v| extract_caldatetime_to_utc(Some(v)))
+    });
+
+    let reply_ics = build_reply_ics(&invite_payload, &user, &partstat, effective_recurrence_id);
 
     let now_utc = Utc::now();
     let now_secs = now_utc.timestamp();
@@ -170,7 +186,15 @@ pub(super) async fn submit_rsvp(
     // client. Decline doesn't write (per Decisions: declined invites stay
     // off the calendar by default).
     if partstat == "ACCEPTED" || partstat == "TENTATIVE" {
-        if let Err(e) = write_to_own_calendar(pool, &user, &invite_payload, &partstat, now_utc).await
+        if let Err(e) = write_to_own_calendar(
+            pool,
+            &user,
+            &invite_payload,
+            &partstat,
+            now_utc,
+            effective_recurrence_id,
+        )
+        .await
         {
             tracing::warn!("rsvp write_to_own_calendar failed: {e}");
         }
@@ -188,7 +212,12 @@ pub(super) async fn submit_rsvp(
 /// original (RFC 5546 §3.4 says REPLY MUST preserve both); flips PARTSTAT
 /// on the user's ATTENDEE row and drops the rest (REPLY carries only the
 /// sender's row).
-fn build_reply_ics(invite_payload: &serde_json::Value, user_email: &str, partstat: &str) -> String {
+fn build_reply_ics(
+    invite_payload: &serde_json::Value,
+    user_email: &str,
+    partstat: &str,
+    recurrence_id: Option<DateTime<Utc>>,
+) -> String {
     let uid = invite_payload
         .get("uid")
         .and_then(|v| v.as_str())
@@ -249,6 +278,12 @@ fn build_reply_ics(invite_payload: &serde_json::Value, user_email: &str, partsta
     }
     if let Some(s) = dtend_iso {
         ics.push_str(&format!("DTEND:{s}\r\n"));
+    }
+    if let Some(rid) = recurrence_id {
+        ics.push_str(&format!(
+            "RECURRENCE-ID:{}\r\n",
+            rid.format("%Y%m%dT%H%M%SZ")
+        ));
     }
     if !summary.is_empty() {
         ics.push_str(&format!("SUMMARY:{summary}\r\n"));
@@ -318,6 +353,7 @@ async fn write_to_own_calendar(
     invite_payload: &serde_json::Value,
     partstat: &str,
     now: DateTime<Utc>,
+    recurrence_id: Option<DateTime<Utc>>,
 ) -> Result<(), sqlx::Error> {
     let uid = invite_payload
         .get("uid")
@@ -364,11 +400,11 @@ async fn write_to_own_calendar(
         "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//mailrs//MRS-1 ICS//EN\r\nBEGIN:VEVENT\r\nUID:{uid}\r\nSUMMARY:{summary}\r\nSTATUS:{status_str}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
     );
 
-    sqlx::query(
+    let sql = if recurrence_id.is_some() {
         "INSERT INTO calendar_events
-            (calendar_id, uid, etag, icalendar, summary, dtstart, dtend, status, last_modified)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         ON CONFLICT (calendar_id, uid) DO UPDATE SET
+            (calendar_id, uid, etag, icalendar, summary, dtstart, dtend, status, last_modified, recurrence_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (calendar_id, uid, recurrence_id) WHERE recurrence_id IS NOT NULL DO UPDATE SET
             etag = EXCLUDED.etag,
             icalendar = EXCLUDED.icalendar,
             summary = EXCLUDED.summary,
@@ -376,19 +412,35 @@ async fn write_to_own_calendar(
             dtend = EXCLUDED.dtend,
             status = EXCLUDED.status,
             last_modified = EXCLUDED.last_modified,
-            updated_at = now()",
-    )
-    .bind(cal_id)
-    .bind(uid)
-    .bind(&etag)
-    .bind(&raw_min)
-    .bind(summary)
-    .bind(dtstart_utc)
-    .bind(dtend_utc)
-    .bind(status_str)
-    .bind(now)
-    .execute(pool)
-    .await?;
+            updated_at = now()"
+    } else {
+        "INSERT INTO calendar_events
+            (calendar_id, uid, etag, icalendar, summary, dtstart, dtend, status, last_modified, recurrence_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (calendar_id, uid) WHERE recurrence_id IS NULL DO UPDATE SET
+            etag = EXCLUDED.etag,
+            icalendar = EXCLUDED.icalendar,
+            summary = EXCLUDED.summary,
+            dtstart = EXCLUDED.dtstart,
+            dtend = EXCLUDED.dtend,
+            status = EXCLUDED.status,
+            last_modified = EXCLUDED.last_modified,
+            updated_at = now()"
+    };
+
+    sqlx::query(sql)
+        .bind(cal_id)
+        .bind(uid)
+        .bind(&etag)
+        .bind(&raw_min)
+        .bind(summary)
+        .bind(dtstart_utc)
+        .bind(dtend_utc)
+        .bind(status_str)
+        .bind(now)
+        .bind(recurrence_id)
+        .execute(pool)
+        .await?;
 
     Ok(())
 }

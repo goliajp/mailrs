@@ -76,7 +76,11 @@ pub async fn upsert_from_parsed_invite(
     let status_str = parsed.status.map(event_status_str);
     let method_str = method_str(parsed.method);
 
-    sqlx::query(
+    // Pick the conflict target based on whether this is a master-series
+    // upsert (recurrence_id IS NULL — most common, applies to non-
+    // recurring events too) or a per-instance override (RFC 5545 §3.8.4.4).
+    // Migration 033 set up matching partial unique indexes.
+    let sql = if recurrence_id_utc.is_some() {
         "INSERT INTO calendar_events (
             calendar_id, uid, etag, icalendar,
             summary, dtstart, dtend,
@@ -88,7 +92,8 @@ pub async fn upsert_from_parsed_invite(
             $8, $9, $10, $11,
             $12, $13, $14, $15, $16
         )
-        ON CONFLICT (calendar_id, uid)
+        ON CONFLICT (calendar_id, uid, recurrence_id)
+        WHERE recurrence_id IS NOT NULL
         DO UPDATE SET
             etag = EXCLUDED.etag,
             icalendar = EXCLUDED.icalendar,
@@ -104,8 +109,40 @@ pub async fn upsert_from_parsed_invite(
             rrule = EXCLUDED.rrule,
             recurrence_id = EXCLUDED.recurrence_id,
             last_modified = EXCLUDED.last_modified,
-            updated_at = now()",
-    )
+            updated_at = now()"
+    } else {
+        "INSERT INTO calendar_events (
+            calendar_id, uid, etag, icalendar,
+            summary, dtstart, dtend,
+            organizer, attendees, sequence, dtstamp,
+            status, method, rrule, recurrence_id, last_modified
+        ) VALUES (
+            $1, $2, $3, $4,
+            $5, $6, $7,
+            $8, $9, $10, $11,
+            $12, $13, $14, $15, $16
+        )
+        ON CONFLICT (calendar_id, uid)
+        WHERE recurrence_id IS NULL
+        DO UPDATE SET
+            etag = EXCLUDED.etag,
+            icalendar = EXCLUDED.icalendar,
+            summary = EXCLUDED.summary,
+            dtstart = EXCLUDED.dtstart,
+            dtend = EXCLUDED.dtend,
+            organizer = EXCLUDED.organizer,
+            attendees = EXCLUDED.attendees,
+            sequence = EXCLUDED.sequence,
+            dtstamp = EXCLUDED.dtstamp,
+            status = EXCLUDED.status,
+            method = EXCLUDED.method,
+            rrule = EXCLUDED.rrule,
+            recurrence_id = EXCLUDED.recurrence_id,
+            last_modified = EXCLUDED.last_modified,
+            updated_at = now()"
+    };
+
+    sqlx::query(sql)
     .bind(calendar_id)
     .bind(uid)
     .bind(etag)
