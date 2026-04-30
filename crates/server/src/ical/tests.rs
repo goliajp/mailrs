@@ -1,11 +1,14 @@
 //! Integration tests for the self-built ical parser.
 //!
-//! Test corpus lives in the MRS-1 claw at
-//! `~/workspace/claws/MRS-1/fixtures/itip/<source>/<method>.ics` and is **not**
-//! checked into this repo (per MRS-1 cardinal rule). A small subset of
-//! synthesized RFC 5545 §3.4 sample invites is inlined here so that
-//! `cargo test -p mailrs-server` is self-contained until MRS-11 promotes
-//! fixtures into the repo.
+//! Two corpora:
+//! - **inlined RFC 5545 §3.4 samples** (this file) — minimal hand-typed
+//!   invites that round-trip every public field, run on `cargo test` with
+//!   no I/O.
+//! - **vendor consumer matrix** (`consumer_matrix` submodule) — promoted from
+//!   the MRS-1 claw at MRS-11 land time. `tests/fixtures/itip/<vendor>/*.eml`
+//!   walks Outlook / Google / iCloud / Zoom / Nextcloud wire shapes through
+//!   `invite_extract` + `parse_invite` to lock in the wire-format quirks
+//!   each vendor ships.
 
 use super::{parse_invite, serialize, IcalError, Method, PartStat, Role};
 use chrono::TimeZone;
@@ -188,5 +191,171 @@ fn recognises_itip_methods() {
         let parsed = parse_invite(body.as_bytes())
             .unwrap_or_else(|e| panic!("failed to parse METHOD={text_method}: {e:?}"));
         assert_eq!(parsed.method, expected, "METHOD={text_method}");
+    }
+}
+
+/// Vendor consumer matrix. Walks every `.eml` under
+/// `tests/fixtures/itip/<vendor>/` through the full inbound pipeline
+/// (extract calendar part → parse → semantic typing) and asserts the
+/// invariants every wire-shape must satisfy. Per-file expectations are
+/// driven by the filename: `request.eml` → REQUEST, `update.eml` →
+/// REQUEST with SEQUENCE>=1, `cancel.eml` → CANCEL, etc.
+mod consumer_matrix {
+    use super::super::{parse_invite, CalDateTime, Method};
+    use crate::calendar::invite_extract::extract_invite_part;
+    use std::path::PathBuf;
+
+    fn fixtures_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/itip")
+    }
+
+    /// Read every `<vendor>/<method>.eml` under the corpus root.
+    fn walk_corpus() -> Vec<(String, String, Vec<u8>)> {
+        let root = fixtures_root();
+        let mut out = Vec::new();
+        for vendor_dir in std::fs::read_dir(&root)
+            .unwrap_or_else(|e| panic!("read {:?}: {e}", root))
+            .filter_map(Result::ok)
+        {
+            if !vendor_dir.file_type().map(|f| f.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let vendor = vendor_dir.file_name().to_string_lossy().into_owned();
+            for entry in std::fs::read_dir(vendor_dir.path()).unwrap().flatten() {
+                let p = entry.path();
+                if p.extension().and_then(|e| e.to_str()) != Some("eml") {
+                    continue;
+                }
+                let stem = p.file_stem().unwrap().to_string_lossy().into_owned();
+                let bytes = std::fs::read(&p).unwrap();
+                out.push((vendor.clone(), stem, bytes));
+            }
+        }
+        assert!(!out.is_empty(), "no fixtures found under {:?}", root);
+        out.sort();
+        out
+    }
+
+    /// Map filename stem → expected iTIP METHOD on the body.
+    /// Note `update.eml` wire-format is METHOD=REQUEST + SEQUENCE>=1
+    /// (per RFC 5546 §3.2.5 — there is no METHOD:UPDATE on the calendar).
+    fn expected_method(stem: &str) -> Method {
+        match stem {
+            "cancel" => Method::Cancel,
+            _ => Method::Request,
+        }
+    }
+
+    #[test]
+    fn every_fixture_extracts_calendar_part() {
+        for (vendor, stem, bytes) in walk_corpus() {
+            extract_invite_part(&bytes)
+                .unwrap_or_else(|| panic!("{vendor}/{stem}.eml: extract_invite_part returned None"));
+        }
+    }
+
+    #[test]
+    fn every_fixture_parses_to_typed_invite() {
+        for (vendor, stem, bytes) in walk_corpus() {
+            let extracted = extract_invite_part(&bytes)
+                .unwrap_or_else(|| panic!("{vendor}/{stem}.eml: no calendar part"));
+            let parsed = parse_invite(&extracted.ics_bytes).unwrap_or_else(|e| {
+                panic!("{vendor}/{stem}.eml: parse_invite failed: {e:?}")
+            });
+
+            assert!(!parsed.uid.is_empty(), "{vendor}/{stem}.eml UID empty");
+            assert_eq!(
+                parsed.method,
+                expected_method(&stem),
+                "{vendor}/{stem}.eml METHOD"
+            );
+            // DTSTART must be set in some form.
+            match &parsed.dtstart {
+                CalDateTime::Floating(_) | CalDateTime::Utc(_) => {}
+                CalDateTime::Zoned { tz_name, .. } => {
+                    assert!(!tz_name.is_empty(), "{vendor}/{stem}.eml empty TZID")
+                }
+                CalDateTime::Date(_) => {}
+            }
+            // Most fixtures (other than CANCEL retraction) carry attendees.
+            // CANCEL spec-wise still includes the attendee list so the
+            // recipient can recognize itself; we keep the assertion
+            // unconditional to lock that in.
+            assert!(
+                !parsed.attendees.is_empty(),
+                "{vendor}/{stem}.eml ATTENDEE list empty"
+            );
+        }
+    }
+
+    /// UPDATE must carry SEQUENCE >= 1 (per RFC 5546 §3.2.5 — receivers use
+    /// SEQUENCE/DTSTAMP monotonicity to discriminate stale vs fresh).
+    #[test]
+    fn update_fixtures_bump_sequence() {
+        for (vendor, stem, bytes) in walk_corpus() {
+            if stem != "update" {
+                continue;
+            }
+            let extracted = extract_invite_part(&bytes).unwrap();
+            let parsed = parse_invite(&extracted.ics_bytes).unwrap();
+            assert!(
+                parsed.sequence >= 1,
+                "{vendor}/update.eml SEQUENCE={} (expected >= 1)",
+                parsed.sequence
+            );
+        }
+    }
+
+    /// CANCEL fixtures must surface STATUS=CANCELLED so the reconcile state
+    /// machine (MRS-7) can mark the local row.
+    #[test]
+    fn cancel_fixtures_carry_cancelled_status() {
+        use super::super::EventStatus;
+        for (vendor, stem, bytes) in walk_corpus() {
+            if stem != "cancel" {
+                continue;
+            }
+            let extracted = extract_invite_part(&bytes).unwrap();
+            let parsed = parse_invite(&extracted.ics_bytes).unwrap();
+            assert_eq!(
+                parsed.status,
+                Some(EventStatus::Cancelled),
+                "{vendor}/cancel.eml STATUS"
+            );
+        }
+    }
+
+    /// Per-instance override fixtures must carry RECURRENCE-ID so the
+    /// MRS-9 partial-index upsert lands on the override row, not the
+    /// master series row.
+    #[test]
+    fn recurring_instance_override_carries_recurrence_id() {
+        for (vendor, stem, bytes) in walk_corpus() {
+            if stem != "recurring-instance-override" {
+                continue;
+            }
+            let extracted = extract_invite_part(&bytes).unwrap();
+            let parsed = parse_invite(&extracted.ics_bytes).unwrap();
+            assert!(
+                parsed.recurrence_id.is_some(),
+                "{vendor}/recurring-instance-override.eml missing RECURRENCE-ID"
+            );
+        }
+    }
+
+    /// Recurring REQUEST fixtures must carry RRULE.
+    #[test]
+    fn recurring_request_carries_rrule() {
+        for (vendor, stem, bytes) in walk_corpus() {
+            if stem != "recurring-request" {
+                continue;
+            }
+            let extracted = extract_invite_part(&bytes).unwrap();
+            let parsed = parse_invite(&extracted.ics_bytes).unwrap();
+            assert!(
+                parsed.rrule.is_some(),
+                "{vendor}/recurring-request.eml missing RRULE"
+            );
+        }
     }
 }

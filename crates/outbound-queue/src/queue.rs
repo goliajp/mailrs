@@ -303,6 +303,7 @@ pub async fn retry_message(pool: &PgPool, id: i64, now: i64) -> Result<bool, sql
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 
