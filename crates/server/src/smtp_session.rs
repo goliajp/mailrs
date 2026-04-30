@@ -887,10 +887,46 @@ where
                                                                         SmtpEvent::InviteReceived {
                                                                             user: user.clone(),
                                                                             message_id: msg_id,
-                                                                            method: method_str,
+                                                                            method: method_str.clone(),
                                                                             uid: parsed.uid.clone(),
                                                                         },
                                                                     );
+                                                                    // MRS-7: reconcile against
+                                                                    // the user's own calendar
+                                                                    // (only touches events the
+                                                                    // user has already RSVP'd).
+                                                                    if let Some(ref pool) =
+                                                                        ctx.outbound_queue
+                                                                    {
+                                                                        let raw_ics = std::str::from_utf8(
+                                                                            &extracted.ics_bytes,
+                                                                        )
+                                                                        .unwrap_or("");
+                                                                        match crate::calendar::reconcile::reconcile_inbound_invite(
+                                                                            pool,
+                                                                            &user,
+                                                                            &parsed,
+                                                                            raw_ics,
+                                                                        )
+                                                                        .await
+                                                                        {
+                                                                            Ok(outcome) => {
+                                                                                tracing::info!(
+                                                                                    user = %user,
+                                                                                    uid = %parsed.uid,
+                                                                                    method = %method_str,
+                                                                                    outcome = ?outcome,
+                                                                                    "reconcile",
+                                                                                );
+                                                                            }
+                                                                            Err(e) => {
+                                                                                tracing::warn!(
+                                                                                    "reconcile failed for {user}/{}: {e}",
+                                                                                    parsed.uid,
+                                                                                );
+                                                                            }
+                                                                        }
+                                                                    }
                                                                 }
                                                                 Ok(None) => {
                                                                     tracing::debug!(
