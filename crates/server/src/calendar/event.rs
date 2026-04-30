@@ -11,7 +11,7 @@
 // Remove this allow once they're all wired.
 #![allow(dead_code)]
 
-use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
 use serde_json::json;
 use sqlx::PgPool;
 
@@ -167,10 +167,16 @@ pub async fn upsert_from_parsed_invite(
 
 /// Find calendar events whose [dtstart, dtend) overlaps [start, end).
 ///
-/// Excludes events with status='CANCELLED' (matches the partial index from
-/// migration 031). When `exclude_uid` is Some, that UID is filtered out so
-/// the caller (e.g. invite card conflict pane) doesn't show the event being
-/// looked at as "conflicting with itself".
+/// Excludes events with status='CANCELLED'. When `exclude_uid` is Some,
+/// that UID is filtered out so the caller (e.g. invite card conflict
+/// pane) doesn't show the event being looked at as "conflicting with
+/// itself".
+///
+/// Recurring series with `rrule IS NOT NULL` are expanded lazily via the
+/// `rrule` crate: the master row's static dtstart may be years in the
+/// past, but if the RRULE produces an occurrence inside the query window
+/// we still emit a synthetic ConflictRow with the occurrence's dtstart /
+/// dtend so the UI shows the right conflict time. Limited to 50 results.
 pub async fn find_conflicts(
     pool: &PgPool,
     calendar_id: i64,
@@ -179,30 +185,149 @@ pub async fn find_conflicts(
     exclude_uid: Option<&str>,
 ) -> Result<Vec<CalendarEventRow>, sqlx::Error> {
     let exclude = exclude_uid.unwrap_or("").to_string();
-    let rows: Vec<CalendarEventRow> = sqlx::query_as::<_, EventRowSqlx>(
+
+    // Two-branch candidate fetch:
+    //   - static event whose static interval intersects the window
+    //   - any recurring series whose dtstart precedes the window end
+    //     (we'll RRULE-expand it in Rust to check actual occurrences)
+    let candidates: Vec<EventRowFull> = sqlx::query_as::<_, EventRowFull>(
         "SELECT id, calendar_id, uid, etag, summary, dtstart, dtend,
-                organizer, status, sequence, method
+                organizer, status, sequence, method, rrule
          FROM calendar_events
          WHERE calendar_id = $1
            AND (status IS DISTINCT FROM 'CANCELLED')
            AND dtstart IS NOT NULL
-           AND dtstart < $3
-           AND COALESCE(dtend, dtstart) > $2
            AND ($4 = '' OR uid != $4)
+           AND (
+                (rrule IS NULL AND dtstart < $3 AND COALESCE(dtend, dtstart) > $2)
+             OR (rrule IS NOT NULL AND dtstart < $3)
+           )
          ORDER BY dtstart ASC
-         LIMIT 50",
+         LIMIT 200",
     )
     .bind(calendar_id)
     .bind(start)
     .bind(end)
     .bind(exclude)
     .fetch_all(pool)
-    .await?
-    .into_iter()
-    .map(Into::into)
-    .collect();
+    .await?;
 
-    Ok(rows)
+    let mut conflicts = Vec::with_capacity(candidates.len().min(50));
+    for row in candidates {
+        let dtstart_orig = match row.dtstart {
+            Some(d) => d,
+            None => continue,
+        };
+        let duration = row
+            .dtend
+            .map(|e| e.signed_duration_since(dtstart_orig))
+            .unwrap_or_else(chrono::Duration::zero);
+
+        match &row.rrule {
+            Some(rrule_str) if !rrule_str.is_empty() => {
+                // Expand and find the first occurrence inside [start, end).
+                let occs = expand_rrule_utc(rrule_str, dtstart_orig, start, end);
+                for occ in occs {
+                    let occ_end = occ + duration;
+                    if occ < end && occ_end > start {
+                        conflicts.push(CalendarEventRow {
+                            id: row.id,
+                            calendar_id: row.calendar_id,
+                            uid: row.uid.clone(),
+                            etag: row.etag.clone(),
+                            summary: row.summary.clone(),
+                            dtstart: Some(occ),
+                            dtend: Some(occ_end),
+                            organizer: row.organizer.clone(),
+                            status: row.status.clone(),
+                            sequence: row.sequence,
+                            method: row.method.clone(),
+                        });
+                        break;
+                    }
+                }
+            }
+            _ => {
+                conflicts.push(CalendarEventRow {
+                    id: row.id,
+                    calendar_id: row.calendar_id,
+                    uid: row.uid,
+                    etag: row.etag,
+                    summary: row.summary,
+                    dtstart: row.dtstart,
+                    dtend: row.dtend,
+                    organizer: row.organizer,
+                    status: row.status,
+                    sequence: row.sequence,
+                    method: row.method,
+                });
+            }
+        }
+
+        if conflicts.len() >= 50 {
+            break;
+        }
+    }
+
+    conflicts.sort_by_key(|c| c.dtstart);
+    Ok(conflicts)
+}
+
+/// Run an RRULE string + DTSTART through the `rrule` crate, returning the
+/// occurrences that fall inside [range_start, range_end] in UTC. Failures
+/// (parse errors, unsupported rules) silently return an empty vec — the
+/// caller falls back to the static-row case which is still a valid result.
+fn expand_rrule_utc(
+    rrule_str: &str,
+    dtstart: DateTime<Utc>,
+    range_start: DateTime<Utc>,
+    range_end: DateTime<Utc>,
+) -> Vec<DateTime<Utc>> {
+    use rrule::{RRuleSet, Tz as RTz};
+
+    let dtstart_iso = dtstart.format("%Y%m%dT%H%M%SZ").to_string();
+    let source = format!("DTSTART:{dtstart_iso}\nRRULE:{rrule_str}");
+    let Ok(set): Result<RRuleSet, _> = source.parse() else {
+        return Vec::new();
+    };
+
+    use chrono::TimeZone;
+    let after = match RTz::UTC
+        .with_ymd_and_hms(
+            range_start.year(),
+            range_start.month(),
+            range_start.day(),
+            range_start.hour(),
+            range_start.minute(),
+            range_start.second(),
+        )
+        .single()
+    {
+        Some(d) => d,
+        None => return Vec::new(),
+    };
+    let before = match RTz::UTC
+        .with_ymd_and_hms(
+            range_end.year(),
+            range_end.month(),
+            range_end.day(),
+            range_end.hour(),
+            range_end.minute(),
+            range_end.second(),
+        )
+        .single()
+    {
+        Some(d) => d,
+        None => return Vec::new(),
+    };
+
+    set.after(after)
+        .before(before)
+        .all(200)
+        .dates
+        .into_iter()
+        .map(|d| d.with_timezone(&Utc))
+        .collect()
 }
 
 /// Lookup a single event by (calendar_id, uid). Returns None when absent.
@@ -254,6 +379,24 @@ struct EventRowSqlx {
     status: Option<String>,
     sequence: i32,
     method: Option<String>,
+}
+
+/// Same shape as [`EventRowSqlx`] plus `rrule`. Used by `find_conflicts`
+/// where the RRULE field decides between static and expansion paths.
+#[derive(sqlx::FromRow)]
+struct EventRowFull {
+    id: i64,
+    calendar_id: i64,
+    uid: String,
+    etag: String,
+    summary: String,
+    dtstart: Option<DateTime<Utc>>,
+    dtend: Option<DateTime<Utc>>,
+    organizer: Option<String>,
+    status: Option<String>,
+    sequence: i32,
+    method: Option<String>,
+    rrule: Option<String>,
 }
 
 impl From<EventRowSqlx> for CalendarEventRow {

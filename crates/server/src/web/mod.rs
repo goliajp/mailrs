@@ -645,6 +645,10 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             "/api/invites/{message_id}/rsvp",
             post(rsvp::submit_rsvp),
         )
+        .route(
+            "/api/invites/{message_id}/counter",
+            post(rsvp::submit_counter),
+        )
         .route("/api/mail/folders", get(mail::get_folders))
         .route(
             "/api/mail/folders/{name}/messages",
