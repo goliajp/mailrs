@@ -4,6 +4,7 @@ import QuickLook
 struct MessageBubbleView: View {
     let message: ThreadMessage
     let attachmentService: AttachmentService
+    let inviteService: InviteService
 
     @State private var expanded: Bool = true
     @State private var previewURL: URL?
@@ -16,6 +17,9 @@ struct MessageBubbleView: View {
             if expanded {
                 metadataRow
                 Divider().padding(.vertical, 4)
+                if message.attachments.contains(where: { $0.isCalendarPart }) {
+                    InviteCardView(messageUid: message.uid, inviteService: inviteService)
+                }
                 body(for: message)
                 if !message.attachments.isEmpty {
                     attachmentsSection
