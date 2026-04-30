@@ -10,6 +10,8 @@
 #![allow(unused_imports)]
 
 pub mod event;
+pub mod feed;
+pub mod feed_worker;
 pub mod invite_extract;
 pub mod reconcile;
 
