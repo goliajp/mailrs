@@ -21,7 +21,8 @@ struct ThreadView: View {
                         ForEach(model.messages) { message in
                             MessageBubbleView(
                                 message: message,
-                                attachmentService: app.attachmentService
+                                attachmentService: app.attachmentService,
+                                inviteService: app.inviteService
                             )
                         }
                     }

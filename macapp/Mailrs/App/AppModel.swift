@@ -11,6 +11,7 @@ final class AppModel {
     let threadService: ThreadService
     let actionService: MessageActionService
     let attachmentService: AttachmentService
+    let inviteService: InviteService
     let mailModel: MailModel
     let threadModel: ThreadModel
     let mailSendService: MailSendService
@@ -35,6 +36,7 @@ final class AppModel {
         self.mailSendService = sendSvc
         self.draftService = draftSvc
         self.attachmentService = AttachmentService(baseURL: AppConfig.apiBaseURL, tokenProvider: store)
+        self.inviteService = InviteService(api: api)
         self.mailModel = MailModel(service: convService)
         self.threadModel = ThreadModel(threadService: thrService, actionService: actService)
         self.eventsClient = EventsClient()
