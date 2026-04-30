@@ -138,6 +138,11 @@ pub(super) struct MessageDetail {
     /// METHOD value if the message is an invite (REQUEST / REPLY /
     /// CANCEL / UPDATE / ...); None for non-invite messages.
     pub invite_method: Option<String>,
+    /// MRS-19: user's RSVP partstat for this invite if previously sent
+    /// (ACCEPTED / TENTATIVE / DECLINED). NULL means "not replied yet".
+    pub rsvp_status: Option<String>,
+    /// Timestamp the RSVP partstat above was recorded.
+    pub rsvp_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Deserialize)]
@@ -334,37 +339,42 @@ pub(super) async fn get_message(
                 )
             };
 
-            // Pull invite payload / method directly from messages row.
-            // MRS-4 (v1.5.0) wrote these on inbound delivery — but messages
-            // that arrived *before* v1.5.0 deployed will always have NULL
-            // here. MRS-14 hotfix: lazy on-read backfill — when null, parse
-            // the raw maildir bytes now and UPDATE so subsequent reads are
-            // fast. This is what makes existing inboxes' invite cards work
-            // without an explicit migration / backfill task.
-            let (invite_payload, invite_method) = if let Some(ref pool) = state.pg_pool {
-                let stored: (Option<serde_json::Value>, Option<String>) = sqlx::query_as(
-                    "SELECT invite_payload, invite_method FROM messages WHERE id = $1",
-                )
-                .bind(msg.id)
-                .fetch_optional(pool)
-                .await
-                .ok()
-                .flatten()
-                .unwrap_or((None, None));
+            // Pull invite payload / method / rsvp status directly from the
+            // messages row.
+            // MRS-4 (v1.5.0) writes invite_payload + invite_method on inbound
+            // delivery; MRS-14 lazy-backfills NULL columns on read.
+            // MRS-19 adds rsvp_status + rsvp_at, written by the RSVP API.
+            let (invite_payload, invite_method, rsvp_status, rsvp_at) =
+                if let Some(ref pool) = state.pg_pool {
+                    let stored: (
+                        Option<serde_json::Value>,
+                        Option<String>,
+                        Option<String>,
+                        Option<chrono::DateTime<chrono::Utc>>,
+                    ) = sqlx::query_as(
+                        "SELECT invite_payload, invite_method, rsvp_status, rsvp_at
+                         FROM messages WHERE id = $1",
+                    )
+                    .bind(msg.id)
+                    .fetch_optional(pool)
+                    .await
+                    .ok()
+                    .flatten()
+                    .unwrap_or((None, None, None, None));
 
-                if stored.0.is_some() {
-                    stored
-                } else if let Some(ref raw_bytes) = raw {
-                    try_lazy_backfill_invite(pool, msg.id, raw_bytes.as_slice())
-                        .await
-                        .map(|(p, m)| (Some(p), Some(m)))
-                        .unwrap_or(stored)
+                    if stored.0.is_some() {
+                        stored
+                    } else if let Some(ref raw_bytes) = raw {
+                        match try_lazy_backfill_invite(pool, msg.id, raw_bytes.as_slice()).await {
+                            Some((p, m)) => (Some(p), Some(m), stored.2, stored.3),
+                            None => stored,
+                        }
+                    } else {
+                        stored
+                    }
                 } else {
-                    stored
-                }
-            } else {
-                (None, None)
-            };
+                    (None, None, None, None)
+                };
 
             return Json(Some(MessageDetail {
                 uid: msg.uid,
@@ -389,6 +399,8 @@ pub(super) async fn get_message(
                 clean_text,
                 invite_payload,
                 invite_method,
+                rsvp_status,
+                rsvp_at,
             }));
         }
     }
