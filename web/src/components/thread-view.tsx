@@ -26,6 +26,7 @@ import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
 import { BottomSheet } from '@/components/bottom-sheet'
 import { Copyable } from '@/components/copy-button'
+import { InviteCard } from '@/components/invite-card'
 import { MessageBubble } from '@/components/message-bubble'
 import { MobileModal } from '@/components/mobile-modal'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
@@ -734,6 +735,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   {subjectText}
                                 </div>
                               )}
+                              {msg.attachments.some((a) =>
+                                a.content_type.toLowerCase().startsWith('text/calendar')
+                              ) && <InviteCard messageUid={msg.uid} />}
                               <BubbleBody
                                 msg={msg}
                                 myEmail={myEmail}

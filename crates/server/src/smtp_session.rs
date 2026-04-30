@@ -823,7 +823,7 @@ where
                                                     .await;
                                             }
 
-                                            let _ = mb_store
+                                            let indexed_uid = mb_store
                                                 .index_message(
                                                     &user,
                                                     &rcpt_folder,
@@ -837,17 +837,80 @@ where
                                                     &msg_in_reply_to,
                                                     &thread_id,
                                                 )
-                                                .await;
+                                                .await
+                                                .ok();
 
                                             // emit NewMessage event
                                             let snippet = extract_snippet(&full_message);
                                             ctx.event_bus.emit(SmtpEvent::NewMessage {
                                                 user: user.clone(),
-                                                thread_id,
+                                                thread_id: thread_id.clone(),
                                                 sender: sender.clone(),
                                                 subject: subject.clone(),
                                                 snippet,
                                             });
+
+                                            // MRS-4: detect iTIP / iMIP invite parts
+                                            // and project the parsed payload onto
+                                            // messages.invite_payload so the web
+                                            // client / macapp can render an
+                                            // invite card without re-parsing.
+                                            if let Some(uid) = indexed_uid {
+                                                if let Some(extracted) =
+                                                    crate::calendar::invite_extract::extract_invite_part(
+                                                        &full_message,
+                                                    )
+                                                {
+                                                    if let Ok(parsed) = crate::ical::parse_invite(
+                                                        &extracted.ics_bytes,
+                                                    ) {
+                                                        if let Ok(payload_json) =
+                                                            serde_json::to_value(&parsed)
+                                                        {
+                                                            let method_str = format!(
+                                                                "{:?}",
+                                                                parsed.method
+                                                            )
+                                                            .to_uppercase();
+                                                            match mb_store
+                                                                .update_invite_payload(
+                                                                    &user,
+                                                                    &rcpt_folder,
+                                                                    uid,
+                                                                    &payload_json,
+                                                                    &method_str,
+                                                                )
+                                                                .await
+                                                            {
+                                                                Ok(Some(msg_id)) => {
+                                                                    ctx.event_bus.emit(
+                                                                        SmtpEvent::InviteReceived {
+                                                                            user: user.clone(),
+                                                                            message_id: msg_id,
+                                                                            method: method_str,
+                                                                            uid: parsed.uid.clone(),
+                                                                        },
+                                                                    );
+                                                                }
+                                                                Ok(None) => {
+                                                                    tracing::debug!(
+                                                                        "invite detected but message row not found for {user}/{rcpt_folder}/{uid}"
+                                                                    );
+                                                                }
+                                                                Err(e) => {
+                                                                    tracing::warn!(
+                                                                        "update_invite_payload failed: {e}"
+                                                                    );
+                                                                }
+                                                            }
+                                                        }
+                                                    } else {
+                                                        tracing::debug!(
+                                                            "text/calendar part found but ical parse failed for {user}/{rcpt_folder}/{uid}"
+                                                        );
+                                                    }
+                                                }
+                                            }
 
                                             // async post-delivery: contact upsert + content extraction + importance scoring
                                             let mb_store_bg = Arc::clone(mb_store);

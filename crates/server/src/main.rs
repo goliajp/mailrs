@@ -14,6 +14,7 @@ pub(crate) mod permission;
 mod event_bus;
 mod fbl;
 mod health;
+mod calendar;
 mod html_clean;
 mod ical;
 mod imap_codec;

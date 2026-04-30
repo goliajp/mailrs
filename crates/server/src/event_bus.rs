@@ -76,6 +76,15 @@ pub enum SmtpEvent {
         subject: String,
         snippet: String,
     },
+    /// Inbound message carried a `text/calendar` MIME part and was parsed
+    /// successfully by `mailrs::ical`. Web client / macapp use this to
+    /// open or refresh an invite-card view in real time.
+    InviteReceived {
+        user: String,
+        message_id: i64,
+        method: String,
+        uid: String,
+    },
 }
 
 #[derive(Clone)]
