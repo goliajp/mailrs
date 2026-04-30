@@ -682,6 +682,7 @@ async fn event_put(
             "INSERT INTO calendar_events (calendar_id, uid, etag, icalendar, summary, dtstart, dtend)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
              ON CONFLICT (calendar_id, uid)
+             WHERE recurrence_id IS NULL
              DO UPDATE SET etag = $3, icalendar = $4, summary = $5, dtstart = $6, dtend = $7, updated_at = now()",
         )
         .bind(cal_id)
