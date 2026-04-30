@@ -735,9 +735,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                                   {subjectText}
                                 </div>
                               )}
-                              {msg.attachments.some((a) =>
-                                a.content_type.toLowerCase().startsWith('text/calendar')
-                              ) && <InviteCard messageUid={msg.uid} />}
+                              {msg.invite_method && <InviteCard messageUid={msg.uid} />}
                               <BubbleBody
                                 msg={msg}
                                 myEmail={myEmail}

@@ -238,7 +238,7 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
 
       {!cancelled && (
         <>
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
@@ -263,18 +263,22 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
               Decline
             </button>
             <button
-              className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
+              className="text-fg-muted hover:text-fg ml-auto text-xs underline-offset-2 hover:underline disabled:opacity-50"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => setCounterOpen((v) => !v)}
             >
-              {counterOpen ? 'Cancel counter' : 'Propose new time'}
+              {counterOpen ? 'Cancel counter-proposal' : 'Propose new time'}
             </button>
-            <span className="text-fg-muted ml-2 text-xs">
-              {rsvp === 'pending' && 'sending…'}
-              {rsvp === 'sent' && '✓ reply sent'}
-              {typeof rsvp === 'object' && `error: ${rsvp.error}`}
-            </span>
           </div>
+          {rsvp !== 'idle' && (
+            <div className="text-fg-muted mt-1.5 text-xs">
+              {rsvp === 'pending' && 'sending…'}
+              {rsvp === 'sent' && <span className="text-emerald-400">✓ reply sent</span>}
+              {typeof rsvp === 'object' && (
+                <span className="text-red-400">error: {rsvp.error}</span>
+              )}
+            </div>
+          )}
 
           {counterOpen && (
             <div className="border-border mt-3 rounded border p-3">
