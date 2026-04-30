@@ -1895,6 +1895,7 @@ pub(super) async fn audit_get_thread_messages(
             sender_intent: ai.as_ref().map_or_else(|| "inform".into(), |a| a.sender_intent.clone()),
             action_deadline: ai.as_ref().and_then(|a| a.action_deadline.clone()),
             structured_data,
+            invite_method: None,
         });
     }
 

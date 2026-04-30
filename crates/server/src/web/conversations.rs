@@ -62,6 +62,12 @@ pub(super) struct ThreadMessageResponse {
     pub action_deadline: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub structured_data: Option<crate::structured_data::StructuredData>,
+    /// MRS-18: cheap signal so the web client can decide whether to mount
+    /// the invite-card without re-parsing attachments client-side. NULL
+    /// means "not an invite". Populated either by MRS-4 inbound-pipeline
+    /// or by MRS-14 lazy on-read backfill on the message-detail endpoint.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invite_method: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -204,6 +210,20 @@ pub(super) async fn get_thread_messages(
         .await
         .unwrap_or_default();
 
+    // MRS-18: batch-fetch invite_method for every message in the thread so
+    // the web client can mount the invite-card based on a server-
+    // authoritative signal. Avoids the brittle attachments-based detection
+    // that broke when conversation-API attachments parse went stale.
+    let invite_methods: std::collections::HashMap<i64, String> = {
+        let ids: Vec<i64> = messages.iter().map(|m| m.id).collect();
+        mb_store
+            .get_invite_methods(&ids)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .collect()
+    };
+
     let mut result = Vec::with_capacity(messages.len());
     for msg in &messages {
         // in supermode, use the message owner's maildir; otherwise use current user
@@ -333,6 +353,7 @@ pub(super) async fn get_thread_messages(
             sender_intent: ai.as_ref().map_or_else(|| "inform".into(), |a| a.sender_intent.clone()),
             action_deadline: ai.as_ref().and_then(|a| a.action_deadline.clone()),
             structured_data,
+            invite_method: invite_methods.get(&msg.id).cloned(),
         });
     }
 
@@ -1574,6 +1595,7 @@ mod tests {
             sender_intent: "inform".to_string(),
             action_deadline: None,
             structured_data: None,
+            invite_method: None,
         };
 
         let json = serde_json::to_value(&r).unwrap();
@@ -1633,6 +1655,7 @@ mod tests {
             sender_intent: "inform".to_string(),
             action_deadline: None,
             structured_data: None,
+            invite_method: None,
         };
 
         let json = serde_json::to_value(&r).unwrap();
