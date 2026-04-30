@@ -45,7 +45,7 @@ pub(super) struct RsvpResult {
 }
 
 pub(super) async fn submit_rsvp(
-    Path(message_id): Path<i64>,
+    Path(uid): Path<u32>,
     AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<RsvpRequest>,
@@ -67,25 +67,27 @@ pub(super) async fn submit_rsvp(
         });
     };
 
-    // Fetch the message + ownership-check via mailboxes JOIN. Pull
-    // invite_payload + the original Message-ID so we can build the threaded
-    // reply correctly.
-    let row: Option<(serde_json::Value, String)> = sqlx::query_as(
-        "SELECT m.invite_payload, m.message_id
+    // Look up by (user, IMAP uid) — matching the GET message API. The
+    // route used to take a Path<i64> message_id (DB PK), but the web
+    // client only knows the IMAP uid; the mismatch happened to silently
+    // hit unrelated rows when uid and PK numerically collided. MRS-20.
+    let row: Option<(i64, serde_json::Value, String)> = sqlx::query_as(
+        "SELECT m.id, m.invite_payload, m.message_id
          FROM messages m
          JOIN mailboxes mb ON m.mailbox_id = mb.id
-         WHERE m.id = $1
-           AND mb.user_address = $2
-           AND m.invite_payload IS NOT NULL",
+         WHERE mb.user_address = $1
+           AND m.uid = $2
+           AND m.invite_payload IS NOT NULL
+         LIMIT 1",
     )
-    .bind(message_id)
     .bind(&user)
+    .bind(uid as i32)
     .fetch_optional(pool)
     .await
     .ok()
     .flatten();
 
-    let Some((invite_payload, original_msg_id)) = row else {
+    let Some((message_id, invite_payload, original_msg_id)) = row else {
         return Json(RsvpResult {
             success: false,
             message: Some("message not found or not an invite".into()),
@@ -240,7 +242,7 @@ pub(super) struct CounterRequest {
 /// surfaces it as a counter-proposal that organizer can accept (which
 /// triggers their UPDATE) or reject (DECLINECOUNTER).
 pub(super) async fn submit_counter(
-    Path(message_id): Path<i64>,
+    Path(uid): Path<u32>,
     AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<CounterRequest>,
@@ -252,22 +254,24 @@ pub(super) async fn submit_counter(
         });
     };
 
-    let row: Option<(serde_json::Value, String)> = sqlx::query_as(
-        "SELECT m.invite_payload, m.message_id
+    // Look up by (user, IMAP uid) — see submit_rsvp note (MRS-20).
+    let row: Option<(i64, serde_json::Value, String)> = sqlx::query_as(
+        "SELECT m.id, m.invite_payload, m.message_id
          FROM messages m
          JOIN mailboxes mb ON m.mailbox_id = mb.id
-         WHERE m.id = $1
-           AND mb.user_address = $2
-           AND m.invite_payload IS NOT NULL",
+         WHERE mb.user_address = $1
+           AND m.uid = $2
+           AND m.invite_payload IS NOT NULL
+         LIMIT 1",
     )
-    .bind(message_id)
     .bind(&user)
+    .bind(uid as i32)
     .fetch_optional(pool)
     .await
     .ok()
     .flatten();
 
-    let Some((invite_payload, original_msg_id)) = row else {
+    let Some((message_id, invite_payload, original_msg_id)) = row else {
         return Json(RsvpResult {
             success: false,
             message: Some("message not found or not an invite".into()),
