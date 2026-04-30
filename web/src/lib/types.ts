@@ -242,6 +242,10 @@ export type ThreadMessage = {
   importance_level: string
   importance_score: number
   internal_date: number
+  /// MRS-18: server-authoritative signal for invite-card mounting; populated
+  /// from messages.invite_method via the conversations API. NULL when not
+  /// an iTIP invite. Frontend uses this instead of inspecting attachments.
+  invite_method?: null | string
   is_bulk_sender: boolean
   message_id: string
   new_content: null | string

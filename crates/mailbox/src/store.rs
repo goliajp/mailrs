@@ -244,6 +244,27 @@ impl MailboxStore {
         Ok(uid as u32)
     }
 
+    /// Batch-fetch `invite_method` for a list of message ids. Caller (the
+    /// conversations API in MRS-18) drops these onto each
+    /// ThreadMessageResponse so the web client can mount invite-card based
+    /// on a server-authoritative signal rather than re-detecting via
+    /// attachments. Skips rows where `invite_method IS NULL`.
+    pub async fn get_invite_methods(
+        &self,
+        ids: &[i64],
+    ) -> Result<Vec<(i64, String)>, sqlx::Error> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        sqlx::query_as::<_, (i64, String)>(
+            "SELECT id, invite_method FROM messages
+             WHERE id = ANY($1) AND invite_method IS NOT NULL",
+        )
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await
+    }
+
     /// Attach an iTIP invite payload (parsed by `mailrs::ical` upstream) to
     /// a previously-stored message. Idempotent: rerunning with new content
     /// overwrites. The caller (server inbound pipeline, MRS-4) extracts
