@@ -95,7 +95,7 @@ fn decode_plain_only_one_null() {
 #[test]
 fn decode_plain_special_chars_in_password() {
     // password contains special characters
-    let payload = format!("\0alice\0p@$$w0rd!");
+    let payload = "\0alice\0p@$$w0rd!".to_string();
     let encoded = base64::engine::general_purpose::STANDARD.encode(&payload);
     let (user, pass) = decode_plain(&encoded).unwrap();
     assert_eq!(user, "alice");
@@ -105,7 +105,7 @@ fn decode_plain_special_chars_in_password() {
 #[test]
 fn decode_plain_unicode_username() {
     // utf-8 username
-    let payload = format!("\0用户\0密码");
+    let payload = "\0用户\0密码".to_string();
     let encoded = base64::engine::general_purpose::STANDARD.encode(&payload);
     let (user, pass) = decode_plain(&encoded).unwrap();
     assert_eq!(user, "用户");

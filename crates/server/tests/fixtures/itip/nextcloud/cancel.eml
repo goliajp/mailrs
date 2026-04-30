@@ -1,0 +1,49 @@
+From: "Alice Sender" <alice@cloud.example.com>
+To: bob@example.com
+Subject: Cancelled: Engineering sync
+Date: Thu, 30 Apr 2026 12:00:00 +0000
+Message-ID: <nc-cnl-001@cloud.example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="BOUNDARY_alt_inline"
+
+--BOUNDARY_alt_inline
+Content-Type: text/plain; charset=UTF-8
+
+See attached invite.
+--BOUNDARY_alt_inline
+Content-Type: text/calendar; charset=UTF-8; method=CANCEL
+Content-Transfer-Encoding: 7bit
+
+BEGIN:VCALENDAR
+PRODID:-//Nextcloud calendar v4.7.0//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:CANCEL
+BEGIN:VTIMEZONE
+TZID:Asia/Tokyo
+BEGIN:STANDARD
+DTSTART:19700101T000000
+TZOFFSETFROM:+0900
+TZOFFSETTO:+0900
+TZNAME:JST
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:nc-eb321aa6-9876-4123-aaaa-bcdefa987654
+CREATED:20260420T080000Z
+LAST-MODIFIED:20260430T120000Z
+DTSTAMP:20260430T120000Z
+DTSTART;TZID=Asia/Tokyo:20260518T103000
+DTEND;TZID=Asia/Tokyo:20260518T113000
+SEQUENCE:2
+SUMMARY:Engineering sync
+LOCATION:Office, room 4F-7
+DESCRIPTION:Cancelled.
+STATUS:CANCELLED
+ORGANIZER;CN=Alice Sender:mailto:alice@cloud.example.com
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=Bob Recipient:mailto:bob@example.com
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR
+
+--BOUNDARY_alt_inline--
