@@ -59,6 +59,12 @@ fi
 echo "==> bumping version to $VERSION"
 "$ROOT/scripts/bump.sh" "$VERSION"
 
+# bump.sh only rewrites Cargo.toml + web/package.json; Cargo.lock keeps the
+# previous mailrs-* internal versions until something rebuilds. Force a
+# resolver run so the bump commit captures both files in sync.
+echo "==> syncing Cargo.lock"
+cargo metadata --format-version 1 > /dev/null
+
 # 5. commit
 echo "==> committing version bump"
 git add Cargo.toml Cargo.lock web/package.json
