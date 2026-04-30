@@ -11,14 +11,18 @@ type Attendee = {
   rsvp: boolean
 }
 
-// Mirrors crates/server/src/ical/mod.rs ParsedInvite. Kept loose (Record-of-string)
-// because mailrs::ical can grow new fields and we don't want a hard couple.
+// Mirrors crates/server/src/ical/mod.rs CalDateTime — externally-tagged
+// enum from Rust derive(Serialize). Real wire shapes:
+//   { "Utc": "2026-05-01T14:00:00Z" }
+//   { "Floating": "2026-05-01T14:00:00" }
+//   { "Zoned": { "tz_name": "Asia/Tokyo", "local": "2026-05-01T14:00:00" } }
+//   { "Date": "2026-05-01" }
 type CalDateTime =
-  | string // chrono ISO when unknown kind
-  | { iso?: string; kind: 'date' }
-  | { iso?: string; kind: 'floating' }
-  | { iso?: string; kind: 'utc' }
-  | { iso?: string; kind: 'zoned'; tz?: string }
+  | string // tolerant fallback
+  | { Date: string }
+  | { Floating: string }
+  | { Utc: string }
+  | { Zoned: { local: string; tz_name: string } }
 
 type ConflictRow = {
   dtend: null | string
@@ -154,7 +158,7 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
   const recurrenceIso = isSingleOccurrence ? pickIso(payload.recurrence_id ?? null) : null
 
   return (
-    <div className="border-bd bg-bg-elevated my-3 rounded-lg border p-4">
+    <div className="border-border bg-bg-secondary my-3 rounded-lg border p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <Calendar className="text-fg-muted h-4 w-4" />
@@ -236,7 +240,7 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
         <>
           <div className="mt-3 flex items-center gap-2">
             <button
-              className="border-bd bg-bg flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-emerald-500/10 disabled:opacity-50"
+              className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => void send('ACCEPTED')}
             >
@@ -244,14 +248,14 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
               Accept
             </button>
             <button
-              className="border-bd bg-bg flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-amber-500/10 disabled:opacity-50"
+              className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => void send('TENTATIVE')}
             >
               Tentative
             </button>
             <button
-              className="border-bd bg-bg flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-red-500/10 disabled:opacity-50"
+              className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => void send('DECLINED')}
             >
@@ -259,7 +263,7 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
               Decline
             </button>
             <button
-              className="border-bd bg-bg flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-sky-500/10 disabled:opacity-50"
+              className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => setCounterOpen((v) => !v)}
             >
@@ -273,7 +277,7 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
           </div>
 
           {counterOpen && (
-            <div className="border-bd mt-3 rounded border p-3">
+            <div className="border-border mt-3 rounded border p-3">
               <div className="text-fg-muted mb-2 text-xs">
                 Counter-proposal — your local time. Sends a METHOD=COUNTER reply to the organizer;
                 their calendar surfaces it for accept/decline.
@@ -281,20 +285,20 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
               <div className="flex flex-wrap items-center gap-2">
                 <label className="text-fg-muted text-xs">Start</label>
                 <input
-                  className="border-bd bg-bg rounded border px-2 py-1 text-sm"
+                  className="border-border text-fg bg-bg-secondary rounded border px-2 py-1 text-sm"
                   onChange={(e) => setCounterStart(e.target.value)}
                   type="datetime-local"
                   value={counterStart}
                 />
                 <label className="text-fg-muted text-xs">End</label>
                 <input
-                  className="border-bd bg-bg rounded border px-2 py-1 text-sm"
+                  className="border-border text-fg bg-bg-secondary rounded border px-2 py-1 text-sm"
                   onChange={(e) => setCounterEnd(e.target.value)}
                   type="datetime-local"
                   value={counterEnd}
                 />
                 <button
-                  className="border-bd rounded border bg-sky-500/10 px-3 py-1.5 text-sm hover:bg-sky-500/20 disabled:opacity-50"
+                  className="bg-accent text-accent-fg hover:bg-accent-hover rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
                   disabled={!counterStart || rsvp === 'pending'}
                   onClick={() => void sendCounter()}
                 >
@@ -312,8 +316,12 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
 function formatDateTime(dt: CalDateTime | null | undefined): string {
   const iso = pickIso(dt)
   if (!iso) return ''
-  // Force local-tz formatting via the browser Intl API.
-  const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z')
+  // Utc carries trailing 'Z'; Floating / Zoned / Date are wall-clock only —
+  // treat those as UTC for display (the resulting tz-shift in the user's
+  // locale is acceptable for v1; precise zoned conversion lands when we
+  // round-trip the tz_name through chrono on the server side).
+  const parseable = isUtc(dt) ? iso : `${iso.replace(/Z$/, '')}Z`
+  const d = new Date(parseable)
   if (isNaN(d.getTime())) return iso
   return d.toLocaleString(undefined, {
     dateStyle: 'medium',
@@ -330,6 +338,12 @@ function formatLocalRange(
   if (!s) return ''
   if (!e) return s
   return `${s} → ${e}`
+}
+
+function isUtc(dt: CalDateTime | null | undefined): boolean {
+  if (!dt) return false
+  if (typeof dt === 'string') return dt.endsWith('Z')
+  return 'Utc' in dt
 }
 
 function methodBadge(method: string): { className: string; label: string } {
@@ -352,5 +366,9 @@ function methodBadge(method: string): { className: string; label: string } {
 function pickIso(dt: CalDateTime | null | undefined): null | string {
   if (!dt) return null
   if (typeof dt === 'string') return dt
-  return dt.iso ?? null
+  if ('Utc' in dt) return dt.Utc
+  if ('Floating' in dt) return dt.Floating
+  if ('Zoned' in dt) return dt.Zoned.local
+  if ('Date' in dt) return dt.Date
+  return null
 }
