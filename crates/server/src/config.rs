@@ -1907,6 +1907,7 @@ mod tests {
     // =====================================================================
 
     #[test]
+    #[allow(clippy::clone_on_copy)]
     fn smuggle_protection_clone_and_copy() {
         let sp = SmuggleProtection::Strict;
         let cloned = sp.clone();

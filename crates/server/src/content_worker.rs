@@ -217,6 +217,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn batch_size_reasonable() {
         assert!(BATCH_SIZE > 0 && BATCH_SIZE <= 100);
     }
