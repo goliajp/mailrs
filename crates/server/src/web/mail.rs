@@ -13,6 +13,44 @@ use crate::message_util;
 
 use super::{ApiResult, AuthUser, SendResult, WebState};
 
+/// MRS-14 hotfix: on-read backfill of `messages.invite_payload` /
+/// `invite_method` for messages delivered before MRS-4 (v1.5.0) shipped.
+///
+/// When the stored row has NULL for these columns and we have the raw
+/// maildir bytes in hand anyway (the surrounding handler reads them to
+/// render the body), parse the `text/calendar` part now via
+/// `crate::calendar::invite_extract` + `crate::ical::parse_invite` and
+/// `UPDATE messages` so the next read hits the populated columns.
+///
+/// Returns the freshly-parsed (payload_json, method_str) tuple on success;
+/// None when no invite part is found, parsing fails, or the SQL update
+/// fails. None lets the caller fall back to the stored (null) values.
+async fn try_lazy_backfill_invite(
+    pool: &sqlx::PgPool,
+    message_id: i64,
+    raw_bytes: &[u8],
+) -> Option<(serde_json::Value, String)> {
+    let extracted = crate::calendar::invite_extract::extract_invite_part(raw_bytes)?;
+    let parsed = crate::ical::parse_invite(&extracted.ics_bytes).ok()?;
+    let payload_json = serde_json::to_value(&parsed).ok()?;
+    let method_str = format!("{:?}", parsed.method).to_uppercase();
+
+    if let Err(e) = sqlx::query(
+        "UPDATE messages SET invite_payload = $1, invite_method = $2 WHERE id = $3",
+    )
+    .bind(&payload_json)
+    .bind(&method_str)
+    .bind(message_id)
+    .execute(pool)
+    .await
+    {
+        tracing::warn!("lazy invite backfill UPDATE failed for {message_id}: {e}");
+        return None;
+    }
+
+    Some((payload_json, method_str))
+}
+
 // --- draft types ---
 
 #[derive(Deserialize)]
@@ -296,13 +334,15 @@ pub(super) async fn get_message(
                 )
             };
 
-            // Pull invite payload / method directly from messages row
-            // (MRS-4 wrote these on inbound delivery).
+            // Pull invite payload / method directly from messages row.
+            // MRS-4 (v1.5.0) wrote these on inbound delivery — but messages
+            // that arrived *before* v1.5.0 deployed will always have NULL
+            // here. MRS-14 hotfix: lazy on-read backfill — when null, parse
+            // the raw maildir bytes now and UPDATE so subsequent reads are
+            // fast. This is what makes existing inboxes' invite cards work
+            // without an explicit migration / backfill task.
             let (invite_payload, invite_method) = if let Some(ref pool) = state.pg_pool {
-                sqlx::query_as::<
-                    _,
-                    (Option<serde_json::Value>, Option<String>),
-                >(
+                let stored: (Option<serde_json::Value>, Option<String>) = sqlx::query_as(
                     "SELECT invite_payload, invite_method FROM messages WHERE id = $1",
                 )
                 .bind(msg.id)
@@ -310,7 +350,18 @@ pub(super) async fn get_message(
                 .await
                 .ok()
                 .flatten()
-                .unwrap_or((None, None))
+                .unwrap_or((None, None));
+
+                if stored.0.is_some() {
+                    stored
+                } else if let Some(ref raw_bytes) = raw {
+                    try_lazy_backfill_invite(pool, msg.id, raw_bytes.as_slice())
+                        .await
+                        .map(|(p, m)| (Some(p), Some(m)))
+                        .unwrap_or(stored)
+                } else {
+                    stored
+                }
             } else {
                 (None, None)
             };
