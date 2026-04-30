@@ -207,6 +207,223 @@ pub(super) async fn submit_rsvp(
     })
 }
 
+#[derive(Deserialize)]
+pub(super) struct CounterRequest {
+    /// Proposed new start time (ISO-8601 UTC).
+    pub dtstart: DateTime<Utc>,
+    /// Proposed new end time. If omitted, the original duration is used
+    /// (caller-side); the COUNTER ICS may still skip DTEND.
+    #[serde(default)]
+    pub dtend: Option<DateTime<Utc>>,
+    /// Free-text rationale for the counter (RFC 5545 §3.8.1.4 COMMENT).
+    #[serde(default)]
+    pub comment: Option<String>,
+}
+
+/// `POST /api/invites/{message_id}/counter`: attendee proposes a new time
+/// instead of accepting/declining outright (RFC 5546 §3.4 COUNTER). Sends
+/// METHOD=COUNTER iCalendar back to the organizer; organizer-side calendar
+/// surfaces it as a counter-proposal that organizer can accept (which
+/// triggers their UPDATE) or reject (DECLINECOUNTER).
+pub(super) async fn submit_counter(
+    Path(message_id): Path<i64>,
+    AuthUser { address: user, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<CounterRequest>,
+) -> impl IntoResponse {
+    let Some(ref pool) = state.pg_pool else {
+        return Json(RsvpResult {
+            success: false,
+            message: Some("postgres pool not configured".into()),
+        });
+    };
+
+    let row: Option<(serde_json::Value, String)> = sqlx::query_as(
+        "SELECT m.invite_payload, m.message_id
+         FROM messages m
+         JOIN mailboxes mb ON m.mailbox_id = mb.id
+         WHERE m.id = $1
+           AND mb.user_address = $2
+           AND m.invite_payload IS NOT NULL",
+    )
+    .bind(message_id)
+    .bind(&user)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    let Some((invite_payload, original_msg_id)) = row else {
+        return Json(RsvpResult {
+            success: false,
+            message: Some("message not found or not an invite".into()),
+        });
+    };
+
+    let organizer_email = invite_payload
+        .get("organizer")
+        .and_then(|o| o.get("email"))
+        .and_then(|e| e.as_str())
+        .unwrap_or("")
+        .to_string();
+    if organizer_email.is_empty() {
+        return Json(RsvpResult {
+            success: false,
+            message: Some("invite has no organizer".into()),
+        });
+    }
+
+    let summary = invite_payload
+        .get("summary")
+        .and_then(|s| s.as_str())
+        .unwrap_or("Invitation")
+        .to_string();
+
+    let counter_ics = build_counter_ics(
+        &invite_payload,
+        &user,
+        req.dtstart,
+        req.dtend,
+        req.comment.as_deref(),
+    );
+
+    let now_utc = Utc::now();
+    let now_secs = now_utc.timestamp();
+    let new_msg_id = format!("<counter-{now_secs}-{message_id}@mailrs>");
+    let boundary = format!("mailrs-counter-{now_secs}");
+
+    let proposed_local = req.dtstart.format("%Y-%m-%d %H:%M UTC");
+    let body_text = format!(
+        "{user} has proposed a new time for: {summary}\r\n\
+         Proposed: {proposed_local}\r\n",
+    );
+
+    let raw_email = format!(
+        "From: {user}\r\n\
+         To: {organizer_email}\r\n\
+         Subject: Counter-proposal: {summary}\r\n\
+         Message-ID: {new_msg_id}\r\n\
+         In-Reply-To: <{original_msg_id}>\r\n\
+         References: <{original_msg_id}>\r\n\
+         Date: {date_rfc2822}\r\n\
+         MIME-Version: 1.0\r\n\
+         Content-Type: multipart/alternative; boundary=\"{boundary}\"\r\n\
+         \r\n\
+         --{boundary}\r\n\
+         Content-Type: text/plain; charset=UTF-8\r\n\
+         \r\n\
+         {body_text}\r\n\
+         --{boundary}\r\n\
+         Content-Type: text/calendar; method=COUNTER; charset=UTF-8\r\n\
+         Content-Disposition: attachment; filename=invite.ics\r\n\
+         \r\n\
+         {counter_ics}\r\n\
+         --{boundary}--\r\n",
+        date_rfc2822 = now_utc.format("%a, %d %b %Y %H:%M:%S +0000"),
+    );
+
+    let _ = super::mail::deliver_message_ex(
+        &state,
+        &user,
+        std::slice::from_ref(&organizer_email),
+        &[],
+        &[],
+        raw_email.as_bytes(),
+        &new_msg_id,
+        now_secs,
+        None,
+    )
+    .await;
+
+    Json(RsvpResult {
+        success: true,
+        message: Some(format!("COUNTER sent to {organizer_email}")),
+    })
+}
+
+fn build_counter_ics(
+    invite_payload: &serde_json::Value,
+    user_email: &str,
+    new_dtstart: DateTime<Utc>,
+    new_dtend: Option<DateTime<Utc>>,
+    comment: Option<&str>,
+) -> String {
+    let uid = invite_payload
+        .get("uid")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let sequence = invite_payload
+        .get("sequence")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+    let summary = invite_payload
+        .get("summary")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let organizer_email = invite_payload
+        .get("organizer")
+        .and_then(|o| o.get("email"))
+        .and_then(|e| e.as_str())
+        .unwrap_or("");
+    let user_cn = invite_payload
+        .get("attendees")
+        .and_then(|a| a.as_array())
+        .and_then(|arr| {
+            arr.iter().find(|att| {
+                att.get("email")
+                    .and_then(|e| e.as_str())
+                    .map(|e| e.eq_ignore_ascii_case(user_email))
+                    .unwrap_or(false)
+            })
+        })
+        .and_then(|att| att.get("cn"))
+        .and_then(|cn| cn.as_str())
+        .map(|s| s.to_string());
+
+    let now_utc = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let new_dtstart_str = new_dtstart.format("%Y%m%dT%H%M%SZ").to_string();
+    let new_dtend_str = new_dtend.map(|d| d.format("%Y%m%dT%H%M%SZ").to_string());
+
+    let cn_param = user_cn
+        .as_ref()
+        .map(|cn| format!(";CN={cn}"))
+        .unwrap_or_default();
+
+    let mut ics = String::with_capacity(512);
+    ics.push_str("BEGIN:VCALENDAR\r\n");
+    ics.push_str("VERSION:2.0\r\n");
+    ics.push_str("PRODID:-//mailrs//MRS-1 ICS//EN\r\n");
+    ics.push_str("METHOD:COUNTER\r\n");
+    ics.push_str("BEGIN:VEVENT\r\n");
+    ics.push_str(&format!("UID:{uid}\r\n"));
+    ics.push_str(&format!("SEQUENCE:{sequence}\r\n"));
+    ics.push_str(&format!("DTSTAMP:{now_utc}\r\n"));
+    ics.push_str(&format!("DTSTART:{new_dtstart_str}\r\n"));
+    if let Some(s) = new_dtend_str {
+        ics.push_str(&format!("DTEND:{s}\r\n"));
+    }
+    if !summary.is_empty() {
+        ics.push_str(&format!("SUMMARY:{summary}\r\n"));
+    }
+    if !organizer_email.is_empty() {
+        ics.push_str(&format!("ORGANIZER:mailto:{organizer_email}\r\n"));
+    }
+    ics.push_str(&format!(
+        "ATTENDEE{cn_param};PARTSTAT=TENTATIVE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:{user_email}\r\n",
+    ));
+    if let Some(c) = comment {
+        let escaped = c
+            .replace('\\', "\\\\")
+            .replace(',', "\\,")
+            .replace(';', "\\;")
+            .replace('\n', "\\n");
+        ics.push_str(&format!("COMMENT:{escaped}\r\n"));
+    }
+    ics.push_str("END:VEVENT\r\n");
+    ics.push_str("END:VCALENDAR\r\n");
+    ics
+}
+
 /// Hand-build a RFC 5546 METHOD=REPLY iCalendar object from the stored
 /// `invite_payload` JSON. Keeps UID and SEQUENCE byte-identical to the
 /// original (RFC 5546 §3.4 says REPLY MUST preserve both); flips PARTSTAT
