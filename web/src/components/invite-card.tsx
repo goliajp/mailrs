@@ -60,6 +60,9 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
   const [conflicts, setConflicts] = useState<ConflictRow[]>([])
   const [conflictsExpanded, setConflictsExpanded] = useState(false)
   const [rsvp, setRsvp] = useState<RsvpStatus>('idle')
+  const [counterOpen, setCounterOpen] = useState(false)
+  const [counterStart, setCounterStart] = useState('')
+  const [counterEnd, setCounterEnd] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -113,6 +116,25 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
       }
       await postJson(`/invites/${messageUid}/rsvp`, body)
       setRsvp('sent')
+    } catch (e) {
+      setRsvp({ error: e instanceof Error ? e.message : 'failed' })
+    }
+  }
+
+  const sendCounter = async () => {
+    if (!counterStart) return
+    setRsvp('pending')
+    try {
+      // <input type="datetime-local"> yields a wall-clock string with no
+      // timezone — Date treats it as local time and toISOString() emits
+      // the corresponding UTC. That's what the server expects.
+      const startIso = new Date(counterStart).toISOString()
+      const endIso = counterEnd ? new Date(counterEnd).toISOString() : null
+      const body: { dtend?: null | string; dtstart: string } = { dtstart: startIso }
+      if (endIso) body.dtend = endIso
+      await postJson(`/invites/${messageUid}/counter`, body)
+      setRsvp('sent')
+      setCounterOpen(false)
     } catch (e) {
       setRsvp({ error: e instanceof Error ? e.message : 'failed' })
     }
@@ -211,36 +233,77 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
       )}
 
       {!cancelled && (
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            className="border-bd bg-bg flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-emerald-500/10 disabled:opacity-50"
-            disabled={rsvp === 'pending' || rsvp === 'sent'}
-            onClick={() => void send('ACCEPTED')}
-          >
-            <Check className="h-3.5 w-3.5" />
-            Accept
-          </button>
-          <button
-            className="border-bd bg-bg flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-amber-500/10 disabled:opacity-50"
-            disabled={rsvp === 'pending' || rsvp === 'sent'}
-            onClick={() => void send('TENTATIVE')}
-          >
-            Tentative
-          </button>
-          <button
-            className="border-bd bg-bg flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-red-500/10 disabled:opacity-50"
-            disabled={rsvp === 'pending' || rsvp === 'sent'}
-            onClick={() => void send('DECLINED')}
-          >
-            <X className="h-3.5 w-3.5" />
-            Decline
-          </button>
-          <span className="text-fg-muted ml-2 text-xs">
-            {rsvp === 'pending' && 'sending…'}
-            {rsvp === 'sent' && '✓ reply sent'}
-            {typeof rsvp === 'object' && `error: ${rsvp.error}`}
-          </span>
-        </div>
+        <>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              className="border-bd bg-bg flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-emerald-500/10 disabled:opacity-50"
+              disabled={rsvp === 'pending' || rsvp === 'sent'}
+              onClick={() => void send('ACCEPTED')}
+            >
+              <Check className="h-3.5 w-3.5" />
+              Accept
+            </button>
+            <button
+              className="border-bd bg-bg flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-amber-500/10 disabled:opacity-50"
+              disabled={rsvp === 'pending' || rsvp === 'sent'}
+              onClick={() => void send('TENTATIVE')}
+            >
+              Tentative
+            </button>
+            <button
+              className="border-bd bg-bg flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-red-500/10 disabled:opacity-50"
+              disabled={rsvp === 'pending' || rsvp === 'sent'}
+              onClick={() => void send('DECLINED')}
+            >
+              <X className="h-3.5 w-3.5" />
+              Decline
+            </button>
+            <button
+              className="border-bd bg-bg flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-sky-500/10 disabled:opacity-50"
+              disabled={rsvp === 'pending' || rsvp === 'sent'}
+              onClick={() => setCounterOpen((v) => !v)}
+            >
+              {counterOpen ? 'Cancel counter' : 'Propose new time'}
+            </button>
+            <span className="text-fg-muted ml-2 text-xs">
+              {rsvp === 'pending' && 'sending…'}
+              {rsvp === 'sent' && '✓ reply sent'}
+              {typeof rsvp === 'object' && `error: ${rsvp.error}`}
+            </span>
+          </div>
+
+          {counterOpen && (
+            <div className="border-bd mt-3 rounded border p-3">
+              <div className="text-fg-muted mb-2 text-xs">
+                Counter-proposal — your local time. Sends a METHOD=COUNTER reply to the organizer;
+                their calendar surfaces it for accept/decline.
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-fg-muted text-xs">Start</label>
+                <input
+                  className="border-bd bg-bg rounded border px-2 py-1 text-sm"
+                  onChange={(e) => setCounterStart(e.target.value)}
+                  type="datetime-local"
+                  value={counterStart}
+                />
+                <label className="text-fg-muted text-xs">End</label>
+                <input
+                  className="border-bd bg-bg rounded border px-2 py-1 text-sm"
+                  onChange={(e) => setCounterEnd(e.target.value)}
+                  type="datetime-local"
+                  value={counterEnd}
+                />
+                <button
+                  className="border-bd rounded border bg-sky-500/10 px-3 py-1.5 text-sm hover:bg-sky-500/20 disabled:opacity-50"
+                  disabled={!counterStart || rsvp === 'pending'}
+                  onClick={() => void sendCounter()}
+                >
+                  Send counter
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
