@@ -445,6 +445,13 @@ async fn main() {
         eprintln!("Meilisearch indexer started");
     }
 
+    // MRS-10: spawn external ICS feed worker. Cheap when no feeds exist —
+    // the DUE query returns empty and the loop sleeps.
+    if let Some(ref pool) = pg_pool {
+        calendar::feed_worker::spawn_feed_worker(pool.clone());
+        eprintln!("External ICS feed worker started");
+    }
+
     let users = Arc::new(user_store);
 
     let ctx = Arc::new(ConnectionContext {
