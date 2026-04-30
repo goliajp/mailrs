@@ -11,6 +11,7 @@
 
 pub mod event;
 pub mod invite_extract;
+pub mod reconcile;
 
 pub use event::{
     delete_by_uid, find_by_uid, find_conflicts, upsert_from_parsed_invite, CalendarEventRow,
