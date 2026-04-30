@@ -124,8 +124,27 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
       if (recurrenceIso) {
         body.recurrence_id = recurrenceIso.endsWith('Z') ? recurrenceIso : `${recurrenceIso}Z`
       }
-      await postJson(`/invites/${messageUid}/rsvp`, body)
+      // The server returns 200 with { success: false } when it can't find
+      // the invite (route mismatch, RBAC, race). HTTP-level success alone
+      // is not enough — fail loud here so the UI doesn't lie about the
+      // reply going out (MRS-20 incident).
+      const res = await postJson<{ message?: string; success: boolean }>(
+        `/invites/${messageUid}/rsvp`,
+        body
+      )
+      if (!res.success) {
+        setRsvp({ error: res.message ?? 'reply rejected by server' })
+        return
+      }
       setRsvp('sent')
+      // Reload detail so the persisted rsvp_status pill shows up
+      // immediately rather than on next refresh.
+      try {
+        const refreshed = await fetchJson<MessageDetail | null>(`/mail/messages/${messageUid}`)
+        setDetail(refreshed)
+      } catch {
+        // non-fatal — pill will appear on the next page load
+      }
     } catch (e) {
       setRsvp({ error: e instanceof Error ? e.message : 'failed' })
     }
@@ -142,7 +161,14 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
       const endIso = counterEnd ? new Date(counterEnd).toISOString() : null
       const body: { dtend?: null | string; dtstart: string } = { dtstart: startIso }
       if (endIso) body.dtend = endIso
-      await postJson(`/invites/${messageUid}/counter`, body)
+      const res = await postJson<{ message?: string; success: boolean }>(
+        `/invites/${messageUid}/counter`,
+        body
+      )
+      if (!res.success) {
+        setRsvp({ error: res.message ?? 'counter rejected by server' })
+        return
+      }
       setRsvp('sent')
       setCounterOpen(false)
     } catch (e) {
