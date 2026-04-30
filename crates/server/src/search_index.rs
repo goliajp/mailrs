@@ -117,6 +117,30 @@ impl MeiliClient {
             .send()
             .await;
 
+        // Override ranking-rules to put `sort` first (default is fifth).
+        // Without this, "qualcomm" matches in subject outrank matches in
+        // sender / clean_text — so a newer email from a @qualcomm.com
+        // address gets buried behind older emails whose subject happens to
+        // contain Qualcomm. For an email client the "newest first" axis
+        // matters more than relevance — we still keep words/typo/proximity
+        // for tiebreaking among same-time hits.
+        let _ = self
+            .request(
+                reqwest::Method::PUT,
+                &format!("/indexes/{INDEX_NAME}/settings/ranking-rules"),
+            )
+            .await
+            .json(&[
+                "sort",
+                "words",
+                "typo",
+                "proximity",
+                "attribute",
+                "exactness",
+            ])
+            .send()
+            .await;
+
         Ok(())
     }
 
