@@ -93,6 +93,13 @@ pub(super) struct MessageDetail {
     pub action_items: serde_json::Value,
     pub ai_analyzed: bool,
     pub clean_text: Option<String>,
+    /// Parsed iTIP invite payload (RFC 5545 / 5546). Present when the
+    /// message carried a `text/calendar` MIME part that mailrs::ical
+    /// could parse (filled by the inbound pipeline, MRS-4).
+    pub invite_payload: Option<serde_json::Value>,
+    /// METHOD value if the message is an invite (REQUEST / REPLY /
+    /// CANCEL / UPDATE / ...); None for non-invite messages.
+    pub invite_method: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -289,6 +296,25 @@ pub(super) async fn get_message(
                 )
             };
 
+            // Pull invite payload / method directly from messages row
+            // (MRS-4 wrote these on inbound delivery).
+            let (invite_payload, invite_method) = if let Some(ref pool) = state.pg_pool {
+                sqlx::query_as::<
+                    _,
+                    (Option<serde_json::Value>, Option<String>),
+                >(
+                    "SELECT invite_payload, invite_method FROM messages WHERE id = $1",
+                )
+                .bind(msg.id)
+                .fetch_optional(pool)
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or((None, None))
+            } else {
+                (None, None)
+            };
+
             return Json(Some(MessageDetail {
                 uid: msg.uid,
                 sender,
@@ -310,6 +336,8 @@ pub(super) async fn get_message(
                 action_items,
                 ai_analyzed,
                 clean_text,
+                invite_payload,
+                invite_method,
             }));
         }
     }
