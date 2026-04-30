@@ -200,6 +200,20 @@ pub(super) async fn submit_rsvp(
         }
     }
 
+    // MRS-19: persist the partstat on the message row so the invite-card
+    // can render an "already replied" state on subsequent page loads.
+    if let Err(e) = sqlx::query(
+        "UPDATE messages SET rsvp_status = $1, rsvp_at = $2 WHERE id = $3",
+    )
+    .bind(&partstat)
+    .bind(now_utc)
+    .bind(message_id)
+    .execute(pool)
+    .await
+    {
+        tracing::warn!("rsvp status persist failed for {message_id}: {e}");
+    }
+
     let _ = send_result; // SendResult JSON is ignored; we have our own envelope
     Json(RsvpResult {
         success: true,
