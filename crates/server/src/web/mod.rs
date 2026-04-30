@@ -19,6 +19,7 @@ mod ai_assist;
 mod api_key;
 mod auth;
 mod autodiscover;
+mod calendar_api;
 mod conversations;
 mod dav;
 mod jmap;
@@ -29,6 +30,7 @@ mod system_config;
 mod webhook;
 pub(crate) mod rate_limit;
 mod request_id;
+mod rsvp;
 mod ws;
 
 pub(crate) use auth::{AuthMethod, AuthUser};
@@ -635,6 +637,14 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/api/queue", get(admin::get_queue))
         .route("/api/queue/{id}/retry", post(admin::retry_queue_message))
         // mail API
+        .route(
+            "/api/calendar/conflicts",
+            get(calendar_api::get_conflicts),
+        )
+        .route(
+            "/api/invites/{message_id}/rsvp",
+            post(rsvp::submit_rsvp),
+        )
         .route("/api/mail/folders", get(mail::get_folders))
         .route(
             "/api/mail/folders/{name}/messages",

@@ -25,9 +25,10 @@ pub mod vtimezone;
 mod tests;
 
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 
 /// iTIP method (RFC 5546 §1.4 + §3).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Method {
     Request,
     Reply,
@@ -41,7 +42,7 @@ pub enum Method {
 }
 
 /// Calendar date-time tri-state (RFC 5545 §3.3.5).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum CalDateTime {
     /// Floating local time — no timezone attached. e.g. `DTSTART:19980118T230000`.
     Floating(chrono::NaiveDateTime),
@@ -59,7 +60,7 @@ pub enum CalDateTime {
 }
 
 /// PARTSTAT parameter (RFC 5545 §3.2.12).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum PartStat {
     NeedsAction,
     Accepted,
@@ -71,7 +72,7 @@ pub enum PartStat {
 }
 
 /// ROLE parameter (RFC 5545 §3.2.16).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Role {
     Chair,
     ReqParticipant,
@@ -79,7 +80,7 @@ pub enum Role {
     NonParticipant,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Attendee {
     pub email: String,
     pub cn: Option<String>,
@@ -88,13 +89,13 @@ pub struct Attendee {
     pub rsvp: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Person {
     pub email: String,
     pub cn: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum EventStatus {
     Confirmed,
     Tentative,
@@ -105,7 +106,7 @@ pub enum EventStatus {
 ///
 /// Self-built: STANDARD / DAYLIGHT children captured raw; conversion to a
 /// usable offset function lives in [`vtimezone`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct VTimezone {
     pub tzid: String,
     /// Raw STANDARD / DAYLIGHT subcomponents. Resolution to chrono-tz or
@@ -114,14 +115,14 @@ pub struct VTimezone {
 }
 
 /// Generic raw component captured by the AST parser before semantic typing.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RawComponent {
     pub name: String,
     pub properties: Vec<RawProperty>,
     pub children: Vec<RawComponent>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RawProperty {
     pub name: String,
     pub params: Vec<(String, String)>,
@@ -130,7 +131,7 @@ pub struct RawProperty {
 
 /// Fully-typed iTIP invite, the boundary between this module and the rest of
 /// the server (MRS-3..MRS-9 all consume this).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ParsedInvite {
     pub method: Method,
     pub uid: String,

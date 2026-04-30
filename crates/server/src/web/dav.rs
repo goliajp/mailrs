@@ -657,28 +657,47 @@ async fn event_put(
     }
 
     let etag = etag_of(body);
-    let summary = extract_ical_field(body, "SUMMARY");
-    let dtstart = extract_ical_datetime(body, "DTSTART");
-    let dtend = extract_ical_datetime(body, "DTEND");
 
-    let result = sqlx::query(
-        "INSERT INTO calendar_events (calendar_id, uid, etag, icalendar, summary, dtstart, dtend)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (calendar_id, uid)
-         DO UPDATE SET etag = $3, icalendar = $4, summary = $5, dtstart = $6, dtend = $7, updated_at = now()",
-    )
-    .bind(cal_id)
-    .bind(uid)
-    .bind(&etag)
-    .bind(body)
-    .bind(&summary)
-    .bind(dtstart)
-    .bind(dtend)
-    .execute(pool)
-    .await;
+    // Prefer the structured iTIP-aware path (MRS-3): parse the iCalendar
+    // body via `crate::ical`, project all RFC 5545 / 5546 fields into
+    // calendar_events columns. Falls back to the legacy minimal path for
+    // non-VEVENT objects (VTODO / VJOURNAL / VFREEBUSY) or parser failure
+    // — those still write raw + summary so the CalDAV GET round-trip works.
+    let parsed = if body.contains("BEGIN:VEVENT") {
+        crate::ical::parse_invite(body.as_bytes()).ok()
+    } else {
+        None
+    };
+
+    let result = if let Some(ref parsed) = parsed {
+        crate::calendar::upsert_from_parsed_invite(pool, cal_id, uid, parsed, body, &etag)
+            .await
+            .map(|_| ())
+    } else {
+        // Legacy minimal path (no VEVENT or parse failure).
+        let summary = extract_ical_field(body, "SUMMARY");
+        let dtstart = extract_ical_datetime(body, "DTSTART");
+        let dtend = extract_ical_datetime(body, "DTEND");
+        sqlx::query(
+            "INSERT INTO calendar_events (calendar_id, uid, etag, icalendar, summary, dtstart, dtend)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (calendar_id, uid)
+             DO UPDATE SET etag = $3, icalendar = $4, summary = $5, dtstart = $6, dtend = $7, updated_at = now()",
+        )
+        .bind(cal_id)
+        .bind(uid)
+        .bind(&etag)
+        .bind(body)
+        .bind(&summary)
+        .bind(dtstart)
+        .bind(dtend)
+        .execute(pool)
+        .await
+        .map(|_| ())
+    };
 
     match result {
-        Ok(_) => Response::builder()
+        Ok(()) => Response::builder()
             .status(StatusCode::CREATED)
             .header("etag", format!("\"{etag}\""))
             .body(axum::body::Body::empty())

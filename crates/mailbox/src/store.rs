@@ -244,6 +244,44 @@ impl MailboxStore {
         Ok(uid as u32)
     }
 
+    /// Attach an iTIP invite payload (parsed by `mailrs::ical` upstream) to
+    /// a previously-stored message. Idempotent: rerunning with new content
+    /// overwrites. The caller (server inbound pipeline, MRS-4) extracts
+    /// the `text/calendar` MIME part, parses it, and serialises the result
+    /// to JSON before passing it here.
+    ///
+    /// Returns the `messages.id` of the updated row when the (user,
+    /// folder, uid) tuple matches an existing message, `None` otherwise
+    /// (e.g. when the message was moved or deleted between insertion and
+    /// the post-store hook).
+    pub async fn update_invite_payload(
+        &self,
+        user: &str,
+        mailbox_name: &str,
+        uid: u32,
+        invite_payload: &serde_json::Value,
+        invite_method: &str,
+    ) -> Result<Option<i64>, sqlx::Error> {
+        let row: Option<(i64,)> = sqlx::query_as(
+            "UPDATE messages
+             SET invite_payload = $1, invite_method = $2
+             FROM mailboxes
+             WHERE messages.mailbox_id = mailboxes.id
+               AND mailboxes.user_address = $3
+               AND mailboxes.name = $4
+               AND messages.uid = $5
+             RETURNING messages.id",
+        )
+        .bind(invite_payload)
+        .bind(invite_method)
+        .bind(user)
+        .bind(mailbox_name)
+        .bind(uid as i32)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|(id,)| id))
+    }
+
     pub async fn list_messages(
         &self,
         mailbox_id: i64,
@@ -1675,6 +1713,7 @@ impl MailboxStore {
                SELECT id FROM messages WHERE search_vector @@ plainto_tsquery('simple', ${tsquery_idx})
                UNION SELECT id FROM messages WHERE subject IS NOT NULL AND subject != '' AND subject ILIKE ${pattern_idx}
                UNION SELECT id FROM messages WHERE sender IS NOT NULL AND sender != '' AND sender ILIKE ${pattern_idx}
+               UNION SELECT id FROM messages WHERE recipients IS NOT NULL AND recipients != '' AND recipients ILIKE ${pattern_idx}
                UNION SELECT id FROM messages WHERE text_body IS NOT NULL AND text_body != '' AND text_body ILIKE ${pattern_idx}
                UNION SELECT id FROM messages WHERE clean_text IS NOT NULL AND clean_text != '' AND clean_text ILIKE ${pattern_idx}
                UNION SELECT message_id FROM attachment_content WHERE extracted_text ILIKE ${pattern_idx}
