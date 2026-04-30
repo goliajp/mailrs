@@ -52,6 +52,10 @@ type InvitePayload = {
 type MessageDetail = {
   invite_method: null | string
   invite_payload: InvitePayload | null
+  /// MRS-19: previously-recorded RSVP partstat
+  /// (ACCEPTED / TENTATIVE / DECLINED). Null = user hasn't replied yet.
+  rsvp_at?: null | string
+  rsvp_status?: null | string
   uid: number
 }
 
@@ -67,6 +71,8 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
   const [counterOpen, setCounterOpen] = useState(false)
   const [counterStart, setCounterStart] = useState('')
   const [counterEnd, setCounterEnd] = useState('')
+  // Allow the user to change their RSVP after the persisted status renders.
+  const [overridePersisted, setOverridePersisted] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -156,6 +162,11 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
   // occurrence only (RFC 5545 §3.8.4.4 / RFC 5546 §3.4).
   const isSingleOccurrence = !!payload.recurrence_id
   const recurrenceIso = isSingleOccurrence ? pickIso(payload.recurrence_id ?? null) : null
+  // MRS-19: server-persisted partstat ("ACCEPTED" / "TENTATIVE" / "DECLINED")
+  // survives page refresh. Show the recorded state instead of fresh
+  // buttons unless the user explicitly clicks Change.
+  const persistedStatus = detail?.rsvp_status?.toUpperCase() ?? null
+  const showPersisted = persistedStatus && !overridePersisted && rsvp !== 'sent'
 
   return (
     <div className="border-border bg-bg-secondary my-3 rounded-lg border p-4">
@@ -236,7 +247,19 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
         </div>
       )}
 
-      {!cancelled && (
+      {!cancelled && showPersisted && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <RsvpStatusPill at={detail?.rsvp_at ?? null} partstat={persistedStatus!} />
+          <button
+            className="text-fg-muted hover:text-fg ml-auto text-xs underline-offset-2 hover:underline"
+            onClick={() => setOverridePersisted(true)}
+          >
+            Change
+          </button>
+        </div>
+      )}
+
+      {!cancelled && !showPersisted && (
         <>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
@@ -375,4 +398,28 @@ function pickIso(dt: CalDateTime | null | undefined): null | string {
   if ('Zoned' in dt) return dt.Zoned.local
   if ('Date' in dt) return dt.Date
   return null
+}
+
+function RsvpStatusPill({ at, partstat }: { at: null | string; partstat: string }) {
+  const label =
+    partstat === 'ACCEPTED'
+      ? 'You accepted'
+      : partstat === 'TENTATIVE'
+        ? 'You marked tentative'
+        : partstat === 'DECLINED'
+          ? 'You declined'
+          : `You replied: ${partstat}`
+  const cls =
+    partstat === 'ACCEPTED'
+      ? 'bg-emerald-500/15 text-emerald-300'
+      : partstat === 'DECLINED'
+        ? 'bg-red-500/15 text-red-300'
+        : 'bg-amber-500/15 text-amber-300'
+  const when = at ? formatDateTime(at) : ''
+  return (
+    <span className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium ${cls}`}>
+      {label}
+      {when && <span className="text-fg-muted ml-1 font-normal">{when}</span>}
+    </span>
+  )
 }
