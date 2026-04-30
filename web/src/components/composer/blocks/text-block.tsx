@@ -10,6 +10,7 @@ import {
   PROSE_CLASS,
   uploadInlineImage,
 } from '@/components/rich-editor'
+import { sanitizePastedHtml } from '@/lib/sanitize-paste'
 
 type Props = {
   data: TextBlockData
@@ -44,6 +45,11 @@ export function TextBlock({ disabled, getEditorRef, onChange, onSubmit, placehol
         }
         return false
       },
+      // MRS-17: clean clipboard HTML before TipTap's DOMParser ingests it.
+      // External Markdown-rendered clipboards (Slack / Notion / iMessage)
+      // emit <li>s with literal leading "- " plus inline style noise that
+      // would otherwise be visible to the recipient verbatim.
+      transformPastedHTML: sanitizePastedHtml,
     },
     extensions: createEditorExtensions(placeholder),
     onUpdate: ({ editor: e }) => {

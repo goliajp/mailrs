@@ -4,6 +4,7 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import { useEffect, useRef } from 'react'
 
 import { createMinimalExtensions } from '@/components/rich-editor'
+import { sanitizePastedHtml } from '@/lib/sanitize-paste'
 
 type Props = {
   data: SignatureBlockData
@@ -20,6 +21,7 @@ export function SignatureBlock({ data, disabled, onChange }: Props) {
       attributes: {
         class: 'prose prose-sm max-w-none px-3 py-1.5 outline-none text-fg-muted',
       },
+      transformPastedHTML: sanitizePastedHtml,
     },
     extensions: createMinimalExtensions(),
     onUpdate: ({ editor: e }) => {
