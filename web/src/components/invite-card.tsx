@@ -37,6 +37,7 @@ type InvitePayload = {
   location?: null | string
   method: string
   organizer?: null | Person
+  recurrence_id?: CalDateTime | null
   rrule?: null | string
   sequence: number
   status?: null | string
@@ -106,7 +107,11 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
   const send = async (partstat: 'ACCEPTED' | 'DECLINED' | 'TENTATIVE') => {
     setRsvp('pending')
     try {
-      await postJson(`/invites/${messageUid}/rsvp`, { partstat })
+      const body: { partstat: string; recurrence_id?: string } = { partstat }
+      if (recurrenceIso) {
+        body.recurrence_id = recurrenceIso.endsWith('Z') ? recurrenceIso : `${recurrenceIso}Z`
+      }
+      await postJson(`/invites/${messageUid}/rsvp`, body)
       setRsvp('sent')
     } catch (e) {
       setRsvp({ error: e instanceof Error ? e.message : 'failed' })
@@ -120,6 +125,11 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
 
   const range = formatLocalRange(payload.dtstart, payload.dtend)
   const cancelled = payload.method.toUpperCase() === 'CANCEL'
+  // When the invite carries a RECURRENCE-ID, the organizer is targeting one
+  // specific occurrence of a recurring series — RSVP applies to that
+  // occurrence only (RFC 5545 §3.8.4.4 / RFC 5546 §3.4).
+  const isSingleOccurrence = !!payload.recurrence_id
+  const recurrenceIso = isSingleOccurrence ? pickIso(payload.recurrence_id ?? null) : null
 
   return (
     <div className="border-bd bg-bg-elevated my-3 rounded-lg border p-4">
@@ -134,6 +144,11 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
 
       <div className="mt-2">
         <div className="text-fg text-base font-semibold">{payload.summary}</div>
+        {isSingleOccurrence && (
+          <div className="mt-1 text-xs text-amber-300">
+            ⓘ This occurrence of a recurring event — RSVP applies only to this instance.
+          </div>
+        )}
         {range && (
           <div className="text-fg-muted mt-1 flex items-center gap-1 text-sm">
             <Clock className="h-3.5 w-3.5" />
