@@ -29,6 +29,11 @@ pub(crate) struct MeiliDocument {
     thread_id: String,
     subject: String,
     sender: String,
+    /// MRS-1 hotfix: searching `qualcomm` would miss any inbound mail from
+    /// `@qualcomm.com` because only `sender` was indexed (and the user's
+    /// own address was the one ending up in `recipients`). Add it
+    /// explicitly so address-fragment search hits both directions.
+    recipients: String,
     text_body: String,
     clean_text: String,
     internal_date: i64,
@@ -102,7 +107,13 @@ impl MeiliClient {
                 &format!("/indexes/{INDEX_NAME}/settings/searchable-attributes"),
             )
             .await
-            .json(&["subject", "sender", "clean_text", "text_body"])
+            .json(&[
+                "subject",
+                "sender",
+                "recipients",
+                "clean_text",
+                "text_body",
+            ])
             .send()
             .await;
 
@@ -191,9 +202,9 @@ pub fn spawn_indexer(
 
         loop {
             // fetch unindexed messages from PG
-            type MessageRow = (i64, String, Option<String>, String, Option<String>, Option<String>, i64, String);
+            type MessageRow = (i64, String, Option<String>, String, String, Option<String>, Option<String>, i64, String);
             let rows: Vec<MessageRow> = match sqlx::query_as(
-                "SELECT m.id, m.thread_id, m.subject, m.sender, m.text_body, m.clean_text, m.internal_date, mb.user_address \
+                "SELECT m.id, m.thread_id, m.subject, m.sender, m.recipients, m.text_body, m.clean_text, m.internal_date, mb.user_address \
                  FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id \
                  WHERE m.id > $1 \
                  ORDER BY m.id ASC LIMIT $2"
@@ -222,12 +233,13 @@ pub fn spawn_indexer(
 
             let docs: Vec<MeiliDocument> = rows
                 .into_iter()
-                .map(|(id, thread_id, subject, sender, text_body, clean_text, internal_date, user_address)| {
+                .map(|(id, thread_id, subject, sender, recipients, text_body, clean_text, internal_date, user_address)| {
                     MeiliDocument {
                         id,
                         thread_id,
                         subject: subject.unwrap_or_default(),
                         sender,
+                        recipients,
                         text_body: text_body.unwrap_or_default(),
                         clean_text: clean_text.unwrap_or_default(),
                         internal_date,

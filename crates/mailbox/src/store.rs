@@ -1713,6 +1713,7 @@ impl MailboxStore {
                SELECT id FROM messages WHERE search_vector @@ plainto_tsquery('simple', ${tsquery_idx})
                UNION SELECT id FROM messages WHERE subject IS NOT NULL AND subject != '' AND subject ILIKE ${pattern_idx}
                UNION SELECT id FROM messages WHERE sender IS NOT NULL AND sender != '' AND sender ILIKE ${pattern_idx}
+               UNION SELECT id FROM messages WHERE recipients IS NOT NULL AND recipients != '' AND recipients ILIKE ${pattern_idx}
                UNION SELECT id FROM messages WHERE text_body IS NOT NULL AND text_body != '' AND text_body ILIKE ${pattern_idx}
                UNION SELECT id FROM messages WHERE clean_text IS NOT NULL AND clean_text != '' AND clean_text ILIKE ${pattern_idx}
                UNION SELECT message_id FROM attachment_content WHERE extracted_text ILIKE ${pattern_idx}
