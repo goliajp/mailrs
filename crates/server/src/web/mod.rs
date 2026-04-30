@@ -19,6 +19,7 @@ mod ai_assist;
 mod api_key;
 mod auth;
 mod autodiscover;
+mod calendar_api;
 mod conversations;
 mod dav;
 mod jmap;
@@ -635,6 +636,10 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/api/queue", get(admin::get_queue))
         .route("/api/queue/{id}/retry", post(admin::retry_queue_message))
         // mail API
+        .route(
+            "/api/calendar/conflicts",
+            get(calendar_api::get_conflicts),
+        )
         .route("/api/mail/folders", get(mail::get_folders))
         .route(
             "/api/mail/folders/{name}/messages",
