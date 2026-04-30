@@ -1,0 +1,56 @@
+From: "Alice Sender" <alice@example.com>
+To: bob@example.com
+Subject: Cancelled: Customer demo: Acme Corp
+Date: Thu, 30 Apr 2026 12:00:00 +0000
+Message-ID: <zoom-cnl-001@zoom.us>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BOUNDARY_mixed_zoom"
+
+--BOUNDARY_mixed_zoom
+Content-Type: text/plain; charset=UTF-8
+
+The Zoom meeting has been cancelled.
+--BOUNDARY_mixed_zoom
+Content-Type: text/calendar; charset=UTF-8; method=CANCEL; name="invite.ics"
+Content-Disposition: attachment; filename="invite.ics"
+Content-Transfer-Encoding: 7bit
+
+BEGIN:VCALENDAR
+PRODID:-//Zoom//US//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:CANCEL
+BEGIN:VTIMEZONE
+TZID:America/New_York
+BEGIN:STANDARD
+DTSTART:20071104T020000
+RRULE:FREQ=YEARLY;BYDAY=1SU;BYMONTH=11
+TZOFFSETFROM:-0400
+TZOFFSETTO:-0500
+TZNAME:EST
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:20070311T020000
+RRULE:FREQ=YEARLY;BYDAY=2SU;BYMONTH=3
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0400
+TZNAME:EDT
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:zoom-12345678901@zoom.us
+DTSTAMP:20260430T120000Z
+DTSTART;TZID=America/New_York:20260520T140000
+DTEND;TZID=America/New_York:20260520T150000
+SEQUENCE:2
+SUMMARY:Customer demo: Acme Corp
+LOCATION:https://zoom.us/j/12345678901?pwd=AbCdEfGhIjKlMnOpQrStUv
+DESCRIPTION:Zoom is inviting you to a scheduled Zoom meeting.\n\nJoin Zoom Meeting\nhttps://zoom.us/j/12345678901?pwd=AbCdEfGhIjKlMnOpQrStUv\n\nMeeting ID: 123 4567 8901\nPasscode: 654321\n\nOne tap mobile\n+12532158782,,12345678901# US (Tacoma)\n+13017158592,,12345678901# US (Washington DC)
+STATUS:CANCELLED
+ORGANIZER;CN=Alice Sender:mailto:alice@example.com
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=Bob Recipient:mailto:bob@example.com
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR
+
+--BOUNDARY_mixed_zoom--
