@@ -1,6 +1,6 @@
 import { toast } from '@goliapkg/gds'
 import { useAtomValue } from 'jotai'
-import { Loader2, Send } from 'lucide-react'
+import { Eye, Loader2, Send } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
@@ -63,6 +63,12 @@ export function ReplyBox({
   const threadMessages = useAtomValue(threadMessagesAtom)
   const [forwardTo, setForwardTo] = useState('')
   const [sending, setSending] = useState(false)
+  // MRS-15 follow-up: preview-before-send. After the broken-list incident
+  // where TipTap's getHTML() output looked clean in the compose pane but
+  // wrapped the signature into a bullet list when rendered by the
+  // recipient, we surface the actual to-send HTML in a sandboxed iframe so
+  // users can spot WYSIWYG drift before hitting send.
+  const [previewHtml, setPreviewHtml] = useState<null | string>(null)
   // refs to avoid stale closures in send callback
   const forwardMessageIdRef = useRef(forwardMessageId)
   forwardMessageIdRef.current = forwardMessageId
@@ -485,6 +491,20 @@ export function ReplyBox({
         <div className="flex-1" />
 
         <button
+          className="border-border text-fg hover:bg-bg-tertiary flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={sending}
+          onClick={() => {
+            const content = composeRef.current?.getContent()
+            const html = content?.fullHtml ?? ''
+            setPreviewHtml(html)
+          }}
+          title="Preview as the recipient will see it"
+        >
+          <Eye className="h-3.5 w-3.5" />
+          Preview
+        </button>
+
+        <button
           className="bg-accent hover:bg-accent-hover flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={sending}
           onClick={send}
@@ -493,6 +513,52 @@ export function ReplyBox({
           {sending ? 'Sending…' : 'Send'}
         </button>
       </div>
+
+      {previewHtml !== null && (
+        <div
+          className="bg-fg/40 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          onClick={() => setPreviewHtml(null)}
+        >
+          <div
+            className="border-border bg-bg flex max-h-[85vh] w-full max-w-3xl flex-col rounded-lg border shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-border flex items-center justify-between border-b px-4 py-2">
+              <div className="text-fg text-sm font-medium">Preview — receiver's view</div>
+              <button
+                className="text-fg-muted hover:text-fg text-xs"
+                onClick={() => setPreviewHtml(null)}
+              >
+                Close
+              </button>
+            </div>
+            <iframe
+              className="bg-bg-secondary min-h-[60vh] flex-1 rounded-b-lg"
+              sandbox=""
+              srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5;color:#222;background:#fff;padding:16px;margin:0}*{max-width:100%}</style></head><body>${previewHtml}</body></html>`}
+              title="message preview"
+            />
+            <div className="border-border flex items-center justify-end gap-2 border-t px-4 py-2">
+              <button
+                className="border-border text-fg hover:bg-bg-tertiary rounded-md border px-3 py-1.5 text-xs"
+                onClick={() => setPreviewHtml(null)}
+              >
+                Back to edit
+              </button>
+              <button
+                className="bg-accent hover:bg-accent-hover rounded-md px-3 py-1.5 text-xs font-medium text-white"
+                disabled={sending}
+                onClick={() => {
+                  setPreviewHtml(null)
+                  void send()
+                }}
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
