@@ -1,0 +1,41 @@
+From: "Alice Sender" <alice@gmail.com>
+To: bob@example.com
+Subject: Weekly 1:1
+Date: Thu, 30 Apr 2026 12:00:00 +0000
+Message-ID: <google-rec-001@google.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="BOUNDARY_alt_inline"
+
+--BOUNDARY_alt_inline
+Content-Type: text/plain; charset=UTF-8
+
+See attached invite.
+--BOUNDARY_alt_inline
+Content-Type: text/calendar; charset=UTF-8; method=REQUEST
+Content-Transfer-Encoding: 7bit
+
+BEGIN:VCALENDAR
+PRODID:-//Google Inc//Google Calendar 70.9054//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:REQUEST
+X-WR-TIMEZONE:America/Los_Angeles
+BEGIN:VEVENT
+UID:google-1on1-tue@google.com
+DTSTAMP:20260430T120000Z
+DTSTART;TZID=America/Los_Angeles:20260505T160000
+DTEND;TZID=America/Los_Angeles:20260505T163000
+SEQUENCE:0
+SUMMARY:Weekly 1:1
+LOCATION:Coffee shop
+STATUS:CONFIRMED
+RRULE:FREQ=WEEKLY;BYDAY=TU
+ORGANIZER;CN="Alice Sender":mailto:alice@gmail.com
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN="Bob Recipient";X-NUM-GUESTS=0:mailto:bob@example.com
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;RSVP=FALSE;CN="Alice Sender";X-NUM-GUESTS=0:mailto:alice@gmail.com
+X-GOOGLE-CONFERENCE:https://meet.google.com/abc-defg-hij
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR
+
+--BOUNDARY_alt_inline--
