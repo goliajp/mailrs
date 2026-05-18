@@ -21,7 +21,7 @@ chrono-tz = "0.10"
 rrule = "0.14"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
+toml = "1"
 axum = { version = "0.8", features = ["ws", "multipart"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
 dashmap = "6"
@@ -43,13 +43,13 @@ urlencoding = "2"
 base64 = "0.22"
 instant-acme = { version = "0.8", features = ["rcgen"] }
 arc-swap = "1"
-x509-parser = "0.16"
+x509-parser = "0.18"
 sieve-rs = "0.7"
 flate2 = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }
-html2text = "0.16"
+html2text = "0.17"
 mime_guess = "2"
-pdf-extract = "0.7"
+pdf-extract = "0.10"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "tiff"] }
 sha2 = "0.10"
 hmac = "0.12"
