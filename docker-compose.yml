@@ -1,7 +1,7 @@
 services:
   postgres:
     container_name: mailrs-postgres
-    image: pgvector/pgvector:pg18
+    image: pgvector/pgvector:pg18-trixie
     environment:
       POSTGRES_DB: mailrs
       POSTGRES_USER: mailrs
@@ -21,7 +21,7 @@ services:
 
   valkey:
     container_name: mailrs-valkey
-    image: valkey/valkey:latest
+    image: valkey/valkey:9-alpine
     ports:
       - "6379:6379"
     volumes:
@@ -36,7 +36,7 @@ services:
 
   chromium:
     container_name: mailrs-chromium
-    image: zenika/alpine-chrome:latest
+    image: zenika/alpine-chrome:124
     command: ["--no-sandbox", "--remote-debugging-address=0.0.0.0", "--remote-debugging-port=9222", "--disable-gpu", "--headless"]
     ports:
       - "9222:9222"
@@ -48,7 +48,7 @@ services:
 
   meilisearch:
     container_name: mailrs-meilisearch
-    image: getmeili/meilisearch:v1.13
+    image: getmeili/meilisearch:v1.44
     environment:
       MEILI_ENV: production
       MEILI_MASTER_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
