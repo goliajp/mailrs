@@ -13,6 +13,8 @@ import {
   MailOpen,
   MessageSquare,
   MoreVertical,
+  PanelRightClose,
+  PanelRightOpen,
   Paperclip,
   Printer,
   Reply,
@@ -52,6 +54,7 @@ import {
   selectedDomainsAtom,
   selectedThreadIdAtom,
   threadMessagesAtom,
+  timelineCollapsedAtom,
   visibleConversationIdsAtom,
 } from '@/store/chat'
 
@@ -104,6 +107,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const contentScrollRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const [mobileThreadTab, setMobileThreadTab] = useAtom(mobileThreadTabAtom)
+  const [timelineCollapsed, setTimelineCollapsed] = useAtom(timelineCollapsedAtom)
   const [mobileReplyOpen, setMobileReplyOpen] = useAtom(mobileReplyOpenAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
@@ -489,6 +493,18 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 <MessageSquare className="h-4 w-4" />
               </HdrBtn>
             )}
+            {/* desktop: collapse / expand conversation timeline pane */}
+            <HdrBtn
+              className="hidden md:inline-flex"
+              onClick={() => setTimelineCollapsed((v) => !v)}
+              title={timelineCollapsed ? 'Show conversation' : 'Hide conversation'}
+            >
+              {timelineCollapsed ? (
+                <PanelRightOpen className="h-4 w-4" />
+              ) : (
+                <PanelRightClose className="h-4 w-4" />
+              )}
+            </HdrBtn>
             <HdrBtn onClick={() => setSelectedId(null)} title="Close">
               <X className="h-4 w-4" />
             </HdrBtn>
@@ -631,8 +647,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         </button>
       </MPane>
 
-      {/* handle panel (conversation timeline + reply) — hidden on mobile content tab */}
-      <MPane className={mobileThreadTab === 'content' ? 'hidden md:flex' : ''}>
+      {/* handle panel (conversation timeline + reply) — hidden on mobile content
+          tab, and collapsible on desktop via the panel toggle in the header. */}
+      <MPane
+        className={`${mobileThreadTab === 'content' ? 'hidden' : ''} ${
+          timelineCollapsed ? 'md:hidden' : 'md:flex'
+        }`}
+      >
         {/* panel header */}
         <div className="border-border flex shrink-0 items-center gap-2 border-b px-4 py-1.5 select-none">
           <button

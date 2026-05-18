@@ -48,9 +48,11 @@ export function Chat() {
   const [mobileView, setMobileView] = useAtom(mobileViewAtom)
   const [shortcutsOpen, setShortcutsOpen] = useAtom(shortcutsDialogOpenAtom)
   const showArchived = useAtomValue(showArchivedAtom)
-  const quickFilter = useAtomValue(quickFilterAtom)
-  const importanceSection = useAtomValue(importanceSectionAtom)
+  const [quickFilter, setQuickFilter] = useAtom(quickFilterAtom)
+  const [importanceSection, setImportanceSection] = useAtom(importanceSectionAtom)
   const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
+  const setFolder = useSetAtom(folderAtom)
+  const setCategoryFilter = useSetAtom(categoryFilterAtom)
   const [searchParams, setSearchParams] = useSearchParams()
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const firstLoadDone = useRef(false)
@@ -63,21 +65,54 @@ export function Chat() {
     initializedRef.current = true
     const urlThread = searchParams.get('thread')
     const urlView = searchParams.get('view') as 'conversation' | 'list' | 'reply' | 'thread' | null
+    const urlFolder = searchParams.get('folder')
+    const urlTab = searchParams.get('tab')
+    const urlCat = searchParams.get('cat')
     if (urlThread) setSelectedThreadId(urlThread)
     if (urlView) setMobileView(urlView)
-  }, [searchParams, setSelectedThreadId, setMobileView])
+    if (urlFolder === 'Drafts' || urlFolder === 'Sent' || urlFolder === 'Trash') {
+      setFolder(urlFolder)
+    }
+    if (urlTab === 'unread' || urlTab === 'starred' || urlTab === 'attachment') {
+      setQuickFilter(urlTab)
+    } else if (urlTab === 'action' || urlTab === 'important' || urlTab === 'other') {
+      setImportanceSection(urlTab)
+    }
+    if (urlCat) setCategoryFilter(urlCat)
+  }, [
+    searchParams,
+    setSelectedThreadId,
+    setMobileView,
+    setFolder,
+    setQuickFilter,
+    setImportanceSection,
+    setCategoryFilter,
+  ])
 
   // sync state TO URL when it changes
   useEffect(() => {
     const params = new URLSearchParams()
     if (selectedThreadId) params.set('thread', selectedThreadId)
     if (mobileView !== 'list') params.set('view', mobileView)
+    if (folder) params.set('folder', folder)
+    if (quickFilter !== 'all') params.set('tab', quickFilter)
+    else if (importanceSection) params.set('tab', importanceSection)
+    if (categoryFilter) params.set('cat', categoryFilter)
     const newSearch = params.toString()
     const currentSearch = searchParams.toString()
     if (newSearch !== currentSearch) {
       setSearchParams(params, { replace: true })
     }
-  }, [selectedThreadId, mobileView, searchParams, setSearchParams])
+  }, [
+    selectedThreadId,
+    mobileView,
+    folder,
+    quickFilter,
+    importanceSection,
+    categoryFilter,
+    searchParams,
+    setSearchParams,
+  ])
 
   // keep a ref so loadMore always sees latest
   const conversationsRef = useRef(conversations)
