@@ -304,10 +304,13 @@ pub fn spawn_daily_report_task(
                                 let dmarc_name = format!("_dmarc.{domain}");
                                 let rua_addr = match resolver.txt_lookup(&dmarc_name).await {
                                     Ok(lookup) => {
-                                        lookup.iter()
-                                            .find_map(|txt| {
-                                                let s = txt.to_string();
-                                                extract_rua_from_dmarc_record(&s)
+                                        lookup.answers()
+                                            .iter()
+                                            .find_map(|r| match &r.data {
+                                                hickory_resolver::proto::rr::RData::TXT(txt) => {
+                                                    extract_rua_from_dmarc_record(&txt.to_string())
+                                                }
+                                                _ => None,
                                             })
                                     }
                                     Err(_) => None,

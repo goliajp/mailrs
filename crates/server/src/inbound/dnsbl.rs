@@ -76,10 +76,12 @@ pub async fn check_dnsbl(
     for zone in zones {
         let query_host = dnsbl_query(&reversed, zone);
         if let Ok(response) = resolver.ipv4_lookup(&query_host).await {
-            for addr in response.iter() {
-                let result = interpret_spamhaus(addr.0);
-                if result != DnsblResult::Clean {
-                    return Some((zone.clone(), result));
+            for record in response.answers() {
+                if let hickory_resolver::proto::rr::RData::A(addr) = &record.data {
+                    let result = interpret_spamhaus(addr.0);
+                    if result != DnsblResult::Clean {
+                        return Some((zone.clone(), result));
+                    }
                 }
             }
         }

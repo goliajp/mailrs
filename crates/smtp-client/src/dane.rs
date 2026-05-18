@@ -92,16 +92,17 @@ pub async fn resolve_tlsa(
         Err(_) => return Vec::new(),
     };
 
+    use hickory_resolver::proto::rr::RData;
     let mut records = Vec::new();
-    for rdata in lookup.iter() {
+    for record in lookup.answers() {
         // hickory returns TLSA variant directly — extract fields
-        if let Some(tlsa) = rdata.as_tlsa() {
+        if let RData::TLSA(tlsa) = &record.data {
             let mut raw = vec![
-                tlsa.cert_usage().into(),
-                tlsa.selector().into(),
-                tlsa.matching().into(),
+                tlsa.cert_usage.into(),
+                tlsa.selector.into(),
+                tlsa.matching.into(),
             ];
-            raw.extend_from_slice(tlsa.cert_data());
+            raw.extend_from_slice(&tlsa.cert_data);
             if let Some(record) = TlsaRecord::from_rdata(&raw) {
                 records.push(record);
             }

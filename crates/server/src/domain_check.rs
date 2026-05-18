@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 
-use hickory_resolver::proto::rr::RecordType;
+use hickory_resolver::proto::rr::{RData, RecordType};
 use hickory_resolver::TokioResolver;
 use serde::Serialize;
 
@@ -57,9 +57,17 @@ pub async fn check_domain(
 async fn check_mx(resolver: &TokioResolver, domain: &str, hostname: &str) -> CheckResult {
     match resolver.mx_lookup(domain).await {
         Ok(records) => {
-            let entries: Vec<String> = records
+            let mxs: Vec<_> = records
+                .answers()
                 .iter()
-                .map(|mx| format!("{} (priority {})", mx.exchange(), mx.preference()))
+                .filter_map(|r| match &r.data {
+                    RData::MX(mx) => Some(mx),
+                    _ => None,
+                })
+                .collect();
+            let entries: Vec<String> = mxs
+                .iter()
+                .map(|mx| format!("{} (priority {})", mx.exchange, mx.preference))
                 .collect();
             if entries.is_empty() {
                 return CheckResult {
@@ -70,8 +78,8 @@ async fn check_mx(resolver: &TokioResolver, domain: &str, hostname: &str) -> Che
                 };
             }
             // check if any MX points to our hostname
-            let points_to_us = records.iter().any(|mx| {
-                let exchange = mx.exchange().to_string();
+            let points_to_us = mxs.iter().any(|mx| {
+                let exchange = mx.exchange.to_string();
                 let exchange = exchange.trim_end_matches('.');
                 exchange.eq_ignore_ascii_case(hostname)
             });
@@ -114,8 +122,12 @@ async fn check_spf(resolver: &TokioResolver, domain: &str, hostname: &str) -> Ch
     match resolver.txt_lookup(domain).await {
         Ok(records) => {
             let spf_records: Vec<String> = records
+                .answers()
                 .iter()
-                .map(|r| r.to_string())
+                .filter_map(|r| match &r.data {
+                    RData::TXT(txt) => Some(txt.to_string()),
+                    _ => None,
+                })
                 .filter(|txt| txt.starts_with("v=spf1"))
                 .collect();
             match spf_records.len() {
@@ -195,8 +207,12 @@ async fn check_dkim(resolver: &TokioResolver, domain: &str, selector: Option<&st
     match resolver.txt_lookup(&qname).await {
         Ok(records) => {
             let dkim_records: Vec<String> = records
+                .answers()
                 .iter()
-                .map(|r| r.to_string())
+                .filter_map(|r| match &r.data {
+                    RData::TXT(txt) => Some(txt.to_string()),
+                    _ => None,
+                })
                 .filter(|txt| txt.contains("v=DKIM1"))
                 .collect();
             if dkim_records.is_empty() {
@@ -229,8 +245,12 @@ async fn check_dmarc(resolver: &TokioResolver, domain: &str) -> CheckResult {
     match resolver.txt_lookup(&qname).await {
         Ok(records) => {
             let dmarc_records: Vec<String> = records
+                .answers()
                 .iter()
-                .map(|r| r.to_string())
+                .filter_map(|r| match &r.data {
+                    RData::TXT(txt) => Some(txt.to_string()),
+                    _ => None,
+                })
                 .filter(|txt| txt.starts_with("v=DMARC1"))
                 .collect();
             if dmarc_records.is_empty() {
@@ -272,8 +292,12 @@ async fn check_mta_sts_record(resolver: &TokioResolver, domain: &str) -> CheckRe
     match resolver.txt_lookup(&qname).await {
         Ok(records) => {
             let sts_records: Vec<String> = records
+                .answers()
                 .iter()
-                .map(|r| r.to_string())
+                .filter_map(|r| match &r.data {
+                    RData::TXT(txt) => Some(txt.to_string()),
+                    _ => None,
+                })
                 .filter(|txt| txt.contains("v=STSv1"))
                 .collect();
             if sts_records.is_empty() {
@@ -358,8 +382,12 @@ async fn check_tlsrpt(resolver: &TokioResolver, domain: &str) -> CheckResult {
     match resolver.txt_lookup(&qname).await {
         Ok(records) => {
             let tls_records: Vec<String> = records
+                .answers()
                 .iter()
-                .map(|r| r.to_string())
+                .filter_map(|r| match &r.data {
+                    RData::TXT(txt) => Some(txt.to_string()),
+                    _ => None,
+                })
                 .filter(|txt| txt.contains("v=TLSRPTv1"))
                 .collect();
             if tls_records.is_empty() {
@@ -411,7 +439,14 @@ async fn check_ptr(resolver: &TokioResolver, hostname: &str) -> CheckResult {
 
     match resolver.reverse_lookup(ip).await {
         Ok(names) => {
-            let ptrs: Vec<String> = names.iter().map(|n| n.to_string()).collect();
+            let ptrs: Vec<String> = names
+                .answers()
+                .iter()
+                .filter_map(|r| match &r.data {
+                    RData::PTR(name) => Some(name.to_string()),
+                    _ => None,
+                })
+                .collect();
             let matches = ptrs.iter().any(|n| n.trim_end_matches('.') == hostname);
             if matches {
                 CheckResult {
@@ -443,8 +478,12 @@ async fn check_bimi(resolver: &TokioResolver, domain: &str) -> CheckResult {
     match resolver.txt_lookup(&qname).await {
         Ok(records) => {
             let bimi_records: Vec<String> = records
+                .answers()
                 .iter()
-                .map(|r| r.to_string())
+                .filter_map(|r| match &r.data {
+                    RData::TXT(txt) => Some(txt.to_string()),
+                    _ => None,
+                })
                 .filter(|txt| txt.contains("v=BIMI1"))
                 .collect();
             if bimi_records.is_empty() {
@@ -502,8 +541,12 @@ pub async fn lookup_bimi_logo(resolver: &TokioResolver, domain: &str) -> Option<
     let qname = format!("default._bimi.{domain}");
     let records = resolver.txt_lookup(&qname).await.ok()?;
     records
+        .answers()
         .iter()
-        .map(|r| r.to_string())
+        .filter_map(|r| match &r.data {
+            RData::TXT(txt) => Some(txt.to_string()),
+            _ => None,
+        })
         .find(|txt| txt.contains("v=BIMI1"))
         .and_then(|rec| extract_bimi_logo_url(&rec))
 }
@@ -581,11 +624,18 @@ async fn check_dane(resolver: &TokioResolver, domain: &str) -> CheckResult {
     // look up MX first, then check TLSA for port 25 on first MX
     let mx_host = match resolver.mx_lookup(domain).await {
         Ok(records) => {
-            let mut entries: Vec<_> = records.iter().collect();
-            entries.sort_by_key(|mx| mx.preference());
+            let mut entries: Vec<_> = records
+                .answers()
+                .iter()
+                .filter_map(|r| match &r.data {
+                    RData::MX(mx) => Some(mx),
+                    _ => None,
+                })
+                .collect();
+            entries.sort_by_key(|mx| mx.preference);
             entries
                 .first()
-                .map(|mx| mx.exchange().to_string().trim_end_matches('.').to_string())
+                .map(|mx| mx.exchange.to_string().trim_end_matches('.').to_string())
         }
         Err(_) => None,
     };
@@ -601,7 +651,11 @@ async fn check_dane(resolver: &TokioResolver, domain: &str) -> CheckResult {
     let qname = format!("_25._tcp.{mx_host}");
     match resolver.lookup(&qname, RecordType::TLSA).await {
         Ok(records) => {
-            let entries: Vec<String> = records.iter().map(|r| format!("{}", r)).collect();
+            let entries: Vec<String> = records
+                .answers()
+                .iter()
+                .map(|r| format!("{}", r.data))
+                .collect();
             if entries.is_empty() {
                 CheckResult {
                     name: "DANE/TLSA".into(),

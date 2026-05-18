@@ -24,18 +24,23 @@ pub async fn resolve_mx(
         ));
     }
 
+    use hickory_resolver::proto::rr::RData;
     match resolver.mx_lookup(domain).await {
         Ok(mx_response) => {
             let mut records: Vec<MxRecord> = mx_response
+                .answers()
                 .iter()
-                .map(|mx| {
-                    let exchange = mx.exchange().to_utf8();
-                    // remove trailing dot from FQDN
-                    let exchange = exchange.trim_end_matches('.').to_string();
-                    MxRecord {
-                        priority: mx.preference(),
-                        exchange,
+                .filter_map(|record| match &record.data {
+                    RData::MX(mx) => {
+                        let exchange = mx.exchange.to_utf8();
+                        // remove trailing dot from FQDN
+                        let exchange = exchange.trim_end_matches('.').to_string();
+                        Some(MxRecord {
+                            priority: mx.preference,
+                            exchange,
+                        })
                     }
+                    _ => None,
                 })
                 .collect();
 
@@ -245,7 +250,8 @@ mod tests {
     async fn resolve_mx_empty_domain_error() {
         let resolver = TokioResolver::builder_tokio()
             .expect("failed to create resolver builder")
-            .build();
+            .build()
+            .expect("failed to build resolver");
         let result = resolve_mx(&resolver, "").await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidInput);
