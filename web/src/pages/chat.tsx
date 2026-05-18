@@ -58,39 +58,41 @@ export function Chat() {
   const firstLoadDone = useRef(false)
   const prevSearchRef = useRef(searchQuery)
 
-  // restore state from URL on mount
+  // Single effect that owns the URL <-> atom sync:
+  //   - first run: restore atom values from URL params (and skip writing
+  //     back, so we don't clobber the URL before our setX calls flush)
+  //   - subsequent runs: write atom values into URL
+  // Keeping it in one effect avoids the race between a separate "restore"
+  // and "sync" pair where the sync's first invocation captures default
+  // atom values and overwrites the URL to empty before the restore's
+  // setX updates have re-rendered.
   const initializedRef = useRef(false)
   useEffect(() => {
-    if (initializedRef.current) return
-    initializedRef.current = true
-    const urlThread = searchParams.get('thread')
-    const urlView = searchParams.get('view') as 'conversation' | 'list' | 'reply' | 'thread' | null
-    const urlFolder = searchParams.get('folder')
-    const urlTab = searchParams.get('tab')
-    const urlCat = searchParams.get('cat')
-    if (urlThread) setSelectedThreadId(urlThread)
-    if (urlView) setMobileView(urlView)
-    if (urlFolder === 'Drafts' || urlFolder === 'Sent' || urlFolder === 'Trash') {
-      setFolder(urlFolder)
+    if (!initializedRef.current) {
+      initializedRef.current = true
+      const urlThread = searchParams.get('thread')
+      const urlView = searchParams.get('view') as
+        | 'conversation'
+        | 'list'
+        | 'reply'
+        | 'thread'
+        | null
+      const urlFolder = searchParams.get('folder')
+      const urlTab = searchParams.get('tab')
+      const urlCat = searchParams.get('cat')
+      if (urlThread) setSelectedThreadId(urlThread)
+      if (urlView) setMobileView(urlView)
+      if (urlFolder === 'Drafts' || urlFolder === 'Sent' || urlFolder === 'Trash') {
+        setFolder(urlFolder)
+      }
+      if (urlTab === 'unread' || urlTab === 'starred' || urlTab === 'attachment') {
+        setQuickFilter(urlTab)
+      } else if (urlTab === 'action' || urlTab === 'important' || urlTab === 'other') {
+        setImportanceSection(urlTab)
+      }
+      if (urlCat) setCategoryFilter(urlCat)
+      return
     }
-    if (urlTab === 'unread' || urlTab === 'starred' || urlTab === 'attachment') {
-      setQuickFilter(urlTab)
-    } else if (urlTab === 'action' || urlTab === 'important' || urlTab === 'other') {
-      setImportanceSection(urlTab)
-    }
-    if (urlCat) setCategoryFilter(urlCat)
-  }, [
-    searchParams,
-    setSelectedThreadId,
-    setMobileView,
-    setFolder,
-    setQuickFilter,
-    setImportanceSection,
-    setCategoryFilter,
-  ])
-
-  // sync state TO URL when it changes
-  useEffect(() => {
     const params = new URLSearchParams()
     if (selectedThreadId) params.set('thread', selectedThreadId)
     if (mobileView !== 'list') params.set('view', mobileView)
@@ -112,6 +114,12 @@ export function Chat() {
     categoryFilter,
     searchParams,
     setSearchParams,
+    setSelectedThreadId,
+    setMobileView,
+    setFolder,
+    setQuickFilter,
+    setImportanceSection,
+    setCategoryFilter,
   ])
 
   // keep a ref so loadMore always sees latest
