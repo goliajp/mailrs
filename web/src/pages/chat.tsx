@@ -1,7 +1,8 @@
+import type { MailListFilters } from '@/lib/query-keys'
 import type { ConversationSummary } from '@/lib/types'
 
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { ConversationList } from '@/components/conversation-list'
@@ -11,9 +12,8 @@ import { NewConversation } from '@/components/new-conversation'
 import { ThreadView } from '@/components/thread-view'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { shallowEqualConvo, useMailEvents } from '@/hooks/use-mail-events'
+import { useConversationsQuery } from '@/hooks/use-mail-queries'
 import { MPane, MPaneGroup } from '@/layouts/pane'
-import { fetchJson } from '@/lib/api'
-import { readListCache, writeListCache } from '@/lib/list-cache'
 import { authAtom } from '@/store/auth'
 import {
   categoryFilterAtom,
@@ -32,8 +32,6 @@ import {
   shortcutsDialogOpenAtom,
   showArchivedAtom,
 } from '@/store/chat'
-
-const PAGE_SIZE = 50
 
 export function Chat() {
   const auth = useAtomValue(authAtom)
@@ -55,9 +53,6 @@ export function Chat() {
   const setFolder = useSetAtom(folderAtom)
   const setCategoryFilter = useSetAtom(categoryFilterAtom)
   const [searchParams, setSearchParams] = useSearchParams()
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
-  const firstLoadDone = useRef(false)
-  const prevSearchRef = useRef(searchQuery)
 
   // Single effect that owns the URL <-> atom sync:
   //   - first run: restore atom values from URL params (and skip writing
@@ -123,24 +118,6 @@ export function Chat() {
     setCategoryFilter,
   ])
 
-  // keep a ref so loadMore always sees latest
-  const conversationsRef = useRef(conversations)
-  conversationsRef.current = conversations
-  const searchRef = useRef(searchQuery)
-  searchRef.current = searchQuery
-  const categoryRef = useRef(categoryFilter)
-  categoryRef.current = categoryFilter
-  const domainsRef = useRef(selectedDomains)
-  domainsRef.current = selectedDomains
-  const archivedRef = useRef(showArchived)
-  archivedRef.current = showArchived
-  const folderRef = useRef(folder)
-  folderRef.current = folder
-  const quickFilterRef = useRef(quickFilter)
-  quickFilterRef.current = quickFilter
-  const sectionRef = useRef(importanceSection)
-  sectionRef.current = importanceSection
-
   // request notification permission
   useEffect(() => {
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
@@ -154,208 +131,97 @@ export function Chat() {
   // keyboard navigation
   useKeyboardNav()
 
-  // build API path helper
-  const buildPath = useCallback(
-    (opts?: {
-      archived?: boolean
-      before?: number
-      category?: null | string
-      domains?: string[]
-      folder?: null | string
-      query?: string
-      section?: null | string
-      starred?: boolean
-      unread?: boolean
-    }) => {
-      const {
-        archived,
-        before,
-        category,
-        domains,
-        folder: f,
-        query,
-        section,
-        starred,
-        unread,
-      } = opts ?? {}
-      if (query) {
-        let path = `/conversations/search?q=${encodeURIComponent(query)}&limit=${PAGE_SIZE}`
-        if (category) path += `&category=${encodeURIComponent(category)}`
-        if (domains && domains.length > 0)
-          path += `&domains=${encodeURIComponent(domains.join(','))}`
-        return path
-      }
-      let path = `/conversations?limit=${PAGE_SIZE}`
-      if (before) path += `&before=${before}`
-      if (category) path += `&category=${encodeURIComponent(category)}`
-      if (domains && domains.length > 0) path += `&domains=${encodeURIComponent(domains.join(','))}`
-      if (archived) path += '&archived=true'
-      if (f) path += `&folder=${encodeURIComponent(f)}`
-      if (unread) path += '&unread=true'
-      if (starred) path += '&starred=true'
-      if (section) path += `&section=${encodeURIComponent(section)}`
-      return path
-    },
-    []
-  )
-
-  // request-generation guard: when filters change rapidly (URL restore on
-  // mount fires setFolder/setQuickFilter/... back-to-back), several
-  // loadConversations calls run in parallel. The last one's filter is
-  // authoritative; earlier ones' responses must not write to the list, or
-  // the wrong filter's data ends up visible.
-  const loadGenRef = useRef(0)
-  const userEmail = auth?.address ?? ''
-  const loadConversations = useCallback(
-    async (opts?: {
-      append?: boolean
-      archived?: boolean
-      before?: number
-      category?: null | string
-      domains?: string[]
-      folder?: null | string
-      query?: string
-      section?: null | string
-      starred?: boolean
-      unread?: boolean
-    }) => {
-      const { append } = opts ?? {}
-      // append loads inherit the generation of the current full-load — they
-      // should still be invalidated when a new filter arrives.
-      const myGen = append ? loadGenRef.current : ++loadGenRef.current
-      const path = buildPath(opts)
-      try {
-        const data = await fetchJson<ConversationSummary[]>(path)
-        if (myGen !== loadGenRef.current) return
-
-        if (append) {
-          setConversations((prev) => {
-            const ids = new Set(prev.map((c) => c.thread_id))
-            return [...prev, ...data.filter((c) => !ids.has(c.thread_id))]
-          })
-        } else {
-          // preserve object identity for items whose payload is unchanged,
-          // so React.memo on ConversationItem actually skips re-renders
-          setConversations((prev) => {
-            const byId = new Map<string, ConversationSummary>()
-            for (const c of prev) byId.set(c.thread_id, c)
-            return data.map((f) => {
-              const existing = byId.get(f.thread_id)
-              return existing && shallowEqualConvo(existing, f) ? existing : f
-            })
-          })
-          // write through the stale-while-revalidate cache; future mounts
-          // with this same filter-path will hydrate instantly.
-          if (userEmail) writeListCache(userEmail, path, data)
-        }
-
-        setHasMore(data.length >= PAGE_SIZE)
-      } catch {
-        // keep current
-      } finally {
-        if (myGen === loadGenRef.current) {
-          // clear loading on every fetch, not just the first — otherwise a
-          // filter-change refetch (which clears conversations before fetching)
-          // would leave the UI stuck showing the empty state
-          firstLoadDone.current = true
-          if (!append) setInitialLoading(false)
-        }
-      }
-    },
-    [setConversations, setHasMore, setInitialLoading, buildPath, userEmail]
-  )
-
-  // load more (infinite scroll callback) with reentry guard
-  const loadingRef = useRef(false)
-  const loadMore = useCallback(async () => {
-    if (loadingRef.current) return
-    const current = conversationsRef.current
-    const last = current[current.length - 1]
-    if (!last) return
-
-    loadingRef.current = true
-    setLoadingMore(true)
-    try {
-      await loadConversations({
-        append: true,
-        archived: archivedRef.current || undefined,
-        before: last.last_date,
-        category: categoryRef.current,
-        domains: domainsRef.current.length > 0 ? domainsRef.current : undefined,
-        folder: folderRef.current,
-        query: searchRef.current || undefined,
-        section: sectionRef.current,
-        starred: quickFilterRef.current === 'starred' || undefined,
-        unread: quickFilterRef.current === 'unread' || undefined,
-      })
-    } finally {
-      loadingRef.current = false
-      setLoadingMore(false)
-    }
-  }, [setLoadingMore, loadConversations])
-
-  // load conversations when any filter changes
-  // debounce only while the user is actively typing in search
+  // Search-only debounce: avoid hammering the server while the user types.
+  // For all other filter changes the query swap is instant via RQ cache.
+  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery)
   useEffect(() => {
-    const searchChanged = searchQuery !== prevSearchRef.current
-    prevSearchRef.current = searchQuery
+    if (!searchQuery) {
+      setDebouncedSearch('')
+      return
+    }
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
 
-    const doLoad = () => {
-      const opts = {
-        archived: showArchived || undefined,
-        category: categoryFilter,
-        domains: selectedDomains.length > 0 ? selectedDomains : undefined,
-        folder,
-        query: searchQuery || undefined,
-        section: importanceSection,
-        starred: quickFilter === 'starred' || undefined,
-        unread: quickFilter === 'unread' || undefined,
+  const filters: MailListFilters = useMemo(
+    () => ({
+      archived: showArchived,
+      category: categoryFilter,
+      domains: selectedDomains.length > 0 ? selectedDomains : undefined,
+      folder,
+      query: debouncedSearch || undefined,
+      section: importanceSection,
+      starred: quickFilter === 'starred',
+      unread: quickFilter === 'unread',
+    }),
+    [
+      showArchived,
+      categoryFilter,
+      selectedDomains,
+      folder,
+      debouncedSearch,
+      importanceSection,
+      quickFilter,
+    ]
+  )
+
+  const conversationsQuery = useConversationsQuery(filters)
+
+  // Project the query state onto the legacy atoms so the rest of the UI
+  // (conversation-list, thread-view, etc.) keeps working unchanged.
+  // Identity-preserving merge keeps memo'd rows from re-rendering when a
+  // refetch returns the same payload.
+  const flatConversations = useMemo(() => {
+    const pages = conversationsQuery.data?.pages ?? []
+    const flat: ConversationSummary[] = []
+    const seen = new Set<string>()
+    for (const page of pages) {
+      for (const c of page) {
+        if (seen.has(c.thread_id)) continue
+        seen.add(c.thread_id)
+        flat.push(c)
       }
-      // stale-while-revalidate: if we cached this exact filter's response
-      // before, paint it now and skip the skeleton. The fetch still runs
-      // in the background and replaces with fresh data via the
-      // identity-preserving updater in loadConversations.
-      const cached = userEmail ? readListCache(userEmail, buildPath(opts)) : null
-      if (cached && cached.length > 0) {
-        setConversations(cached)
-        setInitialLoading(false)
-        setHasMore(cached.length >= PAGE_SIZE)
-      } else {
-        // flip loading true before clearing so the UI shows the skeleton
-        // instead of the "All caught up!" empty state while refetching
-        setInitialLoading(true)
-        setConversations([])
-        setHasMore(true)
-      }
-      loadConversations(opts)
     }
+    return flat
+  }, [conversationsQuery.data])
 
-    if (debounceRef.current) clearTimeout(debounceRef.current)
+  useEffect(() => {
+    setConversations((prev) => {
+      const byId = new Map<string, ConversationSummary>()
+      for (const c of prev) byId.set(c.thread_id, c)
+      let allSame = prev.length === flatConversations.length
+      const next = flatConversations.map((f, i) => {
+        const existing = byId.get(f.thread_id)
+        const kept = existing && shallowEqualConvo(existing, f) ? existing : f
+        if (allSame && prev[i] !== kept) allSame = false
+        return kept
+      })
+      return allSame ? prev : next
+    })
+  }, [flatConversations, setConversations])
 
-    if (searchChanged && searchQuery) {
-      debounceRef.current = setTimeout(doLoad, 300)
-    } else {
-      doLoad()
-    }
+  useEffect(() => {
+    setInitialLoading(conversationsQuery.isPending && flatConversations.length === 0)
+  }, [conversationsQuery.isPending, flatConversations.length, setInitialLoading])
 
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [
-    searchQuery,
-    categoryFilter,
-    selectedDomains,
-    showArchived,
-    folder,
-    quickFilter,
-    importanceSection,
-    loadConversations,
-    setConversations,
-    setHasMore,
-    setInitialLoading,
-    buildPath,
-    userEmail,
-  ])
+  useEffect(() => {
+    setHasMore(conversationsQuery.hasNextPage)
+  }, [conversationsQuery.hasNextPage, setHasMore])
+
+  useEffect(() => {
+    setLoadingMore(conversationsQuery.isFetchingNextPage)
+  }, [conversationsQuery.isFetchingNextPage, setLoadingMore])
+
+  const loadMore = useCallback(() => {
+    if (!conversationsQuery.hasNextPage) return Promise.resolve()
+    if (conversationsQuery.isFetchingNextPage) return Promise.resolve()
+    return conversationsQuery.fetchNextPage().then(() => undefined)
+  }, [conversationsQuery])
+
+  const refreshConversations = useCallback(
+    () => conversationsQuery.refetch().then(() => undefined),
+    [conversationsQuery]
+  )
 
   // auto-select first conversation on desktop (desktop shows list + detail side by side)
   useEffect(() => {
@@ -368,30 +234,6 @@ export function Chat() {
       setSelectedThreadId(conversations[0].thread_id)
     }
   }, [conversations, selectedThreadId, composingNew, setSelectedThreadId])
-
-  const refreshConversations = useCallback(
-    () =>
-      loadConversations({
-        archived: showArchived || undefined,
-        category: categoryFilter,
-        domains: selectedDomains.length > 0 ? selectedDomains : undefined,
-        folder,
-        query: searchQuery || undefined,
-        section: importanceSection,
-        starred: quickFilter === 'starred' || undefined,
-        unread: quickFilter === 'unread' || undefined,
-      }),
-    [
-      loadConversations,
-      showArchived,
-      categoryFilter,
-      selectedDomains,
-      folder,
-      searchQuery,
-      importanceSection,
-      quickFilter,
-    ]
-  )
 
   return (
     <>

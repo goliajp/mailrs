@@ -25,6 +25,19 @@ vi.mock('jotai', () => ({
 }))
 const mockFetchJson = vi.fn().mockResolvedValue([])
 vi.mock('@/lib/api', () => ({ fetchJson: mockFetchJson }))
+const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/query-client', () => ({
+  queryClient: { invalidateQueries: mockInvalidateQueries },
+}))
+vi.mock('@/lib/query-keys', () => ({
+  mailKeys: {
+    actionCount: () => ['mail', 'action-count'],
+    all: () => ['mail'],
+    categories: () => ['mail', 'categories'],
+    conversations: () => ['mail', 'conversations'],
+    thread: (tid: string) => ['mail', 'thread', tid],
+  },
+}))
 const mockPlaySound = vi.fn()
 vi.mock('@/lib/notification-sound', () => ({ playNotificationSound: mockPlaySound }))
 vi.mock('@/store/chat', () => ({
@@ -257,9 +270,10 @@ describe('useMailEvents', () => {
     expect(ws.close).toHaveBeenCalled()
   })
 
-  it('refreshes conversations on NewMessage for current user', async () => {
+  it('invalidates conversations queries on NewMessage for current user', async () => {
     await renderMailEvents('alice@example.com')
     const ws = mockWs!
+    mockInvalidateQueries.mockClear()
 
     act(() => {
       ws.onmessage?.({
@@ -274,13 +288,13 @@ describe('useMailEvents', () => {
       })
     })
 
-    expect(mockFetchJson).toHaveBeenCalled()
+    expect(mockInvalidateQueries).toHaveBeenCalled()
   })
 
   it('ignores NewMessage destined for different user', async () => {
     await renderMailEvents('alice@example.com')
     const ws = mockWs!
-    mockFetchJson.mockClear()
+    mockInvalidateQueries.mockClear()
 
     act(() => {
       ws.onmessage?.({
@@ -295,7 +309,7 @@ describe('useMailEvents', () => {
       })
     })
 
-    expect(mockFetchJson).not.toHaveBeenCalled()
+    expect(mockInvalidateQueries).not.toHaveBeenCalled()
   })
 
   it('plays sound when notifications and sound enabled', async () => {
@@ -353,23 +367,25 @@ describe('useMailEvents', () => {
     expect(wsUrls[0]).not.toContain('?token=')
   })
 
-  it('refreshes data on visibility change to visible', async () => {
+  it('invalidates data on visibility change to visible', async () => {
     await renderMailEvents('alice@example.com')
-    mockFetchJson.mockClear()
+    mockInvalidateQueries.mockClear()
 
     fireDoc('visibilitychange')
 
-    expect(mockFetchJson).toHaveBeenCalled()
+    expect(mockInvalidateQueries).toHaveBeenCalled()
   })
 
   it('skips refresh on visibility change when hidden', async () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
     await renderMailEvents('alice@example.com')
-    mockFetchJson.mockClear()
+    mockInvalidateQueries.mockClear()
 
     fireDoc('visibilitychange')
 
-    expect(mockFetchJson).not.toHaveBeenCalled()
+    // visibilitychange fires, but onVisibilityChange short-circuits because
+    // document.visibilityState !== 'visible'.
+    expect(mockInvalidateQueries).not.toHaveBeenCalled()
   })
 
   it('reconnects on online event when socket is dead', async () => {
@@ -444,13 +460,13 @@ describe('useMailEvents', () => {
   it('polls fallback refresh when ws is closed and tab visible', async () => {
     await renderMailEvents('alice@example.com')
     mockWs!.readyState = MockWebSocket.CLOSED
-    mockFetchJson.mockClear()
+    mockInvalidateQueries.mockClear()
 
     act(() => {
       vi.advanceTimersByTime(60_000)
     })
 
-    expect(mockFetchJson).toHaveBeenCalled()
+    expect(mockInvalidateQueries).toHaveBeenCalled()
   })
 
   it('skips poll fallback when ws is open', async () => {

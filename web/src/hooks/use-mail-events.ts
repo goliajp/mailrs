@@ -1,27 +1,18 @@
-import type { ConversationSummary, NewMessageEvent, SmtpEvent, ThreadMessage } from '@/lib/types'
+import type { ConversationSummary, NewMessageEvent, SmtpEvent } from '@/lib/types'
 
 import { useAtomValue, useSetAtom } from 'jotai'
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 
-import { fetchJson } from '@/lib/api'
 import { playNotificationSound } from '@/lib/notification-sound'
-import {
-  categoryFilterAtom,
-  connectionStatusAtom,
-  conversationsAtom,
-  folderAtom,
-  importanceSectionAtom,
-  quickFilterAtom,
-  searchQueryAtom,
-  selectedDomainsAtom,
-  selectedThreadIdAtom,
-  threadMessagesAtom,
-} from '@/store/chat'
+import { queryClient } from '@/lib/query-client'
+import { mailKeys } from '@/lib/query-keys'
+import { connectionStatusAtom, selectedThreadIdAtom } from '@/store/chat'
 import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 
 // shallow equality over the conversation fields ConversationItem actually
-// renders. Used to preserve object identity across WS refetches so memo'd
-// rows don't re-render when their payload is unchanged. Exported for tests.
+// renders. Used to preserve object identity across refetches so memo'd
+// rows don't re-render when their payload is unchanged. Exported for tests
+// and for chat.tsx's bridge from query data to legacy atoms.
 export function shallowEqualConvo(a: ConversationSummary, b: ConversationSummary): boolean {
   if (a === b) return true
   if (
@@ -50,123 +41,41 @@ const RECONNECT_BASE = 1_000
 const RECONNECT_MAX = 30_000
 
 export function useMailEvents(user: string) {
-  const setConversations = useSetAtom(conversationsAtom)
   const setConnectionStatus = useSetAtom(connectionStatusAtom)
-  const setThreadMessages = useSetAtom(threadMessagesAtom)
   const selectedThreadId = useAtomValue(selectedThreadIdAtom)
-  const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedRef = useRef(selectedThreadId)
-  const categoryRef = useRef(categoryFilter)
-  const searchQuery = useAtomValue(searchQueryAtom)
-  const searchRef = useRef(searchQuery)
-  const selectedDomains = useAtomValue(selectedDomainsAtom)
-  const domainsRef = useRef(selectedDomains)
-  const folder = useAtomValue(folderAtom)
-  const folderRef = useRef(folder)
-  const quickFilter = useAtomValue(quickFilterAtom)
-  const quickFilterRef = useRef(quickFilter)
-  const importanceSection = useAtomValue(importanceSectionAtom)
-  const sectionRef = useRef(importanceSection)
+  selectedRef.current = selectedThreadId
   const notificationsEnabled = useAtomValue(notificationsAtom)
   const notificationsRef = useRef(notificationsEnabled)
+  notificationsRef.current = notificationsEnabled
   const soundEnabled = useAtomValue(notificationSoundAtom)
   const soundRef = useRef(soundEnabled)
-
-  useEffect(() => {
-    selectedRef.current = selectedThreadId
-    categoryRef.current = categoryFilter
-    searchRef.current = searchQuery
-    domainsRef.current = selectedDomains
-    folderRef.current = folder
-    quickFilterRef.current = quickFilter
-    sectionRef.current = importanceSection
-    notificationsRef.current = notificationsEnabled
-    soundRef.current = soundEnabled
-  }, [
-    selectedThreadId,
-    categoryFilter,
-    searchQuery,
-    selectedDomains,
-    folder,
-    quickFilter,
-    importanceSection,
-    notificationsEnabled,
-    soundEnabled,
-  ])
+  soundRef.current = soundEnabled
 
   const wsRef = useRef<null | WebSocket>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(null)
   const pingTimer = useRef<ReturnType<typeof setInterval>>(null)
   const pollTimer = useRef<ReturnType<typeof setInterval>>(null)
 
-  const refreshConversations = useCallback(() => {
-    const sq = searchRef.current
-    let path = sq
-      ? `/conversations/search?q=${encodeURIComponent(sq)}&limit=50`
-      : '/conversations?limit=50'
-    if (categoryRef.current) {
-      path += `&category=${encodeURIComponent(categoryRef.current)}`
-    }
-    const doms = domainsRef.current
-    if (doms.length > 0) {
-      path += `&domains=${encodeURIComponent(doms.join(','))}`
-    }
-    const f = folderRef.current
-    if (f) {
-      path += `&folder=${encodeURIComponent(f)}`
-    }
-    const qf = quickFilterRef.current
-    if (qf === 'unread') path += '&unread=true'
-    if (qf === 'starred') path += '&starred=true'
-    const sec = sectionRef.current
-    if (sec) path += `&section=${encodeURIComponent(sec)}`
-    // Replace, don't merge. The previous "keep prev items beyond the fresh
-    // window" stitching mixed items from earlier filter contexts into the
-    // current list. Server already returns the top-50 for the active
-    // filter; trust that.
-    //
-    // Preserve object identity for items whose payload didn't change, so
-    // React.memo on ConversationItem actually skips renders. Without this
-    // every WS tick reallocates every visible row.
-    fetchJson<ConversationSummary[]>(path).then(
-      (fresh) =>
-        setConversations((prev) => {
-          const byId = new Map<string, ConversationSummary>()
-          for (const c of prev) byId.set(c.thread_id, c)
-          return fresh.map((f) => {
-            const existing = byId.get(f.thread_id)
-            return existing && shallowEqualConvo(existing, f) ? existing : f
-          })
-        }),
-      () => {}
-    )
-  }, [setConversations])
-
-  const refreshThread = useCallback(() => {
-    const tid = selectedRef.current
-    if (!tid) return
-    const doms = domainsRef.current
-    const domainsParam = doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
-    fetchJson<ThreadMessage[]>(`/conversations/${encodeURIComponent(tid)}${domainsParam}`).then(
-      (data) => setThreadMessages(data),
-      () => {}
-    )
-  }, [setThreadMessages])
-
-  const refreshAll = useCallback(() => {
-    refreshConversations()
-    refreshThread()
-  }, [refreshConversations, refreshThread])
-
   useEffect(() => {
     if (!user) return
     let closed = false
     let reconnectDelay = RECONNECT_BASE
 
+    // Invalidate cached mail queries so any subscribed component triggers
+    // a quiet refetch. RQ deduplicates concurrent calls, so a burst of
+    // events still collapses to one network round-trip per query.
+    const invalidateAllMail = () => {
+      queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
+      const tid = selectedRef.current
+      if (tid) {
+        queryClient.invalidateQueries({ queryKey: mailKeys.thread(tid) }).catch(() => {})
+      }
+    }
+
     function connect() {
       if (closed) return
       if (!navigator.onLine) return
-      // clear previous ping timer
       if (pingTimer.current) clearInterval(pingTimer.current)
 
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -179,7 +88,6 @@ export function useMailEvents(user: string) {
       ws.onopen = () => {
         reconnectDelay = RECONNECT_BASE
         setConnectionStatus('connected')
-        // send periodic pings to keep connection alive and detect dead sockets
         pingTimer.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send('ping')
@@ -193,16 +101,22 @@ export function useMailEvents(user: string) {
           if (event.type === 'NewMessage') {
             const msg = event as NewMessageEvent
             if (msg.user === user) {
-              refreshConversations()
-
-              // refresh current thread if the new message belongs to it
+              // bust list cache for every filter — RQ will refetch only the
+              // queries with active subscribers; idle entries just get
+              // marked stale and refetch on next mount.
+              queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
+              queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
+              queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
+              // also bust the thread the event belongs to, if it's the one
+              // we're viewing
               if (selectedRef.current && msg.thread_id === selectedRef.current) {
-                refreshThread()
+                queryClient
+                  .invalidateQueries({ queryKey: mailKeys.thread(selectedRef.current) })
+                  .catch(() => {})
               }
 
               if (notificationsRef.current) {
                 if (soundRef.current) playNotificationSound()
-
                 if (
                   typeof Notification !== 'undefined' &&
                   Notification.permission === 'granted' &&
@@ -243,16 +157,14 @@ export function useMailEvents(user: string) {
       pollTimer.current = setInterval(() => {
         if (document.hidden) return
         if (wsRef.current?.readyState === WebSocket.OPEN) return
-        refreshAll()
+        invalidateAllMail()
       }, POLL_INTERVAL)
     }
     startPolling()
 
-    // refresh on tab visibility change
     function onVisibilityChange() {
       if (document.visibilityState === 'visible') {
-        refreshAll()
-        // also reconnect WS if it's dead
+        invalidateAllMail()
         if (
           wsRef.current &&
           wsRef.current.readyState !== WebSocket.OPEN &&
@@ -264,7 +176,6 @@ export function useMailEvents(user: string) {
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
 
-    // reconnect immediately when device comes back online
     function onOnline() {
       reconnectDelay = RECONNECT_BASE
       if (
@@ -274,7 +185,7 @@ export function useMailEvents(user: string) {
       ) {
         connect()
       }
-      refreshAll()
+      invalidateAllMail()
     }
 
     function onOffline() {
@@ -296,5 +207,5 @@ export function useMailEvents(user: string) {
       wsRef.current?.close()
       wsRef.current = null
     }
-  }, [user, refreshConversations, refreshThread, refreshAll, setConnectionStatus])
+  }, [user, setConnectionStatus])
 }

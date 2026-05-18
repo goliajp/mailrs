@@ -20,6 +20,14 @@ vi.mock('@/lib/api', () => ({
   postJson: vi.fn(() => Promise.resolve({ success: true })),
 }))
 
+// mock react-query hooks used by ConversationList. The real ones need a
+// QueryClientProvider in the tree, which is overkill for the component
+// shape tests below.
+vi.mock('@/hooks/use-mail-queries', () => ({
+  useActionCountQuery: () => ({ data: { count: 0 } }),
+  useCategoriesQuery: () => ({ data: [] }),
+}))
+
 // mock sonner toast
 vi.mock('sonner', () => ({
   toast: {

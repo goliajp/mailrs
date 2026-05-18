@@ -1,16 +1,20 @@
 import '@/index.css'
 
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 
 import { App } from '@/app'
+import { persister, queryClient } from '@/lib/query-client'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </PersistQueryClientProvider>
   </StrictMode>
 )
 

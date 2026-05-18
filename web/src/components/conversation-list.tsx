@@ -1,5 +1,5 @@
 import type { ContextMenuItem } from '@/components/context-menu'
-import type { CategoryCount, ConversationSummary } from '@/lib/types'
+import type { ConversationSummary } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -22,7 +22,8 @@ import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { SwipeableRow } from '@/components/swipeable-row'
-import { fetchJson, postJson, snoozeConversation } from '@/lib/api'
+import { useActionCountQuery, useCategoriesQuery } from '@/hooks/use-mail-queries'
+import { postJson, snoozeConversation } from '@/lib/api'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
 import { authAtom } from '@/store/auth'
@@ -305,22 +306,11 @@ function FilterBar() {
   const [activeCategory, setActiveCategory] = useAtom(categoryFilterAtom)
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
   const selectedDomainsVal = useAtomValue(selectedDomainsAtom)
-  const conversations = useAtomValue(conversationsAtom)
-  const [categories, setCategories] = useState<CategoryCount[]>([])
   const [filtersOpen, setFiltersOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // fetch categories
-  useEffect(() => {
-    const domainsParam =
-      selectedDomainsVal.length > 0
-        ? `?domains=${encodeURIComponent(selectedDomainsVal.join(','))}`
-        : ''
-    fetchJson<CategoryCount[]>(`/conversations/categories${domainsParam}`).then(
-      (data) => setCategories(data),
-      () => {}
-    )
-  }, [selectedDomainsVal])
+  // category counts via react-query — cached + auto-invalidated by WS hook
+  const { data: categories = [] } = useCategoriesQuery(selectedDomainsVal)
 
   // close dropdown on outside click
   useEffect(() => {
@@ -368,18 +358,9 @@ function FilterBar() {
     // tab === 'all' → all filters cleared above
   }
 
-  // action count for badge
-  const [actionCount, setActionCount] = useState(0)
-  useEffect(() => {
-    const doms =
-      selectedDomainsVal.length > 0
-        ? `?domains=${encodeURIComponent(selectedDomainsVal.join(','))}`
-        : ''
-    fetchJson<{ count: number }>(`/conversations/action-count${doms}`).then(
-      (d) => setActionCount(d.count),
-      () => {}
-    )
-  }, [selectedDomainsVal, conversations])
+  // action count for badge — same RQ-driven path; invalidates on WS events
+  const { data: actionCountData } = useActionCountQuery(selectedDomainsVal)
+  const actionCount = actionCountData?.count ?? 0
 
   // whether any advanced filters are active
   const hasAdvancedFilters =
