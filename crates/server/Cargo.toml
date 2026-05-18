@@ -46,7 +46,7 @@ arc-swap = "1"
 x509-parser = "0.18"
 sieve-rs = "0.7"
 flate2 = "1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls"] }
 html2text = "0.17"
 mime_guess = "2"
 pdf-extract = "0.10"
