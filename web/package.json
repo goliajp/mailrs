@@ -16,6 +16,9 @@
   },
   "dependencies": {
     "@goliapkg/gds": "2.2.0",
+    "@tanstack/query-sync-storage-persister": "^5.100.11",
+    "@tanstack/react-query": "^5.100.11",
+    "@tanstack/react-query-persist-client": "^5.100.11",
     "@tanstack/react-virtual": "^3.13.24",
     "@tiptap/extension-code-block-lowlight": "^3.23.4",
     "@tiptap/extension-image": "^3.23.4",
