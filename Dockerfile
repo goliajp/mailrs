@@ -1,5 +1,5 @@
 # stage 1: build rust binary
-FROM rust:1-bookworm AS rust-builder
+FROM rust:1-trixie AS rust-builder
 
 WORKDIR /build
 
@@ -26,7 +26,7 @@ COPY web/ ./
 RUN bun run build
 
 # stage 3: runtime
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
