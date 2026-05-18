@@ -21,8 +21,8 @@ import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 
 // shallow equality over the conversation fields ConversationItem actually
 // renders. Used to preserve object identity across WS refetches so memo'd
-// rows don't re-render when their payload is unchanged.
-function shallowEqualConvo(a: ConversationSummary, b: ConversationSummary): boolean {
+// rows don't re-render when their payload is unchanged. Exported for tests.
+export function shallowEqualConvo(a: ConversationSummary, b: ConversationSummary): boolean {
   if (a === b) return true
   if (
     a.thread_id !== b.thread_id ||

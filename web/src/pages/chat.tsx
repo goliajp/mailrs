@@ -10,9 +10,10 @@ import { MobileMail } from '@/components/mobile-mail'
 import { NewConversation } from '@/components/new-conversation'
 import { ThreadView } from '@/components/thread-view'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import { useMailEvents } from '@/hooks/use-mail-events'
+import { shallowEqualConvo, useMailEvents } from '@/hooks/use-mail-events'
 import { MPane, MPaneGroup } from '@/layouts/pane'
 import { fetchJson } from '@/lib/api'
+import { readListCache, writeListCache } from '@/lib/list-cache'
 import { authAtom } from '@/store/auth'
 import {
   categoryFilterAtom,
@@ -204,6 +205,7 @@ export function Chat() {
   // authoritative; earlier ones' responses must not write to the list, or
   // the wrong filter's data ends up visible.
   const loadGenRef = useRef(0)
+  const userEmail = auth?.address ?? ''
   const loadConversations = useCallback(
     async (opts?: {
       append?: boolean
@@ -221,8 +223,8 @@ export function Chat() {
       // append loads inherit the generation of the current full-load — they
       // should still be invalidated when a new filter arrives.
       const myGen = append ? loadGenRef.current : ++loadGenRef.current
+      const path = buildPath(opts)
       try {
-        const path = buildPath(opts)
         const data = await fetchJson<ConversationSummary[]>(path)
         if (myGen !== loadGenRef.current) return
 
@@ -232,7 +234,19 @@ export function Chat() {
             return [...prev, ...data.filter((c) => !ids.has(c.thread_id))]
           })
         } else {
-          setConversations(data)
+          // preserve object identity for items whose payload is unchanged,
+          // so React.memo on ConversationItem actually skips re-renders
+          setConversations((prev) => {
+            const byId = new Map<string, ConversationSummary>()
+            for (const c of prev) byId.set(c.thread_id, c)
+            return data.map((f) => {
+              const existing = byId.get(f.thread_id)
+              return existing && shallowEqualConvo(existing, f) ? existing : f
+            })
+          })
+          // write through the stale-while-revalidate cache; future mounts
+          // with this same filter-path will hydrate instantly.
+          if (userEmail) writeListCache(userEmail, path, data)
         }
 
         setHasMore(data.length >= PAGE_SIZE)
@@ -248,7 +262,7 @@ export function Chat() {
         }
       }
     },
-    [setConversations, setHasMore, setInitialLoading, buildPath]
+    [setConversations, setHasMore, setInitialLoading, buildPath, userEmail]
   )
 
   // load more (infinite scroll callback) with reentry guard
@@ -287,12 +301,7 @@ export function Chat() {
     prevSearchRef.current = searchQuery
 
     const doLoad = () => {
-      // flip loading true before clearing so the UI shows the skeleton
-      // instead of the "All caught up!" empty state while refetching
-      setInitialLoading(true)
-      setConversations([])
-      setHasMore(true)
-      loadConversations({
+      const opts = {
         archived: showArchived || undefined,
         category: categoryFilter,
         domains: selectedDomains.length > 0 ? selectedDomains : undefined,
@@ -301,7 +310,24 @@ export function Chat() {
         section: importanceSection,
         starred: quickFilter === 'starred' || undefined,
         unread: quickFilter === 'unread' || undefined,
-      })
+      }
+      // stale-while-revalidate: if we cached this exact filter's response
+      // before, paint it now and skip the skeleton. The fetch still runs
+      // in the background and replaces with fresh data via the
+      // identity-preserving updater in loadConversations.
+      const cached = userEmail ? readListCache(userEmail, buildPath(opts)) : null
+      if (cached && cached.length > 0) {
+        setConversations(cached)
+        setInitialLoading(false)
+        setHasMore(cached.length >= PAGE_SIZE)
+      } else {
+        // flip loading true before clearing so the UI shows the skeleton
+        // instead of the "All caught up!" empty state while refetching
+        setInitialLoading(true)
+        setConversations([])
+        setHasMore(true)
+      }
+      loadConversations(opts)
     }
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -327,6 +353,8 @@ export function Chat() {
     setConversations,
     setHasMore,
     setInitialLoading,
+    buildPath,
+    userEmail,
   ])
 
   // auto-select first conversation on desktop (desktop shows list + detail side by side)

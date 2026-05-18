@@ -503,4 +503,89 @@ describe('useMailEvents', () => {
 
     expect(wsConstructCount).toBe(before)
   })
+
+  describe('shallowEqualConvo', () => {
+    type Convo = {
+      archived: boolean
+      category: string
+      flagged: boolean
+      importance_level: string
+      importance_score: number
+      last_date: number
+      last_sender: string
+      message_count: number
+      participants: string[]
+      pinned: boolean
+      requires_action: boolean
+      snippet: string
+      subject: string
+      thread_id: string
+      unread_count: number
+    }
+    const baseline: Convo = {
+      archived: false,
+      category: 'inbox',
+      flagged: false,
+      importance_level: 'normal',
+      importance_score: 0,
+      last_date: 100,
+      last_sender: 'a@x.com',
+      message_count: 2,
+      participants: ['a@x.com', 'b@x.com'],
+      pinned: false,
+      requires_action: false,
+      snippet: 's',
+      subject: 't',
+      thread_id: 'id-1',
+      unread_count: 0,
+    }
+
+    it('returns true for same reference', async () => {
+      const { shallowEqualConvo } = await import('../use-mail-events')
+      expect(shallowEqualConvo(baseline, baseline)).toBe(true)
+    })
+
+    it('returns true for shallowly equal objects with different references', async () => {
+      const { shallowEqualConvo } = await import('../use-mail-events')
+      const clone = { ...baseline, participants: [...baseline.participants] }
+      expect(shallowEqualConvo(baseline, clone)).toBe(true)
+    })
+
+    it('detects subject / snippet changes', async () => {
+      const { shallowEqualConvo } = await import('../use-mail-events')
+      expect(shallowEqualConvo(baseline, { ...baseline, subject: 'new' })).toBe(false)
+      expect(shallowEqualConvo(baseline, { ...baseline, snippet: 'new' })).toBe(false)
+    })
+
+    it('detects flagged / pinned / archived flips', async () => {
+      const { shallowEqualConvo } = await import('../use-mail-events')
+      expect(shallowEqualConvo(baseline, { ...baseline, flagged: true })).toBe(false)
+      expect(shallowEqualConvo(baseline, { ...baseline, pinned: true })).toBe(false)
+      expect(shallowEqualConvo(baseline, { ...baseline, archived: true })).toBe(false)
+    })
+
+    it('detects unread / message count and last_date changes', async () => {
+      const { shallowEqualConvo } = await import('../use-mail-events')
+      expect(shallowEqualConvo(baseline, { ...baseline, unread_count: 1 })).toBe(false)
+      expect(shallowEqualConvo(baseline, { ...baseline, message_count: 3 })).toBe(false)
+      expect(shallowEqualConvo(baseline, { ...baseline, last_date: 200 })).toBe(false)
+    })
+
+    it('detects participants change by length', async () => {
+      const { shallowEqualConvo } = await import('../use-mail-events')
+      const more = { ...baseline, participants: [...baseline.participants, 'c@x.com'] }
+      expect(shallowEqualConvo(baseline, more)).toBe(false)
+    })
+
+    it('detects participants change at same length', async () => {
+      const { shallowEqualConvo } = await import('../use-mail-events')
+      const swapped = { ...baseline, participants: ['z@x.com', baseline.participants[1]] }
+      expect(shallowEqualConvo(baseline, swapped)).toBe(false)
+    })
+
+    it('detects thread_id change', async () => {
+      const { shallowEqualConvo } = await import('../use-mail-events')
+      expect(shallowEqualConvo(baseline, { ...baseline, thread_id: 'id-2' })).toBe(false)
+    })
+  })
 })
