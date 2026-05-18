@@ -1,6 +1,7 @@
 use std::net::IpAddr;
 use std::sync::Arc;
 
+use hickory_resolver::proto::rr::RData;
 use hickory_resolver::TokioResolver;
 
 /// score PTR names against the EHLO domain (pure function, no I/O)
@@ -31,7 +32,14 @@ pub async fn check_client_ptr(resolver: &TokioResolver, ip: IpAddr, ehlo_domain:
 
     match resolver.reverse_lookup(ip).await {
         Ok(names) => {
-            let name_strs: Vec<String> = names.iter().map(|n| n.to_ascii()).collect();
+            let name_strs: Vec<String> = names
+                .answers()
+                .iter()
+                .filter_map(|r| match &r.data {
+                    RData::PTR(name) => Some(name.to_ascii()),
+                    _ => None,
+                })
+                .collect();
             ptr_score_from_names(&name_strs, ehlo_domain)
         }
         Err(_) => 1.5,
@@ -52,15 +60,20 @@ pub async fn check_ptr_record(resolver: &Arc<TokioResolver>, hostname: &str) {
     for addr in addrs.iter() {
         match resolver.reverse_lookup(addr).await {
             Ok(names) => {
-                let matches = names.iter().any(|name| {
-                    let name_str = name.to_ascii().trim_end_matches('.').to_lowercase();
-                    name_str == hostname.to_lowercase()
-                });
+                let ptr_names: Vec<String> = names
+                    .answers()
+                    .iter()
+                    .filter_map(|r| match &r.data {
+                        RData::PTR(name) => {
+                            Some(name.to_ascii().trim_end_matches('.').to_string())
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                let matches = ptr_names
+                    .iter()
+                    .any(|n| n.to_lowercase() == hostname.to_lowercase());
                 if !matches {
-                    let ptr_names: Vec<String> = names
-                        .iter()
-                        .map(|n| n.to_ascii().trim_end_matches('.').to_string())
-                        .collect();
                     eprintln!(
                         "warning: PTR record for {addr} does not match hostname {hostname} (found: {})",
                         ptr_names.join(", ")

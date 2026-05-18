@@ -203,7 +203,8 @@ async fn main() {
     // DNS resolver for DNSBL and other lookups
     let resolver = TokioResolver::builder_tokio()
         .ok()
-        .map(|b| Arc::new(b.build()));
+        .and_then(|b| b.build().ok())
+        .map(Arc::new);
 
     // PTR record check
     if let Some(ref r) = resolver {
