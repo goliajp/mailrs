@@ -1,4 +1,4 @@
-import type { ConversationSummary, ThreadMessage } from '@/lib/types'
+import type { ThreadMessage } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
 import DOMPurify from 'dompurify'
@@ -34,23 +34,23 @@ import { MobileModal } from '@/components/mobile-modal'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { StructuredDataCard } from '@/components/structured-data-card'
+import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { MPane, MPaneGroup } from '@/layouts/pane'
-import { deleteJson, type FeedbackAction, fetchJson, postJson, recordFeedback } from '@/lib/api'
+import { deleteJson, type FeedbackAction, postJson, recordFeedback } from '@/lib/api'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
+import { queryClient } from '@/lib/query-client'
+import { mailKeys } from '@/lib/query-keys'
 import { getToken } from '@/store/auth'
 import { authAtom } from '@/store/auth'
 import {
-  categoryFilterAtom,
   composeReplySourceAtom,
   composingNewAtom,
   conversationsAtom,
   crossAccountReadAtom,
-  folderAtom,
   mobileReplyOpenAtom,
   mobileThreadTabAtom,
-  searchQueryAtom,
   selectedDomainsAtom,
   selectedThreadIdAtom,
   threadMessagesAtom,
@@ -88,24 +88,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const goToNext = useCallback(() => {
     if (hasNext) setSelectedId(visibleIds[currentIdx + 1])
   }, [hasNext, visibleIds, currentIdx, setSelectedId])
-  const categoryFilter = useAtomValue(categoryFilterAtom)
-  const categoryRef = useRef(categoryFilter)
-  categoryRef.current = categoryFilter
-  const searchQuery = useAtomValue(searchQueryAtom)
-  const searchRef = useRef(searchQuery)
-  searchRef.current = searchQuery
   const selectedDomains = useAtomValue(selectedDomainsAtom)
   const domainsRef = useRef(selectedDomains)
   domainsRef.current = selectedDomains
-  const folder = useAtomValue(folderAtom)
-  const folderRef = useRef(folder)
-  folderRef.current = folder
   const crossAccountRead = useAtomValue(crossAccountReadAtom)
   const crossAccountReadRef = useRef(crossAccountRead)
   crossAccountReadRef.current = crossAccountRead
   const bottomRef = useRef<HTMLDivElement>(null)
   const contentScrollRef = useRef<HTMLDivElement>(null)
-  const abortRef = useRef<AbortController | null>(null)
   const [mobileThreadTab, setMobileThreadTab] = useAtom(mobileThreadTabAtom)
   const [timelineCollapsed, setTimelineCollapsed] = useAtom(timelineCollapsedAtom)
   const [mobileReplyOpen, setMobileReplyOpen] = useAtom(mobileReplyOpenAtom)
@@ -123,54 +113,48 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // user explicitly marks the thread unread, so we don't immediately undo it
   const autoMarkSuspendedRef = useRef(false)
 
-  const loadMessages = useCallback(
-    async (threadId: string) => {
-      abortRef.current?.abort()
-      const controller = new AbortController()
-      abortRef.current = controller
-      setLoadingThread(true)
-
-      try {
-        const doms = domainsRef.current
-        const domainsParam = doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
-        const data = await fetchJson<ThreadMessage[]>(
-          `/conversations/${encodeURIComponent(threadId)}${domainsParam}`,
-          controller.signal
-        )
-        if (controller.signal.aborted) return
-        setMessages(data)
-        if (data.length > 0) setSelectedMsgIdx(data.length - 1)
-        contentScrollRef.current?.scrollTo(0, 0)
-        // scroll timeline to latest message
-        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          toast.error(err instanceof Error ? err.message : 'Failed to load messages')
-        }
-      } finally {
-        setLoadingThread(false)
-      }
-    },
-    [setMessages]
-  )
-
-  const refreshConversations = useCallback(async () => {
-    const sq = searchRef.current
-    const doms = domainsRef.current
-    let path = sq
-      ? `/conversations/search?q=${encodeURIComponent(sq)}&limit=50`
-      : '/conversations?limit=50'
-    if (categoryRef.current) path += `&category=${encodeURIComponent(categoryRef.current)}`
-    if (doms.length > 0) path += `&domains=${encodeURIComponent(doms.join(','))}`
-    const f = folderRef.current
-    if (f) path += `&folder=${encodeURIComponent(f)}`
-    try {
-      const convos = await fetchJson<ConversationSummary[]>(path)
-      setConversations(convos)
-    } catch {
-      /* ignore */
+  // thread messages now live in react-query; we bridge to the legacy
+  // threadMessagesAtom for downstream consumers and to the in-component
+  // loading state for skeleton rendering.
+  const threadQuery = useThreadQuery(selectedId, selectedDomains)
+  useEffect(() => {
+    setLoadingThread(threadQuery.isPending && !!selectedId)
+  }, [threadQuery.isPending, selectedId])
+  // bridge query → messages atom whenever a fetch resolves
+  useEffect(() => {
+    if (threadQuery.data) setMessages(threadQuery.data)
+  }, [threadQuery.data, setMessages])
+  // when a new thread becomes active, reset the in-view message + scroll;
+  // the message will be re-picked below as data populates.
+  useEffect(() => {
+    setSelectedMsgIdx(null)
+    if (typeof contentScrollRef.current?.scrollTo === 'function') {
+      contentScrollRef.current.scrollTo(0, 0)
     }
-  }, [setConversations])
+  }, [selectedId])
+  // auto-select the latest message on first populate (don't override an
+  // explicit pick from the user clicking a different message bubble)
+  useEffect(() => {
+    if (messages.length > 0 && selectedMsgIdx === null) {
+      setSelectedMsgIdx(messages.length - 1)
+      if (typeof bottomRef.current?.scrollIntoView === 'function') {
+        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
+      }
+    }
+  }, [messages, selectedMsgIdx])
+
+  // invalidate the active thread (used after Reply / Forward send so the
+  // new outbound message shows up immediately)
+  const refetchThread = useCallback(() => {
+    if (!selectedId) return
+    queryClient.invalidateQueries({ queryKey: mailKeys.thread(selectedId) }).catch(() => {})
+  }, [selectedId])
+
+  // invalidate the conversation list (used after destructive ops like
+  // delete; the list query refetches on its own subscribers).
+  const refreshConversations = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })
+  }, [])
 
   const handleMarkUnread = useCallback(async () => {
     if (!selectedId) return
@@ -344,11 +328,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     const existing = conversationsRef.current.find((c) => c.thread_id === selectedId)
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
-    loadMessages(selectedId)
-    return () => {
-      abortRef.current?.abort()
-    }
-  }, [selectedId, loadMessages, setMessages, setMobileThreadTab, setMobileReplyOpen])
+    // thread fetch is owned by useThreadQuery; nothing imperative to do here
+  }, [selectedId, setMessages, setMobileThreadTab, setMobileReplyOpen])
 
   // auto mark-as-read whenever the currently-displayed thread is unread.
   // covers: first open, list-filter switch where selection happens to stay
@@ -796,7 +777,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               }}
               onSent={() => {
                 setForwardSource(null)
-                loadMessages(selectedId)
+                refetchThread()
               }}
               originalBody={fwdOriginalBody}
               originalDate={fwdOriginalDate}
@@ -846,7 +827,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 onSent={() => {
                   setForwardSource(null)
                   setMobileReplyOpen(false)
-                  loadMessages(selectedId)
+                  refetchThread()
                 }}
                 originalBody={fwdOriginalBody}
                 originalDate={fwdOriginalDate}

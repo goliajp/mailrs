@@ -41,6 +41,23 @@ vi.mock('@/store/auth', async (importOriginal) => {
   return { ...actual, getToken: vi.fn(() => 'test-token') }
 })
 
+// React Query hooks: test runs without a real QueryClientProvider; stub
+// useThreadQuery so the component can read state without setup overhead.
+// Declared as a vi.fn so individual tests can override return via mockReturnValueOnce.
+const mockUseThreadQuery = vi.fn(() => ({ data: undefined, isPending: false }))
+vi.mock('@/hooks/use-mail-queries', () => ({
+  useThreadQuery: mockUseThreadQuery,
+}))
+vi.mock('@/lib/query-client', () => ({
+  queryClient: { invalidateQueries: vi.fn(() => Promise.resolve()) },
+}))
+vi.mock('@/lib/query-keys', () => ({
+  mailKeys: {
+    conversations: () => ['mail', 'conversations'],
+    thread: (tid: null | string) => ['mail', 'thread', tid ?? ''],
+  },
+}))
+
 Element.prototype.scrollIntoView = vi.fn()
 
 vi.mock('sonner', () => ({
@@ -233,7 +250,8 @@ describe('ThreadView — with messages', () => {
         <ThreadView />
       </Wrapper>
     )
-    expect(screen.getByText('2')).toBeDefined()
+    // header renders "<currentIdx>/<total>" once a message is auto-selected
+    expect(screen.getByText(/\/?2$/)).toBeDefined()
   })
 
   it('hides count badge for single message', () => {
@@ -253,18 +271,19 @@ describe('ThreadView — with messages', () => {
         <ThreadView />
       </Wrapper>
     )
-    expect(screen.getByText('Charlie Brown')).toBeDefined()
+    // sender appears in both the bubble and the auto-selected message header
+    expect(screen.getAllByText('Charlie Brown').length).toBeGreaterThan(0)
   })
 })
 
 describe('ThreadView — selected message detail', () => {
   async function renderAndWait(msg: ThreadMessage) {
-    const { fetchJson } = await import('@/lib/api')
-    vi.mocked(fetchJson).mockResolvedValueOnce([msg]) // loadMessages: thread messages
-
+    // Thread fetch lives in react-query (mocked at file top), so seed the
+    // messages atom directly — the component reads from there for rendering.
     const store = makeStore()
     store.set(conversationsAtom, [makeConversation()])
     store.set(selectedThreadIdAtom, 'thread-1')
+    store.set(threadMessagesAtom, [msg])
 
     render(
       <Wrapper store={store}>
@@ -272,7 +291,6 @@ describe('ThreadView — selected message detail', () => {
       </Wrapper>
     )
 
-    // wait for loadMessages to resolve and selectedMsgIdx to be set
     await waitFor(() => {
       expect(screen.queryByText('Select a message to preview')).toBeNull()
     })
@@ -311,10 +329,7 @@ describe('ThreadView — selected message detail', () => {
 
 describe('ThreadView — loading state', () => {
   it('shows skeleton when loading', async () => {
-    const { fetchJson } = await import('@/lib/api')
-    vi.mocked(fetchJson).mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve([]), 500))
-    )
+    mockUseThreadQuery.mockReturnValue({ data: undefined, isPending: true })
 
     const store = makeStore()
     store.set(conversationsAtom, [makeConversation()])
