@@ -4,6 +4,31 @@ Mistakes that have been made before. Do not repeat them.
 
 This file is shared across every managed project — any classic error discovered in any project belongs here, regardless of which language or stack first hit it. Do not create per-project classic-error files.
 
+## Meilisearch multi-version bumps require dump-restore, not auto-migrate
+
+**Context:** Any docker-compose / production upgrade that crosses more than one Meilisearch minor version (e.g. `v1.13` → `v1.44`, or `v1.x` → `v2.0`).
+
+**Bug:** Confidently claiming in a commit message or to the user that the new Meilisearch container "auto-migrates the index on first boot." It does not. Meilisearch refuses to open a database written by a different engine version and exits with `Your database version (X.Y.Z) is incompatible with your current engine version (A.B.C). To migrate data between Meilisearch versions, please follow our guide...`. The container then crash-loops while the rest of the stack (which expects search to work) emits connection errors.
+
+**Real incident (2026-05-19):** During a `chore: bump docker images to latest stable` pass on mailrs, Meilisearch was bumped `v1.13` → `v1.44` in one shot. The commit message said the upgrade "auto-migrates index on first boot" — this was fabricated based on assumption, not verified against Meilisearch docs. After deploy, the meili container entered a restart loop and the mailrs server logged repeated `Meilisearch index error: error sending request for url ... /indexes/messages/documents`. Other services (SMTP / IMAP / web) stayed healthy, so the failure was contained to search — but no existing mail was searchable until recovery.
+
+**Recovery dance (the only working path):**
+1. Edit compose to point Meilisearch back at the **previous** version (the one that wrote the data). Bring just that service up.
+2. Trigger a dump via the HTTP API: `POST http://meili:7700/dumps` with the master key. Poll `/tasks/<uid>` until `status == succeeded`.
+3. Copy the dump file out of the volume to the host: `docker cp <container>:/meili_data/dumps/<uid>.dump ./meili-dump.dump`.
+4. Stop Meilisearch, remove the data volume entirely (`docker volume rm <name>`), switch the image tag back to the target version.
+5. Use a temporary `docker-compose.override.yml` to inject `command: ["meilisearch", "--import-dump", "/import.dump"]` and a bind mount for the dump file. Bring the service up — it imports the dump into the fresh volume at the new engine version.
+6. After import logs confirm success (count matches pre-dump), delete the override and the dump file, then `docker compose up -d meilisearch` so it restarts with the normal command. Re-running with `--import-dump` on an already-populated volume errors out, so the override MUST come off.
+
+**Rules going forward:**
+
+1. **Never claim "auto-migrates" without checking the project's documented migration policy.** For Meilisearch specifically: anything other than a patch bump in the SAME minor (e.g. `v1.44.0` → `v1.44.3`) needs the dump-restore dance.
+2. **For any datastore image bump, audit the migration story before the commit.** Postgres major bumps need `pg_upgrade` or dump-restore. Valkey/Redis patch bumps are usually safe but major bumps may change RDB format. Meilisearch needs dump-restore across minors. Document the chosen path in the commit message — not "auto-migrates", but either "in-place safe per upstream docs" (with link) or "requires dump-restore — see runbook".
+3. **Stage datastore bumps separately from app bumps.** Lumping `meilisearch:v1.13 → v1.44` into a generic "bump docker images" commit hides the migration risk under a benign-looking diff. Datastore changes deserve their own commit with the migration plan in the body.
+4. **When a stateful service is in a restart loop, check ITS logs first, not the app logs.** The app's `connection refused` messages are downstream symptoms. The root cause is in the datastore container's logs.
+
+**Bonus gotcha discovered in the same incident — Postgres collation version mismatch when the base OS jumps:** bumping `pgvector/pgvector:pg18` (Debian bookworm, glibc 2.36) to `pg18-trixie` (Debian trixie, glibc 2.41) leaves the database's recorded collation version stale. PG warns `database "X" has a collation version mismatch` on every query. Fix: `REINDEX DATABASE <name>;` then `ALTER DATABASE <name> REFRESH COLLATION VERSION;` for each affected database (including `postgres` and `template1`). Note that `REINDEX DATABASE` cannot run inside a transaction block, so it must be its own psql invocation. Without REINDEX, text indexes may sort or compare incorrectly until the next manual rebuild.
+
 ## Fabricating tool output
 
 **Context:** Any time a Bash/Read/Grep/etc. tool returns empty content, only a footer (e.g. `[rerun: bN]`), or output that scrolled away.
