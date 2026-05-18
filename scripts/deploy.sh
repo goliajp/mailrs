@@ -30,7 +30,14 @@ else
   echo "==> cross-compiling for $TARGET"
   cargo zigbuild --release --target "$TARGET"
 
-  BINARY="target/$TARGET/release/mailrs-server"
+  # respect CARGO_TARGET_DIR / [build].target-dir / cargo wrappers
+  TARGET_DIR="$(cargo metadata --format-version 1 --no-deps --offline 2>/dev/null \
+    | python3 -c 'import json,sys;print(json.load(sys.stdin)["target_directory"])')"
+  BINARY="$TARGET_DIR/$TARGET/release/mailrs-server"
+  if [ ! -f "$BINARY" ]; then
+    echo "error: binary not found at $BINARY"
+    exit 1
+  fi
   echo "==> binary size: $(du -h "$BINARY" | cut -f1)"
 
   echo "==> uploading binary to $SSH_HOST:$REMOTE_DIR/bin/"
