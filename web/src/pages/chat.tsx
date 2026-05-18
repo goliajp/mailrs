@@ -198,7 +198,12 @@ export function Chat() {
     []
   )
 
-  // load conversations with optional append mode
+  // request-generation guard: when filters change rapidly (URL restore on
+  // mount fires setFolder/setQuickFilter/... back-to-back), several
+  // loadConversations calls run in parallel. The last one's filter is
+  // authoritative; earlier ones' responses must not write to the list, or
+  // the wrong filter's data ends up visible.
+  const loadGenRef = useRef(0)
   const loadConversations = useCallback(
     async (opts?: {
       append?: boolean
@@ -213,9 +218,13 @@ export function Chat() {
       unread?: boolean
     }) => {
       const { append } = opts ?? {}
+      // append loads inherit the generation of the current full-load — they
+      // should still be invalidated when a new filter arrives.
+      const myGen = append ? loadGenRef.current : ++loadGenRef.current
       try {
         const path = buildPath(opts)
         const data = await fetchJson<ConversationSummary[]>(path)
+        if (myGen !== loadGenRef.current) return
 
         if (append) {
           setConversations((prev) => {
@@ -230,11 +239,13 @@ export function Chat() {
       } catch {
         // keep current
       } finally {
-        // clear loading on every fetch, not just the first — otherwise a
-        // filter-change refetch (which clears conversations before fetching)
-        // would leave the UI stuck showing the empty state
-        firstLoadDone.current = true
-        if (!append) setInitialLoading(false)
+        if (myGen === loadGenRef.current) {
+          // clear loading on every fetch, not just the first — otherwise a
+          // filter-change refetch (which clears conversations before fetching)
+          // would leave the UI stuck showing the empty state
+          firstLoadDone.current = true
+          if (!append) setInitialLoading(false)
+        }
       }
     },
     [setConversations, setHasMore, setInitialLoading, buildPath]

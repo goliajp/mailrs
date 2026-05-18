@@ -744,10 +744,15 @@ export function ConversationList({
   )
 
   // single-thread context menu action with optimistic updates
+  // ref'd for handleContextAction rollback so the callback doesn't take
+  // `conversations` as a dep — otherwise every WebSocket tick reallocates
+  // the array and forces every memo'd ConversationItem to re-render.
+  const conversationsSnapshotRef = useRef(conversations)
+  conversationsSnapshotRef.current = conversations
   const handleContextAction = useCallback(
     async (threadId: string, action: SingleAction) => {
       // save snapshot for rollback
-      const snapshot = conversations
+      const snapshot = conversationsSnapshotRef.current
 
       // optimistic update for all actions
       const optimistic: Record<string, (c: ConversationSummary) => ConversationSummary> = {
@@ -808,7 +813,7 @@ export function ConversationList({
         toast.error(err instanceof Error ? err.message : 'Action failed')
       }
     },
-    [conversations, setConversations]
+    [setConversations]
   )
 
   const sortOrder = useAtomValue(sortOrderAtom)
@@ -856,10 +861,17 @@ export function ConversationList({
     return [...pinned, ...unpinned]
   }, [conversations, sortOrder, showArchived, importanceSection, quickFilter])
 
-  // sync visible conversation ids to store for keyboard nav
+  // sync visible conversation ids to store for keyboard nav. Compare order
+  // before writing to avoid replacing the atom (and re-rendering every
+  // subscriber, e.g. ThreadView) when the list shape is unchanged but the
+  // array reference flipped from a WebSocket-driven refetch.
   const setVisibleIds = useSetAtom(visibleConversationIdsAtom)
   useEffect(() => {
-    setVisibleIds(sortedConversations.map((c) => c.thread_id))
+    setVisibleIds((prev) => {
+      const next = sortedConversations.map((c) => c.thread_id)
+      if (prev.length === next.length && prev.every((v, i) => v === next[i])) return prev
+      return next
+    })
   }, [sortedConversations, setVisibleIds])
 
   // stable callbacks that accept threadId to avoid inline closures in the map

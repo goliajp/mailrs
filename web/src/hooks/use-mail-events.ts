@@ -19,6 +19,31 @@ import {
 } from '@/store/chat'
 import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 
+// shallow equality over the conversation fields ConversationItem actually
+// renders. Used to preserve object identity across WS refetches so memo'd
+// rows don't re-render when their payload is unchanged.
+function shallowEqualConvo(a: ConversationSummary, b: ConversationSummary): boolean {
+  if (a === b) return true
+  if (
+    a.thread_id !== b.thread_id ||
+    a.subject !== b.subject ||
+    a.snippet !== b.snippet ||
+    a.last_date !== b.last_date ||
+    a.unread_count !== b.unread_count ||
+    a.message_count !== b.message_count ||
+    a.flagged !== b.flagged ||
+    a.pinned !== b.pinned ||
+    a.archived !== b.archived
+  ) {
+    return false
+  }
+  if (a.participants.length !== b.participants.length) return false
+  for (let i = 0; i < a.participants.length; i++) {
+    if (a.participants[i] !== b.participants[i]) return false
+  }
+  return true
+}
+
 const POLL_INTERVAL = 60_000
 const WS_PING_INTERVAL = 30_000
 const RECONNECT_BASE = 1_000
@@ -95,27 +120,23 @@ export function useMailEvents(user: string) {
     if (qf === 'starred') path += '&starred=true'
     const sec = sectionRef.current
     if (sec) path += `&section=${encodeURIComponent(sec)}`
+    // Replace, don't merge. The previous "keep prev items beyond the fresh
+    // window" stitching mixed items from earlier filter contexts into the
+    // current list. Server already returns the top-50 for the active
+    // filter; trust that.
+    //
+    // Preserve object identity for items whose payload didn't change, so
+    // React.memo on ConversationItem actually skips renders. Without this
+    // every WS tick reallocates every visible row.
     fetchJson<ConversationSummary[]>(path).then(
       (fresh) =>
         setConversations((prev) => {
-          // merge: update existing, prepend new, keep loaded items beyond the fresh window
-          const merged: ConversationSummary[] = []
-          const seen = new Set<string>()
-
-          // fresh items first (preserves server order for top N)
-          for (const c of fresh) {
-            merged.push(c)
-            seen.add(c.thread_id)
-          }
-
-          // keep previously loaded items that aren't in the fresh batch
-          for (const c of prev) {
-            if (!seen.has(c.thread_id)) {
-              merged.push(c)
-            }
-          }
-
-          return merged
+          const byId = new Map<string, ConversationSummary>()
+          for (const c of prev) byId.set(c.thread_id, c)
+          return fresh.map((f) => {
+            const existing = byId.get(f.thread_id)
+            return existing && shallowEqualConvo(existing, f) ? existing : f
+          })
         }),
       () => {}
     )

@@ -22,7 +22,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
@@ -354,11 +354,20 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // covers: first open, list-filter switch where selection happens to stay
   // on the same thread, and new-message arrival on the open thread.
   // suppressed for a given selection after the user explicitly marks unread.
+  // depend only on the unread count of the currently selected thread, not
+  // on the whole conversations array. Every WS tick replaces `conversations`
+  // with a new reference, which previously fired this effect for every
+  // tick (even if the selected thread's unread state hadn't changed) and
+  // optimistically re-wrote the list back, kicking off another re-render.
+  const selectedUnreadCount = useMemo(() => {
+    if (!selectedId) return 0
+    return conversations.find((c) => c.thread_id === selectedId)?.unread_count ?? 0
+  }, [conversations, selectedId])
+
   useEffect(() => {
     if (!selectedId) return
     if (autoMarkSuspendedRef.current) return
-    const conv = conversations.find((c) => c.thread_id === selectedId)
-    if (!conv || conv.unread_count === 0) return
+    if (selectedUnreadCount === 0) return
 
     const doms = domainsRef.current
     const crossAll = crossAccountReadRef.current
@@ -371,7 +380,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setConversations((prev) =>
       prev.map((c) => (c.thread_id === selectedId ? { ...c, unread_count: 0 } : c))
     )
-  }, [selectedId, conversations, setConversations])
+  }, [selectedId, selectedUnreadCount, setConversations])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
