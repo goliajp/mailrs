@@ -130,11 +130,10 @@ impl ManageSieveSession {
         }
 
         // check auth guard
-        if let (Some(ref guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
-            if let AuthCheck::LockedOut { .. } = guard.check(ip, &username) {
+        if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr)
+            && let AuthCheck::LockedOut { .. } = guard.check(ip, &username) {
                 return vec!["NO \"too many failures, try later\"\r\n".into()];
             }
-        }
 
         // authenticate: try domain store first, then users.toml, then LDAP
         let authenticated = if let Some(ref ds) = self.domain_store {
@@ -185,13 +184,13 @@ impl ManageSieveSession {
         };
 
         if !authenticated {
-            if let (Some(ref guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
+            if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
                 guard.record_failure(ip, &username);
             }
             return vec!["NO \"authentication failed\"\r\n".into()];
         }
 
-        if let (Some(ref guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
+        if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
             guard.record_success(ip, &username);
         }
 

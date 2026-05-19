@@ -6,8 +6,8 @@ use crate::types::{ConversationSummary, FlagAction, Mailbox, MessageMeta, FLAG_D
 /// build a user_address filter clause and collect bind values
 /// returns (sql_fragment, bind_values) where bind values start at `start_idx`
 fn build_user_filter(user: &str, domains: Option<&[String]>, start_idx: u32) -> (String, Vec<String>) {
-    if let Some(doms) = domains {
-        if !doms.is_empty() {
+    if let Some(doms) = domains
+        && !doms.is_empty() {
             let placeholders: Vec<String> = doms.iter().enumerate()
                 .map(|(i, _)| format!("${}", start_idx + i as u32))
                 .collect();
@@ -17,7 +17,6 @@ fn build_user_filter(user: &str, domains: Option<&[String]>, start_idx: u32) -> 
             );
             return (sql, doms.to_vec());
         }
-    }
     (format!("mb.user_address = ${start_idx}"), vec![user.to_string()])
 }
 
@@ -382,8 +381,8 @@ impl MailboxStore {
         }
 
         let mut text_bind = None;
-        if let Some(t) = text {
-            if !t.is_empty() {
+        if let Some(t) = text
+            && !t.is_empty() {
                 conditions.push(format!(
                     "(m.search_vector @@ plainto_tsquery('simple', ${param_idx}) \
                      OR m.subject ILIKE ${param_idx} OR m.sender ILIKE ${param_idx})"
@@ -391,7 +390,6 @@ impl MailboxStore {
                 text_bind = Some(format!("%{}%", t.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")));
                 let _ = param_idx;
             }
-        }
 
         if has_flags != 0 {
             conditions.push(format!("(m.flags & {has_flags}) = {has_flags}"));
@@ -1186,13 +1184,12 @@ impl MailboxStore {
             .bind(user)
             .bind(thread_id);
 
-        if let Some(doms) = domains {
-            if !doms.is_empty() {
+        if let Some(doms) = domains
+            && !doms.is_empty() {
                 for d in doms {
                     query = query.bind(d);
                 }
             }
-        }
 
         let rows = query.fetch_all(&self.pool).await?;
 

@@ -1,7 +1,7 @@
 [package]
 name = "mailrs-outbound-queue"
 version.workspace = true
-edition = "2021"
+edition = "2024"
 
 [lints]
 workspace = true

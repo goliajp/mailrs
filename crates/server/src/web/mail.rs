@@ -519,15 +519,13 @@ pub(crate) fn verify_sender(
     }
     // super user or user with accessible domains
     let accessible = permissions.accessible_domains();
-    if !accessible.is_empty() {
-        if let Some(domain) = from.rsplit_once('@').map(|(_, d)| d) {
-            if permissions.is_super()
-                || accessible.iter().any(|sd| sd.eq_ignore_ascii_case(domain))
+    if !accessible.is_empty()
+        && let Some(domain) = from.rsplit_once('@').map(|(_, d)| d)
+            && (permissions.is_super()
+                || accessible.iter().any(|sd| sd.eq_ignore_ascii_case(domain)))
             {
                 return Ok(());
             }
-        }
-    }
     Err("sender must match authenticated user")
 }
 
@@ -540,8 +538,8 @@ pub(crate) async fn resolve_thread_reply(
     mb_store: Option<&mailrs_mailbox::MailboxStore>,
 ) -> (Option<String>, Vec<String>) {
     // explicit in_reply_to takes precedence
-    if let Some(reply_to) = in_reply_to {
-        if !reply_to.is_empty() {
+    if let Some(reply_to) = in_reply_to
+        && !reply_to.is_empty() {
             let refs = match mb_store {
                 Some(store) => store
                     .get_thread_references(user, reply_to)
@@ -551,20 +549,17 @@ pub(crate) async fn resolve_thread_reply(
             };
             return (Some(reply_to.to_string()), refs);
         }
-    }
 
     // resolve thread_id to last message's message-id
-    if let (Some(thread_id), Some(store)) = (reply_to_thread_id, mb_store) {
-        if !thread_id.is_empty() {
-            if let Ok(Some(last_msg_id)) = store.get_last_message_id_in_thread(user, thread_id).await {
+    if let (Some(thread_id), Some(store)) = (reply_to_thread_id, mb_store)
+        && !thread_id.is_empty()
+            && let Ok(Some(last_msg_id)) = store.get_last_message_id_in_thread(user, thread_id).await {
                 let refs = store
                     .get_thread_message_ids(user, thread_id)
                     .await
                     .unwrap_or_default();
                 return (Some(last_msg_id), refs);
             }
-        }
-    }
 
     (None, vec![])
 }
@@ -898,11 +893,10 @@ pub(crate) async fn deliver_message_ex(
 
 // extract bare email from "Display Name <addr>" or return as-is
 fn extract_address(s: &str) -> String {
-    if let Some(start) = s.rfind('<') {
-        if let Some(end) = s[start..].find('>') {
+    if let Some(start) = s.rfind('<')
+        && let Some(end) = s[start..].find('>') {
             return s[start + 1..start + end].trim().to_string();
         }
-    }
     s.trim().to_string()
 }
 
@@ -1472,8 +1466,8 @@ pub(super) async fn get_message_raw(
 
     let mailboxes = mb_store.list_mailboxes(&user).await.unwrap_or_default();
     for mb in &mailboxes {
-        if let Ok(Some(msg)) = mb_store.get_message(mb.id, uid).await {
-            if let Some(data) = message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id) {
+        if let Ok(Some(msg)) = mb_store.get_message(mb.id, uid).await
+            && let Some(data) = message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id) {
                 let subject = message_util::decode_header(&msg.subject);
                 let safe_name = subject
                     .chars()
@@ -1494,7 +1488,6 @@ pub(super) async fn get_message_raw(
                     data,
                 );
             }
-        }
     }
 
     (
@@ -1527,8 +1520,8 @@ pub(super) async fn get_attachment(
     for mb in &mailboxes {
         if let Ok(Some(msg)) = mb_store.get_message(mb.id, uid).await {
             let raw = message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id);
-            if let Some(data) = raw {
-                if let Some(parsed) = mail_parser::MessageParser::default().parse(&data) {
+            if let Some(data) = raw
+                && let Some(parsed) = mail_parser::MessageParser::default().parse(&data) {
                     let attachments: Vec<_> = parsed.attachments().collect();
                     if let Some(att) = attachments.get(index) {
                         let filename = att
@@ -1569,7 +1562,6 @@ pub(super) async fn get_attachment(
                         );
                     }
                 }
-            }
         }
     }
 
@@ -1711,8 +1703,8 @@ pub(super) async fn upload_inline_image(
     let ext = crate::inline_image::ext_from_content_type(&content_type);
     let path = crate::inline_image::inline_path(&state.maildir_root, &user, &id, ext);
 
-    if let Some(parent) = path.parent() {
-        if let Err(e) = tokio::fs::create_dir_all(parent).await {
+    if let Some(parent) = path.parent()
+        && let Err(e) = tokio::fs::create_dir_all(parent).await {
             return Json(InlineUploadResult {
                 success: false,
                 id: None,
@@ -1720,7 +1712,6 @@ pub(super) async fn upload_inline_image(
                 message: Some(format!("create dir: {e}")),
             });
         }
-    }
 
     if let Err(e) = tokio::fs::write(&path, &data).await {
         return Json(InlineUploadResult {
@@ -2437,8 +2428,8 @@ pub(super) async fn get_bimi_logo(
 
     // check valkey cache
     let cache_key = format!("bimi:{domain}");
-    if let Some(mut conn) = state.valkey.clone() {
-        if let Ok(Some(cached)) = redis::cmd("GET")
+    if let Some(mut conn) = state.valkey.clone()
+        && let Ok(Some(cached)) = redis::cmd("GET")
             .arg(&cache_key)
             .query_async::<Option<String>>(&mut conn)
             .await
@@ -2448,7 +2439,6 @@ pub(super) async fn get_bimi_logo(
             }
             return (StatusCode::OK, Json(serde_json::json!({"logo_url": cached})));
         }
-    }
 
     // dns lookup
     let Some(ref resolver) = state.resolver else {
@@ -2887,8 +2877,7 @@ pub(super) async fn proxy_image(
                 .arg(&cache_key)
                 .query_async::<Vec<u8>>(&mut valkey.clone())
                 .await
-            {
-                if !cached.is_empty() {
+                && !cached.is_empty() {
                     // first byte stores content-type length, then content-type, then image data
                     let ct_len = cached[0] as usize;
                     if cached.len() > 1 + ct_len {
@@ -2905,7 +2894,6 @@ pub(super) async fn proxy_image(
                             .into_response();
                     }
                 }
-            }
         }
     }
 
@@ -3064,11 +3052,9 @@ pub(super) async fn proxy_link(
             .arg(&cache_key)
             .query_async::<Option<String>>(&mut valkey.clone())
             .await
-        {
-            if blocked.as_deref() == Some("1") {
+            && blocked.as_deref() == Some("1") {
                 return link_warning_page(url).into_response();
             }
-        }
     }
 
     if is_url_blocked(url) {
@@ -3104,7 +3090,7 @@ pub(super) async fn proxy_link(
     (StatusCode::FOUND, [(header::LOCATION, url.to_string())]).into_response()
 }
 
-fn link_warning_page(url: &str) -> impl IntoResponse {
+fn link_warning_page(url: &str) -> impl IntoResponse + use<> {
     use axum::http::header;
 
     let escaped = url.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;");

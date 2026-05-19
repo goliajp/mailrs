@@ -237,14 +237,13 @@ impl ImapSession {
             return vec![format_bad(tag, "already authenticated")];
         }
 
-        if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
-            if let AuthCheck::LockedOut { remaining_secs } = guard.check(ip, username) {
+        if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr)
+            && let AuthCheck::LockedOut { remaining_secs } = guard.check(ip, username) {
                 return vec![format_no(
                     tag,
                     &format!("Too many auth failures, try again in {remaining_secs}s"),
                 )];
             }
-        }
 
         // try users.toml first, then PG accounts table, then LDAP
         let ok = if self.users.verify(username, password) {
@@ -652,11 +651,10 @@ impl ImapSession {
             }
 
             // CHANGEDSINCE filter: skip messages not modified since the given modseq
-            if let Some(since) = changedsince {
-                if msg.modseq <= since {
+            if let Some(since) = changedsince
+                && msg.modseq <= since {
                     continue;
                 }
-            }
 
             // items are built as Vec<u8> to handle binary literal data correctly
             let mut items: Vec<Vec<u8>> = Vec::new();
@@ -702,8 +700,8 @@ impl ImapSession {
                 items.push(format!("MODSEQ ({})", msg.modseq).into_bytes());
             }
 
-            if want_any_body || want_bodystructure {
-                if let Some(data) = self.read_message_file(msg) {
+            if (want_any_body || want_bodystructure)
+                && let Some(data) = self.read_message_file(msg) {
                     if want_bodystructure {
                         items.push(
                             format!("BODYSTRUCTURE {}", build_bodystructure(&data)).into_bytes(),
@@ -757,7 +755,6 @@ impl ImapSession {
                         }
                     }
                 }
-            }
 
             // build the full FETCH response line as bytes
             let mut resp = format!("* {} FETCH (", seq_num).into_bytes();
@@ -929,8 +926,7 @@ impl ImapSession {
 
             // fetch updated flags + modseq
             if let Ok(Some(updated)) = self.mailbox_store.get_message(mailbox.id, target_uid).await
-            {
-                if !real_action.contains(".SILENT") {
+                && !real_action.contains(".SILENT") {
                     if unchangedsince.is_some() {
                         responses.push(format!(
                             "* {} FETCH (FLAGS ({}) MODSEQ ({}))\r\n",
@@ -946,7 +942,6 @@ impl ImapSession {
                         ));
                     }
                 }
-            }
         }
 
         if !modified_uids.is_empty() {
@@ -1275,11 +1270,10 @@ impl ImapSession {
 
     /// generate status update responses for the selected mailbox
     pub async fn idle_status_update(&self) -> Vec<Vec<u8>> {
-        if let Some(mb_id) = self.selected_mailbox_id() {
-            if let Ok((total, _)) = self.mailbox_store.mailbox_status(mb_id).await {
+        if let Some(mb_id) = self.selected_mailbox_id()
+            && let Ok((total, _)) = self.mailbox_store.mailbox_status(mb_id).await {
                 return strs_to_bytes(vec![format_exists(total)]);
             }
-        }
         Vec::new()
     }
 

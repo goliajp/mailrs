@@ -832,9 +832,7 @@ pub(super) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
             for key in &keys {
                 if let Ok(json) = redis::cmd("GET").arg(key)
                     .query_async::<String>(&mut valkey.clone()).await
-                {
-                    if json.contains("\"any_listed\":true") { listed += 1; }
-                }
+                    && json.contains("\"any_listed\":true") { listed += 1; }
             }
             listed
         };
@@ -1424,13 +1422,11 @@ pub(super) async fn add_email_group_member(
         return Json(ApiResult { success: false, message: Some("domain store not configured".into()) });
     };
     // prevent adding the group's own address as a member (would cause infinite delivery)
-    if let Ok(groups) = ds.list_email_groups(None).await {
-        if let Some(group) = groups.iter().find(|g| g.id == id) {
-            if group.address == req.address {
+    if let Ok(groups) = ds.list_email_groups(None).await
+        && let Some(group) = groups.iter().find(|g| g.id == id)
+            && group.address == req.address {
                 return Json(ApiResult { success: false, message: Some("cannot add group as member of itself".into()) });
             }
-        }
-    }
     match ds.add_email_group_member(id, &req.address).await {
         Ok(()) => Json(ApiResult { success: true, message: None }),
         Err(e) => {
@@ -2160,11 +2156,9 @@ pub(super) async fn get_rbl_status(
             .arg(key)
             .query_async::<String>(&mut valkey.clone())
             .await
-        {
-            if let Ok(report) = serde_json::from_str::<serde_json::Value>(&json) {
+            && let Ok(report) = serde_json::from_str::<serde_json::Value>(&json) {
                 reports.push(report);
             }
-        }
     }
 
     Json(serde_json::json!({ "reports": reports })).into_response()

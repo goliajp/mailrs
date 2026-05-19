@@ -129,7 +129,7 @@ async fn main() {
     };
 
     let health_state = health::HealthState::new();
-    if let (Some(ref pg), Some(ref vk)) = (&pg_pool, &valkey_conn) {
+    if let (Some(pg), Some(vk)) = (&pg_pool, &valkey_conn) {
         health::spawn_health_checker(pg.clone(), vk.clone(), health_state.clone());
         health_state.set_pg(true);
         health_state.set_valkey(true);
@@ -304,11 +304,10 @@ async fn main() {
     };
 
     // OIDC provider: ensure signing key exists
-    if let Some(ref pool) = pg_pool {
-        if let Err(e) = oidc_jwt::ensure_signing_key(pool).await {
+    if let Some(ref pool) = pg_pool
+        && let Err(e) = oidc_jwt::ensure_signing_key(pool).await {
             tracing::warn!(error = %e, "failed to ensure oidc signing key");
         }
-    }
 
     // DMARC report store (PG-backed)
     let dmarc_report_store = pg_pool
@@ -325,8 +324,8 @@ async fn main() {
     }
 
     // AI email analyzer (background) — uses self-hosted LLM
-    if cfg.ai_analysis_enabled {
-        if let Some(ref mb) = mailbox_store {
+    if cfg.ai_analysis_enabled
+        && let Some(ref mb) = mailbox_store {
             let llm_config = ai_email::LlmConfig::new(cfg.llm_url.clone(), cfg.llm_api_key.clone());
             ai_analyzer::spawn_analyzer(
                 llm_config,
@@ -335,7 +334,6 @@ async fn main() {
                 cfg.maildir_root.clone(),
             );
         }
-    }
 
     // content extraction worker (OCR, PDF text)
     if let Some(ref pool) = pg_pool {
@@ -422,11 +420,10 @@ async fn main() {
             valkey_conn.clone(),
             env_defaults,
         ));
-        if pg_pool.is_some() {
-            if let Err(e) = store.load_from_db().await {
+        if pg_pool.is_some()
+            && let Err(e) = store.load_from_db().await {
                 tracing::warn!("failed to load system config from DB: {e}");
             }
-        }
         let store_bg = store.clone();
         let rx = shutdown_rx.clone();
         tokio::spawn(async move {
@@ -463,7 +460,7 @@ async fn main() {
     let web_state = Arc::new(ws);
 
     // spawn meilisearch indexer
-    if let (Some(ref meili), Some(ref pool)) = (&meili_client, &pg_pool) {
+    if let (Some(meili), Some(pool)) = (&meili_client, &pg_pool) {
         search_index::spawn_indexer(meili.clone(), pool.clone());
         eprintln!("Meilisearch indexer started");
     }
@@ -668,8 +665,8 @@ async fn main() {
     }
 
     // IMAPS listener (implicit TLS, port 993)
-    if tls_state.is_some() {
-        if let Some(ref mb_store) = mailbox_store {
+    if tls_state.is_some()
+        && let Some(ref mb_store) = mailbox_store {
             let imaps_addr = format!("0.0.0.0:{}", cfg.imaps_port);
             let imaps_listener = TcpListener::bind(&imaps_addr)
                 .await
@@ -720,7 +717,6 @@ async fn main() {
                 }
             });
         }
-    }
 
     // POP3 listener
     if let Some(ref mb_store) = mailbox_store {
@@ -889,7 +885,7 @@ async fn main() {
     }
 
     // DMARC aggregate report generation
-    if let (Some(ref dmarc_store), Some(ref resolver)) = (&dmarc_report_store, &ctx.resolver) {
+    if let (Some(dmarc_store), Some(resolver)) = (&dmarc_report_store, &ctx.resolver) {
         dmarc_report::spawn_daily_report_task(
             dmarc_store.clone(),
             cfg.hostname.clone(),
@@ -1114,14 +1110,13 @@ async fn handle_imap_connection<S>(
                                     }
                                 }
                                 frame = framed.next() => {
-                                    if let Some(Ok(imap_codec::ImapInput::Line(done_line))) = frame {
-                                        if done_line.trim().eq_ignore_ascii_case("DONE") {
+                                    if let Some(Ok(imap_codec::ImapInput::Line(done_line))) = frame
+                                        && done_line.trim().eq_ignore_ascii_case("DONE") {
                                             let resp = mailrs_imap_proto::format_ok(&tag, "IDLE terminated").into_bytes();
                                             if framed.send(resp).await.is_err() {
                                                 return;
                                             }
                                         }
-                                    }
                                     break;
                                 }
                             }

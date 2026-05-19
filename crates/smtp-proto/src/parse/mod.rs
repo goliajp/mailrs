@@ -157,11 +157,10 @@ fn extract_angle_addr(input: &str) -> Result<(&str, &str), ParseError> {
 
 /// strip obsolete source routes: @a.com,@b.com:user@c.com -> user@c.com
 fn strip_source_route(path: &str) -> &str {
-    if path.starts_with('@') {
-        if let Some(colon_pos) = path.find(':') {
+    if path.starts_with('@')
+        && let Some(colon_pos) = path.find(':') {
             return &path[colon_pos + 1..];
         }
-    }
     path
 }
 

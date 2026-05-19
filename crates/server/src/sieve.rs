@@ -189,7 +189,7 @@ mod tests {
         let actions = evaluate_sieve(&compiled, MSG);
         assert!(actions
             .iter()
-            .any(|a| matches!(a, SieveAction::Redirect(ref addr) if addr == "fwd@example.com")));
+            .any(|a| matches!(a, SieveAction::Redirect(addr) if addr == "fwd@example.com")));
     }
 
     #[test]
@@ -882,7 +882,7 @@ mod tests {
             .any(|a| matches!(a, SieveAction::FileInto(f) if f == "Archive")));
         assert!(actions
             .iter()
-            .any(|a| matches!(a, SieveAction::Redirect(ref addr) if addr == "backup@example.com")));
+            .any(|a| matches!(a, SieveAction::Redirect(addr) if addr == "backup@example.com")));
     }
 
     // --- reject and discard edge cases ---
@@ -1156,7 +1156,7 @@ mod tests {
             .any(|a| matches!(a, SieveAction::FileInto(f) if f == "Archive")));
         assert!(actions
             .iter()
-            .any(|a| matches!(a, SieveAction::Redirect(ref a) if a == "copy@example.com")));
+            .any(|a| matches!(a, SieveAction::Redirect(a) if a == "copy@example.com")));
         assert!(actions.iter().any(|a| matches!(a, SieveAction::Keep)));
     }
 

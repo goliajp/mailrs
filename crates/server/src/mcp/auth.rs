@@ -86,11 +86,10 @@ pub(crate) async fn mcp_auth_middleware(
     }
 
     // check expiration
-    if let Some(expires_at) = cached.expires_at {
-        if expires_at < chrono::Utc::now() {
+    if let Some(expires_at) = cached.expires_at
+        && expires_at < chrono::Utc::now() {
             return (StatusCode::UNAUTHORIZED, "api key expired").into_response();
         }
-    }
 
     // fire-and-forget last_used_at update
     if let Some(ref pool) = state.pg_pool {

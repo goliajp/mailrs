@@ -83,11 +83,10 @@ async fn authenticate(headers: &HeaderMap, state: &Arc<WebState>) -> Option<Stri
 
     if let Some(token) = auth_header.strip_prefix("Bearer ") {
         // reuse existing session lookup
-        if let Some(session) = state.sessions.get(token) {
-            if session.created_at.elapsed() < super::SESSION_TTL {
+        if let Some(session) = state.sessions.get(token)
+            && session.created_at.elapsed() < super::SESSION_TTL {
                 return Some(session.address.clone());
             }
-        }
         return None;
     }
 
@@ -122,11 +121,10 @@ async fn authenticate(headers: &HeaderMap, state: &Arc<WebState>) -> Option<Stri
         Some(account.address)
     } else {
         // try LDAP fallback
-        if let Some(ref ldap) = state.ldap_config {
-            if ldap.authenticate(username, password).await {
+        if let Some(ref ldap) = state.ldap_config
+            && ldap.authenticate(username, password).await {
                 return Some(account.address);
             }
-        }
         None
     }
 }
@@ -640,8 +638,8 @@ async fn event_put(
     }
 
     // if-none-match: * means create-only (fail if exists)
-    if let Some(if_none_match) = headers.get("if-none-match").and_then(|v| v.to_str().ok()) {
-        if if_none_match.trim() == "*" {
+    if let Some(if_none_match) = headers.get("if-none-match").and_then(|v| v.to_str().ok())
+        && if_none_match.trim() == "*" {
             let exists: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM calendar_events WHERE calendar_id = $1 AND uid = $2)",
             )
@@ -654,7 +652,6 @@ async fn event_put(
                 return StatusCode::PRECONDITION_FAILED.into_response();
             }
         }
-    }
 
     let etag = etag_of(body);
 
@@ -1101,8 +1098,8 @@ async fn contact_put(
     }
 
     // if-none-match: * means create-only
-    if let Some(if_none_match) = headers.get("if-none-match").and_then(|v| v.to_str().ok()) {
-        if if_none_match.trim() == "*" {
+    if let Some(if_none_match) = headers.get("if-none-match").and_then(|v| v.to_str().ok())
+        && if_none_match.trim() == "*" {
             let exists: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM contacts WHERE address_book_id = $1 AND uid = $2)",
             )
@@ -1115,7 +1112,6 @@ async fn contact_put(
                 return StatusCode::PRECONDITION_FAILED.into_response();
             }
         }
-    }
 
     let etag = etag_of(body);
     let fn_name = extract_vcard_field(body, "FN");
@@ -1177,11 +1173,10 @@ fn extract_ical_field(ical: &str, field: &str) -> String {
             if let Some(value) = rest.strip_prefix(':') {
                 return value.trim().to_string();
             }
-            if rest.starts_with(';') {
-                if let Some(pos) = rest.find(':') {
+            if rest.starts_with(';')
+                && let Some(pos) = rest.find(':') {
                     return rest[pos + 1..].trim().to_string();
                 }
-            }
         }
     }
     String::new()
@@ -1214,11 +1209,10 @@ fn extract_vcard_field(vcard: &str, field: &str) -> String {
             if let Some(value) = rest.strip_prefix(':') {
                 return value.trim().to_string();
             }
-            if rest.starts_with(';') {
-                if let Some(pos) = rest.find(':') {
+            if rest.starts_with(';')
+                && let Some(pos) = rest.find(':') {
                     return rest[pos + 1..].trim().to_string();
                 }
-            }
         }
     }
     String::new()

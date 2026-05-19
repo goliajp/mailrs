@@ -149,11 +149,10 @@ async fn verify_api_key(
     }
 
     // check expiration
-    if let Some(expires_at) = cached.expires_at {
-        if expires_at < Utc::now() {
+    if let Some(expires_at) = cached.expires_at
+        && expires_at < Utc::now() {
             return Err((StatusCode::UNAUTHORIZED, "api key expired"));
         }
-    }
 
     // fire-and-forget last_used_at update
     if let Some(ref pool) = state.pg_pool {
@@ -242,8 +241,8 @@ pub(super) async fn login(
         // read token from response body
         let (parts, body) = resp.into_parts();
         let bytes = axum::body::to_bytes(body, 4096).await.unwrap_or_default();
-        if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-            if let Some(token) = val["token"].as_str() {
+        if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&bytes)
+            && let Some(token) = val["token"].as_str() {
                 let cookie = format!(
                     "mailrs_session={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600"
                 );
@@ -254,7 +253,6 @@ pub(super) async fn login(
                 );
                 return axum::response::Response::from_parts(parts, axum::body::Body::from(bytes));
             }
-        }
         return axum::response::Response::from_parts(parts, axum::body::Body::from(bytes));
     }
     resp
@@ -280,8 +278,8 @@ async fn login_inner(
     };
 
     // check auth guard before attempting verification
-    if let Some(ref guard) = state.auth_guard {
-        if let AuthCheck::LockedOut { remaining_secs } = guard.check(addr.ip(), &req.address) {
+    if let Some(ref guard) = state.auth_guard
+        && let AuthCheck::LockedOut { remaining_secs } = guard.check(addr.ip(), &req.address) {
             return (
                 StatusCode::TOO_MANY_REQUESTS,
                 Json(serde_json::json!({
@@ -289,7 +287,6 @@ async fn login_inner(
                 })),
             );
         }
-    }
 
     let (account, password_hash) = match ds.get_account_with_hash(&req.address).await {
         Ok(Some(pair)) => pair,
@@ -324,11 +321,10 @@ async fn login_inner(
     };
 
     // try LDAP fallback if password verification failed
-    if !valid {
-        if let Some(ref ldap) = state.ldap_config {
+    if !valid
+        && let Some(ref ldap) = state.ldap_config {
             valid = ldap.authenticate(&req.address, &req.password).await;
         }
-    }
 
     if !valid {
         if let Some(ref guard) = state.auth_guard {
@@ -344,8 +340,8 @@ async fn login_inner(
     }
 
     // check TOTP 2FA
-    if let Some(ref ds) = state.domain_store {
-        if let Ok(Some((secret, true, _recovery_codes))) = ds.get_totp_secret(&req.address).await {
+    if let Some(ref ds) = state.domain_store
+        && let Ok(Some((secret, true, _recovery_codes))) = ds.get_totp_secret(&req.address).await {
             match &req.totp_code {
                 None => {
                     // TOTP enabled but no code provided — ask client to provide one
@@ -378,7 +374,6 @@ async fn login_inner(
                 }
             }
         }
-    }
 
     if let Some(ref guard) = state.auth_guard {
         guard.record_success(addr.ip(), &req.address);
@@ -508,11 +503,10 @@ pub(super) async fn verify_credentials(
     };
 
     // LDAP fallback
-    if !valid {
-        if let Some(ref ldap) = state.ldap_config {
+    if !valid
+        && let Some(ref ldap) = state.ldap_config {
             valid = ldap.authenticate(&req.address, &req.password).await;
         }
-    }
 
     if !valid {
         return (

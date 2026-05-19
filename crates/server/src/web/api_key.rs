@@ -246,11 +246,10 @@ mod tests {
         }
 
         // check expiration
-        if let Some(expires_at) = cached.expires_at {
-            if expires_at < Utc::now() {
+        if let Some(expires_at) = cached.expires_at
+            && expires_at < Utc::now() {
                 return Err((StatusCode::UNAUTHORIZED, "api key expired"));
             }
-        }
 
         // permissions are loaded from domain_store at runtime, not from cache
         let perms = crate::permission::compute_effective_permissions(&[], &[], &[]);

@@ -116,11 +116,10 @@ impl DnsblCache {
         // check cache
         {
             let cache = self.cache.lock().unwrap();
-            if let Some((result, inserted_at)) = cache.get(&ip) {
-                if inserted_at.elapsed() < self.ttl {
+            if let Some((result, inserted_at)) = cache.get(&ip)
+                && inserted_at.elapsed() < self.ttl {
                     return result.clone();
                 }
-            }
         }
 
         // cache miss or expired — query

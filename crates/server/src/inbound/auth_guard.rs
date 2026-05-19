@@ -91,28 +91,24 @@ impl AuthGuard {
         let ip = normalize_ip(ip);
         let now = Instant::now();
 
-        if let Some(rec) = self.ip_failures.get(&ip) {
-            if let Some(until) = rec.lockout_until {
-                if now < until {
+        if let Some(rec) = self.ip_failures.get(&ip)
+            && let Some(until) = rec.lockout_until
+                && now < until {
                     let remaining = until.duration_since(now).as_secs();
                     return AuthCheck::LockedOut {
                         remaining_secs: remaining,
                     };
                 }
-            }
-        }
 
         let key = (ip, username.to_string());
-        if let Some(rec) = self.account_failures.get(&key) {
-            if let Some(until) = rec.lockout_until {
-                if now < until {
+        if let Some(rec) = self.account_failures.get(&key)
+            && let Some(until) = rec.lockout_until
+                && now < until {
                     let remaining = until.duration_since(now).as_secs();
                     return AuthCheck::LockedOut {
                         remaining_secs: remaining,
                     };
                 }
-            }
-        }
 
         AuthCheck::Allowed
     }
@@ -201,19 +197,17 @@ impl AuthGuard {
 
     pub fn cleanup_stale(&self, before: Instant) {
         self.account_failures.retain(|_, rec| {
-            if let Some(until) = rec.lockout_until {
-                if until < before {
+            if let Some(until) = rec.lockout_until
+                && until < before {
                     return false;
                 }
-            }
             !rec.failures.is_empty() || rec.lockout_until.is_some()
         });
         self.ip_failures.retain(|_, rec| {
-            if let Some(until) = rec.lockout_until {
-                if until < before {
+            if let Some(until) = rec.lockout_until
+                && until < before {
                     return false;
                 }
-            }
             !rec.failures.is_empty() || rec.lockout_until.is_some()
         });
     }

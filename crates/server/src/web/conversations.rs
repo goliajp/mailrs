@@ -198,11 +198,10 @@ pub(super) async fn get_conversations(
         q.starred,
         q.section.as_deref(),
     );
-    if let Some(ref valkey) = state.valkey {
-        if let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
+    if let Some(ref valkey) = state.valkey
+        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
             return cached_json_response(cached);
         }
-    }
 
     let convos = mb_store
         .list_conversations(
@@ -221,11 +220,10 @@ pub(super) async fn get_conversations(
         .unwrap_or_default();
 
     let response = convos_to_response(convos);
-    if let Some(ref valkey) = state.valkey {
-        if let Ok(json) = serde_json::to_string(&response) {
+    if let Some(ref valkey) = state.valkey
+        && let Ok(json) = serde_json::to_string(&response) {
             conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_LIST_SECS).await;
         }
-    }
     Json(response).into_response()
 }
 
@@ -248,11 +246,10 @@ pub(super) async fn get_thread_messages(
     // Cache lookup before doing the message + maildir parse work (which can
     // be heavy for big HTML threads with attachments).
     let cache_key = conversation_cache::thread_key(user, &thread_id);
-    if let Some(ref valkey) = state.valkey {
-        if let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
+    if let Some(ref valkey) = state.valkey
+        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
             return cached_json_response(cached);
         }
-    }
 
     let messages = mb_store
         .list_thread_messages(user, &thread_id, domains.as_deref())
@@ -406,11 +403,10 @@ pub(super) async fn get_thread_messages(
         });
     }
 
-    if let Some(ref valkey) = state.valkey {
-        if let Ok(json) = serde_json::to_string(&result) {
+    if let Some(ref valkey) = state.valkey
+        && let Ok(json) = serde_json::to_string(&result) {
             conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_THREAD_SECS).await;
         }
-    }
     Json(result).into_response()
 }
 
@@ -439,11 +435,10 @@ pub(super) async fn mark_thread_read(
     let result = mb_store
         .mark_thread_read(user, &thread_id, domains.as_deref())
         .await;
-    if result.is_ok() {
-        if let Some(ref valkey) = state.valkey {
+    if result.is_ok()
+        && let Some(ref valkey) = state.valkey {
             conversation_cache::bust_thread(valkey, user, &thread_id).await;
         }
-    }
     match result {
         Ok(count) => Json(ApiResult {
             success: true,
@@ -476,11 +471,10 @@ pub(super) async fn mark_thread_unread(
     };
 
     let result = mb_store.mark_thread_unread(&user, &thread_id).await;
-    if result.is_ok() {
-        if let Some(ref valkey) = state.valkey {
+    if result.is_ok()
+        && let Some(ref valkey) = state.valkey {
             conversation_cache::bust_thread(valkey, &user, &thread_id).await;
         }
-    }
     match result {
         Ok(_) => Json(ApiResult {
             success: true,
@@ -558,11 +552,10 @@ pub(super) async fn get_conversation_categories(
 
     let domains = validate_domains(dq.domains.as_deref(), permissions);
     let cache_key = conversation_cache::categories_key(user, domains.as_deref());
-    if let Some(ref valkey) = state.valkey {
-        if let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
+    if let Some(ref valkey) = state.valkey
+        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
             return cached_json_response(cached);
         }
-    }
 
     let cats = mb_store
         .list_conversation_categories(user, domains.as_deref())
@@ -574,11 +567,10 @@ pub(super) async fn get_conversation_categories(
         .map(|(category, count)| CategoryCount { category, count })
         .collect();
 
-    if let Some(ref valkey) = state.valkey {
-        if let Ok(json) = serde_json::to_string(&result) {
+    if let Some(ref valkey) = state.valkey
+        && let Ok(json) = serde_json::to_string(&result) {
             conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_CATS_SECS).await;
         }
-    }
     Json(result).into_response()
 }
 
@@ -593,11 +585,10 @@ pub(super) async fn get_action_count(
 
     let domains = validate_domains(dq.domains.as_deref(), permissions);
     let cache_key = conversation_cache::action_count_key(user, domains.as_deref());
-    if let Some(ref valkey) = state.valkey {
-        if let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
+    if let Some(ref valkey) = state.valkey
+        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
             return cached_json_response(cached);
         }
-    }
 
     let count = mb_store
         .count_action_threads(user, domains.as_deref())
@@ -605,11 +596,10 @@ pub(super) async fn get_action_count(
         .unwrap_or(0);
 
     let body = serde_json::json!({"count": count});
-    if let Some(ref valkey) = state.valkey {
-        if let Ok(json) = serde_json::to_string(&body) {
+    if let Some(ref valkey) = state.valkey
+        && let Ok(json) = serde_json::to_string(&body) {
             conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_ACTION_SECS).await;
         }
-    }
     Json(body).into_response()
 }
 
@@ -654,8 +644,8 @@ pub(super) async fn search_conversations(
     };
 
     // supplement with semantic search when text search returns few results
-    if convos.len() < limit as usize {
-        if let Some(extra) = semantic_search_threads(
+    if convos.len() < limit as usize
+        && let Some(extra) = semantic_search_threads(
             &state,
             user,
             &q.q,
@@ -673,7 +663,6 @@ pub(super) async fn search_conversations(
                 }
             }
         }
-    }
 
     Json(convos_to_response(convos))
 }
@@ -713,11 +702,10 @@ async fn semantic_search_threads(
             .map(|a| a.category)
             .unwrap_or_else(|| "general".to_string());
 
-        if let Some(filter) = category {
-            if cat != filter {
+        if let Some(filter) = category
+            && cat != filter {
                 continue;
             }
-        }
 
         let participants: Vec<String> = msgs
             .iter()
@@ -832,11 +820,10 @@ pub(super) async fn snooze_thread(
     };
 
     let result = mb_store.snooze_thread(&user, &thread_id, until).await;
-    if result.is_ok() {
-        if let Some(ref valkey) = state.valkey {
+    if result.is_ok()
+        && let Some(ref valkey) = state.valkey {
             conversation_cache::bust_thread(valkey, &user, &thread_id).await;
         }
-    }
     match result {
         Ok(()) => Json(ApiResult {
             success: true,
@@ -865,11 +852,10 @@ pub(super) async fn unsnooze_thread(
     };
 
     let result = mb_store.unsnooze_thread(&user, &thread_id).await;
-    if result.is_ok() {
-        if let Some(ref valkey) = state.valkey {
+    if result.is_ok()
+        && let Some(ref valkey) = state.valkey {
             conversation_cache::bust_thread(valkey, &user, &thread_id).await;
         }
-    }
     match result {
         Ok(()) => Json(ApiResult {
             success: true,
@@ -1008,13 +994,12 @@ pub(super) async fn get_mail_stats(
         None
     };
 
-    if let (Some(ref key), Some(ref valkey)) = (&cache_key, &state.valkey) {
+    if let (Some(key), Some(valkey)) = (&cache_key, &state.valkey) {
         use redis::AsyncCommands;
-        if let Ok(json) = valkey.clone().get::<_, String>(key.as_str()).await {
-            if let Ok(parsed) = serde_json::from_str::<MailStats>(&json) {
+        if let Ok(json) = valkey.clone().get::<_, String>(key.as_str()).await
+            && let Ok(parsed) = serde_json::from_str::<MailStats>(&json) {
                 return Json(parsed);
             }
-        }
     }
 
     let total = mb_store.count_messages(user).await;
@@ -1037,15 +1022,14 @@ pub(super) async fn get_mail_stats(
         categories,
     };
 
-    if let (Some(ref key), Some(ref valkey)) = (&cache_key, &state.valkey) {
-        if let Ok(json) = serde_json::to_string(&stats) {
+    if let (Some(key), Some(valkey)) = (&cache_key, &state.valkey)
+        && let Ok(json) = serde_json::to_string(&stats) {
             use redis::AsyncCommands;
             let _: redis::RedisResult<()> = valkey
                 .clone()
                 .set_ex(key.as_str(), json, MAIL_STATS_TTL_SECS)
                 .await;
         }
-    }
 
     Json(stats)
 }
@@ -1243,11 +1227,10 @@ pub(super) async fn star_thread(
     };
 
     let result = mb_store.star_thread(&user, &thread_id).await;
-    if result.is_ok() {
-        if let Some(ref valkey) = state.valkey {
+    if result.is_ok()
+        && let Some(ref valkey) = state.valkey {
             conversation_cache::bust_thread(valkey, &user, &thread_id).await;
         }
-    }
     match result {
         Ok(_) => Json(ApiResult {
             success: true,
@@ -1276,11 +1259,10 @@ pub(super) async fn unstar_thread(
     };
 
     let result = mb_store.unstar_thread(&user, &thread_id).await;
-    if result.is_ok() {
-        if let Some(ref valkey) = state.valkey {
+    if result.is_ok()
+        && let Some(ref valkey) = state.valkey {
             conversation_cache::bust_thread(valkey, &user, &thread_id).await;
         }
-    }
     match result {
         Ok(_) => Json(ApiResult {
             success: true,
@@ -1309,11 +1291,10 @@ pub(super) async fn pin_thread(
     };
 
     let result = mb_store.pin_thread(&user, &thread_id).await;
-    if result.is_ok() {
-        if let Some(ref valkey) = state.valkey {
+    if result.is_ok()
+        && let Some(ref valkey) = state.valkey {
             conversation_cache::bust_thread(valkey, &user, &thread_id).await;
         }
-    }
     match result {
         Ok(_) => Json(ApiResult {
             success: true,
@@ -1342,11 +1323,10 @@ pub(super) async fn unpin_thread(
     };
 
     let result = mb_store.unpin_thread(&user, &thread_id).await;
-    if result.is_ok() {
-        if let Some(ref valkey) = state.valkey {
+    if result.is_ok()
+        && let Some(ref valkey) = state.valkey {
             conversation_cache::bust_thread(valkey, &user, &thread_id).await;
         }
-    }
     match result {
         Ok(_) => Json(ApiResult {
             success: true,
@@ -1402,11 +1382,10 @@ pub(super) async fn archive_thread(
     };
 
     let result = mb_store.archive_thread(&user, &thread_id).await;
-    if result.is_ok() {
-        if let Some(ref valkey) = state.valkey {
+    if result.is_ok()
+        && let Some(ref valkey) = state.valkey {
             conversation_cache::bust_thread(valkey, &user, &thread_id).await;
         }
-    }
     match result {
         Ok(_) => Json(ApiResult {
             success: true,
@@ -1435,11 +1414,10 @@ pub(super) async fn unarchive_thread(
     };
 
     let result = mb_store.unarchive_thread(&user, &thread_id).await;
-    if result.is_ok() {
-        if let Some(ref valkey) = state.valkey {
+    if result.is_ok()
+        && let Some(ref valkey) = state.valkey {
             conversation_cache::bust_thread(valkey, &user, &thread_id).await;
         }
-    }
     match result {
         Ok(_) => Json(ApiResult {
             success: true,

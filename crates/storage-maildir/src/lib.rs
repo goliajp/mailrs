@@ -192,14 +192,12 @@ impl Maildir {
             if !metadata.is_file() {
                 continue;
             }
-            if let Ok(modified) = metadata.modified() {
-                if let Ok(age) = now.duration_since(modified) {
-                    if age > max_age {
+            if let Ok(modified) = metadata.modified()
+                && let Ok(age) = now.duration_since(modified)
+                    && age > max_age {
                         fs::remove_file(entry.path())?;
                         cleaned += 1;
                     }
-                }
-            }
         }
 
         Ok(cleaned)

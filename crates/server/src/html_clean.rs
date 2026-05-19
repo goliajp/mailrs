@@ -207,13 +207,12 @@ fn remove_hidden_blocks(html: &str) -> String {
             if let Some(tag_start) = html[..check_pos].rfind('<') {
                 let tag_lower = &lower[tag_start..];
                 // find the tag name
-                if let Some(tag_name) = extract_tag_name(tag_lower) {
-                    if let Some(end) = find_closing_tag(&lower[tag_start..], &tag_name) {
+                if let Some(tag_name) = extract_tag_name(tag_lower)
+                    && let Some(end) = find_closing_tag(&lower[tag_start..], &tag_name) {
                         result.push_str(&html[pos..tag_start]);
                         pos = tag_start + end;
                         continue;
                     }
-                }
             }
             result.push_str(&html[pos..check_pos + 12]);
             pos = check_pos + 12;
@@ -236,12 +235,11 @@ fn remove_template_chrome(html: &str) -> (String, bool) {
     for keyword in FOOTER_KEYWORDS {
         if let Some(pos) = lower.rfind(keyword) {
             // find the enclosing block element (td, div, tr)
-            if let Some(block_start) = find_enclosing_block_start(&lower[..pos]) {
-                if block_start < earliest_footer {
+            if let Some(block_start) = find_enclosing_block_start(&lower[..pos])
+                && block_start < earliest_footer {
                     earliest_footer = block_start;
                     footer_removed = true;
                 }
-            }
         }
     }
 

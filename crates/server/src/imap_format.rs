@@ -390,22 +390,18 @@ pub(crate) fn split_mime_parts<'a>(body: &'a [u8], boundary: &str) -> Vec<&'a [u
             if trimmed == format!("--{boundary}--")
                 || trimmed.starts_with(&format!("--{boundary}--"))
             {
-                if in_parts {
-                    if let Some(pos) = find_line_offset(body, i) {
-                        if pos > part_start {
+                if in_parts
+                    && let Some(pos) = find_line_offset(body, i)
+                        && pos > part_start {
                             parts.push(&body[part_start..pos]);
                         }
-                    }
-                }
                 break;
             }
-            if in_parts {
-                if let Some(pos) = find_line_offset(body, i) {
-                    if pos > part_start {
+            if in_parts
+                && let Some(pos) = find_line_offset(body, i)
+                    && pos > part_start {
                         parts.push(&body[part_start..pos]);
                     }
-                }
-            }
             if let Some(pos) = find_line_offset(body, i) {
                 let after = pos + line.len();
                 part_start =
@@ -559,8 +555,8 @@ pub(crate) fn build_bodystructure(data: &[u8]) -> String {
     let body = extract_body_section(data);
     let info = parse_mime_headers(&header);
 
-    if info.media_type == "MULTIPART" {
-        if let Some(ref boundary) = info.boundary {
+    if info.media_type == "MULTIPART"
+        && let Some(ref boundary) = info.boundary {
             let parts = split_mime_parts(&body, boundary);
             if !parts.is_empty() {
                 let parts_str: String = parts.iter().map(|p| build_part_bodystructure(p)).collect();
@@ -572,7 +568,6 @@ pub(crate) fn build_bodystructure(data: &[u8]) -> String {
                 );
             }
         }
-    }
 
     let params = {
         let mut pairs = Vec::new();

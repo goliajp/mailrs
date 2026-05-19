@@ -183,13 +183,11 @@ impl Session {
             // MAIL FROM: accepted at Greeted or Authenticated
             (State::Greeted { .. } | State::Authenticated { .. }, Command::MailFrom { path, params }) => {
                 // check SIZE parameter
-                if let Some(size_str) = params.iter().find(|p| p.key.eq_ignore_ascii_case("SIZE")).map(|p| p.value) {
-                    if let Ok(size) = size_str.parse::<u64>() {
-                        if size > self.config.max_size {
+                if let Some(size_str) = params.iter().find(|p| p.key.eq_ignore_ascii_case("SIZE")).map(|p| p.value)
+                    && let Ok(size) = size_str.parse::<u64>()
+                        && size > self.config.max_size {
                             return Event::Reply(Response::too_large());
                         }
-                    }
-                }
 
                 let reverse_path = match path {
                     crate::command::ReversePath::Null => String::new(),
@@ -226,11 +224,10 @@ impl Session {
             }
 
             (State::RcptTo { .. }, Command::RcptTo { path, .. }) => {
-                if let State::RcptTo { forward_paths, .. } = &self.state {
-                    if forward_paths.len() >= self.config.max_recipients {
+                if let State::RcptTo { forward_paths, .. } = &self.state
+                    && forward_paths.len() >= self.config.max_recipients {
                         return Event::Reply(Response::too_many_recipients());
                     }
-                }
                 let forward = forward_path_to_string(path);
                 if let State::RcptTo { forward_paths, .. } = &mut self.state {
                     forward_paths.push(forward);

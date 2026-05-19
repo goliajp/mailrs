@@ -1,7 +1,7 @@
 [package]
 name = "mailrs-smtp-client"
 version.workspace = true
-edition = "2021"
+edition = "2024"
 
 [lints]
 workspace = true
@@ -12,4 +12,4 @@ tokio-rustls = "0.26"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 webpki-roots = "1"
 hickory-resolver = "0.26"
-sha2 = "0.10.9"
+sha2 = "0.11.0"

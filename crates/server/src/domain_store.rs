@@ -327,8 +327,8 @@ impl DomainStore {
     }
 
     async fn valkey_set(&self, key: &str, val: &impl serde::Serialize, ttl_secs: u64) {
-        if let Some(mut conn) = self.valkey.clone() {
-            if let Ok(json) = serde_json::to_string(val) {
+        if let Some(mut conn) = self.valkey.clone()
+            && let Ok(json) = serde_json::to_string(val) {
                 let _: std::result::Result<(), _> = redis::cmd("SET")
                     .arg(key)
                     .arg(&json)
@@ -337,7 +337,6 @@ impl DomainStore {
                     .query_async(&mut conn)
                     .await;
             }
-        }
     }
 
     async fn valkey_del(&self, key: &str) {

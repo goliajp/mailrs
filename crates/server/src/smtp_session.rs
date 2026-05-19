@@ -77,7 +77,7 @@ fn srs_rewrite(sender: &str, local_domain: &str, secret: &str) -> String {
     let tt = format!("{days:03}");
 
     // HMAC-SHA1 of the rewritten components
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, KeyInit, Mac};
     use sha2::Sha256;
     let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
         .expect("hmac accepts any key length");
@@ -95,7 +95,7 @@ async fn verify_credentials(ctx: &ConnectionContext, username: &str, password: &
         return true;
     }
     if let Some(ref ds) = ctx.domain_store {
-        if let Ok(Some((_account, hash))) = ds.get_account_with_hash(username).await {
+        match ds.get_account_with_hash(username).await { Ok(Some((_account, hash))) => {
             let valid = if hash.is_empty() {
                 false
             } else if hash.starts_with("$argon2") {
@@ -106,10 +106,10 @@ async fn verify_credentials(ctx: &ConnectionContext, username: &str, password: &
             if valid {
                 return true;
             }
-        } else {
+        } _ => {
             // constant-time: do dummy argon2 work even when account not found
             crate::users::dummy_verify(password);
-        }
+        }}
     }
     // try LDAP as last fallback
     if let Some(ref ldap) = ctx.ldap_config {
@@ -150,9 +150,9 @@ pub async fn handle_plain_connection(
     }
 
     // DNSBL check
-    if ctx.dnsbl_enabled && !ctx.dnsbl_zones.is_empty() {
-        if let Some(ref resolver) = ctx.resolver {
-            if let Some((zone, result)) =
+    if ctx.dnsbl_enabled && !ctx.dnsbl_zones.is_empty()
+        && let Some(ref resolver) = ctx.resolver
+            && let Some((zone, result)) =
                 crate::inbound::dnsbl::check_dnsbl(resolver, addr.ip(), &ctx.dnsbl_zones).await
             {
                 let mut framed = Framed::new(
@@ -173,8 +173,6 @@ pub async fn handle_plain_connection(
                     .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                 return;
             }
-        }
-    }
 
     let tls_available = ctx.tls_state.is_some();
     let config = SessionConfig {
@@ -473,8 +471,8 @@ where
 
                     // run anti-spam pipeline for non-authenticated connections
                     let mut target_folder = "INBOX";
-                    if !is_authenticated {
-                        if let Some(ref authenticator) = ctx.mail_authenticator {
+                    if !is_authenticated
+                        && let Some(ref authenticator) = ctx.mail_authenticator {
                             let ehlo_domain = match &session.state {
                                 State::Greeted { domain } => domain.as_str(),
                                 State::Authenticated { domain, .. } => domain.as_str(),
@@ -563,7 +561,6 @@ where
                                 }
                             }
                         }
-                    }
 
                     let msg_size = full_message.len();
 
@@ -636,8 +633,8 @@ where
                         let mut rcpt_folder = target_folder.to_string();
                         let mut skip_delivery = false;
 
-                        if let Some(ref ds) = ctx.domain_store {
-                            if let Ok(Some(script)) = ds.get_sieve_script(rcpt).await {
+                        if let Some(ref ds) = ctx.domain_store
+                            && let Ok(Some(script)) = ds.get_sieve_script(rcpt).await {
                                 match compile_sieve(&script) {
                                     Ok(compiled) => {
                                         let actions = evaluate_sieve_with_envelope(
@@ -746,7 +743,6 @@ where
                                     }
                                 }
                             }
-                        }
 
                         if skip_delivery {
                             continue;
@@ -754,11 +750,10 @@ where
 
                         if let Some((local, domain)) = rcpt.split_once('@') {
                             // check quota before delivery
-                            if let (Some(ref ds), Some(ref mb_store)) =
+                            if let (Some(ds), Some(mb_store)) =
                                 (&ctx.domain_store, &ctx.mailbox_store)
-                            {
-                                if let Ok(Some(quota)) = ds.get_quota(rcpt).await {
-                                    if quota > 0 {
+                                && let Ok(Some(quota)) = ds.get_quota(rcpt).await
+                                    && quota > 0 {
                                         let usage = mb_store.user_storage_usage(rcpt).await;
                                         if usage + msg_size as u64 > quota as u64 {
                                             eprintln!("smtp: quota exceeded for user={rcpt} (usage={usage} bytes, quota={quota} bytes)");
@@ -766,8 +761,6 @@ where
                                             continue;
                                         }
                                     }
-                                }
-                            }
 
                             let path = format!("{}/{domain}/{local}", ctx.maildir_root);
                             match Maildir::create(&path) {
@@ -855,8 +848,8 @@ where
                                             // messages.invite_payload so the web
                                             // client / macapp can render an
                                             // invite card without re-parsing.
-                                            if let Some(uid) = indexed_uid {
-                                                if let Some(extracted) =
+                                            if let Some(uid) = indexed_uid
+                                                && let Some(extracted) =
                                                     crate::calendar::invite_extract::extract_invite_part(
                                                         &full_message,
                                                     )
@@ -946,7 +939,6 @@ where
                                                         );
                                                     }
                                                 }
-                                            }
 
                                             // async post-delivery: contact upsert + content extraction + importance scoring
                                             let mb_store_bg = Arc::clone(mb_store);
@@ -987,8 +979,8 @@ where
                     }
 
                     // FBL: check if this is an ARF complaint report to abuse@
-                    if local_rcpts.iter().any(|r| r.starts_with("abuse@") || r.starts_with("postmaster@")) {
-                        if let Some((reported_addr, feedback_type)) = crate::fbl::parse_arf_report(&full_message) {
+                    if local_rcpts.iter().any(|r| r.starts_with("abuse@") || r.starts_with("postmaster@"))
+                        && let Some((reported_addr, feedback_type)) = crate::fbl::parse_arf_report(&full_message) {
                             eprintln!("FBL: received {feedback_type} complaint for {reported_addr}");
                             if let Some(ref queue_pool) = ctx.outbound_queue {
                                 let _ = mailrs_outbound_queue::queue::add_suppression(
@@ -999,7 +991,6 @@ where
                                 ).await;
                             }
                         }
-                    }
 
                     // enqueue remote recipients
                     if !remote_rcpts.is_empty() {
@@ -1331,12 +1322,11 @@ fn extract_header(message: &[u8], name: &str) -> String {
 
 /// extract a short snippet from the message body for notifications
 fn extract_snippet(message: &[u8]) -> String {
-    if let Some(msg) = mail_parser::MessageParser::default().parse(message) {
-        if let Some(text) = msg.body_text(0) {
+    if let Some(msg) = mail_parser::MessageParser::default().parse(message)
+        && let Some(text) = msg.body_text(0) {
             let s: String = text.chars().take(100).collect();
             return s.lines().next().unwrap_or("").to_string();
         }
-    }
     String::new()
 }
 
@@ -1446,13 +1436,11 @@ async fn post_delivery_process(
                     })
                 })
                 .map(|(_, d)| d.trim_end_matches('>'));
-            if let Some(domain) = sender_domain {
-                if let Some(logo_url) = crate::domain_check::lookup_bimi_logo(resolver, domain).await {
-                    if let Err(e) = mb_store.update_bimi_logo(msg_id, &logo_url).await {
+            if let Some(domain) = sender_domain
+                && let Some(logo_url) = crate::domain_check::lookup_bimi_logo(resolver, domain).await
+                    && let Err(e) = mb_store.update_bimi_logo(msg_id, &logo_url).await {
                         tracing::warn!("BIMI update failed for msg {msg_id}: {e}");
                     }
-                }
-            }
         }
     }
 }
