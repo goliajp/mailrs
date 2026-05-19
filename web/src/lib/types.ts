@@ -79,7 +79,9 @@ export type ConversationSummary = {
   message_count: number
   participants: string[]
   pinned: boolean
+  received_count: number
   requires_action: boolean
+  sent_count: number
   snippet: string
   subject: string
   thread_id: string
