@@ -1,11 +1,14 @@
 import type { ThemeMode } from '@goliapkg/gds'
 
 import { toast } from '@goliapkg/gds'
+import { useQuery } from '@tanstack/react-query'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useState } from 'react'
 
 import { MobileModal } from '@/components/mobile-modal'
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
+import { queryClient } from '@/lib/query-client'
+import { settingsKeys } from '@/lib/query-keys'
 import { authAtom, getToken } from '@/store/auth'
 import { notificationsAtom, notificationSoundAtom, pageSizeAtom } from '@/store/settings'
 import { themeModeAtom } from '@/store/theme'
@@ -172,23 +175,36 @@ function AccountSection() {
   const [pw, setPw] = useState({ confirm: '', current: '', next: '' })
   const [saving, setSaving] = useState(false)
   const [recoveryEmail, setRecoveryEmail] = useState('')
-  const [recoveryLoaded, setRecoveryLoaded] = useState(false)
   const [savingRecovery, setSavingRecovery] = useState(false)
 
+  const recoveryQuery = useQuery({
+    queryKey: settingsKeys.recoveryEmail(),
+    queryFn: async () => {
+      try {
+        return await fetchJson<{ recovery_email: string }>('/auth/recovery-email')
+      } catch {
+        return { recovery_email: '' }
+      }
+    },
+  })
+  const recoveryLoaded = !recoveryQuery.isLoading
+  // Seed the editable local copy once when the query resolves. Subsequent
+  // edits flow through setRecoveryEmail and shouldn't be clobbered by
+  // background refetches — gate on isSuccess + first-mount marker.
+  const [recoverySeeded, setRecoverySeeded] = useState(false)
   useEffect(() => {
-    fetchJson<{ recovery_email: string }>('/auth/recovery-email')
-      .then((data) => {
-        setRecoveryEmail(data.recovery_email)
-        setRecoveryLoaded(true)
-      })
-      .catch(() => setRecoveryLoaded(true))
-  }, [])
+    if (!recoverySeeded && recoveryQuery.isSuccess) {
+      setRecoveryEmail(recoveryQuery.data.recovery_email)
+      setRecoverySeeded(true)
+    }
+  }, [recoverySeeded, recoveryQuery.isSuccess, recoveryQuery.data])
 
   const handleRecoveryEmailSave = async () => {
     setSavingRecovery(true)
     try {
       await postJson('/auth/recovery-email', { recovery_email: recoveryEmail })
       toast.success('Recovery email updated')
+      void queryClient.invalidateQueries({ queryKey: settingsKeys.recoveryEmail() })
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to update recovery email')
     } finally {
@@ -372,24 +388,16 @@ function AccountSection() {
 // --- signatures section ---
 
 function ApiKeysSection() {
-  const [keys, setKeys] = useState<AgentKey[]>([])
+  const { data: keys = [] } = useQuery({
+    queryKey: settingsKeys.agentKeys(),
+    queryFn: () => fetchJson<AgentKey[]>('/agent/keys'),
+  })
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ expires_in_days: '', name: '' })
   const [createdKey, setCreatedKey] = useState<CreatedAgentKey | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<null | string>(null)
 
-  const load = useCallback(async () => {
-    try {
-      const data = await fetchJson<AgentKey[]>('/agent/keys')
-      setKeys(data)
-    } catch {
-      // keep current
-    }
-  }, [])
-
-  useEffect(() => {
-    void load()
-  }, [load])
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: settingsKeys.agentKeys() })
 
   const handleCreate = async () => {
     if (!form.name.trim()) return
@@ -403,7 +411,7 @@ function ApiKeysSection() {
       setCreatedKey(data)
       setForm({ expires_in_days: '', name: '' })
       setAdding(false)
-      load()
+      void invalidate()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to create key')
     }
@@ -414,7 +422,7 @@ function ApiKeysSection() {
       await deleteJson(`/agent/keys/${id}`)
       toast.success('API key revoked')
       setDeleteTarget(null)
-      load()
+      void invalidate()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to revoke key')
       setDeleteTarget(null)
@@ -612,8 +620,15 @@ function AppearanceSection() {
 // --- api keys section ---
 
 function CalendarFeedsSection() {
-  const [feeds, setFeeds] = useState<CalendarFeed[]>([])
-  const [loading, setLoading] = useState(false)
+  const feedsQuery = useQuery({
+    queryKey: settingsKeys.calendarFeeds(),
+    queryFn: async () => {
+      const list = await fetchJson<CalendarFeed[]>('/calendar/feeds')
+      return list ?? []
+    },
+  })
+  const feeds = feedsQuery.data ?? []
+  const loading = feedsQuery.isFetching
   const [url, setUrl] = useState('')
   const [name, setName] = useState('')
   const [authUser, setAuthUser] = useState('')
@@ -621,21 +636,14 @@ function CalendarFeedsSection() {
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
 
-  const refresh = useCallback(async () => {
-    setLoading(true)
-    try {
-      const list = await fetchJson<CalendarFeed[]>('/calendar/feeds')
-      setFeeds(list ?? [])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
+  // Surface query errors through the same `error` state the form uses.
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    if (feedsQuery.error) {
+      setError(feedsQuery.error instanceof Error ? feedsQuery.error.message : 'failed to load')
+    }
+  }, [feedsQuery.error])
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: settingsKeys.calendarFeeds() })
 
   const handleCreate = async () => {
     setError('')
@@ -809,24 +817,17 @@ function ConfirmDialog({
 // --- appearance section ---
 
 function EncryptionKeysSection() {
-  const [status, setStatus] = useState<KeyStatus | null>(null)
+  const { data: status = null } = useQuery({
+    queryKey: settingsKeys.encryptionKeysStatus(),
+    queryFn: () => fetchJson<KeyStatus>('/mail/keys/status'),
+  })
   const [pgpKey, setPgpKey] = useState('')
   const [smimeCert, setSmimeCert] = useState('')
   const [saving, setSaving] = useState<null | string>(null)
   const [deleteKeyTarget, setDeleteKeyTarget] = useState<'pgp' | 'smime' | null>(null)
 
-  const load = useCallback(async () => {
-    try {
-      const data = await fetchJson<KeyStatus>('/mail/keys/status')
-      setStatus(data)
-    } catch {
-      // keep null
-    }
-  }, [])
-
-  useEffect(() => {
-    void load()
-  }, [load])
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: settingsKeys.encryptionKeysStatus() })
 
   const handleUpload = async (type: 'pgp' | 'smime', content: string) => {
     if (!content.trim()) return
@@ -839,7 +840,7 @@ function EncryptionKeysSection() {
       } else {
         setSmimeCert('')
       }
-      load()
+      void invalidate()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : `Failed to save ${type} key`)
     } finally {
@@ -852,7 +853,7 @@ function EncryptionKeysSection() {
     try {
       await deleteJson(`/mail/keys/${type}`)
       toast.success(`${type.toUpperCase()} key deleted`)
-      load()
+      void invalidate()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : `Failed to delete ${type} key`)
     } finally {
@@ -962,26 +963,18 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 function SecuritySection() {
-  const [status, setStatus] = useState<null | TotpStatus>(null)
+  const statusQuery = useQuery({
+    queryKey: settingsKeys.totpStatus(),
+    queryFn: () => fetchJson<TotpStatus>('/auth/totp/status'),
+  })
+  const status = statusQuery.data ?? null
+  const loading = statusQuery.isLoading
   const [setup, setSetup] = useState<null | TotpSetup>(null)
   const [code, setCode] = useState('')
-  const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
-  const loadStatus = useCallback(async () => {
-    try {
-      const data = await fetchJson<TotpStatus>('/auth/totp/status')
-      setStatus(data)
-    } catch {
-      // keep null
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    loadStatus()
-  }, [loadStatus])
+  const invalidateStatus = () =>
+    queryClient.invalidateQueries({ queryKey: settingsKeys.totpStatus() })
 
   const handleSetup = async () => {
     try {
@@ -1000,7 +993,7 @@ function SecuritySection() {
       toast.success('2FA enabled')
       setSetup(null)
       setCode('')
-      loadStatus()
+      void invalidateStatus()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Invalid code')
     } finally {
@@ -1015,7 +1008,7 @@ function SecuritySection() {
       await postJson('/auth/totp/disable', { code: code.trim() })
       toast.success('2FA disabled')
       setCode('')
-      loadStatus()
+      void invalidateStatus()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Invalid code')
     } finally {
@@ -1111,23 +1104,15 @@ function SecuritySection() {
 }
 
 function SignaturesSection() {
-  const [signatures, setSignatures] = useState<Signature[]>([])
+  const { data: signatures = [] } = useQuery({
+    queryKey: settingsKeys.signatures(),
+    queryFn: () => fetchJson<Signature[]>('/mail/signatures'),
+  })
   const [editing, setEditing] = useState<null | Partial<Signature>>(null)
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
 
-  const load = useCallback(async () => {
-    try {
-      const data = await fetchJson<Signature[]>('/mail/signatures')
-      setSignatures(data)
-    } catch {
-      // keep current
-    }
-  }, [])
-
-  useEffect(() => {
-    void load()
-  }, [load])
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: settingsKeys.signatures() })
 
   const handleSave = async () => {
     if (!editing?.name?.trim()) return
@@ -1142,7 +1127,7 @@ function SignaturesSection() {
       })
       toast.success(editing.id ? 'Signature updated' : 'Signature created')
       setEditing(null)
-      load()
+      void invalidate()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to save signature')
     } finally {
@@ -1155,7 +1140,7 @@ function SignaturesSection() {
       await deleteJson(`/mail/signatures/${id}`)
       toast.success('Signature deleted')
       setDeleteTarget(null)
-      load()
+      void invalidate()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to delete signature')
       setDeleteTarget(null)
@@ -1292,7 +1277,10 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 }
 
 function WebhooksSection() {
-  const [webhooks, setWebhooks] = useState<Webhook[]>([])
+  const { data: webhooks = [] } = useQuery({
+    queryKey: settingsKeys.webhooks(),
+    queryFn: () => fetchJson<Webhook[]>('/agent/webhooks'),
+  })
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({
     event_type: 'new_message',
@@ -1303,18 +1291,7 @@ function WebhooksSection() {
   const [createdSecret, setCreatedSecret] = useState<null | string>(null)
   const [deleteTarget, setDeleteTarget] = useState<null | string>(null)
 
-  const load = useCallback(async () => {
-    try {
-      const data = await fetchJson<Webhook[]>('/agent/webhooks')
-      setWebhooks(data)
-    } catch {
-      // keep current
-    }
-  }, [])
-
-  useEffect(() => {
-    void load()
-  }, [load])
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: settingsKeys.webhooks() })
 
   const [creating, setCreating] = useState(false)
   const handleCreate = async () => {
@@ -1336,7 +1313,7 @@ function WebhooksSection() {
         url: '',
       })
       setAdding(false)
-      load()
+      void invalidate()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to create webhook')
     } finally {
@@ -1349,7 +1326,7 @@ function WebhooksSection() {
       await deleteJson(`/agent/webhooks/${id}`)
       toast.success('Webhook deleted')
       setDeleteTarget(null)
-      load()
+      void invalidate()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to delete webhook')
       setDeleteTarget(null)

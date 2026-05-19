@@ -74,6 +74,35 @@ export const adminKeys = {
 }
 
 export const settingsKeys = {
+  agentKeys: () => [...settingsKeys.all(), 'agent-keys'] as const,
   all: () => ['settings'] as const,
+  calendarFeeds: () => [...settingsKeys.all(), 'calendar-feeds'] as const,
+  encryptionKeysStatus: () => [...settingsKeys.all(), 'encryption-keys-status'] as const,
+  recoveryEmail: () => [...settingsKeys.all(), 'recovery-email'] as const,
   signatures: () => [...settingsKeys.all(), 'signatures'] as const,
+  totpStatus: () => [...settingsKeys.all(), 'totp-status'] as const,
+  webhooks: () => [...settingsKeys.all(), 'webhooks'] as const,
+}
+
+export const dashboardKeys = {
+  all: () => ['dashboard'] as const,
+  conversations: () => [...dashboardKeys.all(), 'conversations'] as const,
+  folders: () => [...dashboardKeys.all(), 'folders'] as const,
+  stats: () => [...dashboardKeys.all(), 'stats'] as const,
+}
+
+export const calendarKeys = {
+  all: () => ['calendar'] as const,
+  conflicts: (startIso: string, endIso: string, excludeUid: string) =>
+    [...calendarKeys.all(), 'conflicts', startIso, endIso, excludeUid] as const,
+}
+
+export const messageKeys = {
+  all: () => ['message'] as const,
+  detail: (uid: number) => [...messageKeys.all(), 'detail', uid] as const,
+}
+
+export const contactsKeys = {
+  all: () => ['contacts'] as const,
+  search: (q: string) => [...contactsKeys.all(), 'search', q] as const,
 }

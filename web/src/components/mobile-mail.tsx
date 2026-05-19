@@ -2,8 +2,6 @@
 // replaces desktop Chat (MPaneGroup/MPane) with full-screen view switching
 // shares data layer (atoms, API) but independent UI
 
-import type { ThreadMessage } from '@/lib/types'
-
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { ArrowLeft, Mail, MessageSquare, Reply } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -11,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
-import { fetchJson } from '@/lib/api'
+import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import { authAtom } from '@/store/auth'
@@ -193,36 +191,26 @@ function MobileThreadView() {
   const setMobileView = useSetAtom(mobileViewAtom)
   const conversations = useAtomValue(conversationsAtom)
 
-  const [loading, setLoading] = useState(false)
   const [selectedMsgIdx, setSelectedMsgIdx] = useState<null | number>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const loadedThreadRef = useRef<null | string>(null)
 
+  // thread messages now live in react-query; we bridge to the legacy
+  // threadMessagesAtom for downstream consumers, mirroring thread-view.tsx.
+  const threadQuery = useThreadQuery(selectedId, [])
+  const loading = threadQuery.isPending && !!selectedId
   useEffect(() => {
-    if (!selectedId) return
-    // skip re-fetch if messages are already loaded for this thread
-    if (loadedThreadRef.current === selectedId && messages.length > 0) {
-      if (selectedMsgIdx == null) setSelectedMsgIdx(messages.length - 1)
-      return
-    }
-    let cancelled = false
-    setLoading(true)
+    if (threadQuery.data) setMessages(threadQuery.data)
+  }, [threadQuery.data, setMessages])
+  // reset the active message + scroll when the thread id changes; the
+  // latest-message auto-pick re-fires below as data populates.
+  useEffect(() => {
     setSelectedMsgIdx(null)
-    fetchJson<ThreadMessage[]>(`/conversations/${encodeURIComponent(selectedId)}`)
-      .then((data) => {
-        if (!cancelled) {
-          setMessages(data)
-          loadedThreadRef.current = selectedId
-          if (data.length > 0) setSelectedMsgIdx(data.length - 1)
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
+  }, [selectedId])
+  useEffect(() => {
+    if (messages.length > 0 && selectedMsgIdx === null) {
+      setSelectedMsgIdx(messages.length - 1)
     }
-  }, [selectedId, setMessages, messages.length, selectedMsgIdx])
+  }, [messages.length, selectedMsgIdx])
 
   useEffect(() => {
     scrollRef.current?.scrollTo(0, 0)

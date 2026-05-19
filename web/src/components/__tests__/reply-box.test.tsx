@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,6 +45,14 @@ function makeLocalStorageMock(): Storage {
 }
 vi.stubGlobal('localStorage', makeLocalStorageMock())
 
+function makeQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  })
+}
+
 function makeStore() {
   const store = createStore()
   store.set(authAtom, {
@@ -63,7 +72,12 @@ function Wrapper({
   children: ReactNode
   store: ReturnType<typeof createStore>
 }) {
-  return <Provider store={store}>{children}</Provider>
+  const queryClient = makeQueryClient()
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Provider store={store}>{children}</Provider>
+    </QueryClientProvider>
+  )
 }
 
 const defaultProps = {
