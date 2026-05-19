@@ -50,7 +50,7 @@ export function renderBlockHtml(block: AnyBlock): string {
     case 'text': {
       const d = block.data as { content: string; format: string; html: string }
       if (d.format === 'markdown') {
-        return marked.parse(d.content, {
+        return marked.parse(preserveBlankLines(d.content), {
           async: false,
           breaks: true,
           gfm: true,
@@ -108,4 +108,11 @@ export function renderBlockText(block: AnyBlock): string {
     default:
       return ''
   }
+}
+
+// match the textarea's vertical rhythm: each blank line in the source becomes
+// a &nbsp; paragraph in the rendered html. N consecutive newlines means
+// (N-1) blank lines between paragraphs.
+function preserveBlankLines(md: string): string {
+  return md.replace(/\n{2,}/g, (match) => '\n\n' + '&nbsp;\n\n'.repeat(match.length - 1))
 }
