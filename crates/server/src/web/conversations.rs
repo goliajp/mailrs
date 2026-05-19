@@ -27,6 +27,8 @@ pub(super) struct ConversationResponse {
     pub importance_score: f32,
     pub requires_action: bool,
     pub last_sender: String,
+    pub received_count: u32,
+    pub sent_count: u32,
 }
 
 #[derive(Serialize)]
@@ -152,6 +154,10 @@ pub(super) fn convos_to_response(
             importance_score: c.importance_score,
             requires_action: c.requires_action,
             last_sender: message_util::decode_header(&c.last_sender),
+            // received = total - sent; the SQL only emits sent_count to keep
+            // the row tuple under sqlx's 16-column FromRow limit
+            received_count: c.message_count.saturating_sub(c.sent_count),
+            sent_count: c.sent_count,
         })
         .collect()
 }
@@ -648,6 +654,7 @@ async fn semantic_search_threads(
             importance_score: msgs.iter().map(|m| m.importance_score).fold(0.0f32, f32::max),
             requires_action: false,
             last_sender: last.sender.clone(),
+            sent_count: 0,
         });
     }
 
@@ -1455,6 +1462,7 @@ mod tests {
             importance_score: 0.5,
             requires_action: false,
             last_sender: participants.split(',').next().unwrap_or("").trim().to_string(),
+            sent_count: 0,
         }
     }
 
@@ -1534,6 +1542,8 @@ mod tests {
             importance_score: 0.9,
             requires_action: true,
             last_sender: "user@example.com".to_string(),
+            received_count: 4,
+            sent_count: 1,
         };
 
         let json = serde_json::to_value(&r).unwrap();

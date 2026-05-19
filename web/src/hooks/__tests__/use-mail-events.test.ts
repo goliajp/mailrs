@@ -532,7 +532,9 @@ describe('useMailEvents', () => {
       message_count: number
       participants: string[]
       pinned: boolean
+      received_count: number
       requires_action: boolean
+      sent_count: number
       snippet: string
       subject: string
       thread_id: string
@@ -549,7 +551,9 @@ describe('useMailEvents', () => {
       message_count: 2,
       participants: ['a@x.com', 'b@x.com'],
       pinned: false,
+      received_count: 1,
       requires_action: false,
+      sent_count: 1,
       snippet: 's',
       subject: 't',
       thread_id: 'id-1',

@@ -66,6 +66,10 @@ pub struct ConversationSummary {
     /// sender of the most recent message in the thread (used client-side
     /// to hide "sent by me" threads from the default inbox view)
     pub last_sender: String,
+    /// number of messages in the thread that live in the Sent mailbox
+    /// — i.e. things the user sent themselves. The UI uses this together
+    /// with `message_count` to render "x received · y sent" on the card.
+    pub sent_count: u32,
 }
 
 /// AI analysis result stored in email_analysis table

@@ -905,28 +905,18 @@ impl MailboxStore {
                 .push("COALESCE(ea.category, 'general') NOT IN ('spam', 'scam')".to_string());
         }
 
-        // when the caller isn't explicitly looking at Sent, hide threads
-        // whose newest message was sent by the user — "stuff I dispatched
-        // that hasn't been replied to" belongs in Sent, not in the feed
-        // of things to read. this is the last bind slot (no further params
-        // follow), so we claim param_idx without bumping it
-        let hide_my_latest_bind_idx = if folder != Some("Sent") {
-            Some(param_idx)
-        } else {
-            None
-        };
-
         let where_clause = conditions.join(" AND ");
 
         // build HAVING clause with optional filters
         let mut having_parts = vec![archived_filter.to_string()];
-        if let Some(idx) = hide_my_latest_bind_idx {
-            // perf: same expression as the SELECT-list last_sender; computed
-            // once per group during GroupAggregate instead of a per-thread
-            // SubPlan that ran 16k+ index probes per request (perfs/topics/01)
-            having_parts.push(format!(
-                "LOWER(COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], '')) NOT LIKE '%' || LOWER(${idx}) || '%'"
-            ));
+        // For "All" / no-folder view, only include threads that have at
+        // least one message NOT in the Sent mailbox. This keeps Sent-only
+        // threads (drafts the user dispatched without any reply) out of the
+        // default reading list, while still letting threads with both
+        // inbound and outbound messages appear in BOTH All AND Sent —
+        // exactly what the user expects of a conversation grouping.
+        if folder.is_none() {
+            having_parts.push("BOOL_OR(mb.name != 'Sent') = true".to_string());
         }
         if unread == Some(true) {
             having_parts.push(format!("{unread_expr} > 0"));
@@ -973,7 +963,8 @@ impl MailboxStore {
                     COALESCE((array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1], 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
                     COALESCE(BOOL_OR(ea.requires_action), false),
-                    COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], '')
+                    COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], ''),
+                    COUNT(DISTINCT CASE WHEN mb.name  = 'Sent' AND m.message_id != '' THEN m.message_id WHEN mb.name  = 'Sent' THEN CAST(m.id AS TEXT) END)
              FROM messages m
                   JOIN mailboxes mb ON m.mailbox_id = mb.id
                   LEFT JOIN email_analysis ea ON ea.message_id = m.id
@@ -983,7 +974,7 @@ impl MailboxStore {
         );
 
         // bind parameters in order
-        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String)>(&sql);
+        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String, i64)>(&sql);
 
         if let Some(doms) = domains {
             if doms.is_empty() {
@@ -1009,12 +1000,6 @@ impl MailboxStore {
         if let Some(cat) = category {
             query = query.bind(cat);
         }
-        // matches the HAVING clause that excludes "last sender is me";
-        // bound at the position reserved in hide_my_latest_bind_idx above
-        if hide_my_latest_bind_idx.is_some() {
-            query = query.bind(user);
-        }
-
         let rows = query.fetch_all(&self.pool).await?;
 
         Ok(rows
@@ -1035,6 +1020,7 @@ impl MailboxStore {
                 importance_score: r.12,
                 requires_action: r.13,
                 last_sender: r.14,
+                sent_count: r.15 as u32,
             })
             .collect())
     }
@@ -1095,13 +1081,14 @@ impl MailboxStore {
                     COALESCE((array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1], 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
                     COALESCE(BOOL_OR((SELECT ea_act.requires_action FROM email_analysis ea_act WHERE ea_act.message_id = m.id)), false),
-                    COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')
+                    COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), ''),
+                    COUNT(DISTINCT CASE WHEN mb.name  = 'Sent' AND m.message_id != '' THEN m.message_id WHEN mb.name  = 'Sent' THEN CAST(m.id AS TEXT) END)
              FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE {user_condition} AND {tid_filter}
              GROUP BY m.thread_id"
         );
 
-        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String)>(&sql);
+        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String, i64)>(&sql);
 
         if let Some(doms) = domains {
             if doms.is_empty() {
@@ -1142,6 +1129,7 @@ impl MailboxStore {
                     importance_score: r.12,
                     requires_action: r.13,
                     last_sender: r.14,
+                    sent_count: r.15 as u32,
                 };
                 (tid, cs)
             })
@@ -1729,8 +1717,14 @@ impl MailboxStore {
         //      so PG can prove the row qualifies for the partial index
         //      and uses Bitmap Index Scan instead of Seq Scan.
         // result on prod: 575 ms -> 45 ms (-92%) for q=invoice.
+        // hit any message in a thread → surface the whole thread. The first
+        // CTE finds the matching message ids; the second walks those threads
+        // back out so the GROUP BY at the bottom of the query sees every
+        // message in the thread (not just the matched one). Without this,
+        // search results showed a thread with message_count=1 / snippet from
+        // only the matched message and the user lost the conversation context.
         let search_filter = format!(
-            "WITH cands AS (
+            "WITH matched AS (
                SELECT id FROM messages WHERE search_vector @@ plainto_tsquery('simple', ${tsquery_idx})
                UNION SELECT id FROM messages WHERE subject IS NOT NULL AND subject != '' AND subject ILIKE ${pattern_idx}
                UNION SELECT id FROM messages WHERE sender IS NOT NULL AND sender != '' AND sender ILIKE ${pattern_idx}
@@ -1738,6 +1732,11 @@ impl MailboxStore {
                UNION SELECT id FROM messages WHERE text_body IS NOT NULL AND text_body != '' AND text_body ILIKE ${pattern_idx}
                UNION SELECT id FROM messages WHERE clean_text IS NOT NULL AND clean_text != '' AND clean_text ILIKE ${pattern_idx}
                UNION SELECT message_id FROM attachment_content WHERE extracted_text ILIKE ${pattern_idx}
+             ),
+             cands AS (
+               SELECT m_all.id
+                 FROM messages m_all
+                WHERE m_all.thread_id IN (SELECT thread_id FROM messages WHERE id IN (SELECT id FROM matched))
              )"
         );
 
@@ -1771,7 +1770,8 @@ impl MailboxStore {
                     COALESCE((array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1], 'normal'),
                     COALESCE(MAX(m.importance_score), 0.0),
                     COALESCE(BOOL_OR(ea.requires_action), false),
-                    COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], '')
+                    COALESCE((array_agg(m.sender ORDER BY m.internal_date DESC))[1], ''),
+                    COUNT(DISTINCT CASE WHEN mb.name  = 'Sent' AND m.message_id != '' THEN m.message_id WHEN mb.name  = 'Sent' THEN CAST(m.id AS TEXT) END)
              FROM messages m
                   JOIN cands ON cands.id = m.id
                   JOIN mailboxes mb ON m.mailbox_id = mb.id
@@ -1786,7 +1786,7 @@ impl MailboxStore {
         let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
         let pattern = format!("%{escaped}%");
 
-        let mut q = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String)>(&sql);
+        let mut q = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String, i64)>(&sql);
 
         for b in &user_binds {
             q = q.bind(b);
@@ -1818,6 +1818,7 @@ impl MailboxStore {
                 importance_score: r.12,
                 requires_action: r.13,
                 last_sender: r.14,
+                sent_count: r.15 as u32,
             })
             .collect())
     }
@@ -2810,6 +2811,7 @@ mod tests {
             pinned: false, archived: false,
             importance_level: "normal".into(), importance_score: 0.0, requires_action: false,
             last_sender: "alice".into(),
+            sent_count: 0,
         };
         let cloned = cs.clone();
         assert_eq!(cloned.thread_id, "t1");
@@ -2831,6 +2833,7 @@ mod tests {
             pinned: true, archived: true,
             importance_level: "normal".into(), importance_score: 0.0, requires_action: false,
             last_sender: "a".into(),
+            sent_count: 0,
         };
         let debug = format!("{:?}", cs);
         assert!(debug.contains("ConversationSummary"));

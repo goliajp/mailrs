@@ -192,8 +192,17 @@ const ConversationItem = memo(function ConversationItem({
             </span>
             <div className="flex shrink-0 items-center gap-1.5">
               {convo.message_count > 1 && (
-                <span className="bg-bg-secondary text-fg-muted rounded px-1 py-px text-xs tabular-nums md:text-[10px]">
-                  {convo.message_count}
+                <span
+                  className="bg-bg-secondary text-fg-muted rounded px-1 py-px text-xs tabular-nums md:text-[10px]"
+                  title={`${convo.received_count} received · ${convo.sent_count} sent`}
+                >
+                  {convo.sent_count > 0 && convo.received_count > 0 ? (
+                    <>
+                      {convo.received_count}↓ {convo.sent_count}↑
+                    </>
+                  ) : (
+                    convo.message_count
+                  )}
                 </span>
               )}
               {isPinned && <Pin className="text-accent h-3 w-3" />}
