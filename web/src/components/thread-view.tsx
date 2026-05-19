@@ -1,8 +1,9 @@
-import type { ThreadMessage } from '@/lib/types'
+import type { ConversationSummary, ThreadMessage } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
 import DOMPurify from 'dompurify'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
+import { selectAtom } from 'jotai/utils'
 import {
   ArrowLeft,
   ChevronDown,
@@ -22,7 +23,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
@@ -75,15 +76,34 @@ type ForwardSource = {
   uid: number
 }
 
+// Stable empty-array reference for memo'd children — without this every
+// render hands MessageBubble a fresh `[]` and React.memo's shallow compare
+// always says "props changed", undoing the memo wrap entirely.
+const EMPTY_ATTACHMENTS: never[] = []
+
 export function ThreadView({ onBack }: { onBack?: () => void }) {
   const auth = useAtomValue(authAtom)
   const selectedId = useAtomValue(selectedThreadIdAtom)
   const setSelectedId = useSetAtom(selectedThreadIdAtom)
   const messages = useAtomValue(threadMessagesAtom)
   const setMessages = useSetAtom(threadMessagesAtom)
-  const conversations = useAtomValue(conversationsAtom)
-  const conversationsRef = useRef(conversations)
-  conversationsRef.current = conversations
+  // Subscribe only to the *selected thread's unread count* — a single
+  // number — instead of the entire conversations array. Previously every
+  // WebSocket-driven refetch (which produces a new array reference even
+  // when no fields changed) re-rendered the entire ThreadView subtree.
+  // selectAtom + Object.is equality means we only re-render when that
+  // primitive actually moves. The mount-time existing-row lookup at
+  // selectedId change reads imperatively via `useStore().get(...)`.
+  const store = useStore()
+  const selectedUnreadAtom = useMemo(
+    () =>
+      selectAtom(conversationsAtom, (list: ConversationSummary[]) => {
+        if (!selectedId) return 0
+        return list.find((c) => c.thread_id === selectedId)?.unread_count ?? 0
+      }),
+    [selectedId]
+  )
+  const selectedUnreadCount = useAtomValue(selectedUnreadAtom)
   const visibleIds = useAtomValue(visibleConversationIdsAtom)
   const currentIdx = selectedId ? visibleIds.indexOf(selectedId) : -1
   const hasPrev = currentIdx > 0
@@ -320,25 +340,20 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setMobileReplyOpen(false)
     // re-arm auto-mark-read for the new selection
     autoMarkSuspendedRef.current = false
-    const existing = conversationsRef.current.find((c) => c.thread_id === selectedId)
+    const existing = store
+      .get(conversationsAtom)
+      .find((c: ConversationSummary) => c.thread_id === selectedId)
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
     // thread fetch is owned by useThreadQuery; nothing imperative to do here
-  }, [selectedId, setMessages, setMobileThreadTab, setMobileReplyOpen])
+  }, [selectedId, store, setMessages, setMobileThreadTab, setMobileReplyOpen])
 
   // auto mark-as-read whenever the currently-displayed thread is unread.
   // covers: first open, list-filter switch where selection happens to stay
   // on the same thread, and new-message arrival on the open thread.
   // suppressed for a given selection after the user explicitly marks unread.
-  // depend only on the unread count of the currently selected thread, not
-  // on the whole conversations array. Every WS tick replaces `conversations`
-  // with a new reference, which previously fired this effect for every
-  // tick (even if the selected thread's unread state hadn't changed) and
-  // optimistically re-wrote the list back, kicking off another re-render.
-  const selectedUnreadCount = useMemo(() => {
-    if (!selectedId) return 0
-    return conversations.find((c) => c.thread_id === selectedId)?.unread_count ?? 0
-  }, [conversations, selectedId])
+  // selectedUnreadCount is derived above via selectAtom — primitive,
+  // re-renders only when the count itself changes
 
   useEffect(() => {
     if (!selectedId) return
@@ -354,9 +369,16 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     })
   }, [selectedId, selectedUnreadCount, markReadMutation])
 
+  // Smooth-scroll to the bottom of the conversation timeline only when an
+  // actually-new message arrives (last message's uid changed). Previously
+  // depended on the `messages` array reference, which flipped on every WS
+  // refetch — even when the data was unchanged — and caused a smooth scroll
+  // ~every minute the tab was open. Now: stable across refetches that don't
+  // introduce a new tail message.
+  const lastMessageUid = messages[messages.length - 1]?.uid
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [lastMessageUid])
 
   // empty state
   if (!selectedId) {
@@ -587,7 +609,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 {selectedMsg.html_body && (
                   <div className="border-border border-b">
                     <MessageBubble
-                      attachments={[]}
+                      attachments={EMPTY_ATTACHMENTS}
                       htmlBody={selectedMsg.html_body}
                       isOwn={false}
                       textBody={null}
@@ -880,7 +902,7 @@ const INVISIBLE_RE =
 // box-drawing, table borders, repeated decorative lines
 const NOISE_LINE = /^[\s│┼┬┴├┤┌┐└┘─━═╌╍╎╏║╔╗╚╝╠╣╦╩╬\-=_·•*#|+:>{}[\]~`]+$/
 
-function BubbleBody({
+const BubbleBody = memo(function BubbleBody({
   msg,
   myEmail,
   myName,
@@ -923,7 +945,7 @@ function BubbleBody({
       {msg.html_body ? 'Rich HTML message — click to view full content' : 'No preview available'}
     </p>
   )
-}
+})
 
 // strip the subject from the start of preview text. many transactional
 // emails (Stripe receipts, GitHub notifications, etc.) have the subject
@@ -962,8 +984,8 @@ const RX_DATE =
 const RX_DATE_CJK = /(?:\d{4}\s*年\s*)?\d{1,2}\s*月\s*\d{1,2}\s*日/g
 const RX_RECEIPT = /(?:#|No\.?\s*|Number[:\s]+|番号[:：\s]+)([A-Z0-9]{4,}[-A-Z0-9]+)/g
 
-function BubbleFactChips({ msg }: { msg: ThreadMessage }) {
-  const facts = extractBubbleFacts(msg)
+const BubbleFactChips = memo(function BubbleFactChips({ msg }: { msg: ThreadMessage }) {
+  const facts = useMemo(() => extractBubbleFacts(msg), [msg])
   const actions = (msg.action_items || []).slice(0, 1)
 
   if (
@@ -999,7 +1021,7 @@ function BubbleFactChips({ msg }: { msg: ThreadMessage }) {
       ))}
     </div>
   )
-}
+})
 
 function bubbleText(msg: ThreadMessage): string {
   // prefer AI summary — always clean and readable

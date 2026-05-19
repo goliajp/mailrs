@@ -1,5 +1,5 @@
 import { cx } from '@goliapkg/gds'
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 
 import { avatarColor, avatarInitial } from '@/lib/avatar'
 
@@ -12,7 +12,7 @@ function extractDomain(sender: string): null | string {
 const iconCache = new Map<string, null | string>()
 const iconInflight = new Map<string, Promise<null | string>>()
 
-export function SenderAvatar({
+export const SenderAvatar = memo(function SenderAvatar({
   className,
   sender,
   size = 36,
@@ -72,7 +72,7 @@ export function SenderAvatar({
       {initial}
     </div>
   )
-}
+})
 
 // try BIMI logo lookup, cache the result
 function resolveIcon(domain: string): Promise<null | string> {

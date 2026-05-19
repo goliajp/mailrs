@@ -1315,11 +1315,23 @@ function VirtualConversationList({
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const item = items[virtualItem.index]
+          // Stable key per logical item, not per virtual slot index. When
+          // a new conversation arrives at the top (or sort changes), the
+          // index-based key reused the same React tree for a different
+          // conversation, blowing away ConversationItem's internal
+          // useContextMenu state and forcing a full row remount even
+          // though the same DOM could have moved.
+          const itemKey =
+            item.type === 'conversation'
+              ? `c:${item.convo.thread_id}`
+              : item.type === 'divider'
+                ? `d:${item.label}`
+                : item.type
           return (
             <div
               className="absolute top-0 left-0 w-full"
               data-index={virtualItem.index}
-              key={virtualItem.index}
+              key={itemKey}
               ref={virtualizer.measureElement}
               style={{ transform: `translateY(${virtualItem.start}px)` }}
             >
