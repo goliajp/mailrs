@@ -2180,7 +2180,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-imap-proto"
-version = "1.6.17"
+version = "1.0.0"
 
 [[package]]
 name = "mailrs-mailbox"

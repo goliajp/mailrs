@@ -1,7 +1,17 @@
 [package]
 name = "mailrs-imap-proto"
-version.workspace = true
+version = "1.0.0"
 edition = "2024"
+rust-version = "1.85"
+description = "IMAP4rev1 protocol parser, response formatter, and sequence-set helpers (RFC 3501) — zero I/O."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-imap-proto"
+authors = ["GOLIA K.K."]
+keywords = ["imap", "protocol", "parser", "rfc3501", "email"]
+categories = ["email", "parser-implementations", "network-programming"]
+readme = "README.md"
 
 [lints]
 workspace = true
