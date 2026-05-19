@@ -223,17 +223,17 @@ export function Chat() {
     [conversationsQuery]
   )
 
-  // auto-select first conversation on desktop (desktop shows list + detail side by side)
+  // auto-select first conversation on desktop. Effect deps key off the
+  // first thread_id (a string) rather than the whole conversations array
+  // — the array reference flips on every WebSocket refetch even when the
+  // top item is identical, which used to fire this effect (a no-op) on
+  // every tick and pull the whole chat page into the re-render path.
+  const firstThreadId = conversations[0]?.thread_id
   useEffect(() => {
-    if (
-      window.innerWidth >= 768 &&
-      !selectedThreadId &&
-      !composingNew &&
-      conversations.length > 0
-    ) {
-      setSelectedThreadId(conversations[0].thread_id)
+    if (window.innerWidth >= 768 && !selectedThreadId && !composingNew && firstThreadId) {
+      setSelectedThreadId(firstThreadId)
     }
-  }, [conversations, selectedThreadId, composingNew, setSelectedThreadId])
+  }, [firstThreadId, selectedThreadId, composingNew, setSelectedThreadId])
 
   return (
     <>

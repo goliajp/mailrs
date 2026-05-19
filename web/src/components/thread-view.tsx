@@ -113,39 +113,40 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [replyMode, setReplyMode] = useState<ReplyMode>('reply')
   const [forwardSource, setForwardSource] = useState<ForwardSource | null>(null)
-  const [loadingThread, setLoadingThread] = useState(false)
   const [showAllMessages, setShowAllMessages] = useState(false)
   // suspends the auto-mark-read effect for the current selection after the
   // user explicitly marks the thread unread, so we don't immediately undo it
   const autoMarkSuspendedRef = useRef(false)
 
   // thread messages now live in react-query; we bridge to the legacy
-  // threadMessagesAtom for downstream consumers and to the in-component
-  // loading state for skeleton rendering.
+  // threadMessagesAtom for downstream consumers. The bridge is structured
+  // to eliminate the thread-switch flash: while a new thread is fetching
+  // (selectedId already pointed at B but threadQuery.data still resolving),
+  // we leave `messages` and `selectedMsgIdx` AS-IS — i.e. keep displaying
+  // the previous thread — and swap atomically when the new data arrives.
+  // No eager reset means no intermediate "Select a message to preview"
+  // empty state, no flicker.
   const threadQuery = useThreadQuery(selectedId, selectedDomains)
+  const loadingThread = threadQuery.isPending && !!selectedId
   useEffect(() => {
-    setLoadingThread(threadQuery.isPending && !!selectedId)
-  }, [threadQuery.isPending, selectedId])
-  // bridge query → messages atom whenever a fetch resolves
-  useEffect(() => {
-    if (threadQuery.data) setMessages(threadQuery.data)
-  }, [threadQuery.data, setMessages])
-  // when a new thread becomes active, reset the in-view message + scroll;
-  // the message will be re-picked below as data populates.
-  useEffect(() => {
-    setSelectedMsgIdx(null)
+    const data = threadQuery.data
+    if (!data || !selectedId) return
+    setMessages(data)
+    setSelectedMsgIdx(data.length > 0 ? data.length - 1 : null)
     if (typeof contentScrollRef.current?.scrollTo === 'function') {
       contentScrollRef.current.scrollTo(0, 0)
     }
-  }, [selectedId])
-  // auto-select the latest message on first populate (don't override an
-  // explicit pick from the user clicking a different message bubble)
+    if (typeof bottomRef.current?.scrollIntoView === 'function') {
+      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
+    }
+  }, [threadQuery.data, selectedId, setMessages])
+  // Fallback for paths that seed `threadMessagesAtom` directly (mobile-mail,
+  // tests) without a useThreadQuery fetch: auto-pick the latest message
+  // when none is selected yet. Doesn't fire on thread switch in normal use
+  // because selectedMsgIdx stays non-null until the bridge above swaps it.
   useEffect(() => {
     if (messages.length > 0 && selectedMsgIdx === null) {
       setSelectedMsgIdx(messages.length - 1)
-      if (typeof bottomRef.current?.scrollIntoView === 'function') {
-        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
-      }
     }
   }, [messages, selectedMsgIdx])
 

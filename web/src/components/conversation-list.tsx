@@ -102,35 +102,41 @@ const ConversationItem = memo(function ConversationItem({
   const isArchived = convo.archived
 
   const ctx = useContextMenu()
-  const [hovered, setHovered] = useState(false)
 
-  const contextItems: ContextMenuItem[] = [
-    {
-      label: hasUnread ? 'Mark as read' : 'Mark as unread',
-      onClick: () => onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread'),
-    },
-    {
-      label: isFlagged ? 'Unstar' : 'Star',
-      onClick: () => onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star'),
-    },
-    {
-      label: isPinned ? 'Unpin' : 'Pin',
-      onClick: () => onContextAction(convo.thread_id, isPinned ? 'unpin' : 'pin'),
-    },
-    {
-      label: isArchived ? 'Unarchive' : 'Archive',
-      onClick: () => onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive'),
-    },
-    {
-      label: 'Snooze until tomorrow',
-      onClick: () => onContextAction(convo.thread_id, 'snooze'),
-    },
-    {
-      danger: true,
-      label: 'Delete',
-      onClick: () => onContextAction(convo.thread_id, 'delete'),
-    },
-  ]
+  // Stable references for the memo'd item — without useMemo these rebuild
+  // every render, defeating React.memo and forcing the entire list of 50+
+  // rows to re-render on every parent update (WebSocket tick, hover on
+  // another row when group-hover used to be useState, etc).
+  const contextItems = useMemo<ContextMenuItem[]>(
+    () => [
+      {
+        label: hasUnread ? 'Mark as read' : 'Mark as unread',
+        onClick: () => onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread'),
+      },
+      {
+        label: isFlagged ? 'Unstar' : 'Star',
+        onClick: () => onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star'),
+      },
+      {
+        label: isPinned ? 'Unpin' : 'Pin',
+        onClick: () => onContextAction(convo.thread_id, isPinned ? 'unpin' : 'pin'),
+      },
+      {
+        label: isArchived ? 'Unarchive' : 'Archive',
+        onClick: () => onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive'),
+      },
+      {
+        label: 'Snooze until tomorrow',
+        onClick: () => onContextAction(convo.thread_id, 'snooze'),
+      },
+      {
+        danger: true,
+        label: 'Delete',
+        onClick: () => onContextAction(convo.thread_id, 'delete'),
+      },
+    ],
+    [convo.thread_id, hasUnread, isFlagged, isPinned, isArchived, onContextAction]
+  )
 
   const handleClick = () => {
     if (batchMode) {
@@ -142,8 +148,7 @@ const ConversationItem = memo(function ConversationItem({
 
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="group"
       onTouchEnd={ctx.onTouchEnd}
       onTouchMove={ctx.onTouchMove}
       onTouchStart={ctx.onTouchStart}
@@ -206,9 +211,11 @@ const ConversationItem = memo(function ConversationItem({
                 </span>
               )}
               {isPinned && <Pin className="text-accent h-3 w-3" />}
-              {/* mobile: always show action buttons; desktop: show on hover */}
+              {/* mobile: always show action buttons; desktop: show on hover
+                  (group-hover, no useState — keeps the row out of the
+                  re-render path for hover changes). */}
               {!batchMode && (
-                <span className={`flex items-center gap-0.5 ${hovered ? '' : 'hidden'} md:hidden`}>
+                <span className="flex items-center gap-0.5 md:hidden">
                   <button
                     className="touch-target text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-1"
                     onClick={(e) => {
@@ -231,9 +238,9 @@ const ConversationItem = memo(function ConversationItem({
                   </button>
                 </span>
               )}
-              {/* desktop: hover actions */}
-              {hovered && !batchMode ? (
-                <span className="hidden items-center gap-0.5 md:flex">
+              {/* desktop: hover actions via group-hover */}
+              {!batchMode ? (
+                <span className="hidden items-center gap-0.5 md:group-hover:flex">
                   <button
                     className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-0.5"
                     onClick={(e) => {

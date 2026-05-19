@@ -1,7 +1,7 @@
 import type { AttachmentInfo } from '@/lib/types'
 
 import { File } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import Markdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
@@ -67,7 +67,7 @@ const markdownComponents = {
   },
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   attachments,
   htmlBody,
   isOwn,
@@ -113,7 +113,7 @@ export function MessageBubble({
       )}
     </div>
   )
-}
+})
 
 function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: number; uid: number }) {
   const isImage = att.content_type.startsWith('image/')
