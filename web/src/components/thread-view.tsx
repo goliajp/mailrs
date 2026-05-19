@@ -524,18 +524,26 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
           <div className="min-w-0 flex-1 overflow-y-auto" ref={contentScrollRef}>
             {selectedMsg ? (
               <>
-                {/* email header (sender info) */}
+                {/* Email header (sender info). Each of the four info rows
+                    has a locked height with vertical-centered content so
+                    the block's total height is constant regardless of which
+                    optional badges are present — switching between messages
+                    no longer shifts the body downward.
+                    Tags below use inline-flex h-4 leading-none so their
+                    padding can't add vertical space beyond the row's box. */}
                 <div className="border-border shrink-0 border-b px-4 py-2">
                   <div className="flex items-start gap-2.5">
                     <SenderAvatar className="mt-0.5" sender={selectedMsg.sender} size={28} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex h-5 items-center justify-between gap-2">
                         <p
-                          className={`text-sm font-medium select-text ${extractEmail(selectedMsg.sender) === myEmail ? 'text-accent' : 'text-fg'}`}
+                          className={`flex h-5 items-center text-sm font-medium select-text ${extractEmail(selectedMsg.sender) === myEmail ? 'text-accent' : 'text-fg'}`}
                         >
-                          {extractEmail(selectedMsg.sender) === myEmail
-                            ? 'Me'
-                            : extractName(selectedMsg.sender)}
+                          <span className="truncate">
+                            {extractEmail(selectedMsg.sender) === myEmail
+                              ? 'Me'
+                              : extractName(selectedMsg.sender)}
+                          </span>
                           {selectedMsg.bimi_logo_url && (
                             <img
                               alt="Verified brand"
@@ -545,7 +553,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                             />
                           )}
                         </p>
-                        <div className="flex shrink-0 items-center gap-0.5">
+                        <div className="flex h-5 shrink-0 items-center gap-0.5">
                           <SmBtn onClick={() => handleReplyMsg(selectedMsg)} title="Reply">
                             <Reply className="h-3.5 w-3.5" />
                           </SmBtn>
@@ -564,26 +572,28 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           <FeedbackMenu senderEmail={extractEmail(selectedMsg.sender)} />
                         </div>
                       </div>
-                      <p className="text-fg-muted text-xs select-text">
+                      <p className="text-fg-muted flex h-4 items-center text-xs select-text">
                         <Copyable value={extractEmail(selectedMsg.sender)}>
-                          <span>{extractEmail(selectedMsg.sender)}</span>
+                          <span className="truncate">{extractEmail(selectedMsg.sender)}</span>
                         </Copyable>
                       </p>
-                      <p className="text-fg-muted truncate text-xs select-text">
-                        to {formatRecipients(selectedMsg.recipients)}
+                      <p className="text-fg-muted flex h-4 items-center text-xs select-text">
+                        <span className="truncate">
+                          to {formatRecipients(selectedMsg.recipients)}
+                        </span>
                       </p>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-fg-muted text-xs">
+                      <div className="flex h-5 items-center gap-1.5">
+                        <span className="text-fg-muted text-xs leading-none">
                           {formatFullDate(selectedMsg.internal_date)}
                         </span>
                         {selectedMsg.action_deadline && (
-                          <span className="bg-warning/10 text-warning rounded px-2 py-0.5 text-xs font-medium md:text-[11px]">
+                          <span className="bg-warning/10 text-warning inline-flex h-4 items-center rounded px-1.5 text-[11px] leading-none font-medium">
                             Due: {selectedMsg.action_deadline}
                           </span>
                         )}
                         {selectedMsg.risk_score >= 40 && (
                           <span
-                            className={`rounded px-2 py-0.5 text-xs font-medium md:text-[11px] ${
+                            className={`inline-flex h-4 items-center rounded px-1.5 text-[11px] leading-none font-medium ${
                               selectedMsg.risk_score >= 60
                                 ? 'bg-danger/10 text-danger'
                                 : 'bg-warning/10 text-warning'
