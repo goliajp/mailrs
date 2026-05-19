@@ -332,23 +332,23 @@ pub enum SearchKey {
     Draft,
     Undraft,
     Recent,
-    /// FROM <string>
+    /// `FROM <string>` — substring match on the From header.
     From(String),
-    /// TO <string>
+    /// `TO <string>` — substring match on the To header.
     To(String),
-    /// SUBJECT <string>
+    /// `SUBJECT <string>` — substring match on the Subject header.
     Subject(String),
-    /// TEXT <string> - search headers + body
+    /// `TEXT <string>` — substring match on headers + body.
     Text(String),
-    /// BODY <string> - search body only
+    /// `BODY <string>` — substring match on body only.
     Body(String),
-    /// SINCE <date> - internal date on or after (epoch seconds)
+    /// `SINCE <date>` — internal date on or after (epoch seconds).
     Since(i64),
-    /// BEFORE <date> - internal date strictly before (epoch seconds)
+    /// `BEFORE <date>` — internal date strictly before (epoch seconds).
     Before(i64),
-    /// ON <date> - internal date matches day (epoch seconds, start of day)
+    /// `ON <date>` — internal date matches that day (epoch seconds, start of day).
     On(i64),
-    /// UID <sequence-set> - match specific UIDs
+    /// `UID <sequence-set>` — match specific UIDs.
     Uid(String),
 }
 
