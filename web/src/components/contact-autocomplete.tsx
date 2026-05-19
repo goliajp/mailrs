@@ -1,6 +1,8 @@
-import { useCallback, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { fetchJson } from '@/lib/api'
+import { contactsKeys } from '@/lib/query-keys'
 
 export function ContactAutocomplete({
   autoFocus = false,
@@ -15,39 +17,66 @@ export function ContactAutocomplete({
   placeholder?: string
   value: string
 }) {
-  const [suggestions, setSuggestions] = useState<string[]>([])
+  // debouncedQuery is the trailing segment of the recipient string after
+  // the 300ms debounce. enabled-gating on length >= 2 mirrors the original
+  // imperative guard so we never fire a request for short / empty input.
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // debounced contact fetch triggered by input changes
-  const fetchContacts = useCallback((newValue: string) => {
+  const suggestionsQuery = useQuery({
+    enabled: debouncedQuery.length >= 2,
+    queryKey: contactsKeys.search(debouncedQuery),
+    staleTime: 30 * 1000,
+    queryFn: async () => {
+      try {
+        return await fetchJson<string[]>(
+          `/contacts?q=${encodeURIComponent(debouncedQuery)}&limit=5`
+        )
+      } catch {
+        return []
+      }
+    },
+  })
+  const suggestions = suggestionsQuery.data ?? []
+
+  // surface results once they arrive; mirror the original imperative
+  // setShowSuggestions(data.length > 0) + activeIndex reset.
+  useEffect(() => {
+    if (debouncedQuery.length < 2) {
+      setShowSuggestions(false)
+      setActiveIndex(-1)
+      return
+    }
+    if (suggestionsQuery.isSuccess) {
+      setShowSuggestions(suggestions.length > 0)
+      setActiveIndex(-1)
+    }
+  }, [debouncedQuery, suggestionsQuery.isSuccess, suggestions.length])
+
+  // debounced contact fetch triggered by input changes — preserve the
+  // 300ms semantics. The debounce only feeds the query key; useQuery
+  // handles deduping / caching.
+  const scheduleFetch = useCallback((newValue: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     const query = newValue.split(/[,;]/).pop()?.trim() ?? ''
     if (query.length < 2) {
-      setSuggestions([])
-      setShowSuggestions(false)
+      setDebouncedQuery('')
       return
     }
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const data = await fetchJson<string[]>(`/contacts?q=${encodeURIComponent(query)}&limit=5`)
-        setSuggestions(data)
-        setShowSuggestions(data.length > 0)
-        setActiveIndex(-1)
-      } catch {
-        setSuggestions([])
-      }
+    debounceRef.current = setTimeout(() => {
+      setDebouncedQuery(query)
     }, 300)
   }, [])
 
   const handleChange = useCallback(
     (newValue: string) => {
       onChange(newValue)
-      fetchContacts(newValue)
+      scheduleFetch(newValue)
     },
-    [onChange, fetchContacts]
+    [onChange, scheduleFetch]
   )
 
   const selectSuggestion = useCallback(

@@ -1,7 +1,10 @@
+import { useQuery } from '@tanstack/react-query'
 import { Calendar, Check, Clock, MapPin, Users, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { fetchJson, postJson } from '@/lib/api'
+import { queryClient } from '@/lib/query-client'
+import { calendarKeys, messageKeys } from '@/lib/query-keys'
 
 type Attendee = {
   cn: null | string
@@ -64,8 +67,42 @@ type Person = { cn: null | string; email: string }
 type RsvpStatus = 'idle' | 'pending' | 'sent' | { error: string }
 
 export function InviteCard({ messageUid }: { messageUid: number }) {
-  const [detail, setDetail] = useState<MessageDetail | null>(null)
-  const [conflicts, setConflicts] = useState<ConflictRow[]>([])
+  const detailQuery = useQuery({
+    queryKey: messageKeys.detail(messageUid),
+    queryFn: async () => {
+      try {
+        return await fetchJson<MessageDetail | null>(`/mail/messages/${messageUid}`)
+      } catch {
+        // network / auth failure — silently leave card empty
+        return null
+      }
+    },
+  })
+  const detail = detailQuery.data ?? null
+  const payloadForConflicts = detail?.invite_payload
+  const startIso = payloadForConflicts ? pickIso(payloadForConflicts.dtstart) : null
+  const endIso = payloadForConflicts ? (pickIso(payloadForConflicts.dtend) ?? startIso) : null
+  const conflictsEnabled = !!(payloadForConflicts && startIso && endIso)
+  const conflictStart = startIso ? (startIso.endsWith('Z') ? startIso : `${startIso}Z`) : ''
+  const conflictEnd = endIso ? (endIso.endsWith('Z') ? endIso : `${endIso}Z`) : ''
+  const conflictExcludeUid = payloadForConflicts?.uid ?? ''
+  const conflictsQuery = useQuery({
+    enabled: conflictsEnabled,
+    queryKey: calendarKeys.conflicts(conflictStart, conflictEnd, conflictExcludeUid),
+    queryFn: async () => {
+      try {
+        const params = new URLSearchParams({
+          end: conflictEnd,
+          exclude_uid: conflictExcludeUid,
+          start: conflictStart,
+        })
+        return await fetchJson<ConflictRow[]>(`/calendar/conflicts?${params.toString()}`)
+      } catch {
+        return [] as ConflictRow[]
+      }
+    },
+  })
+  const conflicts = conflictsQuery.data ?? []
   const [conflictsExpanded, setConflictsExpanded] = useState(false)
   const [rsvp, setRsvp] = useState<RsvpStatus>('idle')
   const [counterOpen, setCounterOpen] = useState(false)
@@ -73,49 +110,6 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
   const [counterEnd, setCounterEnd] = useState('')
   // Allow the user to change their RSVP after the persisted status renders.
   const [overridePersisted, setOverridePersisted] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    const run = async () => {
-      try {
-        const d = await fetchJson<MessageDetail | null>(`/mail/messages/${messageUid}`)
-        if (!cancelled) setDetail(d)
-      } catch {
-        // network / auth failure — silently leave card empty
-      }
-    }
-    void run()
-    return () => {
-      cancelled = true
-    }
-  }, [messageUid])
-
-  // When invite_payload arrives, query the conflict window.
-  useEffect(() => {
-    const payload = detail?.invite_payload
-    if (!payload) return
-    const startIso = pickIso(payload.dtstart)
-    const endIso = pickIso(payload.dtend) ?? startIso
-    if (!startIso || !endIso) return
-    let cancelled = false
-    const run = async () => {
-      try {
-        const params = new URLSearchParams({
-          end: endIso.endsWith('Z') ? endIso : `${endIso}Z`,
-          exclude_uid: payload.uid,
-          start: startIso.endsWith('Z') ? startIso : `${startIso}Z`,
-        })
-        const rows = await fetchJson<ConflictRow[]>(`/calendar/conflicts?${params.toString()}`)
-        if (!cancelled) setConflicts(rows)
-      } catch {
-        if (!cancelled) setConflicts([])
-      }
-    }
-    void run()
-    return () => {
-      cancelled = true
-    }
-  }, [detail])
 
   const send = async (partstat: 'ACCEPTED' | 'DECLINED' | 'TENTATIVE') => {
     setRsvp('pending')
@@ -139,12 +133,7 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
       setRsvp('sent')
       // Reload detail so the persisted rsvp_status pill shows up
       // immediately rather than on next refresh.
-      try {
-        const refreshed = await fetchJson<MessageDetail | null>(`/mail/messages/${messageUid}`)
-        setDetail(refreshed)
-      } catch {
-        // non-fatal — pill will appear on the next page load
-      }
+      void queryClient.invalidateQueries({ queryKey: messageKeys.detail(messageUid) })
     } catch (e) {
       setRsvp({ error: e instanceof Error ? e.message : 'failed' })
     }

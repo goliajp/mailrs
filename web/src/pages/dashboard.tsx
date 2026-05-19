@@ -1,6 +1,7 @@
 import type { CategoryCount, ConversationSummary } from '@/lib/types'
 
 import { ScrollArea } from '@goliapkg/gds'
+import { useQueries } from '@tanstack/react-query'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
   AlertTriangle,
@@ -19,13 +20,14 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { CategoryBadge } from '@/components/category-badge'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { fetchJson } from '@/lib/api'
 import { cn } from '@/lib/cn'
+import { dashboardKeys } from '@/lib/query-keys'
 import { authAtom } from '@/store/auth'
 import {
   composeReplySourceAtom,
@@ -61,10 +63,7 @@ export function Dashboard() {
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setSearchQuery = useSetAtom(searchQueryAtom)
   const setQuickFilter = useSetAtom(quickFilterAtom)
-  const [data, setData] = useState<DashboardData | null>(null)
   const [searchInput, setSearchInput] = useState('')
-  const [refreshing, setRefreshing] = useState(false)
-  const intervalRef = useRef<ReturnType<typeof setInterval>>(null)
 
   // no separate `loading` state: the only skeleton the user can see is the
   // Suspense fallback that renders during the lazy chunk download (app.tsx
@@ -73,29 +72,41 @@ export function Dashboard() {
   // sections (`{pinned.length > 0 && ...}`) naturally start empty and
   // fill in when the fetch resolves — that swap is one-shot, not a
   // skeleton-to-skeleton transition.
-  const load = useCallback(async (silent = false) => {
-    if (silent) setRefreshing(true)
-    try {
-      const [conversations, stats, folders] = await Promise.all([
-        fetchJson<ConversationSummary[]>('/conversations?limit=200'),
-        fetchJson<MailStats>('/mail/stats').catch(() => null),
-        fetchJson<FolderInfo[]>('/mail/folders'),
-      ])
-      setData({ conversations, folders, stats })
-    } catch {
-      // ignore
-    } finally {
-      setRefreshing(false)
+  const queries = useQueries({
+    queries: [
+      {
+        queryKey: dashboardKeys.conversations(),
+        refetchInterval: REFRESH_INTERVAL,
+        queryFn: () => fetchJson<ConversationSummary[]>('/conversations?limit=200'),
+      },
+      {
+        queryKey: dashboardKeys.stats(),
+        refetchInterval: REFRESH_INTERVAL,
+        queryFn: () => fetchJson<MailStats>('/mail/stats').catch(() => null),
+      },
+      {
+        queryKey: dashboardKeys.folders(),
+        refetchInterval: REFRESH_INTERVAL,
+        queryFn: () => fetchJson<FolderInfo[]>('/mail/folders'),
+      },
+    ],
+  })
+  const [convosQuery, statsQuery, foldersQuery] = queries
+  const data: DashboardData | null = useMemo(() => {
+    if (convosQuery.data === undefined && foldersQuery.data === undefined) return null
+    return {
+      conversations: convosQuery.data ?? [],
+      folders: foldersQuery.data ?? [],
+      stats: statsQuery.data ?? null,
     }
-  }, [])
+  }, [convosQuery.data, foldersQuery.data, statsQuery.data])
+  const refreshing = queries.some((q) => q.isFetching && !q.isLoading)
 
-  useEffect(() => {
-    load()
-    intervalRef.current = setInterval(() => load(true), REFRESH_INTERVAL)
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [load])
+  const refetchAll = useCallback(() => {
+    void convosQuery.refetch()
+    void statsQuery.refetch()
+    void foldersQuery.refetch()
+  }, [convosQuery, statsQuery, foldersQuery])
 
   const goToThread = useCallback(
     (threadId: string) => {
@@ -218,7 +229,7 @@ export function Dashboard() {
               'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary flex h-8 w-8 items-center justify-center rounded-md transition-colors',
               refreshing && 'animate-spin'
             )}
-            onClick={() => load(true)}
+            onClick={refetchAll}
             title="Refresh"
           >
             <RefreshCw className="h-4 w-4" />
