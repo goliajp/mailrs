@@ -1,106 +1,227 @@
 import type { TextBlockData } from '../types'
 
-import { type Editor, EditorContent, useEditor } from '@tiptap/react'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import Markdown from 'react-markdown'
+import rehypeHighlight from 'rehype-highlight'
+import remarkGfm from 'remark-gfm'
 
-import { MentionPicker } from '@/components/composer/mention-picker'
-import {
-  createEditorExtensions,
-  EditorToolbar,
-  PROSE_CLASS,
-  uploadInlineImage,
-} from '@/components/rich-editor'
-import { sanitizePastedHtml } from '@/lib/sanitize-paste'
+import { uploadInlineImage } from '@/components/rich-editor'
 
 type Props = {
   data: TextBlockData
   disabled?: boolean
-  getEditorRef?: (editor: Editor | null) => void
   onChange: (data: TextBlockData) => void
   onSubmit: () => void
   placeholder?: string
 }
 
-export function TextBlock({ disabled, getEditorRef, onChange, onSubmit, placeholder }: Props) {
+const PREVIEW_PROSE_CLASS =
+  'prose prose-sm prose-fg max-w-none px-3 py-2 ' +
+  'prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-md ' +
+  'prose-code:before:content-none prose-code:after:content-none ' +
+  'prose-p:my-2 prose-headings:my-2'
+
+const MIN_HEIGHT_PX = 240
+
+export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: Props) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [tab, setTab] = useState<'edit' | 'preview'>('edit')
+
   const onSubmitRef = useRef(onSubmit)
   useEffect(() => {
     onSubmitRef.current = onSubmit
   }, [onSubmit])
 
-  const editor = useEditor({
-    editable: !disabled,
-    editorProps: {
-      attributes: {
-        // give the text block a comfortable minimum height so the empty
-        // state doesn't leave a cavernous gap between the placeholder and
-        // the next block (signature / quoted original)
-        class: PROSE_CLASS + ' min-h-[16rem]',
-        style: 'cursor:text',
-      },
-      handleKeyDown: (_view, event) => {
-        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-          event.preventDefault()
-          onSubmitRef.current()
-          return true
-        }
-        return false
-      },
-      // MRS-17: clean clipboard HTML before TipTap's DOMParser ingests it.
-      // External Markdown-rendered clipboards (Slack / Notion / iMessage)
-      // emit <li>s with literal leading "- " plus inline style noise that
-      // would otherwise be visible to the recipient verbatim.
-      transformPastedHTML: sanitizePastedHtml,
-    },
-    extensions: createEditorExtensions(placeholder),
-    onUpdate: ({ editor: e }) => {
-      onChange({ content: e.getText(), format: 'rich', html: e.getHTML() })
-    },
-  })
+  // imperative resize: textarea grows to fit content, never shrinks below min
+  const resize = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.max(el.scrollHeight, MIN_HEIGHT_PX)}px`
+  }, [])
 
-  useEffect(() => {
-    if (editor && getEditorRef) getEditorRef(editor)
-  }, [editor, getEditorRef])
+  useLayoutEffect(() => {
+    resize()
+  }, [data.content, resize, tab])
 
-  // image drag-drop
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      if (!editor) return
-      const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
-      if (files.length === 0) return
-      e.preventDefault()
-      for (const file of files) {
-        const url = await uploadInlineImage(file)
-        if (url) editor.chain().focus().setImage({ src: url }).run()
-      }
+  const emitChange = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    onChange({ content: el.value, format: 'markdown', html: '' })
+  }, [onChange])
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const content = e.target.value
+      onChange({ content, format: 'markdown', html: '' })
     },
-    [editor]
+    [onChange]
   )
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault()
+        onSubmitRef.current()
+        return
+      }
+
+      // tab key → insert two spaces, do not move focus
+      if (e.key === 'Tab' && !e.shiftKey) {
+        e.preventDefault()
+        insertAtCursor(textareaRef.current, '  ')
+        emitChange()
+        return
+      }
+
+      // enter → preserve list-marker prefix on the next line
+      if (e.key === 'Enter' && !e.shiftKey) {
+        const el = textareaRef.current
+        if (!el) return
+        const { selectionStart, value } = el
+        const lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1
+        const line = value.slice(lineStart, selectionStart)
+        const match = /^(\s*)([-*]|\d+\.)\s+/.exec(line)
+        if (!match) return
+        const [, indent, marker] = match
+        // empty marker line → strip it on Enter
+        if (line === match[0]) {
+          e.preventDefault()
+          replaceRange(el, lineStart, selectionStart, '')
+          emitChange()
+          return
+        }
+        e.preventDefault()
+        const nextMarker = /^\d+\.$/.test(marker) ? `${parseInt(marker, 10) + 1}.` : marker
+        insertAtCursor(el, `\n${indent}${nextMarker} `)
+        emitChange()
+      }
+    },
+    [emitChange]
+  )
+
+  // image paste → upload, insert markdown image syntax at caret
   const handlePaste = useCallback(
-    async (e: React.ClipboardEvent) => {
-      if (!editor) return
+    async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
       const items = Array.from(e.clipboardData.items).filter((i) => i.type.startsWith('image/'))
       if (items.length === 0) return
       e.preventDefault()
+      const el = textareaRef.current
+      if (!el) return
       for (const item of items) {
         const file = item.getAsFile()
         if (!file) continue
         const url = await uploadInlineImage(file)
-        if (url) editor.chain().focus().setImage({ src: url }).run()
+        if (!url) continue
+        insertAtCursor(el, `![${file.name || 'image'}](${url})`)
       }
+      emitChange()
     },
-    [editor]
+    [emitChange]
+  )
+
+  // image drop directly on the textarea → markdown syntax (other files bubble
+  // up to the StructuredCompose drop zone for attachment handling)
+  const handleDrop = useCallback(
+    async (e: React.DragEvent<HTMLTextAreaElement>) => {
+      const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+      if (files.length === 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      const el = textareaRef.current
+      if (!el) return
+      for (const file of files) {
+        const url = await uploadInlineImage(file)
+        if (!url) continue
+        insertAtCursor(el, `![${file.name || 'image'}](${url})`)
+      }
+      emitChange()
+    },
+    [emitChange]
   )
 
   return (
-    <div onDragOver={(e) => e.preventDefault()} onDrop={handleDrop} onPaste={handlePaste}>
-      <div className="border-border border-b">
-        <EditorToolbar editor={editor} />
+    <div className="flex flex-col">
+      <div className="border-border flex shrink-0 items-center gap-1 border-b px-3 py-1.5">
+        <TabButton active={tab === 'edit'} onClick={() => setTab('edit')}>
+          Write
+        </TabButton>
+        <TabButton active={tab === 'preview'} onClick={() => setTab('preview')}>
+          Preview
+        </TabButton>
+        <span className="text-fg-muted ml-auto text-[11px]">Markdown · Cmd+Enter to send</span>
       </div>
-      <div className={`flex-1 cursor-text ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
-        <EditorContent editor={editor} />
-      </div>
-      <MentionPicker editor={editor} />
+
+      {tab === 'edit' ? (
+        <textarea
+          className="text-fg placeholder:text-fg-muted block w-full resize-none border-0 bg-transparent px-3 py-2 font-mono text-sm leading-6 outline-none"
+          disabled={disabled}
+          onChange={handleChange}
+          onDrop={handleDrop}
+          onInput={resize}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          placeholder={placeholder ?? 'Write your message in markdown…'}
+          ref={textareaRef}
+          spellCheck
+          style={{ minHeight: `${MIN_HEIGHT_PX}px` }}
+          value={data.content}
+        />
+      ) : (
+        <div className={PREVIEW_PROSE_CLASS} style={{ minHeight: `${MIN_HEIGHT_PX}px` }}>
+          {data.content.trim() ? (
+            <Markdown rehypePlugins={[rehypeHighlight]} remarkPlugins={[remarkGfm]}>
+              {data.content}
+            </Markdown>
+          ) : (
+            <p className="text-fg-muted text-sm">Nothing to preview yet.</p>
+          )}
+        </div>
+      )}
     </div>
+  )
+}
+
+function insertAtCursor(el: HTMLTextAreaElement | null, text: string) {
+  if (!el) return
+  const start = el.selectionStart
+  const end = el.selectionEnd
+  const before = el.value.slice(0, start)
+  const after = el.value.slice(end)
+  el.value = before + text + after
+  const caret = start + text.length
+  el.selectionStart = el.selectionEnd = caret
+}
+
+function replaceRange(el: HTMLTextAreaElement | null, start: number, end: number, text: string) {
+  if (!el) return
+  const before = el.value.slice(0, start)
+  const after = el.value.slice(end)
+  el.value = before + text + after
+  const caret = start + text.length
+  el.selectionStart = el.selectionEnd = caret
+}
+
+function TabButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean
+  children: React.ReactNode
+  onClick: () => void
+}) {
+  return (
+    <button
+      className={
+        active
+          ? 'bg-bg-secondary text-fg rounded-md px-2 py-0.5 text-xs font-medium'
+          : 'text-fg-muted hover:bg-bg-secondary hover:text-fg rounded-md px-2 py-0.5 text-xs'
+      }
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
   )
 }

@@ -48,7 +48,7 @@ export function useBlockComposer(options: Options) {
         createBlock('task', {
           items: [{ checked: false, id: crypto.randomUUID(), text: '' }],
         }),
-      text: () => createBlock('text', { content: '', format: 'rich', html: '' }),
+      text: () => createBlock('text', { content: '', format: 'markdown', html: '' }),
     }
     const block = defaults[type]()
     setBlocks((prev) => {
@@ -113,7 +113,7 @@ export function useBlockComposer(options: Options) {
 }
 
 function buildInitialBlocks(options: Options): AnyBlock[] {
-  const blocks: AnyBlock[] = [createBlock('text', { content: '', format: 'rich', html: '' })]
+  const blocks: AnyBlock[] = [createBlock('text', { content: '', format: 'markdown', html: '' })]
 
   if (options.signatureEnabled && options.signature?.trim()) {
     blocks.push(
