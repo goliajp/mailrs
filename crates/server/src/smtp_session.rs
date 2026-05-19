@@ -11,7 +11,7 @@ use tokio_util::codec::Framed;
 use mailrs_smtp_proto::response::{format_ehlo_response, Response};
 use mailrs_smtp_proto::session::{AuthStep, Event, Session, SessionConfig, State, MAX_MESSAGE_SIZE, MAX_RECIPIENTS};
 use mailrs_smtp_proto::{parse_command, unstuff_data};
-use mailrs_storage_maildir::Maildir;
+use mailrs_maildir::Maildir;
 
 /// connection idle timeout: close if no command received within this duration
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(300);

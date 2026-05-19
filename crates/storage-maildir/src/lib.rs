@@ -1,3 +1,54 @@
+//! Maildir filesystem format helpers.
+//!
+//! `mailrs-maildir` implements the [Maildir] mail storage convention
+//! invented by Daniel J. Bernstein for qmail and adopted by Dovecot,
+//! Courier, mutt, neomutt, postfix, and many others. Messages are stored
+//! as one file per message under `<root>/{tmp,new,cur}/`, with the
+//! filename encoding a globally unique ID plus a flag suffix.
+//!
+//! This crate gives you the primitives — atomic delivery into `new/`,
+//! directory scans, flag parsing/serialization, and `tmp/` cleanup —
+//! without any mailbox-database, indexing, or IMAP/POP3 logic on top.
+//!
+//! This crate underpins the message storage in [mailrs], a Rust mail
+//! server, and is published independently so other Rust projects can
+//! reuse the Maildir layer.
+//!
+//! # Quick start
+//!
+//! ```no_run
+//! use mailrs_maildir::Maildir;
+//!
+//! let md = Maildir::create("/var/mail/alice/INBOX").unwrap();
+//! let id = md.deliver(b"From: a@example.com\r\nSubject: hi\r\n\r\nbody\r\n").unwrap();
+//! for entry in md.scan_new().unwrap() {
+//!     println!("{} flags={:?}", entry.id, entry.flags);
+//! }
+//! ```
+//!
+//! # What this crate does
+//!
+//! - **Atomic delivery**: [`Maildir::deliver`] writes to `tmp/`, fsyncs,
+//!   then renames into `new/` — the standard Maildir reliability
+//!   technique.
+//! - **Directory scans**: [`Maildir::scan_new`] and [`Maildir::scan_cur`]
+//!   list messages in each stage with their parsed flags.
+//! - **Filename parsing**: [`parse_flags`] / [`serialize_flags`] /
+//!   [`add_flag`] handle the `":2,FLAGS"` suffix convention.
+//! - **Janitorial**: [`Maildir::cleanup_tmp`] removes stale partial
+//!   deliveries.
+//!
+//! # What this crate does NOT do
+//!
+//! - No IMAP / POP3 protocol layer. See `mailrs-imap-proto`.
+//! - No mailbox indexing or message search. The `cur/`-vs-`new/` split
+//!   is the only state — there's no UID database here.
+//! - No locking. Maildir is designed to be lock-free for delivery
+//!   (atomic rename) and stage transitions (atomic rename).
+//!
+//! [Maildir]: https://cr.yp.to/proto/maildir.html
+//! [mailrs]: https://github.com/goliajp/mailrs
+
 use std::fmt;
 use std::fs;
 use std::io::{self, Write};
@@ -7,32 +58,47 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 static SEQUENCE: AtomicU32 = AtomicU32::new(0);
 
+/// A handle to a Maildir directory. Cheap to clone — only holds a path.
 #[derive(Debug, Clone)]
 pub struct Maildir {
     root: PathBuf,
 }
 
+/// Globally unique identifier of a delivered message, derived from the
+/// filename in `new/` or `cur/` (the part before the `:2,FLAGS` suffix).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MessageId(pub String);
 
+/// Standard Maildir flag, as defined by the Maildir specification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Flag {
+    /// `D` — draft message.
     Draft,
+    /// `F` — flagged / starred.
     Flagged,
+    /// `P` — passed / forwarded.
     Passed,
+    /// `R` — replied to.
     Replied,
+    /// `S` — seen / read.
     Seen,
+    /// `T` — trashed (typically expunged at next IMAP EXPUNGE).
     Trashed,
 }
 
+/// One scanned message entry from `new/` or `cur/`.
 #[derive(Debug)]
 pub struct Entry {
+    /// Identifier (filename without the `:2,FLAGS` suffix).
     pub id: MessageId,
+    /// Absolute path on disk.
     pub path: PathBuf,
+    /// Flags parsed from the filename suffix.
     pub flags: Vec<Flag>,
 }
 
 impl Flag {
+    /// Single-character representation used in the filename suffix.
     pub fn as_char(self) -> char {
         match self {
             Flag::Draft => 'D',
@@ -44,6 +110,7 @@ impl Flag {
         }
     }
 
+    /// Parse a single flag character; returns `None` for unknown letters.
     pub fn from_char(c: char) -> Option<Self> {
         match c {
             'D' => Some(Flag::Draft),
@@ -57,7 +124,8 @@ impl Flag {
     }
 }
 
-/// parse flags from the ":2,FLAGS" suffix of a maildir filename
+/// Parse flags from the `":2,FLAGS"` suffix of a Maildir filename.
+/// Returns a sorted, deduplicated `Vec<Flag>`.
 pub fn parse_flags(info: &str) -> Vec<Flag> {
     // format: ":2,FLAGS" where FLAGS is a sorted string of flag chars
     let flags_str = info
@@ -72,7 +140,8 @@ pub fn parse_flags(info: &str) -> Vec<Flag> {
     flags
 }
 
-/// serialize flags to the ":2,FLAGS" suffix format
+/// Serialize flags to the `":2,FLAGS"` suffix format. Flags are sorted
+/// and deduplicated for a canonical representation.
 pub fn serialize_flags(flags: &[Flag]) -> String {
     let mut sorted: Vec<Flag> = flags.to_vec();
     sorted.sort();
@@ -81,7 +150,8 @@ pub fn serialize_flags(flags: &[Flag]) -> String {
     format!(":2,{chars}")
 }
 
-/// add a flag to an existing info string, returning the new info string
+/// Add a flag to an existing `:2,FLAGS` info string, returning the new
+/// info string. No-op if `flag` is already present.
 pub fn add_flag(info: &str, flag: Flag) -> String {
     let mut flags = parse_flags(info);
     if !flags.contains(&flag) {
@@ -91,7 +161,8 @@ pub fn add_flag(info: &str, flag: Flag) -> String {
 }
 
 impl Maildir {
-    /// create a new Maildir at the given path, creating tmp/new/cur directories
+    /// Create a Maildir at the given path, creating `tmp/`, `new/`, and
+    /// `cur/` if they don't already exist.
     pub fn create(path: impl AsRef<Path>) -> io::Result<Self> {
         let root = path.as_ref().to_path_buf();
         fs::create_dir_all(root.join("tmp"))?;
@@ -100,14 +171,16 @@ impl Maildir {
         Ok(Self { root })
     }
 
-    /// open an existing Maildir (does not create directories)
+    /// Open an existing Maildir. Does not check that the subdirectories
+    /// exist — use [`Maildir::create`] for guaranteed setup.
     pub fn open(path: impl AsRef<Path>) -> Self {
         Self {
             root: path.as_ref().to_path_buf(),
         }
     }
 
-    /// deliver a message atomically: write to tmp/, then rename to new/
+    /// Atomically deliver a message: write the body to `tmp/`, fsync,
+    /// then rename to `new/`. Returns the generated [`MessageId`].
     pub fn deliver(&self, data: &[u8]) -> io::Result<MessageId> {
         let filename = self.generate_filename();
         let tmp_path = self.root.join("tmp").join(&filename);
@@ -137,12 +210,15 @@ impl Maildir {
         format!("{secs}.M{micros}P{pid}Q{seq}.{hostname}")
     }
 
-    /// scan the new/ directory for unprocessed messages
+    /// Scan `new/` for unprocessed messages — the messages a delivery
+    /// agent has just dropped off but no client has acknowledged yet.
     pub fn scan_new(&self) -> io::Result<Vec<Entry>> {
         self.scan_dir("new")
     }
 
-    /// scan the cur/ directory for processed messages
+    /// Scan `cur/` for processed messages — once a client has read a
+    /// message it should be moved from `new/` to `cur/` (and the
+    /// filename suffix updated with the new flags).
     pub fn scan_cur(&self) -> io::Result<Vec<Entry>> {
         self.scan_dir("cur")
     }
@@ -180,7 +256,9 @@ impl Maildir {
         Ok(entries)
     }
 
-    /// clean up stale files in tmp/ older than the given duration
+    /// Remove files in `tmp/` older than `max_age`. These are leftover
+    /// partial deliveries from crashed processes. Returns the number of
+    /// files removed.
     pub fn cleanup_tmp(&self, max_age: Duration) -> io::Result<u32> {
         let tmp_dir = self.root.join("tmp");
         let mut cleaned = 0u32;

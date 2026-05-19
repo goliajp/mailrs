@@ -1,7 +1,17 @@
 [package]
-name = "mailrs-storage-maildir"
-version.workspace = true
+name = "mailrs-maildir"
+version = "1.0.0"
 edition = "2024"
+rust-version = "1.85"
+description = "Maildir filesystem-format primitives: atomic delivery, directory scans, flag parsing — no IMAP/POP3 layer."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-maildir"
+authors = ["GOLIA K.K."]
+keywords = ["maildir", "email", "storage", "filesystem", "mailbox"]
+categories = ["email", "filesystem"]
+readme = "README.md"
 
 [lints]
 workspace = true

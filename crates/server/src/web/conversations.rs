@@ -519,7 +519,7 @@ pub(super) async fn delete_thread(
     // delete physical maildir files if user address is valid
     if let Some((local, domain)) = user.split_once('@') {
         let maildir_path = format!("{}/{}/{}", state.maildir_root, domain, local);
-        let md = mailrs_storage_maildir::Maildir::open(&maildir_path);
+        let md = mailrs_maildir::Maildir::open(&maildir_path);
         let cur = md.scan_cur().unwrap_or_default();
         let new_entries = md.scan_new().unwrap_or_default();
         let id_set: std::collections::HashSet<String> = maildir_ids.iter().cloned().collect();
@@ -1131,7 +1131,7 @@ pub(super) async fn batch_conversations(
                         if let Some((local, domain)) = user.split_once('@') {
                             let maildir_path =
                                 format!("{}/{}/{}", state.maildir_root, domain, local);
-                            let md = mailrs_storage_maildir::Maildir::open(&maildir_path);
+                            let md = mailrs_maildir::Maildir::open(&maildir_path);
                             let cur = md.scan_cur().unwrap_or_default();
                             let new_entries = md.scan_new().unwrap_or_default();
                             let id_set: std::collections::HashSet<String> =
