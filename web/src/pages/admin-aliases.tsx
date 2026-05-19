@@ -1,17 +1,24 @@
 import type { AliasInfo, DomainInfo } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
-import { useAtom } from 'jotai'
-import { useCallback, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
-import { aliasesAtom, domainsAtom } from '@/store/admin'
+import { queryClient } from '@/lib/query-client'
+import { adminKeys } from '@/lib/query-keys'
 
 export function AdminAliases() {
-  const [aliases, setAliases] = useAtom(aliasesAtom)
-  const [domains, setDomains] = useAtom(domainsAtom)
+  const { data: aliases = [] } = useQuery({
+    queryKey: adminKeys.aliases(),
+    queryFn: () => fetchJson<AliasInfo[]>('/admin/aliases'),
+  })
+  const { data: domains = [] } = useQuery({
+    queryKey: adminKeys.domains(),
+    queryFn: () => fetchJson<DomainInfo[]>('/admin/domains'),
+  })
   const [adding, setAdding] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
   const [form, setForm] = useState({
@@ -21,28 +28,7 @@ export function AdminAliases() {
     target_address: '',
   })
 
-  const loadAliases = useCallback(async () => {
-    try {
-      const data = await fetchJson<AliasInfo[]>('/admin/aliases')
-      setAliases(data)
-    } catch {
-      // keep current state on error
-    }
-  }, [setAliases])
-
-  const loadDomains = useCallback(async () => {
-    try {
-      const data = await fetchJson<DomainInfo[]>('/admin/domains')
-      setDomains(data)
-    } catch {
-      // keep current state on error
-    }
-  }, [setDomains])
-
-  useEffect(() => {
-    loadAliases()
-    loadDomains()
-  }, [loadAliases, loadDomains])
+  const invalidateAliases = () => queryClient.invalidateQueries({ queryKey: adminKeys.aliases() })
 
   const handleAdd = async () => {
     if (!form.source_address.trim() || !form.target_address.trim() || !form.domain) return
@@ -61,7 +47,7 @@ export function AdminAliases() {
         target_address: '',
       })
       setAdding(false)
-      loadAliases()
+      invalidateAliases()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to add alias')
     }
@@ -72,7 +58,7 @@ export function AdminAliases() {
       await deleteJson(`/admin/aliases/${id}`)
       toast.success('Alias removed')
       setDeleteTarget(null)
-      loadAliases()
+      invalidateAliases()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to remove alias')
       setDeleteTarget(null)

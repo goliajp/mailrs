@@ -1,11 +1,14 @@
 import type { DomainInfo } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
+import { useQuery } from '@tanstack/react-query'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
+import { queryClient } from '@/lib/query-client'
+import { adminKeys } from '@/lib/query-keys'
 
 type ExpandedData = {
   members: string[]
@@ -21,9 +24,18 @@ type GroupInfo = {
 }
 
 export function AdminGroups() {
-  const [groups, setGroups] = useState<GroupInfo[]>([])
-  const [domains, setDomains] = useState<DomainInfo[]>([])
-  const [allPermissions, setAllPermissions] = useState<string[]>([])
+  const { data: groups = [] } = useQuery({
+    queryKey: adminKeys.groups(),
+    queryFn: () => fetchJson<GroupInfo[]>('/admin/groups'),
+  })
+  const { data: domains = [] } = useQuery({
+    queryKey: adminKeys.domains(),
+    queryFn: () => fetchJson<DomainInfo[]>('/admin/domains'),
+  })
+  const { data: allPermissions = [] } = useQuery({
+    queryKey: adminKeys.permissions(),
+    queryFn: () => fetchJson<string[]>('/admin/permissions'),
+  })
   const [adding, setAdding] = useState(false)
   const [expandedId, setExpandedId] = useState<null | number>(null)
   const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
@@ -33,38 +45,7 @@ export function AdminGroups() {
     name: '',
   })
 
-  const loadGroups = useCallback(async () => {
-    try {
-      const data = await fetchJson<GroupInfo[]>('/admin/groups')
-      setGroups(data)
-    } catch {
-      // keep current state
-    }
-  }, [])
-
-  const loadDomains = useCallback(async () => {
-    try {
-      const data = await fetchJson<DomainInfo[]>('/admin/domains')
-      setDomains(data)
-    } catch {
-      // keep current state
-    }
-  }, [])
-
-  const loadPermissions = useCallback(async () => {
-    try {
-      const data = await fetchJson<string[]>('/admin/permissions')
-      setAllPermissions(data)
-    } catch {
-      // keep current state
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadGroups()
-    void loadDomains()
-    void loadPermissions()
-  }, [loadGroups, loadDomains, loadPermissions])
+  const invalidateGroups = () => queryClient.invalidateQueries({ queryKey: adminKeys.groups() })
 
   const handleAdd = async () => {
     if (!form.name.trim()) return
@@ -77,7 +58,7 @@ export function AdminGroups() {
       toast.success(`Group "${form.name.trim()}" added`)
       setForm({ description: '', domain: '', name: '' })
       setAdding(false)
-      loadGroups()
+      invalidateGroups()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to add group')
     }
@@ -89,7 +70,7 @@ export function AdminGroups() {
       toast.success('Group removed')
       setDeleteTarget(null)
       if (expandedId === id) setExpandedId(null)
-      loadGroups()
+      invalidateGroups()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to remove group')
       setDeleteTarget(null)
@@ -198,7 +179,7 @@ export function AdminGroups() {
                       <GroupDetail
                         allPermissions={allPermissions}
                         group={group}
-                        onChanged={loadGroups}
+                        onChanged={invalidateGroups}
                       />
                     </td>
                   </tr>

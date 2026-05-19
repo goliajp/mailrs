@@ -1,36 +1,29 @@
 import type { DomainCheckReport, DomainInfo } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
-import { useAtom } from 'jotai'
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Fragment, useState } from 'react'
 
 import { Copyable } from '@/components/copy-button'
 import { DomainHealthCard } from '@/components/domain-health-card'
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
-import { domainsAtom } from '@/store/admin'
+import { queryClient } from '@/lib/query-client'
+import { adminKeys } from '@/lib/query-keys'
 
 export function AdminDomains() {
-  const [domains, setDomains] = useAtom(domainsAtom)
+  const { data: domains = [] } = useQuery({
+    queryKey: adminKeys.domains(),
+    queryFn: () => fetchJson<DomainInfo[]>('/admin/domains'),
+  })
   const [adding, setAdding] = useState(false)
   const [newDomain, setNewDomain] = useState('')
   const [checking, setChecking] = useState<null | string>(null)
   const [deleteTarget, setDeleteTarget] = useState<null | string>(null)
   const [reports, setReports] = useState<Record<string, DomainCheckReport>>({})
 
-  const loadDomains = useCallback(async () => {
-    try {
-      const data = await fetchJson<DomainInfo[]>('/admin/domains')
-      setDomains(data)
-    } catch {
-      // keep current state on error
-    }
-  }, [setDomains])
-
-  useEffect(() => {
-    loadDomains()
-  }, [loadDomains])
+  const invalidateDomains = () => queryClient.invalidateQueries({ queryKey: adminKeys.domains() })
 
   const handleAdd = async () => {
     if (!newDomain.trim()) return
@@ -39,7 +32,7 @@ export function AdminDomains() {
       toast.success(`Domain "${newDomain.trim()}" added`)
       setNewDomain('')
       setAdding(false)
-      loadDomains()
+      invalidateDomains()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to add domain')
     }
@@ -50,7 +43,7 @@ export function AdminDomains() {
       await deleteJson(`/admin/domains/${encodeURIComponent(name)}`)
       toast.success(`Domain "${name}" removed`)
       setDeleteTarget(null)
-      loadDomains()
+      invalidateDomains()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to remove domain')
       setDeleteTarget(null)

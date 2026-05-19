@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react'
 
 import { toast } from '@goliapkg/gds'
+import { useQuery } from '@tanstack/react-query'
 import { RotateCcw, Save } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { deleteJson, fetchJson, putJson } from '@/lib/api'
+import { queryClient } from '@/lib/query-client'
+import { adminKeys } from '@/lib/query-keys'
 
 type ConfigEntry = {
   description: string
@@ -39,35 +42,30 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 
 export function AdminSystemConfig() {
-  const [entries, setEntries] = useState<ConfigEntry[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const [error, setError] = useState<null | string>(null)
-
-  const loadConfig = useCallback(async () => {
-    try {
-      setError(null)
-      const data = await fetchJson<{
+  const {
+    data: response,
+    error: queryError,
+    isLoading: loading,
+  } = useQuery({
+    queryKey: adminKeys.systemConfig(),
+    queryFn: () =>
+      fetchJson<{
         entries?: ConfigEntry[]
         message?: string
         success: boolean
-      }>('/admin/system-config')
-      if (!data.success) {
-        setError(data.message ?? 'Failed to load configuration')
-        setEntries([])
-      } else {
-        setEntries(data.entries ?? [])
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load configuration')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+      }>('/admin/system-config'),
+  })
 
-  useEffect(() => {
-    loadConfig()
-  }, [loadConfig])
+  const entries: ConfigEntry[] = response && response.success ? (response.entries ?? []) : []
+  const error =
+    queryError instanceof Error
+      ? queryError.message
+      : response && !response.success
+        ? (response.message ?? 'Failed to load configuration')
+        : null
+
+  const invalidateConfig = () =>
+    queryClient.invalidateQueries({ queryKey: adminKeys.systemConfig() })
 
   const handleSave = async (key: string, value: string) => {
     try {
@@ -75,7 +73,7 @@ export function AdminSystemConfig() {
         value,
       })
       toast.success(`"${key}" updated`)
-      await loadConfig()
+      await invalidateConfig()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to save config')
     }
@@ -85,7 +83,7 @@ export function AdminSystemConfig() {
     try {
       await deleteJson(`/admin/system-config/${encodeURIComponent(key)}`)
       toast.success(`"${key}" reset to default`)
-      await loadConfig()
+      await invalidateConfig()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to reset config')
     }

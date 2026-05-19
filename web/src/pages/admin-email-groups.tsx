@@ -1,11 +1,14 @@
 import type { DomainInfo } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
+import { useQuery } from '@tanstack/react-query'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { queryClient } from '@/lib/query-client'
+import { adminKeys } from '@/lib/query-keys'
 
 type EmailGroupInfo = {
   address: string
@@ -17,8 +20,14 @@ type EmailGroupInfo = {
 }
 
 export function AdminEmailGroups() {
-  const [groups, setGroups] = useState<EmailGroupInfo[]>([])
-  const [domains, setDomains] = useState<DomainInfo[]>([])
+  const { data: groups = [] } = useQuery({
+    queryKey: adminKeys.emailGroups(),
+    queryFn: () => fetchJson<EmailGroupInfo[]>('/admin/email-groups'),
+  })
+  const { data: domains = [] } = useQuery({
+    queryKey: adminKeys.domains(),
+    queryFn: () => fetchJson<DomainInfo[]>('/admin/domains'),
+  })
   const [adding, setAdding] = useState(false)
   const [expandedId, setExpandedId] = useState<null | number>(null)
   const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
@@ -29,28 +38,8 @@ export function AdminEmailGroups() {
     name: '',
   })
 
-  const loadGroups = useCallback(async () => {
-    try {
-      const data = await fetchJson<EmailGroupInfo[]>('/admin/email-groups')
-      setGroups(data)
-    } catch {
-      // keep current state
-    }
-  }, [])
-
-  const loadDomains = useCallback(async () => {
-    try {
-      const data = await fetchJson<DomainInfo[]>('/admin/domains')
-      setDomains(data)
-    } catch {
-      // keep current state
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadGroups()
-    void loadDomains()
-  }, [loadGroups, loadDomains])
+  const invalidateGroups = () =>
+    queryClient.invalidateQueries({ queryKey: adminKeys.emailGroups() })
 
   const handleAdd = async () => {
     if (!form.address.trim() || !form.domain || !form.name.trim()) return
@@ -64,7 +53,7 @@ export function AdminEmailGroups() {
       toast.success(`Email group "${form.name.trim()}" created`)
       setForm({ address: '', description: '', domain: '', name: '' })
       setAdding(false)
-      loadGroups()
+      invalidateGroups()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to create email group')
     }
@@ -76,7 +65,7 @@ export function AdminEmailGroups() {
       toast.success('Email group deleted')
       setDeleteTarget(null)
       if (expandedId === id) setExpandedId(null)
-      loadGroups()
+      invalidateGroups()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to delete email group')
       setDeleteTarget(null)
@@ -183,7 +172,7 @@ export function AdminEmailGroups() {
                   {expandedId === group.id && (
                     <tr>
                       <td colSpan={5}>
-                        <EmailGroupMembers group={group} onChanged={loadGroups} />
+                        <EmailGroupMembers group={group} onChanged={invalidateGroups} />
                       </td>
                     </tr>
                   )}

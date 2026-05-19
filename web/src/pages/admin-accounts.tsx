@@ -1,14 +1,15 @@
 import type { AccountInfo, QuotaInfo } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
-import { useAtom } from 'jotai'
+import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Copyable } from '@/components/copy-button'
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
-import { accountsAtom } from '@/store/admin'
+import { queryClient } from '@/lib/query-client'
+import { adminKeys } from '@/lib/query-keys'
 
 type GroupInfo = {
   description: string
@@ -30,7 +31,10 @@ type QuotaState =
   | { status: 'none' }
 
 export function AdminAccounts() {
-  const [accounts, setAccounts] = useAtom(accountsAtom)
+  const { data: accounts = [] } = useQuery({
+    queryKey: adminKeys.accounts(),
+    queryFn: () => fetchJson<AccountInfo[]>('/admin/accounts'),
+  })
   const [adding, setAdding] = useState(false)
   const [filter, setFilterRaw] = useState('')
   const [page, setPage] = useState(0)
@@ -47,18 +51,7 @@ export function AdminAccounts() {
     password: '',
   })
 
-  const loadAccounts = useCallback(async () => {
-    try {
-      const data = await fetchJson<AccountInfo[]>('/admin/accounts')
-      setAccounts(data)
-    } catch {
-      // keep current state on error
-    }
-  }, [setAccounts])
-
-  useEffect(() => {
-    loadAccounts()
-  }, [loadAccounts])
+  const invalidateAccounts = () => queryClient.invalidateQueries({ queryKey: adminKeys.accounts() })
 
   const handleAdd = async () => {
     if (!form.address.trim() || !form.domain.trim()) return
@@ -79,7 +72,7 @@ export function AdminAccounts() {
       toast.success(`Account "${fullAddress}" added`)
       setForm({ address: '', displayName: '', domain: '', password: '' })
       setAdding(false)
-      loadAccounts()
+      invalidateAccounts()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to add account')
     }
@@ -90,7 +83,7 @@ export function AdminAccounts() {
       await deleteJson(`/admin/accounts/${encodeURIComponent(address)}`)
       toast.success(`Account "${address}" removed`)
       setDeleteTarget(null)
-      loadAccounts()
+      invalidateAccounts()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to remove account')
       setDeleteTarget(null)
@@ -195,7 +188,7 @@ export function AdminAccounts() {
                   <Copyable value={account.address}>{account.address}</Copyable>
                 </td>
                 <td className="px-4 py-3">
-                  <DisplayNameCell account={account} onSaved={loadAccounts} />
+                  <DisplayNameCell account={account} onSaved={invalidateAccounts} />
                 </td>
                 <td className="text-fg-secondary px-4 py-3">{account.domain}</td>
                 <td className="px-4 py-3">
@@ -209,7 +202,7 @@ export function AdminAccounts() {
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <PasswordCell account={account} onSaved={loadAccounts} />
+                  <PasswordCell account={account} onSaved={invalidateAccounts} />
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
