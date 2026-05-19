@@ -59,6 +59,16 @@ export const adminKeys = {
   domains: () => [...adminKeys.all(), 'domains'] as const,
   emailGroups: () => [...adminKeys.all(), 'email-groups'] as const,
   groups: () => [...adminKeys.all(), 'groups'] as const,
+  mailAuditAccounts: () => [...adminKeys.all(), 'mail-audit-accounts'] as const,
+  mailAuditConversations: (address: string) =>
+    [...adminKeys.all(), 'mail-audit-conversations', address] as const,
+  mailAuditThread: (address: string, threadId: string) =>
+    [...adminKeys.all(), 'mail-audit-thread', address, threadId] as const,
+  overviewAuditLog: () => [...adminKeys.all(), 'overview-audit-log'] as const,
+  overviewHealth: () => [...adminKeys.all(), 'overview-health'] as const,
+  overviewSmtp: () => [...adminKeys.all(), 'overview-smtp'] as const,
+  overviewStatus: () => [...adminKeys.all(), 'overview-status'] as const,
+  permissions: () => [...adminKeys.all(), 'permissions'] as const,
   queues: () => [...adminKeys.all(), 'queues'] as const,
   systemConfig: () => [...adminKeys.all(), 'system-config'] as const,
 }

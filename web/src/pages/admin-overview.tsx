@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 
 import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson } from '@/lib/api'
+import { adminKeys } from '@/lib/query-keys'
 
 // --- types ---
 
@@ -54,27 +55,32 @@ type StatusInfo = {
 // --- helpers ---
 
 export function AdminOverview() {
-  const [health, setHealth] = useState<HealthInfo | null>(null)
-  const [status, setStatus] = useState<null | StatusInfo>(null)
-  const [smtp, setSmtp] = useState<null | SmtpConfig>(null)
-  const [audit, setAudit] = useState<AuditEntry[]>([])
-  const [error, setError] = useState('')
+  const { data: health = null, error: healthError } = useQuery({
+    queryKey: adminKeys.overviewHealth(),
+    refetchInterval: 10_000,
+    queryFn: () => fetchJson<HealthInfo>('/health'),
+  })
+  const { data: status = null, error: statusError } = useQuery({
+    queryKey: adminKeys.overviewStatus(),
+    refetchInterval: 10_000,
+    queryFn: () => fetchJson<StatusInfo>('/status'),
+  })
+  const { data: smtp = null } = useQuery({
+    queryKey: adminKeys.overviewSmtp(),
+    refetchInterval: 10_000,
+    queryFn: () => fetchJson<SmtpConfig>('/admin/config/smtp'),
+  })
+  const { data: audit = [] } = useQuery({
+    queryKey: adminKeys.overviewAuditLog(),
+    refetchInterval: 10_000,
+    queryFn: () => fetchJson<AuditEntry[]>('/admin/audit-log?limit=10'),
+  })
 
-  const refresh = useCallback(() => {
-    fetchJson<HealthInfo>('/health').then(setHealth, () => setError('Failed to load health'))
-    fetchJson<StatusInfo>('/status').then(setStatus, () => setError('Failed to load status'))
-    fetchJson<SmtpConfig>('/admin/config/smtp').then(setSmtp, () => {})
-    fetchJson<AuditEntry[]>('/admin/audit-log?limit=10').then(setAudit, () => {})
-  }, [])
-
-  useEffect(() => {
-    refresh()
-    const timer = setInterval(refresh, 10_000)
-    return () => clearInterval(timer)
-  }, [refresh])
-
-  if (error) {
-    return <div className="text-danger p-6 text-sm">{error}</div>
+  if (healthError) {
+    return <div className="text-danger p-6 text-sm">Failed to load health</div>
+  }
+  if (statusError) {
+    return <div className="text-danger p-6 text-sm">Failed to load status</div>
   }
 
   const activeConns = status?.active_connections ?? health?.total_connections ?? 0

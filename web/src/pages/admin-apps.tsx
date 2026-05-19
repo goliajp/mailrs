@@ -1,9 +1,12 @@
 import { toast } from '@goliapkg/gds'
-import { useCallback, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
+import { queryClient } from '@/lib/query-client'
+import { adminKeys } from '@/lib/query-keys'
 
 type ApiResult = {
   success: boolean
@@ -34,9 +37,15 @@ type CreatedKey = {
 }
 
 export function AdminApps() {
-  const [apps, setApps] = useState<AppInfo[]>([])
+  const { data: apps = [] } = useQuery({
+    queryKey: adminKeys.apps(),
+    queryFn: () => fetchJson<AppInfo[]>('/admin/apps'),
+  })
+  const { data: permissions = [] } = useQuery({
+    queryKey: adminKeys.permissions(),
+    queryFn: () => fetchJson<string[]>('/admin/permissions'),
+  })
   const [adding, setAdding] = useState(false)
-  const [permissions, setPermissions] = useState<string[]>([])
   const [form, setForm] = useState({ description: '', name: '' })
   const [selectedScopes, setSelectedScopes] = useState<Set<string>>(new Set())
   const [createdKey, setCreatedKey] = useState<CreatedKey | null>(null)
@@ -45,28 +54,7 @@ export function AdminApps() {
   const [editScopes, setEditScopes] = useState<Set<string>>(new Set())
   const [savingScopes, setSavingScopes] = useState(false)
 
-  const loadApps = useCallback(async () => {
-    try {
-      const data = await fetchJson<AppInfo[]>('/admin/apps')
-      setApps(data)
-    } catch {
-      // keep current state on error
-    }
-  }, [])
-
-  const loadPermissions = useCallback(async () => {
-    try {
-      const data = await fetchJson<string[]>('/admin/permissions')
-      setPermissions(data)
-    } catch {
-      // keep current state on error
-    }
-  }, [])
-
-  useEffect(() => {
-    loadApps()
-    loadPermissions()
-  }, [loadApps, loadPermissions])
+  const invalidateApps = () => queryClient.invalidateQueries({ queryKey: adminKeys.apps() })
 
   const handleAdd = async () => {
     if (!form.name.trim()) return
@@ -81,7 +69,7 @@ export function AdminApps() {
       setForm({ description: '', name: '' })
       setSelectedScopes(new Set())
       setAdding(false)
-      loadApps()
+      invalidateApps()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to create app')
     }
@@ -92,7 +80,7 @@ export function AdminApps() {
       await deleteJson<ApiResult>(`/admin/apps/${appId}`)
       toast.success('App deleted')
       setDeleteTarget(null)
-      loadApps()
+      invalidateApps()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to delete app')
       setDeleteTarget(null)
@@ -107,7 +95,7 @@ export function AdminApps() {
       })
       toast.success('Scopes updated')
       setExpandedAppId(null)
-      loadApps()
+      invalidateApps()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to update scopes')
     } finally {

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 
 import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson } from '@/lib/api'
+import { adminKeys } from '@/lib/query-keys'
 
 type AuditEntry = {
   action: string
@@ -13,20 +14,10 @@ type AuditEntry = {
 }
 
 export function AdminAuditLog() {
-  const [entries, setEntries] = useState<AuditEntry[]>([])
-
-  const loadEntries = useCallback(async () => {
-    try {
-      const data = await fetchJson<AuditEntry[]>('/admin/audit-log?limit=200')
-      setEntries(data)
-    } catch {
-      // keep current state
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadEntries()
-  }, [loadEntries])
+  const { data: entries = [], refetch } = useQuery({
+    queryKey: adminKeys.auditLog(),
+    queryFn: () => fetchJson<AuditEntry[]>('/admin/audit-log?limit=200'),
+  })
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -34,7 +25,7 @@ export function AdminAuditLog() {
         <h2 className="text-lg font-semibold">Audit Log</h2>
         <button
           className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
-          onClick={loadEntries}
+          onClick={() => refetch()}
         >
           Refresh
         </button>

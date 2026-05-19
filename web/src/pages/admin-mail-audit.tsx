@@ -1,11 +1,13 @@
 import type { AttachmentInfo } from '@/lib/types'
 
+import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, Download, Eye, Search } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { HtmlFrame } from '@/components/html-frame'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson } from '@/lib/api'
+import { adminKeys } from '@/lib/query-keys'
 import { getToken } from '@/store/auth'
 
 type AuditAccount = {
@@ -43,65 +45,48 @@ type AuditMessage = {
 }
 
 export function AdminMailAudit() {
-  const [accounts, setAccounts] = useState<AuditAccount[]>([])
   const [selectedAccount, setSelectedAccount] = useState<null | string>(null)
-  const [conversations, setConversations] = useState<AuditConversation[]>([])
   const [selectedThread, setSelectedThread] = useState<null | string>(null)
-  const [messages, setMessages] = useState<AuditMessage[]>([])
-  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
 
-  // load auditable accounts
-  useEffect(() => {
-    fetchJson<AuditAccount[]>('/admin/audit/accounts')
-      .then(setAccounts)
-      .catch(() => setAccounts([]))
-  }, [])
+  const { data: accounts = [] } = useQuery({
+    queryKey: adminKeys.mailAuditAccounts(),
+    queryFn: () => fetchJson<AuditAccount[]>('/admin/audit/accounts'),
+  })
 
-  // load conversations for selected account
-  const loadConversations = useCallback(async (address: string) => {
-    setLoading(true)
-    setSelectedThread(null)
-    setMessages([])
-    try {
+  const { data: conversations = [], isFetching: conversationsLoading } = useQuery({
+    enabled: !!selectedAccount,
+    queryKey: adminKeys.mailAuditConversations(selectedAccount ?? ''),
+    queryFn: async () => {
       const data = await fetchJson<AuditConversation[]>(
-        `/admin/audit/conversations?target_user=${encodeURIComponent(address)}&limit=50`
+        `/admin/audit/conversations?target_user=${encodeURIComponent(selectedAccount ?? '')}&limit=50`
       )
-      setConversations(Array.isArray(data) ? data : [])
-    } catch {
-      setConversations([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // load thread messages
-  const loadThread = useCallback(
-    async (threadId: string) => {
-      if (!selectedAccount) return
-      setLoading(true)
-      try {
-        const data = await fetchJson<AuditMessage[]>(
-          `/admin/audit/conversations/${encodeURIComponent(threadId)}/messages?target_user=${encodeURIComponent(selectedAccount)}`
-        )
-        setMessages(Array.isArray(data) ? data : [])
-        setSelectedThread(threadId)
-      } catch {
-        setMessages([])
-      } finally {
-        setLoading(false)
-      }
+      return Array.isArray(data) ? data : []
     },
-    [selectedAccount]
-  )
+  })
 
-  const handleSelectAccount = useCallback(
-    (address: string) => {
-      setSelectedAccount(address)
-      loadConversations(address)
+  const { data: messages = [], isFetching: messagesLoading } = useQuery({
+    enabled: !!selectedAccount && !!selectedThread,
+    queryKey: adminKeys.mailAuditThread(selectedAccount ?? '', selectedThread ?? ''),
+    queryFn: async () => {
+      const data = await fetchJson<AuditMessage[]>(
+        `/admin/audit/conversations/${encodeURIComponent(selectedThread ?? '')}/messages?target_user=${encodeURIComponent(selectedAccount ?? '')}`
+      )
+      return Array.isArray(data) ? data : []
     },
-    [loadConversations]
-  )
+  })
+
+  const loading = conversationsLoading || messagesLoading
+
+  const loadThread = (threadId: string) => {
+    if (!selectedAccount) return
+    setSelectedThread(threadId)
+  }
+
+  const handleSelectAccount = (address: string) => {
+    setSelectedAccount(address)
+    setSelectedThread(null)
+  }
 
   const filteredAccounts = useMemo(() => {
     if (!search) return accounts
@@ -202,7 +187,6 @@ export function AdminMailAudit() {
             className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
             onClick={() => {
               setSelectedThread(null)
-              setMessages([])
             }}
           >
             <ChevronLeft className="h-5 w-5" />
@@ -233,7 +217,7 @@ export function AdminMailAudit() {
           className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
           onClick={() => {
             setSelectedAccount(null)
-            setConversations([])
+            setSelectedThread(null)
           }}
         >
           <ChevronLeft className="h-5 w-5" />

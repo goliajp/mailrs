@@ -1,11 +1,12 @@
 import type { QueueEntry } from '@/lib/types'
 
-import { useAtom } from 'jotai'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useCallback, useMemo, useState } from 'react'
 
 import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson, postJson } from '@/lib/api'
-import { queueAtom } from '@/store/admin'
+import { queryClient } from '@/lib/query-client'
+import { adminKeys } from '@/lib/query-keys'
 
 const PAGE_SIZE = 20
 
@@ -25,7 +26,11 @@ const filterActiveStyle = 'ring-2 ring-offset-1 ring-border ring-offset-bg'
 const filterAllStyle = 'bg-border text-fg-secondary'
 
 export function AdminQueues() {
-  const [queue, setQueue] = useAtom(queueAtom)
+  const { data: queue = [], refetch } = useQuery({
+    queryKey: adminKeys.queues(),
+    refetchInterval: 5000,
+    queryFn: () => fetchJson<QueueEntry[]>('/queue'),
+  })
   const [statusFilter, setStatusFilterRaw] = useState<null | QueueStatus>(null)
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -35,24 +40,11 @@ export function AdminQueues() {
     setCurrentPage(1)
   }, [])
 
-  const loadQueue = useCallback(async () => {
-    try {
-      const data = await fetchJson<QueueEntry[]>('/queue')
-      setQueue(data)
-    } catch {
-      // keep current state on error
-    }
-  }, [setQueue])
-
-  useEffect(() => {
-    loadQueue()
-    const interval = setInterval(loadQueue, 5000)
-    return () => clearInterval(interval)
-  }, [loadQueue])
+  const invalidateQueue = () => queryClient.invalidateQueries({ queryKey: adminKeys.queues() })
 
   const handleRetry = async (id: number) => {
     await postJson(`/queue/${id}/retry`, {})
-    loadQueue()
+    invalidateQueue()
   }
 
   const counts = useMemo(() => {
@@ -96,7 +88,7 @@ export function AdminQueues() {
         <h2 className="text-lg font-semibold">Outbound Queue</h2>
         <button
           className="bg-surface hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-          onClick={loadQueue}
+          onClick={() => refetch()}
         >
           Refresh
         </button>
