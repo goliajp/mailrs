@@ -4,6 +4,40 @@ Mistakes that have been made before. Do not repeat them.
 
 This file is shared across every managed project — any classic error discovered in any project belongs here, regardless of which language or stack first hit it. Do not create per-project classic-error files.
 
+## Server state in Jotai atoms instead of react-query (the cache-arc you skipped)
+
+**Context:** Any React app talking to a server you control. The project rules say "React Query for server state, Jotai for ephemeral client-only state" — but it's easy to start with `useEffect(() => fetchJson(...).then(setX))` + a Jotai atom because "we don't need RQ yet."
+
+**Bug class:** A mailbox-style high-read workload ends up with all of the following symptoms before anyone names them:
+
+1. **Refresh feels webapp-y** — every page reload reruns every fetch with no cache. ~300-600 ms of skeleton-then-content even on a warm connection.
+2. **Filter switching reruns the network** — same data, different view, fresh fetch.
+3. **Optimistic updates race with refetches** — user marks-read, WS event fires, server returns its current state, your local optimistic write gets stomped, the row "flickers back to unread."
+4. **WS-driven `setX` clobbers identity** — every event reallocates the whole list array, breaking every `React.memo` row downstream, all 50 items rerender for one new mail.
+5. **No dedup** — fast filter clicks fire concurrent requests; the late one wins by virtue of arriving last, not by being the user's intent.
+6. **Hand-rolled localStorage cache** — eventually someone writes `lib/list-cache.ts` to fix #1, then has to manually invalidate it on every mutation path, and forgets one.
+7. **Request-generation guards** — the same someone writes `loadGenRef.current++` to fix #5. Now mutations have to coordinate with the guard too.
+
+Every one of these is a symptom of the same root cause: server state should not live in `useState` / Jotai atoms. RQ exists specifically to handle dedup, cache, refetch-on-mount, optimistic-with-rollback, and queryClient.setQueryData for WS-driven patches.
+
+**Real incident (2026-05-19):** mailrs ran on this anti-pattern for months. The frontend grew `list-cache.ts`, a request-generation counter, a `shallowEqualConvo` helper, custom WS merge logic, a manual "preserve identity across refetches" map — every one of those is a single RQ feature reinvented in 30-60 lines of project-specific code. After migrating (`@tanstack/react-query` + `PersistQueryClientProvider` + `useQuery` / `useMutation` on the hot path), every one of those files was deleted and the user-visible refresh path went from "skeleton flash" to "appears to never reload."
+
+**Rules going forward:**
+
+1. **Server state goes through RQ from day one.** If you can `fetch` it, it has a `useQuery`. Never call `fetchJson` inside `useEffect` directly. Never write to a Jotai atom from a fetch result — pipe the query's `data` into the consumer instead.
+2. **Atoms are for client-only UI state.** Filter selections, modal open/closed, currently-selected ID, batch-mode toggles — yes. Cached lists, cached messages, fetched counts — no. The clean line: "would this still make sense if the server didn't exist?" → Jotai. Else → RQ.
+3. **WS events trigger `queryClient.invalidateQueries` or `setQueryData`, never `setX`.** RQ's cache is the single source of truth; the atom mirror is the bug.
+4. **Mutations use `useMutation` with `onMutate` for optimistic patches + `onError` rollback.** Don't write to the atom-mirror in the success path; the cache patch IS the success path.
+5. **The pattern is exported as `use<Entity>Query` and `use<Action>Mutation` hooks** in one file per domain (`use-mail-queries.ts`, `use-mail-mutations.ts`). New pages reach for those, not for raw `useQuery({queryKey, queryFn})` inline, and not for `fetchJson` directly.
+6. **Server-side cache layer mirrors the client.** If client-side RQ has a 30s staleTime on a list, the server probably has a Valkey cache-aside with a 30s TTL on the same endpoint. Mutations bust both. WS events from the server should also bust the server-side cache (mailrs's `event_bus` listener pattern). The two caches plus surgical invalidation is what makes a high-read workload feel native.
+
+**Smell tests for whether you've fallen into this antipattern:**
+
+- A `setInterval(refresh, ...)` inside a component → it should be `refetchInterval` on a `useQuery`.
+- A `useEffect(() => { fetchJson(...).then(setX) }, [...])` → ⚠️.
+- A custom `list-cache.ts` / `loadGenRef` / `requestId` / `shallowEqualX` helper → 💀, you've reinvented RQ.
+- Server data living in a Jotai atom that's also written to by WS event handlers → ditto.
+
 ## Meilisearch multi-version bumps require dump-restore, not auto-migrate
 
 **Context:** Any docker-compose / production upgrade that crosses more than one Meilisearch minor version (e.g. `v1.13` → `v1.44`, or `v1.x` → `v2.0`).
