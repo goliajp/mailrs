@@ -1,4 +1,5 @@
 import { toast } from '@goliapkg/gds'
+import { useQuery } from '@tanstack/react-query'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Loader2, Send, Sparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -46,16 +47,14 @@ export function NewConversation() {
   const [polishing, setPolishing] = useState(false)
   const [generatingSubject, setGeneratingSubject] = useState(false)
   const [error, setError] = useState('')
-  const [templates, setTemplates] = useState<TemplateInfo[]>([])
   const [scheduledAt, setScheduledAt] = useState('')
   const [showSchedulePicker, setShowSchedulePicker] = useState(false)
   const composeRef = useRef<StructuredComposeHandle>(null)
-
-  useEffect(() => {
-    fetchJson<TemplateInfo[]>('/mail/templates')
-      .then(setTemplates)
-      .catch(() => {})
-  }, [])
+  const { data: templates = [] } = useQuery({
+    queryKey: mailKeys.templates(),
+    staleTime: 5 * 60 * 1000,
+    queryFn: () => fetchJson<TemplateInfo[]>('/mail/templates'),
+  })
 
   // composer opens by flipping an atom, which doesn't push a history entry.
   // without this, browser Back leaves /mail entirely and lands wherever the

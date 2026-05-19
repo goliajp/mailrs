@@ -47,6 +47,7 @@ export const mailKeys = {
     [...mailKeys.all(), 'conversations', filters ? normalizeFilters(filters) : {}] as const,
   search: (q: string, filters?: MailListFilters) =>
     [...mailKeys.all(), 'search', q, filters ? normalizeFilters(filters) : {}] as const,
+  templates: () => [...mailKeys.all(), 'templates'] as const,
   thread: (threadId: null | string) => [...mailKeys.all(), 'thread', threadId ?? ''] as const,
 }
 
