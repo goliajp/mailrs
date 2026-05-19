@@ -1,4 +1,5 @@
-/// IMAP command variants
+/// A parsed IMAP4rev1 command. Each variant owns its argument strings
+/// (commands cross network boundaries, so we don't borrow).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImapCommand {
     Capability,
@@ -33,18 +34,26 @@ pub enum ImapCommand {
     Unselect,
 }
 
-/// tagged IMAP command
+/// An IMAP command paired with its tag (the client-chosen identifier
+/// echoed back in the matching tagged response, e.g. `"a001"`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaggedCommand {
+    /// Client-chosen tag (e.g. `"a001"`).
     pub tag: String,
+    /// Parsed command.
     pub command: ImapCommand,
 }
 
+/// Error returned by [`parse_command`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
+    /// Input line was empty after trimming.
     EmptyInput,
+    /// No space-separated tag prefix was found.
     MissingTag,
+    /// Command verb did not match any known IMAP command.
     UnknownCommand(String),
+    /// Command was recognized but a required argument was missing.
     MissingArgument(String),
 }
 

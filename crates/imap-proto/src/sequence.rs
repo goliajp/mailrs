@@ -1,14 +1,26 @@
-/// IMAP sequence set representation
+/// A parsed IMAP sequence set (RFC 3501 § 9 "sequence-set").
+///
+/// Sequence sets refer to messages by 1-based sequence number or UID.
+/// `*` means the highest existing sequence number.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SequenceSet {
+    /// `5` — a single number.
     Single(u32),
+    /// `1:5` — closed range, both endpoints inclusive.
     Range(u32, u32),
+    /// `5:*` — from `start` to the highest existing number.
     RangeFrom(u32),
+    /// `*` or `*:*` — every existing number.
     All,
+    /// `1,3,5:10` — comma-separated combination of the above. Order is
+    /// preserved during parsing but normalized (sort + dedup) during UID
+    /// expansion via [`sequence_set_to_uids`].
     List(Vec<SequenceSet>),
 }
 
-/// parse a sequence set string like "1", "1:5", "5:*", "*", "1,3,5:10"
+/// Parse an IMAP sequence-set string. Examples: `"1"`, `"1:5"`, `"5:*"`,
+/// `"*"`, `"1,3,5:10"`. Returns an error message (not an error type) for
+/// invalid input.
 pub fn parse_sequence_set(input: &str) -> Result<SequenceSet, String> {
     let input = input.trim();
     if input.is_empty() {
@@ -46,7 +58,9 @@ pub fn parse_sequence_set(input: &str) -> Result<SequenceSet, String> {
     Ok(SequenceSet::Single(n))
 }
 
-/// expand a sequence set to a list of numbers given a max value
+/// Expand a [`SequenceSet`] to a concrete sorted, deduplicated list of
+/// numbers in `1..=max`. `max` represents the highest existing sequence
+/// number / UID — used to resolve `*` and clamp out-of-range references.
 pub fn sequence_set_to_uids(set: &SequenceSet, max: u32) -> Vec<u32> {
     match set {
         SequenceSet::Single(n) => {

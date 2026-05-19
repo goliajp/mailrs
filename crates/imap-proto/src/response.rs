@@ -1,4 +1,10 @@
-/// format CAPABILITY response
+//! IMAP wire-format response formatters.
+//!
+//! All formatters return the complete line including the trailing `\r\n`.
+//! Untagged responses (`* CAPABILITY ...`) start with `* `; tagged
+//! responses (`a001 OK ...`) start with the caller-provided tag.
+
+/// `* CAPABILITY <caps>` — response to `CAPABILITY` or untagged greeting.
 pub fn format_capability(capabilities: &[&str]) -> String {
     format!("* CAPABILITY {}\r\n", capabilities.join(" "))
 }
