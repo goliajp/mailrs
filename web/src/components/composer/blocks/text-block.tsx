@@ -1,8 +1,9 @@
 import type { TextBlockData } from '../types'
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
+import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 
 import { uploadInlineImage } from '@/components/rich-editor'
@@ -19,7 +20,7 @@ const PREVIEW_PROSE_CLASS =
   'prose prose-sm prose-fg max-w-none px-3 py-2 ' +
   'prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-md ' +
   'prose-code:before:content-none prose-code:after:content-none ' +
-  'prose-p:my-2 prose-headings:my-2'
+  'prose-p:my-0 prose-headings:my-2 prose-p:leading-6'
 
 const MIN_HEIGHT_PX = 240
 
@@ -168,15 +169,7 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
           value={data.content}
         />
       ) : (
-        <div className={PREVIEW_PROSE_CLASS} style={{ minHeight: `${MIN_HEIGHT_PX}px` }}>
-          {data.content.trim() ? (
-            <Markdown rehypePlugins={[rehypeHighlight]} remarkPlugins={[remarkGfm]}>
-              {data.content}
-            </Markdown>
-          ) : (
-            <p className="text-fg-muted text-sm">Nothing to preview yet.</p>
-          )}
-        </div>
+        <PreviewBody content={data.content} />
       )}
     </div>
   )
@@ -191,6 +184,32 @@ function insertAtCursor(el: HTMLTextAreaElement | null, text: string) {
   el.value = before + text + after
   const caret = start + text.length
   el.selectionStart = el.selectionEnd = caret
+}
+
+// match the textarea's vertical rhythm: each blank line in the source becomes
+// a &nbsp; paragraph in the rendered output. N consecutive newlines means
+// (N-1) blank lines between paragraphs, so we emit (N-1) &nbsp; paragraphs
+// flanked by the surrounding paragraph break.
+function preserveBlankLines(md: string): string {
+  return md.replace(/\n{2,}/g, (match) => '\n\n' + '&nbsp;\n\n'.repeat(match.length - 1))
+}
+
+function PreviewBody({ content }: { content: string }) {
+  const processed = useMemo(() => preserveBlankLines(content), [content])
+  if (!content.trim()) {
+    return (
+      <div className={PREVIEW_PROSE_CLASS} style={{ minHeight: `${MIN_HEIGHT_PX}px` }}>
+        <p className="text-fg-muted text-sm">Nothing to preview yet.</p>
+      </div>
+    )
+  }
+  return (
+    <div className={PREVIEW_PROSE_CLASS} style={{ minHeight: `${MIN_HEIGHT_PX}px` }}>
+      <Markdown rehypePlugins={[rehypeHighlight]} remarkPlugins={[remarkGfm, remarkBreaks]}>
+        {processed}
+      </Markdown>
+    </div>
+  )
 }
 
 function replaceRange(el: HTMLTextAreaElement | null, start: number, end: number, text: string) {
