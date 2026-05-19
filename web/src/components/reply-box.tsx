@@ -1,5 +1,5 @@
 import { toast } from '@goliapkg/gds'
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useStore } from 'jotai'
 import { Eye, Loader2, Send } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -60,7 +60,11 @@ export function ReplyBox({
   const auth = useAtomValue(authAtom)
   const signature = useAtomValue(signatureAtom)
   const signatureEnabled = useAtomValue(signatureEnabledAtom)
-  const threadMessages = useAtomValue(threadMessagesAtom)
+  // Read threadMessages imperatively in the suggest handler — subscribing
+  // via useAtomValue re-renders the TipTap editor (heavy) on every WS
+  // refetch of the open thread. The data is only used inside an
+  // event-handler closure, never during render.
+  const store = useStore()
   const [forwardTo, setForwardTo] = useState('')
   const [sending, setSending] = useState(false)
   // MRS-15 follow-up: preview-before-send. After the broken-list incident
@@ -319,7 +323,7 @@ export function ReplyBox({
     setSuggesting(true)
     try {
       // build thread context from prior messages (up to 3, excluding the latest)
-      const priorMessages = threadMessages.slice(0, -1).slice(-3)
+      const priorMessages = store.get(threadMessagesAtom).slice(0, -1).slice(-3)
       const threadContext =
         priorMessages.length > 0
           ? priorMessages
