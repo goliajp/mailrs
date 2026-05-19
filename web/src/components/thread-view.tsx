@@ -34,9 +34,16 @@ import { MobileModal } from '@/components/mobile-modal'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { StructuredDataCard } from '@/components/structured-data-card'
+import {
+  useDeleteMutation,
+  useMarkReadMutation,
+  useMarkUnreadMutation,
+  useStarMutation,
+  useUnstarMutation,
+} from '@/hooks/use-mail-mutations'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { MPane, MPaneGroup } from '@/layouts/pane'
-import { deleteJson, type FeedbackAction, postJson, recordFeedback } from '@/lib/api'
+import { type FeedbackAction, recordFeedback } from '@/lib/api'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
@@ -77,7 +84,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const conversations = useAtomValue(conversationsAtom)
   const conversationsRef = useRef(conversations)
   conversationsRef.current = conversations
-  const setConversations = useSetAtom(conversationsAtom)
   const visibleIds = useAtomValue(visibleConversationIdsAtom)
   const currentIdx = selectedId ? visibleIds.indexOf(selectedId) : -1
   const hasPrev = currentIdx > 0
@@ -150,89 +156,77 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     queryClient.invalidateQueries({ queryKey: mailKeys.thread(selectedId) }).catch(() => {})
   }, [selectedId])
 
-  // invalidate the conversation list (used after destructive ops like
-  // delete; the list query refetches on its own subscribers).
-  const refreshConversations = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })
-  }, [])
+  const markReadMutation = useMarkReadMutation()
+  const markUnreadMutation = useMarkUnreadMutation()
+  const starMutation = useStarMutation()
+  const unstarMutation = useUnstarMutation()
+  const deleteMutation = useDeleteMutation()
 
-  const handleMarkUnread = useCallback(async () => {
+  const handleMarkUnread = useCallback(() => {
     if (!selectedId) return
-    try {
-      await postJson(`/conversations/${encodeURIComponent(selectedId)}/unread`, {})
-      // suspend auto-mark for this selection so the upcoming unread_count
-      // change does not cause the auto-mark effect to immediately re-mark it
-      autoMarkSuspendedRef.current = true
-      setIsRead(false)
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.thread_id === selectedId ? { ...c, unread_count: c.unread_count + 1 } : c
-        )
-      )
-      toast.success('Marked as unread')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
-    }
-  }, [selectedId, setConversations])
+    // suspend auto-mark for this selection so the upcoming unread_count
+    // change does not cause the auto-mark effect to immediately re-mark it
+    autoMarkSuspendedRef.current = true
+    setIsRead(false)
+    markUnreadMutation.mutate(
+      { threadId: selectedId },
+      {
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed'),
+        onSuccess: () => toast.success('Marked as unread'),
+      }
+    )
+  }, [selectedId, markUnreadMutation])
 
-  const handleMarkRead = useCallback(async () => {
+  const handleMarkRead = useCallback(() => {
     if (!selectedId) return
-    try {
-      const doms = domainsRef.current
-      const crossAll = crossAccountReadRef.current
-      const domainsParam =
-        crossAll && doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
-      await postJson(`/conversations/${encodeURIComponent(selectedId)}/read${domainsParam}`, {})
-      setIsRead(true)
-      setConversations((prev) =>
-        prev.map((c) => (c.thread_id === selectedId ? { ...c, unread_count: 0 } : c))
-      )
-      toast.success('Marked as read')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
-    }
-  }, [selectedId, setConversations])
+    const doms = domainsRef.current
+    const crossAll = crossAccountReadRef.current
+    setIsRead(true)
+    markReadMutation.mutate(
+      { domains: crossAll && doms.length > 0 ? doms : undefined, threadId: selectedId },
+      {
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed'),
+        onSuccess: () => toast.success('Marked as read'),
+      }
+    )
+  }, [selectedId, markReadMutation])
 
-  const handleStar = useCallback(async () => {
+  const handleStar = useCallback(() => {
     if (!selectedId) return
-    try {
-      await postJson(`/conversations/${encodeURIComponent(selectedId)}/star`, {})
-      setIsFlagged(true)
-      setConversations((prev) =>
-        prev.map((c) => (c.thread_id === selectedId ? { ...c, flagged: true } : c))
-      )
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
-    }
-  }, [selectedId, setConversations])
+    setIsFlagged(true)
+    starMutation.mutate(
+      { threadId: selectedId },
+      { onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed') }
+    )
+  }, [selectedId, starMutation])
 
-  const handleUnstar = useCallback(async () => {
+  const handleUnstar = useCallback(() => {
     if (!selectedId) return
-    try {
-      await postJson(`/conversations/${encodeURIComponent(selectedId)}/unstar`, {})
-      setIsFlagged(false)
-      setConversations((prev) =>
-        prev.map((c) => (c.thread_id === selectedId ? { ...c, flagged: false } : c))
-      )
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
-    }
-  }, [selectedId, setConversations])
+    setIsFlagged(false)
+    unstarMutation.mutate(
+      { threadId: selectedId },
+      { onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed') }
+    )
+  }, [selectedId, unstarMutation])
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     if (!selectedId) return
-    try {
-      await deleteJson(`/conversations/${encodeURIComponent(selectedId)}`)
-      toast.success('Deleted')
-      setSelectedId(null)
-      setMessages([])
-      setShowDeleteConfirm(false)
-      await refreshConversations()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
-      setShowDeleteConfirm(false)
-    }
-  }, [selectedId, setSelectedId, setMessages, refreshConversations])
+    deleteMutation.mutate(
+      { threadId: selectedId },
+      {
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : 'Failed')
+          setShowDeleteConfirm(false)
+        },
+        onSuccess: () => {
+          toast.success('Deleted')
+          setSelectedId(null)
+          setMessages([])
+          setShowDeleteConfirm(false)
+        },
+      }
+    )
+  }, [selectedId, deleteMutation, setSelectedId, setMessages])
 
   const handlePrint = useCallback((msg: ThreadMessage) => {
     const w = window.open('', '_blank')
@@ -352,16 +346,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
     const doms = domainsRef.current
     const crossAll = crossAccountReadRef.current
-    const readParam =
-      crossAll && doms.length > 0 ? `?domains=${encodeURIComponent(doms.join(','))}` : ''
-    postJson(`/conversations/${encodeURIComponent(selectedId)}/read${readParam}`, {}).catch(
-      () => {}
-    )
     setIsRead(true)
-    setConversations((prev) =>
-      prev.map((c) => (c.thread_id === selectedId ? { ...c, unread_count: 0 } : c))
-    )
-  }, [selectedId, selectedUnreadCount, setConversations])
+    markReadMutation.mutate({
+      domains: crossAll && doms.length > 0 ? doms : undefined,
+      threadId: selectedId,
+    })
+  }, [selectedId, selectedUnreadCount, markReadMutation])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })

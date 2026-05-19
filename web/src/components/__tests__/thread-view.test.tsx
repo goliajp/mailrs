@@ -48,6 +48,14 @@ const mockUseThreadQuery = vi.fn(() => ({ data: undefined, isPending: false }))
 vi.mock('@/hooks/use-mail-queries', () => ({
   useThreadQuery: mockUseThreadQuery,
 }))
+const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
+vi.mock('@/hooks/use-mail-mutations', () => ({
+  useDeleteMutation: stubMutation,
+  useMarkReadMutation: stubMutation,
+  useMarkUnreadMutation: stubMutation,
+  useStarMutation: stubMutation,
+  useUnstarMutation: stubMutation,
+}))
 vi.mock('@/lib/query-client', () => ({
   queryClient: { invalidateQueries: vi.fn(() => Promise.resolve()) },
 }))

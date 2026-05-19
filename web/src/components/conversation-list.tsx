@@ -22,8 +22,20 @@ import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { SwipeableRow } from '@/components/swipeable-row'
+import {
+  useArchiveMutation,
+  useDeleteMutation,
+  useMarkReadMutation,
+  useMarkUnreadMutation,
+  usePinMutation,
+  useSnoozeMutation,
+  useStarMutation,
+  useUnarchiveMutation,
+  useUnpinMutation,
+  useUnstarMutation,
+} from '@/hooks/use-mail-mutations'
 import { useActionCountQuery, useCategoriesQuery } from '@/hooks/use-mail-queries'
-import { postJson, snoozeConversation } from '@/lib/api'
+import { postJson } from '@/lib/api'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
 import { authAtom } from '@/store/auth'
@@ -50,10 +62,6 @@ import {
   visibleConversationIdsAtom,
 } from '@/store/chat'
 
-type ApiResult = {
-  message?: string
-  success: boolean
-}
 type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar'
 
 type BatchResult = {
@@ -724,77 +732,89 @@ export function ConversationList({
     [selectedThreadIds, exitBatchMode]
   )
 
-  // single-thread context menu action with optimistic updates
-  // ref'd for handleContextAction rollback so the callback doesn't take
-  // `conversations` as a dep — otherwise every WebSocket tick reallocates
-  // the array and forces every memo'd ConversationItem to re-render.
-  const conversationsSnapshotRef = useRef(conversations)
-  conversationsSnapshotRef.current = conversations
+  // single-thread context menu action — each individual mutation runs
+  // its own optimistic-update + rollback cycle inside react-query, so this
+  // dispatcher only routes by action name. Toast messages remain here so
+  // the visual feedback matches the human-facing language.
+  const markReadMutation = useMarkReadMutation()
+  const markUnreadMutation = useMarkUnreadMutation()
+  const starMutation = useStarMutation()
+  const unstarMutation = useUnstarMutation()
+  const pinMutation = usePinMutation()
+  const unpinMutation = useUnpinMutation()
+  const archiveMutation = useArchiveMutation()
+  const unarchiveMutation = useUnarchiveMutation()
+  const snoozeMutation = useSnoozeMutation()
+  const deleteMutation = useDeleteMutation()
   const handleContextAction = useCallback(
     async (threadId: string, action: SingleAction) => {
-      // save snapshot for rollback
-      const snapshot = conversationsSnapshotRef.current
-
-      // optimistic update for all actions
-      const optimistic: Record<string, (c: ConversationSummary) => ConversationSummary> = {
-        archive: (c) => ({ ...c, archived: true }),
-        pin: (c) => ({ ...c, pinned: true }),
-        read: (c) => ({ ...c, unread_count: 0 }),
-        star: (c) => ({ ...c, flagged: true }),
-        unarchive: (c) => ({ ...c, archived: false }),
-        unpin: (c) => ({ ...c, pinned: false }),
-        unread: (c) => ({ ...c, unread_count: Math.max(1, c.unread_count) }),
-        unstar: (c) => ({ ...c, flagged: false }),
+      const onError = (err: unknown) => {
+        toast.error(err instanceof Error ? err.message : 'Action failed')
       }
-      if (optimistic[action]) {
-        setConversations((prev) =>
-          prev.map((c) => (c.thread_id === threadId ? optimistic[action](c) : c))
-        )
-      }
-
-      try {
-        if (action === 'snooze') {
+      switch (action) {
+        case 'archive':
+          archiveMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Archived') }
+          )
+          break
+        case 'delete':
+          deleteMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Deleted') }
+          )
+          break
+        case 'pin':
+          pinMutation.mutate({ threadId }, { onError, onSuccess: () => toast.success('Pinned') })
+          break
+        case 'read':
+          markReadMutation.mutate({ threadId }, { onError })
+          break
+        case 'snooze': {
           const tomorrow = new Date()
           tomorrow.setDate(tomorrow.getDate() + 1)
           tomorrow.setHours(9, 0, 0, 0)
-          await snoozeConversation(threadId, tomorrow.toISOString())
-          setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
-          toast.success('Snoozed until tomorrow 9:00')
-        } else if (action === 'delete') {
-          await postJson<BatchResult>('/conversations/batch', {
-            action,
-            thread_ids: [threadId],
-          })
-          setConversations((prev) => prev.filter((c) => c.thread_id !== threadId))
-          toast.success('Deleted')
-        } else if (
-          action === 'pin' ||
-          action === 'unpin' ||
-          action === 'archive' ||
-          action === 'unarchive'
-        ) {
-          await postJson<ApiResult>(`/conversations/${encodeURIComponent(threadId)}/${action}`, {})
-          const labels: Record<string, string> = {
-            archive: 'Archived',
-            pin: 'Pinned',
-            unarchive: 'Unarchived',
-            unpin: 'Unpinned',
-          }
-          toast.success(labels[action] ?? 'Updated')
-        } else {
-          await postJson<BatchResult>('/conversations/batch', {
-            action,
-            thread_ids: [threadId],
-          })
-          toast.success('Updated')
+          snoozeMutation.mutate(
+            { threadId, until: tomorrow.toISOString() },
+            { onError, onSuccess: () => toast.success('Snoozed until tomorrow 9:00') }
+          )
+          break
         }
-      } catch (err) {
-        // rollback to snapshot on failure
-        setConversations(snapshot)
-        toast.error(err instanceof Error ? err.message : 'Action failed')
+        case 'star':
+          starMutation.mutate({ threadId }, { onError })
+          break
+        case 'unarchive':
+          unarchiveMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Unarchived') }
+          )
+          break
+        case 'unpin':
+          unpinMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Unpinned') }
+          )
+          break
+        case 'unread':
+          markUnreadMutation.mutate({ threadId }, { onError })
+          break
+        case 'unstar':
+          unstarMutation.mutate({ threadId }, { onError })
+          break
       }
     },
-    [setConversations]
+    [
+      archiveMutation,
+      deleteMutation,
+      markReadMutation,
+      markUnreadMutation,
+      pinMutation,
+      snoozeMutation,
+      starMutation,
+      unarchiveMutation,
+      unpinMutation,
+      unstarMutation,
+    ]
   )
 
   const sortOrder = useAtomValue(sortOrderAtom)

@@ -27,6 +27,19 @@ vi.mock('@/hooks/use-mail-queries', () => ({
   useActionCountQuery: () => ({ data: { count: 0 } }),
   useCategoriesQuery: () => ({ data: [] }),
 }))
+const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
+vi.mock('@/hooks/use-mail-mutations', () => ({
+  useArchiveMutation: stubMutation,
+  useDeleteMutation: stubMutation,
+  useMarkReadMutation: stubMutation,
+  useMarkUnreadMutation: stubMutation,
+  usePinMutation: stubMutation,
+  useSnoozeMutation: stubMutation,
+  useStarMutation: stubMutation,
+  useUnarchiveMutation: stubMutation,
+  useUnpinMutation: stubMutation,
+  useUnstarMutation: stubMutation,
+}))
 
 // mock sonner toast
 vi.mock('sonner', () => ({
