@@ -1,5 +1,3 @@
-import type { ConversationSummary } from '@/lib/types'
-
 import { toast } from '@goliapkg/gds'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Loader2, Send, Sparkles, X } from 'lucide-react'
@@ -10,14 +8,11 @@ import { StructuredCompose, type StructuredComposeHandle } from '@/components/st
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
+import { queryClient } from '@/lib/query-client'
+import { mailKeys } from '@/lib/query-keys'
 import { getToken } from '@/store/auth'
 import { authAtom } from '@/store/auth'
-import {
-  composeReplySourceAtom,
-  composingNewAtom,
-  conversationsAtom,
-  selectedThreadIdAtom,
-} from '@/store/chat'
+import { composeReplySourceAtom, composingNewAtom } from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
 type PolishResult = { message?: string; polished?: string; success: boolean }
@@ -36,8 +31,6 @@ export function NewConversation() {
   const signature = useAtomValue(signatureAtom)
   const signatureEnabled = useAtomValue(signatureEnabledAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
-  const setSelectedThread = useSetAtom(selectedThreadIdAtom)
-  const setConversations = useSetAtom(conversationsAtom)
   const replySource = useAtomValue(composeReplySourceAtom)
   const setReplySource = useSetAtom(composeReplySourceAtom)
   const isReply = replySource !== null
@@ -246,9 +239,10 @@ export function NewConversation() {
               }
             : {}),
         })
-        const convos = await fetchJson<ConversationSummary[]>('/conversations?limit=50')
-        setConversations(convos)
-        if (convos.length > 0) setSelectedThread(convos[0].thread_id)
+        // refresh the conversation list via RQ so the just-sent thread
+        // appears at the top; the cache invalidation handles all filter
+        // variants (All / Sent / etc).
+        await queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })
         closeComposer()
       } else {
         setError(result.message ?? 'Send failed')
