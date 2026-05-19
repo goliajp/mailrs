@@ -155,7 +155,7 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
 
       {tab === 'edit' ? (
         <textarea
-          className="text-fg placeholder:text-fg-muted block w-full resize-none border-0 bg-transparent px-3 py-2 font-mono text-sm leading-6 outline-none"
+          className="text-fg placeholder:text-fg-muted block w-full resize-none border-0 bg-transparent px-3 py-2 text-sm leading-6 outline-none"
           disabled={disabled}
           onChange={handleChange}
           onDrop={handleDrop}
