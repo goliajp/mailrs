@@ -7,6 +7,7 @@ mod codec;
 mod config;
 mod content_extract;
 mod content_worker;
+mod conversation_cache;
 mod dmarc_report;
 mod domain_check;
 mod domain_store;
@@ -192,6 +193,27 @@ async fn main() {
     };
 
     let event_bus = EventBus::new(1024);
+
+    // Cache-bust task: when a new mail arrives, drop the Valkey cache for
+    // that user's conversation list / categories / action-count, and the
+    // affected thread, so the next read goes back to PG and picks up the
+    // new message. Frontend RQ would refetch on its own (WS NewMessage →
+    // invalidateQueries) so this keeps server and client caches consistent.
+    if let Some(ref vk) = valkey_conn {
+        let vk = vk.clone();
+        let mut rx = event_bus.subscribe();
+        tokio::spawn(async move {
+            loop {
+                match rx.recv().await {
+                    Ok(event_bus::SmtpEvent::NewMessage { user, thread_id, .. }) => {
+                        conversation_cache::bust_thread(&vk, &user, &thread_id).await;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    _ => {}
+                }
+            }
+        });
+    }
 
     let rate_limiter = Arc::new(RateLimiter::new(TokenBucketConfig {
         capacity: cfg.rate_limit_capacity,

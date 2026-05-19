@@ -2,13 +2,20 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
-use axum::response::IntoResponse;
+use axum::http::header;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
+use crate::conversation_cache;
 use crate::message_util;
 
 use super::{validate_domains, ApiResult, AuthUser, DomainsQuery, WebState};
+
+/// Wrap a cached JSON body as an axum Response with content-type set.
+fn cached_json_response(body: String) -> Response {
+    ([(header::CONTENT_TYPE, "application/json")], body).into_response()
+}
 
 #[derive(Serialize)]
 pub(super) struct ConversationResponse {
@@ -166,15 +173,36 @@ pub(super) async fn get_conversations(
     AuthUser { address: ref user, ref permissions, .. }: AuthUser,
     Query(q): Query<ConversationsQuery>,
     State(state): State<Arc<WebState>>,
-) -> impl IntoResponse {
+) -> Response {
     let Some(ref mb_store) = state.mailbox_store else {
-        return Json(Vec::<ConversationResponse>::new());
+        return Json(Vec::<ConversationResponse>::new()).into_response();
     };
 
     let _ = mb_store.ensure_default_mailboxes(user).await;
 
     let limit = super::clamp_limit(q.limit);
     let domains = validate_domains(q.domains.as_deref(), permissions);
+
+    // Try the cache first. Pagination requests (before is Some) and
+    // search-driven views are cacheable too — the key encodes everything
+    // that affects the response.
+    let cache_key = conversation_cache::list_key(
+        user,
+        limit,
+        q.before,
+        q.category.as_deref(),
+        domains.as_deref(),
+        Some(q.archived),
+        q.folder.as_deref(),
+        q.unread,
+        q.starred,
+        q.section.as_deref(),
+    );
+    if let Some(ref valkey) = state.valkey {
+        if let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
+            return cached_json_response(cached);
+        }
+    }
 
     let convos = mb_store
         .list_conversations(
@@ -192,7 +220,13 @@ pub(super) async fn get_conversations(
         .await
         .unwrap_or_default();
 
-    Json(convos_to_response(convos))
+    let response = convos_to_response(convos);
+    if let Some(ref valkey) = state.valkey {
+        if let Ok(json) = serde_json::to_string(&response) {
+            conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_LIST_SECS).await;
+        }
+    }
+    Json(response).into_response()
 }
 
 pub(super) async fn get_thread_messages(
@@ -200,16 +234,25 @@ pub(super) async fn get_thread_messages(
     Query(dq): Query<DomainsQuery>,
     AuthUser { address: ref user, ref permissions, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
-) -> impl IntoResponse {
+) -> Response {
     let Some(ref mb_store) = state.mailbox_store else {
-        return Json(Vec::<ThreadMessageResponse>::new());
+        return Json(Vec::<ThreadMessageResponse>::new()).into_response();
     };
 
     if thread_id.len() > super::MAX_PATH_LEN {
-        return Json(Vec::<ThreadMessageResponse>::new());
+        return Json(Vec::<ThreadMessageResponse>::new()).into_response();
     }
 
     let domains = validate_domains(dq.domains.as_deref(), permissions);
+
+    // Cache lookup before doing the message + maildir parse work (which can
+    // be heavy for big HTML threads with attachments).
+    let cache_key = conversation_cache::thread_key(user, &thread_id);
+    if let Some(ref valkey) = state.valkey {
+        if let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
+            return cached_json_response(cached);
+        }
+    }
 
     let messages = mb_store
         .list_thread_messages(user, &thread_id, domains.as_deref())
@@ -363,7 +406,12 @@ pub(super) async fn get_thread_messages(
         });
     }
 
-    Json(result)
+    if let Some(ref valkey) = state.valkey {
+        if let Ok(json) = serde_json::to_string(&result) {
+            conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_THREAD_SECS).await;
+        }
+    }
+    Json(result).into_response()
 }
 
 pub(super) async fn mark_thread_read(
@@ -388,10 +436,15 @@ pub(super) async fn mark_thread_read(
 
     let domains = validate_domains(dq.domains.as_deref(), permissions);
 
-    match mb_store
+    let result = mb_store
         .mark_thread_read(user, &thread_id, domains.as_deref())
-        .await
-    {
+        .await;
+    if result.is_ok() {
+        if let Some(ref valkey) = state.valkey {
+            conversation_cache::bust_thread(valkey, user, &thread_id).await;
+        }
+    }
+    match result {
         Ok(count) => Json(ApiResult {
             success: true,
             message: Some(format!("{count} messages marked as read")),
@@ -422,7 +475,13 @@ pub(super) async fn mark_thread_unread(
         });
     };
 
-    match mb_store.mark_thread_unread(&user, &thread_id).await {
+    let result = mb_store.mark_thread_unread(&user, &thread_id).await;
+    if result.is_ok() {
+        if let Some(ref valkey) = state.valkey {
+            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        }
+    }
+    match result {
         Ok(_) => Json(ApiResult {
             success: true,
             message: Some("thread marked as unread".into()),
@@ -477,6 +536,11 @@ pub(super) async fn delete_thread(
         }
     }
 
+    // bust caches: delete is high-impact, drop everything user-scoped
+    if let Some(ref valkey) = state.valkey {
+        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+    }
+
     Json(ApiResult {
         success: true,
         message: Some(format!("deleted {} messages", maildir_ids.len())),
@@ -487,12 +551,18 @@ pub(super) async fn get_conversation_categories(
     AuthUser { address: ref user, ref permissions, .. }: AuthUser,
     Query(dq): Query<DomainsQuery>,
     State(state): State<Arc<WebState>>,
-) -> impl IntoResponse {
+) -> Response {
     let Some(ref mb_store) = state.mailbox_store else {
-        return Json(Vec::<CategoryCount>::new());
+        return Json(Vec::<CategoryCount>::new()).into_response();
     };
 
     let domains = validate_domains(dq.domains.as_deref(), permissions);
+    let cache_key = conversation_cache::categories_key(user, domains.as_deref());
+    if let Some(ref valkey) = state.valkey {
+        if let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
+            return cached_json_response(cached);
+        }
+    }
 
     let cats = mb_store
         .list_conversation_categories(user, domains.as_deref())
@@ -504,25 +574,43 @@ pub(super) async fn get_conversation_categories(
         .map(|(category, count)| CategoryCount { category, count })
         .collect();
 
-    Json(result)
+    if let Some(ref valkey) = state.valkey {
+        if let Ok(json) = serde_json::to_string(&result) {
+            conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_CATS_SECS).await;
+        }
+    }
+    Json(result).into_response()
 }
 
 pub(super) async fn get_action_count(
     AuthUser { address: ref user, ref permissions, .. }: AuthUser,
     Query(dq): Query<DomainsQuery>,
     State(state): State<Arc<WebState>>,
-) -> impl IntoResponse {
+) -> Response {
     let Some(ref mb_store) = state.mailbox_store else {
-        return Json(serde_json::json!({"count": 0}));
+        return Json(serde_json::json!({"count": 0})).into_response();
     };
 
     let domains = validate_domains(dq.domains.as_deref(), permissions);
+    let cache_key = conversation_cache::action_count_key(user, domains.as_deref());
+    if let Some(ref valkey) = state.valkey {
+        if let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
+            return cached_json_response(cached);
+        }
+    }
+
     let count = mb_store
         .count_action_threads(user, domains.as_deref())
         .await
         .unwrap_or(0);
 
-    Json(serde_json::json!({"count": count}))
+    let body = serde_json::json!({"count": count});
+    if let Some(ref valkey) = state.valkey {
+        if let Ok(json) = serde_json::to_string(&body) {
+            conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_ACTION_SECS).await;
+        }
+    }
+    Json(body).into_response()
 }
 
 pub(super) async fn search_conversations(
@@ -743,7 +831,13 @@ pub(super) async fn snooze_thread(
         }
     };
 
-    match mb_store.snooze_thread(&user, &thread_id, until).await {
+    let result = mb_store.snooze_thread(&user, &thread_id, until).await;
+    if result.is_ok() {
+        if let Some(ref valkey) = state.valkey {
+            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        }
+    }
+    match result {
         Ok(()) => Json(ApiResult {
             success: true,
             message: Some("thread snoozed".into()),
@@ -770,7 +864,13 @@ pub(super) async fn unsnooze_thread(
         });
     };
 
-    match mb_store.unsnooze_thread(&user, &thread_id).await {
+    let result = mb_store.unsnooze_thread(&user, &thread_id).await;
+    if result.is_ok() {
+        if let Some(ref valkey) = state.valkey {
+            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        }
+    }
+    match result {
         Ok(()) => Json(ApiResult {
             success: true,
             message: Some("thread unsnoozed".into()),
@@ -1098,6 +1198,20 @@ pub(super) async fn batch_conversations(
         }
     }
 
+    // batch ops can touch many threads at once — bust the whole user's
+    // cache rather than per-thread (which would SCAN/DEL many times).
+    if let Some(ref valkey) = state.valkey {
+        conversation_cache::bust_user(valkey, &user).await;
+        for tid in &req.thread_ids {
+            let mut conn = valkey.clone();
+            let _: Result<(), _> = redis::AsyncCommands::del::<_, ()>(
+                &mut conn,
+                conversation_cache::thread_key(&user, tid),
+            )
+            .await;
+        }
+    }
+
     let success = failed == 0;
     let message = if failed > 0 {
         Some(format!("{processed} succeeded, {failed} failed"))
@@ -1128,7 +1242,13 @@ pub(super) async fn star_thread(
         });
     };
 
-    match mb_store.star_thread(&user, &thread_id).await {
+    let result = mb_store.star_thread(&user, &thread_id).await;
+    if result.is_ok() {
+        if let Some(ref valkey) = state.valkey {
+            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        }
+    }
+    match result {
         Ok(_) => Json(ApiResult {
             success: true,
             message: Some("thread starred".into()),
@@ -1155,7 +1275,13 @@ pub(super) async fn unstar_thread(
         });
     };
 
-    match mb_store.unstar_thread(&user, &thread_id).await {
+    let result = mb_store.unstar_thread(&user, &thread_id).await;
+    if result.is_ok() {
+        if let Some(ref valkey) = state.valkey {
+            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        }
+    }
+    match result {
         Ok(_) => Json(ApiResult {
             success: true,
             message: Some("thread unstarred".into()),
@@ -1182,7 +1308,13 @@ pub(super) async fn pin_thread(
         });
     };
 
-    match mb_store.pin_thread(&user, &thread_id).await {
+    let result = mb_store.pin_thread(&user, &thread_id).await;
+    if result.is_ok() {
+        if let Some(ref valkey) = state.valkey {
+            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        }
+    }
+    match result {
         Ok(_) => Json(ApiResult {
             success: true,
             message: Some("thread pinned".into()),
@@ -1209,7 +1341,13 @@ pub(super) async fn unpin_thread(
         });
     };
 
-    match mb_store.unpin_thread(&user, &thread_id).await {
+    let result = mb_store.unpin_thread(&user, &thread_id).await;
+    if result.is_ok() {
+        if let Some(ref valkey) = state.valkey {
+            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        }
+    }
+    match result {
         Ok(_) => Json(ApiResult {
             success: true,
             message: Some("thread unpinned".into()),
@@ -1263,7 +1401,13 @@ pub(super) async fn archive_thread(
         });
     };
 
-    match mb_store.archive_thread(&user, &thread_id).await {
+    let result = mb_store.archive_thread(&user, &thread_id).await;
+    if result.is_ok() {
+        if let Some(ref valkey) = state.valkey {
+            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        }
+    }
+    match result {
         Ok(_) => Json(ApiResult {
             success: true,
             message: Some("thread archived".into()),
@@ -1290,7 +1434,13 @@ pub(super) async fn unarchive_thread(
         });
     };
 
-    match mb_store.unarchive_thread(&user, &thread_id).await {
+    let result = mb_store.unarchive_thread(&user, &thread_id).await;
+    if result.is_ok() {
+        if let Some(ref valkey) = state.valkey {
+            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        }
+    }
+    match result {
         Ok(_) => Json(ApiResult {
             success: true,
             message: Some("thread unarchived".into()),
