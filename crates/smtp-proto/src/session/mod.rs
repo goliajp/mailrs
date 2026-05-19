@@ -1,11 +1,20 @@
+//! SMTP session state machine.
+//!
+//! [`Session`] owns the per-connection state and drives transitions in
+//! response to parsed commands. The caller wires in I/O: it reads a command
+//! line from the network, calls [`Session::handle_command`], and acts on
+//! the resulting [`Event`] (write a reply, open DATA, start TLS, etc.).
+
 use crate::auth::{decode_login_response, decode_plain};
 use crate::command::{AuthMechanism, Command, ForwardPath};
 use crate::response::Response;
 
-/// maximum message size in bytes (50 MB)
+/// Default message size limit in bytes (50 MB). Override via
+/// [`SessionConfig::max_size`].
 pub const MAX_MESSAGE_SIZE: u64 = 52_428_800;
 
-/// maximum number of recipients per message (RFC 5321 minimum is 100)
+/// Default per-message recipient limit (RFC 5321 minimum is 100). Override
+/// via [`SessionConfig::max_recipients`].
 pub const MAX_RECIPIENTS: usize = 100;
 
 fn forward_path_to_string(path: &ForwardPath) -> String {
@@ -15,12 +24,19 @@ fn forward_path_to_string(path: &ForwardPath) -> String {
     }
 }
 
+/// Per-session policy knobs. Construct with [`SessionConfig::default()`] and
+/// override fields as needed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionConfig {
+    /// `true` if STARTTLS is advertised on this listener.
     pub tls_available: bool,
+    /// `true` once the connection has been upgraded to TLS.
     pub tls_active: bool,
+    /// `true` if AUTH commands require an active TLS connection.
     pub require_tls_for_auth: bool,
+    /// Max message body size advertised via the `SIZE` ESMTP extension.
     pub max_size: u64,
+    /// Max recipients per transaction.
     pub max_recipients: usize,
 }
 
@@ -36,22 +52,34 @@ impl Default for SessionConfig {
     }
 }
 
+/// Current SMTP transaction state.
+///
+/// The state machine advances Connected → Greeted (after EHLO/HELO) → (optional
+/// Authenticated, after AUTH) → MailFrom → RcptTo → back to Greeted/Authenticated
+/// once DATA finishes. RSET returns to Greeted/Authenticated; STARTTLS returns
+/// to Connected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum State {
+    /// Initial state after TCP accept, before any EHLO/HELO.
     Connected,
+    /// EHLO/HELO succeeded; no auth yet.
     Greeted {
+        /// Domain claimed by the client in EHLO/HELO.
         domain: String,
     },
+    /// AUTH succeeded; user is identified.
     Authenticated {
         domain: String,
         username: String,
     },
+    /// MAIL FROM accepted; awaiting one or more RCPT TO.
     MailFrom {
         domain: String,
         username: Option<String>,
         reverse_path: String,
         params: Vec<(String, String)>,
     },
+    /// At least one RCPT TO accepted; awaiting more RCPT TO or DATA.
     RcptTo {
         domain: String,
         username: Option<String>,
@@ -61,39 +89,66 @@ pub enum State {
     },
 }
 
+/// Continuation step for an in-progress SASL AUTH challenge. Used by
+/// [`Event::AuthChallenge`] to tell the caller which kind of response to
+/// expect on the next line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuthStep {
+    /// Awaiting the base64 PLAIN payload after a bare `AUTH PLAIN`.
     WaitPlainResponse,
+    /// Awaiting the base64 username (LOGIN mechanism, first prompt).
     WaitUsername,
+    /// Awaiting the base64 password (LOGIN mechanism, second prompt).
     WaitPassword { username: String },
 }
 
+/// Action the caller should take after [`Session::handle_command`] returns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
+    /// Write `response.format()` to the wire and continue reading commands.
     Reply(Response),
+    /// MAIL FROM + RCPT TO + DATA all accepted — read the message body until
+    /// the `.\r\n` terminator, then call back into the session.
     NeedData {
         reverse_path: String,
         forward_paths: Vec<String>,
     },
+    /// Write the response, then close the connection.
     Shutdown(Response),
+    /// Write the response, then upgrade the connection to TLS. After the
+    /// upgrade, call [`Session::reset_after_tls`].
     StartTls(Response),
+    /// Verify credentials externally, then call
+    /// [`Session::set_authenticated`] (or write [`Response::auth_failed`]).
     NeedAuth {
         username: String,
         password: String,
     },
+    /// Write `response.format()` and read one more line, then call
+    /// [`Session::handle_auth_response`] with `step`.
     AuthChallenge {
         response: Response,
         step: AuthStep,
     },
 }
 
+/// SMTP session: state machine + config + greeting hostname.
+///
+/// One [`Session`] per accepted TCP connection. Drive it by repeatedly
+/// calling [`Session::handle_command`] with parsed commands and acting on
+/// the returned [`Event`].
 pub struct Session {
+    /// Current transaction state. Read-only by convention — mutate via
+    /// `handle_*` methods.
     pub state: State,
+    /// Server hostname used in the greeting and EHLO responses.
     pub hostname: String,
+    /// Session policy.
     pub config: SessionConfig,
 }
 
 impl Session {
+    /// Build a fresh session in the [`State::Connected`] state.
     pub fn new(hostname: impl Into<String>, config: SessionConfig) -> Self {
         Self {
             state: State::Connected,
@@ -102,7 +157,9 @@ impl Session {
         }
     }
 
-    /// build EHLO capability list based on current config state
+    /// Build the EHLO capability list based on the current config — STARTTLS
+    /// is omitted once TLS is active, AUTH is omitted if TLS is required but
+    /// not yet active, and SIZE reflects `config.max_size`.
     pub fn capabilities(&self) -> Vec<String> {
         let mut caps = vec![
             "PIPELINING".to_string(),
@@ -124,18 +181,23 @@ impl Session {
         caps
     }
 
-    /// reset session after successful TLS upgrade
+    /// Reset state after a successful TLS upgrade. Sets `tls_active = true`
+    /// and returns the session to [`State::Connected`] so the client must
+    /// re-issue EHLO.
     pub fn reset_after_tls(&mut self) {
         self.config.tls_active = true;
         self.state = State::Connected;
     }
 
-    /// set session to authenticated state after successful auth verification
+    /// Move the session to [`State::Authenticated`] after the caller has
+    /// verified credentials returned by [`Event::NeedAuth`].
     pub fn set_authenticated(&mut self, username: String) {
         let domain = self.extract_domain();
         self.state = State::Authenticated { domain, username };
     }
 
+    /// Drive the state machine: apply `cmd` against the current state and
+    /// return the [`Event`] the caller should act on.
     pub fn handle_command(&mut self, cmd: &Command) -> Event {
         // global commands: accepted in any state
         match cmd {
@@ -320,7 +382,10 @@ impl Session {
         }
     }
 
-    /// handle an AUTH continuation line (base64-encoded response)
+    /// Handle a continuation line after [`Event::AuthChallenge`]. `step` is
+    /// the same value carried by the prior `AuthChallenge`. Returns the
+    /// next [`Event`] — typically another `AuthChallenge` for LOGIN's
+    /// two-prompt flow, or a final `NeedAuth` with credentials to verify.
     pub fn handle_auth_response(
         &mut self,
         data: &str,

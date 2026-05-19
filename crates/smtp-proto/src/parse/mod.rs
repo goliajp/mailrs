@@ -1,13 +1,23 @@
+//! Wire-format command-line parser for SMTP.
+
 use crate::command::{AuthMechanism, Command, ForwardPath, Param, ReversePath};
 
+/// Error returned by [`parse_command`].
 #[derive(Debug, PartialEq, Eq)]
 pub enum ParseError {
+    /// Verb did not match any known SMTP command.
     UnknownCommand,
+    /// Verb is known but the arguments don't match the expected syntax.
     InvalidSyntax(String),
+    /// Input ended before a complete command was read.
     Incomplete,
 }
 
-/// parse a single SMTP command line (without trailing CRLF)
+/// Parse a single SMTP command line (the line passed in must NOT include the
+/// trailing CRLF).
+///
+/// The returned [`Command<'_>`] borrows from `input`, so `input` must
+/// outlive the command.
 pub fn parse_command(input: &str) -> Result<Command<'_>, ParseError> {
     if input.is_empty() {
         return Err(ParseError::Incomplete);
