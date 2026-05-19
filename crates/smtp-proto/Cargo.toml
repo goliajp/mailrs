@@ -1,7 +1,17 @@
 [package]
 name = "mailrs-smtp-proto"
-version.workspace = true
+version = "1.0.0"
 edition = "2024"
+rust-version = "1.85"
+description = "SMTP protocol parser, formatter, and session state machine (RFC 5321) — zero I/O, async-runtime-agnostic."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-smtp-proto"
+authors = ["GOLIA K.K."]
+keywords = ["smtp", "protocol", "parser", "rfc5321", "email"]
+categories = ["email", "parser-implementations", "network-programming"]
+readme = "README.md"
 
 [lints]
 workspace = true

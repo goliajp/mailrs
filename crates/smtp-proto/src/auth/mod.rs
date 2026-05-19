@@ -1,15 +1,27 @@
-use base64::{engine::general_purpose::STANDARD, Engine};
+//! SASL helpers for AUTH PLAIN ([RFC 4616]) and AUTH LOGIN.
+//!
+//! These functions decode SASL payloads. They do not verify credentials —
+//! the caller is responsible for looking up usernames and checking passwords.
+//!
+//! [RFC 4616]: https://datatracker.ietf.org/doc/html/rfc4616
 
+use base64::{Engine, engine::general_purpose::STANDARD};
+
+/// Error returned by [`decode_plain`] / [`decode_login_response`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuthError {
+    /// Payload was not valid base64.
     InvalidBase64,
+    /// AUTH PLAIN payload did not contain two NUL separators.
     MalformedPayload,
+    /// Username field is empty.
     EmptyUsername,
+    /// Password field is empty.
     EmptyPassword,
 }
 
-/// decode AUTH PLAIN payload: base64(authzid \0 authcid \0 passwd)
-/// returns (username, password) — authzid is ignored
+/// Decode an AUTH PLAIN payload (`base64(authzid \0 authcid \0 passwd)`).
+/// Returns `(username, password)`; the authzid field is ignored.
 pub fn decode_plain(encoded: &str) -> Result<(String, String), AuthError> {
     let bytes = STANDARD
         .decode(encoded.as_bytes())
@@ -42,7 +54,8 @@ pub fn decode_plain(encoded: &str) -> Result<(String, String), AuthError> {
     ))
 }
 
-/// decode a single AUTH LOGIN response (username or password, base64-encoded)
+/// Decode a single AUTH LOGIN continuation line (username or password,
+/// base64-encoded).
 pub fn decode_login_response(encoded: &str) -> Result<String, AuthError> {
     let bytes = STANDARD
         .decode(encoded.as_bytes())

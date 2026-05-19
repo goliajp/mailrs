@@ -2286,7 +2286,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-smtp-proto"
-version = "1.6.17"
+version = "1.0.0"
 dependencies = [
  "base64",
 ]

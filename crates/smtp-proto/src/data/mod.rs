@@ -1,5 +1,13 @@
-/// remove dot-stuffing from a single SMTP DATA line.
-/// returns None if the line is the terminator ".\r\n"
+//! DATA-stage helpers: remove SMTP dot-stuffing from message bodies.
+//!
+//! RFC 5321 § 4.5.2 requires that any line in the DATA payload starting with
+//! `.` be prefixed with an extra `.` on the wire, and that a lone `.` on its
+//! own line terminate the message. These helpers reverse that transform.
+
+/// Remove dot-stuffing from a single DATA line.
+///
+/// Returns `Some(unstuffed_line)` for normal lines, or `None` if the line is
+/// the terminator `".\r\n"` — caller should stop reading at that point.
 pub fn unstuff_line(line: &[u8]) -> Option<&[u8]> {
     if line == b".\r\n" {
         return None;
@@ -11,8 +19,9 @@ pub fn unstuff_line(line: &[u8]) -> Option<&[u8]> {
     }
 }
 
-/// process a complete DATA payload (lines terminated by CRLF, ending with ".\r\n").
-/// removes dot-stuffing and returns the message body without the terminator.
+/// Process a complete DATA payload (CRLF-terminated lines, ending with
+/// `".\r\n"`). Returns the message body with dot-stuffing removed and the
+/// `.` terminator stripped.
 pub fn unstuff_data(data: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(data.len());
     let mut start = 0;
