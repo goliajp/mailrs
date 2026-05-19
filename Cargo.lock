@@ -2187,10 +2187,19 @@ name = "mailrs-mailbox"
 version = "1.6.17"
 dependencies = [
  "chrono",
- "mailrs-storage-maildir",
+ "mailrs-maildir",
  "serde",
  "serde_json",
  "sqlx",
+]
+
+[[package]]
+name = "mailrs-maildir"
+version = "1.0.0"
+dependencies = [
+ "filetime",
+ "hostname",
+ "tempfile",
 ]
 
 [[package]]
@@ -2237,10 +2246,10 @@ dependencies = [
  "mail-parser",
  "mailrs-imap-proto",
  "mailrs-mailbox",
+ "mailrs-maildir",
  "mailrs-outbound-queue",
  "mailrs-smtp-client",
  "mailrs-smtp-proto",
- "mailrs-storage-maildir",
  "mime_guess",
  "password-hash",
  "pdf-extract",
@@ -2289,15 +2298,6 @@ name = "mailrs-smtp-proto"
 version = "1.0.0"
 dependencies = [
  "base64",
-]
-
-[[package]]
-name = "mailrs-storage-maildir"
-version = "1.6.17"
-dependencies = [
- "filetime",
- "hostname",
- "tempfile",
 ]
 
 [[package]]

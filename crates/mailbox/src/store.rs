@@ -620,7 +620,7 @@ impl MailboxStore {
             .ok_or_else(|| "invalid user address".to_string())?;
 
         let path = format!("{maildir_root}/{domain}/{local}");
-        let md = mailrs_storage_maildir::Maildir::create(&path)
+        let md = mailrs_maildir::Maildir::create(&path)
             .map_err(|e| format!("failed to create maildir: {e}"))?;
 
         let msg_id = md
@@ -2577,9 +2577,9 @@ fn extract_header_value(data: &[u8], name: &str) -> String {
 fn read_raw_from_maildir(maildir_root: &str, user: &str, maildir_id: &str) -> Option<Vec<u8>> {
     let (local, domain) = user.split_once('@')?;
     let path = format!("{maildir_root}/{domain}/{local}");
-    let md = mailrs_storage_maildir::Maildir::open(&path);
+    let md = mailrs_maildir::Maildir::open(&path);
 
-    let find_in = |entries: Vec<mailrs_storage_maildir::Entry>| -> Option<Vec<u8>> {
+    let find_in = |entries: Vec<mailrs_maildir::Entry>| -> Option<Vec<u8>> {
         entries
             .into_iter()
             .find(|e| e.id.to_string() == maildir_id)

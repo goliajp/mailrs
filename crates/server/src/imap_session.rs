@@ -1445,8 +1445,8 @@ impl ImapSession {
         }
 
         // slow fallback: scan directories
-        let md = mailrs_storage_maildir::Maildir::open(&base);
-        let find_in = |entries: Vec<mailrs_storage_maildir::Entry>| -> Option<Vec<u8>> {
+        let md = mailrs_maildir::Maildir::open(&base);
+        let find_in = |entries: Vec<mailrs_maildir::Entry>| -> Option<Vec<u8>> {
             entries
                 .into_iter()
                 .find(|e| e.id.to_string() == msg.maildir_id)

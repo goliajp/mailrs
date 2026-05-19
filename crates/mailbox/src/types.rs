@@ -1,4 +1,4 @@
-use mailrs_storage_maildir::Flag;
+use mailrs_maildir::Flag;
 
 /// mailbox metadata
 #[derive(Debug, Clone)]

@@ -24,7 +24,7 @@ async fn handle_test_connection(stream: TcpStream) {
     use mailrs_smtp_proto::response::{format_ehlo_response, Response};
     use mailrs_smtp_proto::session::{Event, Session, SessionConfig};
     use mailrs_smtp_proto::{parse_command, unstuff_data};
-    use mailrs_storage_maildir::Maildir;
+    use mailrs_maildir::Maildir;
     use tokio_util::codec::{Decoder, Encoder, Framed};
 
     // inline codec that supports data mode
@@ -231,7 +231,7 @@ async fn handle_auth_test_connection(stream: TcpStream) {
     use mailrs_smtp_proto::response::{format_ehlo_response, Response};
     use mailrs_smtp_proto::session::{AuthStep, Event, Session, SessionConfig};
     use mailrs_smtp_proto::{parse_command, unstuff_data, Command};
-    use mailrs_storage_maildir::Maildir;
+    use mailrs_maildir::Maildir;
     use tokio_util::codec::{Decoder, Encoder, Framed};
 
     struct Codec {
