@@ -187,8 +187,8 @@ pub(super) async fn submit_rsvp(
     // calendar so MRS's CalDAV server publishes it to any subscribed native
     // client. Decline doesn't write (per Decisions: declined invites stay
     // off the calendar by default).
-    if partstat == "ACCEPTED" || partstat == "TENTATIVE" {
-        if let Err(e) = write_to_own_calendar(
+    if (partstat == "ACCEPTED" || partstat == "TENTATIVE")
+        && let Err(e) = write_to_own_calendar(
             pool,
             &user,
             &invite_payload,
@@ -200,7 +200,6 @@ pub(super) async fn submit_rsvp(
         {
             tracing::warn!("rsvp write_to_own_calendar failed: {e}");
         }
-    }
 
     // MRS-19: persist the partstat on the message row so the invite-card
     // can render an "already replied" state on subsequent page loads.

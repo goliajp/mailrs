@@ -165,10 +165,9 @@ pub async fn record_error(
 }
 
 fn url_host_or_url(url: &str) -> String {
-    if let Ok(parsed) = reqwest::Url::parse(url) {
-        if let Some(host) = parsed.host_str() {
+    if let Ok(parsed) = reqwest::Url::parse(url)
+        && let Some(host) = parsed.host_str() {
             return host.to_string();
         }
-    }
     url.to_string()
 }

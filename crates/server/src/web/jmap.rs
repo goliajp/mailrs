@@ -154,12 +154,11 @@ fn resolve_references(args: &mut Value, previous: &[(String, Value, String)]) {
             resp_id == result_of && resp_name == name
         });
 
-        if let Some((_, resp_value, _)) = resolved {
-            if let Some(val) = json_pointer(resp_value, path) {
+        if let Some((_, resp_value, _)) = resolved
+            && let Some(val) = json_pointer(resp_value, path) {
                 let real_key = ref_key.trim_start_matches('#').to_string();
                 obj.insert(real_key, val.clone());
             }
-        }
     }
 }
 
@@ -1098,8 +1097,8 @@ pub(super) async fn jmap_eventsource(
                     result = rx.recv() => {
                         match result {
                             Ok(ev) => {
-                                if let Ok(json) = serde_json::to_string(&ev) {
-                                    if json.contains(&address) {
+                                if let Ok(json) = serde_json::to_string(&ev)
+                                    && json.contains(&address) {
                                         let data = serde_json::json!({
                                             "@type": "StateChange",
                                             "changed": {
@@ -1111,7 +1110,6 @@ pub(super) async fn jmap_eventsource(
                                         let event = Event::default().event("state").data(data.to_string());
                                         return Some((Ok(event), (rx, address, ping_secs)));
                                     }
-                                }
                             }
                             Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                             Err(_) => return None,

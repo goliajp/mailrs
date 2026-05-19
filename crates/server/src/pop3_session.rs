@@ -136,11 +136,10 @@ impl Pop3Session {
         }
 
         // check auth guard
-        if let (Some(ref guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
-            if let AuthCheck::LockedOut { .. } = guard.check(ip, username) {
+        if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr)
+            && let AuthCheck::LockedOut { .. } = guard.check(ip, username) {
                 return vec!["-ERR [IN-USE] too many failures, try later\r\n".into()];
             }
-        }
 
         // try domain store (PG accounts) first, then users.toml, then LDAP
         let authenticated = if let Some(ref ds) = self.domain_store {
@@ -195,13 +194,13 @@ impl Pop3Session {
         };
 
         if !authenticated {
-            if let (Some(ref guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
+            if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
                 guard.record_failure(ip, username);
             }
             return vec!["-ERR [AUTH] invalid credentials\r\n".into()];
         }
 
-        if let (Some(ref guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
+        if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
             guard.record_success(ip, username);
         }
 

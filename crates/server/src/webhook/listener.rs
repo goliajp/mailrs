@@ -7,16 +7,14 @@ use super::{store, Subscription, WebhookData, WebhookPayload};
 
 /// check whether a subscription's filters match the given sender and thread_id
 pub(crate) fn matches_subscription(sub: &Subscription, sender: &str, thread_id: &str) -> bool {
-    if let Some(ref f) = sub.filter_sender {
-        if f != sender {
+    if let Some(ref f) = sub.filter_sender
+        && f != sender {
             return false;
         }
-    }
-    if let Some(ref f) = sub.filter_thread_id {
-        if f != thread_id {
+    if let Some(ref f) = sub.filter_thread_id
+        && f != thread_id {
             return false;
         }
-    }
     true
 }
 
@@ -56,11 +54,10 @@ pub async fn run(event_bus: &EventBus, pool: &PgPool, mut shutdown: watch::Recei
                                     if matches_subscription(&sub, &sender, &thread_id) {
                                         let payload = build_payload(&user, &thread_id, &sender, &subject, &snippet);
                                         let now = chrono::Utc::now().timestamp();
-                                        if let Ok(json) = serde_json::to_value(&payload) {
-                                            if let Err(e) = store::enqueue_delivery(pool, sub.id, &json, now).await {
+                                        if let Ok(json) = serde_json::to_value(&payload)
+                                            && let Err(e) = store::enqueue_delivery(pool, sub.id, &json, now).await {
                                                 tracing::error!("failed to enqueue webhook delivery for sub {}: {e}", sub.id);
                                             }
-                                        }
                                     }
                                 }
                             }

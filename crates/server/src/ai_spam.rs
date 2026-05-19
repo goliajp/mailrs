@@ -21,14 +21,12 @@ pub async fn classify(
 ) -> Option<AiSpamResult> {
     // check Valkey cache first
     let cache_key = make_cache_key(sender, subject, body_preview);
-    if let Some(mut vk) = valkey.cloned() {
-        if let Ok(Some(cached)) = vk.get::<_, Option<String>>(&cache_key).await {
-            if let Some(result) = parse_cached(&cached) {
+    if let Some(mut vk) = valkey.cloned()
+        && let Ok(Some(cached)) = vk.get::<_, Option<String>>(&cache_key).await
+            && let Some(result) = parse_cached(&cached) {
                 tracing::debug!(event = "ai_spam_cache_hit", key = %cache_key);
                 return Some(result);
             }
-        }
-    }
 
     let system = "You are a spam classifier. Analyze emails and respond with ONLY a JSON object: {\"score\": <0.0-10.0>, \"reason\": \"<brief reason>\"}. Score guide: 0=clearly legitimate, 5=suspicious, 10=obvious spam";
 

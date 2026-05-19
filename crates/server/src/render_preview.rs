@@ -358,8 +358,8 @@ fn extract_body_content(html: &str) -> String {
     }
 
     // extract body content
-    if let Some(body_open) = lower.find("<body") {
-        if let Some(body_tag_end) = lower[body_open..].find('>') {
+    if let Some(body_open) = lower.find("<body")
+        && let Some(body_tag_end) = lower[body_open..].find('>') {
             let content_start = body_open + body_tag_end + 1;
             let content_end = lower.find("</body>").unwrap_or(html.len());
             let body = html[content_start..content_end].trim();
@@ -368,7 +368,6 @@ fn extract_body_content(html: &str) -> String {
             }
             return format!("{head_styles}{body}");
         }
-    }
 
     html.to_string()
 }

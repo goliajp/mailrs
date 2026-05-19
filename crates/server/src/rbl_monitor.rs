@@ -113,8 +113,8 @@ pub fn start(
                 }
 
                 // store result in valkey
-                if let Some(ref valkey) = valkey {
-                    if let Ok(json) = serde_json::to_string(&report) {
+                if let Some(ref valkey) = valkey
+                    && let Ok(json) = serde_json::to_string(&report) {
                         let key = format!("rbl:status:{ip}");
                         let _ = redis::cmd("SET")
                             .arg(&key)
@@ -124,7 +124,6 @@ pub fn start(
                             .query_async::<()>(&mut valkey.clone())
                             .await;
                     }
-                }
             }
         }
     });

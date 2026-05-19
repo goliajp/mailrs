@@ -110,11 +110,10 @@ impl MxCache {
         // check cache
         {
             let cache = self.cache.lock().unwrap();
-            if let Some((records, inserted_at)) = cache.get(domain) {
-                if inserted_at.elapsed() < self.ttl {
+            if let Some((records, inserted_at)) = cache.get(domain)
+                && inserted_at.elapsed() < self.ttl {
                     return Ok(records.clone());
                 }
-            }
         }
 
         // cache miss or expired — resolve

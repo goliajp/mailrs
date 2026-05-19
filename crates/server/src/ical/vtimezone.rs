@@ -52,12 +52,10 @@ pub fn resolve(tzid: &str, inline_blocks: &[VTimezone]) -> Option<ResolvedTz> {
     if let Some(block) = inline_blocks
         .iter()
         .find(|b| b.tzid.eq_ignore_ascii_case(trimmed))
-    {
-        if let Some(transitions) = build_transitions(block) {
+        && let Some(transitions) = build_transitions(block) {
             return Some(ResolvedTz::Custom(transitions));
         }
         // Inline block was found but unparseable — fall through to IANA.
-    }
 
     // Step 2 — IANA name.
     if let Ok(tz) = chrono_tz::Tz::from_str(trimmed) {
@@ -65,11 +63,10 @@ pub fn resolve(tzid: &str, inline_blocks: &[VTimezone]) -> Option<ResolvedTz> {
     }
 
     // Step 3 — Microsoft / Outlook alias.
-    if let Some(iana) = microsoft_to_iana(trimmed) {
-        if let Ok(tz) = chrono_tz::Tz::from_str(iana) {
+    if let Some(iana) = microsoft_to_iana(trimmed)
+        && let Ok(tz) = chrono_tz::Tz::from_str(iana) {
             return Some(ResolvedTz::Iana(tz));
         }
-    }
 
     None
 }

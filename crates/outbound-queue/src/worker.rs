@@ -181,14 +181,13 @@ impl DeliveryWorker {
             let mut signed_msgs = Vec::with_capacity(messages.len());
             for mut msg in messages {
                 // ARC seal forwarded messages before DKIM signing
-                if msg.is_forwarded {
-                    if let Some(ref auth) = self.authenticator {
+                if msg.is_forwarded
+                    && let Some(ref auth) = self.authenticator {
                         match dkim_sign::arc_seal_message(dkim, auth, &msg.message_data).await {
                             Ok(sealed) => msg.message_data = sealed,
                             Err(e) => tracing::warn!("ARC sealing failed for msg {}: {e}", msg.id),
                         }
                     }
-                }
                 // DKIM sign
                 match dkim.sign(&msg.message_data) {
                     Ok(signed) => msg.message_data = signed,
@@ -232,7 +231,7 @@ impl DeliveryWorker {
 /// wait for a Valkey notify signal, or never resolve if no listener
 async fn wait_for_notify(rx: &mut Option<tokio::sync::mpsc::Receiver<()>>) {
     match rx {
-        Some(ref mut r) => { r.recv().await; }
+        Some(r) => { r.recv().await; }
         None => std::future::pending().await,
     }
 }
@@ -351,20 +350,18 @@ async fn deliver_domain_static(
     let now = chrono::Utc::now().timestamp();
     for msg in &messages {
         // skip already delivered messages
-        if let Ok(Some(current)) = queue::get_message(pool, msg.id).await {
-            if current.status == crate::queue::QueueStatus::Delivered {
+        if let Ok(Some(current)) = queue::get_message(pool, msg.id).await
+            && current.status == crate::queue::QueueStatus::Delivered {
                 continue;
             }
-        }
         let delay = retry_delay_secs(msg.attempts);
         if should_bounce(msg.attempts + 1, msg.max_attempts) {
             let _ = queue::mark_bounced(pool, msg.id, "all MX hosts failed", now).await;
             // add to suppression if last error was a hard bounce
-            if let Some(ref err) = msg.last_error {
-                if queue::is_hard_bounce(err) {
+            if let Some(ref err) = msg.last_error
+                && queue::is_hard_bounce(err) {
                     let _ = queue::add_suppression(pool, &msg.recipient, err, None).await;
                 }
-            }
             enqueue_dsn(pool, hostname, msg, "all MX hosts failed").await;
             if let Some(es) = event_sender {
                 es(DeliveryEvent::Bounced { queue_id: msg.id, sender: msg.sender.clone() });

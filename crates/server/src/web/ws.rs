@@ -35,11 +35,10 @@ async fn handle_ws(socket: WebSocket, state: Arc<WebState>) {
     // forward events to websocket
     let send_task = tokio::spawn(async move {
         while let Ok(event) = rx.recv().await {
-            if let Ok(json) = serde_json::to_string(&event) {
-                if sender.send(Message::Text(json.into())).await.is_err() {
+            if let Ok(json) = serde_json::to_string(&event)
+                && sender.send(Message::Text(json.into())).await.is_err() {
                     break;
                 }
-            }
         }
     });
 
