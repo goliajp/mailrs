@@ -5,9 +5,9 @@ import type {
   SignatureBlockData,
   TextBlockData,
 } from '@/components/composer/types'
-import type { Editor } from '@tiptap/react'
 
 import { X } from 'lucide-react'
+import { marked } from 'marked'
 import {
   forwardRef,
   type ReactNode,
@@ -25,16 +25,20 @@ import { SignatureBlock } from '@/components/composer/blocks/signature-block'
 import { TextBlock } from '@/components/composer/blocks/text-block'
 import { useBlockComposer } from '@/components/composer/use-block-composer'
 
-// keep backward-compatible types
-export type EditorMode = 'markdown' | 'preview' | 'rich'
+// keep backward-compatible type; rich is gone, markdown is the only authoring mode
+export type EditorMode = 'markdown' | 'preview'
 
 export type StructuredComposeHandle = {
   addAttachment: (file: File) => void
   clearCompose: () => void
-  getComposeEditor: () => Editor | null
+  /** @deprecated tiptap editor removed; always returns null. use getMarkdown / setMarkdown */
+  getComposeEditor: () => null
   getContent: () => StructuredContent
   getEditorMode: () => EditorMode
+  getMarkdown: () => string
+  /** @deprecated use setMarkdown; html input is stripped to text */
   setComposeContent: (html: string) => void
+  setMarkdown: (markdown: string) => void
 }
 
 export type StructuredContent = {
@@ -74,7 +78,6 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
     ref
   ) {
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const textEditorRef = useRef<Editor | null>(null)
     const scrollAreaRef = useRef<HTMLDivElement>(null)
 
     const {
@@ -94,20 +97,22 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
       signatureEnabled,
     })
 
-    const setTextEditorRef = useCallback((editor: Editor | null) => {
-      textEditorRef.current = editor
+    // first text block is the user-authored body. helpers below operate on it.
+    const blocksRef = useRef(blocks)
+    blocksRef.current = blocks
+
+    const firstTextBlock = useCallback(() => {
+      return blocksRef.current.find((b) => b.type === 'text')
     }, [])
 
-    // backward-compatible handle
     useImperativeHandle(
       ref,
       () => ({
         addAttachment,
         clearCompose,
-        getComposeEditor: () => textEditorRef.current,
+        getComposeEditor: () => null,
         getContent: () => {
           const assembled = getAssembled()
-          // extract parts for backward compat
           const textBlock = blocks.find((b) => b.type === 'text')
           const sigBlock = blocks.find((b) => b.type === 'signature')
           const quoteBlock = blocks.find((b) => b.type === 'quote')
@@ -120,7 +125,10 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
             attachments,
             compose: textBlock
               ? {
-                  html: (textBlock.data as TextBlockData).html,
+                  // markdown source is authoritative; html is rendered on demand
+                  // so callers (e.g. backend-forward path) get the user's body
+                  // alone, without signature/quote.
+                  html: renderTextBlockHtml(textBlock.data as TextBlockData),
                   text: (textBlock.data as TextBlockData).content,
                 }
               : { html: '', text: '' },
@@ -137,21 +145,31 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
               : { html: '', text: '' },
           }
         },
-        getEditorMode: () => {
-          const textBlock = blocks.find((b) => b.type === 'text')
-          return textBlock ? (textBlock.data as TextBlockData).format : 'rich'
+        getEditorMode: () => 'markdown',
+        getMarkdown: () => {
+          const tb = firstTextBlock()
+          return tb ? (tb.data as TextBlockData).content : ''
         },
         setComposeContent: (html: string) => {
-          textEditorRef.current?.commands.setContent(html)
+          const md = htmlToText(html)
+          const tb = firstTextBlock()
+          if (!tb) return
+          updateBlock(tb.id, { content: md, format: 'markdown', html: '' })
+        },
+        setMarkdown: (markdown: string) => {
+          const tb = firstTextBlock()
+          if (!tb) return
+          updateBlock(tb.id, { content: markdown, format: 'markdown', html: '' })
         },
       }),
-      [blocks, getAssembled, clearCompose, addAttachment]
+      [addAttachment, blocks, clearCompose, firstTextBlock, getAssembled, updateBlock]
     )
 
-    // click empty space → focus first text editor
+    // click empty space → focus the textarea inside the first text block
     const handleAreaClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target !== scrollAreaRef.current) return
-      textEditorRef.current?.commands.focus('end')
+      const ta = scrollAreaRef.current.querySelector<HTMLTextAreaElement>('textarea')
+      ta?.focus()
     }, [])
 
     const handleFileSelect = useCallback(() => {
@@ -170,7 +188,9 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
       [addAttachment]
     )
 
-    // drag-and-drop attachment support
+    // drag-and-drop attachment support (non-image files; image drops inside
+    // the textarea convert to markdown and stop propagation, so they never
+    // reach this handler)
     const [dragging, setDragging] = useState(false)
     const dragCounter = useRef(0)
     const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -225,7 +245,6 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
 
     const renderBlock = (block: AnyBlock, index: number) => {
       const key = block.id
-      // first text block and auto-managed blocks (signature, quote) are not removable
       const isFirstText = block.type === 'text' && index === 0
       const isAutoManaged = block.type === 'signature' || block.type === 'quote'
       const canRemove = !isFirstText && !isAutoManaged
@@ -286,14 +305,13 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
                 disabled={disabled}
                 onChange={(data) => updateBlock(block.id, data)}
                 onSubmit={onSubmit}
-                placeholder="Continue writing..."
+                placeholder="Continue writing…"
               />
             </Removable>
           ) : (
             <TextBlock
               data={block.data as TextBlockData}
               disabled={disabled}
-              getEditorRef={setTextEditorRef}
               key={key}
               onChange={(data) => updateBlock(block.id, data)}
               onSubmit={onSubmit}
@@ -343,3 +361,24 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
     )
   }
 )
+
+// best-effort html → plaintext used by the legacy setComposeContent path
+function htmlToText(html: string): string {
+  if (typeof window === 'undefined' || !html) return html ?? ''
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  for (const br of Array.from(doc.querySelectorAll('br'))) {
+    br.replaceWith('\n')
+  }
+  for (const block of Array.from(doc.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6'))) {
+    block.append('\n')
+  }
+  const text = doc.body.textContent ?? ''
+  return text.replace(/\n{3,}/g, '\n\n').trim()
+}
+
+function renderTextBlockHtml(data: TextBlockData): string {
+  if (data.format === 'markdown') {
+    return marked.parse(data.content, { async: false, breaks: true, gfm: true }) as string
+  }
+  return data.html
+}

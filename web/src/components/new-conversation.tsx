@@ -77,24 +77,21 @@ export function NewConversation() {
 
   const applyTemplate = (t: TemplateInfo) => {
     setSubject(t.subject)
-    if (t.html_body) composeRef.current?.setComposeContent(t.html_body)
+    // prefer plaintext body; fall back to the html shim which strips tags
+    if (t.text_body) composeRef.current?.setMarkdown(t.text_body)
+    else if (t.html_body) composeRef.current?.setComposeContent(t.html_body)
   }
 
   const polish = async () => {
-    const editor = composeRef.current?.getComposeEditor()
-    if (!editor) return
-    const text = editor.getText()
+    const handle = composeRef.current
+    if (!handle) return
+    const text = handle.getMarkdown()
     if (!text.trim()) return
     setPolishing(true)
     try {
       const result = await postJson<PolishResult>('/mail/ai/polish', { text })
       if (result.success && result.polished) {
-        const paragraphs = result.polished
-          .split(/\n+/)
-          .filter(Boolean)
-          .map((p) => `<p>${escapeHtml(p)}</p>`)
-          .join('')
-        editor.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
+        handle.setMarkdown(result.polished)
         toast.success('Text polished')
       } else {
         toast.error(result.message ?? 'Polish failed')

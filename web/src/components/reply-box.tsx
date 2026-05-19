@@ -91,11 +91,9 @@ export function ReplyBox({
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(null)
 
   const saveDraftLocal = useCallback(() => {
-    const editor = composeRef.current?.getComposeEditor()
-    if (!editor) return
-    const html = editor.getHTML()
-    if (html && html !== '<p></p>') {
-      localStorage.setItem(draftKey, html)
+    const md = composeRef.current?.getMarkdown() ?? ''
+    if (md.trim()) {
+      localStorage.setItem(draftKey, md)
     }
   }, [draftKey])
 
@@ -104,7 +102,7 @@ export function ReplyBox({
     const saved = localStorage.getItem(draftKey)
     if (saved) {
       setTimeout(() => {
-        composeRef.current?.setComposeContent(saved)
+        composeRef.current?.setMarkdown(saved)
         toast.info('Draft restored', { duration: 2000 })
       }, 200)
     }
@@ -282,11 +280,11 @@ export function ReplyBox({
   const [polishTone, setPolishTone] = useState('professional')
 
   const polish = async (tone?: string) => {
-    const editor = composeRef.current?.getComposeEditor()
-    if (!editor) return
-    const text = editor.getText()
+    const handle = composeRef.current
+    if (!handle) return
+    const text = handle.getMarkdown()
     if (!text.trim()) return
-    prePolishRef.current = editor.getHTML()
+    prePolishRef.current = text
     setPolishing(true)
     try {
       const result = await postJson<PolishResult>('/mail/ai/polish', {
@@ -294,18 +292,13 @@ export function ReplyBox({
         tone: tone ?? polishTone,
       })
       if (result.success && result.polished) {
-        const paragraphs = result.polished
-          .split(/\n+/)
-          .filter(Boolean)
-          .map((p) => `<p>${escapeHtml(p)}</p>`)
-          .join('')
-        editor.commands.setContent(paragraphs || `<p>${escapeHtml(result.polished)}</p>`)
+        handle.setMarkdown(result.polished)
         toast.success('Text polished', {
           action: {
             label: 'Undo',
             onClick: () => {
-              if (prePolishRef.current) {
-                editor.commands.setContent(prePolishRef.current)
+              if (prePolishRef.current != null) {
+                handle.setMarkdown(prePolishRef.current)
                 prePolishRef.current = null
               }
             },
@@ -354,12 +347,7 @@ export function ReplyBox({
   }
 
   const applySuggestion = (suggestion: string) => {
-    const paragraphs = suggestion
-      .split(/\n+/)
-      .filter(Boolean)
-      .map((p) => `<p>${escapeHtml(p)}</p>`)
-      .join('')
-    composeRef.current?.setComposeContent(paragraphs || `<p>${escapeHtml(suggestion)}</p>`)
+    composeRef.current?.setMarkdown(suggestion)
     setSuggestions([])
     toast.success('Suggestion applied')
   }
