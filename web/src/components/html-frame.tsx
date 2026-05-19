@@ -142,17 +142,28 @@ export function HtmlFrame({ html, maxHeight }: { html: string; maxHeight?: strin
   useEffect(() => {
     const iframe = ref.current
     if (!iframe) return
+    // Track the current iframe-body observer in a closure-local var so each
+    // 'load' event can disconnect the previous one — previously the inner
+    // `return () => obs.disconnect()` was never called by anything and we
+    // leaked one ResizeObserver per srcDoc change (i.e. per thread switch
+    // / per re-render of a thread with HTML content). Important for memory
+    // on long sessions where the user clicks through many threads.
+    let activeBodyObs: null | ResizeObserver = null
     const onLoad = () => {
       measure()
+      activeBodyObs?.disconnect()
+      activeBodyObs = null
       const doc = iframe.contentDocument
       if (doc?.body) {
-        const obs = new ResizeObserver(measure)
-        obs.observe(doc.body)
-        return () => obs.disconnect()
+        activeBodyObs = new ResizeObserver(measure)
+        activeBodyObs.observe(doc.body)
       }
     }
     iframe.addEventListener('load', onLoad)
-    return () => iframe.removeEventListener('load', onLoad)
+    return () => {
+      iframe.removeEventListener('load', onLoad)
+      activeBodyObs?.disconnect()
+    }
   }, [measure])
 
   // re-measure on container resize (orientation change)
