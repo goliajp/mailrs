@@ -113,13 +113,18 @@ export function ReplyBox({
     }
   }, [draftKey])
 
-  // periodic save while typing
+  // periodic save while typing — bind the interval ONCE; the latest
+  // saveDraftLocal closure is read through a ref so we don't tear down
+  // and rebuild the interval every time draftKey changes (which happens
+  // on every thread switch / replyMode change downstream).
+  const saveDraftLocalRef = useRef(saveDraftLocal)
+  saveDraftLocalRef.current = saveDraftLocal
   useEffect(() => {
-    saveTimer.current = setInterval(saveDraftLocal, 3000)
+    saveTimer.current = setInterval(() => saveDraftLocalRef.current(), 3000)
     return () => {
       if (saveTimer.current) clearInterval(saveTimer.current)
     }
-  }, [saveDraftLocal])
+  }, [])
 
   const handleModeChange = (newMode: ReplyMode) => {
     onModeChange(newMode)
