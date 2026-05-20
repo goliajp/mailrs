@@ -2267,6 +2267,9 @@ dependencies = [
 [[package]]
 name = "mailrs-imap-proto"
 version = "1.0.0"
+dependencies = [
+ "criterion",
+]
 
 [[package]]
 name = "mailrs-imap-proto"
@@ -2320,6 +2323,7 @@ dependencies = [
 name = "mailrs-maildir"
 version = "1.0.0"
 dependencies = [
+ "criterion",
  "filetime",
  "hostname",
  "tempfile",
@@ -2442,6 +2446,7 @@ dependencies = [
 name = "mailrs-smtp-client"
 version = "1.0.0"
 dependencies = [
+ "criterion",
  "hickory-resolver",
  "rustls",
  "sha2 0.11.0",
@@ -2469,6 +2474,7 @@ name = "mailrs-smtp-proto"
 version = "1.0.0"
 dependencies = [
  "base64",
+ "criterion",
 ]
 
 [[package]]

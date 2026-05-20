@@ -15,3 +15,10 @@ readme = "README.md"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "parse"
+harness = false
