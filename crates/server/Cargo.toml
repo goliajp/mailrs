@@ -25,11 +25,11 @@ toml = "1"
 axum = { version = "0.8", features = ["ws", "multipart"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
 dashmap = "6"
-mailrs-smtp-client = { path = "../smtp-client" }
-mailrs-outbound-queue = { path = "../outbound-queue" }
+mailrs-smtp-client = "1"
+mailrs-outbound-queue = "1"
 mailrs-imap-proto = "1"
-mailrs-ical = { path = "../ical" }
-mailrs-intelligence = { path = "../intelligence" }
+mailrs-ical = "1"
+mailrs-intelligence = "1"
 mailrs-mailbox = { path = "../mailbox" }
 sqlx = { workspace = true }
 redis = { workspace = true }
