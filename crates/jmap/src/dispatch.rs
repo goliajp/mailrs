@@ -15,9 +15,11 @@ use crate::methods::{
 use crate::refs::resolve_references;
 use crate::store::MailStore;
 
-/// JMAP capability URIs we advertise / understand (RFC 8620 §2, RFC 8621 §1).
+/// JMAP Core capability URI (RFC 8620 §2).
 pub const JMAP_CORE_CAP: &str = "urn:ietf:params:jmap:core";
+/// JMAP Mail capability URI (RFC 8621 §1).
 pub const JMAP_MAIL_CAP: &str = "urn:ietf:params:jmap:mail";
+/// JMAP Submission capability URI (RFC 8621 §7).
 pub const JMAP_SUBMISSION_CAP: &str = "urn:ietf:params:jmap:submission";
 
 /// Wire shape of an inbound JMAP request (RFC 8620 §3.4).
@@ -27,8 +29,14 @@ pub const JMAP_SUBMISSION_CAP: &str = "urn:ietf:params:jmap:submission";
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JmapRequest {
+    /// Capability URIs the client declares it needs (e.g. [`JMAP_MAIL_CAP`]).
+    /// Defaults to an empty list when the wire form omits the field; the
+    /// dispatcher does not enforce capability gating.
     #[serde(default)]
     pub using: Vec<String>,
+    /// Ordered list of method invocations `(name, args, call_id)`. Back-
+    /// references between calls (RFC 8620 §3.7) are resolved in order, so a
+    /// later call may reference an earlier call's result.
     pub method_calls: Vec<(String, Value, String)>,
 }
 
@@ -36,7 +44,12 @@ pub struct JmapRequest {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JmapResponse {
+    /// `(name, response, call_id)` for each method call, in the same order as
+    /// the request. `name` is `"error"` for method-level failures.
     pub method_responses: Vec<(String, Value, String)>,
+    /// Opaque state token used by clients to detect server-side state changes
+    /// (RFC 8620 §3.2). This crate emits `"0"` — callers that track real
+    /// state should overwrite the value before returning to the client.
     pub session_state: String,
 }
 

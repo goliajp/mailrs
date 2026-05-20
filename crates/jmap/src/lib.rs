@@ -1,3 +1,6 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+
 //! # mailrs-jmap
 //!
 //! Server-side JMAP (RFC 8620 + RFC 8621) dispatcher and method handlers,

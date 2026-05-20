@@ -12,6 +12,23 @@ use crate::types::{Mailbox, MailboxCounts, Message, ParsedBody, SubmissionResult
 /// JMAP `serverFail` method error with the `Display` value as `description`.
 pub type StoreError = Box<dyn std::error::Error + Send + Sync>;
 
+/// Storage operations every JMAP method handler in this crate needs.
+///
+/// One implementation per backing store (e.g. PostgreSQL + Maildir, IMAP proxy,
+/// in-memory test fixture). Method handlers reach the store via
+/// `&dyn MailStore`, so the trait is async, object-safe, and `Send + Sync`.
+///
+/// **Identity conventions:**
+/// - `user` is the authenticated owner's full email address — handler code
+///   never invents one; auth resolution is the caller's job.
+/// - `mailbox_id` / message `id` are the store's native primary keys; the
+///   dispatcher renders them on the wire as `mb-{id}` / `msg-{id}`.
+/// - `(mailbox_id, uid)` is the IMAP-style addressing tuple used for the flag
+///   update methods.
+///
+/// **Error contract:** any returned [`StoreError`] is rendered into a JMAP
+/// `serverFail` method error with its `Display` value as `description`. The
+/// store is not expected to map errors itself.
 #[async_trait]
 pub trait MailStore: Send + Sync {
     /// List all mailboxes for `user`. Used by `Mailbox/get` and `Mailbox/query`.
