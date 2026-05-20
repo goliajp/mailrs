@@ -1,4 +1,5 @@
 import type { ConversationSummary, NewMessageEvent, SmtpEvent } from '@/lib/types'
+import type { InfiniteData } from '@tanstack/react-query'
 
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useRef } from 'react'
@@ -101,10 +102,19 @@ export function useMailEvents(user: string) {
           if (event.type === 'NewMessage') {
             const msg = event as NewMessageEvent
             if (msg.user === user) {
-              // bust list cache for every filter — RQ will refetch only the
-              // queries with active subscribers; idle entries just get
-              // marked stale and refetch on next mount.
-              queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
+              // Surgical cache update instead of a blanket
+              // `invalidateQueries({ queryKey: mailKeys.conversations() })`
+              // — that variant marks every cached filter stale and
+              // refetches all loaded pages of the active filter on every
+              // received mail. For existing threads (the common case
+              // when replies arrive in an ongoing conversation) we can
+              // patch the cached entry in place and move it to the top
+              // of page 0 with zero network. For genuinely new threads
+              // we still need the server's filter logic — but invalidate
+              // only the cache that doesn't already know the thread,
+              // not every conversations-shaped cache the user ever
+              // visited.
+              patchConversationCaches(msg)
               queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
               queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
               // also bust the thread the event belongs to, if it's the one
@@ -208,4 +218,64 @@ export function useMailEvents(user: string) {
       wsRef.current = null
     }
   }, [user, setConnectionStatus])
+}
+
+// Surgical conversation-cache update for a `NewMessage` WebSocket event.
+//
+// For every cached `mailKeys.conversations(*)` entry, look for the thread:
+//   - found → patch the entry in place (bump counters, refresh snippet /
+//     last_sender / last_date) and move it to the top of page 0 with no
+//     network round-trip.
+//   - not found → invalidate only that cache, exactly. Other caches stay
+//     untouched. The active filter refetches; idle filters wait until next
+//     mount.
+//
+// Replaces the previous `invalidateQueries({ queryKey: mailKeys.conversations() })`
+// which marked every cached filter stale and refetched all loaded pages
+// of the active filter on every received mail. For a multi-page inbox
+// that's 5+ HTTP round-trips per inbound message; here it's 0 for the
+// common reply-in-existing-thread case.
+function patchConversationCaches(event: NewMessageEvent): void {
+  const entries = queryClient.getQueriesData<InfiniteData<ConversationSummary[]>>({
+    queryKey: mailKeys.conversations(),
+  })
+  for (const [key, data] of entries) {
+    if (!data) continue
+    let foundPage = -1
+    let foundIdx = -1
+    for (let p = 0; p < data.pages.length; p++) {
+      const idx = data.pages[p].findIndex((c) => c.thread_id === event.thread_id)
+      if (idx >= 0) {
+        foundPage = p
+        foundIdx = idx
+        break
+      }
+    }
+    if (foundPage >= 0) {
+      const sourcePage = foundPage
+      const sourceIdx = foundIdx
+      queryClient.setQueryData<InfiniteData<ConversationSummary[]>>(key, (old) => {
+        if (!old) return old
+        const existing = old.pages[sourcePage]?.[sourceIdx]
+        if (!existing) return old
+        const updated: ConversationSummary = {
+          ...existing,
+          last_date: Math.floor(Date.now() / 1000),
+          last_sender: event.sender,
+          message_count: existing.message_count + 1,
+          received_count: existing.received_count + 1,
+          snippet: event.snippet,
+          subject: event.subject || existing.subject,
+          unread_count: existing.unread_count + 1,
+        }
+        const newPages = old.pages.map((page, p) =>
+          p === sourcePage ? page.filter((_, i) => i !== sourceIdx) : page
+        )
+        newPages[0] = [updated, ...newPages[0]]
+        return { ...old, pages: newPages }
+      })
+    } else {
+      queryClient.invalidateQueries({ exact: true, queryKey: key }).catch(() => {})
+    }
+  }
 }

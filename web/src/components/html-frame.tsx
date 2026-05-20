@@ -1,5 +1,5 @@
 import DOMPurify from 'dompurify'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getToken } from '@/store/auth'
 
@@ -107,8 +107,14 @@ export function HtmlFrame({ html, maxHeight }: { html: string; maxHeight?: strin
   const [scale, setScale] = useState(1)
   const [containerWidth, setContainerWidth] = useState(0)
 
+  // Defer html so clicking a new thread commits the iframe shell at
+  // user-input priority and the heavy sanitize + regex passes
+  // (DOMPurify + proxyExternalUrls + injectCjkFonts + stripTrackingPixels,
+  // 50-300ms on newsletter bodies) run at transition priority in a
+  // later frame, instead of freezing the click commit.
+  const deferredHtml = useDeferredValue(html)
   const srcdoc = useMemo(() => {
-    const sanitized = sanitizeEmail(html)
+    const sanitized = sanitizeEmail(deferredHtml)
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer">
 <style>
@@ -120,7 +126,7 @@ export function HtmlFrame({ html, maxHeight }: { html: string; maxHeight?: strin
   blockquote { border-left: 3px solid #d4d4d8; padding-left: 12px; margin: 8px 0; color: #71717a; }
 </style>
 </head><body><div class="mail-wrap">${sanitized}</div></body></html>`
-  }, [html])
+  }, [deferredHtml])
 
   const measure = useCallback(() => {
     const iframe = ref.current
