@@ -2377,18 +2377,6 @@ dependencies = [
 
 [[package]]
 name = "mailrs-jmap"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9df8417d85fab5129451320a3ce896b0efeb1838c4b5cbe89853db8b4e05074d"
-dependencies = [
- "async-trait",
- "chrono",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "mailrs-jmap"
 version = "1.0.1"
 dependencies = [
  "async-trait",
@@ -2397,6 +2385,18 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-jmap"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffc1bc59e5805e19f7fcab0da838d28b469efaf17ce426c1f3babe180defdc91"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2527,7 +2527,7 @@ dependencies = [
  "mailrs-ical 1.0.0",
  "mailrs-imap-proto 1.0.0",
  "mailrs-intelligence 1.0.0",
- "mailrs-jmap 1.0.0",
+ "mailrs-jmap 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox",
  "mailrs-maildir 1.0.0",
  "mailrs-outbound-queue 1.0.0",
