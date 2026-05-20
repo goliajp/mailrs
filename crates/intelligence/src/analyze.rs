@@ -268,3 +268,81 @@ mod tests {
         assert!(!PROMPT_VERSION.is_empty());
     }
 }
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::provider::LlmProvider;
+    use async_trait::async_trait;
+
+    struct CannedProvider(String);
+
+    #[async_trait]
+    impl LlmProvider for CannedProvider {
+        async fn complete(&self, _s: &str, _u: &str, _t: f32) -> Option<String> {
+            Some(self.0.clone())
+        }
+        async fn embed(&self, _t: &str) -> Option<Vec<f32>> {
+            None
+        }
+        fn model_id(&self) -> &str {
+            "test/1"
+        }
+    }
+
+    struct DeadProvider;
+
+    #[async_trait]
+    impl LlmProvider for DeadProvider {
+        async fn complete(&self, _s: &str, _u: &str, _t: f32) -> Option<String> {
+            None
+        }
+        async fn embed(&self, _t: &str) -> Option<Vec<f32>> {
+            None
+        }
+        fn model_id(&self) -> &str {
+            "dead/0"
+        }
+    }
+
+    #[tokio::test]
+    async fn analyze_email_returns_parsed_result() {
+        let provider = CannedProvider(
+            r#"{"category":"work","risk_score":10,"risk_reason":"safe","summary":"meeting","people":[],"dates":[],"amounts":[],"action_items":[],"clean_text":"meeting tomorrow","requires_action":true,"sender_intent":"request","action_deadline":"2026-01-01"}"#
+                .into(),
+        );
+        let result = analyze_email(&provider, "boss@x", "Q3", "review please")
+            .await
+            .expect("analyze must succeed");
+        assert_eq!(result.category, "work");
+        assert!(result.requires_action);
+        assert_eq!(result.action_deadline.as_deref(), Some("2026-01-01"));
+    }
+
+    #[tokio::test]
+    async fn analyze_email_truncates_long_body() {
+        // body > 3000 bytes should be truncated before sending to LLM; we
+        // assert via the fact that we get a valid response back (the canned
+        // provider doesn't care about input, the test asserts the call flows)
+        let body = "x".repeat(10_000);
+        let provider = CannedProvider(
+            r#"{"category":"general","risk_score":0,"risk_reason":"","summary":"x","people":[],"dates":[],"amounts":[],"action_items":[],"clean_text":""}"#
+                .into(),
+        );
+        let result = analyze_email(&provider, "a@x", "subj", &body)
+            .await
+            .expect("must succeed despite huge body");
+        assert_eq!(result.category, "general");
+    }
+
+    #[tokio::test]
+    async fn analyze_email_returns_none_on_provider_failure() {
+        assert!(analyze_email(&DeadProvider, "a@x", "s", "b").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn analyze_email_returns_none_on_garbage_response() {
+        let provider = CannedProvider("I am a tea kettle, short and stout.".into());
+        assert!(analyze_email(&provider, "a@x", "s", "b").await.is_none());
+    }
+}

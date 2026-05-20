@@ -204,3 +204,147 @@ mod tests {
         assert_eq!(r.reason, "too many links | phishing indicators");
     }
 }
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::provider::LlmProvider;
+    use std::sync::Mutex;
+
+    /// LlmProvider returning a canned response, useful for asserting
+    /// downstream behavior without touching a real LLM endpoint.
+    struct MockProvider {
+        canned: String,
+        calls: Mutex<u32>,
+    }
+
+    #[async_trait]
+    impl LlmProvider for MockProvider {
+        async fn complete(&self, _system: &str, _user: &str, _temp: f32) -> Option<String> {
+            *self.calls.lock().unwrap() += 1;
+            Some(self.canned.clone())
+        }
+        async fn embed(&self, _text: &str) -> Option<Vec<f32>> {
+            None
+        }
+        fn model_id(&self) -> &str {
+            "mock/1"
+        }
+    }
+
+    /// LlmProvider that always errors.
+    struct DeadProvider;
+
+    #[async_trait]
+    impl LlmProvider for DeadProvider {
+        async fn complete(&self, _system: &str, _user: &str, _temp: f32) -> Option<String> {
+            None
+        }
+        async fn embed(&self, _text: &str) -> Option<Vec<f32>> {
+            None
+        }
+        fn model_id(&self) -> &str {
+            "dead/0"
+        }
+    }
+
+    /// In-memory SpamCache for testing the cache pathway end-to-end.
+    struct MemCache {
+        inner: Mutex<std::collections::HashMap<String, String>>,
+    }
+
+    #[async_trait]
+    impl SpamCache for MemCache {
+        async fn get(&self, key: &str) -> Option<String> {
+            self.inner.lock().unwrap().get(key).cloned()
+        }
+        async fn set(&self, key: &str, value: &str, _ttl: u64) {
+            self.inner.lock().unwrap().insert(key.into(), value.into());
+        }
+    }
+
+    #[tokio::test]
+    async fn classify_returns_score_from_provider() {
+        let provider = MockProvider {
+            canned: r#"{"score": 7.5, "reason": "phishing pattern"}"#.into(),
+            calls: Mutex::new(0),
+        };
+        let result = classify(&provider, None, "evil@x", "Win now!", "click here")
+            .await
+            .expect("classify must succeed");
+        assert!((result.score - 7.5).abs() < 0.01);
+        assert_eq!(result.reason, "phishing pattern");
+    }
+
+    #[tokio::test]
+    async fn classify_returns_none_on_dead_provider() {
+        let result = classify(&DeadProvider, None, "any@x", "subj", "body").await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn classify_unparseable_response_returns_none() {
+        let provider = MockProvider {
+            canned: "I don't speak JSON".into(),
+            calls: Mutex::new(0),
+        };
+        assert!(classify(&provider, None, "x", "y", "z").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn classify_writes_to_cache_on_miss() {
+        let provider = MockProvider {
+            canned: r#"{"score": 2.0, "reason": "legit"}"#.into(),
+            calls: Mutex::new(0),
+        };
+        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        let _ = classify(&provider, Some(&cache), "a", "b", "c").await;
+        assert_eq!(cache.inner.lock().unwrap().len(), 1, "cache must hold one entry");
+    }
+
+    #[tokio::test]
+    async fn classify_hits_cache_on_second_call() {
+        let provider = MockProvider {
+            canned: r#"{"score": 5.0, "reason": "borderline"}"#.into(),
+            calls: Mutex::new(0),
+        };
+        let cache = MemCache { inner: Mutex::new(Default::default()) };
+
+        let r1 = classify(&provider, Some(&cache), "a", "b", "c").await.unwrap();
+        let r2 = classify(&provider, Some(&cache), "a", "b", "c").await.unwrap();
+
+        assert!((r1.score - 5.0).abs() < 0.01);
+        assert!((r2.score - 5.0).abs() < 0.01);
+        assert_eq!(
+            *provider.calls.lock().unwrap(),
+            1,
+            "second call should hit cache, not provider"
+        );
+    }
+
+    #[tokio::test]
+    async fn classify_different_inputs_use_different_cache_keys() {
+        let provider = MockProvider {
+            canned: r#"{"score": 3.0, "reason": "ok"}"#.into(),
+            calls: Mutex::new(0),
+        };
+        let cache = MemCache { inner: Mutex::new(Default::default()) };
+
+        classify(&provider, Some(&cache), "a", "subject1", "body").await;
+        classify(&provider, Some(&cache), "a", "subject2", "body").await;
+
+        assert_eq!(cache.inner.lock().unwrap().len(), 2);
+        assert_eq!(*provider.calls.lock().unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn classify_caches_negative_decisions_too() {
+        let provider = MockProvider {
+            canned: r#"{"score": 0.1, "reason": "totally legit"}"#.into(),
+            calls: Mutex::new(0),
+        };
+        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        classify(&provider, Some(&cache), "a", "b", "c").await;
+        assert_eq!(cache.inner.lock().unwrap().len(), 1, "low-score result still cached");
+    }
+}
