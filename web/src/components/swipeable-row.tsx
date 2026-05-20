@@ -1,8 +1,9 @@
 import { Archive, Trash2 } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 const THRESHOLD = 80
 const MAX_SWIPE = 120
+const MOBILE_QUERY = '(max-width: 767px)'
 
 type SwipeableRowProps = {
   children: React.ReactNode
@@ -10,9 +11,11 @@ type SwipeableRowProps = {
   onSwipeRight?: () => void
 }
 
-// swipeable list row for mobile: right = archive, left = delete
-// on md+ breakpoint: renders children directly without gesture layer
+// swipeable list row for mobile: right = archive, left = delete.
+// On desktop (md+ = 768px+) returns children unwrapped so the
+// surrounding virtualizer measures the real content height directly.
 export function SwipeableRow({ children, onSwipeLeft, onSwipeRight }: SwipeableRowProps) {
+  const isMobile = useIsMobile()
   const [offsetX, setOffsetX] = useState(0)
   const [transitioning, setTransitioning] = useState(false)
   const startX = useRef(0)
@@ -76,11 +79,15 @@ export function SwipeableRow({ children, onSwipeLeft, onSwipeRight }: SwipeableR
     setOffsetX(0)
   }, [offsetX, onSwipeLeft, onSwipeRight])
 
+  // desktop short-circuit: no gesture scaffolding, children pass straight
+  // through to the surrounding virtualizer's measureElement.
+  if (!isMobile) return <>{children}</>
+
   const absOffset = Math.abs(offsetX)
   const committed = absOffset >= THRESHOLD
 
   return (
-    <div className="relative overflow-hidden md:contents">
+    <div className="relative overflow-hidden">
       {/* right swipe background: archive */}
       {offsetX > 0 && (
         <div
@@ -100,7 +107,7 @@ export function SwipeableRow({ children, onSwipeLeft, onSwipeRight }: SwipeableR
         </div>
       )}
       <div
-        className="relative md:!transform-none"
+        className="relative"
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
         onTouchStart={handleTouchStart}
@@ -113,4 +120,24 @@ export function SwipeableRow({ children, onSwipeLeft, onSwipeRight }: SwipeableR
       </div>
     </div>
   )
+}
+
+// Subscribe to the mobile breakpoint via matchMedia so desktop renders
+// zero swipe scaffolding. The previous CSS-only `md:contents` approach
+// left a `position: relative` shim between the surrounding virtualizer's
+// `measureElement` ref and the row's real content box — that shim's
+// height was the value the virtualizer cached, and it sometimes
+// diverged from the rendered content height during refetches, causing
+// adjacent rows to visually overlap.
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches
+  )
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_QUERY)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return isMobile
 }
