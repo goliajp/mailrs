@@ -2313,6 +2313,7 @@ name = "mailrs-mailbox"
 version = "1.0.0"
 dependencies = [
  "chrono",
+ "criterion",
  "mailrs-maildir 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
