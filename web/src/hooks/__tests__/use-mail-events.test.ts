@@ -26,8 +26,14 @@ vi.mock('jotai', () => ({
 const mockFetchJson = vi.fn().mockResolvedValue([])
 vi.mock('@/lib/api', () => ({ fetchJson: mockFetchJson }))
 const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined)
+const mockGetQueriesData = vi.fn().mockReturnValue([])
+const mockSetQueryData = vi.fn()
 vi.mock('@/lib/query-client', () => ({
-  queryClient: { invalidateQueries: mockInvalidateQueries },
+  queryClient: {
+    getQueriesData: mockGetQueriesData,
+    invalidateQueries: mockInvalidateQueries,
+    setQueryData: mockSetQueryData,
+  },
 }))
 vi.mock('@/lib/query-keys', () => ({
   mailKeys: {

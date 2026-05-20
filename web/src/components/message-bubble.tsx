@@ -1,7 +1,7 @@
 import type { AttachmentInfo } from '@/lib/types'
 
 import { File } from 'lucide-react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react'
 import Markdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
@@ -81,7 +81,17 @@ export const MessageBubble = memo(function MessageBubble({
   uid: number
 }) {
   const hasAttachments = attachments.length > 0
-  const { isHtml, parts } = useMemo(() => splitEmail(textBody, htmlBody), [textBody, htmlBody])
+  // Defer the body inputs through `useDeferredValue` so that clicking a new
+  // conversation commits the shell (header, attachments row) at user-input
+  // priority and the heavy `splitEmail` work — `new DOMParser()` over a
+  // newsletter-sized HTML body costs 50-200ms — runs at transition priority
+  // in the next frame instead of freezing the click commit.
+  const deferredTextBody = useDeferredValue(textBody)
+  const deferredHtmlBody = useDeferredValue(htmlBody)
+  const { isHtml, parts } = useMemo(
+    () => splitEmail(deferredTextBody, deferredHtmlBody),
+    [deferredTextBody, deferredHtmlBody]
+  )
 
   return (
     <div>
