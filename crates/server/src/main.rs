@@ -13,7 +13,6 @@ mod event_bus;
 mod fbl;
 mod health;
 mod calendar;
-mod html_clean;
 mod imap_codec;
 mod ldap_auth;
 mod imap_format;

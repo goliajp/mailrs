@@ -1,0 +1,27 @@
+[package]
+name = "mailrs-clean"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Email content cleanup primitives: HTML sanitization, tracking-pixel detection, bulk/automated sender heuristics, quoted-reply splitting — zero I/O, no async runtime."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-clean"
+authors = ["GOLIA K.K."]
+keywords = ["email", "html", "sanitize", "tracking", "quoted"]
+categories = ["email", "text-processing"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+html2text = "0.17"
+
+[dev-dependencies]
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "clean"
+harness = false

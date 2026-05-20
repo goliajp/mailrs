@@ -1351,7 +1351,7 @@ async fn post_delivery_process(
     full_message: &[u8],
     resolver: Option<&TokioResolver>,
 ) {
-    use crate::html_clean;
+    use mailrs_clean as html_clean;
     use mailrs_intelligence::importance::{self, ImportanceSignals};
 
     // 1. contact upsert
