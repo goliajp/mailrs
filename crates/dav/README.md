@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/crates/d/mailrs-dav?style=flat-square)](https://crates.io/crates/mailrs-dav)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue?style=flat-square)](https://www.rust-lang.org)
 
-Server-side **CalDAV** (RFC 4791) and **CardDAV** (RFC 6352) handlers for Rust mail / calendar / contacts servers — framework-agnostic, BYO data layer via the `CalendarStore` and `AddressBookStore` traits.
+Server-side **CalDAV** ([RFC 4791](https://www.rfc-editor.org/rfc/rfc4791)) and **CardDAV** ([RFC 6352](https://www.rfc-editor.org/rfc/rfc6352)) handlers for Rust mail / calendar / contacts servers — framework-agnostic, BYO data layer via the `CalendarStore` and `AddressBookStore` traits.
 
 Extracted from [mailrs] so any project that wants to expose CalDAV / CardDAV can do so without re-implementing the multistatus / propstat builder, multiget UID extraction, iCalendar / vCard field scrapers, or the per-resource precondition handling (`If-Match`, `If-None-Match: *`).
 
@@ -14,16 +14,27 @@ This is, at the time of writing, the **only** standalone server-side CalDAV / Ca
 
 ## Highlights
 
-- **Methods covered** —
-  PROPFIND (principal / calendar home / calendar / addressbook home / addressbook) ·
-  REPORT (`calendar-multiget`, `calendar-query`, `addressbook-multiget`, `addressbook-query`) ·
-  GET / PUT / DELETE on events + contacts ·
-  OPTIONS / `Depth` header handling.
-- **Preconditions** — `If-Match` (etag must equal current) and `If-None-Match: *` (resource must not exist) honored on PUT.
 - **Framework-free** — no axum / actix / tower / hyper. Each handler returns a `DavResponse { status, headers, body }` your server-side adapter translates into your framework's response type.
-- **Store-free** — implement `CalendarStore` (8 async methods) and / or `AddressBookStore` (8 async methods); every handler works.
+- **Store-free** — implement [`CalendarStore`](https://docs.rs/mailrs-dav/latest/mailrs_dav/store/trait.CalendarStore.html) (8 async methods) and / or [`AddressBookStore`](https://docs.rs/mailrs-dav/latest/mailrs_dav/store/trait.AddressBookStore.html) (8 async methods); every handler works.
+- **Preconditions handled** — `If-Match` (etag must equal current) and `If-None-Match: *` (resource must not exist) honored on PUT per [RFC 4791 §5.3.2](https://www.rfc-editor.org/rfc/rfc4791#section-5.3.2) / [RFC 6352 §6.3.2](https://www.rfc-editor.org/rfc/rfc6352#section-6.3.2).
+- **Standard error envelope** — [`DavError`](https://docs.rs/mailrs-dav/latest/mailrs_dav/error/enum.DavError.html) enum with `.to_dav_response()` for a 4xx/5xx fallback your server can emit unchanged.
 - **Pure helpers exposed** — `xml_escape`, `multistatus`, `etag_of`, `options_response`, `extract_ical_field`, `extract_ical_datetime`, `extract_vcard_field`, `extract_multiget_uids`, `parse_depth`. Use the handlers or grab the pieces.
-- **Standard error envelope** — `DavError` enum with `.to_dav_response()` for a 4xx/5xx fallback your server can emit unchanged.
+
+## Methods covered (1.0)
+
+| HTTP verb | Resource scope | RFC section | Notes |
+| --- | --- | --- | --- |
+| OPTIONS | any | [RFC 4918 §9.1](https://www.rfc-editor.org/rfc/rfc4918#section-9.1) | Advertises `DAV: 1, 2, 3, calendar-access, addressbook` + verbs. |
+| PROPFIND | `/dav/` | [RFC 5397](https://www.rfc-editor.org/rfc/rfc5397) | `current-user-principal`, `*-home-set`, `principal-URL`, `supported-report-set`. |
+| PROPFIND | calendar home / calendar collection | [RFC 4791 §4](https://www.rfc-editor.org/rfc/rfc4791#section-4) | Auto-creates a default calendar on first hit. |
+| PROPFIND | addressbook home / addressbook | [RFC 6352 §5](https://www.rfc-editor.org/rfc/rfc6352#section-5) | Auto-creates a default address book on first hit. |
+| REPORT | `calendar-multiget` | [RFC 4791 §7.9](https://www.rfc-editor.org/rfc/rfc4791#section-7.9) | UIDs extracted from `<C:href>` children. |
+| REPORT | `calendar-query` | [RFC 4791 §7.8](https://www.rfc-editor.org/rfc/rfc4791#section-7.8) | Returns all events; time-range filter is 1.x roadmap (see below). |
+| REPORT | `addressbook-multiget` | [RFC 6352 §8.7](https://www.rfc-editor.org/rfc/rfc6352#section-8.7) | UIDs extracted from `<CR:href>` children. |
+| REPORT | `addressbook-query` | [RFC 6352 §8.6](https://www.rfc-editor.org/rfc/rfc6352#section-8.6) | Returns all contacts. |
+| GET | event / contact | [RFC 4791 §5.3.4](https://www.rfc-editor.org/rfc/rfc4791#section-5.3.4) / [RFC 6352 §6.3.4](https://www.rfc-editor.org/rfc/rfc6352#section-6.3.4) | Verbatim icalendar / vcard body + etag. |
+| PUT | event / contact | [RFC 4791 §5.3.2](https://www.rfc-editor.org/rfc/rfc4791#section-5.3.2) / [RFC 6352 §6.3.2](https://www.rfc-editor.org/rfc/rfc6352#section-6.3.2) | 201 on create, 204 on update, 412 on precondition fail. |
+| DELETE | event / contact | [RFC 4918 §9.6](https://www.rfc-editor.org/rfc/rfc4918#section-9.6) | 204 on delete, 404 when missing. |
 
 ## Quick start
 
@@ -39,8 +50,7 @@ struct MyStore;
 
 #[async_trait]
 impl CalendarStore for MyStore {
-    async fn list_calendars(&self, user: &str) -> Result<Vec<Calendar>, StoreError> {
-        // ... read your store
+    async fn list_calendars(&self, _user: &str) -> Result<Vec<Calendar>, StoreError> {
         Ok(vec![Calendar {
             id: 1,
             name: "Work".into(),
@@ -100,20 +110,37 @@ async fn calendar_route(
 # use axum::response::IntoResponse;
 ```
 
-The store impl is yours; mailrs itself wraps its `sqlx::PgPool` in a thin `DavAdapter` that bridges the schema's row types into `mailrs_dav::types`.
+The store impl is yours. The [mailrs] server wraps its `sqlx::PgPool` in a thin `DavAdapter` that bridges the schema's row types into `mailrs_dav::types` — about 250 LOC, worth a read as a reference implementation.
 
-## What's intentionally not in this crate
+## Roadmap
+
+`1.0` is the minimum viable surface — enough to drive Apple Calendar / Contacts, Thunderbird, DAVx⁵, and other mainstream clients for read + write of events and contacts. Items planned for `1.x`, in rough priority:
+
+- **Calendar-query `time-range` filtering** ([RFC 4791 §9.7](https://www.rfc-editor.org/rfc/rfc4791#section-9.7)). Today `calendar-query` returns the full event list; clients then filter locally. Adding server-side time-range narrows the wire payload for clients that send the filter.
+- **MKCALENDAR / MKCOL** ([RFC 4791 §5.3.1](https://www.rfc-editor.org/rfc/rfc4791#section-5.3.1)). Lets clients create new calendars from the UI (currently calendars are created server-side by `ensure_default_calendar` or an admin path).
+- **iTIP scheduling extensions** ([RFC 6638](https://www.rfc-editor.org/rfc/rfc6638)). Inbox / outbox collections for invite delivery. The raw iCalendar already round-trips intact, but the protocol-level scheduling collection wiring is out of `1.0`.
+- **`getctag` ([CalendarServer ctag extension](https://github.com/apple/ccs-calendarserver/blob/master/doc/Extensions/caldav-ctag.txt))**. A cheap "did anything change in this collection" pre-PROPFIND check for clients that poll.
+
+These will land as additive helpers / new pub fns. The existing trait signatures will not change incompatibly within `1.x`.
+
+## What's intentionally out of scope
 
 - **HTTP auth.** Basic / Bearer / OAuth is the wrapper's job — this crate takes a resolved `user` string.
-- **Routing / URL parsing.** Handlers take pre-resolved `calendar_id` / `book_id`; the URL → ID lookup is your wrapper's call (and trivial, because the store trait gives you `get_calendar` / `get_address_book`).
-- **Calendar-query time-range filters** (RFC 4791 §9.7). Most clients work fine with "return all events"; if you need filtering, layer it on top of `list_events`.
-- **Free/busy reports** (RFC 4791 §7.10) and **scheduling extensions** (RFC 6638) — different specs.
-- **ACL** (RFC 3744). The handlers emit a fixed `<D:all/>` privilege set for the authenticated owner.
-- **MKCALENDAR / MKCOL.** Calendar creation is a higher-level admin concern in most mail servers.
+- **Routing / URL parsing.** Handlers take pre-resolved `calendar_id` / `book_id`; the URL → id lookup is the wrapper's call (and trivial — the store trait gives you `get_calendar` / `get_address_book`).
+- **Free/busy reports** ([RFC 4791 §7.10](https://www.rfc-editor.org/rfc/rfc4791#section-7.10)). Separate spec; rarely implemented; clients fall back to fetching events.
+- **ACL** ([RFC 3744](https://www.rfc-editor.org/rfc/rfc3744)). The handlers emit a fixed `<D:all/>` privilege set for the authenticated owner; multi-owner / shared-calendar ACLs would need a real authorization model your wrapper owns.
 
 ## Versioning
 
-`1.0.0` and onward follows semver. The `CalendarStore` / `AddressBookStore` trait surfaces and the handler signatures are the public API; the exact XML shape inside `multistatus` may evolve within a minor version as long as it stays compliant with the matching RFC.
+`1.x` follows semver. The public API surface is:
+
+- `CalendarStore` / `AddressBookStore` trait method signatures
+- `DavError` enum variants
+- `DavResponse` field shapes
+- Per-handler `pub fn` signatures in `caldav::*`, `carddav::*`, `principal::*`
+- Pure helper signatures in `parse::*` and `xml::*`
+
+The exact XML shape inside `multistatus` may evolve within a minor version as long as it stays compliant with the matching RFC.
 
 ## License
 

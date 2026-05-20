@@ -8,8 +8,14 @@ use sha2::{Digest, Sha256};
 /// type.
 #[derive(Debug, Clone)]
 pub struct DavResponse {
+    /// HTTP status code (e.g. `200`, `207`, `404`).
     pub status: u16,
+    /// Response headers as `(name, value)` pairs, stored verbatim. The
+    /// server-side wrapper is expected to canonicalise header names if its
+    /// framework requires it.
     pub headers: Vec<(String, String)>,
+    /// Response body bytes. Typically XML for multistatus, plain text for
+    /// errors, raw iCalendar / vCard for GET on a resource.
     pub body: Vec<u8>,
 }
 

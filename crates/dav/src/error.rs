@@ -1,8 +1,8 @@
 //! CalDAV / CardDAV error variants used by handler return values.
 //!
 //! Each variant carries enough information to produce a meaningful HTTP
-//! response via [`to_dav_response`](Self::to_dav_response), so server-side
-//! wiring code can blanket-convert handler errors without inspecting them.
+//! response via [`DavError::to_dav_response`], so server-side wiring code can
+//! blanket-convert handler errors without inspecting them.
 
 use crate::xml::DavResponse;
 
