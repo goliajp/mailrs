@@ -27,8 +27,7 @@ use mail_auth::MessageAuthenticator;
 
 use crate::dmarc_report::DmarcReportStore;
 use crate::inbound::auth_guard::{AuthCheck, AuthGuard};
-use crate::inbound::greylist_db::GreylistDb;
-use crate::inbound::greylisting::GreylistConfig;
+use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
 use crate::inbound::pipeline::{self, DeliveryDecision};
 use crate::inbound::rate_limit::RateLimiter;
 use crate::sieve::{compile_sieve, evaluate_sieve_with_envelope, SieveAction};
@@ -153,7 +152,7 @@ pub async fn handle_plain_connection(
     if ctx.dnsbl_enabled && !ctx.dnsbl_zones.is_empty()
         && let Some(ref resolver) = ctx.resolver
             && let Some((zone, result)) =
-                crate::inbound::dnsbl::check_dnsbl(resolver, addr.ip(), &ctx.dnsbl_zones).await
+                mailrs_shield::dnsbl::check_dnsbl(resolver, addr.ip(), &ctx.dnsbl_zones).await
             {
                 let mut framed = Framed::new(
                     stream,

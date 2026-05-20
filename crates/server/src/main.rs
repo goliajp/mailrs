@@ -24,7 +24,6 @@ mod message_util;
 mod pg;
 mod managesieve_session;
 mod pop3_session;
-mod ptr_check;
 mod rbl_monitor;
 mod render_preview;
 mod reputation;
@@ -50,8 +49,7 @@ use tokio::net::{TcpListener, TcpStream};
 use crate::config::{ServerConfig, TlsMode};
 use crate::event_bus::{EventBus, SmtpEvent};
 use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig};
-use crate::inbound::greylist_db::GreylistDb;
-use crate::inbound::greylisting::GreylistConfig;
+use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
 use crate::inbound::rate_limit::{RateLimiter, TokenBucketConfig};
 use crate::smtp_session::ConnectionContext;
 use crate::users::UserStore;
@@ -224,7 +222,7 @@ async fn main() {
 
     // PTR record check
     if let Some(ref r) = resolver {
-        ptr_check::check_ptr_record(r, &cfg.hostname).await;
+        mailrs_shield::ptr::check_ptr_record(r, &cfg.hostname).await;
     }
 
     // greylisting (Valkey primary + PG cold backup)

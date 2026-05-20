@@ -1,4 +1,11 @@
-/// greylisting evaluation — pure logic, no database
+//! Greylisting policy + an optional Redis-backed store.
+//!
+//! The policy is pure (no I/O): you call [`evaluate_triplet`] with the
+//! first-seen timestamp and the current time, and it tells you whether
+//! to defer, retry, or accept. The store is just there for convenience —
+//! plug your own backend in by passing the right `first_seen` value.
+
+/// Greylisting evaluation — pure logic, no database.
 #[derive(Debug, Clone)]
 pub struct GreylistConfig {
     /// seconds to wait before accepting a retried message
@@ -26,10 +33,10 @@ pub enum GreylistDecision {
     Accept,
 }
 
-/// evaluate a (client_ip, sender, recipient) triplet
+/// Evaluate a (client_ip, sender, recipient) triplet.
 ///
-/// `first_seen`: unix timestamp when the triplet was first recorded (None if never seen)
-/// `now`: current unix timestamp
+/// `first_seen`: unix timestamp when the triplet was first recorded (None if never seen).
+/// `now`: current unix timestamp.
 pub fn evaluate_triplet(
     first_seen: Option<u64>,
     now: u64,
@@ -48,9 +55,84 @@ pub fn evaluate_triplet(
     }
 }
 
-/// compute a triplet key for storage
+/// Compute a stable triplet key for storage.
 pub fn triplet_key(client_ip: &str, sender: &str, recipient: &str) -> String {
     format!("{client_ip}|{sender}|{recipient}")
+}
+
+#[cfg(feature = "redis-store")]
+pub use redis_impl::GreylistDb;
+
+#[cfg(feature = "redis-store")]
+mod redis_impl {
+    use redis::AsyncCommands;
+
+    use super::{GreylistConfig, GreylistDecision, evaluate_triplet};
+
+    /// Redis-backed greylisting store with an optional Postgres cold-backup.
+    ///
+    /// First-seen timestamps live in Redis with a TTL equal to `pass_ttl_secs`;
+    /// the optional PG pool is written best-effort for durability across
+    /// Redis restarts.
+    pub struct GreylistDb {
+        valkey: redis::aio::ConnectionManager,
+        pg: Option<sqlx::PgPool>,
+    }
+
+    impl GreylistDb {
+        pub fn new(valkey: redis::aio::ConnectionManager) -> Self {
+            Self { valkey, pg: None }
+        }
+
+        pub fn with_pg(mut self, pool: sqlx::PgPool) -> Self {
+            self.pg = Some(pool);
+            self
+        }
+
+        pub async fn check(
+            &self,
+            key: &str,
+            now: u64,
+            config: &GreylistConfig,
+        ) -> GreylistDecision {
+            let mut conn = self.valkey.clone();
+            let vk_key = format!("gl:{key}");
+
+            let first_seen: Option<u64> = conn.get(&vk_key).await.ok().flatten();
+
+            let decision = evaluate_triplet(first_seen, now, config);
+
+            match decision {
+                GreylistDecision::Defer => {
+                    // first time — set with TTL = pass_ttl
+                    let _: Result<(), _> =
+                        conn.set_ex(&vk_key, now, config.pass_ttl_secs).await;
+                }
+                GreylistDecision::TooEarly | GreylistDecision::Accept => {
+                    // update TTL to keep entry alive
+                    let _: Result<(), _> =
+                        conn.expire(&vk_key, config.pass_ttl_secs as i64).await;
+                }
+            }
+
+            // cold backup to PG (best effort)
+            if let Some(ref pool) = self.pg {
+                let now_i64 = now as i64;
+                let _ = sqlx::query(
+                    "INSERT INTO greylist_triplets (key, first_seen, last_seen)
+                     VALUES ($1, $2, $3)
+                     ON CONFLICT (key) DO UPDATE SET last_seen = $3",
+                )
+                .bind(key)
+                .bind(first_seen.unwrap_or(now) as i64)
+                .bind(now_i64)
+                .execute(pool)
+                .await;
+            }
+
+            decision
+        }
+    }
 }
 
 #[cfg(test)]
@@ -72,14 +154,12 @@ mod tests {
 
     #[test]
     fn too_early_defers() {
-        // first seen at t=1000, now t=1100 (100s < 300s delay)
         let decision = evaluate_triplet(Some(1000), 1100, &config());
         assert_eq!(decision, GreylistDecision::TooEarly);
     }
 
     #[test]
     fn after_delay_accepts() {
-        // first seen at t=1000, now t=1400 (400s > 300s delay)
         let decision = evaluate_triplet(Some(1000), 1400, &config());
         assert_eq!(decision, GreylistDecision::Accept);
     }
@@ -90,16 +170,11 @@ mod tests {
             initial_delay_secs: 60,
             pass_ttl_secs: 3600,
         };
-        // 59 seconds — too early
         assert_eq!(
             evaluate_triplet(Some(0), 59, &cfg),
             GreylistDecision::TooEarly
         );
-        // 60 seconds — accept
-        assert_eq!(
-            evaluate_triplet(Some(0), 60, &cfg),
-            GreylistDecision::Accept
-        );
+        assert_eq!(evaluate_triplet(Some(0), 60, &cfg), GreylistDecision::Accept);
     }
 
     #[test]
@@ -107,8 +182,6 @@ mod tests {
         let key = triplet_key("1.2.3.4", "sender@example.com", "rcpt@example.com");
         assert_eq!(key, "1.2.3.4|sender@example.com|rcpt@example.com");
     }
-
-    // --- triplet_key additional tests ---
 
     #[test]
     fn triplet_key_ipv6() {
@@ -118,7 +191,6 @@ mod tests {
 
     #[test]
     fn triplet_key_empty_sender() {
-        // bounce messages have empty sender (<>)
         let key = triplet_key("10.0.0.1", "", "postmaster@example.com");
         assert_eq!(key, "10.0.0.1||postmaster@example.com");
     }
@@ -135,8 +207,6 @@ mod tests {
         assert_eq!(key, "10.0.0.1|user+tag@example.com|o'malley@test.org");
     }
 
-    // --- GreylistConfig defaults and boundary ---
-
     #[test]
     fn default_config_values() {
         let cfg = GreylistConfig::default();
@@ -150,7 +220,6 @@ mod tests {
             initial_delay_secs: 0,
             pass_ttl_secs: 3600,
         };
-        // even at the same timestamp it should accept
         assert_eq!(
             evaluate_triplet(Some(100), 100, &cfg),
             GreylistDecision::Accept
@@ -163,18 +232,14 @@ mod tests {
             initial_delay_secs: u64::MAX,
             pass_ttl_secs: u64::MAX,
         };
-        // no matter how far in the future, saturating_sub prevents overflow
         assert_eq!(
             evaluate_triplet(Some(0), u64::MAX - 1, &cfg),
             GreylistDecision::TooEarly
         );
     }
 
-    // --- evaluate_triplet time window logic ---
-
     #[test]
     fn exact_boundary_accepts() {
-        // exactly at the delay boundary should accept
         let cfg = config();
         assert_eq!(
             evaluate_triplet(Some(1000), 1300, &cfg),
@@ -194,7 +259,6 @@ mod tests {
     #[test]
     fn now_equals_first_seen_too_early() {
         let cfg = config();
-        // elapsed = 0, less than 300
         assert_eq!(
             evaluate_triplet(Some(500), 500, &cfg),
             GreylistDecision::TooEarly
@@ -203,9 +267,7 @@ mod tests {
 
     #[test]
     fn now_before_first_seen_saturates_to_zero() {
-        // clock skew scenario: now < first_seen
         let cfg = config();
-        // saturating_sub(500, 1000) = 0, which is < 300
         assert_eq!(
             evaluate_triplet(Some(1000), 500, &cfg),
             GreylistDecision::TooEarly
@@ -215,21 +277,17 @@ mod tests {
     #[test]
     fn long_after_delay_still_accepts() {
         let cfg = config();
-        // first seen a day ago
         assert_eq!(
             evaluate_triplet(Some(0), 86400, &cfg),
             GreylistDecision::Accept
         );
     }
 
-    // --- GreylistDecision enum properties ---
-
     #[test]
     fn decision_clone_and_debug() {
         let d = GreylistDecision::Defer;
         let d2 = d.clone();
         assert_eq!(d, d2);
-        // debug format should contain variant name
         assert!(format!("{d:?}").contains("Defer"));
     }
 

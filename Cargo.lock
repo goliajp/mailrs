@@ -2436,6 +2436,7 @@ dependencies = [
  "mailrs-maildir 1.0.0",
  "mailrs-outbound-queue 1.0.0",
  "mailrs-postmaster 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-shield 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.0.0",
  "mailrs-smtp-proto 1.0.0",
  "mime_guess",
@@ -2467,6 +2468,28 @@ dependencies = [
  "urlencoding",
  "uuid",
  "x509-parser",
+]
+
+[[package]]
+name = "mailrs-shield"
+version = "1.0.0"
+dependencies = [
+ "criterion",
+ "hickory-resolver",
+ "redis",
+ "sqlx",
+ "tokio",
+]
+
+[[package]]
+name = "mailrs-shield"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54f265bebf3cb08965dd848b2e2a60ed2c73e8b844bb40dea9b25b0f3461c77f"
+dependencies = [
+ "hickory-resolver",
+ "redis",
+ "sqlx",
 ]
 
 [[package]]
