@@ -26,6 +26,10 @@ impl MailboxStore {
 
     /// list conversations grouped by thread_id, ordered by most recent
     /// when `domains` is Some, query across all accounts in those domains instead of single user
+    // 11 args are independent filter axes for the conversation list
+    // (user/limit/before_ts + 8 filters). Wrapping in a single
+    // `ConversationFilter` struct is on the v2 roadmap; for now this
+    // matches the JMAP query shape callers already use.
     #[allow(clippy::too_many_arguments)]
     pub async fn list_conversations(
         &self,

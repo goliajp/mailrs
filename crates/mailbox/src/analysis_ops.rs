@@ -1,5 +1,30 @@
 use crate::store::MailboxStore;
 
+/// Input to [`MailboxStore::upsert_email_analysis`].
+///
+/// All fields are required by the underlying `email_analysis` table; the
+/// struct exists to keep the call sites readable (the previous signature
+/// had 16 positional args). Build it with field syntax — there's no
+/// `Default` because every field is semantically required.
+#[derive(Debug, Clone)]
+pub struct EmailAnalysisInput<'a> {
+    pub message_id: i64,
+    pub category: &'a str,
+    pub risk_score: i16,
+    pub risk_reason: &'a str,
+    pub summary: &'a str,
+    pub people: &'a serde_json::Value,
+    pub dates: &'a serde_json::Value,
+    pub amounts: &'a serde_json::Value,
+    pub action_items: &'a serde_json::Value,
+    pub embedding: Option<&'a [f32]>,
+    pub model_version: &'a str,
+    pub clean_text: &'a str,
+    pub requires_action: bool,
+    pub sender_intent: &'a str,
+    pub action_deadline: Option<&'a str>,
+}
+
 impl MailboxStore {
     /// get analysis result for a message
     pub async fn get_email_analysis(&self, message_id: i64) -> Result<Option<crate::types::EmailAnalysisRow>, sqlx::Error> {
@@ -31,28 +56,14 @@ impl MailboxStore {
         }))
     }
 
-    /// upsert analysis result
-    #[allow(clippy::too_many_arguments)]
+    /// Upsert AI analysis result for a message. Takes [`EmailAnalysisInput`]
+    /// to keep call sites readable — the underlying table has 16 columns.
     pub async fn upsert_email_analysis(
         &self,
-        message_id: i64,
-        category: &str,
-        risk_score: i16,
-        risk_reason: &str,
-        summary: &str,
-        people: &serde_json::Value,
-        dates: &serde_json::Value,
-        amounts: &serde_json::Value,
-        action_items: &serde_json::Value,
-        embedding: Option<&[f32]>,
-        model_version: &str,
-        clean_text: &str,
-        requires_action: bool,
-        sender_intent: &str,
-        action_deadline: Option<&str>,
+        input: &EmailAnalysisInput<'_>,
     ) -> Result<(), sqlx::Error> {
         // format embedding as pgvector text literal
-        let embedding_str = embedding.map(|v| {
+        let embedding_str = input.embedding.map(|v| {
             let nums: Vec<String> = v.iter().map(|f| f.to_string()).collect();
             format!("[{}]", nums.join(","))
         });
@@ -77,21 +88,21 @@ impl MailboxStore {
                action_deadline = EXCLUDED.action_deadline,
                analyzed_at = now()",
         )
-        .bind(message_id)
-        .bind(category)
-        .bind(risk_score)
-        .bind(risk_reason)
-        .bind(summary)
-        .bind(people)
-        .bind(dates)
-        .bind(amounts)
-        .bind(action_items)
+        .bind(input.message_id)
+        .bind(input.category)
+        .bind(input.risk_score)
+        .bind(input.risk_reason)
+        .bind(input.summary)
+        .bind(input.people)
+        .bind(input.dates)
+        .bind(input.amounts)
+        .bind(input.action_items)
         .bind(embedding_str.as_deref())
-        .bind(model_version)
-        .bind(clean_text)
-        .bind(requires_action)
-        .bind(sender_intent)
-        .bind(action_deadline)
+        .bind(input.model_version)
+        .bind(input.clean_text)
+        .bind(input.requires_action)
+        .bind(input.sender_intent)
+        .bind(input.action_deadline)
         .execute(&self.pool)
         .await?;
 

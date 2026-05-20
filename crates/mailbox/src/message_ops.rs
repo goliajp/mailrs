@@ -7,6 +7,9 @@ use crate::types::MessageMeta;
 
 impl MailboxStore {
     /// index a new message: assigns UID, inserts metadata, returns UID
+    // 11 args mirror the messages-table columns the caller is already
+    // computing from a parsed RFC 5322 message — wrapping them in a
+    // struct adds a noisy round-trip without simplifying the call site.
     #[allow(clippy::too_many_arguments)]
     pub async fn index_message(
         &self,
@@ -187,6 +190,10 @@ impl MailboxStore {
     }
 
     /// query messages for JMAP: flexible filter returning DB IDs + total count
+    // 8 args are independent filter axes (user/mailbox/text/has_flags/
+    // not_flags/sort/limit/offset). A param struct would force callers
+    // to construct + drop a builder for each call without making the
+    // intent clearer than positional args.
     #[allow(clippy::too_many_arguments)]
     pub async fn query_messages(
         &self,
@@ -487,6 +494,9 @@ impl MailboxStore {
     }
 
     /// update message content fields after deep cleaning
+    // 7 of the args are Option<&str> columns being patched; positional is
+    // the cleanest spelling — wrapping in a struct of `Option<&str>` adds
+    // no clarity over the column order they already mirror.
     #[allow(clippy::too_many_arguments)]
     pub async fn update_message_content(
         &self,
