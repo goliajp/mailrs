@@ -4,7 +4,7 @@ use tokio::sync::mpsc;
 
 use mailrs_intelligence::analyze;
 use mailrs_intelligence::provider::LlmProvider;
-use mailrs_mailbox::MailboxStore;
+use mailrs_mailbox::{EmailAnalysisInput, MailboxStore};
 
 use crate::event_bus::{EventBus, SmtpEvent};
 use crate::message_util;
@@ -213,14 +213,24 @@ async fn do_analyze(
             || chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok()
     });
 
-    if let Err(e) = store.upsert_email_analysis(
-        message_id, &analysis.category, analysis.risk_score as i16,
-        &analysis.risk_reason, &analysis.summary,
-        &analysis.people, &analysis.dates, &analysis.amounts, &analysis.action_items,
-        embedding.as_deref(), model_version,
-        &analysis.clean_text, analysis.requires_action,
-        intent, deadline,
-    ).await {
+    let input = EmailAnalysisInput {
+        message_id,
+        category: &analysis.category,
+        risk_score: analysis.risk_score as i16,
+        risk_reason: &analysis.risk_reason,
+        summary: &analysis.summary,
+        people: &analysis.people,
+        dates: &analysis.dates,
+        amounts: &analysis.amounts,
+        action_items: &analysis.action_items,
+        embedding: embedding.as_deref(),
+        model_version,
+        clean_text: &analysis.clean_text,
+        requires_action: analysis.requires_action,
+        sender_intent: intent,
+        action_deadline: deadline,
+    };
+    if let Err(e) = store.upsert_email_analysis(&input).await {
         eprintln!("AI analyzer DB error msg={message_id}: {e}");
         return false;
     }

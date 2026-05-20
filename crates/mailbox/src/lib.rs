@@ -13,6 +13,7 @@ mod search_ops;
 mod thread_ops;
 mod usage_ops;
 
+pub use analysis_ops::EmailAnalysisInput;
 pub use store::MailboxStore;
 pub use types::{
     ConversationSummary, EmailAnalysisRow, FlagAction, Mailbox, MessageMeta,

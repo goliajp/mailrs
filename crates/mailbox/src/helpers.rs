@@ -19,6 +19,9 @@ pub(crate) fn build_user_filter(user: &str, domains: Option<&[String]>, start_id
 }
 
 /// convert a tuple row to MessageMeta
+// the 15-tuple matches the column order in the messages-table SELECT;
+// extracting a named struct just for this helper would duplicate the
+// MessageMeta type for no clarity gain.
 #[allow(clippy::type_complexity)]
 pub(crate) fn row_to_message_meta(
     r: (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64),
