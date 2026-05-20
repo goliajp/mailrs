@@ -2189,6 +2189,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-ical"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a339985829be7e3ffeb87dab1c7f1ba83d705982f104c4bb0bb709906f825af9"
+dependencies = [
+ "chrono",
+ "chrono-tz",
+ "rrule",
+ "serde",
+]
+
+[[package]]
 name = "mailrs-imap-proto"
 version = "1.0.0"
 
@@ -2201,6 +2213,22 @@ checksum = "2b4c6e0d33b089b538e5e4848f2803f10c2133ae30595ccf222b2d8408a10f1b"
 [[package]]
 name = "mailrs-intelligence"
 version = "1.0.0"
+dependencies = [
+ "async-trait",
+ "redis",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "mailrs-intelligence"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cda9e1b7822769b78670f6cf9a66849ca89293bc01e0a0bbe78026663383d4df"
 dependencies = [
  "async-trait",
  "redis",
@@ -2260,6 +2288,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-outbound-queue"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6182b8eff8b20d17d4aafb00bc64a16134606ed6e62ffa7593a95b8bbb509997"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "futures-util",
+ "hickory-resolver",
+ "mail-auth",
+ "mailrs-smtp-client 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "redis",
+ "rustls-pki-types",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "mailrs-server"
 version = "1.6.18"
 dependencies = [
@@ -2285,13 +2333,13 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
- "mailrs-ical",
+ "mailrs-ical 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-imap-proto 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-intelligence",
+ "mailrs-intelligence 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox",
  "mailrs-maildir 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-outbound-queue",
- "mailrs-smtp-client 1.0.0",
+ "mailrs-outbound-queue 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-smtp-client 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime_guess",
  "password-hash",
