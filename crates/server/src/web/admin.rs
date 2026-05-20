@@ -1856,7 +1856,7 @@ pub(super) async fn audit_get_thread_messages(
         };
 
         let structured_data = parsed.1.as_deref().and_then(|html| {
-            let sd = crate::structured_data::extract_structured_data(html);
+            let sd = mailrs_intelligence::structured::extract_structured_data(html);
             if sd.is_empty() { None } else { Some(sd) }
         });
 

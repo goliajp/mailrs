@@ -60,7 +60,7 @@ pub struct ConnectionContext {
     pub dmarc_report_store: Option<Arc<DmarcReportStore>>,
     pub clamav_addr: Option<String>,
     pub valkey: Option<redis::aio::ConnectionManager>,
-    pub llm_url: Option<String>,
+    pub llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     pub srs_secret: Option<String>,
     pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
 }
@@ -494,7 +494,7 @@ where
                                 ctx.dmarc_report_store.as_ref(),
                                 ctx.resolver.as_ref(),
                                 ctx.clamav_addr.as_deref(),
-                                ctx.llm_url.as_deref(),
+                                ctx.llm_provider.as_ref(),
                                 ctx.valkey.as_ref(),
                             )
                             .await;
@@ -1353,7 +1353,7 @@ async fn post_delivery_process(
     resolver: Option<&TokioResolver>,
 ) {
     use crate::html_clean;
-    use crate::importance::{self, ImportanceSignals};
+    use mailrs_intelligence::importance::{self, ImportanceSignals};
 
     // 1. contact upsert
     let display_name = extract_display_name(sender);

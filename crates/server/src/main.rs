@@ -1,7 +1,5 @@
 mod acme;
 mod ai_analyzer;
-mod ai_email;
-mod ai_spam;
 mod api_key_store;
 mod codec;
 mod config;
@@ -19,13 +17,11 @@ mod calendar;
 mod html_clean;
 mod imap_codec;
 mod ldap_auth;
-mod importance;
 mod imap_format;
 mod imap_session;
 pub mod inbound;
 mod inline_image;
 mod message_util;
-mod structured_data;
 mod pg;
 mod managesieve_session;
 mod pop3_session;
@@ -322,17 +318,32 @@ async fn main() {
         }
     }
 
-    // AI email analyzer (background) — uses self-hosted LLM
-    if cfg.ai_analysis_enabled
-        && let Some(ref mb) = mailbox_store {
-            let llm_config = ai_email::LlmConfig::new(cfg.llm_url.clone(), cfg.llm_api_key.clone());
-            ai_analyzer::spawn_analyzer(
-                llm_config,
-                mb.clone(),
-                event_bus.clone(),
-                cfg.maildir_root.clone(),
+    // shared LLM provider — used by background analyzer, web semantic
+    // search, and inbound spam classification. Wrap once, clone everywhere.
+    let llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>> =
+        if cfg.ai_analysis_enabled {
+            let model_id = format!(
+                "qwen3.5-9b/{}",
+                mailrs_intelligence::analyze::PROMPT_VERSION
             );
-        }
+            Some(Arc::new(mailrs_intelligence::OpenAiCompatibleProvider::new(
+                cfg.llm_url.clone(),
+                cfg.llm_api_key.clone(),
+                model_id,
+            )))
+        } else {
+            None
+        };
+
+    // AI email analyzer (background) — uses self-hosted LLM
+    if let (Some(provider), Some(mb)) = (llm_provider.as_ref(), mailbox_store.as_ref()) {
+        ai_analyzer::spawn_analyzer(
+            provider.clone(),
+            mb.clone(),
+            event_bus.clone(),
+            cfg.maildir_root.clone(),
+        );
+    }
 
     // content extraction worker (OCR, PDF text)
     if let Some(ref pool) = pg_pool {
@@ -384,8 +395,8 @@ async fn main() {
             cfg.mta_sts_id.clone(),
         );
     }
-    if cfg.ai_analysis_enabled {
-        ws = ws.with_llm(ai_email::LlmConfig::new(cfg.llm_url.clone(), cfg.llm_api_key.clone()));
+    if let Some(ref provider) = llm_provider {
+        ws = ws.with_llm(provider.clone());
     }
     if let Some(ref r) = resolver {
         ws = ws.with_resolver(r.clone());
@@ -497,11 +508,7 @@ async fn main() {
         dmarc_report_store: dmarc_report_store.clone(),
         clamav_addr: cfg.clamav_addr.clone(),
         valkey: valkey_conn.clone(),
-        llm_url: if cfg.ai_analysis_enabled {
-            Some(cfg.llm_url.clone())
-        } else {
-            None
-        },
+        llm_provider: llm_provider.clone(),
         srs_secret: cfg.srs_secret.clone(),
         ldap_config: ldap_config.clone(),
     });

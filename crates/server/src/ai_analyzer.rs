@@ -2,34 +2,35 @@ use std::sync::Arc;
 
 use tokio::sync::mpsc;
 
-use crate::ai_email::{self, LlmConfig};
+use mailrs_intelligence::analyze;
+use mailrs_intelligence::provider::LlmProvider;
+use mailrs_mailbox::MailboxStore;
+
 use crate::event_bus::{EventBus, SmtpEvent};
 use crate::message_util;
-use mailrs_mailbox::MailboxStore;
 
 type Job = (i64, String, String, String, String); // (msg_id, user, maildir_id, sender, subject)
 
 /// spawn the email analyzer — single serial queue, new emails pushed to front
 pub fn spawn_analyzer(
-    config: LlmConfig,
+    provider: Arc<dyn LlmProvider>,
     mailbox_store: Arc<MailboxStore>,
     event_bus: EventBus,
     maildir_root: String,
 ) {
-    let config = Arc::new(config);
     let (tx, rx) = mpsc::unbounded_channel::<Job>();
 
     // listener: enqueue new emails as they arrive
     {
         let store = mailbox_store.clone();
-        let mv = config.model_version();
+        let mv = provider.model_id().to_string();
         let tx = tx.clone();
         tokio::spawn(async move { listen_new_messages(store, event_bus, tx, mv).await });
     }
 
     // single worker: drain new emails first, then pick backfill
     tokio::spawn(async move {
-        worker(config, mailbox_store, maildir_root, rx).await;
+        worker(provider, mailbox_store, maildir_root, rx).await;
     });
 
     eprintln!("AI email analyzer started");
@@ -37,12 +38,12 @@ pub fn spawn_analyzer(
 
 /// single serial worker
 async fn worker(
-    config: Arc<LlmConfig>,
+    provider: Arc<dyn LlmProvider>,
     store: Arc<MailboxStore>,
     maildir_root: String,
     mut new_rx: mpsc::UnboundedReceiver<Job>,
 ) {
-    let model_version = config.model_version();
+    let model_version = provider.model_id().to_string();
     let mut done = 0u64;
     let mut failed = 0u64;
     let mut consecutive_fails = 0u32;
@@ -57,14 +58,14 @@ async fn worker(
     loop {
         // priority 1: drain all pending new emails
         while let Ok(job) = new_rx.try_recv() {
-            process_one(&config, &store, &maildir_root, job, &model_version,
+            process_one(&*provider, &store, &maildir_root, job, &model_version,
                 &mut done, &mut failed, &mut consecutive_fails, total).await;
         }
 
         // priority 2: backfill — serial, one at a time
         let batch = store.list_unanalyzed_message_ids(1, &model_version).await.unwrap_or_default();
         if let Some(job) = batch.into_iter().next() {
-            process_one(&config, &store, &maildir_root, job, &model_version,
+            process_one(&*provider, &store, &maildir_root, job, &model_version,
                 &mut done, &mut failed, &mut consecutive_fails, total).await;
         } else {
             // backfill done — wait for new email
@@ -75,7 +76,7 @@ async fn worker(
             }
             match new_rx.recv().await {
                 Some(job) => {
-                    process_one(&config, &store, &maildir_root, job, &model_version,
+                    process_one(&*provider, &store, &maildir_root, job, &model_version,
                         &mut done, &mut failed, &mut consecutive_fails, total).await;
                 }
                 None => break,
@@ -87,7 +88,7 @@ async fn worker(
 /// process one message with retry + backoff tracking
 #[allow(clippy::too_many_arguments)]
 async fn process_one(
-    config: &LlmConfig,
+    provider: &dyn LlmProvider,
     store: &MailboxStore,
     maildir_root: &str,
     (msg_id, user, maildir_id, sender, subject): Job,
@@ -98,7 +99,7 @@ async fn process_one(
     total: i64,
 ) {
     let success = analyze_with_retry(
-        config, store, maildir_root,
+        provider, store, maildir_root,
         msg_id, &user, &maildir_id, &sender, &subject, model_version,
     ).await;
 
@@ -147,7 +148,7 @@ async fn listen_new_messages(
 /// analyze with up to 2 retries
 #[allow(clippy::too_many_arguments)]
 async fn analyze_with_retry(
-    config: &LlmConfig, store: &MailboxStore, maildir_root: &str,
+    provider: &dyn LlmProvider, store: &MailboxStore, maildir_root: &str,
     message_id: i64, user: &str, maildir_id: &str,
     sender_raw: &str, subject_raw: &str, model_version: &str,
 ) -> bool {
@@ -157,7 +158,7 @@ async fn analyze_with_retry(
             eprintln!("AI retry msg={message_id} attempt={} backoff={delay}s", attempt + 1);
             tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
         }
-        if do_analyze(config, store, maildir_root, message_id, user, maildir_id, sender_raw, subject_raw, model_version).await {
+        if do_analyze(provider, store, maildir_root, message_id, user, maildir_id, sender_raw, subject_raw, model_version).await {
             return true;
         }
     }
@@ -167,7 +168,7 @@ async fn analyze_with_retry(
 
 #[allow(clippy::too_many_arguments)]
 async fn do_analyze(
-    config: &LlmConfig, store: &MailboxStore, maildir_root: &str,
+    provider: &dyn LlmProvider, store: &MailboxStore, maildir_root: &str,
     message_id: i64, user: &str, maildir_id: &str,
     sender_raw: &str, subject_raw: &str, model_version: &str,
 ) -> bool {
@@ -190,7 +191,7 @@ async fn do_analyze(
 
     // analysis first, then embedding (separate models, serial)
     let t0 = std::time::Instant::now();
-    let analysis = match ai_email::analyze_email(config, &sender, &subject, &body).await {
+    let analysis = match analyze::analyze_email(provider, &sender, &subject, &body).await {
         Some(a) => a,
         None => {
             eprintln!("AI analyze failed msg={message_id} (LLM returned no result)");
@@ -201,7 +202,7 @@ async fn do_analyze(
 
     let t1 = std::time::Instant::now();
     let embedding_text = format!("{subject}\n\n{body}");
-    let embedding = ai_email::generate_embedding(config, &embedding_text).await;
+    let embedding = provider.embed(&embedding_text).await;
     let t_embed = t1.elapsed();
 
     let intent = if analysis.sender_intent.is_empty() { "inform" } else { &analysis.sender_intent };

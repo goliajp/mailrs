@@ -113,7 +113,7 @@ pub(super) async fn ai_polish(
          Return ONLY the polished text, no explanation, no markdown fences."
     );
 
-    match crate::ai_email::call_llm(config, &system, text, 0.7).await {
+    match config.complete(&system, text, 0.7).await {
         Some(result) => Json(PolishResult {
             success: true,
             polished: Some(result),
@@ -170,7 +170,7 @@ pub(super) async fn ai_reply_suggest(
         format!("Prior conversation:\n{thread_ctx}\n\n---\nLatest email to reply to:\nFrom: {sender}\nSubject: {subject}\nBody:\n{body}")
     };
 
-    match crate::ai_email::call_llm(config, &system, &user_message, 0.7).await {
+    match config.complete(&system, &user_message, 0.7).await {
         Some(result) => {
             let suggestions: Vec<String> = serde_json::from_str(&result).unwrap_or_else(|_| {
                 let cleaned = result
@@ -248,7 +248,7 @@ pub(super) async fn ai_generate_subject(
          Return ONLY the subject line text, nothing else. No quotes, no prefix like 'Subject:'."
     );
 
-    match crate::ai_email::call_llm(config, &system, body, 0.3).await {
+    match config.complete(&system, body, 0.3).await {
         Some(result) => {
             let subject = result.trim().trim_matches('"').to_string();
             Json(SubjectGenerateResult {

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// structured data extracted from email HTML (Schema.org JSON-LD)
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub(crate) struct StructuredData {
+pub struct StructuredData {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub reservations: Vec<Reservation>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -14,7 +14,7 @@ pub(crate) struct StructuredData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct Reservation {
+pub struct Reservation {
     #[serde(rename = "type")]
     pub kind: String, // flight, hotel, restaurant, rental_car
     pub name: Option<String>,
@@ -36,7 +36,7 @@ pub(crate) struct Reservation {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct Order {
+pub struct Order {
     pub order_number: Option<String>,
     pub merchant: Option<String>,
     pub order_date: Option<String>,
@@ -50,7 +50,7 @@ pub(crate) struct Order {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct OrderItem {
+pub struct OrderItem {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quantity: Option<u32>,
@@ -59,7 +59,7 @@ pub(crate) struct OrderItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct EventInfo {
+pub struct EventInfo {
     pub name: String,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
@@ -69,7 +69,7 @@ pub(crate) struct EventInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct ActionInfo {
+pub struct ActionInfo {
     #[serde(rename = "type")]
     pub kind: String, // confirm, view, track, rsvp
     pub name: String,
@@ -86,7 +86,7 @@ impl StructuredData {
 }
 
 /// extract Schema.org JSON-LD from HTML email body
-pub(crate) fn extract_structured_data(html: &str) -> StructuredData {
+pub fn extract_structured_data(html: &str) -> StructuredData {
     let mut data = StructuredData::default();
 
     // find all <script type="application/ld+json"> blocks
