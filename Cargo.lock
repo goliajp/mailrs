@@ -2219,16 +2219,18 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "1.6.18"
+version = "1.0.0"
 dependencies = [
+ "async-trait",
  "chrono",
  "futures-util",
  "hickory-resolver",
  "mail-auth",
- "mailrs-smtp-client",
+ "mailrs-smtp-client 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "redis",
  "rustls-pki-types",
  "sqlx",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
 ]
@@ -2263,7 +2265,7 @@ dependencies = [
  "mailrs-mailbox",
  "mailrs-maildir 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-outbound-queue",
- "mailrs-smtp-client",
+ "mailrs-smtp-client 1.0.0",
  "mailrs-smtp-proto 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime_guess",
  "password-hash",
@@ -2298,7 +2300,21 @@ dependencies = [
 
 [[package]]
 name = "mailrs-smtp-client"
-version = "1.6.18"
+version = "1.0.0"
+dependencies = [
+ "hickory-resolver",
+ "rustls",
+ "sha2 0.11.0",
+ "tokio",
+ "tokio-rustls",
+ "webpki-roots",
+]
+
+[[package]]
+name = "mailrs-smtp-client"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6511e867f24b87225b74c56f0e8da319b7ead4cbc5818e1c53ab4e18ec3a1d5c"
 dependencies = [
  "hickory-resolver",
  "rustls",

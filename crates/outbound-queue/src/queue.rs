@@ -1,6 +1,9 @@
+#[cfg(feature = "pg")]
 use redis::AsyncCommands;
+#[cfg(feature = "pg")]
 use sqlx::PgPool;
 
+/// Lifecycle status of a queued message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QueueStatus {
     Pending,
@@ -52,6 +55,7 @@ pub struct QueuedMessage {
 }
 
 /// enqueue a message for outbound delivery
+#[cfg(feature = "pg")]
 pub async fn enqueue(
     pool: &PgPool,
     sender: &str,
@@ -66,6 +70,7 @@ pub async fn enqueue(
 
 /// enqueue a message for outbound delivery with forwarding flag
 #[allow(clippy::too_many_arguments)]
+#[cfg(feature = "pg")]
 pub async fn enqueue_ex(
     pool: &PgPool,
     sender: &str,
@@ -94,12 +99,14 @@ pub async fn enqueue_ex(
 }
 
 /// notify the delivery worker that new messages are queued
+#[cfg(feature = "pg")]
 pub async fn notify(valkey: &mut redis::aio::ConnectionManager) {
     let _: Result<i32, _> = valkey.publish("queue:notify", "1").await;
 }
 
 /// recover messages stuck in inflight status for more than 10 minutes
 /// (worker crashed or was killed before marking them as delivered/failed)
+#[cfg(feature = "pg")]
 pub async fn recover_stale_inflight(pool: &PgPool, now: i64) -> Result<u64, sqlx::Error> {
     let stale_threshold = now - 600; // 10 minutes
     let result = sqlx::query(
@@ -114,6 +121,7 @@ pub async fn recover_stale_inflight(pool: &PgPool, now: i64) -> Result<u64, sqlx
 }
 
 /// fetch pending messages ready for delivery
+#[cfg(feature = "pg")]
 pub async fn dequeue(pool: &PgPool, now: i64, limit: u32) -> Result<Vec<QueuedMessage>, sqlx::Error> {
     #[allow(clippy::type_complexity)]
     let rows: Vec<(i64, String, String, String, Vec<u8>, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
@@ -147,6 +155,7 @@ pub async fn dequeue(pool: &PgPool, now: i64, limit: u32) -> Result<Vec<QueuedMe
 }
 
 /// mark a message as in-flight
+#[cfg(feature = "pg")]
 pub async fn mark_inflight(pool: &PgPool, id: i64, now: i64) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE outbound_queue SET status = 'inflight', updated_at = $1 WHERE id = $2")
         .bind(now)
@@ -157,6 +166,7 @@ pub async fn mark_inflight(pool: &PgPool, id: i64, now: i64) -> Result<(), sqlx:
 }
 
 /// mark a message as delivered
+#[cfg(feature = "pg")]
 pub async fn mark_delivered(pool: &PgPool, id: i64, now: i64) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE outbound_queue SET status = 'delivered', updated_at = $1 WHERE id = $2")
         .bind(now)
@@ -167,6 +177,7 @@ pub async fn mark_delivered(pool: &PgPool, id: i64, now: i64) -> Result<(), sqlx
 }
 
 /// mark a message as failed with next retry time
+#[cfg(feature = "pg")]
 pub async fn mark_failed(
     pool: &PgPool,
     id: i64,
@@ -187,6 +198,7 @@ pub async fn mark_failed(
 }
 
 /// mark a message as permanently bounced
+#[cfg(feature = "pg")]
 pub async fn mark_bounced(pool: &PgPool, id: i64, error: &str, now: i64) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE outbound_queue SET status = 'bounced', last_error = $1, updated_at = $2 WHERE id = $3",
@@ -200,6 +212,7 @@ pub async fn mark_bounced(pool: &PgPool, id: i64, error: &str, now: i64) -> Resu
 }
 
 /// get queue statistics
+#[cfg(feature = "pg")]
 pub async fn queue_stats(pool: &PgPool) -> Result<Vec<(String, i64)>, sqlx::Error> {
     let rows: Vec<(String, i64)> = sqlx::query_as(
         "SELECT status, COUNT(*) FROM outbound_queue GROUP BY status",
@@ -210,6 +223,7 @@ pub async fn queue_stats(pool: &PgPool) -> Result<Vec<(String, i64)>, sqlx::Erro
 }
 
 /// get a specific queued message by id
+#[cfg(feature = "pg")]
 pub async fn get_message(pool: &PgPool, id: i64) -> Result<Option<QueuedMessage>, sqlx::Error> {
     #[allow(clippy::type_complexity)]
     let row: Option<(i64, String, String, String, Vec<u8>, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
@@ -240,6 +254,7 @@ pub async fn get_message(pool: &PgPool, id: i64) -> Result<Option<QueuedMessage>
 
 /// enqueue a message for scheduled delivery at a future time
 #[allow(clippy::too_many_arguments)]
+#[cfg(feature = "pg")]
 pub async fn enqueue_scheduled(
     pool: &PgPool,
     sender: &str,
@@ -268,6 +283,7 @@ pub async fn enqueue_scheduled(
 }
 
 /// cancel a pending outbound message (undo send)
+#[cfg(feature = "pg")]
 pub async fn cancel_pending(pool: &PgPool, id: i64) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
         "DELETE FROM outbound_queue WHERE id = $1 AND status = 'pending'",
@@ -279,6 +295,7 @@ pub async fn cancel_pending(pool: &PgPool, id: i64) -> Result<bool, sqlx::Error>
 }
 
 /// cancel a pending outbound message by message_id (undo send)
+#[cfg(feature = "pg")]
 pub async fn cancel_pending_by_message_id(pool: &PgPool, message_id: &str, sender: &str) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
         "DELETE FROM outbound_queue WHERE message_id = $1 AND status = 'pending' AND sender = $2",
@@ -291,6 +308,7 @@ pub async fn cancel_pending_by_message_id(pool: &PgPool, message_id: &str, sende
 }
 
 /// reset a bounced/failed message back to pending for retry
+#[cfg(feature = "pg")]
 pub async fn retry_message(pool: &PgPool, id: i64, now: i64) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
         "UPDATE outbound_queue SET status = 'pending', next_retry = $1, updated_at = $1 WHERE id = $2 AND status IN ('bounced', 'failed')",
@@ -426,6 +444,7 @@ mod tests {
 }
 
 /// list recent queue entries for admin UI
+#[cfg(feature = "pg")]
 pub async fn list_recent(pool: &PgPool, limit: i32) -> Result<Vec<QueuedMessage>, sqlx::Error> {
     #[allow(clippy::type_complexity)]
     let rows: Vec<(i64, String, String, String, Vec<u8>, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
@@ -459,6 +478,7 @@ pub async fn list_recent(pool: &PgPool, limit: i32) -> Result<Vec<QueuedMessage>
 // --- suppression list ---
 
 /// check if a recipient address is in the suppression list (hard bounce)
+#[cfg(feature = "pg")]
 pub async fn is_suppressed(pool: &PgPool, email: &str) -> bool {
     sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM suppression_list WHERE email = $1)"
@@ -470,6 +490,7 @@ pub async fn is_suppressed(pool: &PgPool, email: &str) -> bool {
 }
 
 /// add a recipient to the suppression list after a hard bounce
+#[cfg(feature = "pg")]
 pub async fn add_suppression(
     pool: &PgPool,
     email: &str,
@@ -490,6 +511,7 @@ pub async fn add_suppression(
 }
 
 /// remove an address from the suppression list (admin override)
+#[cfg(feature = "pg")]
 pub async fn remove_suppression(pool: &PgPool, email: &str) -> Result<bool, sqlx::Error> {
     let result = sqlx::query("DELETE FROM suppression_list WHERE email = $1")
         .bind(email)
@@ -499,6 +521,7 @@ pub async fn remove_suppression(pool: &PgPool, email: &str) -> Result<bool, sqlx
 }
 
 /// list all suppressed addresses
+#[cfg(feature = "pg")]
 pub async fn list_suppressions(
     pool: &PgPool,
     limit: i64,
