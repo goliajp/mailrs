@@ -1,0 +1,23 @@
+[package]
+name = "mailrs-ical"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "RFC 5545 (iCalendar) parser, serializer, and iTIP semantics — zero I/O, hand-rolled, with VTIMEZONE + RRULE support."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-ical"
+authors = ["GOLIA K.K."]
+keywords = ["icalendar", "itip", "rfc5545", "rfc5546", "calendar"]
+categories = ["parser-implementations", "date-and-time", "email"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
+rrule = "0.14"
+serde = { version = "1", features = ["derive"] }

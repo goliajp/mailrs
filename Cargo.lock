@@ -2179,6 +2179,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-ical"
+version = "1.0.0"
+dependencies = [
+ "chrono",
+ "chrono-tz",
+ "rrule",
+ "serde",
+]
+
+[[package]]
 name = "mailrs-imap-proto"
 version = "1.0.0"
 
@@ -2261,6 +2271,7 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
+ "mailrs-ical",
  "mailrs-imap-proto 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox",
  "mailrs-maildir 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",

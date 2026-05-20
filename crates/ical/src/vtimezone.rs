@@ -374,7 +374,7 @@ fn microsoft_to_iana(name: &str) -> Option<&'static str> {
 #[cfg(test)]
 mod vtimezone_tests {
     use super::*;
-    use crate::ical::{RawComponent, RawProperty, VTimezone};
+    use crate::{RawComponent, RawProperty, VTimezone};
 
     fn raw_prop(name: &str, value: &str) -> RawProperty {
         RawProperty {

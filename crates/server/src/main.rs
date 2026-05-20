@@ -17,7 +17,6 @@ mod fbl;
 mod health;
 mod calendar;
 mod html_clean;
-mod ical;
 mod imap_codec;
 mod ldap_auth;
 mod importance;

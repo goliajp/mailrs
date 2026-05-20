@@ -3,7 +3,7 @@
 //! On each tick (default 60s) it pulls feeds whose
 //! `last_synced_at + refresh_interval_secs < now` from PG, fires GETs
 //! with HTTP cache validators (`If-None-Match` / `If-Modified-Since`),
-//! parses 200 responses via [`crate::ical::parse_invite`] for each
+//! parses 200 responses via [`mailrs_ical::parse_invite`] for each
 //! `BEGIN:VEVENT...END:VEVENT` block, and upserts them into the feed's
 //! dedicated read-only calendar. 304 responses skip parsing entirely.
 //!
@@ -146,7 +146,7 @@ async fn apply_ics_to_calendar(
     // Split the document on its outer VEVENT blocks rather than re-parse
     // the whole VCALENDAR per event. We walk: locate each
     // BEGIN:VEVENT...END:VEVENT span, wrap with a minimal VCALENDAR, hand
-    // to crate::ical::parse_invite.
+    // to mailrs_ical::parse_invite.
     let mut applied = 0usize;
     let mut search_from = 0;
     while let Some(begin_rel) = text[search_from..].find("BEGIN:VEVENT") {
@@ -161,7 +161,7 @@ async fn apply_ics_to_calendar(
             "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//mailrs//feed-import//EN\r\n{event_body}\r\nEND:VCALENDAR\r\n",
         );
 
-        if let Ok(parsed) = crate::ical::parse_invite(wrapped.as_bytes()) {
+        if let Ok(parsed) = mailrs_ical::parse_invite(wrapped.as_bytes()) {
             let etag = format!("{:x}", parsed.dtstamp.timestamp_micros());
             // Use parsed.uid as the calendar key; same UID across syncs
             // overwrites in place via the partial-index conflict target.

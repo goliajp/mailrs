@@ -656,12 +656,12 @@ async fn event_put(
     let etag = etag_of(body);
 
     // Prefer the structured iTIP-aware path (MRS-3): parse the iCalendar
-    // body via `crate::ical`, project all RFC 5545 / 5546 fields into
+    // body via `mailrs_ical`, project all RFC 5545 / 5546 fields into
     // calendar_events columns. Falls back to the legacy minimal path for
     // non-VEVENT objects (VTODO / VJOURNAL / VFREEBUSY) or parser failure
     // — those still write raw + summary so the CalDAV GET round-trip works.
     let parsed = if body.contains("BEGIN:VEVENT") {
-        crate::ical::parse_invite(body.as_bytes()).ok()
+        mailrs_ical::parse_invite(body.as_bytes()).ok()
     } else {
         None
     };

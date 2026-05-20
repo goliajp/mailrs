@@ -28,6 +28,7 @@ dashmap = "6"
 mailrs-smtp-client = { path = "../smtp-client" }
 mailrs-outbound-queue = { path = "../outbound-queue" }
 mailrs-imap-proto = "1"
+mailrs-ical = { path = "../ical" }
 mailrs-mailbox = { path = "../mailbox" }
 sqlx = { workspace = true }
 redis = { workspace = true }

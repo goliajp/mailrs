@@ -3,7 +3,7 @@
 //! Stores per-account subscriptions to remote `.ics` URLs (room
 //! calendars, public team calendars, personal exports). A background
 //! worker walks active feeds at their refresh interval, fetches with
-//! cache validators, parses via [`crate::ical`], and upserts events
+//! cache validators, parses via [`mailrs_ical`], and upserts events
 //! into a per-feed read-only calendar. The user's CalDAV-subscribed
 //! native client picks them up alongside their own events.
 
