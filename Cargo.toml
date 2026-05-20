@@ -12,6 +12,7 @@ members = [
     "crates/imap-proto",
     "crates/ical",
     "crates/intelligence",
+    "crates/postmaster",
     "crates/server",
 ]
 

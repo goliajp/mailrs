@@ -2444,7 +2444,7 @@ pub(super) async fn get_bimi_logo(
     let Some(ref resolver) = state.resolver else {
         return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DNS resolver not available"})));
     };
-    let logo_url = crate::domain_check::lookup_bimi_logo(resolver, &domain).await;
+    let logo_url = mailrs_postmaster::lookup_bimi_logo(resolver, &domain).await;
 
     // cache result (24h), empty string = negative cache
     if let Some(mut conn) = state.valkey.clone() {

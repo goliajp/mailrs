@@ -1,3 +1,31 @@
+//! Email-domain DNS health checks for postmasters.
+//!
+//! Given a domain, [`check_domain`] runs the full battery of DNS-level
+//! checks any mail-server operator needs at deploy time and during
+//! incident response: MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, BIMI,
+//! DANE, PTR / FCrDNS.
+//!
+//! Every check returns a [`CheckResult`] with a [`Status`], a
+//! human-readable message, and structured details. The full report
+//! ([`DomainCheckReport`]) is `Serialize` so you can ship it straight
+//! to JSON / Prometheus / a CLI table.
+//!
+//! ## Example
+//!
+//! ```no_run
+//! use hickory_resolver::TokioResolver;
+//! use mailrs_postmaster::check_domain;
+//!
+//! # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+//! let resolver = TokioResolver::builder_tokio()?.build()?;
+//! let report = check_domain(&resolver, "example.com", Some("default"), "mail.example.com").await;
+//! for check in &report.checks {
+//!     println!("{}: {:?} — {}", check.name, check.status, check.message);
+//! }
+//! # Ok(())
+//! # }
+//! ```
+
 use std::net::IpAddr;
 
 use hickory_resolver::proto::rr::{RData, RecordType};

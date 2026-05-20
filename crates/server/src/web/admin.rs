@@ -172,7 +172,7 @@ pub(super) async fn check_domain_handler(
             Json(serde_json::json!({"error": "DNS resolver not available"})),
         );
     };
-    let report = crate::domain_check::check_domain(
+    let report = mailrs_postmaster::check_domain(
         resolver,
         &name,
         state.dkim_selector.as_deref(),

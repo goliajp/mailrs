@@ -1,0 +1,32 @@
+[package]
+name = "mailrs-postmaster"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Email-domain DNS health checks: MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, BIMI, DANE, PTR — async, zero I/O outside the resolver."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-postmaster"
+authors = ["GOLIA K.K."]
+keywords = ["email", "dns", "spf", "dkim", "dmarc"]
+categories = ["email", "network-programming", "command-line-utilities"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = "0.4"
+hickory-resolver = "0.26"
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+serde_json = "1"
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "checks"
+harness = false

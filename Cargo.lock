@@ -2379,6 +2379,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-postmaster"
+version = "1.0.0"
+dependencies = [
+ "chrono",
+ "criterion",
+ "hickory-resolver",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "mailrs-postmaster"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82ec6582a41255cbac3bb5a4b91987c0d0a6087b5bc16c19398b664aa9d6acb3"
+dependencies = [
+ "chrono",
+ "hickory-resolver",
+ "reqwest",
+ "serde",
+]
+
+[[package]]
 name = "mailrs-server"
 version = "1.6.21"
 dependencies = [
@@ -2410,6 +2435,7 @@ dependencies = [
  "mailrs-mailbox",
  "mailrs-maildir 1.0.0",
  "mailrs-outbound-queue 1.0.0",
+ "mailrs-postmaster 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.0.0",
  "mailrs-smtp-proto 1.0.0",
  "mime_guess",
