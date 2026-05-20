@@ -1,19 +1,43 @@
 [package]
 name = "mailrs-outbound-queue"
-version.workspace = true
+version = "1.0.0"
 edition = "2024"
+rust-version = "1.85"
+description = "Outbound mail queue primitives: DKIM signing, DSN generation, MTA-STS lookup, retry/backoff, with a pluggable store trait and a Postgres reference implementation."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-outbound-queue"
+authors = ["GOLIA K.K."]
+keywords = ["smtp", "outbound", "dkim", "dsn", "email"]
+categories = ["email", "network-programming", "asynchronous"]
+readme = "README.md"
 
 [lints]
 workspace = true
 
+[features]
+default = ["pg"]
+# Enable the Postgres + Redis reference implementation of QueueStore /
+# Notifier and the bundled DeliveryWorker that depends on them. Disable
+# this feature if you're plugging in your own store backend.
+pg = ["dep:sqlx", "dep:redis"]
+
 [dependencies]
-sqlx = { workspace = true }
-redis = { workspace = true }
-futures-util = "0.3"
-chrono = "0.4"
-mailrs-smtp-client = { path = "../smtp-client" }
-hickory-resolver = "0.26"
-tokio = { version = "1", features = ["sync", "time"] }
+async-trait = "0.1"
+thiserror = "2"
+tokio = { version = "1", features = ["sync", "time", "rt"] }
 tracing = "0.1"
-mail-auth = "0.9"
+chrono = "0.4"
+hickory-resolver = "0.26"
+futures-util = "0.3"
 rustls-pki-types = { version = "1", features = ["alloc"] }
+mail-auth = "0.9"
+mailrs-smtp-client = "1"
+
+# pg feature
+sqlx = { workspace = true, optional = true }
+redis = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
