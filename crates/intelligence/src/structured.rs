@@ -537,3 +537,130 @@ mod tests {
         assert_eq!(r.provider.as_deref(), Some("Toyota Rent a Car"));
     }
 }
+
+#[cfg(test)]
+mod boundary_tests {
+    use super::*;
+
+    #[test]
+    fn empty_html_returns_empty() {
+        assert!(extract_structured_data("").is_empty());
+    }
+
+    #[test]
+    fn jsonld_with_only_whitespace_inside_ignored() {
+        let html = r#"<script type="application/ld+json">    </script>"#;
+        assert!(extract_structured_data(html).is_empty());
+    }
+
+    #[test]
+    fn ignores_non_jsonld_script_tags() {
+        let html = r#"<script type="text/javascript">var x = 1;</script>"#;
+        assert!(extract_structured_data(html).is_empty());
+    }
+
+    #[test]
+    fn mixed_jsonld_and_html_content() {
+        let html = r#"<html><body><p>Hi</p>
+        <script type="application/ld+json">{"@type":"Order","orderNumber":"X","seller":{"name":"S"}}</script>
+        <p>Bye</p></body></html>"#;
+        let data = extract_structured_data(html);
+        assert_eq!(data.orders.len(), 1);
+    }
+
+    #[test]
+    fn jsonld_uppercase_type_attribute() {
+        // Some emails use TYPE= instead of type=. Our matcher lowercases
+        // the search string, so this should still work.
+        let html = r#"<script TYPE="APPLICATION/LD+JSON">{"@type":"Event","name":"E","startDate":"2026-01-01"}</script>"#;
+        let data = extract_structured_data(html);
+        assert_eq!(data.events.len(), 1);
+    }
+
+    #[test]
+    fn rejects_malformed_jsonld() {
+        let html = r#"<script type="application/ld+json">{not "valid": json,,,}</script>"#;
+        assert!(extract_structured_data(html).is_empty());
+    }
+
+    #[test]
+    fn event_without_name_still_extracted_with_empty_name() {
+        let html = r#"<script type="application/ld+json">{"@type":"Event","startDate":"2026-09-10"}</script>"#;
+        let data = extract_structured_data(html);
+        assert_eq!(data.events.len(), 1);
+        assert_eq!(data.events[0].name, "");
+    }
+
+    #[test]
+    fn order_with_empty_items_list() {
+        let html = r#"<script type="application/ld+json">{"@type":"Order","orderNumber":"X","orderedItem":[]}</script>"#;
+        let data = extract_structured_data(html);
+        assert_eq!(data.orders.len(), 1);
+        assert!(data.orders[0].items.is_empty());
+    }
+
+    #[test]
+    fn potential_action_unknown_type_skipped() {
+        let html = r#"<script type="application/ld+json">{"@type":"Order","orderNumber":"X","potentialAction":{"@type":"WhatIsThisAction","name":"???"}}</script>"#;
+        let data = extract_structured_data(html);
+        assert_eq!(data.actions.len(), 0);
+    }
+
+    #[test]
+    fn url_with_javascript_scheme_filtered_out() {
+        let html = r#"<script type="application/ld+json">{"@type":"Event","name":"E","startDate":"2026-01-01","url":"javascript:alert(1)"}</script>"#;
+        let data = extract_structured_data(html);
+        assert!(data.events[0].url.is_none());
+    }
+
+    #[test]
+    fn url_data_scheme_filtered_out() {
+        let html = r#"<script type="application/ld+json">{"@type":"Event","name":"E","startDate":"2026-01-01","url":"data:text/html,evil"}</script>"#;
+        let data = extract_structured_data(html);
+        assert!(data.events[0].url.is_none());
+    }
+
+    #[test]
+    fn url_http_preserved() {
+        let html = r#"<script type="application/ld+json">{"@type":"Event","name":"E","startDate":"2026-01-01","url":"http://insecure.example.com"}</script>"#;
+        let data = extract_structured_data(html);
+        assert_eq!(data.events[0].url.as_deref(), Some("http://insecure.example.com"));
+    }
+
+    #[test]
+    fn missing_optional_fields_are_none() {
+        let html = r#"<script type="application/ld+json">{"@type":"FlightReservation"}</script>"#;
+        let data = extract_structured_data(html);
+        assert_eq!(data.reservations.len(), 1);
+        let r = &data.reservations[0];
+        assert!(r.reservation_id.is_none());
+        assert!(r.flight_number.is_none());
+        assert!(r.departure_airport.is_none());
+    }
+
+    #[test]
+    fn order_status_strips_schema_url() {
+        let html = r#"<script type="application/ld+json">{"@type":"Order","orderNumber":"X","orderStatus":"http://schema.org/OrderProcessing"}</script>"#;
+        let data = extract_structured_data(html);
+        assert_eq!(data.orders[0].status.as_deref(), Some("Processing"));
+    }
+
+    #[test]
+    fn is_empty_returns_true_for_default() {
+        let data = StructuredData::default();
+        assert!(data.is_empty());
+    }
+
+    #[test]
+    fn is_empty_false_when_anything_present() {
+        let mut data = StructuredData::default();
+        data.events.push(EventInfo {
+            name: "x".into(),
+            start_date: None,
+            end_date: None,
+            location: None,
+            url: None,
+        });
+        assert!(!data.is_empty());
+    }
+}
