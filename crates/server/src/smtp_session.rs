@@ -1437,7 +1437,7 @@ async fn post_delivery_process(
                 })
                 .map(|(_, d)| d.trim_end_matches('>'));
             if let Some(domain) = sender_domain
-                && let Some(logo_url) = crate::domain_check::lookup_bimi_logo(resolver, domain).await
+                && let Some(logo_url) = mailrs_postmaster::lookup_bimi_logo(resolver, domain).await
                     && let Err(e) = mb_store.update_bimi_logo(msg_id, &logo_url).await {
                         tracing::warn!("BIMI update failed for msg {msg_id}: {e}");
                     }

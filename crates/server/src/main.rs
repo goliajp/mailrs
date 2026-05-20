@@ -7,7 +7,6 @@ mod content_extract;
 mod content_worker;
 mod conversation_cache;
 mod dmarc_report;
-mod domain_check;
 mod domain_store;
 pub(crate) mod permission;
 mod event_bus;
