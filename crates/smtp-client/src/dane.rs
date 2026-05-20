@@ -266,6 +266,7 @@ pub struct DaneVerifier {
 }
 
 impl DaneVerifier {
+    /// Build a verifier from the TLSA records published for the relay's port 25.
     pub fn new(tlsa_records: Vec<TlsaRecord>) -> Self {
         let roots = rustls::RootCertStore {
             roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),

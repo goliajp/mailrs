@@ -94,6 +94,7 @@ pub struct MxCache {
 }
 
 impl MxCache {
+    /// Create an empty cache with the given TTL for each entry.
     pub fn new(ttl: Duration) -> Self {
         Self {
             cache: Mutex::new(HashMap::new()),

@@ -1,7 +1,17 @@
 [package]
 name = "mailrs-smtp-client"
-version.workspace = true
+version = "1.0.0"
 edition = "2024"
+rust-version = "1.85"
+description = "Outbound SMTP client: MX resolution, DANE/STARTTLS, response parsing — async, transport-agnostic primitives for RFC 5321 senders."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-smtp-client"
+authors = ["GOLIA K.K."]
+keywords = ["smtp", "client", "mx", "dane", "email"]
+categories = ["email", "network-programming", "asynchronous"]
+readme = "README.md"
 
 [lints]
 workspace = true
@@ -13,3 +23,6 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 webpki-roots = "1"
 hickory-resolver = "0.26"
 sha2 = "0.11.0"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }

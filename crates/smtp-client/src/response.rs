@@ -1,24 +1,33 @@
-/// client-side SMTP response parsing
+//! Parsed SMTP reply from the wire — see [`parse_response`].
 
+/// A parsed SMTP reply. `code` is the three-digit status (RFC 5321 §4.2.1);
+/// `lines` is the human-readable text from each line, in order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SmtpResponse {
+    /// the three-digit status code (e.g. 220, 250, 354, 550)
     pub code: u16,
+    /// reply text lines in order (one entry per wire line, without the code prefix)
     pub lines: Vec<String>,
 }
 
 impl SmtpResponse {
+    /// `true` if the status code is in the 2xx or 3xx range (success or
+    /// intermediate, e.g. 354 "start mail input").
     pub fn is_positive(&self) -> bool {
         (200..400).contains(&self.code)
     }
 
+    /// `true` if the status code is in the 4xx range — caller should retry later.
     pub fn is_transient_error(&self) -> bool {
         (400..500).contains(&self.code)
     }
 
+    /// `true` if the status code is 5xx — caller should not retry.
     pub fn is_permanent_error(&self) -> bool {
         self.code >= 500
     }
 
+    /// Concatenate the reply lines with newlines for display / logging.
     pub fn message(&self) -> String {
         self.lines.join("\n")
     }
