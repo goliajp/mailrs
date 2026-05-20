@@ -1,3 +1,6 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+
 //! # mailrs-dav
 //!
 //! Server-side **CalDAV** (RFC 4791) and **CardDAV** (RFC 6352) handlers for
