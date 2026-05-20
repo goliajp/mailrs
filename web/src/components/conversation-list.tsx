@@ -1188,11 +1188,14 @@ function VirtualConversationList({
       const item = items[index]
       if (item.type === 'divider') return 32
       if (item.type === 'sentinel' || item.type === 'end') return 48
-      // estimate near the upper bound (avatar 36 + py-2.5*2 + 3 text rows
-      // with snippet). measureElement shrinks rows that come in smaller —
-      // an over-estimate leaves harmless gaps for one frame; an
-      // under-estimate makes adjacent rows visually overlap.
-      return 88
+      // Generous over-estimate of the worst-case conversation row
+      // (long subject wrapping + 3-line snippet + counter badge).
+      // measureElement shrinks rows that come in smaller — an
+      // over-estimate leaves harmless gaps for one frame; an
+      // under-estimate makes adjacent rows visually overlap. 120 has
+      // headroom for newsletter-style rows that exceeded the previous
+      // 88px estimate when their snippet wrapped to three full lines.
+      return 120
     },
     getScrollElement: () => parentRef.current,
   })
