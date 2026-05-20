@@ -1,0 +1,31 @@
+[package]
+name = "mailrs-jmap"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "JMAP (RFC 8620 + RFC 8621) server-side dispatcher and method handlers — framework-agnostic, BYO mail store via the MailStore trait."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-jmap"
+authors = ["GOLIA K.K."]
+keywords = ["jmap", "email", "rfc8620", "rfc8621", "mail-server"]
+categories = ["email", "network-programming", "api-bindings"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1"
+chrono = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "jmap"
+harness = false

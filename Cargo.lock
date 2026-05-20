@@ -2352,6 +2352,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-jmap"
+version = "1.0.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "criterion",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "mailrs-mailbox"
 version = "1.0.0"
 dependencies = [
@@ -2452,6 +2464,7 @@ version = "1.6.22"
 dependencies = [
  "arc-swap",
  "argon2",
+ "async-trait",
  "axum",
  "base64",
  "bytes",
@@ -2477,6 +2490,7 @@ dependencies = [
  "mailrs-ical 1.0.0",
  "mailrs-imap-proto 1.0.0",
  "mailrs-intelligence 1.0.0",
+ "mailrs-jmap",
  "mailrs-mailbox",
  "mailrs-maildir 1.0.0",
  "mailrs-outbound-queue 1.0.0",
