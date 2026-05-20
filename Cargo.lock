@@ -2244,17 +2244,6 @@ dependencies = [
 [[package]]
 name = "mailrs-ical"
 version = "1.0.0"
-dependencies = [
- "chrono",
- "chrono-tz",
- "criterion",
- "rrule",
- "serde",
-]
-
-[[package]]
-name = "mailrs-ical"
-version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a339985829be7e3ffeb87dab1c7f1ba83d705982f104c4bb0bb709906f825af9"
 dependencies = [
@@ -2265,10 +2254,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-imap-proto"
-version = "1.0.0"
+name = "mailrs-ical"
+version = "1.0.1"
 dependencies = [
+ "chrono",
+ "chrono-tz",
  "criterion",
+ "rrule",
+ "serde",
 ]
 
 [[package]]
@@ -2278,18 +2271,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b4c6e0d33b089b538e5e4848f2803f10c2133ae30595ccf222b2d8408a10f1b"
 
 [[package]]
-name = "mailrs-intelligence"
-version = "1.0.0"
+name = "mailrs-imap-proto"
+version = "1.0.1"
 dependencies = [
- "async-trait",
  "criterion",
- "redis",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -2309,25 +2294,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-intelligence"
+version = "1.0.1"
+dependencies = [
+ "async-trait",
+ "criterion",
+ "redis",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "mailrs-mailbox"
 version = "1.0.0"
 dependencies = [
  "chrono",
  "criterion",
- "mailrs-maildir 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-maildir 1.0.0",
  "serde",
  "serde_json",
  "sqlx",
-]
-
-[[package]]
-name = "mailrs-maildir"
-version = "1.0.0"
-dependencies = [
- "criterion",
- "filetime",
- "hostname",
- "tempfile",
 ]
 
 [[package]]
@@ -2340,22 +2330,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-outbound-queue"
-version = "1.0.0"
+name = "mailrs-maildir"
+version = "1.0.1"
 dependencies = [
- "async-trait",
- "chrono",
  "criterion",
- "futures-util",
- "hickory-resolver",
- "mail-auth",
- "mailrs-smtp-client 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "redis",
- "rustls-pki-types",
- "sqlx",
- "thiserror",
- "tokio",
- "tracing",
+ "filetime",
+ "hostname",
+ "tempfile",
 ]
 
 [[package]]
@@ -2369,7 +2350,26 @@ dependencies = [
  "futures-util",
  "hickory-resolver",
  "mail-auth",
- "mailrs-smtp-client 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-smtp-client 1.0.0",
+ "redis",
+ "rustls-pki-types",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "mailrs-outbound-queue"
+version = "1.0.1"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "criterion",
+ "futures-util",
+ "hickory-resolver",
+ "mail-auth",
+ "mailrs-smtp-client 1.0.0",
  "redis",
  "rustls-pki-types",
  "sqlx",
@@ -2404,14 +2404,14 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
- "mailrs-ical 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-imap-proto 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-intelligence 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-ical 1.0.0",
+ "mailrs-imap-proto 1.0.0",
+ "mailrs-intelligence 1.0.0",
  "mailrs-mailbox",
- "mailrs-maildir 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-outbound-queue 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-smtp-client 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-smtp-proto 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-maildir 1.0.0",
+ "mailrs-outbound-queue 1.0.0",
+ "mailrs-smtp-client 1.0.0",
+ "mailrs-smtp-proto 1.0.0",
  "mime_guess",
  "password-hash",
  "pdf-extract",
@@ -2446,19 +2446,6 @@ dependencies = [
 [[package]]
 name = "mailrs-smtp-client"
 version = "1.0.0"
-dependencies = [
- "criterion",
- "hickory-resolver",
- "rustls",
- "sha2 0.11.0",
- "tokio",
- "tokio-rustls",
- "webpki-roots",
-]
-
-[[package]]
-name = "mailrs-smtp-client"
-version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6511e867f24b87225b74c56f0e8da319b7ead4cbc5818e1c53ab4e18ec3a1d5c"
 dependencies = [
@@ -2471,11 +2458,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-smtp-proto"
-version = "1.0.0"
+name = "mailrs-smtp-client"
+version = "1.0.1"
 dependencies = [
- "base64",
  "criterion",
+ "hickory-resolver",
+ "rustls",
+ "sha2 0.11.0",
+ "tokio",
+ "tokio-rustls",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2485,6 +2477,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64553aeb4ef21a0058f912fdad656f90c2f91da2b33ee2c66981184af54c8ae0"
 dependencies = [
  "base64",
+]
+
+[[package]]
+name = "mailrs-smtp-proto"
+version = "1.0.1"
+dependencies = [
+ "base64",
+ "criterion",
 ]
 
 [[package]]
