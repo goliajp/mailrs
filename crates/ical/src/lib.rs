@@ -45,11 +45,6 @@
 //! [`mailrs-smtp-client`]: https://crates.io/crates/mailrs-smtp-client
 //! [`mailrs-imap-proto`]: https://crates.io/crates/mailrs-imap-proto
 
-// Some parsed fields are read by downstream consumers (e.g. mailrs/calendar)
-// but unused inside this crate. They are kept faithful to the AST so users
-// have the full picture.
-#![allow(dead_code)]
-
 pub mod parse;
 pub mod semantics;
 #[allow(clippy::module_inception)]
