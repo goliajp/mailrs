@@ -2259,6 +2259,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-dmarc"
+version = "1.0.0"
+dependencies = [
+ "async-trait",
+ "base64",
+ "chrono",
+ "criterion",
+ "flate2",
+ "sqlx",
+ "tokio",
+]
+
+[[package]]
+name = "mailrs-dmarc"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "436142ba57f1954a9649814a2d88f2863870b4fc0d0d860e20834431b7dee8fa"
+dependencies = [
+ "async-trait",
+ "base64",
+ "chrono",
+ "flate2",
+ "sqlx",
+]
+
+[[package]]
 name = "mailrs-ical"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2447,6 +2473,7 @@ dependencies = [
  "mail-auth",
  "mail-parser",
  "mailrs-clean 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-dmarc 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.0",
  "mailrs-imap-proto 1.0.0",
  "mailrs-intelligence 1.0.0",
