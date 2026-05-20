@@ -2195,7 +2195,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-mailbox"
-version = "1.6.19"
+version = "1.6.20"
 dependencies = [
  "chrono",
  "mailrs-maildir 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2262,7 +2262,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-server"
-version = "1.6.19"
+version = "1.6.20"
 dependencies = [
  "arc-swap",
  "argon2",
