@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/crates/d/mailrs-jmap?style=flat-square)](https://crates.io/crates/mailrs-jmap)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue?style=flat-square)](https://www.rust-lang.org)
 
-Server-side **JMAP** (RFC 8620 + RFC 8621) dispatcher and method handlers for Rust mail servers — framework-agnostic, BYO mail store via the `MailStore` trait.
+Server-side **JMAP** ([RFC 8620](https://www.rfc-editor.org/rfc/rfc8620) + [RFC 8621](https://www.rfc-editor.org/rfc/rfc8621)) dispatcher and method handlers for Rust mail servers — framework-agnostic, BYO mail store via the `MailStore` trait.
 
 Extracted from [mailrs] so any project that wants to expose a JMAP API can do so without re-implementing the dispatcher, method-call envelope, back-reference resolver, or the per-method shape conversions for `Email` / `Mailbox` / `Thread` / `EmailSubmission`.
 
@@ -14,16 +14,23 @@ This is, at the time of writing, the **only** standalone server-side JMAP librar
 
 ## Highlights
 
-- **Methods covered** —
-  `Mailbox/get`, `Mailbox/query` ·
-  `Email/get`, `Email/query`, `Email/set` ·
-  `Thread/get` ·
-  `EmailSubmission/set` (create only)
-- **Method back-references** — `#key: { resultOf, name, path }` resolved before each dispatch (RFC 8620 §3.7).
-- **Framework-free** — no axum / actix / tower / hyper. The crate hands you `(method, args, callId) -> (method, result, callId)` and stays out of your HTTP layer.
-- **Store-free** — implement [`MailStore`] (8 async methods + one sync parser) once and every method handler works.
-- **Standard error envelopes** — [`JmapMethodError`] enum maps to the canonical `{"type": "serverFail", "description": "..."}` shape from RFC 8620 §3.6.2.
+- **Framework-free** — no axum / actix / tower / hyper. The crate hands you `(method, args, callId) → (method, result, callId)` and stays out of your HTTP layer.
+- **Store-free** — implement [`MailStore`](https://docs.rs/mailrs-jmap/latest/mailrs_jmap/store/trait.MailStore.html) (9 async methods + 1 sync parser) once and every method handler works.
+- **Method back-references** — `#key: { resultOf, name, path }` resolved before each dispatch ([RFC 8620 §3.7](https://www.rfc-editor.org/rfc/rfc8620#section-3.7)). One round-trip for `Email/query` → `Email/get`.
+- **Standard error envelopes** — [`JmapMethodError`](https://docs.rs/mailrs-jmap/latest/mailrs_jmap/error/enum.JmapMethodError.html) maps to the canonical `{"type": "serverFail", "description": "..."}` shape from [RFC 8620 §3.6.2](https://www.rfc-editor.org/rfc/rfc8620#section-3.6.2).
 - **Pure helpers exposed** — `flags_to_keywords`, `keywords_to_flags`, `parse_email_db_id`, `resolve_references`, `build_email_meta`, `parse_address_list`. Use the dispatcher or grab the pieces.
+
+## Methods covered (1.0)
+
+| Method | RFC section | Notes |
+| --- | --- | --- |
+| `Mailbox/get` | [8621 §2.4](https://www.rfc-editor.org/rfc/rfc8621#section-2.4) | All standard properties; role inferred from name (INBOX/Sent/Drafts/Trash). |
+| `Mailbox/query` | [8621 §2.5](https://www.rfc-editor.org/rfc/rfc8621#section-2.5) | Unsorted, unfiltered — full list. |
+| `Email/get` | [8621 §4.4](https://www.rfc-editor.org/rfc/rfc8621#section-4.4) | Header + body + attachments; respects `properties` selector to skip disk reads. |
+| `Email/query` | [8621 §4.5](https://www.rfc-editor.org/rfc/rfc8621#section-4.5) | `inMailbox` filter, `limit` + `position`. |
+| `Email/set` | [8621 §4.6](https://www.rfc-editor.org/rfc/rfc8621#section-4.6) | `update` (keywords / mailboxIds) + `destroy`. `create` is rejected as `forbidden` — use `Email/import` (1.1, roadmap). |
+| `Thread/get` | [8621 §3.4](https://www.rfc-editor.org/rfc/rfc8621#section-3.4) | Returns `emailIds` in chronological order. |
+| `EmailSubmission/set` | [8621 §7.5](https://www.rfc-editor.org/rfc/rfc8621#section-7.5) | `create` only — submits a previously-stored draft via your store's outbound path. |
 
 ## Quick start
 
@@ -39,8 +46,7 @@ struct MyStore;
 
 #[async_trait]
 impl MailStore for MyStore {
-    async fn list_mailboxes(&self, user: &str) -> Result<Vec<Mailbox>, StoreError> {
-        // ... read your store
+    async fn list_mailboxes(&self, _user: &str) -> Result<Vec<Mailbox>, StoreError> {
         Ok(vec![Mailbox { id: 1, name: "INBOX".into() }])
     }
 
@@ -48,7 +54,7 @@ impl MailStore for MyStore {
         Ok(MailboxCounts { total: 10, unread: 3 })
     }
 
-    // ... 7 more methods, see docs.rs/mailrs-jmap
+    // ... 8 more methods, see docs.rs/mailrs-jmap
 #   async fn list_messages(&self, _: i64, _: u32, _: u32) -> Result<Vec<Message>, StoreError> { Ok(vec![]) }
 #   async fn get_message_by_db_id(&self, _: &str, _: i64) -> Result<Option<Message>, StoreError> { Ok(None) }
 #   async fn list_thread_messages(&self, _: &str, _: &str) -> Result<Vec<Message>, StoreError> { Ok(vec![]) }
@@ -85,24 +91,45 @@ use mailrs_jmap::{dispatch_request, JmapRequest};
 
 async fn jmap_api(
     State(store): State<Arc<dyn mailrs_jmap::MailStore>>,
-    user: AuthUser, // from your auth middleware
+    user: AuthUser, // resolved by your auth middleware
     Json(req): Json<JmapRequest>,
 ) -> impl IntoResponse {
     Json(dispatch_request(req, &user.address, store.as_ref()).await)
 }
 ```
 
-The store impl is yours; mailrs itself wraps `mailrs_mailbox::MailboxStore` in a thin adapter that bridges its row types into [`mailrs_jmap::types`].
+The store impl is yours. The [mailrs] server uses a thin adapter that bridges its PostgreSQL/Maildir row types into the JMAP shapes in [`mailrs_jmap::types`](https://docs.rs/mailrs-jmap/latest/mailrs_jmap/types/index.html) — about 200 LOC, worth a read as a reference implementation.
+
+## Roadmap
+
+`1.0` is the minimum viable surface — enough to drive a webmail client with read, search, mark-read, send, and delete. Methods explicitly not yet implemented, in rough priority order for `1.x`:
+
+- `Identity/get`, `Identity/set` — [RFC 8621 §6](https://www.rfc-editor.org/rfc/rfc8621#section-6). Send-as identities.
+- `Mailbox/set` — [RFC 8621 §2.5](https://www.rfc-editor.org/rfc/rfc8621#section-2.5). Create / rename / delete mailboxes.
+- `Email/import` — [RFC 8621 §4.8](https://www.rfc-editor.org/rfc/rfc8621#section-4.8). Upload .eml.
+- `EmailSubmission/get`, `EmailSubmission/query` — track / cancel pending submissions.
+- `VacationResponse/get`, `VacationResponse/set` — [RFC 8621 §8](https://www.rfc-editor.org/rfc/rfc8621#section-8). Out-of-office.
+
+These will land as `MailStore` trait extensions (additive — default impls or feature-gated) so existing `1.0` consumers don't break.
 
 ## What's intentionally not in this crate
 
-- **The session endpoint** (`/.well-known/jmap`). It's a 30-line JSON blob driven by your hostname, account address, and which capabilities you advertise — there's nothing to share.
-- **Push notifications** (EventSource / WebSocket). The wire format is fixed by RFC 8620 §7 but the event-source plumbing is too coupled to your runtime to share cleanly.
-- **JMAP-Contacts** / **JMAP-Calendars** — different specs.
+- **The session endpoint** (`/.well-known/jmap`). It's a small JSON blob driven by your hostname, account address, and which capabilities you advertise — there's nothing to share.
+- **Push notifications** (EventSource / WebSocket). The wire format is fixed by [RFC 8620 §7](https://www.rfc-editor.org/rfc/rfc8620#section-7) but the event-source plumbing is too coupled to your runtime to share cleanly.
+- **JMAP-Contacts** / **JMAP-Calendars** — different specs. See [mailrs-dav](https://crates.io/crates/mailrs-dav) for CalDAV / CardDAV.
+- **The HTTP / authentication / routing layer.** That's the framework job; the dispatcher takes a pre-resolved `user` and gives you back the response envelope to serialize however you like.
 
 ## Versioning
 
-`1.0.0` and onward follows semver. The `MailStore` trait surface and the dispatcher signatures are the public API; helper-module internals (e.g. exact JSON shape inside `build::extend_with_body`) may evolve within a minor version.
+`1.x` follows semver. The public API surface is:
+
+- `MailStore` trait method signatures
+- `JmapMethodError` enum variants
+- `JmapRequest` / `JmapResponse` field shapes
+- `dispatch_method` / `dispatch_request` signatures
+- The `JMAP_*_CAP` capability URI constants
+
+Helper-module internals (e.g. the exact JSON shape `build::extend_with_body` produces, or the per-method handler signatures inside `methods::*`) may evolve within a minor version; consumers should drive through the dispatcher unless they have a reason not to.
 
 ## License
 

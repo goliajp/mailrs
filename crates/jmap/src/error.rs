@@ -23,9 +23,15 @@ pub enum JmapMethodError {
     UnknownMethod(String),
     /// RFC 8620 §3.6.2 — caller not authorised for this account.
     AccountNotFound,
-    /// Anything else; the first string is the error `type` value, second the
-    /// human description.
-    Other { kind: String, description: String },
+    /// Escape hatch for any error type not modelled by a dedicated variant
+    /// above. `kind` becomes the JMAP `"type"` value verbatim; `description`
+    /// becomes the human-readable `"description"`.
+    Other {
+        /// The JMAP error `"type"` token (e.g. `"tooLarge"`, `"cannotCalculateChanges"`).
+        kind: String,
+        /// Human-readable description that will be rendered into the `"description"` field.
+        description: String,
+    },
 }
 
 impl JmapMethodError {
