@@ -2244,17 +2244,17 @@ dependencies = [
 [[package]]
 name = "mailrs-clean"
 version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b79add1ec41b9771ae5ac71f7d08018d7f0a4bee57008f28c9eef256d72f23f1"
 dependencies = [
- "criterion",
  "html2text",
 ]
 
 [[package]]
 name = "mailrs-clean"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b79add1ec41b9771ae5ac71f7d08018d7f0a4bee57008f28c9eef256d72f23f1"
+version = "1.0.1"
 dependencies = [
+ "criterion",
  "html2text",
 ]
 
@@ -2521,7 +2521,7 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
- "mailrs-clean 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-clean 1.0.0",
  "mailrs-dav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dmarc 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.0",
