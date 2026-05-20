@@ -33,6 +33,7 @@ mailrs-intelligence = "1"
 mailrs-mailbox = { path = "../mailbox" }
 mailrs-postmaster = "1"
 mailrs-shield = "1"
+mailrs-clean = "1"
 sqlx = { workspace = true }
 redis = { workspace = true }
 hickory-resolver = "0.26"

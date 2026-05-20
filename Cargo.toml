@@ -12,6 +12,7 @@ members = [
     "crates/imap-proto",
     "crates/ical",
     "crates/intelligence",
+    "crates/clean",
     "crates/postmaster",
     "crates/shield",
     "crates/server",

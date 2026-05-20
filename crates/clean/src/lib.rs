@@ -1,4 +1,22 @@
-// deep html cleaning: multi-stage pipeline to extract readable content from email html
+//! Email content cleanup primitives — HTML → readable text + sender heuristics.
+//!
+//! Four entry points cover what a mail client / inbound pipeline
+//! typically needs after parsing an RFC 5322 message:
+//!
+//! - [`clean_email_html`] — multi-stage HTML pipeline that strips
+//!   tracking pixels, hidden blocks, marketing-template chrome, and
+//!   unsafe elements, then converts what's left to a paragraph-aware
+//!   plain-text view. Returns [`CleanResult`] with the cleaned text
+//!   plus boolean flags the caller can fold into an importance /
+//!   spam score.
+//! - [`detect_bulk_sender`] — RFC 2369 `List-*` header heuristic, used
+//!   to demote mailing-list traffic in inbox sorting.
+//! - [`is_automated_sender`] — local-part pattern check for
+//!   `no-reply@`, `notification@`, etc.
+//! - [`split_quoted_content`] — separate a fresh reply from its quoted
+//!   ancestry so UIs can collapse old context.
+//!
+//! Zero I/O, no async runtime — give it strings, get strings back.
 
 /// known tracking pixel domains
 const TRACKING_DOMAINS: &[&str] = &[
@@ -28,7 +46,7 @@ const FOOTER_KEYWORDS: &[&str] = &[
 ];
 
 /// result of html cleaning
-pub(crate) struct CleanResult {
+pub struct CleanResult {
     pub clean_text: String,
     pub has_tracking_pixel: bool,
     pub is_template_heavy: bool,
@@ -40,7 +58,7 @@ pub(crate) struct CleanResult {
 }
 
 /// clean html email content through multi-stage pipeline
-pub(crate) fn clean_email_html(html: &str) -> CleanResult {
+pub fn clean_email_html(html: &str) -> CleanResult {
     let has_tracking_pixel = detect_tracking_pixels(html);
     let link_count = count_pattern(html, "<a ");
     let image_count = count_pattern(html, "<img ");
@@ -291,7 +309,7 @@ fn html_to_clean_text(html: &str) -> String {
 }
 
 /// detect if sender is a bulk/automated sender based on email headers
-pub(crate) fn detect_bulk_sender(raw_headers: &str) -> bool {
+pub fn detect_bulk_sender(raw_headers: &str) -> bool {
     let lower = raw_headers.to_lowercase();
 
     // list-unsubscribe header
@@ -327,7 +345,7 @@ pub(crate) fn detect_bulk_sender(raw_headers: &str) -> bool {
 }
 
 /// detect automated/noreply senders
-pub(crate) fn is_automated_sender(email: &str) -> bool {
+pub fn is_automated_sender(email: &str) -> bool {
     let lower = email.to_lowercase();
     let local = lower.split('@').next().unwrap_or("");
 
@@ -339,7 +357,7 @@ pub(crate) fn is_automated_sender(email: &str) -> bool {
 
 /// extract quoted text boundary from email text
 /// returns (new_content, quoted_parts) where new_content is the original reply text
-pub(crate) fn split_quoted_content(text: &str) -> (String, Vec<String>) {
+pub fn split_quoted_content(text: &str) -> (String, Vec<String>) {
     let lines: Vec<&str> = text.lines().collect();
     let mut split_point = lines.len();
     let mut quoted = Vec::new();
