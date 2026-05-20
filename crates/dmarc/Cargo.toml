@@ -1,0 +1,40 @@
+[package]
+name = "mailrs-dmarc"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "DMARC (RFC 7489) aggregate report generation: result recording, XML report builder, report-mail formatter, rua extraction. Pluggable store trait with a Postgres reference impl."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-dmarc"
+authors = ["GOLIA K.K."]
+keywords = ["dmarc", "email", "spf", "dkim", "rfc7489"]
+categories = ["email"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = ["pg-store"]
+# Enable the Postgres-backed DmarcStore reference implementation.
+# Disable if you're plugging in your own store backend.
+pg-store = ["dep:sqlx"]
+
+[dependencies]
+async-trait = "0.1"
+base64 = "0.22"
+chrono = "0.4"
+flate2 = "1"
+
+# pg-store feature
+sqlx = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "report"
+harness = false

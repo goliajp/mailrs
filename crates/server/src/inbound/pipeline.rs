@@ -11,7 +11,7 @@ use mailrs_shield::greylist::{self as greylisting, GreylistConfig, GreylistDb, G
 
 use hickory_resolver::TokioResolver;
 
-use crate::dmarc_report::{DmarcReportStore, DmarcResultRecord};
+use crate::dmarc_report::{DmarcReportStore, DmarcResultRecord, DmarcStore};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DeliveryDecision {
