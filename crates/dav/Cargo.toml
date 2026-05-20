@@ -1,0 +1,31 @@
+[package]
+name = "mailrs-dav"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "CalDAV (RFC 4791) and CardDAV (RFC 6352) server-side handlers — framework-agnostic, BYO data layer via the CalendarStore / AddressBookStore traits."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-dav"
+authors = ["GOLIA K.K."]
+keywords = ["caldav", "carddav", "rfc4791", "rfc6352", "webdav"]
+categories = ["network-programming", "web-programming", "api-bindings"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1"
+chrono = "0.4"
+sha2 = "0.11"
+hex = "0.4"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "dav"
+harness = false

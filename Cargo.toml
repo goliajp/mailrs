@@ -17,6 +17,7 @@ members = [
     "crates/postmaster",
     "crates/shield",
     "crates/jmap",
+    "crates/dav",
     "crates/server",
 ]
 
