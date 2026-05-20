@@ -2183,11 +2183,17 @@ name = "mailrs-imap-proto"
 version = "1.0.0"
 
 [[package]]
+name = "mailrs-imap-proto"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b4c6e0d33b089b538e5e4848f2803f10c2133ae30595ccf222b2d8408a10f1b"
+
+[[package]]
 name = "mailrs-mailbox"
 version = "1.6.17"
 dependencies = [
  "chrono",
- "mailrs-maildir",
+ "mailrs-maildir 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
  "sqlx",
@@ -2200,6 +2206,15 @@ dependencies = [
  "filetime",
  "hostname",
  "tempfile",
+]
+
+[[package]]
+name = "mailrs-maildir"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97e516d5a5822e1571d09357f7ae9ab0784a25e37cdb84c73bebf3dbcd1a4ad7"
+dependencies = [
+ "hostname",
 ]
 
 [[package]]
@@ -2244,12 +2259,12 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
- "mailrs-imap-proto",
+ "mailrs-imap-proto 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox",
- "mailrs-maildir",
+ "mailrs-maildir 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-outbound-queue",
  "mailrs-smtp-client",
- "mailrs-smtp-proto",
+ "mailrs-smtp-proto 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime_guess",
  "password-hash",
  "pdf-extract",
@@ -2296,6 +2311,15 @@ dependencies = [
 [[package]]
 name = "mailrs-smtp-proto"
 version = "1.0.0"
+dependencies = [
+ "base64",
+]
+
+[[package]]
+name = "mailrs-smtp-proto"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64553aeb4ef21a0058f912fdad656f90c2f91da2b33ee2c66981184af54c8ae0"
 dependencies = [
  "base64",
 ]
