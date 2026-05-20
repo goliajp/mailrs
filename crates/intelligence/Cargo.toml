@@ -1,0 +1,43 @@
+[package]
+name = "mailrs-intelligence"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "LLM-powered email analysis primitives: structured extraction, importance scoring, spam classification, and embeddings — with a pluggable LlmProvider trait and an OpenAI-compatible reference implementation."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-intelligence"
+authors = ["GOLIA K.K."]
+keywords = ["email", "llm", "ai", "spam", "embedding"]
+categories = ["email", "text-processing", "asynchronous"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = ["http", "redis-cache"]
+# Enable the OpenAI-compatible HTTP provider (wraps reqwest). Most users
+# want this — disable only if you're plugging in your own LlmProvider impl.
+http = ["dep:reqwest"]
+# Enable the Redis-backed SpamCache reference implementation. Disable if
+# you're plugging in your own SpamCache or running without a cache.
+redis-cache = ["dep:redis"]
+
+[dependencies]
+async-trait = "0.1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = "2"
+tokio = { version = "1", features = ["time"] }
+tracing = "0.1"
+
+# http feature
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"], optional = true }
+
+# redis-cache feature
+redis = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }

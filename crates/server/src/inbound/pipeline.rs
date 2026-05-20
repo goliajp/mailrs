@@ -133,7 +133,7 @@ pub async fn run_inbound_pipeline(
     dmarc_report_store: Option<&Arc<DmarcReportStore>>,
     resolver: Option<&Arc<TokioResolver>>,
     clamav_addr: Option<&str>,
-    llm_url: Option<&str>,
+    llm_provider: Option<&Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     valkey: Option<&redis::aio::ConnectionManager>,
 ) -> DeliveryDecision {
     // 1. greylisting (fast, no DNS)
@@ -308,10 +308,23 @@ pub async fn run_inbound_pipeline(
     // 6.5 AI classification (only in grey zone: 1.0 < rule_score < threshold)
     let rule_total = content_score + ptr_score;
     let ai_score = if rule_total > 1.0 && rule_total < spam_score_threshold {
-        if let Some(url) = llm_url {
+        if let Some(provider) = llm_provider {
             let subject = extract_header(message, "Subject").unwrap_or_default();
             let body_preview = extract_body_preview(message, 500);
-            match crate::ai_spam::classify(url, valkey, sender, &subject, &body_preview).await {
+            let cache = valkey
+                .cloned()
+                .map(mailrs_intelligence::spam::RedisSpamCache::new);
+            let cache_ref: Option<&dyn mailrs_intelligence::spam::SpamCache> =
+                cache.as_ref().map(|c| c as &dyn mailrs_intelligence::spam::SpamCache);
+            match mailrs_intelligence::spam::classify(
+                provider.as_ref(),
+                cache_ref,
+                sender,
+                &subject,
+                &body_preview,
+            )
+            .await
+            {
                 Some(result) => result.score,
                 None => 0.0,
             }

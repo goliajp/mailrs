@@ -1,36 +1,25 @@
+//! Full email analysis — category, summary, entities, intent, action deadline.
+//!
+//! The analysis prompt is fixed (revision: [`PROMPT_VERSION`]) and outputs
+//! Simplified Chinese for all natural-language fields regardless of source
+//! language. Bump [`PROMPT_VERSION`] when changing the prompt so that
+//! consumers can detect stored analyses produced by old prompts and decide
+//! whether to re-analyze.
+
 use serde::{Deserialize, Serialize};
 
-/// current prompt version — bump this to trigger automatic reanalysis of all messages
+use crate::provider::LlmProvider;
+
+/// Current prompt revision — bump when the system prompt changes so that
+/// consumers can trigger re-analysis of stored results.
 pub const PROMPT_VERSION: &str = "v8";
 
-/// self-hosted LLM configuration
-#[derive(Debug, Clone)]
-pub struct LlmConfig {
-    pub url: String,
-    pub api_key: Option<String>,
-    pub client: reqwest::Client,
-}
-
-impl LlmConfig {
-    pub fn new(url: String, api_key: Option<String>) -> Self {
-        Self {
-            url,
-            api_key,
-            client: reqwest::Client::builder()
-                .connect_timeout(std::time::Duration::from_secs(10))
-                .build()
-                .unwrap_or_default(),
-        }
-    }
-
-    /// model_version string stored in DB — includes prompt version
-    pub fn model_version(&self) -> String {
-        format!("qwen3.5-9b/{PROMPT_VERSION}")
-    }
-}
-
-/// full analysis result from AI
-/// people/dates/amounts use Value to tolerate qwen's inconsistent output format
+/// Full analysis result.
+///
+/// `people` / `dates` / `amounts` / `action_items` use `serde_json::Value`
+/// because the LLM occasionally returns strings instead of structured
+/// objects; tolerating either keeps the public API stable across prompt
+/// revisions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmailAnalysis {
     #[serde(default)]
@@ -59,8 +48,7 @@ pub struct EmailAnalysis {
     pub action_deadline: Option<String>,
 }
 
-
-/// truncate a string at a char boundary, never splitting a multi-byte character
+/// Truncate a string at a char boundary, never splitting a multi-byte char.
 fn truncate_str(s: &str, max_bytes: usize) -> &str {
     if s.len() <= max_bytes {
         return s;
@@ -72,147 +60,13 @@ fn truncate_str(s: &str, max_bytes: usize) -> &str {
     &s[..end]
 }
 
-/// generate a 1024-dimensional embedding using self-hosted qwen3-embedding (with 429 retry)
-pub async fn generate_embedding(config: &LlmConfig, text: &str) -> Option<Vec<f32>> {
-    let embed_url = config.url.replace("/complete", "/embed");
-    let body = serde_json::json!({ "input": text });
-
-    for attempt in 0..2u32 {
-        let mut req = config.client.post(&embed_url).json(&body);
-        if let Some(ref key) = config.api_key {
-            req = req.header("Authorization", format!("Bearer {key}"))
-                .header("x-caller", "mailrs");
-        }
-        let response = match tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            req.send(),
-        )
-        .await
-        {
-            Ok(Ok(resp)) => resp,
-            Ok(Err(e)) => {
-                eprintln!("embedding request error: {e}");
-                return None;
-            }
-            Err(_) => {
-                eprintln!("embedding request timeout (30s)");
-                return None;
-            }
-        };
-
-        if response.status().as_u16() == 429 {
-            let wait = if attempt < 2 { 15 } else { 30 };
-            eprintln!("embedding rate limited (429), retrying in {wait}s (attempt {})", attempt + 1);
-            tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
-            continue;
-        }
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            eprintln!("embedding API error {status}: {}", &text[..text.len().min(200)]);
-            return None;
-        }
-
-        let json: serde_json::Value = match response.json().await {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("embedding response parse error: {e}");
-                return None;
-            }
-        };
-
-        let values = json["embeddings"]
-            .as_array()
-            .and_then(|arr| arr.first())
-            .and_then(|v| v.as_array())?;
-
-        let embedding: Vec<f32> = values
-            .iter()
-            .filter_map(|v| v.as_f64().map(|f| f as f32))
-            .collect();
-
-        let dims = json["dimensions"].as_u64().unwrap_or(1024) as usize;
-        return if embedding.len() == dims {
-            Some(embedding)
-        } else {
-            eprintln!("embedding bad dim: {} (expected {})", embedding.len(), dims);
-            None
-        };
-    }
-
-    eprintln!("embedding failed after 2 retries, skipping");
-    None
-}
-
-/// call the self-hosted LLM API (with 429 retry)
-pub async fn call_llm(
-    config: &LlmConfig,
-    system: &str,
-    user_message: &str,
-    temperature: f32,
-) -> Option<String> {
-    let body = serde_json::json!({
-        "system": system,
-        "messages": [{"role": "user", "content": user_message}],
-        "temperature": temperature
-    });
-
-    // no `format` param — uses stream mode on devops side (no timeout as long as tokens flow)
-    // 900s safety timeout covers entire send+read cycle
-    for attempt in 0..3u32 {
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(900),
-            async {
-                let mut req = config.client.post(&config.url).json(&body);
-                if let Some(ref key) = config.api_key {
-                    req = req.header("Authorization", format!("Bearer {key}"))
-                .header("x-caller", "mailrs");
-                }
-                let response = req.send().await?;
-
-                if response.status().as_u16() == 429 {
-                    return Ok::<Option<String>, reqwest::Error>(Some("__429__".into()));
-                }
-
-                if !response.status().is_success() {
-                    let status = response.status();
-                    let text = response.text().await.unwrap_or_default();
-                    eprintln!("LLM API error {status}: {}", &text[..text.len().min(200)]);
-                    return Ok(None);
-                }
-
-                let json: serde_json::Value = response.json().await?;
-                Ok(json["content"].as_str().map(|s| s.to_string()))
-            }
-        ).await;
-
-        match result {
-            Ok(Ok(Some(ref s))) if s == "__429__" => {
-                let wait = if attempt < 2 { 15 } else { 30 };
-                eprintln!("LLM rate limited (429), retrying in {wait}s (attempt {})", attempt + 1);
-                tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
-                continue;
-            }
-            Ok(Ok(content)) => return content,
-            Ok(Err(e)) => {
-                eprintln!("LLM request error: {e}");
-                return None;
-            }
-            Err(_) => {
-                eprintln!("LLM request timeout (900s)");
-                return None;
-            }
-        }
-    }
-
-    eprintln!("LLM rate limited after 3 retries, giving up");
-    None
-}
-
-/// analyze an email using self-hosted LLM for classification, summarization, and entity extraction
+/// Analyze an email using the supplied [`LlmProvider`].
+///
+/// The body is truncated to 3000 bytes before sending. Returns `None` if
+/// the provider call fails or the response can't be parsed even after
+/// truncation-repair. Errors are logged via `tracing`.
 pub async fn analyze_email(
-    config: &LlmConfig,
+    provider: &dyn LlmProvider,
     sender: &str,
     subject: &str,
     body_text: &str,
@@ -251,13 +105,13 @@ sender_intent: request|inform|confirm|social|alert|marketing
         "Analyze this email:\n\nFrom: {sender}\nSubject: {subject}\nBody:\n{body_text}"
     );
 
-    let text = call_llm(config, system, &user_message, 0.1).await?;
+    let text = provider.complete(system, &user_message, 0.1).await?;
     parse_analysis_response(&text)
 }
 
-/// parse the JSON analysis response, handling markdown fences and extra text
+/// Parse the JSON analysis response, tolerating markdown fences, extra
+/// surrounding text, and truncated trailing output.
 fn parse_analysis_response(text: &str) -> Option<EmailAnalysis> {
-    // strip markdown code fences if present
     let text = text.trim();
     let text = if let Some(stripped) = text.strip_prefix("```json") {
         stripped.strip_suffix("```").unwrap_or(stripped).trim()
@@ -267,7 +121,6 @@ fn parse_analysis_response(text: &str) -> Option<EmailAnalysis> {
         text
     };
 
-    // find JSON object boundaries
     let start = text.find('{')?;
     let json_str = if let Some(end) = text.rfind('}') {
         &text[start..end + 1]
@@ -279,31 +132,31 @@ fn parse_analysis_response(text: &str) -> Option<EmailAnalysis> {
     let mut analysis: EmailAnalysis = match serde_json::from_str(json_str) {
         Ok(a) => a,
         Err(_) => {
-            // try to repair truncated JSON by closing open strings/objects
+            // attempt repair: close any open string + add closing brace
             let mut repaired = json_str.to_string();
-            // close any open string value
             let quote_count = repaired.chars().filter(|c| *c == '"').count();
             if quote_count % 2 != 0 {
                 repaired.push('"');
             }
-            // close the object
             if !repaired.trim_end().ends_with('}') {
                 repaired.push('}');
             }
             match serde_json::from_str(&repaired) {
                 Ok(a) => a,
                 Err(e) => {
-                    eprintln!("AI parse error: {e} — raw: {}", &json_str[..json_str.len().min(200)]);
+                    tracing::warn!(
+                        event = "analyze_parse_error",
+                        error = %e,
+                        raw = %&json_str[..json_str.len().min(200)]
+                    );
                     return None;
                 }
             }
         }
     };
 
-    // clamp risk_score
     analysis.risk_score = analysis.risk_score.min(100);
 
-    // truncate clean_text to 2000 chars
     if analysis.clean_text.len() > 2000 {
         let mut end = 2000;
         while end > 0 && !analysis.clean_text.is_char_boundary(end) {
@@ -366,7 +219,6 @@ mod tests {
 
     #[test]
     fn parse_truncated_response() {
-        // LLM output cut off mid-string — should repair and parse
         let json = r#"{"category":"promotion","risk_score":25,"risk_reason":"营销邮件","summary":"推广活动","people":[],"dates":[],"amounts":[],"action_items":[],"clean_text":"这是一封营销"#;
         let result = parse_analysis_response(json).unwrap();
         assert_eq!(result.category, "promotion");
@@ -412,10 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn model_version_format() {
-        let config = LlmConfig::new("http://localhost".into(), None);
-        let mv = config.model_version();
-        assert!(mv.contains(PROMPT_VERSION));
-        assert!(mv.contains("qwen3.5-9b"));
+    fn prompt_version_constant() {
+        assert!(!PROMPT_VERSION.is_empty());
     }
 }

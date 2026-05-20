@@ -70,7 +70,7 @@ pub(super) struct ThreadMessageResponse {
     pub sender_intent: String,
     pub action_deadline: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub structured_data: Option<crate::structured_data::StructuredData>,
+    pub structured_data: Option<mailrs_intelligence::structured::StructuredData>,
     /// MRS-18: cheap signal so the web client can decide whether to mount
     /// the invite-card without re-parsing attachments client-side. NULL
     /// means "not an invite". Populated either by MRS-4 inbound-pipeline
@@ -364,7 +364,7 @@ pub(super) async fn get_thread_messages(
 
         // extract structured data from HTML before moving it
         let structured_data = parsed.1.as_deref().and_then(|html| {
-            let sd = crate::structured_data::extract_structured_data(html);
+            let sd = mailrs_intelligence::structured::extract_structured_data(html);
             if sd.is_empty() { None } else { Some(sd) }
         });
 
@@ -679,7 +679,7 @@ async fn semantic_search_threads(
     let llm = state.llm_config.as_ref()?;
     let mb = state.mailbox_store.as_ref()?;
 
-    let embedding = crate::ai_email::generate_embedding(llm, query).await?;
+    let embedding = llm.embed(query).await?;
     let results = mb
         .semantic_search(user, &embedding, max.min(20) as i64, domains)
         .await
@@ -755,7 +755,7 @@ pub(super) async fn semantic_search(
 
     let limit = super::clamp_limit(q.limit);
 
-    let embedding = match crate::ai_email::generate_embedding(llm_config, &q.q).await {
+    let embedding = match llm_config.embed(&q.q).await {
         Some(e) => e,
         None => return Json(Vec::<SemanticSearchResult>::new()),
     };

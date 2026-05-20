@@ -2199,6 +2199,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b4c6e0d33b089b538e5e4848f2803f10c2133ae30595ccf222b2d8408a10f1b"
 
 [[package]]
+name = "mailrs-intelligence"
+version = "1.0.0"
+dependencies = [
+ "async-trait",
+ "redis",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "mailrs-mailbox"
 version = "1.6.18"
 dependencies = [
@@ -2273,6 +2287,7 @@ dependencies = [
  "mail-parser",
  "mailrs-ical",
  "mailrs-imap-proto 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-intelligence",
  "mailrs-mailbox",
  "mailrs-maildir 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-outbound-queue",

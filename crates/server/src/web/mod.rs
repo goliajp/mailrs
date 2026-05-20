@@ -88,7 +88,7 @@ pub struct WebState {
     pub health: Option<HealthState>,
     pub pg_pool: Option<sqlx::PgPool>,
     pub valkey: Option<redis::aio::ConnectionManager>,
-    pub llm_config: Option<crate::ai_email::LlmConfig>,
+    pub llm_config: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     pub resolver: Option<Arc<hickory_resolver::TokioResolver>>,
     pub dkim_selector: Option<String>,
     pub smtp_config: Option<SmtpConfigSnapshot>,
@@ -165,8 +165,11 @@ impl WebState {
         self
     }
 
-    pub fn with_llm(mut self, config: crate::ai_email::LlmConfig) -> Self {
-        self.llm_config = Some(config);
+    pub fn with_llm(
+        mut self,
+        provider: Arc<dyn mailrs_intelligence::provider::LlmProvider>,
+    ) -> Self {
+        self.llm_config = Some(provider);
         self
     }
 
