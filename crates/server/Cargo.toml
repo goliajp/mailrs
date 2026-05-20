@@ -7,8 +7,8 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-mailrs-smtp-proto = { path = "../smtp-proto" }
-mailrs-maildir = { path = "../storage-maildir" }
+mailrs-smtp-proto = "1"
+mailrs-maildir = "1"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 tokio-rustls = "0.26"
@@ -27,7 +27,7 @@ tower-http = { version = "0.6", features = ["cors", "fs"] }
 dashmap = "6"
 mailrs-smtp-client = { path = "../smtp-client" }
 mailrs-outbound-queue = { path = "../outbound-queue" }
-mailrs-imap-proto = { path = "../imap-proto" }
+mailrs-imap-proto = "1"
 mailrs-mailbox = { path = "../mailbox" }
 sqlx = { workspace = true }
 redis = { workspace = true }
