@@ -158,11 +158,7 @@ const ConversationItem = memo(function ConversationItem({
         aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
         aria-selected={selected && !batchMode}
         className={`focus-visible:ring-accent/50 relative flex w-full items-start gap-3 border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:ring-2 focus-visible:outline-none ${
-          selected && !batchMode
-            ? 'border-l-accent'
-            : hasUnread
-              ? 'border-l-accent'
-              : 'border-l-transparent'
+          selected && !batchMode ? 'border-l-accent' : 'border-l-transparent'
         } ${!hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''} ${
           selected && !batchMode
             ? 'bg-accent/10'
@@ -1192,7 +1188,11 @@ function VirtualConversationList({
       const item = items[index]
       if (item.type === 'divider') return 32
       if (item.type === 'sentinel' || item.type === 'end') return 48
-      return 72
+      // estimate near the upper bound (avatar 36 + py-2.5*2 + 3 text rows
+      // with snippet). measureElement shrinks rows that come in smaller —
+      // an over-estimate leaves harmless gaps for one frame; an
+      // under-estimate makes adjacent rows visually overlap.
+      return 88
     },
     getScrollElement: () => parentRef.current,
   })
