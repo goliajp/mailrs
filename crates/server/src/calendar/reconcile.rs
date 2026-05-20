@@ -23,7 +23,7 @@
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 
-use crate::ical::{Method, ParsedInvite};
+use mailrs_ical::{Method, ParsedInvite};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ReconcileOutcome {
@@ -145,7 +145,7 @@ mod tests {
             uid: "test-uid".into(),
             sequence: seq,
             dtstamp,
-            dtstart: crate::ical::CalDateTime::Utc(
+            dtstart: mailrs_ical::CalDateTime::Utc(
                 Utc.with_ymd_and_hms(2026, 5, 1, 14, 0, 0).unwrap(),
             ),
             dtend: None,

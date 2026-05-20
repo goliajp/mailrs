@@ -854,7 +854,7 @@ where
                                                         &full_message,
                                                     )
                                                 {
-                                                    if let Ok(parsed) = crate::ical::parse_invite(
+                                                    if let Ok(parsed) = mailrs_ical::parse_invite(
                                                         &extracted.ics_bytes,
                                                     ) {
                                                         if let Ok(payload_json) =

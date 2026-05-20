@@ -9,7 +9,7 @@
 //!
 //! This module walks the parsed MIME tree once and returns the first
 //! `text/calendar` part it finds, regardless of disposition. The caller
-//! (`crate::ical::parse_invite`) then validates the bytes are RFC 5545
+//! (`mailrs_ical::parse_invite`) then validates the bytes are RFC 5545
 //! conformant.
 
 use mail_parser::{MessageParser, MimeHeaders, PartType};

@@ -1,19 +1,54 @@
-//! RFC 5545 (iCalendar) + RFC 5546 (iTIP) self-built parser and serializer.
+//! RFC 5545 (iCalendar) + RFC 5546 (iTIP) parser, serializer, and typed
+//! semantics — hand-rolled, zero I/O.
 //!
-//! Hand-rolled byte-by-byte, no parser combinator dependencies — aligns with
-//! `smtp-proto` and `imap-proto` style. See `ical-crate-selection.md` in the
-//! MRS-1 claw for the full selection rationale.
+//! Built for Rust MTAs that need to read an `iCalendar` invite off the wire
+//! (typically a `text/calendar` MIME part) and emit a `REPLY` back. The
+//! parser is byte-by-byte with no parser-combinator dependencies — the same
+//! style as [`mailrs-smtp-proto`] and [`mailrs-imap-proto`] — keeping the
+//! dependency footprint small and the error surface predictable.
 //!
-//! Module layout:
-//! - [`parse`]      — RFC 5545 §3.1 text → AST (line folding, property tree, BEGIN/END nesting).
-//! - [`semantics`]  — AST → [`ParsedInvite`] (typed METHOD / ATTENDEE / ORGANIZER / SEQUENCE / RRULE / ...).
-//! - [`vtimezone`]  — Inline VTIMEZONE handling with chrono-tz fallback.
-//! - [`serialize`]  — [`ParsedInvite`] → RFC 5545 text (for iTIP REPLY in MRS-6).
+//! # Quick start
 //!
-//! The top-level entry point [`parse_invite`] takes raw `text/calendar` bytes and
+//! ```
+//! use mailrs_ical::{parse_invite, Method};
+//!
+//! let ics = b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nMETHOD:REQUEST\r\n\
+//!             PRODID:-//Example//Cal//EN\r\nBEGIN:VEVENT\r\n\
+//!             UID:abc\r\nDTSTAMP:20260101T000000Z\r\n\
+//!             DTSTART:20260102T100000Z\r\nSUMMARY:Lunch\r\n\
+//!             END:VEVENT\r\nEND:VCALENDAR\r\n";
+//!
+//! let invite = parse_invite(ics).unwrap();
+//! assert_eq!(invite.method, Method::Request);
+//! assert_eq!(invite.uid, "abc");
+//! assert_eq!(invite.summary, "Lunch");
+//! ```
+//!
+//! # Module layout
+//!
+//! - [`parse`]      — RFC 5545 §3.1 text → raw AST (line folding, property tree, BEGIN/END nesting).
+//! - [`semantics`]  — AST → [`ParsedInvite`] (typed METHOD / ATTENDEE / ORGANIZER / SEQUENCE / RRULE / …).
+//! - [`vtimezone`]  — Inline VTIMEZONE handling with `chrono-tz` IANA fallback.
+//! - [`serialize`]  — [`ParsedInvite`] → RFC 5545 text (for iTIP `REPLY`).
+//!
+//! Top-level entry point [`parse_invite`] takes raw `text/calendar` bytes and
 //! returns a fully-typed [`ParsedInvite`].
+//!
+//! # What this crate does NOT do
+//!
+//! - No MIME parsing — extract the `text/calendar` part upstream (e.g. with
+//!   [`mail-parser`](https://crates.io/crates/mail-parser)).
+//! - No SMTP. See [`mailrs-smtp-proto`] / [`mailrs-smtp-client`].
+//! - No calendar storage or CalDAV. This is the wire-format layer only.
+//!
+//! [`mailrs-smtp-proto`]: https://crates.io/crates/mailrs-smtp-proto
+//! [`mailrs-smtp-client`]: https://crates.io/crates/mailrs-smtp-client
+//! [`mailrs-imap-proto`]: https://crates.io/crates/mailrs-imap-proto
 
-#![allow(dead_code)] // MRS-2 phase 1: scaffold; fields/fns wired up incrementally.
+// Some parsed fields are read by downstream consumers (e.g. mailrs/calendar)
+// but unused inside this crate. They are kept faithful to the AST so users
+// have the full picture.
+#![allow(dead_code)]
 
 pub mod parse;
 pub mod semantics;

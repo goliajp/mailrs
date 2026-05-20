@@ -15,8 +15,8 @@ use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike, 
 use serde_json::json;
 use sqlx::PgPool;
 
-use crate::ical::vtimezone::{local_to_utc_offset_seconds, resolve};
-use crate::ical::{
+use mailrs_ical::vtimezone::{local_to_utc_offset_seconds, resolve};
+use mailrs_ical::{
     Attendee as IcalAttendee, CalDateTime, EventStatus, ParsedInvite, PartStat, Person,
     Role as IcalRole, VTimezone,
 };
@@ -495,8 +495,8 @@ fn event_status_str(s: EventStatus) -> &'static str {
     }
 }
 
-fn method_str(m: crate::ical::Method) -> &'static str {
-    use crate::ical::Method::*;
+fn method_str(m: mailrs_ical::Method) -> &'static str {
+    use mailrs_ical::Method::*;
     match m {
         Request => "REQUEST",
         Reply => "REPLY",
@@ -513,7 +513,7 @@ fn method_str(m: crate::ical::Method) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ical::{Method, ParsedInvite, VTimezone};
+    use mailrs_ical::{Method, ParsedInvite, VTimezone};
     use chrono::TimeZone;
 
     fn make_parsed(uid: &str, dtstart: CalDateTime) -> ParsedInvite {
