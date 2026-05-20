@@ -7,8 +7,7 @@ use mail_auth::{AuthenticatedMessage, MessageAuthenticator};
 
 use super::auth_results::{format_auth_results_header, AuthResult};
 use super::content_scan::{evaluate_rules, scan_clamav, ClamavResult};
-use super::greylist_db::GreylistDb;
-use super::greylisting::{self, GreylistConfig, GreylistDecision};
+use mailrs_shield::greylist::{self as greylisting, GreylistConfig, GreylistDb, GreylistDecision};
 
 use hickory_resolver::TokioResolver;
 
@@ -153,7 +152,7 @@ pub async fn run_inbound_pipeline(
 
     // 1.5 PTR check (scoring signal, not hard reject)
     let ptr_score = if let Some(r) = resolver {
-        crate::ptr_check::check_client_ptr(r, client_ip, ehlo_domain).await
+        mailrs_shield::ptr::check_client_ptr(r, client_ip, ehlo_domain).await
     } else {
         0.0
     };

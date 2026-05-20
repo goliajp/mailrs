@@ -13,6 +13,7 @@ members = [
     "crates/ical",
     "crates/intelligence",
     "crates/postmaster",
+    "crates/shield",
     "crates/server",
 ]
 

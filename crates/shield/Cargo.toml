@@ -1,0 +1,38 @@
+[package]
+name = "mailrs-shield"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "SMTP anti-spam primitives: DNS blocklist (DNSBL) queries, greylisting policy with optional Redis store, and PTR / forward-confirmed reverse DNS (FCrDNS) checks."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-shield"
+authors = ["GOLIA K.K."]
+keywords = ["smtp", "anti-spam", "dnsbl", "greylist", "fcrdns"]
+categories = ["email", "network-programming"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = ["redis-store"]
+# Enable the Redis-backed greylist store (with optional Postgres
+# pass-through). Disable if you're plugging in your own store.
+redis-store = ["dep:redis", "dep:sqlx"]
+
+[dependencies]
+hickory-resolver = "0.26"
+
+# redis-store feature
+redis = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "ops"
+harness = false
