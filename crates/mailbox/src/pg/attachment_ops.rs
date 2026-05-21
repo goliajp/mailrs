@@ -1,6 +1,6 @@
-use crate::store::MailboxStore;
+use crate::pg::PgMailboxStore;
 
-impl MailboxStore {
+impl PgMailboxStore {
     /// get concatenated extracted text from all attachments of a message
     pub async fn get_attachment_texts(&self, message_id: i64) -> Result<String, sqlx::Error> {
         let rows = sqlx::query_as::<_, (String,)>(

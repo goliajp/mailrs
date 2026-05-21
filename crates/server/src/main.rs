@@ -53,7 +53,7 @@ use crate::inbound::rate_limit::{RateLimiter, TokenBucketConfig};
 use crate::smtp_session::ConnectionContext;
 use crate::users::UserStore;
 use crate::web::WebState;
-use mailrs_mailbox::MailboxStore;
+use mailrs_mailbox::PgMailboxStore;
 
 #[tokio::main]
 async fn main() {
@@ -278,7 +278,7 @@ async fn main() {
     // mailbox store for IMAP (PG-backed)
     let mailbox_store = pg_pool
         .as_ref()
-        .map(|pool| Arc::new(MailboxStore::new(pool.clone())));
+        .map(|pool| Arc::new(PgMailboxStore::new(pool.clone())));
 
     // domain store (PG + Valkey + process cache)
     let domain_store = if pg_pool.is_some() {
@@ -922,7 +922,7 @@ async fn main() {
 async fn handle_pop3_connection(
     stream: TcpStream,
     addr: std::net::SocketAddr,
-    mailbox_store: Arc<MailboxStore>,
+    mailbox_store: Arc<PgMailboxStore>,
     users: Arc<crate::users::UserStore>,
     auth_guard: Arc<AuthGuard>,
     domain_store: Option<Arc<domain_store::DomainStore>>,
@@ -1034,7 +1034,7 @@ async fn handle_managesieve_connection(
 async fn handle_imap_connection<S>(
     stream: S,
     addr: std::net::SocketAddr,
-    mailbox_store: Arc<MailboxStore>,
+    mailbox_store: Arc<PgMailboxStore>,
     users: Arc<crate::users::UserStore>,
     auth_guard: Arc<AuthGuard>,
     domain_store: Option<Arc<domain_store::DomainStore>>,

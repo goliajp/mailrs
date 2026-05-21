@@ -535,7 +535,7 @@ pub(crate) async fn resolve_thread_reply(
     reply_to_thread_id: Option<&str>,
     in_reply_to: Option<&str>,
     user: &str,
-    mb_store: Option<&mailrs_mailbox::MailboxStore>,
+    mb_store: Option<&mailrs_mailbox::PgMailboxStore>,
 ) -> (Option<String>, Vec<String>) {
     // explicit in_reply_to takes precedence
     if let Some(reply_to) = in_reply_to

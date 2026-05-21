@@ -417,7 +417,7 @@ impl MailMcpService {
             .ok_or_else(|| McpError::internal_error("database unavailable", None))
     }
 
-    fn mb_store(&self) -> Result<&Arc<mailrs_mailbox::MailboxStore>, McpError> {
+    fn mb_store(&self) -> Result<&Arc<mailrs_mailbox::PgMailboxStore>, McpError> {
         self.web_state.mailbox_store.as_ref()
             .ok_or_else(|| McpError::internal_error("mailbox store not available", None))
     }

@@ -1,6 +1,6 @@
-use crate::store::MailboxStore;
+use crate::pg::PgMailboxStore;
 
-impl MailboxStore {
+impl PgMailboxStore {
     pub async fn user_storage_usage(&self, user: &str) -> u64 {
         let row: Result<(i64,), _> = sqlx::query_as(
             "SELECT COALESCE(SUM(m.size), 0) FROM messages m

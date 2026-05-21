@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use mailrs_mailbox::MailboxStore;
+use mailrs_mailbox::PgMailboxStore;
 
 use crate::domain_store::DomainStore;
 use crate::inbound::auth_guard::{AuthCheck, AuthGuard};
@@ -26,7 +26,7 @@ struct MessageEntry {
 
 /// POP3 session handler (RFC 1939)
 pub struct Pop3Session {
-    mailbox_store: Arc<MailboxStore>,
+    mailbox_store: Arc<PgMailboxStore>,
     users: Arc<UserStore>,
     state: Pop3State,
     maildir_root: String,
@@ -38,7 +38,7 @@ pub struct Pop3Session {
 }
 
 impl Pop3Session {
-    pub fn new(mailbox_store: Arc<MailboxStore>, users: Arc<UserStore>) -> Self {
+    pub fn new(mailbox_store: Arc<PgMailboxStore>, users: Arc<UserStore>) -> Self {
         Self {
             mailbox_store,
             users,
@@ -501,7 +501,7 @@ mod tests {
     fn make_transaction_session(messages: Vec<MessageEntry>) -> Pop3Session {
         let pool = sqlx::PgPool::connect_lazy("postgres://user:pass@localhost/db").unwrap();
         Pop3Session {
-            mailbox_store: Arc::new(MailboxStore::new(pool)),
+            mailbox_store: Arc::new(PgMailboxStore::new(pool)),
             users: Arc::new(UserStore::empty()),
             state: Pop3State::Transaction {
                 username: "test@example.com".into(),

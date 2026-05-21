@@ -6,7 +6,7 @@ use mailrs_imap_proto::{
     parse_search_criteria, parse_sequence_set, sequence_set_to_uids, ImapCommand, TaggedCommand,
 };
 use mailrs_mailbox::{
-    Mailbox, MailboxStore, FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_RECENT,
+    Mailbox, PgMailboxStore, FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_RECENT,
     FLAG_SEEN,
 };
 
@@ -40,7 +40,7 @@ struct PendingAppend {
 
 /// IMAP session state machine
 pub struct ImapSession {
-    pub mailbox_store: Arc<MailboxStore>,
+    pub mailbox_store: Arc<PgMailboxStore>,
     users: Arc<UserStore>,
     state: ImapState,
     pending_append: Option<PendingAppend>,
@@ -58,7 +58,7 @@ enum ImapState {
 }
 
 impl ImapSession {
-    pub fn new(mailbox_store: Arc<MailboxStore>, users: Arc<UserStore>) -> Self {
+    pub fn new(mailbox_store: Arc<PgMailboxStore>, users: Arc<UserStore>) -> Self {
         Self {
             mailbox_store,
             users,
@@ -1751,7 +1751,7 @@ mod tests {
         let url =
             std::env::var("MAILRS_PG_URL").expect("MAILRS_PG_URL required for integration tests");
         let pool = sqlx::PgPool::connect(&url).await.unwrap();
-        let store = Arc::new(MailboxStore::new(pool));
+        let store = Arc::new(PgMailboxStore::new(pool));
         let users = Arc::new(UserStore::from_plain_passwords(vec![(
             "alice@example.com".into(),
             "password123".into(),

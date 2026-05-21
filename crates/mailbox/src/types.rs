@@ -1,41 +1,225 @@
 use mailrs_maildir::Flag;
 
-/// mailbox metadata
+/// Mailbox metadata.
+///
+/// Marked `#[non_exhaustive]` so the 1.x line can grow fields (e.g.
+/// `subscribed`, `attributes`) without breaking downstream pattern matches.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Mailbox {
+    /// Store-native primary key.
     pub id: i64,
+    /// Owner email address.
     pub user: String,
+    /// URL-/IMAP-safe collection name (e.g. `INBOX`, `Sent`).
     pub name: String,
+    /// IMAP UIDVALIDITY counter. Stable for the lifetime of the mailbox;
+    /// changes only when UIDs are reset.
     pub uidvalidity: u32,
+    /// IMAP UIDNEXT — the UID that will be assigned to the next inserted
+    /// message.
     pub uidnext: u32,
+    /// RFC 7162 CONDSTORE HIGHESTMODSEQ — bumps on every flag change or
+    /// message insert.
     pub highest_modseq: u64,
 }
 
-/// message metadata stored in PostgreSQL
+/// Per-mailbox counts surfaced by IMAP STATUS / JMAP `totalEmails`+`unreadEmails`.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MailboxStatus {
+    /// Total message count.
+    pub total: u32,
+    /// Messages without `FLAG_SEEN`.
+    pub unread: u32,
+    /// IMAP `\Recent` count. Best-effort — implementations that don't track
+    /// per-session recency should return 0.
+    pub recent: u32,
+}
+
+/// A message's portable metadata — the fields every IMAP / JMAP backend
+/// must expose.
+///
+/// Marked `#[non_exhaustive]` so the 1.x line can grow fields without
+/// breaking downstream pattern matches. Backend-specific projections
+/// (importance scoring, content rendering caches, etc.) live as separate
+/// types on the concrete impl, NOT on this struct.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct Message {
+    /// Store-native primary key.
+    pub id: i64,
+    /// FK into the message's containing mailbox.
+    pub mailbox_id: i64,
+    /// IMAP UID within `mailbox_id`. Stable; never reused within a single
+    /// UIDVALIDITY epoch.
+    pub uid: u32,
+    /// Opaque reference to the message body. The store impl chooses the
+    /// format (e.g. maildir filename, blob-store key, file path). The
+    /// library does not interpret this string.
+    pub blob_ref: String,
+    /// Raw `From:` header value (may include display name).
+    pub sender: String,
+    /// Raw `To:` header value. Comma-separated address list.
+    pub recipients: String,
+    /// Decoded `Subject:` header.
+    pub subject: String,
+    /// `Date:` header epoch seconds.
+    pub date: i64,
+    /// Server-side delivery time, epoch seconds.
+    pub internal_date: i64,
+    /// Message size in bytes.
+    pub size: u32,
+    /// Flag bitmask. See the [`FLAG_*`](crate::types::FLAG_SEEN) constants.
+    pub flags: u32,
+    /// RFC 5322 `Message-ID:` header value, without angle brackets.
+    pub message_id: String,
+    /// RFC 5322 `In-Reply-To:` header value, without angle brackets, or
+    /// empty when the message is not a reply.
+    pub in_reply_to: String,
+    /// Store-resolved thread identifier, stable across all messages in the
+    /// same conversation.
+    pub thread_id: String,
+    /// RFC 7162 CONDSTORE per-message MODSEQ.
+    pub modseq: u64,
+    /// Owner email address (for cross-domain queries).
+    pub user_address: String,
+}
+
+/// Input to [`MailboxStore::insert_message`](crate::store::MailboxStore::insert_message).
+///
+/// Non-owning struct; caller keeps the strings alive across the call.
+#[derive(Debug, Clone)]
+pub struct InsertMessage<'a> {
+    /// Owner email address.
+    pub user: &'a str,
+    /// Target mailbox name (e.g. `INBOX`).
+    pub mailbox_name: &'a str,
+    /// Opaque body reference (see [`Message::blob_ref`]).
+    pub blob_ref: &'a str,
+    /// Raw `From:` header value.
+    pub sender: &'a str,
+    /// Raw `To:` header value.
+    pub recipients: &'a str,
+    /// Decoded `Subject:` header.
+    pub subject: &'a str,
+    /// Message size in bytes.
+    pub size: u32,
+    /// `Date:` header epoch seconds.
+    pub date: i64,
+    /// Server-side delivery time, epoch seconds. Typically `now()`.
+    pub internal_date: i64,
+    /// RFC 5322 `Message-ID:` value, without angle brackets.
+    pub message_id: &'a str,
+    /// RFC 5322 `In-Reply-To:` value, without angle brackets.
+    pub in_reply_to: &'a str,
+    /// Thread identifier, resolved by the caller via
+    /// [`crate::threading::resolve_thread_id`] or equivalent.
+    pub thread_id: &'a str,
+    /// Initial flag bitmask. IMAP APPEND can set; default to 0.
+    pub flags: u32,
+}
+
+/// Result of a successful [`MailboxStore::insert_message`](crate::store::MailboxStore::insert_message).
+#[derive(Debug, Clone, Copy)]
+pub struct Inserted {
+    /// Store-native primary key of the newly-inserted message.
+    pub id: i64,
+    /// Allocated UID within the target mailbox.
+    pub uid: u32,
+    /// Resulting MODSEQ after the insert.
+    pub modseq: u64,
+}
+
+/// JMAP `Email/query`-shape filter for [`MailboxStore::query_messages`](crate::store::MailboxStore::query_messages).
+///
+/// Narrow by design — five fields cover the 80% case (mailbox scope, free
+/// text, keyword filter, pagination). Richer filtering belongs at the
+/// protocol layer above the store.
+#[derive(Debug, Clone, Default)]
+pub struct QueryFilter<'a> {
+    /// Restrict to a single mailbox, or `None` for all user's mailboxes.
+    pub mailbox_id: Option<i64>,
+    /// Owner email address — required when `mailbox_id` is `None`.
+    pub user: Option<&'a str>,
+    /// Case-insensitive substring match across sender + recipients + subject.
+    pub text: Option<&'a str>,
+    /// Require this flag bit to be set.
+    pub has_keyword: Option<u32>,
+    /// Require this flag bit to be UNSET.
+    pub not_keyword: Option<u32>,
+    /// Pagination offset (0-based).
+    pub position: u32,
+    /// Page size. Implementations may cap; recommended sane default 50.
+    pub limit: u32,
+}
+
+/// Flag mutation operation for CONDSTORE compare-and-swap
+/// (see [`MailboxStore::store_flags_if_unchanged`](crate::store::MailboxStore::store_flags_if_unchanged)).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlagOp {
+    /// Replace the bitmask entirely.
+    Set,
+    /// OR `flags` into the current bitmask.
+    Add,
+    /// AND-NOT `flags` out of the current bitmask.
+    Remove,
+}
+
+/// Back-compat alias for [`FlagOp`]. Will be removed in 2.0.
+pub type FlagAction = FlagOp;
+
+/// **Legacy: PostgreSQL-impl-specific** extended message metadata.
+///
+/// Contains mailrs-internal projection fields (importance scoring, bulk-sender
+/// flag, tracking-pixel flag, preview snippet) that are NOT part of the
+/// portable [`MailboxStore`](crate::store::MailboxStore) trait. Returned by
+/// the PG impl's legacy methods. Will be reshaped during the 2b refactor;
+/// new code should use the trait's [`Message`] type and fetch any extension
+/// data separately via PG-EXT inherent methods.
 #[derive(Debug, Clone)]
 pub struct MessageMeta {
+    /// Store-native primary key.
     pub id: i64,
+    /// FK into the message's containing mailbox.
     pub mailbox_id: i64,
+    /// IMAP UID.
     pub uid: u32,
+    /// Maildir filename (mailrs-specific blob reference).
     pub maildir_id: String,
+    /// Raw `From:` header value.
     pub sender: String,
+    /// Raw `To:` header value.
     pub recipients: String,
+    /// Decoded `Subject:` header.
     pub subject: String,
+    /// `Date:` header epoch seconds.
     pub date: i64,
+    /// Message size in bytes.
     pub size: u32,
+    /// Flag bitmask.
     pub flags: u32,
+    /// Server-side delivery time epoch seconds.
     pub internal_date: i64,
+    /// `Message-ID:` header, without angle brackets.
     pub message_id: String,
+    /// `In-Reply-To:` header, without angle brackets.
     pub in_reply_to: String,
+    /// Resolved thread identifier.
     pub thread_id: String,
+    /// CONDSTORE per-message MODSEQ.
     pub modseq: u64,
     /// owner's email address (for cross-domain queries)
     pub user_address: String,
     // importance fields (populated by post-delivery processing)
+    /// mailrs-internal importance bucket
     pub importance_level: String,
+    /// mailrs-internal importance score [0.0, 1.0]
     pub importance_score: f32,
+    /// mailrs-internal bulk-sender heuristic
     pub is_bulk_sender: bool,
+    /// mailrs-internal tracking-pixel detection
     pub has_tracking_pixel: bool,
+    /// mailrs-internal preview snippet
     pub new_content: Option<String>,
 }
 
@@ -89,14 +273,6 @@ pub struct EmailAnalysisRow {
     pub requires_action: bool,
     pub sender_intent: String,
     pub action_deadline: Option<String>,
-}
-
-/// flag update action for CONDSTORE UNCHANGEDSINCE
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FlagAction {
-    Set,
-    Add,
-    Remove,
 }
 
 // flag bitmask constants

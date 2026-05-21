@@ -1,10 +1,10 @@
 use sqlx::PgPool;
 
-use crate::helpers::row_to_message_meta;
-use crate::store::MailboxStore;
+use crate::pg::helpers::row_to_message_meta;
+use crate::pg::PgMailboxStore;
 use crate::types::{FlagAction, MessageMeta};
 
-impl MailboxStore {
+impl PgMailboxStore {
     pub async fn update_flags(
         &self,
         mailbox_id: i64,

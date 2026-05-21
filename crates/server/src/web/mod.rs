@@ -12,7 +12,7 @@ use crate::domain_store::DomainStore;
 use crate::event_bus::EventBus;
 use crate::health::HealthState;
 use crate::inbound::auth_guard::AuthGuard;
-use mailrs_mailbox::MailboxStore;
+use mailrs_mailbox::PgMailboxStore;
 
 mod admin;
 mod ai_assist;
@@ -75,7 +75,7 @@ pub struct WebState {
     pub total_messages: AtomicU64,
     pub active_connections: AtomicU64,
     pub outbound_queue: Option<sqlx::PgPool>,
-    pub mailbox_store: Option<Arc<MailboxStore>>,
+    pub mailbox_store: Option<Arc<PgMailboxStore>>,
     pub domain_store: Option<Arc<DomainStore>>,
     pub maildir_root: String,
     pub hostname: String,
@@ -188,7 +188,7 @@ impl WebState {
         self
     }
 
-    pub fn with_mailbox(mut self, store: Arc<MailboxStore>) -> Self {
+    pub fn with_mailbox(mut self, store: Arc<PgMailboxStore>) -> Self {
         self.mailbox_store = Some(store);
         self
     }

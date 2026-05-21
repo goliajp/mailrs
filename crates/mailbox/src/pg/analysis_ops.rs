@@ -1,6 +1,6 @@
-use crate::store::MailboxStore;
+use crate::pg::PgMailboxStore;
 
-/// Input to [`MailboxStore::upsert_email_analysis`].
+/// Input to [`PgMailboxStore::upsert_email_analysis`].
 ///
 /// All fields are required by the underlying `email_analysis` table; the
 /// struct exists to keep the call sites readable (the previous signature
@@ -25,7 +25,7 @@ pub struct EmailAnalysisInput<'a> {
     pub action_deadline: Option<&'a str>,
 }
 
-impl MailboxStore {
+impl PgMailboxStore {
     /// get analysis result for a message
     pub async fn get_email_analysis(&self, message_id: i64) -> Result<Option<crate::types::EmailAnalysisRow>, sqlx::Error> {
         let row = sqlx::query_as::<_, (i64, String, i16, String, String, serde_json::Value, serde_json::Value, serde_json::Value, serde_json::Value, String, String, bool, String, Option<String>)>(

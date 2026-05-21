@@ -1,9 +1,9 @@
-use crate::helpers::{read_raw_from_maildir, row_to_message_meta_from_row};
-use crate::store::MailboxStore;
+use crate::pg::helpers::{read_raw_from_maildir, row_to_message_meta_from_row};
+use crate::pg::PgMailboxStore;
 use crate::threading;
 use crate::types::{ConversationSummary, MessageMeta, FLAG_FLAGGED, FLAG_SEEN};
 
-impl MailboxStore {
+impl PgMailboxStore {
     /// look up the thread_id of a message by its message_id (across all user's mailboxes)
     pub async fn find_thread_id_by_message_id(
         &self,

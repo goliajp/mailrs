@@ -3,7 +3,7 @@
 //! `mailrs_jmap` ships the dispatcher + per-method handlers framework-free.
 //! This module:
 //!   1. Implements `mailrs_jmap::MailStore` for a server-side adapter that
-//!      wraps `mailrs_mailbox::MailboxStore` + bridges types.
+//!      wraps `mailrs_mailbox::PgMailboxStore` + bridges types.
 //!   2. Exposes the `GET /.well-known/jmap` session document and the
 //!      `POST /jmap` request endpoint as axum handlers.
 //!   3. Keeps the JMAP push (SSE) endpoint here, since the event-source
@@ -28,7 +28,7 @@ use mailrs_jmap::types::{
 
 use super::{AuthUser, WebState};
 
-/// Bridge between `mailrs_mailbox::MailboxStore` and `mailrs_jmap::MailStore`.
+/// Bridge between `mailrs_mailbox::PgMailboxStore` and `mailrs_jmap::MailStore`.
 ///
 /// Held by every handler call; cheap to clone because `WebState` is `Arc`'d.
 pub(super) struct JmapAdapter {
@@ -40,7 +40,7 @@ impl JmapAdapter {
         Self { state }
     }
 
-    fn mailbox_store(&self) -> Result<&Arc<mailrs_mailbox::MailboxStore>, StoreError> {
+    fn mailbox_store(&self) -> Result<&Arc<mailrs_mailbox::PgMailboxStore>, StoreError> {
         self.state.mailbox_store.as_ref().ok_or_else(|| -> StoreError {
             "mailbox store not available".into()
         })
