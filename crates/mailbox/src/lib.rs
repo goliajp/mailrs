@@ -5,6 +5,7 @@
 //! README will be wired in as crate-level docs in stage 2e once the
 //! trait migration completes.
 
+pub mod fixtures;
 pub mod pg;
 pub mod store;
 pub mod threading;
