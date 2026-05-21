@@ -114,7 +114,7 @@ The store impl is yours. The [mailrs] server uses a thin adapter that bridges it
 | `tests/email_submission.rs` | 11 | `EmailSubmission/set` — success shape, all 5 documented failure modes |
 | `tests/dispatch_request.rs` | 7 | envelope shape, ordering, back-reference resolution, unknown method |
 
-The in-memory fixture (`tests/common/mod.rs`) implements the trait faithfully — same return contracts as a real backend, per-method error injection so a single test can isolate a specific failure path. Useful as a reference implementation if you're building a JMAP test harness of your own.
+The in-memory fixture lives at [`mailrs_jmap::fixtures::InMemoryStore`](https://docs.rs/mailrs-jmap/latest/mailrs_jmap/fixtures/struct.InMemoryStore.html) — same return contracts as a real backend, per-method error injection so a single test can isolate a specific failure path. As of `1.1.0` it is a `pub` module, so downstream consumers building their own dispatcher tests can use it directly without re-implementing one.
 
 ## Benchmarks
 

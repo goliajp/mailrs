@@ -1,9 +1,8 @@
 //! Integration tests for CardDAV resource endpoints: GET / PUT / DELETE on
 //! `/dav/contacts/{user}/{book}/{uid}.vcf`.
 
-mod common;
 
-use common::{
+use mailrs_dav::fixtures::{
     InMemoryAddressBookStore, body_as_str, header_value, make_book, make_contact,
 };
 use mailrs_dav::carddav::{contact_delete, contact_get, contact_put};
@@ -16,7 +15,7 @@ const VCARD_V2: &str = "BEGIN:VCARD\nUID:ct-1\nFN:Alice Updated\nEND:VCARD";
 
 fn fixture_with_contact(uid: &str, body: &str) -> InMemoryAddressBookStore {
     InMemoryAddressBookStore::new()
-        .with_book(common::TEST_USER, make_book(BOOK_ID, "Friends"))
+        .with_book(mailrs_dav::fixtures::EXAMPLE_USER, make_book(BOOK_ID, "Friends"))
         .with_contact(BOOK_ID, make_contact(uid, body))
 }
 
@@ -41,7 +40,7 @@ async fn contact_get_returns_200_with_vcard_body_and_quoted_etag() {
 #[tokio::test]
 async fn contact_get_missing_uid_returns_not_found_error() {
     let store = InMemoryAddressBookStore::new()
-        .with_book(common::TEST_USER, make_book(BOOK_ID, "Friends"));
+        .with_book(mailrs_dav::fixtures::EXAMPLE_USER, make_book(BOOK_ID, "Friends"));
 
     let err = contact_get(&store, BOOK_ID, "missing").await.unwrap_err();
 
@@ -53,7 +52,7 @@ async fn contact_get_missing_uid_returns_not_found_error() {
 #[tokio::test]
 async fn contact_put_new_returns_201_with_etag() {
     let store = InMemoryAddressBookStore::new()
-        .with_book(common::TEST_USER, make_book(BOOK_ID, "Friends"));
+        .with_book(mailrs_dav::fixtures::EXAMPLE_USER, make_book(BOOK_ID, "Friends"));
 
     let resp = contact_put(&store, BOOK_ID, "ct-1", None, None, VCARD_V1)
         .await
@@ -86,7 +85,7 @@ async fn contact_put_existing_returns_204_with_fresh_etag() {
 #[tokio::test]
 async fn contact_put_then_get_round_trips_body_unchanged() {
     let store = InMemoryAddressBookStore::new()
-        .with_book(common::TEST_USER, make_book(BOOK_ID, "Friends"));
+        .with_book(mailrs_dav::fixtures::EXAMPLE_USER, make_book(BOOK_ID, "Friends"));
 
     let body = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Test\r\nUID:ct-1\r\nEND:VCARD";
     contact_put(&store, BOOK_ID, "ct-1", None, None, body)
@@ -138,7 +137,7 @@ async fn contact_put_if_match_with_stale_etag_returns_precondition_failed() {
 #[tokio::test]
 async fn contact_put_if_match_on_missing_resource_returns_precondition_failed() {
     let store = InMemoryAddressBookStore::new()
-        .with_book(common::TEST_USER, make_book(BOOK_ID, "Friends"));
+        .with_book(mailrs_dav::fixtures::EXAMPLE_USER, make_book(BOOK_ID, "Friends"));
 
     let err = contact_put(
         &store,
@@ -170,7 +169,7 @@ async fn contact_put_if_none_match_star_blocks_overwrite_of_existing() {
 #[tokio::test]
 async fn contact_put_if_none_match_star_allows_create_when_resource_absent() {
     let store = InMemoryAddressBookStore::new()
-        .with_book(common::TEST_USER, make_book(BOOK_ID, "Friends"));
+        .with_book(mailrs_dav::fixtures::EXAMPLE_USER, make_book(BOOK_ID, "Friends"));
 
     let resp = contact_put(&store, BOOK_ID, "ct-new", None, Some("*"), VCARD_V1)
         .await
@@ -195,7 +194,7 @@ async fn contact_delete_existing_returns_204_and_removes_row() {
 #[tokio::test]
 async fn contact_delete_missing_returns_not_found_error() {
     let store = InMemoryAddressBookStore::new()
-        .with_book(common::TEST_USER, make_book(BOOK_ID, "Friends"));
+        .with_book(mailrs_dav::fixtures::EXAMPLE_USER, make_book(BOOK_ID, "Friends"));
 
     let err = contact_delete(&store, BOOK_ID, "missing").await.unwrap_err();
 

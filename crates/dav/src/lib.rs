@@ -104,6 +104,7 @@
 pub mod caldav;
 pub mod carddav;
 pub mod error;
+pub mod fixtures;
 pub mod parse;
 pub mod principal;
 pub mod store;

@@ -125,7 +125,7 @@ The store impl is yours. The [mailrs] server wraps its `sqlx::PgPool` in a thin 
 | `tests/carddav_resource.rs` | 13 | contact GET / PUT / DELETE |
 | `tests/store_error_propagation.rs` | 16 | every fallible store op → `DavError::ServerError` mapping |
 
-The fixtures (`InMemoryCalendarStore` / `InMemoryAddressBookStore`) implement both store traits faithfully — same return contracts as a real backend, with per-method error injection so each failure path can be exercised in isolation. Useful as a reference test harness for downstream consumers building their own CalDAV / CardDAV store.
+The fixtures live at [`mailrs_dav::fixtures::InMemoryCalendarStore`](https://docs.rs/mailrs-dav/latest/mailrs_dav/fixtures/struct.InMemoryCalendarStore.html) and [`mailrs_dav::fixtures::InMemoryAddressBookStore`](https://docs.rs/mailrs-dav/latest/mailrs_dav/fixtures/struct.InMemoryAddressBookStore.html) — same return contracts as a real backend, with per-method error injection so each failure path can be exercised in isolation. As of `1.1.0` it is a `pub` module, so downstream consumers building their own handler tests can use both stores directly without re-implementing them.
 
 ## Benchmarks
 

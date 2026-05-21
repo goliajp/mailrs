@@ -71,6 +71,7 @@
 pub mod build;
 pub mod dispatch;
 pub mod error;
+pub mod fixtures;
 pub mod flags;
 pub mod ids;
 pub mod methods;

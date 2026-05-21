@@ -3,9 +3,8 @@
 //! The PRIORITY surface for outbound flow: create-only semantics, every error
 //! path, and the success-shape carrying the synthetic `sub-{id}` identifier.
 
-mod common;
 
-use common::{InMemoryStore, TEST_USER, make_message};
+use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message};
 use mailrs_jmap::dispatch::dispatch_method;
 use serde_json::json;
 
@@ -16,14 +15,14 @@ async fn submission_set_no_create_returns_empty_state_zero() {
     let (name, resp) = dispatch_method(
         "EmailSubmission/set",
         &json!({}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
     .unwrap();
 
     assert_eq!(name, "EmailSubmission/set");
-    assert_eq!(resp["accountId"], TEST_USER);
+    assert_eq!(resp["accountId"], EXAMPLE_USER);
     assert_eq!(resp["oldState"], "0");
     assert_eq!(resp["newState"], "0", "newState stays at 0 when nothing happened");
     assert_eq!(resp["created"], json!({}));
@@ -37,7 +36,7 @@ async fn submission_set_response_shape_advances_state_when_create_present() {
     let (_, resp) = dispatch_method(
         "EmailSubmission/set",
         &json!({"create": {}}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -52,7 +51,7 @@ async fn submission_set_create_success_returns_synthetic_sub_id() {
     let raw = b"From: alice\r\n\r\nbody".to_vec();
     let store = InMemoryStore::new()
         .with_mailbox(20, "Drafts")
-        .with_message(make_message(42, 20, TEST_USER))
+        .with_message(make_message(42, 20, EXAMPLE_USER))
         .with_message_raw(42, raw);
 
     let (_, resp) = dispatch_method(
@@ -60,7 +59,7 @@ async fn submission_set_create_success_returns_synthetic_sub_id() {
         &json!({
             "create": {"k1": {"emailId": "msg-42"}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -81,7 +80,7 @@ async fn submission_set_missing_email_id_lands_in_invalid_properties() {
         &json!({
             "create": {"k1": {}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -101,7 +100,7 @@ async fn submission_set_malformed_email_id_lands_in_invalid_properties() {
         &json!({
             "create": {"k1": {"emailId": "not-an-email"}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -120,7 +119,7 @@ async fn submission_set_missing_message_lands_in_not_found() {
         &json!({
             "create": {"k1": {"emailId": "msg-999"}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -143,7 +142,7 @@ async fn submission_set_unowned_message_lands_in_not_found() {
         &json!({
             "create": {"k1": {"emailId": "msg-42"}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -157,14 +156,14 @@ async fn submission_set_no_raw_bytes_lands_in_server_fail() {
     // Message exists but read_message_raw returns None (no raw_bytes set).
     let store = InMemoryStore::new()
         .with_mailbox(20, "Drafts")
-        .with_message(make_message(42, 20, TEST_USER));
+        .with_message(make_message(42, 20, EXAMPLE_USER));
 
     let (_, resp) = dispatch_method(
         "EmailSubmission/set",
         &json!({
             "create": {"k1": {"emailId": "msg-42"}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -182,7 +181,7 @@ async fn submission_set_store_failure_carries_message_into_description() {
     let raw = b"body".to_vec();
     let store = InMemoryStore::new()
         .with_mailbox(20, "Drafts")
-        .with_message(make_message(42, 20, TEST_USER))
+        .with_message(make_message(42, 20, EXAMPLE_USER))
         .with_message_raw(42, raw)
         .submission_fails_with("MX bounced");
 
@@ -191,7 +190,7 @@ async fn submission_set_store_failure_carries_message_into_description() {
         &json!({
             "create": {"k1": {"emailId": "msg-42"}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -206,7 +205,7 @@ async fn submission_set_silent_failure_uses_default_delivery_failed_message() {
     let raw = b"body".to_vec();
     let store = InMemoryStore::new()
         .with_mailbox(20, "Drafts")
-        .with_message(make_message(42, 20, TEST_USER))
+        .with_message(make_message(42, 20, EXAMPLE_USER))
         .with_message_raw(42, raw)
         .submission_fails_silently();
 
@@ -215,7 +214,7 @@ async fn submission_set_silent_failure_uses_default_delivery_failed_message() {
         &json!({
             "create": {"k1": {"emailId": "msg-42"}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -230,7 +229,7 @@ async fn submission_set_mixes_success_and_failure_across_creates() {
     let raw = b"body".to_vec();
     let store = InMemoryStore::new()
         .with_mailbox(20, "Drafts")
-        .with_message(make_message(1, 20, TEST_USER))
+        .with_message(make_message(1, 20, EXAMPLE_USER))
         .with_message_raw(1, raw);
 
     let (_, resp) = dispatch_method(
@@ -242,7 +241,7 @@ async fn submission_set_mixes_success_and_failure_across_creates() {
                 "noid": {}
             }
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await

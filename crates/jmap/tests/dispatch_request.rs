@@ -2,9 +2,8 @@
 //! back-references (RFC 8620 §3.7), unknown-method handling, and the wrapping
 //! `JmapResponse` shape.
 
-mod common;
 
-use common::{InMemoryStore, TEST_USER, make_message, make_request};
+use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message, make_request};
 use mailrs_jmap::dispatch::{JmapRequest, dispatch_request};
 use serde_json::json;
 
@@ -16,7 +15,7 @@ async fn dispatch_request_empty_method_calls_yields_empty_responses() {
         using: vec!["urn:ietf:params:jmap:mail".into()],
         method_calls: vec![],
     };
-    let resp = dispatch_request(req, TEST_USER, &store).await;
+    let resp = dispatch_request(req, EXAMPLE_USER, &store).await;
 
     assert!(resp.method_responses.is_empty());
     assert_eq!(resp.session_state, "0");
@@ -30,7 +29,7 @@ async fn dispatch_request_unknown_method_surfaces_as_error_envelope_at_position(
         ("Mailbox/get", json!({}), "c1"),
         ("Bogus/method", json!({}), "c2"),
     ]);
-    let resp = dispatch_request(req, TEST_USER, &store).await;
+    let resp = dispatch_request(req, EXAMPLE_USER, &store).await;
 
     assert_eq!(resp.method_responses.len(), 2);
     assert_eq!(resp.method_responses[0].0, "Mailbox/get");
@@ -44,13 +43,13 @@ async fn dispatch_request_single_mailbox_get_returns_full_envelope() {
     let store = InMemoryStore::new().with_mailbox(1, "INBOX");
 
     let req = make_request(&[("Mailbox/get", json!({}), "c1")]);
-    let resp = dispatch_request(req, TEST_USER, &store).await;
+    let resp = dispatch_request(req, EXAMPLE_USER, &store).await;
 
     assert_eq!(resp.method_responses.len(), 1);
     let (name, value, call_id) = &resp.method_responses[0];
     assert_eq!(name, "Mailbox/get");
     assert_eq!(call_id, "c1");
-    assert_eq!(value["accountId"], TEST_USER);
+    assert_eq!(value["accountId"], EXAMPLE_USER);
     assert_eq!(value["list"].as_array().unwrap().len(), 1);
 }
 
@@ -58,8 +57,8 @@ async fn dispatch_request_single_mailbox_get_returns_full_envelope() {
 async fn dispatch_request_back_reference_resolves_ids_from_prior_query() {
     let store = InMemoryStore::new()
         .with_mailbox(10, "INBOX")
-        .with_message(make_message(1, 10, TEST_USER))
-        .with_message(make_message(2, 10, TEST_USER));
+        .with_message(make_message(1, 10, EXAMPLE_USER))
+        .with_message(make_message(2, 10, EXAMPLE_USER));
 
     // Email/query → Email/get with #ids back-reference to /ids of the query.
     let req = make_request(&[
@@ -73,7 +72,7 @@ async fn dispatch_request_back_reference_resolves_ids_from_prior_query() {
             "c2",
         ),
     ]);
-    let resp = dispatch_request(req, TEST_USER, &store).await;
+    let resp = dispatch_request(req, EXAMPLE_USER, &store).await;
 
     assert_eq!(resp.method_responses.len(), 2);
     assert_eq!(resp.method_responses[1].0, "Email/get");
@@ -95,7 +94,7 @@ async fn dispatch_request_back_reference_to_unknown_call_drops_arg() {
         }),
         "c1",
     )]);
-    let resp = dispatch_request(req, TEST_USER, &store).await;
+    let resp = dispatch_request(req, EXAMPLE_USER, &store).await;
 
     assert_eq!(resp.method_responses[0].0, "error");
     assert_eq!(resp.method_responses[0].1["type"], "invalidArguments");
@@ -110,7 +109,7 @@ async fn dispatch_request_preserves_method_call_order_in_responses() {
         ("Mailbox/query", json!({}), "second"),
         ("Mailbox/get", json!({}), "third"),
     ]);
-    let resp = dispatch_request(req, TEST_USER, &store).await;
+    let resp = dispatch_request(req, EXAMPLE_USER, &store).await;
 
     let call_ids: Vec<&str> = resp
         .method_responses
@@ -126,7 +125,7 @@ async fn dispatch_request_method_level_error_uses_canonical_envelope_shape() {
     let store = InMemoryStore::new().list_mailboxes_fails("explode");
 
     let req = make_request(&[("Mailbox/get", json!({}), "c1")]);
-    let resp = dispatch_request(req, TEST_USER, &store).await;
+    let resp = dispatch_request(req, EXAMPLE_USER, &store).await;
 
     let (name, value, call_id) = &resp.method_responses[0];
     assert_eq!(name, "error");

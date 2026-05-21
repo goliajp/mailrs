@@ -1,12 +1,32 @@
-//! Shared in-memory [`MailStore`] implementation used by every integration
-//! test binary in this crate.
+//! In-memory [`MailStore`](crate::store::MailStore) implementation suitable
+//! for tests, examples, and downstream-consumer test harnesses.
 //!
-//! Tests build a store with the chainable `with_*` setters, hand `&store` to a
-//! handler, and (where the handler mutates state) read back via `flags_for`.
-//! Error injection is per-method (`*_fails`), so a single test can isolate the
-//! exact code path it cares about.
-
-#![allow(dead_code)]
+//! **Intended use is testing.** The store keeps every value in process memory
+//! and never persists across restarts; do not wire it into a real deployment.
+//!
+//! ## Quick start
+//!
+//! ```
+//! use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message};
+//!
+//! let store = InMemoryStore::new()
+//!     .with_message(make_message(1, 10, EXAMPLE_USER));
+//! ```
+//!
+//! ## What it gives you
+//!
+//! - Stateful in-memory storage with a builder API — `with_mailbox`,
+//!   `with_message`, `with_message_raw`, `with_parsed_body`,
+//!   `with_mailbox_counts`.
+//! - Per-method error injection via `<method>_fails` setters so each error
+//!   path in your handler-driving code can be isolated in a single test.
+//! - Read-back helpers for assertions — `flags_for(mailbox_id, uid)`.
+//! - Convenience constructors — `make_message`, `make_request`,
+//!   `parsed_with_text`, `parsed_with_attachment`.
+//!
+//! Used internally by this crate's integration tests; the same module is
+//! exposed to downstream consumers so they can drive their own handler /
+//! dispatcher tests without re-implementing the store.
 
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -14,14 +34,20 @@ use std::sync::RwLock;
 use async_trait::async_trait;
 use serde_json::Value;
 
-use mailrs_jmap::dispatch::JmapRequest;
-use mailrs_jmap::store::{MailStore, StoreError};
-use mailrs_jmap::types::{
+use crate::dispatch::JmapRequest;
+use crate::store::{MailStore, StoreError};
+use crate::types::{
     Attachment, FLAG_SEEN, Mailbox, MailboxCounts, Message, ParsedBody, SubmissionResult,
 };
 
-pub const TEST_USER: &str = "alice@example.com";
+/// Convenience example user used by the constructors in this module. The
+/// store does not assume any particular value — callers can use their own.
+pub const EXAMPLE_USER: &str = "alice@example.com";
 
+/// In-memory [`MailStore`] backed by `Vec`s under an `RwLock`.
+///
+/// Build via [`Self::new`] + the chainable `with_*` setters. See the module
+/// docs for an example.
 pub struct InMemoryStore {
     inner: RwLock<Inner>,
 }
@@ -45,6 +71,7 @@ struct Inner {
 }
 
 impl InMemoryStore {
+    /// Construct an empty store.
     pub fn new() -> Self {
         Self {
             inner: RwLock::new(Inner {
@@ -68,6 +95,7 @@ impl InMemoryStore {
         }
     }
 
+    /// Append a mailbox with the given id and name.
     pub fn with_mailbox(self, id: i64, name: &str) -> Self {
         self.inner.write().unwrap().mailboxes.push(Mailbox {
             id,
@@ -76,21 +104,30 @@ impl InMemoryStore {
         self
     }
 
+    /// Append a pre-built [`Message`]. Use [`make_message`] for a sane default
+    /// shape and mutate before passing in if you need overrides.
     pub fn with_message(self, msg: Message) -> Self {
         self.inner.write().unwrap().messages.push(msg);
         self
     }
 
+    /// Map a message id to raw RFC 5322 bytes. [`MailStore::read_message_raw`]
+    /// returns these bytes; without this setter that method returns `None`.
     pub fn with_message_raw(self, msg_id: i64, raw: Vec<u8>) -> Self {
         self.inner.write().unwrap().raw_bytes.insert(msg_id, raw);
         self
     }
 
+    /// Map a specific raw byte sequence to a parsed body. The store's
+    /// [`MailStore::parse_message`] returns the override when called with
+    /// matching bytes, and `ParsedBody::default()` otherwise.
     pub fn with_parsed_body(self, raw: Vec<u8>, parsed: ParsedBody) -> Self {
         self.inner.write().unwrap().parsed_bodies.insert(raw, parsed);
         self
     }
 
+    /// Override mailbox counts for a specific mailbox id. Without this the
+    /// store derives total/unread from the message list.
     pub fn with_mailbox_counts(self, mb_id: i64, counts: MailboxCounts) -> Self {
         self.inner
             .write()
@@ -100,41 +137,49 @@ impl InMemoryStore {
         self
     }
 
+    /// Make [`MailStore::list_mailboxes`] return an error carrying `msg`.
     pub fn list_mailboxes_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().list_mailboxes_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`MailStore::mailbox_status`] return an error carrying `msg`.
     pub fn mailbox_status_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().mailbox_status_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`MailStore::list_messages`] return an error carrying `msg`.
     pub fn list_messages_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().list_messages_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`MailStore::get_message_by_db_id`] return an error carrying `msg`.
     pub fn get_message_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().get_message_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`MailStore::list_thread_messages`] return an error carrying `msg`.
     pub fn list_thread_messages_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().list_thread_messages_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`MailStore::update_flags`] return an error carrying `msg`.
     pub fn update_flags_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().update_flags_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`MailStore::add_flags`] return an error carrying `msg`.
     pub fn add_flags_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().add_flags_error = Some(msg.to_string());
         self
     }
 
+    /// Configure [`MailStore::submit_message`] to fail with a description.
     pub fn submission_fails_with(self, msg: &str) -> Self {
         self.inner.write().unwrap().submission_result = SubmissionResult {
             success: false,
@@ -143,6 +188,7 @@ impl InMemoryStore {
         self
     }
 
+    /// Configure [`MailStore::submit_message`] to fail without a description.
     pub fn submission_fails_silently(self) -> Self {
         self.inner.write().unwrap().submission_result = SubmissionResult {
             success: false,
@@ -151,9 +197,9 @@ impl InMemoryStore {
         self
     }
 
-    /// Read back the current flag bitmask for `(mailbox_id, uid)`. `None` when
-    /// the row is missing. Tests use this to assert the effect of `Email/set`
-    /// updates and destroys.
+    /// Read back the current flag bitmask for `(mailbox_id, uid)`. `None`
+    /// when the row is missing. Tests use this to assert the effect of
+    /// `Email/set` updates and destroys.
     pub fn flags_for(&self, mailbox_id: i64, uid: u32) -> Option<u32> {
         self.inner
             .read()
@@ -315,9 +361,9 @@ impl MailStore for InMemoryStore {
     }
 }
 
-/// Build a `Message` with sane defaults. Tests override only the fields they
-/// care about by mutating the returned value before handing it to
-/// `with_message`.
+/// Build a [`Message`] with sane defaults. Tests override only the fields
+/// they care about by mutating the returned value before handing it to
+/// [`InMemoryStore::with_message`].
 pub fn make_message(id: i64, mailbox_id: i64, user: &str) -> Message {
     Message {
         id,
@@ -339,7 +385,7 @@ pub fn make_message(id: i64, mailbox_id: i64, user: &str) -> Message {
     }
 }
 
-/// Helper: assemble a [`JmapRequest`] from a slice of `(method, args, call_id)`
+/// Assemble a [`JmapRequest`] from a slice of `(method, args, call_id)`
 /// tuples. Always declares the mail capability.
 pub fn make_request(calls: &[(&str, Value, &str)]) -> JmapRequest {
     JmapRequest {
@@ -351,8 +397,7 @@ pub fn make_request(calls: &[(&str, Value, &str)]) -> JmapRequest {
     }
 }
 
-/// Helper: assert a parsed body matches the given text. Convenience for
-/// `Email/get`-shaped assertions.
+/// Build a [`ParsedBody`] containing only a plain-text part.
 pub fn parsed_with_text(text: &str) -> ParsedBody {
     ParsedBody {
         text: Some(text.to_string()),
@@ -361,7 +406,8 @@ pub fn parsed_with_text(text: &str) -> ParsedBody {
     }
 }
 
-/// Helper: build a `ParsedBody` with one attachment of the given size.
+/// Build a [`ParsedBody`] containing one attachment of the given size and no
+/// body parts.
 pub fn parsed_with_attachment(filename: &str, content_type: &str, size: u32) -> ParsedBody {
     ParsedBody {
         text: None,

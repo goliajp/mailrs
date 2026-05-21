@@ -2261,18 +2261,6 @@ dependencies = [
 [[package]]
 name = "mailrs-dav"
 version = "1.0.3"
-dependencies = [
- "async-trait",
- "chrono",
- "criterion",
- "hex",
- "sha2 0.11.0",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-dav"
-version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ce8abb6baade8b6dfe4b5bf0af4cbaf7cf20e884a262c2a38f9253ff18d533d"
 dependencies = [
@@ -2280,6 +2268,18 @@ dependencies = [
  "chrono",
  "hex",
  "sha2 0.11.0",
+]
+
+[[package]]
+name = "mailrs-dav"
+version = "1.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "criterion",
+ "hex",
+ "sha2 0.11.0",
+ "tokio",
 ]
 
 [[package]]
@@ -2378,18 +2378,6 @@ dependencies = [
 [[package]]
 name = "mailrs-jmap"
 version = "1.0.3"
-dependencies = [
- "async-trait",
- "chrono",
- "criterion",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-jmap"
-version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf3a06002fa43a4c7406406ea242d3d0a31b54c796e4aa5ab7f75b8bc9adb053"
 dependencies = [
@@ -2397,6 +2385,18 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mailrs-jmap"
+version = "1.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "criterion",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -2522,12 +2522,12 @@ dependencies = [
  "mail-auth",
  "mail-parser",
  "mailrs-clean 1.0.0",
- "mailrs-dav 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-dav 1.0.3",
  "mailrs-dmarc 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.0",
  "mailrs-imap-proto 1.0.0",
  "mailrs-intelligence 1.0.0",
- "mailrs-jmap 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-jmap 1.0.3",
  "mailrs-mailbox",
  "mailrs-maildir 1.0.0",
  "mailrs-outbound-queue 1.0.0",
