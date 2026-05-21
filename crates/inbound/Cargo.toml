@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-inbound"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 description = "Composable SMTP receive pipeline framework — Stage trait + early-reject executor + pure decision logic + RFC 8601 Authentication-Results helpers. Framework-only; bring your own greylist / DKIM / virus-scan / scoring stages."
 license = "Apache-2.0 OR MIT"

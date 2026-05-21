@@ -1,9 +1,17 @@
 #![doc = include_str!("../README.md")]
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 pub mod fixtures;
 pub mod pg;
+/// Portable [`MailboxStore`] trait — the IMAP/JMAP-shaped abstraction
+/// backend implementations must satisfy.
 pub mod store;
+/// Pure-function helpers for message-ID parsing and thread resolution.
+/// No I/O; safe to call from hot paths.
 pub mod threading;
+/// Store-agnostic data types ([`Mailbox`], [`Message`], [`Inserted`]…) and
+/// the `FLAG_*` bitmask constants shared across every backend.
 pub mod types;
 
 // Public re-exports for the trait surface and its types.

@@ -8,20 +8,38 @@ use crate::pg::PgMailboxStore;
 /// `Default` because every field is semantically required.
 #[derive(Debug, Clone)]
 pub struct EmailAnalysisInput<'a> {
+    /// `messages.id` of the message this analysis describes.
     pub message_id: i64,
+    /// Coarse category label (e.g. `personal`, `work`, `bulk`, `spam`, `scam`).
     pub category: &'a str,
+    /// Integer risk score on a `0..=100` scale.
     pub risk_score: i16,
+    /// Short human-readable justification for `risk_score`.
     pub risk_reason: &'a str,
+    /// One- or two-sentence summary of the message body.
     pub summary: &'a str,
+    /// JSON array of named entities (people) extracted from the message.
     pub people: &'a serde_json::Value,
+    /// JSON array of date references extracted from the message.
     pub dates: &'a serde_json::Value,
+    /// JSON array of monetary amounts extracted from the message.
     pub amounts: &'a serde_json::Value,
+    /// JSON array of action items / tasks the message asks of the recipient.
     pub action_items: &'a serde_json::Value,
+    /// Optional dense vector for pgvector semantic search.
     pub embedding: Option<&'a [f32]>,
+    /// Tag identifying the model that produced this analysis (used to
+    /// detect rows that need re-analysis when the model is upgraded).
     pub model_version: &'a str,
+    /// Plain-text projection of the message body (HTML stripped, etc.)
+    /// cached for downstream consumers.
     pub clean_text: &'a str,
+    /// True when the analyser thinks the message asks the recipient to do
+    /// something (used to boost importance score).
     pub requires_action: bool,
+    /// Inferred sender intent (e.g. `inform`, `request`, `confirm`).
     pub sender_intent: &'a str,
+    /// Optional ISO-8601 deadline string parsed from the message body.
     pub action_deadline: Option<&'a str>,
 }
 

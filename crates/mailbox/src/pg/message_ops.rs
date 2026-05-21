@@ -134,6 +134,8 @@ impl PgMailboxStore {
         Ok(row.map(|(id,)| id))
     }
 
+    /// List messages in a mailbox ordered by UID, with offset/limit
+    /// pagination.
     pub async fn list_messages(
         &self,
         mailbox_id: i64,
@@ -153,6 +155,8 @@ impl PgMailboxStore {
         Ok(rows.into_iter().map(row_to_message_meta).collect())
     }
 
+    /// Fetch a single message by mailbox + IMAP UID. Returns `None` when
+    /// no such message exists.
     pub async fn get_message(
         &self,
         mailbox_id: i64,

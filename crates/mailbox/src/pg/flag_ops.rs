@@ -5,6 +5,8 @@ use crate::pg::PgMailboxStore;
 use crate::types::{FlagAction, MessageMeta};
 
 impl PgMailboxStore {
+    /// Replace the flag bitmask on a single message (IMAP `STORE FLAGS`).
+    /// Bumps the mailbox `highest_modseq` and returns the new value.
     pub async fn update_flags(
         &self,
         mailbox_id: i64,
@@ -24,6 +26,8 @@ impl PgMailboxStore {
         Ok(modseq)
     }
 
+    /// OR the given bits into a message's flag bitmask (IMAP `STORE +FLAGS`).
+    /// Bumps the mailbox `highest_modseq` and returns the new value.
     pub async fn add_flags(
         &self,
         mailbox_id: i64,
@@ -43,6 +47,9 @@ impl PgMailboxStore {
         Ok(modseq)
     }
 
+    /// AND-NOT the given bits out of a message's flag bitmask (IMAP
+    /// `STORE -FLAGS`). Bumps the mailbox `highest_modseq` and returns
+    /// the new value.
     pub async fn remove_flags(
         &self,
         mailbox_id: i64,
