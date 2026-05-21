@@ -1,0 +1,22 @@
+[package]
+name = "mailrs-inbound"
+version = "1.0.0"
+edition = "2024"
+description = "Composable SMTP receive pipeline framework — Stage trait + early-reject executor + pure decision logic + RFC 8601 Authentication-Results helpers. Framework-only; bring your own greylist / DKIM / virus-scan / scoring stages."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-inbound"
+authors = ["GOLIA K.K."]
+keywords = ["smtp", "spf", "dkim", "dmarc", "pipeline"]
+categories = ["email", "network-programming", "api-bindings"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
