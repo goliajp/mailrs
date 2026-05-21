@@ -527,3 +527,400 @@ fn bump_modseq_inner(inner: &mut Inner, mailbox_id: i64) -> u64 {
         0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Corner-case tests for [`InMemoryMailboxStore`]. Complement
+    //! `tests/trait_contract.rs` (which exercises the public trait surface
+    //! shared with [`crate::pg::PgMailboxStore`]); these tests focus on
+    //! in-memory-specific invariants, multi-user isolation, modseq
+    //! monotonicity, and query-filter combinations that are tedious to
+    //! re-test under PG load.
+    use super::*;
+    use crate::types::{FLAG_ANSWERED, FLAG_FLAGGED, FLAG_RECENT};
+
+    const ALICE: &str = "alice@example.com";
+    const BOB: &str = "bob@example.com";
+
+    fn msg<'a>(user: &'a str, mailbox: &'a str, subject: &'a str, mid: &'a str) -> InsertMessage<'a> {
+        InsertMessage {
+            user,
+            mailbox_name: mailbox,
+            blob_ref: "blob",
+            sender: "from@example.com",
+            recipients: "to@example.com",
+            subject,
+            size: 100,
+            date: 1_700_000_000,
+            internal_date: 1_700_000_001,
+            message_id: mid,
+            in_reply_to: "",
+            thread_id: mid,
+            flags: 0,
+        }
+    }
+
+    // ===== Mailbox CRUD edge cases =====
+
+    #[tokio::test]
+    async fn new_store_lists_no_mailboxes() {
+        let s = InMemoryMailboxStore::new();
+        assert!(s.list_mailboxes(ALICE).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn create_mailbox_returns_zero_unread_status() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let status = s.mailbox_status(mb.id).await.unwrap();
+        assert_eq!(status.unread, 0);
+        assert_eq!(status.total, 0);
+    }
+
+    #[tokio::test]
+    async fn create_mailbox_isolates_users_with_same_name() {
+        let s = InMemoryMailboxStore::new();
+        let a = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let b = s.create_mailbox(BOB, "INBOX").await.unwrap();
+        assert_ne!(a.id, b.id, "same name across users must produce distinct mailboxes");
+    }
+
+    #[tokio::test]
+    async fn list_mailboxes_returns_empty_for_unknown_user() {
+        let s = InMemoryMailboxStore::new();
+        s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let out = s.list_mailboxes("ghost@example.com").await.unwrap();
+        assert!(out.is_empty());
+    }
+
+    #[tokio::test]
+    async fn get_mailbox_returns_none_for_missing_name() {
+        let s = InMemoryMailboxStore::new();
+        s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let out = s.get_mailbox(ALICE, "Archive").await.unwrap();
+        assert!(out.is_none());
+    }
+
+    #[tokio::test]
+    async fn get_mailbox_by_id_returns_none_for_negative_id() {
+        let s = InMemoryMailboxStore::new();
+        assert!(s.get_mailbox_by_id(-1).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn delete_mailbox_does_not_affect_other_users() {
+        let s = InMemoryMailboxStore::new();
+        let a_inbox = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        s.create_mailbox(BOB, "INBOX").await.unwrap();
+        assert!(s.delete_mailbox(ALICE, "INBOX").await.unwrap());
+        assert!(s.get_mailbox_by_id(a_inbox.id).await.unwrap().is_none());
+        assert!(s.get_mailbox(BOB, "INBOX").await.unwrap().is_some());
+    }
+
+    // ===== Insert + modseq monotonicity =====
+
+    #[tokio::test]
+    async fn modseq_strictly_increases_across_inserts() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "id-1")).await.unwrap();
+        let m2 = s.insert_message(msg(ALICE, "INBOX", "b", "id-2")).await.unwrap();
+        let m3 = s.insert_message(msg(ALICE, "INBOX", "c", "id-3")).await.unwrap();
+        assert!(m1.modseq < m2.modseq && m2.modseq < m3.modseq);
+        let after = s.get_mailbox_by_id(mb.id).await.unwrap().unwrap();
+        assert_eq!(after.highest_modseq, m3.modseq);
+    }
+
+    #[tokio::test]
+    async fn modseq_bumps_on_flag_change() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let m = s.insert_message(msg(ALICE, "INBOX", "x", "id-x")).await.unwrap();
+        let after_insert = m.modseq;
+        let after_flag = s.add_flags(mb.id, m.uid, FLAG_SEEN).await.unwrap();
+        assert!(after_flag > after_insert);
+    }
+
+    #[tokio::test]
+    async fn modseq_bumps_on_each_flag_op_independently() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let m = s.insert_message(msg(ALICE, "INBOX", "x", "id-x")).await.unwrap();
+        let a = s.add_flags(mb.id, m.uid, FLAG_SEEN).await.unwrap();
+        let b = s.add_flags(mb.id, m.uid, FLAG_FLAGGED).await.unwrap();
+        let c = s.remove_flags(mb.id, m.uid, FLAG_SEEN).await.unwrap();
+        assert!(a < b && b < c);
+    }
+
+    #[tokio::test]
+    async fn uid_is_monotonic_per_mailbox_not_global() {
+        let s = InMemoryMailboxStore::new();
+        let a = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let b = s.create_mailbox(ALICE, "Archive").await.unwrap();
+        let a1 = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let b1 = s.insert_message(msg(ALICE, "Archive", "y", "i2")).await.unwrap();
+        let a2 = s.insert_message(msg(ALICE, "INBOX", "z", "i3")).await.unwrap();
+        assert_eq!(a1.uid, 1, "first INBOX uid = 1");
+        assert_eq!(a2.uid, 2, "next INBOX uid = 2 (not 3)");
+        assert_eq!(b1.uid, 1, "Archive uid is independent");
+        let _ = (a.id, b.id);
+    }
+
+    #[tokio::test]
+    async fn mailbox_status_counts_unread_correctly() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
+        let _m2 = s.insert_message(msg(ALICE, "INBOX", "b", "i2")).await.unwrap();
+        s.add_flags(mb.id, m1.uid, FLAG_SEEN).await.unwrap();
+        let status = s.mailbox_status(mb.id).await.unwrap();
+        assert_eq!(status.total, 2);
+        assert_eq!(status.unread, 1, "one seen, one unread");
+    }
+
+    // ===== Flag operation semantics =====
+
+    #[tokio::test]
+    async fn add_flags_is_bitwise_or() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let m = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
+        s.set_flags(mb.id, m.uid, FLAG_SEEN).await.unwrap();
+        s.add_flags(mb.id, m.uid, FLAG_FLAGGED).await.unwrap();
+        let fetched = s.get_message(m.id).await.unwrap().unwrap();
+        assert_eq!(fetched.flags & FLAG_SEEN, FLAG_SEEN);
+        assert_eq!(fetched.flags & FLAG_FLAGGED, FLAG_FLAGGED);
+    }
+
+    #[tokio::test]
+    async fn remove_flags_clears_only_named_bits() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let m = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
+        s.set_flags(mb.id, m.uid, FLAG_SEEN | FLAG_FLAGGED | FLAG_ANSWERED).await.unwrap();
+        s.remove_flags(mb.id, m.uid, FLAG_FLAGGED).await.unwrap();
+        let fetched = s.get_message(m.id).await.unwrap().unwrap();
+        assert_eq!(fetched.flags & FLAG_FLAGGED, 0);
+        assert_eq!(fetched.flags & FLAG_SEEN, FLAG_SEEN);
+        assert_eq!(fetched.flags & FLAG_ANSWERED, FLAG_ANSWERED);
+    }
+
+    #[tokio::test]
+    async fn set_flags_replaces_entire_bitmask() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let m = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
+        s.set_flags(mb.id, m.uid, FLAG_SEEN | FLAG_FLAGGED).await.unwrap();
+        s.set_flags(mb.id, m.uid, FLAG_RECENT).await.unwrap();
+        let fetched = s.get_message(m.id).await.unwrap().unwrap();
+        assert_eq!(fetched.flags, FLAG_RECENT, "set replaces, not merges");
+    }
+
+    // ===== Expunge =====
+
+    #[tokio::test]
+    async fn expunge_removes_only_flagged_deleted() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
+        let m2 = s.insert_message(msg(ALICE, "INBOX", "b", "i2")).await.unwrap();
+        let m3 = s.insert_message(msg(ALICE, "INBOX", "c", "i3")).await.unwrap();
+        s.add_flags(mb.id, m2.uid, FLAG_DELETED).await.unwrap();
+        let removed = s.expunge(mb.id).await.unwrap();
+        assert_eq!(removed, vec![m2.uid]);
+        let status = s.mailbox_status(mb.id).await.unwrap();
+        assert_eq!(status.total, 2);
+        assert!(s.get_message(m1.id).await.unwrap().is_some());
+        assert!(s.get_message(m3.id).await.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn expunge_returns_empty_when_nothing_deleted() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
+        let removed = s.expunge(mb.id).await.unwrap();
+        assert!(removed.is_empty());
+    }
+
+    // ===== Multi-user isolation =====
+
+    #[tokio::test]
+    async fn find_by_message_id_does_not_leak_across_users() {
+        let s = InMemoryMailboxStore::new();
+        s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        s.create_mailbox(BOB, "INBOX").await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "shared", "shared-id")).await.unwrap();
+        s.insert_message(msg(BOB, "INBOX", "shared", "shared-id")).await.unwrap();
+        let alice_hit = s.find_by_message_id(ALICE, "shared-id").await.unwrap();
+        let bob_hit = s.find_by_message_id(BOB, "shared-id").await.unwrap();
+        assert!(alice_hit.is_some());
+        assert!(bob_hit.is_some());
+        assert_ne!(alice_hit.unwrap().id, bob_hit.unwrap().id);
+    }
+
+    #[tokio::test]
+    async fn user_storage_bytes_sums_only_target_user() {
+        let s = InMemoryMailboxStore::new();
+        s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        s.create_mailbox(BOB, "INBOX").await.unwrap();
+        let mut a_msg = msg(ALICE, "INBOX", "a", "i1");
+        a_msg.size = 1000;
+        let mut b_msg = msg(BOB, "INBOX", "b", "i2");
+        b_msg.size = 5000;
+        s.insert_message(a_msg).await.unwrap();
+        s.insert_message(b_msg).await.unwrap();
+        assert_eq!(s.user_storage_bytes(ALICE).await.unwrap(), 1000);
+        assert_eq!(s.user_storage_bytes(BOB).await.unwrap(), 5000);
+    }
+
+    // ===== Query filter combinations =====
+
+    #[tokio::test]
+    async fn query_messages_filters_by_has_keyword() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
+        let _m2 = s.insert_message(msg(ALICE, "INBOX", "b", "i2")).await.unwrap();
+        s.add_flags(mb.id, m1.uid, FLAG_FLAGGED).await.unwrap();
+        let filter = QueryFilter {
+            mailbox_id: Some(mb.id),
+            user: Some(ALICE),
+            has_keyword: Some(FLAG_FLAGGED),
+            limit: 50,
+            ..Default::default()
+        };
+        let out = s.query_messages(filter).await.unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].id, m1.id);
+    }
+
+    #[tokio::test]
+    async fn query_messages_filters_by_not_keyword() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
+        let m2 = s.insert_message(msg(ALICE, "INBOX", "b", "i2")).await.unwrap();
+        s.add_flags(mb.id, m1.uid, FLAG_SEEN).await.unwrap();
+        let filter = QueryFilter {
+            mailbox_id: Some(mb.id),
+            user: Some(ALICE),
+            not_keyword: Some(FLAG_SEEN),
+            limit: 50,
+            ..Default::default()
+        };
+        let out = s.query_messages(filter).await.unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].id, m2.id);
+    }
+
+    #[tokio::test]
+    async fn query_messages_filters_by_text_case_insensitive() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "Important Notice", "i1")).await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "Daily digest", "i2")).await.unwrap();
+        let filter = QueryFilter {
+            mailbox_id: Some(mb.id),
+            user: Some(ALICE),
+            text: Some("important"),
+            limit: 50,
+            ..Default::default()
+        };
+        let out = s.query_messages(filter).await.unwrap();
+        assert_eq!(out.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn query_messages_respects_pagination() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        for i in 0..10 {
+            let id = format!("id-{i}");
+            s.insert_message(msg(ALICE, "INBOX", "x", &id)).await.unwrap();
+        }
+        let filter = QueryFilter {
+            mailbox_id: Some(mb.id),
+            user: Some(ALICE),
+            position: 3,
+            limit: 4,
+            ..Default::default()
+        };
+        let out = s.query_messages(filter).await.unwrap();
+        assert_eq!(out.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn query_messages_returns_empty_for_unknown_user() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let filter = QueryFilter {
+            mailbox_id: Some(mb.id),
+            user: Some("ghost@example.com"),
+            limit: 50,
+            ..Default::default()
+        };
+        let out = s.query_messages(filter).await.unwrap();
+        assert!(out.is_empty());
+    }
+
+    // ===== Move + copy semantics =====
+
+    #[tokio::test]
+    async fn copy_does_not_share_uid_namespace() {
+        let s = InMemoryMailboxStore::new();
+        let a = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let b = s.create_mailbox(ALICE, "Archive").await.unwrap();
+        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let new_uid = s.copy_message(a.id, m.uid, b.id).await.unwrap();
+        assert_eq!(new_uid, 1, "destination uidnext starts at 1");
+        let original = s.get_message_by_uid(a.id, m.uid).await.unwrap();
+        assert!(original.is_some());
+    }
+
+    #[tokio::test]
+    async fn move_removes_from_source() {
+        let s = InMemoryMailboxStore::new();
+        let a = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let b = s.create_mailbox(ALICE, "Archive").await.unwrap();
+        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        s.move_message(a.id, m.uid, b.id).await.unwrap();
+        let in_inbox = s.get_message_by_uid(a.id, m.uid).await.unwrap();
+        assert!(in_inbox.is_none());
+    }
+
+    // ===== Thread bookkeeping =====
+
+    #[tokio::test]
+    async fn thread_references_returns_empty_for_unknown_message() {
+        let s = InMemoryMailboxStore::new();
+        let out = s.thread_references(999_999).await.unwrap();
+        assert!(out.is_empty());
+    }
+
+    #[tokio::test]
+    async fn messages_changed_since_returns_only_newer() {
+        let s = InMemoryMailboxStore::new();
+        let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
+        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
+        let m2 = s.insert_message(msg(ALICE, "INBOX", "b", "i2")).await.unwrap();
+        let changed = s.messages_changed_since(mb.id, m1.modseq).await.unwrap();
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0].id, m2.id);
+    }
+
+    // ===== Default trait + ergonomics =====
+
+    #[tokio::test]
+    async fn default_is_equivalent_to_new() {
+        let a = InMemoryMailboxStore::new();
+        let b = InMemoryMailboxStore::default();
+        a.create_mailbox(ALICE, "INBOX").await.unwrap();
+        b.create_mailbox(ALICE, "INBOX").await.unwrap();
+        assert_eq!(
+            a.list_mailboxes(ALICE).await.unwrap().len(),
+            b.list_mailboxes(ALICE).await.unwrap().len()
+        );
+    }
+}
