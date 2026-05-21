@@ -100,6 +100,22 @@ async fn jmap_api(
 
 The store impl is yours. The [mailrs] server uses a thin adapter that bridges its PostgreSQL/Maildir row types into the JMAP shapes in [`mailrs_jmap::types`](https://docs.rs/mailrs-jmap/latest/mailrs_jmap/types/index.html) — about 200 LOC, worth a read as a reference implementation.
 
+## Tested
+
+`1.0.2` ships **98 tests** — 36 inline unit tests over the pure helpers (flag bitmask conversions, id parsers, address-list splitter, back-reference resolver, error-envelope shaping) and **62 protocol-level integration tests** that drive every dispatched method through an in-memory `MailStore` and assert on the response JSON:
+
+| Suite | Tests | Surface |
+| --- | ---: | --- |
+| `tests/mailbox.rs` | 8 | `Mailbox/get` + `Mailbox/query` |
+| `tests/email_get.rs` | 7 | `Email/get` — metadata-only, body, attachments, ownership |
+| `tests/email_query.rs` | 10 | `Email/query` — filters, sort, pagination, store-error mapping |
+| `tests/email_set.rs` | 14 | `Email/set` — full keywords replace, patch dialect, destroy, every error path |
+| `tests/thread_get.rs` | 5 | `Thread/get` — ownership filtering, store-error fallback |
+| `tests/email_submission.rs` | 11 | `EmailSubmission/set` — success shape, all 5 documented failure modes |
+| `tests/dispatch_request.rs` | 7 | envelope shape, ordering, back-reference resolution, unknown method |
+
+The in-memory fixture (`tests/common/mod.rs`) implements the trait faithfully — same return contracts as a real backend, per-method error injection so a single test can isolate a specific failure path. Useful as a reference implementation if you're building a JMAP test harness of your own.
+
 ## Roadmap
 
 `1.0` is the minimum viable surface — enough to drive a webmail client with read, search, mark-read, send, and delete. Methods explicitly not yet implemented, in rough priority order for `1.x`:
