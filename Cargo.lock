@@ -2260,18 +2260,6 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dav"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ce8abb6baade8b6dfe4b5bf0af4cbaf7cf20e884a262c2a38f9253ff18d533d"
-dependencies = [
- "async-trait",
- "chrono",
- "hex",
- "sha2 0.11.0",
-]
-
-[[package]]
-name = "mailrs-dav"
 version = "1.1.0"
 dependencies = [
  "async-trait",
@@ -2280,6 +2268,18 @@ dependencies = [
  "hex",
  "sha2 0.11.0",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-dav"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "017fc55dcd732173a584b0a62e4ef659b0a48f9e6cbf551f7f20df0558e3aff8"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "hex",
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -2377,18 +2377,6 @@ dependencies = [
 
 [[package]]
 name = "mailrs-jmap"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf3a06002fa43a4c7406406ea242d3d0a31b54c796e4aa5ab7f75b8bc9adb053"
-dependencies = [
- "async-trait",
- "chrono",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "mailrs-jmap"
 version = "1.1.0"
 dependencies = [
  "async-trait",
@@ -2397,6 +2385,18 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-jmap"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "989050855a900035f8d3b044d2bf0174c6fd4f6e62ad852b07f772ddb0903e31"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2522,12 +2522,12 @@ dependencies = [
  "mail-auth",
  "mail-parser",
  "mailrs-clean 1.0.0",
- "mailrs-dav 1.0.3",
+ "mailrs-dav 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dmarc 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.0",
  "mailrs-imap-proto 1.0.0",
  "mailrs-intelligence 1.0.0",
- "mailrs-jmap 1.0.3",
+ "mailrs-jmap 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox",
  "mailrs-maildir 1.0.0",
  "mailrs-outbound-queue 1.0.0",
