@@ -24,12 +24,6 @@ impl SmtpCodec {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn with_max_message_size(mut self, size: usize) -> Self {
-        self.max_message_size = size;
-        self
-    }
-
     pub fn with_smuggle_protection(mut self, mode: SmuggleProtection) -> Self {
         self.smuggle_protection = mode;
         self

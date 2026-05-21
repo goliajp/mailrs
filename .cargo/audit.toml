@@ -1,0 +1,29 @@
+# cargo-audit configuration
+#
+# https://docs.rs/cargo-audit/latest/cargo_audit/config/
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071 — rsa crate Marvin Attack (medium severity, no fix
+    # available upstream). Pulled in transitively via sqlx-macros →
+    # sqlx-mysql, which is required at build time for sqlx's compile-time
+    # query checking. mailrs uses postgres exclusively (workspace.dependencies
+    # sqlx is configured with `default-features = false, features = [
+    # "postgres", "runtime-tokio", "macros", "chrono"]`), so the mysql/rsa
+    # code path never executes at runtime. Re-evaluate when sqlx upstream
+    # ships a way to prune mysql from sqlx-macros, or when rsa fixes the
+    # Marvin Attack.
+    "RUSTSEC-2023-0071",
+]
+informational_warnings = []
+severity_threshold = "low"
+
+[output]
+deny = []
+format = "terminal"
+quiet = false
+show_tree = true
+
+[yanked]
+enabled = true
+update_index = true

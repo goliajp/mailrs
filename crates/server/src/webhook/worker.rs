@@ -158,7 +158,7 @@ async fn deliver_one(client: &reqwest::Client, pool: &PgPool, entry: OutboxEntry
 }
 
 /// build webhook delivery headers (exposed for testing)
-#[allow(dead_code)]
+#[cfg(test)]
 pub(crate) fn build_headers(
     signing_secret: &str,
     payload_bytes: &[u8],

@@ -1,3 +1,20 @@
+//! Server configuration loaded from `MAILRS_*` environment variables.
+//!
+//! ## Tests, `ENV_LOCK`, and `unsafe { set_var }`
+//!
+//! Rust 2024 marked `std::env::set_var` / `remove_var` as `unsafe` because
+//! mutating the process environment while other threads might read it is a
+//! data race per POSIX. In production this never happens — `from_env`
+//! reads each variable once at startup and never writes.
+//!
+//! In the test module, however, we mutate `MAILRS_*` per test to exercise
+//! `from_env` behavior, so every test goes through a single
+//! `ENV_LOCK: Mutex<()>` (see `mod tests`) before any `set_var`/`remove_var`.
+//! That serializes the env-touching tests across threads, which is what
+//! makes the `unsafe { … }` calls sound: only one thread can be inside the
+//! mutex at a time, and no production thread reads env after startup. Tests
+//! that never touch the environment do not need to hold the lock.
+
 use std::path::PathBuf;
 
 #[derive(Debug, PartialEq)]
@@ -490,7 +507,6 @@ mod tests {
             .map(|(k, _)| k)
             .collect();
         for k in keys {
-            // TODO: Audit that the environment access only happens in single-threaded code.
             unsafe { std::env::remove_var(&k) };
         }
     }
@@ -1050,7 +1066,6 @@ mod tests {
     fn from_env_hostname() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_HOSTNAME", "mail.test.io") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.hostname, "mail.test.io");
@@ -1061,7 +1076,6 @@ mod tests {
     fn from_env_maildir() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_MAILDIR", "/var/mail") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.maildir_root, "/var/mail");
@@ -1076,7 +1090,6 @@ mod tests {
     fn from_env_smtp_port() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_PORT", "25") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smtp_port, 25);
@@ -1087,7 +1100,6 @@ mod tests {
     fn from_env_submission_port() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SUBMISSION_PORT", "587") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.submission_port, 587);
@@ -1098,7 +1110,6 @@ mod tests {
     fn from_env_smtps_port() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SMTPS_PORT", "465") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smtps_port, 465);
@@ -1109,7 +1120,6 @@ mod tests {
     fn from_env_web_port() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_WEB_PORT", "8080") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.web_port, 8080);
@@ -1120,7 +1130,6 @@ mod tests {
     fn from_env_imap_port() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_IMAP_PORT", "143") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.imap_port, 143);
@@ -1131,7 +1140,6 @@ mod tests {
     fn from_env_imaps_port() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_IMAPS_PORT", "993") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.imaps_port, 993);
@@ -1142,7 +1150,6 @@ mod tests {
     fn from_env_invalid_port_keeps_default() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_PORT", "not_a_number") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smtp_port, 2525); // default preserved
@@ -1153,7 +1160,6 @@ mod tests {
     fn from_env_port_overflow_keeps_default() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_PORT", "99999") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smtp_port, 2525); // u16 overflow, parse fails
@@ -1164,7 +1170,6 @@ mod tests {
     fn from_env_port_zero_accepted() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_PORT", "0") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smtp_port, 0);
@@ -1175,7 +1180,6 @@ mod tests {
     fn from_env_port_max_u16() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_PORT", "65535") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smtp_port, 65535);
@@ -1186,7 +1190,6 @@ mod tests {
     fn from_env_negative_port_keeps_default() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_PORT", "-1") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smtp_port, 2525);
@@ -1201,9 +1204,7 @@ mod tests {
     fn from_env_tls_cert_and_key() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_TLS_CERT", "/etc/ssl/cert.pem") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_TLS_KEY", "/etc/ssl/key.pem") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.tls_cert, Some(PathBuf::from("/etc/ssl/cert.pem")));
@@ -1215,7 +1216,6 @@ mod tests {
     fn from_env_users_file() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_USERS_FILE", "/etc/mailrs/users.toml") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.users_file, Some(PathBuf::from("/etc/mailrs/users.toml")));
@@ -1230,7 +1230,6 @@ mod tests {
     fn from_env_local_domains_single() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_LOCAL_DOMAINS", "example.com") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.local_domains, vec!["example.com"]);
@@ -1241,7 +1240,6 @@ mod tests {
     fn from_env_local_domains_multiple() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_LOCAL_DOMAINS", "example.com, EXAMPLE.ORG , test.net") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.local_domains, vec!["example.com", "example.org", "test.net"]);
@@ -1252,7 +1250,6 @@ mod tests {
     fn from_env_local_domains_lowercased() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_LOCAL_DOMAINS", "UPPER.COM") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.local_domains, vec!["upper.com"]);
@@ -1263,7 +1260,6 @@ mod tests {
     fn from_env_dnsbl_zones() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DNSBL_ZONES", "zen.spamhaus.org, bl.spamcop.net") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.dnsbl_zones, vec!["zen.spamhaus.org", "bl.spamcop.net"]);
@@ -1274,7 +1270,6 @@ mod tests {
     fn from_env_acme_domains() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_ACME_DOMAINS", "mx.example.com, mail.example.com") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.acme_domains, vec!["mx.example.com", "mail.example.com"]);
@@ -1285,7 +1280,6 @@ mod tests {
     fn from_env_mta_sts_mx() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_MTA_STS_MX", "mx1.example.com, mx2.example.com") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.mta_sts_mx, vec!["mx1.example.com", "mx2.example.com"]);
@@ -1300,7 +1294,6 @@ mod tests {
     fn from_env_dnsbl_enabled_false() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DNSBL_ENABLED", "false") };
         let cfg = ServerConfig::from_env();
         assert!(!cfg.dnsbl_enabled);
@@ -1311,7 +1304,6 @@ mod tests {
     fn from_env_dnsbl_enabled_zero() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DNSBL_ENABLED", "0") };
         let cfg = ServerConfig::from_env();
         assert!(!cfg.dnsbl_enabled);
@@ -1322,7 +1314,6 @@ mod tests {
     fn from_env_dnsbl_enabled_true_value() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DNSBL_ENABLED", "1") };
         let cfg = ServerConfig::from_env();
         assert!(cfg.dnsbl_enabled);
@@ -1333,7 +1324,6 @@ mod tests {
     fn from_env_dnsbl_enabled_case_insensitive_false() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DNSBL_ENABLED", "FALSE") };
         let cfg = ServerConfig::from_env();
         assert!(!cfg.dnsbl_enabled);
@@ -1344,7 +1334,6 @@ mod tests {
     fn from_env_dnsbl_enabled_any_string_is_true() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DNSBL_ENABLED", "yes") };
         let cfg = ServerConfig::from_env();
         assert!(cfg.dnsbl_enabled);
@@ -1355,7 +1344,6 @@ mod tests {
     fn from_env_antispam_enabled_false() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_ANTISPAM_ENABLED", "false") };
         let cfg = ServerConfig::from_env();
         assert!(!cfg.antispam_enabled);
@@ -1367,7 +1355,6 @@ mod tests {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
         // MAILRS_SPF_ENABLED is the legacy name
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SPF_ENABLED", "0") };
         let cfg = ServerConfig::from_env();
         assert!(!cfg.antispam_enabled);
@@ -1378,9 +1365,7 @@ mod tests {
     fn from_env_antispam_takes_precedence_over_spf() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_ANTISPAM_ENABLED", "1") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SPF_ENABLED", "0") };
         let cfg = ServerConfig::from_env();
         // MAILRS_ANTISPAM_ENABLED is checked first, so SPF fallback is skipped
@@ -1392,7 +1377,6 @@ mod tests {
     fn from_env_acme_staging_true() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_ACME_STAGING", "true") };
         let cfg = ServerConfig::from_env();
         assert!(cfg.acme_staging);
@@ -1403,7 +1387,6 @@ mod tests {
     fn from_env_acme_staging_one() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_ACME_STAGING", "1") };
         let cfg = ServerConfig::from_env();
         assert!(cfg.acme_staging);
@@ -1414,7 +1397,6 @@ mod tests {
     fn from_env_acme_staging_false_for_other_values() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_ACME_STAGING", "yes") };
         let cfg = ServerConfig::from_env();
         // only "1" and "true" (case-insensitive) enable it
@@ -1426,7 +1408,6 @@ mod tests {
     fn from_env_ai_analysis_enabled() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_AI_ANALYSIS_ENABLED", "true") };
         let cfg = ServerConfig::from_env();
         assert!(cfg.ai_analysis_enabled);
@@ -1437,7 +1418,6 @@ mod tests {
     fn from_env_ai_analysis_enabled_one() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_AI_ANALYSIS_ENABLED", "1") };
         let cfg = ServerConfig::from_env();
         assert!(cfg.ai_analysis_enabled);
@@ -1452,7 +1432,6 @@ mod tests {
     fn from_env_smuggle_protection_strict() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SMUGGLE_PROTECTION", "strict") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smuggle_protection, SmuggleProtection::Strict);
@@ -1463,7 +1442,6 @@ mod tests {
     fn from_env_smuggle_protection_off() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SMUGGLE_PROTECTION", "off") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smuggle_protection, SmuggleProtection::Off);
@@ -1474,7 +1452,6 @@ mod tests {
     fn from_env_smuggle_protection_permissive_explicit() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SMUGGLE_PROTECTION", "permissive") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smuggle_protection, SmuggleProtection::Permissive);
@@ -1485,7 +1462,6 @@ mod tests {
     fn from_env_smuggle_protection_unknown_defaults_permissive() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SMUGGLE_PROTECTION", "unknown_value") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smuggle_protection, SmuggleProtection::Permissive);
@@ -1496,7 +1472,6 @@ mod tests {
     fn from_env_smuggle_protection_case_insensitive() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SMUGGLE_PROTECTION", "STRICT") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.smuggle_protection, SmuggleProtection::Strict);
@@ -1511,7 +1486,6 @@ mod tests {
     fn from_env_dkim_selector_non_empty() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DKIM_SELECTOR", "default") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.dkim_selector, Some("default".into()));
@@ -1522,7 +1496,6 @@ mod tests {
     fn from_env_dkim_selector_empty_string_stays_none() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DKIM_SELECTOR", "") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.dkim_selector, None);
@@ -1533,7 +1506,6 @@ mod tests {
     fn from_env_dkim_domain_non_empty() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DKIM_DOMAIN", "example.com") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.dkim_domain, Some("example.com".into()));
@@ -1544,7 +1516,6 @@ mod tests {
     fn from_env_dkim_domain_empty_stays_none() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DKIM_DOMAIN", "") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.dkim_domain, None);
@@ -1555,7 +1526,6 @@ mod tests {
     fn from_env_dkim_private_key_non_empty() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DKIM_PRIVATE_KEY", "/etc/dkim/key.pem") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.dkim_private_key_path, Some(PathBuf::from("/etc/dkim/key.pem")));
@@ -1566,7 +1536,6 @@ mod tests {
     fn from_env_dkim_private_key_empty_stays_none() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DKIM_PRIVATE_KEY", "") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.dkim_private_key_path, None);
@@ -1581,7 +1550,6 @@ mod tests {
     fn from_env_acme_email_non_empty() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_ACME_EMAIL", "admin@example.com") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.acme_email, Some("admin@example.com".into()));
@@ -1592,7 +1560,6 @@ mod tests {
     fn from_env_acme_email_empty_stays_none() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_ACME_EMAIL", "") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.acme_email, None);
@@ -1603,7 +1570,6 @@ mod tests {
     fn from_env_acme_dir() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_ACME_DIR", "/custom/acme") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.acme_dir, PathBuf::from("/custom/acme"));
@@ -1618,7 +1584,6 @@ mod tests {
     fn from_env_rate_limit_capacity() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_RATE_LIMIT_CAPACITY", "50") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.rate_limit_capacity, 50);
@@ -1629,7 +1594,6 @@ mod tests {
     fn from_env_rate_limit_refill() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_RATE_LIMIT_REFILL", "2.5") };
         let cfg = ServerConfig::from_env();
         assert!((cfg.rate_limit_refill - 2.5).abs() < f64::EPSILON);
@@ -1640,7 +1604,6 @@ mod tests {
     fn from_env_greylist_delay() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_GREYLIST_DELAY", "600") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.greylist_delay_secs, 600);
@@ -1651,7 +1614,6 @@ mod tests {
     fn from_env_spam_score_threshold() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SPAM_SCORE_THRESHOLD", "3.5") };
         let cfg = ServerConfig::from_env();
         assert!((cfg.spam_score_threshold - 3.5).abs() < f64::EPSILON);
@@ -1662,7 +1624,6 @@ mod tests {
     fn from_env_mta_sts_max_age() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_MTA_STS_MAX_AGE", "86400") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.mta_sts_max_age, 86400);
@@ -1673,7 +1634,6 @@ mod tests {
     fn from_env_mta_sts_id() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_MTA_STS_ID", "20260101000000") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.mta_sts_id, "20260101000000");
@@ -1684,7 +1644,6 @@ mod tests {
     fn from_env_mta_sts_mode() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_MTA_STS_MODE", "enforce") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.mta_sts_mode, Some("enforce".into()));
@@ -1695,11 +1654,8 @@ mod tests {
     fn from_env_invalid_numeric_keeps_default() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_RATE_LIMIT_CAPACITY", "abc") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_GREYLIST_DELAY", "xyz") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SPAM_SCORE_THRESHOLD", "not_float") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.rate_limit_capacity, 10);
@@ -1716,7 +1672,6 @@ mod tests {
     fn from_env_llm_url() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_LLM_URL", "https://custom.llm/api") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.llm_url, "https://custom.llm/api");
@@ -1727,7 +1682,6 @@ mod tests {
     fn from_env_clamav_addr() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_CLAMAV_ADDR", "127.0.0.1:3310") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.clamav_addr, Some("127.0.0.1:3310".into()));
@@ -1742,7 +1696,6 @@ mod tests {
     fn from_env_auth_max_failures() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_AUTH_MAX_FAILURES", "10") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.auth_max_failures_account, 10);
@@ -1753,7 +1706,6 @@ mod tests {
     fn from_env_auth_account_window_secs() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_AUTH_ACCOUNT_WINDOW_SECS", "1800") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.auth_account_window_secs, 1800);
@@ -1764,7 +1716,6 @@ mod tests {
     fn from_env_auth_lockout_secs() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_AUTH_LOCKOUT_SECS", "3600") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.auth_base_lockout_secs, 3600);
@@ -1775,7 +1726,6 @@ mod tests {
     fn from_env_auth_max_failures_ip() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_AUTH_MAX_FAILURES_IP", "50") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.auth_max_failures_ip, 50);
@@ -1786,7 +1736,6 @@ mod tests {
     fn from_env_auth_ip_window_secs() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_AUTH_IP_WINDOW_SECS", "7200") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.auth_ip_window_secs, 7200);
@@ -1797,7 +1746,6 @@ mod tests {
     fn from_env_auth_ip_lockout_secs() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_AUTH_IP_LOCKOUT_SECS", "7200") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.auth_ip_base_lockout_secs, 7200);
@@ -1808,7 +1756,6 @@ mod tests {
     fn from_env_auth_backoff_multiplier() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_AUTH_BACKOFF_MULTIPLIER", "3.0") };
         let cfg = ServerConfig::from_env();
         assert!((cfg.auth_backoff_multiplier - 3.0).abs() < f64::EPSILON);
@@ -1819,7 +1766,6 @@ mod tests {
     fn from_env_auth_max_lockout_secs() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_AUTH_MAX_LOCKOUT_SECS", "172800") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.auth_max_lockout_secs, 172800);
@@ -1834,7 +1780,6 @@ mod tests {
     fn from_env_pg_url() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_PG_URL", "postgres://user:pass@localhost/mailrs") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.pg_url, Some("postgres://user:pass@localhost/mailrs".into()));
@@ -1845,7 +1790,6 @@ mod tests {
     fn from_env_valkey_url() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_VALKEY_URL", "redis://localhost:6379") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.valkey_url, Some("redis://localhost:6379".into()));
@@ -1860,7 +1804,6 @@ mod tests {
     fn from_env_web_static_dir() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_WEB_STATIC_DIR", "/var/www/mailrs") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.web_static_dir, Some(PathBuf::from("/var/www/mailrs")));
@@ -1896,41 +1839,23 @@ mod tests {
     fn from_env_full_configuration() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_HOSTNAME", "mx.prod.com") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_MAILDIR", "/data/mail") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_PORT", "25") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SUBMISSION_PORT", "587") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SMTPS_PORT", "465") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_WEB_PORT", "443") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_IMAP_PORT", "143") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_IMAPS_PORT", "993") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_LOCAL_DOMAINS", "prod.com,prod.org") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_TLS_CERT", "/ssl/cert.pem") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_TLS_KEY", "/ssl/key.pem") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DNSBL_ENABLED", "false") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_SMUGGLE_PROTECTION", "strict") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DKIM_SELECTOR", "mail") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DKIM_DOMAIN", "prod.com") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_DKIM_PRIVATE_KEY", "/dkim/key.pem") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_PG_URL", "postgres://localhost/mail") };
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("MAILRS_VALKEY_URL", "redis://localhost:6379") };
 
         let cfg = ServerConfig::from_env();
