@@ -1,9 +1,6 @@
-use std::net::IpAddr;
 use std::sync::Arc;
 
-use mail_auth::dmarc::verify::DmarcParameters;
-use mail_auth::spf::verify::SpfParameters;
-use mail_auth::{AuthenticatedMessage, MessageAuthenticator};
+use mail_auth::MessageAuthenticator;
 
 // Core types + RFC 8601 helpers come from the published mailrs-inbound crate.
 // Re-exported here so existing in-crate callers can keep using
@@ -13,315 +10,55 @@ pub use mailrs_inbound::{
     format_auth_results_header, make_delivery_decision,
 };
 
-use super::content_scan::{evaluate_rules, scan_clamav, ClamavResult};
-use mailrs_shield::greylist::{self as greylisting, GreylistConfig, GreylistDb, GreylistDecision};
+use super::stages::{
+    AiScoringStage, ClamavStage, ContentScanStage, GreylistStage, MailAuthStage, PtrStage,
+};
+use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
 
 use hickory_resolver::TokioResolver;
 
-use crate::dmarc_report::{DmarcReportStore, DmarcResultRecord, DmarcStore};
+use crate::dmarc_report::DmarcReportStore;
 
+/// Build the inbound `mailrs_inbound::Pipeline` from the optional backends
+/// configured at server startup. Each backend, when present, contributes its
+/// corresponding `Stage` to the pipeline in fixed evaluation order:
+/// `greylist → ptr → mail_auth → clamav → content_scan → ai_scoring`.
+///
+/// `content_scan` always runs (no external dependency); the others are
+/// gated on `Some(_)` of the matching backend.
 #[allow(clippy::too_many_arguments)]
-pub async fn run_inbound_pipeline(
-    authenticator: &MessageAuthenticator,
-    hostname: &str,
-    client_ip: IpAddr,
-    ehlo_domain: &str,
-    sender: &str,
-    first_recipient: &str,
-    message: &[u8],
-    greylist_db: Option<&Arc<GreylistDb>>,
-    greylist_config: &GreylistConfig,
+pub fn build_inbound_pipeline(
+    greylist_db: Option<Arc<GreylistDb>>,
+    greylist_config: GreylistConfig,
+    resolver: Option<Arc<TokioResolver>>,
+    mail_authenticator: Option<Arc<MessageAuthenticator>>,
+    dmarc_report_store: Option<Arc<DmarcReportStore>>,
+    clamav_addr: Option<String>,
+    llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
+    valkey: Option<redis::aio::ConnectionManager>,
     spam_score_threshold: f64,
-    dmarc_report_store: Option<&Arc<DmarcReportStore>>,
-    resolver: Option<&Arc<TokioResolver>>,
-    clamav_addr: Option<&str>,
-    llm_provider: Option<&Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
-    valkey: Option<&redis::aio::ConnectionManager>,
-) -> DeliveryDecision {
-    // 1. greylisting (fast, no DNS)
+) -> mailrs_inbound::Pipeline {
+    let mut builder = mailrs_inbound::Pipeline::builder().spam_threshold(spam_score_threshold);
+
     if let Some(db) = greylist_db {
-        let key = greylisting::triplet_key(&client_ip.to_string(), sender, first_recipient);
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        match db.check(&key, now, greylist_config).await {
-            GreylistDecision::Defer | GreylistDecision::TooEarly => {
-                return DeliveryDecision::Greylist;
-            }
-            GreylistDecision::Accept => {}
-        }
+        builder = builder.add(GreylistStage::new(db, greylist_config));
+    }
+    if let Some(r) = resolver {
+        builder = builder.add(PtrStage::new(r));
+    }
+    if let Some(auth) = mail_authenticator {
+        builder = builder.add(MailAuthStage::new(auth, dmarc_report_store));
+    }
+    if let Some(addr) = clamav_addr {
+        builder = builder.add(ClamavStage::new(addr));
+    }
+    builder = builder.add(ContentScanStage::new());
+    if let Some(provider) = llm_provider {
+        builder = builder.add(AiScoringStage::new(provider, valkey, spam_score_threshold));
     }
 
-    // 1.5 PTR check (scoring signal, not hard reject)
-    let ptr_score = if let Some(r) = resolver {
-        mailrs_shield::ptr::check_client_ptr(r, client_ip, ehlo_domain).await
-    } else {
-        0.0
-    };
-
-    // 2. SPF
-    let spf_params = SpfParameters::verify_mail_from(client_ip, ehlo_domain, hostname, sender);
-    let spf_output = authenticator.verify_spf(spf_params).await;
-    let spf_str = spf_result_str(spf_output.result());
-
-    // 3. DKIM + 3.5 ARC + 4. DMARC
-    let mut dkim_str = "none".to_string();
-    let mut arc_str = "none".to_string();
-    let mut dmarc_str = "none".to_string();
-    let mut dmarc_quarantine = false;
-
-    if let Some(auth_msg) = AuthenticatedMessage::parse(message) {
-        let dkim_outputs = authenticator.verify_dkim(&auth_msg).await;
-
-        // ARC verification
-        let arc_output = authenticator.verify_arc(&auth_msg).await;
-        if auth_msg.ams_headers.is_empty() {
-            arc_str = "none".to_string();
-        } else if arc_output.can_be_sealed() {
-            arc_str = "pass".to_string();
-        } else {
-            arc_str = "fail".to_string();
-        }
-
-        // summarize DKIM result
-        dkim_str = if dkim_outputs.is_empty() {
-            "none".to_string()
-        } else if dkim_outputs
-            .iter()
-            .any(|o| matches!(o.result(), mail_auth::DkimResult::Pass))
-        {
-            "pass".to_string()
-        } else {
-            "fail".to_string()
-        };
-
-        // DMARC
-        let mail_from_domain = sender
-            .rsplit_once('@')
-            .map(|(_, d)| d)
-            .unwrap_or(ehlo_domain);
-        let dmarc_params =
-            DmarcParameters::new(&auth_msg, &dkim_outputs, mail_from_domain, &spf_output);
-        let dmarc_output = authenticator.verify_dmarc(dmarc_params).await;
-
-        let dmarc_pass = dmarc_output.dkim_result() == &mail_auth::DmarcResult::Pass
-            || dmarc_output.spf_result() == &mail_auth::DmarcResult::Pass;
-        let policy = dmarc_output.policy();
-
-        if dmarc_pass {
-            dmarc_str = "pass".to_string();
-        } else {
-            match policy {
-                mail_auth::dmarc::Policy::Reject => {
-                    // record DMARC reject for reporting
-                    if let Some(store) = dmarc_report_store {
-                        let _ = store
-                            .record_result(&DmarcResultRecord {
-                                source_ip: client_ip.to_string(),
-                                from_domain: mail_from_domain.to_string(),
-                                spf_result: spf_str.clone(),
-                                dkim_result: dkim_str.clone(),
-                                dmarc_result: "fail".to_string(),
-                                disposition: "reject".to_string(),
-                            })
-                            .await;
-                    }
-                    // hard reject — build header and return immediately
-                    let auth_header = build_auth_header(
-                        hostname,
-                        &spf_str,
-                        &dkim_str,
-                        &arc_str,
-                        "fail",
-                        Some("policy=reject"),
-                    );
-                    tracing::info!(
-                        event = "dmarc_reject",
-                        domain = mail_from_domain,
-                        spf = %spf_str,
-                        dkim = %dkim_str,
-                        "DMARC reject"
-                    );
-                    // prepend header even on reject for diagnostics (not delivered, but logged)
-                    let _ = auth_header;
-                    return DeliveryDecision::Reject {
-                        code: 550,
-                        message: format!("5.7.1 DMARC policy reject for domain {mail_from_domain}"),
-                    };
-                }
-                mail_auth::dmarc::Policy::Quarantine => {
-                    dmarc_str = "fail".to_string();
-                    dmarc_quarantine = true;
-                }
-                mail_auth::dmarc::Policy::None => {
-                    dmarc_str = "fail".to_string();
-                }
-                mail_auth::dmarc::Policy::Unspecified => {
-                    dmarc_str = "none".to_string();
-                }
-            }
-        }
-    }
-
-    // record DMARC result for aggregate reporting
-    if let Some(store) = dmarc_report_store {
-        let mail_from_domain = sender
-            .rsplit_once('@')
-            .map(|(_, d)| d)
-            .unwrap_or(ehlo_domain);
-        let disposition = if dmarc_quarantine {
-            "quarantine"
-        } else {
-            "none"
-        };
-        let _ = store
-            .record_result(&DmarcResultRecord {
-                source_ip: client_ip.to_string(),
-                from_domain: mail_from_domain.to_string(),
-                spf_result: spf_str.clone(),
-                dkim_result: dkim_str.clone(),
-                dmarc_result: dmarc_str.clone(),
-                disposition: disposition.to_string(),
-            })
-            .await;
-    }
-
-    // 5. ClamAV virus scan (before content scoring, hard reject on virus)
-    let virus_found = if let Some(addr) = clamav_addr {
-        match scan_clamav(addr, message).await {
-            ClamavResult::Virus(name) => {
-                tracing::warn!(event = "clamav_reject", virus = %name, "virus detected");
-                Some(name)
-            }
-            ClamavResult::Error(e) => {
-                tracing::warn!(event = "clamav_error", error = %e, "ClamAV scan failed, accepting");
-                None
-            }
-            ClamavResult::Clean => None,
-        }
-    } else {
-        None
-    };
-
-    // 6. content scan
-    let (content_score, matched_rules) = evaluate_rules(message);
-
-    // 6.5 AI classification (only in grey zone: 1.0 < rule_score < threshold)
-    let rule_total = content_score + ptr_score;
-    let ai_score = if rule_total > 1.0 && rule_total < spam_score_threshold {
-        if let Some(provider) = llm_provider {
-            let subject = extract_header(message, "Subject").unwrap_or_default();
-            let body_preview = extract_body_preview(message, 500);
-            let cache = valkey
-                .cloned()
-                .map(mailrs_intelligence::spam::RedisSpamCache::new);
-            let cache_ref: Option<&dyn mailrs_intelligence::spam::SpamCache> =
-                cache.as_ref().map(|c| c as &dyn mailrs_intelligence::spam::SpamCache);
-            match mailrs_intelligence::spam::classify(
-                provider.as_ref(),
-                cache_ref,
-                sender,
-                &subject,
-                &body_preview,
-            )
-            .await
-            {
-                Some(result) => result.score,
-                None => 0.0,
-            }
-        } else {
-            0.0
-        }
-    } else {
-        0.0
-    };
-
-    // determine DMARC policy enum
-    let dmarc_policy = if dmarc_str == "pass" {
-        DmarcPolicy::Pass
-    } else if dmarc_quarantine {
-        DmarcPolicy::Quarantine
-    } else {
-        // dmarc_str == "fail" with policy=none or policy=reject already returned above
-        DmarcPolicy::None
-    };
-
-    // log pipeline results
-    let total_score = content_score + ptr_score + ai_score;
-    tracing::info!(
-        event = "auth_pipeline",
-        spf = %spf_str,
-        dkim = %dkim_str,
-        arc = %arc_str,
-        dmarc = %dmarc_str,
-        content_score = content_score,
-        ptr_score = ptr_score,
-        ai_score = ai_score,
-        total_score = total_score,
-        "inbound pipeline complete"
-    );
-
-    // 7. pure decision
-    make_delivery_decision(&PipelineInput {
-        greylisted: false,
-        auth: AuthResults {
-            spf: spf_str,
-            dkim: dkim_str,
-            arc: arc_str,
-            dmarc: dmarc_str,
-            dmarc_policy,
-        },
-        virus_found,
-        content_score,
-        matched_rules,
-        ptr_score,
-        ai_score,
-        spam_threshold: spam_score_threshold,
-        hostname: hostname.to_string(),
-    })
+    builder.build()
 }
-
-fn extract_header(message: &[u8], name: &str) -> Option<String> {
-    let msg = std::str::from_utf8(message).ok()?;
-    let prefix = format!("{name}: ");
-    for line in msg.lines() {
-        if line
-            .to_ascii_lowercase()
-            .starts_with(&prefix.to_ascii_lowercase())
-        {
-            return Some(line[prefix.len()..].trim().to_string());
-        }
-    }
-    None
-}
-
-fn extract_body_preview(message: &[u8], max_len: usize) -> String {
-    let msg = String::from_utf8_lossy(message);
-    // body starts after \r\n\r\n or \n\n
-    let body = msg
-        .find("\r\n\r\n")
-        .map(|i| &msg[i + 4..])
-        .or_else(|| msg.find("\n\n").map(|i| &msg[i + 2..]))
-        .unwrap_or("");
-    let truncated: String = body.chars().take(max_len).collect();
-    truncated
-}
-
-fn spf_result_str(result: mail_auth::SpfResult) -> String {
-    match result {
-        mail_auth::SpfResult::Pass => "pass",
-        mail_auth::SpfResult::Fail => "fail",
-        mail_auth::SpfResult::SoftFail => "softfail",
-        mail_auth::SpfResult::Neutral => "neutral",
-        mail_auth::SpfResult::None => "none",
-        mail_auth::SpfResult::TempError => "temperror",
-        mail_auth::SpfResult::PermError => "permerror",
-    }
-    .to_string()
-}
-
-// `build_auth_header` is now provided by `mailrs_inbound` (re-exported above).
 
 #[cfg(test)]
 mod tests {
@@ -557,63 +294,6 @@ mod tests {
             }
             other => panic!("expected Accept, got {other:?}"),
         }
-    }
-
-    // --- extract_header tests ---
-
-    #[test]
-    fn extract_header_basic() {
-        let msg = b"From: alice@example.com\r\nSubject: Hello\r\n\r\nbody";
-        assert_eq!(extract_header(msg, "Subject").unwrap(), "Hello");
-        assert_eq!(extract_header(msg, "From").unwrap(), "alice@example.com");
-    }
-
-    #[test]
-    fn extract_header_case_insensitive() {
-        let msg = b"subject: hello world\r\n\r\n";
-        assert_eq!(extract_header(msg, "Subject").unwrap(), "hello world");
-    }
-
-    #[test]
-    fn extract_header_missing() {
-        let msg = b"From: alice@example.com\r\n\r\nbody";
-        assert!(extract_header(msg, "Subject").is_none());
-    }
-
-    #[test]
-    fn extract_header_empty_message() {
-        assert!(extract_header(b"", "Subject").is_none());
-    }
-
-    // --- extract_body_preview tests ---
-
-    #[test]
-    fn extract_body_preview_crlf() {
-        let msg = b"Subject: Test\r\n\r\nHello, world!";
-        assert_eq!(extract_body_preview(msg, 500), "Hello, world!");
-    }
-
-    #[test]
-    fn extract_body_preview_lf() {
-        let msg = b"Subject: Test\n\nHello, world!";
-        assert_eq!(extract_body_preview(msg, 500), "Hello, world!");
-    }
-
-    #[test]
-    fn extract_body_preview_truncates() {
-        let msg = b"Subject: Test\r\n\r\nHello, world!";
-        assert_eq!(extract_body_preview(msg, 5), "Hello");
-    }
-
-    #[test]
-    fn extract_body_preview_no_body() {
-        let msg = b"Subject: Test\r\n";
-        assert_eq!(extract_body_preview(msg, 500), "");
-    }
-
-    #[test]
-    fn extract_body_preview_empty() {
-        assert_eq!(extract_body_preview(b"", 500), "");
     }
 
     #[test]

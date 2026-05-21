@@ -480,6 +480,18 @@ async fn main() {
 
     let users = Arc::new(user_store);
 
+    let inbound_pipeline = crate::inbound::pipeline::build_inbound_pipeline(
+        greylist_db.clone(),
+        greylist_config.clone(),
+        resolver.clone(),
+        mail_authenticator.clone(),
+        dmarc_report_store.clone(),
+        cfg.clamav_addr.clone(),
+        llm_provider.clone(),
+        valkey_conn.clone(),
+        cfg.spam_score_threshold,
+    );
+
     let ctx = Arc::new(ConnectionContext {
         hostname: cfg.hostname.clone(),
         maildir_root: cfg.maildir_root.clone(),
@@ -493,20 +505,15 @@ async fn main() {
         resolver,
         dnsbl_zones: cfg.dnsbl_zones.clone(),
         dnsbl_enabled: cfg.dnsbl_enabled,
-        greylist_db,
-        greylist_config,
         mail_authenticator,
-        spam_score_threshold: cfg.spam_score_threshold,
         mailbox_store: mailbox_store.clone(),
         smuggle_protection: cfg.smuggle_protection,
         auth_guard: auth_guard.clone(),
         domain_store: domain_store.clone(),
-        dmarc_report_store: dmarc_report_store.clone(),
-        clamav_addr: cfg.clamav_addr.clone(),
         valkey: valkey_conn.clone(),
-        llm_provider: llm_provider.clone(),
         srs_secret: cfg.srs_secret.clone(),
         ldap_config: ldap_config.clone(),
+        inbound_pipeline,
     });
 
     // port 25/2525: plain SMTP (STARTTLS optional)

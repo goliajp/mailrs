@@ -25,10 +25,8 @@ use crate::domain_store::{DomainStore, ResolvedRecipient};
 use crate::event_bus::{next_connection_id, EventBus, SmtpEvent};
 use mail_auth::MessageAuthenticator;
 
-use crate::dmarc_report::DmarcReportStore;
 use crate::inbound::auth_guard::{AuthCheck, AuthGuard};
-use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
-use crate::inbound::pipeline::{self, DeliveryDecision};
+use crate::inbound::pipeline::DeliveryDecision;
 use crate::inbound::rate_limit::RateLimiter;
 use crate::sieve::{compile_sieve, evaluate_sieve_with_envelope, SieveAction};
 use crate::tls::TlsState;
@@ -48,20 +46,15 @@ pub struct ConnectionContext {
     pub resolver: Option<Arc<TokioResolver>>,
     pub dnsbl_zones: Vec<String>,
     pub dnsbl_enabled: bool,
-    pub greylist_db: Option<Arc<GreylistDb>>,
-    pub greylist_config: GreylistConfig,
     pub mail_authenticator: Option<Arc<MessageAuthenticator>>,
-    pub spam_score_threshold: f64,
     pub mailbox_store: Option<Arc<mailrs_mailbox::PgMailboxStore>>,
     pub smuggle_protection: SmuggleProtection,
     pub auth_guard: Arc<AuthGuard>,
     pub domain_store: Option<Arc<DomainStore>>,
-    pub dmarc_report_store: Option<Arc<DmarcReportStore>>,
-    pub clamav_addr: Option<String>,
     pub valkey: Option<redis::aio::ConnectionManager>,
-    pub llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     pub srs_secret: Option<String>,
     pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
+    pub inbound_pipeline: mailrs_inbound::Pipeline,
 }
 
 /// rewrite envelope sender using SRS (Sender Rewriting Scheme)
@@ -470,8 +463,7 @@ where
 
                     // run anti-spam pipeline for non-authenticated connections
                     let mut target_folder = "INBOX";
-                    if !is_authenticated
-                        && let Some(ref authenticator) = ctx.mail_authenticator {
+                    if !is_authenticated && ctx.mail_authenticator.is_some() {
                             let ehlo_domain = match &session.state {
                                 State::Greeted { domain } => domain.as_str(),
                                 State::Authenticated { domain, .. } => domain.as_str(),
@@ -479,24 +471,15 @@ where
                             };
                             let first_rcpt =
                                 forward_paths.first().map(|s| s.as_str()).unwrap_or("");
-                            let decision = pipeline::run_inbound_pipeline(
-                                authenticator,
-                                &ctx.hostname,
+                            let mut receive_ctx = mailrs_inbound::ReceiveContext::new(
                                 addr.ip(),
                                 ehlo_domain,
                                 &reverse_path,
                                 first_rcpt,
-                                &full_message,
-                                ctx.greylist_db.as_ref(),
-                                &ctx.greylist_config,
-                                ctx.spam_score_threshold,
-                                ctx.dmarc_report_store.as_ref(),
-                                ctx.resolver.as_ref(),
-                                ctx.clamav_addr.as_deref(),
-                                ctx.llm_provider.as_ref(),
-                                ctx.valkey.as_ref(),
-                            )
-                            .await;
+                                full_message.clone(),
+                                &ctx.hostname,
+                            );
+                            let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;
 
                             match decision {
                                 DeliveryDecision::Reject { code, message } => {
