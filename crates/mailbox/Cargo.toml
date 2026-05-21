@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-mailbox"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "Mailbox metadata storage abstraction for Rust IMAP/JMAP servers: MailboxStore trait + PostgreSQL reference impl + in-memory test fixture. CONDSTORE, threading, flag ops, change tracking."
 license = "Apache-2.0 OR MIT"
