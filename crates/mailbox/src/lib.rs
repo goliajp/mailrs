@@ -1,9 +1,4 @@
-//! Mailbox metadata storage for Rust mail servers.
-//!
-//! See the [`MailboxStore`] trait for the portable abstraction, and
-//! [`PgMailboxStore`] for the PostgreSQL reference implementation.
-//! README will be wired in as crate-level docs in stage 2e once the
-//! trait migration completes.
+#![doc = include_str!("../README.md")]
 
 pub mod fixtures;
 pub mod pg;
