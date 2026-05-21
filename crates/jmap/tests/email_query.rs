@@ -1,32 +1,31 @@
 //! Protocol-level integration tests for `Email/query` (RFC 8621 §4.4).
 
-mod common;
 
-use common::{InMemoryStore, TEST_USER, make_message};
+use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message};
 use mailrs_jmap::dispatch::dispatch_method;
 use mailrs_jmap::types::{FLAG_FLAGGED, FLAG_SEEN};
 use serde_json::json;
 
 /// Build a 4-mailbox / 6-message world used by most filter / sort tests.
 fn fixture() -> InMemoryStore {
-    let mut m1 = make_message(1, 10, TEST_USER); // INBOX, oldest
+    let mut m1 = make_message(1, 10, EXAMPLE_USER); // INBOX, oldest
     m1.subject = "Project Alpha kickoff".into();
     m1.sender = "alice@example.com".into();
     m1.internal_date = 1_700_000_001;
 
-    let mut m2 = make_message(2, 10, TEST_USER); // INBOX
+    let mut m2 = make_message(2, 10, EXAMPLE_USER); // INBOX
     m2.subject = "Re: project alpha".into();
     m2.sender = "bob@example.com".into();
     m2.flags = FLAG_SEEN;
     m2.internal_date = 1_700_000_002;
 
-    let mut m3 = make_message(3, 10, TEST_USER); // INBOX, newest in inbox
+    let mut m3 = make_message(3, 10, EXAMPLE_USER); // INBOX, newest in inbox
     m3.subject = "weekly digest".into();
     m3.recipients = "team@example.com".into();
     m3.flags = FLAG_SEEN | FLAG_FLAGGED;
     m3.internal_date = 1_700_000_003;
 
-    let mut m4 = make_message(4, 20, TEST_USER); // Sent
+    let mut m4 = make_message(4, 20, EXAMPLE_USER); // Sent
     m4.subject = "Sent thing".into();
     m4.internal_date = 1_700_000_004;
 
@@ -43,12 +42,12 @@ fn fixture() -> InMemoryStore {
 async fn email_query_no_filter_returns_all_sorted_desc_by_default() {
     let store = fixture();
 
-    let (name, resp) = dispatch_method("Email/query", &json!({}), TEST_USER, &store)
+    let (name, resp) = dispatch_method("Email/query", &json!({}), EXAMPLE_USER, &store)
         .await
         .unwrap();
 
     assert_eq!(name, "Email/query");
-    assert_eq!(resp["accountId"], TEST_USER);
+    assert_eq!(resp["accountId"], EXAMPLE_USER);
     assert_eq!(resp["queryState"], "0");
     assert_eq!(resp["canCalculateChanges"], false);
     assert_eq!(resp["position"], 0);
@@ -64,7 +63,7 @@ async fn email_query_in_mailbox_restricts_to_that_mailbox() {
     let (_, resp) = dispatch_method(
         "Email/query",
         &json!({"filter": {"inMailbox": "mb-20"}}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -81,7 +80,7 @@ async fn email_query_in_mailbox_nonexistent_returns_empty() {
     let (_, resp) = dispatch_method(
         "Email/query",
         &json!({"filter": {"inMailbox": "mb-999"}}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -99,7 +98,7 @@ async fn email_query_text_filter_is_case_insensitive_across_subject_sender_recip
     let (_, resp) = dispatch_method(
         "Email/query",
         &json!({"filter": {"text": "ALPHA"}}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -110,7 +109,7 @@ async fn email_query_text_filter_is_case_insensitive_across_subject_sender_recip
     let (_, resp) = dispatch_method(
         "Email/query",
         &json!({"filter": {"text": "team@example.com"}}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -122,7 +121,7 @@ async fn email_query_text_filter_is_case_insensitive_across_subject_sender_recip
     let (_, resp) = dispatch_method(
         "Email/query",
         &json!({"filter": {"text": "bob@example.com"}}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -138,7 +137,7 @@ async fn email_query_has_keyword_filters_to_messages_with_that_flag() {
     let (_, resp) = dispatch_method(
         "Email/query",
         &json!({"filter": {"hasKeyword": "$seen"}}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -158,7 +157,7 @@ async fn email_query_not_keyword_filters_out_messages_with_that_flag() {
     let (_, resp) = dispatch_method(
         "Email/query",
         &json!({"filter": {"notKeyword": "$seen"}}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -178,7 +177,7 @@ async fn email_query_sort_ascending_flips_order() {
     let (_, resp) = dispatch_method(
         "Email/query",
         &json!({"sort": [{"property": "receivedAt", "isAscending": true}]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -194,7 +193,7 @@ async fn email_query_position_and_limit_paginate() {
     let (_, resp) = dispatch_method(
         "Email/query",
         &json!({"position": 1, "limit": 2}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -213,7 +212,7 @@ async fn email_query_limit_clamped_to_500() {
     let (_, resp) = dispatch_method(
         "Email/query",
         &json!({"limit": 100_000}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -229,7 +228,7 @@ async fn email_query_limit_clamped_to_500() {
 async fn email_query_propagates_list_mailboxes_error_as_server_fail() {
     let store = InMemoryStore::new().list_mailboxes_fails("mailboxes unavailable");
 
-    let err = dispatch_method("Email/query", &json!({}), TEST_USER, &store)
+    let err = dispatch_method("Email/query", &json!({}), EXAMPLE_USER, &store)
         .await
         .unwrap_err();
 

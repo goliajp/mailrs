@@ -1,8 +1,7 @@
 //! Protocol-level integration tests for `Email/get` (RFC 8621 §4.2).
 
-mod common;
 
-use common::{InMemoryStore, TEST_USER, make_message, parsed_with_attachment, parsed_with_text};
+use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message, parsed_with_attachment, parsed_with_text};
 use mailrs_jmap::dispatch::dispatch_method;
 use mailrs_jmap::types::FLAG_SEEN;
 use serde_json::json;
@@ -11,7 +10,7 @@ use serde_json::json;
 async fn email_get_missing_ids_argument_is_invalid_arguments() {
     let store = InMemoryStore::new();
 
-    let err = dispatch_method("Email/get", &json!({}), TEST_USER, &store)
+    let err = dispatch_method("Email/get", &json!({}), EXAMPLE_USER, &store)
         .await
         .unwrap_err();
 
@@ -20,7 +19,7 @@ async fn email_get_missing_ids_argument_is_invalid_arguments() {
 
 #[tokio::test]
 async fn email_get_returns_full_metadata_when_properties_omitted() {
-    let mut msg = make_message(42, 1, TEST_USER);
+    let mut msg = make_message(42, 1, EXAMPLE_USER);
     msg.flags = FLAG_SEEN;
     msg.subject = "hello".into();
     let store = InMemoryStore::new()
@@ -30,7 +29,7 @@ async fn email_get_returns_full_metadata_when_properties_omitted() {
     let (_, resp) = dispatch_method(
         "Email/get",
         &json!({"ids": ["msg-42"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -53,12 +52,12 @@ async fn email_get_returns_full_metadata_when_properties_omitted() {
 async fn email_get_malformed_and_missing_ids_land_in_not_found() {
     let store = InMemoryStore::new()
         .with_mailbox(1, "INBOX")
-        .with_message(make_message(1, 1, TEST_USER));
+        .with_message(make_message(1, 1, EXAMPLE_USER));
 
     let (_, resp) = dispatch_method(
         "Email/get",
         &json!({"ids": ["msg-1", "msg-999", "not-an-email"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -82,7 +81,7 @@ async fn email_get_unowned_message_is_not_found() {
     let (_, resp) = dispatch_method(
         "Email/get",
         &json!({"ids": ["msg-1"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -96,12 +95,12 @@ async fn email_get_unowned_message_is_not_found() {
 async fn email_get_skips_body_read_when_only_metadata_properties_requested() {
     let store = InMemoryStore::new()
         .with_mailbox(1, "INBOX")
-        .with_message(make_message(1, 1, TEST_USER));
+        .with_message(make_message(1, 1, EXAMPLE_USER));
 
     let (_, resp) = dispatch_method(
         "Email/get",
         &json!({"ids": ["msg-1"], "properties": ["subject", "from"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -119,14 +118,14 @@ async fn email_get_populates_body_when_bodyvalues_requested() {
     let raw = b"From: x\r\n\r\nbody payload".to_vec();
     let store = InMemoryStore::new()
         .with_mailbox(1, "INBOX")
-        .with_message(make_message(1, 1, TEST_USER))
+        .with_message(make_message(1, 1, EXAMPLE_USER))
         .with_message_raw(1, raw.clone())
         .with_parsed_body(raw, parsed_with_text("body payload"));
 
     let (_, resp) = dispatch_method(
         "Email/get",
         &json!({"ids": ["msg-1"], "properties": ["bodyValues", "textBody"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -142,14 +141,14 @@ async fn email_get_emits_attachment_metadata_when_requested() {
     let raw = b"raw with attachment".to_vec();
     let store = InMemoryStore::new()
         .with_mailbox(1, "INBOX")
-        .with_message(make_message(1, 1, TEST_USER))
+        .with_message(make_message(1, 1, EXAMPLE_USER))
         .with_message_raw(1, raw.clone())
         .with_parsed_body(raw, parsed_with_attachment("report.pdf", "application/pdf", 1024));
 
     let (_, resp) = dispatch_method(
         "Email/get",
         &json!({"ids": ["msg-1"], "properties": ["attachments", "hasAttachment"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await

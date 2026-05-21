@@ -1,8 +1,7 @@
 //! Protocol-level integration tests for `Thread/get` (RFC 8621 §3.2).
 
-mod common;
 
-use common::{InMemoryStore, TEST_USER, make_message};
+use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message};
 use mailrs_jmap::dispatch::dispatch_method;
 use serde_json::json;
 
@@ -10,7 +9,7 @@ use serde_json::json;
 async fn thread_get_missing_ids_argument_is_invalid_arguments() {
     let store = InMemoryStore::new();
 
-    let err = dispatch_method("Thread/get", &json!({}), TEST_USER, &store)
+    let err = dispatch_method("Thread/get", &json!({}), EXAMPLE_USER, &store)
         .await
         .unwrap_err();
 
@@ -19,11 +18,11 @@ async fn thread_get_missing_ids_argument_is_invalid_arguments() {
 
 #[tokio::test]
 async fn thread_get_returns_email_ids_for_known_thread() {
-    let mut m1 = make_message(1, 10, TEST_USER);
+    let mut m1 = make_message(1, 10, EXAMPLE_USER);
     m1.thread_id = "t-A".into();
-    let mut m2 = make_message(2, 10, TEST_USER);
+    let mut m2 = make_message(2, 10, EXAMPLE_USER);
     m2.thread_id = "t-A".into();
-    let mut m3 = make_message(3, 10, TEST_USER);
+    let mut m3 = make_message(3, 10, EXAMPLE_USER);
     m3.thread_id = "t-B".into();
 
     let store = InMemoryStore::new()
@@ -35,14 +34,14 @@ async fn thread_get_returns_email_ids_for_known_thread() {
     let (name, resp) = dispatch_method(
         "Thread/get",
         &json!({"ids": ["t-A"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
     .unwrap();
 
     assert_eq!(name, "Thread/get");
-    assert_eq!(resp["accountId"], TEST_USER);
+    assert_eq!(resp["accountId"], EXAMPLE_USER);
     assert_eq!(resp["state"], "0");
     assert_eq!(resp["notFound"], json!([]));
 
@@ -59,7 +58,7 @@ async fn thread_get_empty_thread_lands_in_not_found() {
     let (_, resp) = dispatch_method(
         "Thread/get",
         &json!({"ids": ["t-missing"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -78,7 +77,7 @@ async fn thread_get_store_error_falls_back_to_empty_thread_marked_not_found() {
     let (_, resp) = dispatch_method(
         "Thread/get",
         &json!({"ids": ["t-A"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -90,7 +89,7 @@ async fn thread_get_store_error_falls_back_to_empty_thread_marked_not_found() {
 
 #[tokio::test]
 async fn thread_get_filters_threads_by_user() {
-    let mut alice_msg = make_message(1, 10, TEST_USER);
+    let mut alice_msg = make_message(1, 10, EXAMPLE_USER);
     alice_msg.thread_id = "t-shared".into();
     let mut bob_msg = make_message(2, 10, "bob@example.com");
     bob_msg.user_address = "bob@example.com".into();
@@ -104,7 +103,7 @@ async fn thread_get_filters_threads_by_user() {
     let (_, resp) = dispatch_method(
         "Thread/get",
         &json!({"ids": ["t-shared"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await

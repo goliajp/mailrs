@@ -1,9 +1,8 @@
 //! Protocol-level integration tests for `Mailbox/get` and `Mailbox/query`
 //! (RFC 8621 §2).
 
-mod common;
 
-use common::{InMemoryStore, TEST_USER, make_message};
+use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message};
 use mailrs_jmap::dispatch::dispatch_method;
 use mailrs_jmap::types::{FLAG_SEEN, MailboxCounts};
 use serde_json::json;
@@ -15,12 +14,12 @@ async fn mailbox_get_all_returns_every_mailbox_with_role_mapping() {
         .with_mailbox(2, "Sent")
         .with_mailbox(3, "Archive");
 
-    let (name, resp) = dispatch_method("Mailbox/get", &json!({}), TEST_USER, &store)
+    let (name, resp) = dispatch_method("Mailbox/get", &json!({}), EXAMPLE_USER, &store)
         .await
         .expect("Mailbox/get succeeds");
 
     assert_eq!(name, "Mailbox/get");
-    assert_eq!(resp["accountId"], TEST_USER);
+    assert_eq!(resp["accountId"], EXAMPLE_USER);
     assert_eq!(resp["state"], "0");
     assert_eq!(resp["notFound"], json!([]));
 
@@ -43,7 +42,7 @@ async fn mailbox_get_by_specific_ids_returns_subset() {
     let (_, resp) = dispatch_method(
         "Mailbox/get",
         &json!({"ids": ["mb-2"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -62,7 +61,7 @@ async fn mailbox_get_malformed_and_missing_ids_land_in_not_found() {
     let (_, resp) = dispatch_method(
         "Mailbox/get",
         &json!({"ids": ["mb-1", "mb-999", "not-a-mb-id"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -79,8 +78,8 @@ async fn mailbox_get_malformed_and_missing_ids_land_in_not_found() {
 
 #[tokio::test]
 async fn mailbox_get_counts_default_to_message_status() {
-    let unread = make_message(10, 1, TEST_USER);
-    let mut seen = make_message(11, 1, TEST_USER);
+    let unread = make_message(10, 1, EXAMPLE_USER);
+    let mut seen = make_message(11, 1, EXAMPLE_USER);
     seen.flags = FLAG_SEEN;
     let store = InMemoryStore::new()
         .with_mailbox(1, "INBOX")
@@ -90,7 +89,7 @@ async fn mailbox_get_counts_default_to_message_status() {
     let (_, resp) = dispatch_method(
         "Mailbox/get",
         &json!({"ids": ["mb-1"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -105,7 +104,7 @@ async fn mailbox_get_counts_default_to_message_status() {
 async fn mailbox_get_propagates_list_error_as_server_fail() {
     let store = InMemoryStore::new().list_mailboxes_fails("db is down");
 
-    let err = dispatch_method("Mailbox/get", &json!({}), TEST_USER, &store)
+    let err = dispatch_method("Mailbox/get", &json!({}), EXAMPLE_USER, &store)
         .await
         .unwrap_err();
 
@@ -120,7 +119,7 @@ async fn mailbox_get_falls_back_when_status_lookup_errors() {
         .with_mailbox(1, "INBOX")
         .mailbox_status_fails("status lookup unavailable");
 
-    let (_, resp) = dispatch_method("Mailbox/get", &json!({}), TEST_USER, &store)
+    let (_, resp) = dispatch_method("Mailbox/get", &json!({}), EXAMPLE_USER, &store)
         .await
         .unwrap();
 
@@ -142,7 +141,7 @@ async fn mailbox_get_respects_explicit_counts_override() {
             },
         );
 
-    let (_, resp) = dispatch_method("Mailbox/get", &json!({}), TEST_USER, &store)
+    let (_, resp) = dispatch_method("Mailbox/get", &json!({}), EXAMPLE_USER, &store)
         .await
         .unwrap();
 
@@ -157,12 +156,12 @@ async fn mailbox_query_returns_all_ids() {
         .with_mailbox(1, "INBOX")
         .with_mailbox(2, "Sent");
 
-    let (name, resp) = dispatch_method("Mailbox/query", &json!({}), TEST_USER, &store)
+    let (name, resp) = dispatch_method("Mailbox/query", &json!({}), EXAMPLE_USER, &store)
         .await
         .unwrap();
 
     assert_eq!(name, "Mailbox/query");
-    assert_eq!(resp["accountId"], TEST_USER);
+    assert_eq!(resp["accountId"], EXAMPLE_USER);
     assert_eq!(resp["queryState"], "0");
     assert_eq!(resp["canCalculateChanges"], false);
     assert_eq!(resp["position"], 0);

@@ -1,27 +1,55 @@
-//! Shared in-memory [`CalendarStore`] and [`AddressBookStore`] implementations
-//! used by every integration test binary in this crate.
+//! In-memory [`CalendarStore`](crate::store::CalendarStore) and
+//! [`AddressBookStore`](crate::store::AddressBookStore) implementations
+//! suitable for tests, examples, and downstream-consumer test harnesses.
 //!
-//! Tests build a store with the chainable `with_*` setters, hand `&store` to a
-//! handler, and (where the handler mutates state) read back via the
-//! `events_in` / `contacts_in` helpers. Error injection is per-method, so a
-//! single test can isolate the exact code path it cares about.
-
-#![allow(dead_code)]
+//! **Intended use is testing.** Both stores keep every value in process
+//! memory and never persist across restarts; do not wire either into a real
+//! deployment.
+//!
+//! ## Quick start
+//!
+//! ```
+//! use mailrs_dav::fixtures::{InMemoryCalendarStore, EXAMPLE_USER, make_calendar};
+//!
+//! let store = InMemoryCalendarStore::new()
+//!     .with_calendar(EXAMPLE_USER, make_calendar(1, "Work"));
+//! ```
+//!
+//! ## What it gives you
+//!
+//! - Stateful in-memory storage with builder APIs — `with_calendar`,
+//!   `with_event`, `with_book`, `with_contact`.
+//! - Per-method error injection via `<method>_fails` setters so each error
+//!   path in your handler-driving code can be isolated in a single test.
+//! - Read-back helpers for assertions — `events_in(cal_id)`,
+//!   `contacts_in(book_id)`.
+//! - Convenience constructors — `make_calendar`, `make_event`, `make_book`,
+//!   `make_contact`.
+//! - Response-inspection helpers for testing handler output —
+//!   [`body_as_str`], [`header_value`].
+//!
+//! Used internally by this crate's integration tests; the same module is
+//! exposed to downstream consumers so they can drive their own handler tests
+//! without re-implementing the stores.
 
 use std::sync::RwLock;
 
 use async_trait::async_trait;
 
-use mailrs_dav::store::{AddressBookStore, CalendarStore, StoreError};
-use mailrs_dav::types::{AddressBook, Calendar, Contact, Event, PutResult};
-use mailrs_dav::xml::etag_of;
+use crate::store::{AddressBookStore, CalendarStore, StoreError};
+use crate::types::{AddressBook, Calendar, Contact, Event, PutResult};
+use crate::xml::etag_of;
 
-pub const TEST_USER: &str = "alice@example.com";
+/// Convenience example user used by the constructors in this module. The
+/// store does not assume any particular value — callers can use their own.
+pub const EXAMPLE_USER: &str = "alice@example.com";
 
 // =====================================================================
 // Calendar store
 // =====================================================================
 
+/// In-memory [`CalendarStore`] backed by `Vec`s under an `RwLock`. Build
+/// via [`Self::new`] + chainable `with_*` setters.
 pub struct InMemoryCalendarStore {
     inner: RwLock<CalInner>,
 }
@@ -42,6 +70,7 @@ struct CalInner {
 }
 
 impl InMemoryCalendarStore {
+    /// Construct an empty store.
     pub fn new() -> Self {
         Self {
             inner: RwLock::new(CalInner {
@@ -60,6 +89,7 @@ impl InMemoryCalendarStore {
         }
     }
 
+    /// Append a calendar owned by `owner`. Use [`make_calendar`] for a sane default shape.
     pub fn with_calendar(self, owner: &str, cal: Calendar) -> Self {
         self.inner
             .write()
@@ -69,51 +99,61 @@ impl InMemoryCalendarStore {
         self
     }
 
+    /// Append an event to the given calendar id.
     pub fn with_event(self, calendar_id: i64, event: Event) -> Self {
         self.inner.write().unwrap().events.push((calendar_id, event));
         self
     }
 
+    /// Make [`CalendarStore::list_calendars`] return an error carrying `msg`.
     pub fn list_calendars_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().list_calendars_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`CalendarStore::get_calendar`] return an error carrying `msg`.
     pub fn get_calendar_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().get_calendar_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`CalendarStore::list_events`] return an error carrying `msg`.
     pub fn list_events_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().list_events_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`CalendarStore::get_event`] return an error carrying `msg`.
     pub fn get_event_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().get_event_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`CalendarStore::event_etag`] return an error carrying `msg`.
     pub fn event_etag_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().event_etag_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`CalendarStore::put_event`] return an error carrying `msg`.
     pub fn put_event_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().put_event_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`CalendarStore::delete_event`] return an error carrying `msg`.
     pub fn delete_event_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().delete_event_error = Some(msg.to_string());
         self
     }
 
+    /// Make the `ensure_default_*` trait method return an error carrying `msg`.
     pub fn ensure_default_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().ensure_default_error = Some(msg.to_string());
         self
     }
 
+    /// Read back every event currently stored for `calendar_id`. Tests use this to assert handler-driven mutations.
     pub fn events_in(&self, calendar_id: i64) -> Vec<Event> {
         self.inner
             .read()
@@ -125,6 +165,7 @@ impl InMemoryCalendarStore {
             .collect()
     }
 
+    /// `true` when [`CalendarStore::ensure_default_calendar`] fired for `user`.
     pub fn default_calendar_was_created_for(&self, user: &str) -> bool {
         self.inner
             .read()
@@ -298,6 +339,8 @@ impl CalendarStore for InMemoryCalendarStore {
 // AddressBook store
 // =====================================================================
 
+/// In-memory [`AddressBookStore`] backed by `Vec`s under an `RwLock`. Build
+/// via [`Self::new`] + chainable `with_*` setters.
 pub struct InMemoryAddressBookStore {
     inner: RwLock<AbInner>,
 }
@@ -318,6 +361,7 @@ struct AbInner {
 }
 
 impl InMemoryAddressBookStore {
+    /// Construct an empty store.
     pub fn new() -> Self {
         Self {
             inner: RwLock::new(AbInner {
@@ -336,6 +380,7 @@ impl InMemoryAddressBookStore {
         }
     }
 
+    /// Append an address book owned by `owner`. Use [`make_book`] for a sane default shape.
     pub fn with_book(self, owner: &str, book: AddressBook) -> Self {
         self.inner
             .write()
@@ -345,51 +390,61 @@ impl InMemoryAddressBookStore {
         self
     }
 
+    /// Append a contact to the given book id.
     pub fn with_contact(self, book_id: i64, contact: Contact) -> Self {
         self.inner.write().unwrap().contacts.push((book_id, contact));
         self
     }
 
+    /// Make [`AddressBookStore::list_address_books`] return an error carrying `msg`.
     pub fn list_books_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().list_books_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`AddressBookStore::get_address_book`] return an error carrying `msg`.
     pub fn get_book_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().get_book_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`AddressBookStore::list_contacts`] return an error carrying `msg`.
     pub fn list_contacts_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().list_contacts_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`AddressBookStore::get_contact`] return an error carrying `msg`.
     pub fn get_contact_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().get_contact_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`AddressBookStore::contact_etag`] return an error carrying `msg`.
     pub fn contact_etag_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().contact_etag_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`AddressBookStore::put_contact`] return an error carrying `msg`.
     pub fn put_contact_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().put_contact_error = Some(msg.to_string());
         self
     }
 
+    /// Make [`AddressBookStore::delete_contact`] return an error carrying `msg`.
     pub fn delete_contact_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().delete_contact_error = Some(msg.to_string());
         self
     }
 
+    /// Make the `ensure_default_*` trait method return an error carrying `msg`.
     pub fn ensure_default_fails(self, msg: &str) -> Self {
         self.inner.write().unwrap().ensure_default_error = Some(msg.to_string());
         self
     }
 
+    /// Read back every contact currently stored for `book_id`.
     pub fn contacts_in(&self, book_id: i64) -> Vec<Contact> {
         self.inner
             .read()
@@ -563,6 +618,7 @@ impl AddressBookStore for InMemoryAddressBookStore {
 // Convenience constructors
 // =====================================================================
 
+/// Build a [`Calendar`] with sane defaults — given id and name, default color and description.
 pub fn make_calendar(id: i64, name: &str) -> Calendar {
     Calendar {
         id,
@@ -572,6 +628,7 @@ pub fn make_calendar(id: i64, name: &str) -> Calendar {
     }
 }
 
+/// Build an [`Event`] from a uid and raw iCalendar text, with etag computed via [`etag_of`].
 pub fn make_event(uid: &str, body: &str) -> Event {
     Event {
         uid: uid.to_string(),
@@ -583,6 +640,7 @@ pub fn make_event(uid: &str, body: &str) -> Event {
     }
 }
 
+/// Build an [`AddressBook`] with sane defaults.
 pub fn make_book(id: i64, name: &str) -> AddressBook {
     AddressBook {
         id,
@@ -591,6 +649,7 @@ pub fn make_book(id: i64, name: &str) -> AddressBook {
     }
 }
 
+/// Build a [`Contact`] from a uid and raw vCard text, with etag computed via [`etag_of`].
 pub fn make_contact(uid: &str, vcard: &str) -> Contact {
     Contact {
         uid: uid.to_string(),

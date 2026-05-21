@@ -3,9 +3,8 @@
 //! The PRIORITY surface for this crate: update / destroy semantics across the
 //! full keyword-replace + patch dialects + every documented error path.
 
-mod common;
 
-use common::{InMemoryStore, TEST_USER, make_message};
+use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message};
 use mailrs_jmap::dispatch::dispatch_method;
 use mailrs_jmap::types::{FLAG_ANSWERED, FLAG_DELETED, FLAG_FLAGGED, FLAG_SEEN};
 use serde_json::json;
@@ -14,12 +13,12 @@ use serde_json::json;
 async fn email_set_response_shape() {
     let store = InMemoryStore::new();
 
-    let (name, resp) = dispatch_method("Email/set", &json!({}), TEST_USER, &store)
+    let (name, resp) = dispatch_method("Email/set", &json!({}), EXAMPLE_USER, &store)
         .await
         .unwrap();
 
     assert_eq!(name, "Email/set");
-    assert_eq!(resp["accountId"], TEST_USER);
+    assert_eq!(resp["accountId"], EXAMPLE_USER);
     assert_eq!(resp["oldState"], "0");
     assert_eq!(resp["newState"], "1");
     assert_eq!(resp["updated"], json!({}));
@@ -30,7 +29,7 @@ async fn email_set_response_shape() {
 
 #[tokio::test]
 async fn email_set_update_full_keywords_replaces_flag_bitmask() {
-    let mut msg = make_message(1, 10, TEST_USER);
+    let mut msg = make_message(1, 10, EXAMPLE_USER);
     msg.flags = FLAG_SEEN | FLAG_ANSWERED;
     let store = InMemoryStore::new()
         .with_mailbox(10, "INBOX")
@@ -43,7 +42,7 @@ async fn email_set_update_full_keywords_replaces_flag_bitmask() {
                 "msg-1": {"keywords": {"$flagged": true}}
             }
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -56,7 +55,7 @@ async fn email_set_update_full_keywords_replaces_flag_bitmask() {
 
 #[tokio::test]
 async fn email_set_update_patch_or_in_seen_bit() {
-    let msg = make_message(1, 10, TEST_USER); // flags = 0
+    let msg = make_message(1, 10, EXAMPLE_USER); // flags = 0
     let store = InMemoryStore::new()
         .with_mailbox(10, "INBOX")
         .with_message(msg);
@@ -66,7 +65,7 @@ async fn email_set_update_patch_or_in_seen_bit() {
         &json!({
             "update": {"msg-1": {"keywords/$seen": true}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -78,7 +77,7 @@ async fn email_set_update_patch_or_in_seen_bit() {
 
 #[tokio::test]
 async fn email_set_update_patch_clears_seen_bit() {
-    let mut msg = make_message(1, 10, TEST_USER);
+    let mut msg = make_message(1, 10, EXAMPLE_USER);
     msg.flags = FLAG_SEEN | FLAG_FLAGGED;
     let store = InMemoryStore::new()
         .with_mailbox(10, "INBOX")
@@ -89,7 +88,7 @@ async fn email_set_update_patch_clears_seen_bit() {
         &json!({
             "update": {"msg-1": {"keywords/$seen": false}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -102,7 +101,7 @@ async fn email_set_update_patch_clears_seen_bit() {
 
 #[tokio::test]
 async fn email_set_update_patch_applies_multiple_keys_in_one_call() {
-    let msg = make_message(1, 10, TEST_USER);
+    let msg = make_message(1, 10, EXAMPLE_USER);
     let store = InMemoryStore::new()
         .with_mailbox(10, "INBOX")
         .with_message(msg);
@@ -116,7 +115,7 @@ async fn email_set_update_patch_applies_multiple_keys_in_one_call() {
                 "keywords/$flagged": false
             }}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -133,14 +132,14 @@ async fn email_set_update_patch_applies_multiple_keys_in_one_call() {
 async fn email_set_update_malformed_id_lands_in_not_updated() {
     let store = InMemoryStore::new()
         .with_mailbox(10, "INBOX")
-        .with_message(make_message(1, 10, TEST_USER));
+        .with_message(make_message(1, 10, EXAMPLE_USER));
 
     let (_, resp) = dispatch_method(
         "Email/set",
         &json!({
             "update": {"not-a-msg": {"keywords/$seen": true}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -159,7 +158,7 @@ async fn email_set_update_missing_message_lands_in_not_updated() {
         &json!({
             "update": {"msg-999": {"keywords/$seen": true}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -181,7 +180,7 @@ async fn email_set_update_unowned_message_lands_in_not_updated() {
         &json!({
             "update": {"msg-1": {"keywords/$seen": true}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -194,7 +193,7 @@ async fn email_set_update_unowned_message_lands_in_not_updated() {
 async fn email_set_update_propagates_store_error_as_server_fail_per_entry() {
     let store = InMemoryStore::new()
         .with_mailbox(10, "INBOX")
-        .with_message(make_message(1, 10, TEST_USER))
+        .with_message(make_message(1, 10, EXAMPLE_USER))
         .update_flags_fails("disk full");
 
     let (_, resp) = dispatch_method(
@@ -202,7 +201,7 @@ async fn email_set_update_propagates_store_error_as_server_fail_per_entry() {
         &json!({
             "update": {"msg-1": {"keywords/$seen": true}}
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -217,12 +216,12 @@ async fn email_set_update_propagates_store_error_as_server_fail_per_entry() {
 async fn email_set_destroy_adds_deleted_flag_and_lists_id() {
     let store = InMemoryStore::new()
         .with_mailbox(10, "INBOX")
-        .with_message(make_message(1, 10, TEST_USER));
+        .with_message(make_message(1, 10, EXAMPLE_USER));
 
     let (_, resp) = dispatch_method(
         "Email/set",
         &json!({"destroy": ["msg-1"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -243,7 +242,7 @@ async fn email_set_destroy_malformed_id_lands_in_not_destroyed() {
     let (_, resp) = dispatch_method(
         "Email/set",
         &json!({"destroy": ["not-a-msg"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -257,13 +256,13 @@ async fn email_set_destroy_malformed_id_lands_in_not_destroyed() {
 async fn email_set_destroy_propagates_store_error_as_server_fail_per_entry() {
     let store = InMemoryStore::new()
         .with_mailbox(10, "INBOX")
-        .with_message(make_message(1, 10, TEST_USER))
+        .with_message(make_message(1, 10, EXAMPLE_USER))
         .add_flags_fails("queue full");
 
     let (_, resp) = dispatch_method(
         "Email/set",
         &json!({"destroy": ["msg-1"]}),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -278,8 +277,8 @@ async fn email_set_destroy_propagates_store_error_as_server_fail_per_entry() {
 async fn email_set_update_and_destroy_in_same_call_both_apply() {
     let store = InMemoryStore::new()
         .with_mailbox(10, "INBOX")
-        .with_message(make_message(1, 10, TEST_USER))
-        .with_message(make_message(2, 10, TEST_USER));
+        .with_message(make_message(1, 10, EXAMPLE_USER))
+        .with_message(make_message(2, 10, EXAMPLE_USER));
 
     let (_, resp) = dispatch_method(
         "Email/set",
@@ -287,7 +286,7 @@ async fn email_set_update_and_destroy_in_same_call_both_apply() {
             "update": {"msg-1": {"keywords/$seen": true}},
             "destroy": ["msg-2"]
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
@@ -305,7 +304,7 @@ async fn email_set_partial_failure_keeps_succeeding_entries_in_updated() {
     // msg-2 in notUpdated.
     let store = InMemoryStore::new()
         .with_mailbox(10, "INBOX")
-        .with_message(make_message(1, 10, TEST_USER));
+        .with_message(make_message(1, 10, EXAMPLE_USER));
 
     let (_, resp) = dispatch_method(
         "Email/set",
@@ -315,7 +314,7 @@ async fn email_set_partial_failure_keeps_succeeding_entries_in_updated() {
                 "msg-2": {"keywords/$seen": true}
             }
         }),
-        TEST_USER,
+        EXAMPLE_USER,
         &store,
     )
     .await
