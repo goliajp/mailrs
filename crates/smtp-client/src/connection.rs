@@ -12,11 +12,14 @@ use tokio_rustls::TlsConnector;
 use crate::mx::{format_mail_from, format_rcpt_to};
 use crate::response::{parse_response, SmtpResponse};
 
-/// connection timeout configuration
+/// Connection timeout configuration.
 #[derive(Debug, Clone)]
 pub struct TimeoutConfig {
+    /// Time to wait for the TCP handshake.
     pub connect: std::time::Duration,
+    /// Time to wait for the server's `220` greeting after connect.
     pub greeting: std::time::Duration,
+    /// Time to wait for a response to each SMTP command.
     pub command: std::time::Duration,
 }
 

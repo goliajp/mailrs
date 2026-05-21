@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-clean"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 description = "Email content cleanup primitives: HTML sanitization, tracking-pixel detection, bulk/automated sender heuristics, quoted-reply splitting — zero I/O, no async runtime."
 license = "Apache-2.0 OR MIT"

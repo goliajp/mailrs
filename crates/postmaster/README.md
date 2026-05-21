@@ -4,7 +4,6 @@
 [![docs.rs](https://img.shields.io/docsrs/mailrs-postmaster?style=flat-square&logo=docs.rs)](https://docs.rs/mailrs-postmaster)
 [![License](https://img.shields.io/crates/l/mailrs-postmaster?style=flat-square)](#license)
 [![Downloads](https://img.shields.io/crates/d/mailrs-postmaster?style=flat-square)](https://crates.io/crates/mailrs-postmaster)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue?style=flat-square)](https://www.rust-lang.org)
 
 One-shot email-domain DNS health check for mail-server operators — MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, BIMI, DANE, PTR/FCrDNS, all in one call.
 

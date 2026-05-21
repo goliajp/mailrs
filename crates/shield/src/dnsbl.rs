@@ -99,6 +99,7 @@ pub struct DnsblCache {
 }
 
 impl DnsblCache {
+    /// Construct an empty cache with the given per-entry TTL.
     pub fn new(ttl: Duration) -> Self {
         Self {
             cache: Mutex::new(HashMap::new()),

@@ -4,7 +4,6 @@
 [![docs.rs](https://img.shields.io/docsrs/mailrs-dmarc?style=flat-square&logo=docs.rs)](https://docs.rs/mailrs-dmarc)
 [![License](https://img.shields.io/crates/l/mailrs-dmarc?style=flat-square)](#license)
 [![Downloads](https://img.shields.io/crates/d/mailrs-dmarc?style=flat-square)](https://crates.io/crates/mailrs-dmarc)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue?style=flat-square)](https://www.rust-lang.org)
 
 DMARC (RFC 7489) aggregate report tooling for Rust — result recording, XML report generation, report-mail formatting, `rua` extraction. Fills the gap [`mail-auth`] leaves on the **receiving / aggregating** side.
 

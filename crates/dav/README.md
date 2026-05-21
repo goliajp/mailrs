@@ -4,7 +4,6 @@
 [![docs.rs](https://img.shields.io/docsrs/mailrs-dav?style=flat-square&logo=docs.rs)](https://docs.rs/mailrs-dav)
 [![License](https://img.shields.io/crates/l/mailrs-dav?style=flat-square)](#license)
 [![Downloads](https://img.shields.io/crates/d/mailrs-dav?style=flat-square)](https://crates.io/crates/mailrs-dav)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue?style=flat-square)](https://www.rust-lang.org)
 
 Server-side **CalDAV** ([RFC 4791](https://www.rfc-editor.org/rfc/rfc4791)) and **CardDAV** ([RFC 6352](https://www.rfc-editor.org/rfc/rfc6352)) handlers for Rust mail / calendar / contacts servers — framework-agnostic, BYO data layer via the `CalendarStore` and `AddressBookStore` traits.
 

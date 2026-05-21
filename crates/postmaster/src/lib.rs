@@ -1,3 +1,6 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+
 //! Email-domain DNS health checks for postmasters.
 //!
 //! Given a domain, [`check_domain`] runs the full battery of DNS-level
@@ -32,30 +35,49 @@ use hickory_resolver::proto::rr::{RData, RecordType};
 use hickory_resolver::TokioResolver;
 use serde::Serialize;
 
+/// Full domain-health report returned by [`check_domain`].
 #[derive(Debug, Clone, Serialize)]
 pub struct DomainCheckReport {
+    /// Domain that was checked.
     pub domain: String,
+    /// One [`CheckResult`] per individual check the report ran.
     pub checks: Vec<CheckResult>,
+    /// Epoch seconds the report was generated.
     pub checked_at: i64,
 }
 
+/// One individual check inside a [`DomainCheckReport`].
 #[derive(Debug, Clone, Serialize)]
 pub struct CheckResult {
+    /// Check name (e.g. `"mx"`, `"spf"`, `"dkim"`).
     pub name: String,
+    /// Overall outcome — see [`Status`].
     pub status: Status,
+    /// Short human-readable summary suitable for log lines.
     pub message: String,
+    /// Optional per-record detail (e.g. each MX hostname's individual A-record check).
     pub details: Vec<String>,
 }
 
+/// Outcome bucket for a single [`CheckResult`].
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
+    /// Check satisfied all expected invariants.
     Pass,
+    /// Check passed but flagged something the operator should look at.
     Warn,
+    /// Check failed.
     Fail,
+    /// Check did not run (preconditions not met / unsupported).
     Skip,
 }
 
+/// Run every health check this crate knows against `domain`.
+///
+/// `dkim_selector` lets the caller specify the published selector for the
+/// DKIM check; pass `None` to skip it. `hostname` is the expected reverse-
+/// DNS / EHLO name for outgoing mail.
 pub async fn check_domain(
     resolver: &TokioResolver,
     domain: &str,

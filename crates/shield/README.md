@@ -4,7 +4,6 @@
 [![docs.rs](https://img.shields.io/docsrs/mailrs-shield?style=flat-square&logo=docs.rs)](https://docs.rs/mailrs-shield)
 [![License](https://img.shields.io/crates/l/mailrs-shield?style=flat-square)](#license)
 [![Downloads](https://img.shields.io/crates/d/mailrs-shield?style=flat-square)](https://crates.io/crates/mailrs-shield)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue?style=flat-square)](https://www.rust-lang.org)
 
 SMTP server anti-spam primitives in three modules: **DNSBL** lookups, **greylisting** policy, and **FCrDNS** (forward-confirmed reverse DNS) checks — async, transport-agnostic, mostly zero-I/O.
 

@@ -1,3 +1,4 @@
+
 //! Email intelligence primitives — LLM-powered analysis with a pluggable provider.
 //!
 //! `mailrs-intelligence` extracts the five analysis modules from the

@@ -5,10 +5,12 @@ use std::time::{Duration, Instant};
 
 pub use hickory_resolver::TokioResolver;
 
-/// MX record with priority
+/// MX record with priority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MxRecord {
+    /// Preference value; lower means higher priority (RFC 5321).
     pub priority: u16,
+    /// Mail-exchange hostname this record points to.
     pub exchange: String,
 }
 

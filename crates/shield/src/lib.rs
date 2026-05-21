@@ -1,3 +1,6 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+
 //! SMTP anti-spam primitives: DNSBL, greylisting, and FCrDNS.
 //!
 //! Three independent modules used by inbound SMTP pipelines to filter
@@ -22,6 +25,9 @@
 //!
 //! [Harris 2003]: https://projects.puremagic.com/greylisting/
 
+/// DNSBL reverse-IP scoring helpers (Spamhaus + generic lookup interpretation).
 pub mod dnsbl;
+/// RFC 5321-style greylisting: defer-on-first-seen with optional Postgres + Valkey storage.
 pub mod greylist;
+/// Forward-confirmed reverse DNS scoring (FCrDNS) for sender-IP reputation.
 pub mod ptr;

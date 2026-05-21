@@ -1,3 +1,6 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+
 //! Maildir filesystem format helpers.
 //!
 //! `mailrs-maildir` implements the [Maildir] mail storage convention

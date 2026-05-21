@@ -23,6 +23,8 @@ impl Default for GreylistConfig {
     }
 }
 
+/// Outcome of evaluating a greylisting triplet — one of three states the
+/// caller maps to an SMTP response code.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GreylistDecision {
     /// first time seeing this triplet — defer
@@ -80,15 +82,20 @@ mod redis_impl {
     }
 
     impl GreylistDb {
+        /// Construct a Redis-only greylisting store from a [`redis::aio::ConnectionManager`].
         pub fn new(valkey: redis::aio::ConnectionManager) -> Self {
             Self { valkey, pg: None }
         }
 
+        /// Attach a Postgres pool for best-effort durability across Redis
+        /// restarts (writes are best-effort; failures don't propagate).
         pub fn with_pg(mut self, pool: sqlx::PgPool) -> Self {
             self.pg = Some(pool);
             self
         }
 
+        /// Look up the triplet `key`, update its first-seen entry as needed,
+        /// and return the resulting [`GreylistDecision`].
         pub async fn check(
             &self,
             key: &str,
