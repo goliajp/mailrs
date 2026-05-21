@@ -2466,18 +2466,18 @@ dependencies = [
 
 [[package]]
 name = "mailrs-clean"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b79add1ec41b9771ae5ac71f7d08018d7f0a4bee57008f28c9eef256d72f23f1"
+version = "1.0.2"
 dependencies = [
+ "criterion",
  "html2text",
 ]
 
 [[package]]
 name = "mailrs-clean"
 version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71aed1fc507c11dd5b201e801a523fd9b1435b75951e6341d05dae438a1c593c"
 dependencies = [
- "criterion",
  "html2text",
 ]
 
@@ -2507,19 +2507,6 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dmarc"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "436142ba57f1954a9649814a2d88f2863870b4fc0d0d860e20834431b7dee8fa"
-dependencies = [
- "async-trait",
- "base64",
- "chrono",
- "flate2",
- "sqlx",
-]
-
-[[package]]
-name = "mailrs-dmarc"
 version = "1.0.1"
 dependencies = [
  "async-trait",
@@ -2532,15 +2519,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-ical"
-version = "1.0.0"
+name = "mailrs-dmarc"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a339985829be7e3ffeb87dab1c7f1ba83d705982f104c4bb0bb709906f825af9"
+checksum = "fb3ef3b6dc423032082b746c01e022575649f31c223047e88fbc44bc6d50718a"
 dependencies = [
+ "async-trait",
+ "base64",
  "chrono",
- "chrono-tz",
- "rrule",
- "serde",
+ "flate2",
+ "sqlx",
 ]
 
 [[package]]
@@ -2555,10 +2543,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-imap-proto"
-version = "1.0.0"
+name = "mailrs-ical"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b4c6e0d33b089b538e5e4848f2803f10c2133ae30595ccf222b2d8408a10f1b"
+checksum = "d2f48fce8bceb495525ad5911b443b8511a83db1bc1333b8463db2e8ddddc150"
+dependencies = [
+ "chrono",
+ "chrono-tz",
+ "rrule",
+ "serde",
+]
 
 [[package]]
 name = "mailrs-imap-proto"
@@ -2566,14 +2560,19 @@ version = "1.0.2"
 dependencies = [
  "criterion",
 ]
+
+[[package]]
+name = "mailrs-imap-proto"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa705f3440883f0ae5ef0c4a64d13a2d7c20d3373c9efed8946b7b29ac174acb"
 
 [[package]]
 name = "mailrs-intelligence"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cda9e1b7822769b78670f6cf9a66849ca89293bc01e0a0bbe78026663383d4df"
+version = "1.0.2"
 dependencies = [
  "async-trait",
+ "criterion",
  "redis",
  "reqwest",
  "serde",
@@ -2586,9 +2585,10 @@ dependencies = [
 [[package]]
 name = "mailrs-intelligence"
 version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70f52f0d609bd1c5a09ad85bb9c26e2bb35cb0fc91695575e2608768b579d959"
 dependencies = [
  "async-trait",
- "criterion",
  "redis",
  "reqwest",
  "serde",
@@ -2629,21 +2629,12 @@ dependencies = [
  "async-trait",
  "chrono",
  "criterion",
- "mailrs-maildir 1.0.0",
+ "mailrs-maildir 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
  "sqlx",
  "testcontainers",
  "tokio",
-]
-
-[[package]]
-name = "mailrs-maildir"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97e516d5a5822e1571d09357f7ae9ab0784a25e37cdb84c73bebf3dbcd1a4ad7"
-dependencies = [
- "hostname",
 ]
 
 [[package]]
@@ -2657,23 +2648,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-outbound-queue"
-version = "1.0.0"
+name = "mailrs-maildir"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6182b8eff8b20d17d4aafb00bc64a16134606ed6e62ffa7593a95b8bbb509997"
+checksum = "fc6d62ba7bf65f934eed3fc2cbd93f49e14a70a25f1cc60a807ef6e5a4378346"
 dependencies = [
- "async-trait",
- "chrono",
- "futures-util",
- "hickory-resolver",
- "mail-auth",
- "mailrs-smtp-client 1.0.0",
- "redis",
- "rustls-pki-types",
- "sqlx",
- "thiserror",
- "tokio",
- "tracing",
+ "hostname",
 ]
 
 [[package]]
@@ -2686,7 +2666,7 @@ dependencies = [
  "futures-util",
  "hickory-resolver",
  "mail-auth",
- "mailrs-smtp-client 1.0.0",
+ "mailrs-smtp-client 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "redis",
  "rustls-pki-types",
  "sqlx",
@@ -2696,15 +2676,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-postmaster"
-version = "1.0.0"
+name = "mailrs-outbound-queue"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82ec6582a41255cbac3bb5a4b91987c0d0a6087b5bc16c19398b664aa9d6acb3"
+checksum = "44d681e33ba6566bfcfc6a32988a57c5bb83686199855fe85acd0ee276bd1048"
 dependencies = [
+ "async-trait",
  "chrono",
+ "futures-util",
  "hickory-resolver",
- "reqwest",
- "serde",
+ "mail-auth",
+ "mailrs-smtp-client 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "redis",
+ "rustls-pki-types",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2718,6 +2706,18 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-postmaster"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23678fdd69a4ffc61650a074a8741c4565865632fd9622937a9a106e6c9577b9"
+dependencies = [
+ "chrono",
+ "hickory-resolver",
+ "reqwest",
+ "serde",
 ]
 
 [[package]]
@@ -2747,20 +2747,20 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
- "mailrs-clean 1.0.0",
+ "mailrs-clean 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-dmarc 1.0.0",
- "mailrs-ical 1.0.0",
- "mailrs-imap-proto 1.0.0",
- "mailrs-intelligence 1.0.0",
+ "mailrs-dmarc 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-ical 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-imap-proto 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-intelligence 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-jmap 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox",
- "mailrs-maildir 1.0.0",
- "mailrs-outbound-queue 1.0.0",
- "mailrs-postmaster 1.0.0",
- "mailrs-shield 1.0.0",
- "mailrs-smtp-client 1.0.0",
- "mailrs-smtp-proto 1.0.0",
+ "mailrs-maildir 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-outbound-queue 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-shield 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-smtp-client 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-smtp-proto 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime_guess",
  "password-hash",
  "pdf-extract",
@@ -2794,17 +2794,6 @@ dependencies = [
 
 [[package]]
 name = "mailrs-shield"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54f265bebf3cb08965dd848b2e2a60ed2c73e8b844bb40dea9b25b0f3461c77f"
-dependencies = [
- "hickory-resolver",
- "redis",
- "sqlx",
-]
-
-[[package]]
-name = "mailrs-shield"
 version = "1.0.1"
 dependencies = [
  "criterion",
@@ -2815,17 +2804,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-smtp-client"
-version = "1.0.0"
+name = "mailrs-shield"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6511e867f24b87225b74c56f0e8da319b7ead4cbc5818e1c53ab4e18ec3a1d5c"
+checksum = "0c885880d1cf878b5546f0543f17e895918eeed4ff6eaac52c84e2d6bbd221d0"
 dependencies = [
  "hickory-resolver",
- "rustls",
- "sha2 0.11.0",
- "tokio",
- "tokio-rustls",
- "webpki-roots",
+ "redis",
+ "sqlx",
 ]
 
 [[package]]
@@ -2842,12 +2828,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-smtp-proto"
-version = "1.0.0"
+name = "mailrs-smtp-client"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64553aeb4ef21a0058f912fdad656f90c2f91da2b33ee2c66981184af54c8ae0"
+checksum = "8d22128efc37f8d2ba9772268c4d1579b3faa07beccbd0f17e56ee68fb5a70ae"
 dependencies = [
- "base64",
+ "hickory-resolver",
+ "rustls",
+ "sha2 0.11.0",
+ "tokio",
+ "tokio-rustls",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2856,6 +2847,15 @@ version = "1.0.2"
 dependencies = [
  "base64",
  "criterion",
+]
+
+[[package]]
+name = "mailrs-smtp-proto"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d75464a1eec0c24ee42a3dc850b45b17c4002d191ad2b71e967c458c995701f5"
+dependencies = [
+ "base64",
 ]
 
 [[package]]
@@ -3591,7 +3591,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5715,7 +5715,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -5814,15 +5814,6 @@ dependencies = [
 
 [[package]]
 name = "windows-sys"
-version = "0.60.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb"
-dependencies = [
- "windows-targets 0.53.5",
-]
-
-[[package]]
-name = "windows-sys"
 version = "0.61.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
@@ -5854,28 +5845,11 @@ dependencies = [
  "windows_aarch64_gnullvm 0.52.6",
  "windows_aarch64_msvc 0.52.6",
  "windows_i686_gnu 0.52.6",
- "windows_i686_gnullvm 0.52.6",
+ "windows_i686_gnullvm",
  "windows_i686_msvc 0.52.6",
  "windows_x86_64_gnu 0.52.6",
  "windows_x86_64_gnullvm 0.52.6",
  "windows_x86_64_msvc 0.52.6",
-]
-
-[[package]]
-name = "windows-targets"
-version = "0.53.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4945f9f551b88e0d65f3db0bc25c33b8acea4d9e41163edf90dcd0b19f9069f3"
-dependencies = [
- "windows-link",
- "windows_aarch64_gnullvm 0.53.1",
- "windows_aarch64_msvc 0.53.1",
- "windows_i686_gnu 0.53.1",
- "windows_i686_gnullvm 0.53.1",
- "windows_i686_msvc 0.53.1",
- "windows_x86_64_gnu 0.53.1",
- "windows_x86_64_gnullvm 0.53.1",
- "windows_x86_64_msvc 0.53.1",
 ]
 
 [[package]]
@@ -5891,12 +5865,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
 
 [[package]]
-name = "windows_aarch64_gnullvm"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9d8416fa8b42f5c947f8482c43e7d89e73a173cead56d044f6a56104a6d1b53"
-
-[[package]]
 name = "windows_aarch64_msvc"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5907,12 +5875,6 @@ name = "windows_aarch64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
-
-[[package]]
-name = "windows_aarch64_msvc"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9d782e804c2f632e395708e99a94275910eb9100b2114651e04744e9b125006"
 
 [[package]]
 name = "windows_i686_gnu"
@@ -5927,22 +5889,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b"
 
 [[package]]
-name = "windows_i686_gnu"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "960e6da069d81e09becb0ca57a65220ddff016ff2d6af6a223cf372a506593a3"
-
-[[package]]
 name = "windows_i686_gnullvm"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66"
-
-[[package]]
-name = "windows_i686_gnullvm"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa7359d10048f68ab8b09fa71c3daccfb0e9b559aed648a8f95469c27057180c"
 
 [[package]]
 name = "windows_i686_msvc"
@@ -5957,12 +5907,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
 
 [[package]]
-name = "windows_i686_msvc"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e7ac75179f18232fe9c285163565a57ef8d3c89254a30685b57d83a38d326c2"
-
-[[package]]
 name = "windows_x86_64_gnu"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5973,12 +5917,6 @@ name = "windows_x86_64_gnu"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78"
-
-[[package]]
-name = "windows_x86_64_gnu"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c3842cdd74a865a8066ab39c8a7a473c0778a3f29370b5fd6b4b9aa7df4a499"
 
 [[package]]
 name = "windows_x86_64_gnullvm"
@@ -5993,12 +5931,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
 
 [[package]]
-name = "windows_x86_64_gnullvm"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ffa179e2d07eee8ad8f57493436566c7cc30ac536a3379fdf008f47f6bb7ae1"
-
-[[package]]
 name = "windows_x86_64_msvc"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6009,12 +5941,6 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
-
-[[package]]
-name = "windows_x86_64_msvc"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
 name = "winnow"
