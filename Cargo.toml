@@ -18,6 +18,7 @@ members = [
     "crates/shield",
     "crates/jmap",
     "crates/dav",
+    "crates/inbound",
     "crates/server",
 ]
 

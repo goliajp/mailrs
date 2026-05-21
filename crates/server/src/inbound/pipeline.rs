@@ -5,117 +5,20 @@ use mail_auth::dmarc::verify::DmarcParameters;
 use mail_auth::spf::verify::SpfParameters;
 use mail_auth::{AuthenticatedMessage, MessageAuthenticator};
 
-use super::auth_results::{format_auth_results_header, AuthResult};
+// Core types + RFC 8601 helpers come from the published mailrs-inbound crate.
+// Re-exported here so existing in-crate callers can keep using
+// `crate::inbound::pipeline::DeliveryDecision` etc.
+pub use mailrs_inbound::{
+    AuthResult, AuthResults, DeliveryDecision, DmarcPolicy, PipelineInput, build_auth_header,
+    format_auth_results_header, make_delivery_decision,
+};
+
 use super::content_scan::{evaluate_rules, scan_clamav, ClamavResult};
 use mailrs_shield::greylist::{self as greylisting, GreylistConfig, GreylistDb, GreylistDecision};
 
 use hickory_resolver::TokioResolver;
 
 use crate::dmarc_report::{DmarcReportStore, DmarcResultRecord, DmarcStore};
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum DeliveryDecision {
-    Accept { auth_header: String },
-    Junk { auth_header: String, reason: String },
-    Reject { code: u16, message: String },
-    Greylist,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct AuthResults {
-    pub spf: String,
-    pub dkim: String,
-    pub arc: String,
-    pub dmarc: String,
-    pub dmarc_policy: DmarcPolicy,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum DmarcPolicy {
-    Reject,
-    Quarantine,
-    None,
-    Pass,
-}
-
-#[derive(Debug, Clone)]
-pub struct PipelineInput {
-    pub greylisted: bool,
-    pub auth: AuthResults,
-    pub virus_found: Option<String>,
-    pub content_score: f64,
-    pub matched_rules: Vec<String>,
-    pub ptr_score: f64,
-    pub ai_score: f64,
-    pub spam_threshold: f64,
-    pub hostname: String,
-}
-
-/// pure decision function — no I/O, fully testable
-pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
-    // 1. greylisting has highest priority
-    if input.greylisted {
-        return DeliveryDecision::Greylist;
-    }
-
-    // 2. virus is a hard reject
-    if let Some(ref name) = input.virus_found {
-        return DeliveryDecision::Reject {
-            code: 550,
-            message: format!("5.7.1 Message rejected: virus detected ({name})"),
-        };
-    }
-
-    // 3. build auth header
-    let dmarc_reason = match input.auth.dmarc_policy {
-        DmarcPolicy::Reject => Some("policy=reject"),
-        DmarcPolicy::Quarantine => Some("policy=quarantine"),
-        DmarcPolicy::None => Some("policy=none"),
-        DmarcPolicy::Pass => None,
-    };
-    let auth_header = build_auth_header(
-        &input.hostname,
-        &input.auth.spf,
-        &input.auth.dkim,
-        &input.auth.arc,
-        &input.auth.dmarc,
-        dmarc_reason,
-    );
-
-    // 4. DMARC policy reject
-    if input.auth.dmarc_policy == DmarcPolicy::Reject {
-        return DeliveryDecision::Reject {
-            code: 550,
-            message: "5.7.1 DMARC policy reject".to_string(),
-        };
-    }
-
-    // 5. DMARC policy quarantine
-    if input.auth.dmarc_policy == DmarcPolicy::Quarantine {
-        return DeliveryDecision::Junk {
-            auth_header,
-            reason: "DMARC policy quarantine".into(),
-        };
-    }
-
-    // 6. spam score
-    let total_score = input.content_score + input.ptr_score + input.ai_score;
-    if total_score >= input.spam_threshold {
-        return DeliveryDecision::Junk {
-            auth_header,
-            reason: format!(
-                "score {total_score:.1} >= {:.1} (content={:.1}, ptr={:.1}, ai={:.1}, {})",
-                input.spam_threshold,
-                input.content_score,
-                input.ptr_score,
-                input.ai_score,
-                input.matched_rules.join(", ")
-            ),
-        };
-    }
-
-    DeliveryDecision::Accept { auth_header }
-}
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run_inbound_pipeline(
@@ -418,38 +321,7 @@ fn spf_result_str(result: mail_auth::SpfResult) -> String {
     .to_string()
 }
 
-fn build_auth_header(
-    hostname: &str,
-    spf: &str,
-    dkim: &str,
-    arc: &str,
-    dmarc: &str,
-    dmarc_reason: Option<&str>,
-) -> String {
-    let results = vec![
-        AuthResult {
-            method: "spf".into(),
-            result: spf.into(),
-            reason: None,
-        },
-        AuthResult {
-            method: "dkim".into(),
-            result: dkim.into(),
-            reason: None,
-        },
-        AuthResult {
-            method: "arc".into(),
-            result: arc.into(),
-            reason: None,
-        },
-        AuthResult {
-            method: "dmarc".into(),
-            result: dmarc.into(),
-            reason: dmarc_reason.map(|s| s.to_string()),
-        },
-    ];
-    format_auth_results_header(hostname, &results)
-}
+// `build_auth_header` is now provided by `mailrs_inbound` (re-exported above).
 
 #[cfg(test)]
 mod tests {
