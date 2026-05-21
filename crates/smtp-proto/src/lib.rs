@@ -1,3 +1,6 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+
 //! SMTP protocol parser, formatter, and session state machine.
 //!
 //! `mailrs-smtp-proto` is a zero-I/O implementation of [RFC 5321] (SMTP) and

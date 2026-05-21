@@ -4,7 +4,6 @@
 [![docs.rs](https://img.shields.io/docsrs/mailrs-intelligence?style=flat-square&logo=docs.rs)](https://docs.rs/mailrs-intelligence)
 [![License](https://img.shields.io/crates/l/mailrs-intelligence?style=flat-square)](#license)
 [![Downloads](https://img.shields.io/crates/d/mailrs-intelligence?style=flat-square)](https://crates.io/crates/mailrs-intelligence)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue?style=flat-square)](https://www.rust-lang.org)
 
 LLM-powered email analysis primitives for Rust — pluggable provider, OpenAI-compatible reference impl, with no-LLM heuristics included.
 

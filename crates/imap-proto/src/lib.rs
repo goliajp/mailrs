@@ -1,3 +1,4 @@
+
 //! IMAP protocol parser and response formatter.
 //!
 //! `mailrs-imap-proto` implements the wire-format pieces of [RFC 3501]

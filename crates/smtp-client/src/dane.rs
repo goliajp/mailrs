@@ -38,12 +38,16 @@ pub enum TlsaMatchingType {
     Sha512 = 2,
 }
 
-/// a parsed TLSA record
+/// A parsed TLSA record (RFC 6698).
 #[derive(Debug, Clone)]
 pub struct TlsaRecord {
+    /// Certificate usage field (CA constraint / cert constraint / TA assertion / DANE-EE).
     pub usage: TlsaUsage,
+    /// Selector field — which part of the cert is hashed.
     pub selector: TlsaSelector,
+    /// Hashing type used (none / SHA-256 / SHA-512).
     pub matching_type: TlsaMatchingType,
+    /// The cert (or hash) value to match against.
     pub association_data: Vec<u8>,
 }
 

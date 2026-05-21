@@ -1,3 +1,4 @@
+
 //! Outbound mail queue primitives: DKIM signing, DSN generation, MTA-STS
 //! lookup, retry/backoff, plus a pluggable store trait and a Postgres
 //! reference implementation.

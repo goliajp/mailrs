@@ -69,22 +69,33 @@ pub enum State {
     },
     /// AUTH succeeded; user is identified.
     Authenticated {
+        /// Domain claimed by the client in EHLO/HELO.
         domain: String,
+        /// Authenticated username.
         username: String,
     },
     /// MAIL FROM accepted; awaiting one or more RCPT TO.
     MailFrom {
+        /// Domain from EHLO/HELO.
         domain: String,
+        /// Authenticated username, if any (submission session).
         username: Option<String>,
+        /// Envelope sender (reverse path).
         reverse_path: String,
+        /// ESMTP MAIL parameters as `(name, value)` pairs.
         params: Vec<(String, String)>,
     },
     /// At least one RCPT TO accepted; awaiting more RCPT TO or DATA.
     RcptTo {
+        /// Domain from EHLO/HELO.
         domain: String,
+        /// Authenticated username, if any.
         username: Option<String>,
+        /// Envelope sender (reverse path).
         reverse_path: String,
+        /// ESMTP MAIL parameters.
         params: Vec<(String, String)>,
+        /// Envelope recipients accepted so far.
         forward_paths: Vec<String>,
     },
 }
@@ -99,7 +110,10 @@ pub enum AuthStep {
     /// Awaiting the base64 username (LOGIN mechanism, first prompt).
     WaitUsername,
     /// Awaiting the base64 password (LOGIN mechanism, second prompt).
-    WaitPassword { username: String },
+    WaitPassword {
+        /// Username already collected in the previous LOGIN prompt.
+        username: String,
+    },
 }
 
 /// Action the caller should take after [`Session::handle_command`] returns.
@@ -110,7 +124,9 @@ pub enum Event {
     /// MAIL FROM + RCPT TO + DATA all accepted — read the message body until
     /// the `.\r\n` terminator, then call back into the session.
     NeedData {
+        /// Envelope sender to associate with the message body.
         reverse_path: String,
+        /// Envelope recipients to associate with the message body.
         forward_paths: Vec<String>,
     },
     /// Write the response, then close the connection.
@@ -121,13 +137,17 @@ pub enum Event {
     /// Verify credentials externally, then call
     /// [`Session::set_authenticated`] (or write [`Response::auth_failed`]).
     NeedAuth {
+        /// Username to verify.
         username: String,
+        /// Password to verify (plaintext, since SASL PLAIN/LOGIN deliver it that way).
         password: String,
     },
     /// Write `response.format()` and read one more line, then call
     /// [`Session::handle_auth_response`] with `step`.
     AuthChallenge {
+        /// Challenge response to send to the client.
         response: Response,
+        /// What kind of client reply to expect next.
         step: AuthStep,
     },
 }

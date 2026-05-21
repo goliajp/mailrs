@@ -1,3 +1,4 @@
+
 //! RFC 5545 (iCalendar) + RFC 5546 (iTIP) parser, serializer, and typed
 //! semantics — hand-rolled, zero I/O.
 //!

@@ -2475,7 +2475,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-clean"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "criterion",
  "html2text",
@@ -2508,19 +2508,6 @@ dependencies = [
 [[package]]
 name = "mailrs-dmarc"
 version = "1.0.0"
-dependencies = [
- "async-trait",
- "base64",
- "chrono",
- "criterion",
- "flate2",
- "sqlx",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-dmarc"
-version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "436142ba57f1954a9649814a2d88f2863870b4fc0d0d860e20834431b7dee8fa"
 dependencies = [
@@ -2529,6 +2516,19 @@ dependencies = [
  "chrono",
  "flate2",
  "sqlx",
+]
+
+[[package]]
+name = "mailrs-dmarc"
+version = "1.0.1"
+dependencies = [
+ "async-trait",
+ "base64",
+ "chrono",
+ "criterion",
+ "flate2",
+ "sqlx",
+ "tokio",
 ]
 
 [[package]]
@@ -2648,7 +2648,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-maildir"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "criterion",
  "filetime",
@@ -2698,6 +2698,18 @@ dependencies = [
 [[package]]
 name = "mailrs-postmaster"
 version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82ec6582a41255cbac3bb5a4b91987c0d0a6087b5bc16c19398b664aa9d6acb3"
+dependencies = [
+ "chrono",
+ "hickory-resolver",
+ "reqwest",
+ "serde",
+]
+
+[[package]]
+name = "mailrs-postmaster"
+version = "1.0.1"
 dependencies = [
  "chrono",
  "criterion",
@@ -2706,18 +2718,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
-]
-
-[[package]]
-name = "mailrs-postmaster"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82ec6582a41255cbac3bb5a4b91987c0d0a6087b5bc16c19398b664aa9d6acb3"
-dependencies = [
- "chrono",
- "hickory-resolver",
- "reqwest",
- "serde",
 ]
 
 [[package]]
@@ -2749,7 +2749,7 @@ dependencies = [
  "mail-parser",
  "mailrs-clean 1.0.0",
  "mailrs-dav 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-dmarc 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-dmarc 1.0.0",
  "mailrs-ical 1.0.0",
  "mailrs-imap-proto 1.0.0",
  "mailrs-intelligence 1.0.0",
@@ -2757,8 +2757,8 @@ dependencies = [
  "mailrs-mailbox",
  "mailrs-maildir 1.0.0",
  "mailrs-outbound-queue 1.0.0",
- "mailrs-postmaster 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-shield 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-postmaster 1.0.0",
+ "mailrs-shield 1.0.0",
  "mailrs-smtp-client 1.0.0",
  "mailrs-smtp-proto 1.0.0",
  "mime_guess",
@@ -2795,23 +2795,23 @@ dependencies = [
 [[package]]
 name = "mailrs-shield"
 version = "1.0.0"
-dependencies = [
- "criterion",
- "hickory-resolver",
- "redis",
- "sqlx",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-shield"
-version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "54f265bebf3cb08965dd848b2e2a60ed2c73e8b844bb40dea9b25b0f3461c77f"
 dependencies = [
  "hickory-resolver",
  "redis",
  "sqlx",
+]
+
+[[package]]
+name = "mailrs-shield"
+version = "1.0.1"
+dependencies = [
+ "criterion",
+ "hickory-resolver",
+ "redis",
+ "sqlx",
+ "tokio",
 ]
 
 [[package]]
@@ -2830,7 +2830,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-smtp-client"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "criterion",
  "hickory-resolver",
@@ -2852,7 +2852,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-smtp-proto"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "base64",
  "criterion",

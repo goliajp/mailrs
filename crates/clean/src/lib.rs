@@ -1,3 +1,6 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+
 //! Email content cleanup primitives — HTML → readable text + sender heuristics.
 //!
 //! Four entry points cover what a mail client / inbound pipeline
@@ -45,14 +48,25 @@ const FOOTER_KEYWORDS: &[&str] = &[
     "if you no longer", "to stop receiving",
 ];
 
-/// result of html cleaning
+/// Result of [`clean_email_html`].
+///
+/// The cleaned text plus signals the caller can fold into a spam / importance score.
 pub struct CleanResult {
+    /// Plain text rendering of the cleaned HTML (tracking removed, footer
+    /// chrome stripped, paragraphs preserved).
     pub clean_text: String,
+    /// `true` when at least one tracking pixel was detected and stripped.
     pub has_tracking_pixel: bool,
+    /// `true` when the HTML looked like a marketing template (heavy on
+    /// inline styles, hidden divs, table-based layout).
     pub is_template_heavy: bool,
+    /// Number of `<a>` tags in the original HTML.
     pub link_count: usize,
+    /// Number of `<img>` tags in the original HTML.
     #[allow(dead_code)]
     pub image_count: usize,
+    /// Ratio of plain-text bytes to total HTML bytes — useful for spotting
+    /// emails that are mostly chrome.
     #[allow(dead_code)]
     pub text_to_html_ratio: f32,
 }

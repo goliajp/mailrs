@@ -4,7 +4,6 @@
 [![docs.rs](https://img.shields.io/docsrs/mailrs-smtp-proto?style=flat-square&logo=docs.rs)](https://docs.rs/mailrs-smtp-proto)
 [![License](https://img.shields.io/crates/l/mailrs-smtp-proto?style=flat-square)](#license)
 [![Downloads](https://img.shields.io/crates/d/mailrs-smtp-proto?style=flat-square)](https://crates.io/crates/mailrs-smtp-proto)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue?style=flat-square)](https://www.rust-lang.org)
 
 **English** | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
 

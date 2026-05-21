@@ -23,12 +23,16 @@ pub enum Command<'a> {
     Helo(&'a str),
     /// `MAIL FROM:<reverse-path> [params]` — open a mail transaction.
     MailFrom {
+        /// Reverse path (envelope sender).
         path: ReversePath<'a>,
+        /// ESMTP parameters (SIZE, AUTH, BODY, etc).
         params: Vec<Param<'a>>,
     },
     /// `RCPT TO:<forward-path> [params]` — add a recipient.
     RcptTo {
+        /// Forward path (envelope recipient).
         path: ForwardPath<'a>,
+        /// ESMTP parameters (NOTIFY, ORCPT, etc).
         params: Vec<Param<'a>>,
     },
     /// `DATA` — begin message body input.
@@ -47,7 +51,9 @@ pub enum Command<'a> {
     StartTls,
     /// `AUTH <mechanism> [initial-response]` — start SASL authentication.
     Auth {
+        /// SASL mechanism the client wants to use.
         mechanism: AuthMechanism,
+        /// Optional initial client response (base64-encoded SASL payload).
         initial_response: Option<&'a str>,
     },
     /// Continuation line during an in-progress AUTH challenge.

@@ -1,3 +1,6 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+
 //! Outbound SMTP client primitives: MX resolution, DANE/STARTTLS, response parsing.
 //!
 //! `mailrs-smtp-client` is the send-side counterpart to [`mailrs-smtp-proto`].
@@ -63,9 +66,15 @@
 //! [`mailrs-smtp-proto`]: https://crates.io/crates/mailrs-smtp-proto
 //! [mailrs]: https://github.com/goliajp/mailrs
 
+/// `SmtpConnection` — async TLS / STARTTLS connection state machine + timeouts.
 pub mod connection;
+/// RFC 7672 DANE (DNS-Based Authentication of Named Entities): TLSA record
+/// lookup + TLS verification config.
 pub mod dane;
+/// MX record lookup + priority sorting + `fallback_to_domain` for
+/// MX-less destinations.
 pub mod mx;
+/// RFC 5321 multi-line response parser (`250-XXX` continuation lines).
 pub mod response;
 
 pub use connection::{SmtpConnection, TimeoutConfig};

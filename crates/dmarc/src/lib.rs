@@ -1,3 +1,6 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+
 //! DMARC aggregate report tooling (RFC 7489).
 //!
 //! `mailrs-dmarc` covers the parts of RFC 7489 §12 that aren't already
@@ -54,11 +57,17 @@ use async_trait::async_trait;
 /// One verified DMARC result, recorded per inbound message.
 #[derive(Debug, Clone)]
 pub struct DmarcResultRecord {
+    /// Client-IP that delivered the message.
     pub source_ip: String,
+    /// Domain in the `From:` header.
     pub from_domain: String,
+    /// SPF verification result (`pass` / `fail` / `softfail` / `neutral` / `none`).
     pub spf_result: String,
+    /// DKIM verification result (`pass` / `fail` / `neutral` / `none`).
     pub dkim_result: String,
+    /// DMARC alignment + policy result (`pass` / `fail`).
     pub dmarc_result: String,
+    /// Action taken (`none` / `quarantine` / `reject`).
     pub disposition: String,
 }
 
@@ -69,6 +78,7 @@ pub struct DmarcResultRecord {
 /// pipeline and the daily report task.
 #[async_trait]
 pub trait DmarcStore: Send + Sync {
+    /// Backend-specific error type returned by every trait method.
     type Error: std::fmt::Debug + Send;
 
     /// Append a verified result. Called per-message during inbound.
@@ -114,6 +124,8 @@ mod pg {
     }
 
     impl PgDmarcStore {
+        /// Construct a [`PgDmarcStore`] from an existing pool. The caller
+        /// owns the pool lifecycle.
         pub fn new(pool: PgPool) -> Self {
             Self { pool }
         }
