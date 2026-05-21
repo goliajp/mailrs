@@ -12,13 +12,19 @@ use crate::queue::{self, QueuedMessage};
 use crate::retry::{retry_delay_secs, should_bounce};
 use crate::{DeliveryEvent, DeliveryEventSender};
 
-/// delivery worker configuration
+/// Delivery worker configuration.
 #[derive(Debug, Clone)]
 pub struct WorkerConfig {
+    /// Polling cadence when no Valkey notify wakeup is available.
     pub poll_interval_secs: u64,
+    /// Max queue rows fetched per poll tick.
     pub batch_size: u32,
+    /// Cap on retry attempts before a row flips to `Bounced`.
     pub max_attempts: u32,
+    /// Max concurrent destination domains delivered in parallel.
     pub max_concurrent_domains: usize,
+    /// Max messages reused on a single SMTP connection (RFC 5321
+    /// recommends pipelining).
     pub max_messages_per_connection: usize,
 }
 
@@ -56,6 +62,7 @@ pub struct DeliveryWorker {
 }
 
 impl DeliveryWorker {
+    /// Construct a delivery worker with the given config + dependencies.
     pub fn new(
         config: WorkerConfig,
         pool: PgPool,
@@ -79,21 +86,25 @@ impl DeliveryWorker {
         }
     }
 
+    /// Configure DKIM signing for outbound messages.
     pub fn with_dkim(mut self, dkim: DkimSignConfig) -> Self {
         self.dkim = Some(dkim);
         self
     }
 
+    /// Attach a [`DeliveryEventSender`] callback for external observers.
     pub fn with_event_sender(mut self, sender: DeliveryEventSender) -> Self {
         self.event_sender = Some(sender);
         self
     }
 
+    /// Set the Valkey URL to subscribe to `queue:notify` for fast wakeup.
     pub fn with_valkey(mut self, url: String) -> Self {
         self.valkey_url = Some(url);
         self
     }
 
+    /// Run the worker loop until `shutdown` signals.
     pub async fn run(&self, mut shutdown: tokio::sync::watch::Receiver<bool>) {
         tracing::info!("delivery worker started (poll_interval={}s)", self.config.poll_interval_secs);
 

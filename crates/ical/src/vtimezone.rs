@@ -31,6 +31,7 @@ pub enum ResolvedTz {
     Custom(Vec<TzTransition>),
 }
 
+/// One DST transition point inside a custom `Resolved::Custom(_)` schedule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TzTransition {
     /// Local wall-clock time when this offset becomes effective.

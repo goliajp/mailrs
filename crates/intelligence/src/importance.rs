@@ -7,14 +7,20 @@
 /// Importance level for a message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImportanceLevel {
+    /// Score ≥ 0.8 — surface prominently.
     Critical,
+    /// Score 0.5-0.8 — important.
     Important,
+    /// Score 0.2-0.5 — normal inbox priority.
     Normal,
+    /// Score 0.0-0.2 — low priority (newsletters, notifications).
     Low,
+    /// Score < 0 — noise; safe to demote / archive.
     Noise,
 }
 
 impl ImportanceLevel {
+    /// Lower-snake-case rendering for serialization.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Critical => "critical",
@@ -25,6 +31,7 @@ impl ImportanceLevel {
         }
     }
 
+    /// Bucket a numeric score into a level. Score is expected in `[-0.5, 1.0]`.
     pub fn from_score(score: f32) -> Self {
         if score >= 0.8 {
             Self::Critical
@@ -43,18 +50,31 @@ impl ImportanceLevel {
 /// Signals contributing to the importance score.
 #[derive(Debug, Clone)]
 pub struct ImportanceSignals {
+    /// Sender has been emailed by the user before (mutual relationship).
     pub is_mutual_contact: bool,
+    /// User is in `To:` (not `Cc:` or `Bcc:`).
     pub is_direct_recipient: bool,
+    /// Message references one the user previously sent.
     pub is_reply_to_my_email: bool,
+    /// LLM analysis surfaced one or more action items.
     pub has_action_items: bool,
+    /// Sender is on the user's explicit VIP list.
     pub is_vip_sender: bool,
+    /// `List-*` headers indicate mailing-list / bulk traffic.
     pub is_bulk_sender: bool,
+    /// Specifically a mailing-list message (List-Id present).
     pub is_mailing_list: bool,
+    /// Sender local-part matches `no-reply@` / `notification@` / etc.
     pub is_automated: bool,
+    /// Tracking pixel was found in the body.
     pub has_tracking_pixel: bool,
+    /// HTML is mostly chrome — table layout, lots of inline styles.
     pub is_template_heavy: bool,
+    /// Ratio of plain-text bytes to total HTML bytes.
     pub text_to_html_ratio: f32,
+    /// Count of `<a>` tags in the body.
     pub link_count: usize,
+    /// Manual per-contact bias from the user's address book.
     pub contact_importance_bias: f32,
 }
 

@@ -2545,7 +2545,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-ical"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -2562,7 +2562,7 @@ checksum = "2b4c6e0d33b089b538e5e4848f2803f10c2133ae30595ccf222b2d8408a10f1b"
 
 [[package]]
 name = "mailrs-imap-proto"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "criterion",
 ]
@@ -2585,7 +2585,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-intelligence"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "async-trait",
  "criterion",
@@ -2678,7 +2678,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "async-trait",
  "chrono",

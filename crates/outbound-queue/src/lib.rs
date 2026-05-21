@@ -1,3 +1,5 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 //! Outbound mail queue primitives: DKIM signing, DSN generation, MTA-STS
 //! lookup, retry/backoff, plus a pluggable store trait and a Postgres
@@ -44,15 +46,23 @@
 
 use std::sync::Arc;
 
+/// DKIM signing helpers (RFC 6376): config + sign-and-prepend.
 pub mod dkim_sign;
+/// Delivery Status Notification (RFC 3464) formatting.
 pub mod dsn;
+/// MTA-STS (RFC 8461) policy lookup + caching.
 pub mod mta_sts;
+/// Queue row type, status enum, and retry-attempt bookkeeping.
 pub mod queue;
+/// Exponential-backoff retry math + "is it permanent?" classifier.
 pub mod retry;
+/// Pluggable [`QueueStore`] trait + an in-memory reference impl.
 pub mod store;
 
+/// Postgres-backed [`QueueStore`] implementation (feature-gated).
 #[cfg(feature = "pg")]
 pub mod pg_store;
+/// Async delivery worker that drains the queue + dispatches via SMTP (feature-gated).
 #[cfg(feature = "pg")]
 pub mod worker;
 
@@ -73,18 +83,37 @@ pub use worker::{DeliveryWorker, WorkerConfig, group_by_domain};
 #[derive(Debug, Clone)]
 pub enum DeliveryEvent {
     /// A delivery attempt is starting for `queue_id` targeting `domain`.
-    Attempt { queue_id: i64, domain: String },
+    Attempt {
+        /// Queue row id being attempted.
+        queue_id: i64,
+        /// Destination domain for this attempt.
+        domain: String,
+    },
     /// The message was accepted by the remote MX.
-    Success { queue_id: i64, domain: String },
+    Success {
+        /// Queue row id that just succeeded.
+        queue_id: i64,
+        /// Destination domain that accepted the message.
+        domain: String,
+    },
     /// A delivery attempt failed; the message is rescheduled for retry.
     Failed {
+        /// Queue row id that failed this attempt.
         queue_id: i64,
+        /// Destination domain that was attempted.
         domain: String,
+        /// Human-readable error from the SMTP client (typically the
+        /// remote's response text).
         error: String,
     },
     /// The message bounced permanently and will not be retried; a DSN was
     /// queued back to the original `sender`.
-    Bounced { queue_id: i64, sender: String },
+    Bounced {
+        /// Queue row id that bounced.
+        queue_id: i64,
+        /// Original envelope sender — the DSN gets queued back to them.
+        sender: String,
+    },
 }
 
 /// Callback channel for [`DeliveryEvent`] notifications. Wrapped in `Arc` so

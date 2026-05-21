@@ -6,11 +6,14 @@ use mail_auth::{AuthenticatedMessage, AuthenticationResults, MessageAuthenticato
 use rustls_pki_types::pem::PemObject;
 use rustls_pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
 
-/// DKIM signing configuration
+/// DKIM signing configuration.
 #[derive(Debug, Clone)]
 pub struct DkimSignConfig {
+    /// DKIM selector — the label under `<selector>._domainkey.<domain>`.
     pub selector: String,
+    /// Signing domain (matches the `d=` tag in the DKIM-Signature header).
     pub domain: String,
+    /// Private RSA key in PKCS#8 PEM form.
     pub private_key_pem: String,
 }
 

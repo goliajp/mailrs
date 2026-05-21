@@ -1,82 +1,120 @@
 use serde::{Deserialize, Serialize};
 
-/// structured data extracted from email HTML (Schema.org JSON-LD)
+/// Structured data extracted from email HTML (Schema.org JSON-LD).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StructuredData {
+    /// Travel / hotel / restaurant reservations.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub reservations: Vec<Reservation>,
+    /// E-commerce orders / receipts.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub orders: Vec<Order>,
+    /// Events the message is RSVP'ing to or announcing.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub events: Vec<EventInfo>,
+    /// Schema.org Action handles (`confirm` / `view` / `track` / `rsvp` URLs).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub actions: Vec<ActionInfo>,
 }
 
+/// One reservation (flight, hotel, restaurant, rental car, etc).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Reservation {
+    /// Reservation kind: `flight` / `hotel` / `restaurant` / `rental_car`.
     #[serde(rename = "type")]
-    pub kind: String, // flight, hotel, restaurant, rental_car
+    pub kind: String,
+    /// Display name (hotel name, restaurant name, etc).
     pub name: Option<String>,
+    /// Reservation confirmation code.
     pub reservation_id: Option<String>,
+    /// Status string (`confirmed` / `cancelled` / `pending`).
     pub status: Option<String>,
+    /// ISO-8601 start date / time.
     pub start_date: Option<String>,
+    /// ISO-8601 end date / time.
     pub end_date: Option<String>,
+    /// Location (address / city / airport).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<String>,
+    /// Provider / brand (airline, hotel chain, etc).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
-    // flight-specific
+    /// IATA code or name of the departure airport (flight only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub departure_airport: Option<String>,
+    /// IATA code or name of the arrival airport (flight only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arrival_airport: Option<String>,
+    /// Flight number (flight only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flight_number: Option<String>,
 }
 
+/// One e-commerce order / receipt.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Order {
+    /// Merchant-assigned order number.
     pub order_number: Option<String>,
+    /// Merchant / seller name.
     pub merchant: Option<String>,
+    /// ISO-8601 date the order was placed.
     pub order_date: Option<String>,
+    /// Status string (`placed` / `shipped` / `delivered` / ...).
     pub status: Option<String>,
+    /// Line items.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub items: Vec<OrderItem>,
+    /// Total amount as a string (no parsing — keep original currency formatting).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total: Option<String>,
+    /// Currency code (ISO 4217).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
 }
 
+/// One line item inside an [`Order`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderItem {
+    /// Item name.
     pub name: String,
+    /// Quantity ordered, if specified.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quantity: Option<u32>,
+    /// Per-item price as a string.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub price: Option<String>,
 }
 
+/// One event referenced in the message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventInfo {
+    /// Event name.
     pub name: String,
+    /// ISO-8601 start date / time.
     pub start_date: Option<String>,
+    /// ISO-8601 end date / time.
     pub end_date: Option<String>,
+    /// Location string.
     pub location: Option<String>,
+    /// Detail URL (registration page, etc).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
 }
 
+/// Schema.org Action handle ("View Booking", "Track Package", ...).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionInfo {
+    /// Action kind (`confirm` / `view` / `track` / `rsvp`).
     #[serde(rename = "type")]
-    pub kind: String, // confirm, view, track, rsvp
+    pub kind: String,
+    /// Action display name.
     pub name: String,
+    /// Target URL.
     pub url: Option<String>,
 }
 
 impl StructuredData {
+    /// `true` when no structured data was extracted from the message.
     pub fn is_empty(&self) -> bool {
         self.reservations.is_empty()
             && self.orders.is_empty()

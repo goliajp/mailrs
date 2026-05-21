@@ -6,14 +6,20 @@ use sqlx::PgPool;
 /// Lifecycle status of a queued message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QueueStatus {
+    /// Awaiting first delivery attempt.
     Pending,
+    /// Currently being delivered by a worker.
     InFlight,
+    /// Successfully accepted by the remote MX.
     Delivered,
+    /// Last attempt failed; will retry per backoff schedule.
     Failed,
+    /// Permanent failure; will NOT retry. A DSN has been queued back.
     Bounced,
 }
 
 impl QueueStatus {
+    /// Lower-snake-case rendering for SQL persistence.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Pending => "pending",
@@ -24,6 +30,7 @@ impl QueueStatus {
         }
     }
 
+    /// Inverse of [`Self::as_str`]; `None` on unknown values.
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(Self::Pending),
@@ -36,21 +43,38 @@ impl QueueStatus {
     }
 }
 
+/// One queued outbound message — the full row stored in the outbound queue.
 #[derive(Debug, Clone)]
 pub struct QueuedMessage {
+    /// Store-native primary key.
     pub id: i64,
+    /// Envelope sender (reverse path).
     pub sender: String,
+    /// Envelope recipient (single forward path; multi-recipient messages
+    /// fan out into one row per recipient).
     pub recipient: String,
+    /// Recipient's domain — extracted for MX-grouped batching.
     pub domain: String,
+    /// Full RFC 5322 message body (including headers).
     pub message_data: Vec<u8>,
+    /// Current lifecycle status.
     pub status: QueueStatus,
+    /// Number of delivery attempts made so far.
     pub attempts: u32,
+    /// Cap after which `Failed` flips to `Bounced`.
     pub max_attempts: u32,
+    /// Epoch seconds — the earliest time the next attempt is eligible.
     pub next_retry: i64,
+    /// Last error response from the remote MX, if any.
     pub last_error: Option<String>,
+    /// `Message-ID:` header value, for log correlation.
     pub message_id: Option<String>,
+    /// Epoch seconds when the row was first enqueued.
     pub created_at: i64,
+    /// Epoch seconds of the most recent update.
     pub updated_at: i64,
+    /// `true` when the message came from a forwarding rule rather than a
+    /// local sender.
     pub is_forwarded: bool,
 }
 

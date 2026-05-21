@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-intelligence"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 description = "LLM-powered email analysis primitives: structured extraction, importance scoring, spam classification, and embeddings — with a pluggable LlmProvider trait and an OpenAI-compatible reference implementation."
 license = "Apache-2.0 OR MIT"
