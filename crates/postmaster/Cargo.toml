@@ -24,7 +24,7 @@ serde = { version = "1", features = ["derive"] }
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }
 serde_json = "1"
-criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 
 [[bench]]
 name = "checks"

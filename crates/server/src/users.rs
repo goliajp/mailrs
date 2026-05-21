@@ -40,7 +40,7 @@ impl UserStore {
     }
 
     /// create a user store from plaintext username/password pairs (for testing)
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn from_plain_passwords(pairs: Vec<(String, String)>) -> Self {
         let users = pairs
             .into_iter()
