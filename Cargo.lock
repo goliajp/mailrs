@@ -2569,7 +2569,7 @@ checksum = "aa705f3440883f0ae5ef0c4a64d13a2d7c20d3373c9efed8946b7b29ac174acb"
 
 [[package]]
 name = "mailrs-inbound"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "tokio",
