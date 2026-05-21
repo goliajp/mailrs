@@ -2260,18 +2260,6 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dav"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b0dbcc5069406fa3f97bb4023173a70be6960c38b4d672fbe20c0a985242fe5"
-dependencies = [
- "async-trait",
- "chrono",
- "hex",
- "sha2 0.11.0",
-]
-
-[[package]]
-name = "mailrs-dav"
 version = "1.0.3"
 dependencies = [
  "async-trait",
@@ -2280,6 +2268,18 @@ dependencies = [
  "hex",
  "sha2 0.11.0",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-dav"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ce8abb6baade8b6dfe4b5bf0af4cbaf7cf20e884a262c2a38f9253ff18d533d"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "hex",
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -2522,7 +2522,7 @@ dependencies = [
  "mail-auth",
  "mail-parser",
  "mailrs-clean 1.0.0",
- "mailrs-dav 1.0.2",
+ "mailrs-dav 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dmarc 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.0",
  "mailrs-imap-proto 1.0.0",
