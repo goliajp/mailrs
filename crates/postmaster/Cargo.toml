@@ -2,7 +2,6 @@
 name = "mailrs-postmaster"
 version = "1.0.0"
 edition = "2024"
-rust-version = "1.85"
 description = "Email-domain DNS health checks: MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, BIMI, DANE, PTR — async, zero I/O outside the resolver."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"

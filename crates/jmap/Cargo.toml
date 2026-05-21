@@ -2,7 +2,6 @@
 name = "mailrs-jmap"
 version = "1.0.3"
 edition = "2024"
-rust-version = "1.85"
 description = "JMAP (RFC 8620 + RFC 8621) server-side dispatcher and method handlers — framework-agnostic, BYO mail store via the MailStore trait."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"

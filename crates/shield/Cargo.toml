@@ -2,7 +2,6 @@
 name = "mailrs-shield"
 version = "1.0.0"
 edition = "2024"
-rust-version = "1.85"
 description = "SMTP anti-spam primitives: DNS blocklist (DNSBL) queries, greylisting policy with optional Redis store, and PTR / forward-confirmed reverse DNS (FCrDNS) checks."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"

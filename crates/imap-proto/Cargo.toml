@@ -2,7 +2,6 @@
 name = "mailrs-imap-proto"
 version = "1.0.1"
 edition = "2024"
-rust-version = "1.85"
 description = "IMAP4rev1 protocol parser, response formatter, and sequence-set helpers (RFC 3501) — zero I/O."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"

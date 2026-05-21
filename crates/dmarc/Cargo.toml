@@ -2,7 +2,6 @@
 name = "mailrs-dmarc"
 version = "1.0.0"
 edition = "2024"
-rust-version = "1.85"
 description = "DMARC (RFC 7489) aggregate report generation: result recording, XML report builder, report-mail formatter, rua extraction. Pluggable store trait with a Postgres reference impl."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"
