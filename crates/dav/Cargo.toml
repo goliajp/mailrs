@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-dav"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2024"
 rust-version = "1.85"
 description = "CalDAV (RFC 4791) and CardDAV (RFC 6352) server-side handlers — framework-agnostic, BYO data layer via the CalendarStore / AddressBookStore traits."
@@ -28,4 +28,8 @@ criterion = { version = "0.7", default-features = false, features = ["cargo_benc
 
 [[bench]]
 name = "dav"
+harness = false
+
+[[bench]]
+name = "handlers"
 harness = false

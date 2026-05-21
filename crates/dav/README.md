@@ -127,6 +127,33 @@ The store impl is yours. The [mailrs] server wraps its `sqlx::PgPool` in a thin 
 
 The fixtures (`InMemoryCalendarStore` / `InMemoryAddressBookStore`) implement both store traits faithfully — same return contracts as a real backend, with per-method error injection so each failure path can be exercised in isolation. Useful as a reference test harness for downstream consumers building their own CalDAV / CardDAV store.
 
+## Benchmarks
+
+`1.0.3` ships **21 criterion benchmarks** in two suites — pure-helper microbenchmarks plus async handler benchmarks against inline in-memory stores. Useful both as a regression baseline and as a quick way to compare your own store impl's overhead against the handler floor.
+
+`benches/dav.rs` — sync helpers + composition paths:
+
+- `etag_of` / `xml_escape_*` — SHA-256 digest + entity escaping
+- `extract_ical_field` / `extract_ical_datetime` — iCalendar field scrapers
+- `extract_multiget_uids_3` — REPORT body UID extraction
+- `principal_propfind_*` — discovery handler (sync, no store)
+- `multistatus_wrap_*` — envelope wrap on small / 20-entry / 200-entry inner bodies
+- `etag_of_*` — etag computation across 60 B / 4 KB payloads
+
+`benches/handlers.rs` — async handlers against minimal in-memory stores:
+
+- `calendar_home_propfind_depth_1` — first-sync hit, lists all calendars
+- `calendar_propfind_depth_1_50_events` — etag listing of 50 events
+- `calendar_report_multiget_50` — REPORT with `calendar-data` for 50 events
+- `event_put_new_no_preconditions` — etag computation + store write
+- `addressbook_home_propfind_depth_1` / `addressbook_propfind_depth_1_50_contacts`
+- `addressbook_report_multiget_50` — `address-data` inline for 50 contacts
+- `contact_put_new_no_preconditions`
+
+GET and DELETE handlers are intentionally not benched — they're a tight match between the handler and a single store call, with no interesting variation to measure. PROPFIND, REPORT, and PUT are where the multistatus / etag composition work happens.
+
+Run with `cargo bench -p mailrs-dav`.
+
 ## Roadmap
 
 `1.0` is the minimum viable surface — enough to drive Apple Calendar / Contacts, Thunderbird, DAVx⁵, and other mainstream clients for read + write of events and contacts. Items planned for `1.x`, in rough priority:
