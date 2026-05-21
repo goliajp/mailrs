@@ -24,11 +24,15 @@ critical line between the client's `.\r\n` and the 250/451/550 response.
 | `build_auth_header` (with reason) | 20 µs | ~1.3 µs | ~15× | Extra `reason="..."` write |
 | `format_auth_results_header` | 20 µs | ~0.7 µs | ~30× | Bare value + `Authentication-Results: ` prefix |
 | `ReceiveContext::to_pipeline_input` | 5 µs | ~125 ns | ~30× | Clones AuthResults + rules + hostname per message |
+| `Pipeline::run` (dispatch only, 4 noop stages) | 100 µs | ~3 µs | ~30× | Framework cost of async dispatch + final decision call. Real stages' I/O is not in this budget. |
 
-`Pipeline::run` itself is not gated — it dispatches dynamic `Stage` impls
-whose cost is owned by the downstream stage (DNS resolver, ClamAV TCP,
-LLM API), not by this crate. The stages' costs are out of process /
-network-bound and live outside this budget table.
+Real-world `Pipeline::run` cost is dominated by the stage backends (DNS
+resolver, ClamAV TCP, LLM API) which are owned by the downstream
+consumer, not by this crate. The dispatch-overhead gate above measures
+*only* the framework's own cost using noop stages, so regressions in
+the framework itself (e.g. allocating per-stage on the hot path, adding
+a global mutex) get caught even though real stages' I/O is out of
+scope.
 
 ## Methodology
 

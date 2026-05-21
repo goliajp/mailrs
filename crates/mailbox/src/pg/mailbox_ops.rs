@@ -38,6 +38,8 @@ impl PgMailboxStore {
         })
     }
 
+    /// Look up a mailbox by owner address and name. Returns `None` if no
+    /// such mailbox exists.
     pub async fn get_mailbox(
         &self,
         user: &str,
@@ -62,6 +64,8 @@ impl PgMailboxStore {
         }))
     }
 
+    /// Look up a mailbox by its primary key. Returns `None` if no such
+    /// mailbox exists.
     pub async fn get_mailbox_by_id(&self, id: i64) -> Result<Option<Mailbox>, sqlx::Error> {
         let row = sqlx::query_as::<_, (i64, String, String, i32, i32, i64)>(
             "SELECT id, user_address, name, uidvalidity, uidnext, highest_modseq
@@ -81,6 +85,7 @@ impl PgMailboxStore {
         }))
     }
 
+    /// List every mailbox owned by `user`, ordered by name.
     pub async fn list_mailboxes(&self, user: &str) -> Result<Vec<Mailbox>, sqlx::Error> {
         let rows = sqlx::query_as::<_, (i64, String, String, i32, i32, i64)>(
             "SELECT id, user_address, name, uidvalidity, uidnext, highest_modseq
@@ -103,6 +108,8 @@ impl PgMailboxStore {
             .collect())
     }
 
+    /// Delete a mailbox and every message inside it. Returns `true` when a
+    /// mailbox row was removed.
     pub async fn delete_mailbox(&self, user: &str, name: &str) -> Result<bool, sqlx::Error> {
         // messages are CASCADE-deleted via FK, but be explicit
         sqlx::query(
@@ -123,6 +130,8 @@ impl PgMailboxStore {
         Ok(result.rows_affected() > 0)
     }
 
+    /// Rename a mailbox. Returns `true` when a matching mailbox was found
+    /// and renamed.
     pub async fn rename_mailbox(
         &self,
         user: &str,

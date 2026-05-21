@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-dmarc"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 description = "DMARC (RFC 7489) aggregate report generation: result recording, XML report builder, report-mail formatter, rua extraction. Pluggable store trait with a Postgres reference impl."
 license = "Apache-2.0 OR MIT"

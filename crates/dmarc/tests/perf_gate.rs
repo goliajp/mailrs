@@ -21,13 +21,15 @@ fn time_median<F: FnMut()>(mut op: F) -> Duration {
 
 fn sample_results(n: usize) -> Vec<DmarcResultRecord> {
     (0..n)
-        .map(|i| DmarcResultRecord {
-            source_ip: format!("192.0.2.{}", i % 255),
-            from_domain: format!("sender{}.example.com", i % 10),
-            spf_result: if i % 3 == 0 { "fail".into() } else { "pass".into() },
-            dkim_result: if i % 4 == 0 { "fail".into() } else { "pass".into() },
-            dmarc_result: "pass".into(),
-            disposition: "none".into(),
+        .map(|i| {
+            DmarcResultRecord::new(
+                format!("192.0.2.{}", i % 255),
+                format!("sender{}.example.com", i % 10),
+                if i % 3 == 0 { "fail" } else { "pass" },
+                if i % 4 == 0 { "fail" } else { "pass" },
+                "pass",
+                "none",
+            )
         })
         .collect()
 }

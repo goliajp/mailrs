@@ -226,12 +226,20 @@ pub struct MessageMeta {
 /// summary of a conversation thread
 #[derive(Debug, Clone)]
 pub struct ConversationSummary {
+    /// Stable thread identifier shared by every message in the conversation.
     pub thread_id: String,
+    /// Subject of the most recent message (or first message if subject lines diverge).
     pub subject: String,
+    /// Comma-separated list of distinct participant addresses across the thread.
     pub participants: String,
+    /// Total number of messages in the thread.
     pub message_count: u32,
+    /// Number of unread (no `FLAG_SEEN`) messages in the thread.
     pub unread_count: u32,
+    /// Epoch-seconds timestamp of the most recent message.
     pub last_date: i64,
+    /// Coarse category label inherited from the latest analysed message
+    /// (e.g. `personal`, `bulk`, `spam`).
     pub category: String,
     /// whether any message in the thread has FLAG_FLAGGED set
     pub flagged: bool,
@@ -259,28 +267,52 @@ pub struct ConversationSummary {
 /// AI analysis result stored in email_analysis table
 #[derive(Debug, Clone)]
 pub struct EmailAnalysisRow {
+    /// `messages.id` of the message this row describes.
     pub message_id: i64,
+    /// Coarse category label (e.g. `personal`, `work`, `bulk`, `spam`, `scam`).
     pub category: String,
+    /// Integer risk score on a `0..=100` scale.
     pub risk_score: i16,
+    /// Short human-readable justification for `risk_score`.
     pub risk_reason: String,
+    /// One- or two-sentence summary of the message body.
     pub summary: String,
+    /// JSON array of named entities (people) extracted from the message.
     pub people: serde_json::Value,
+    /// JSON array of date references extracted from the message.
     pub dates: serde_json::Value,
+    /// JSON array of monetary amounts extracted from the message.
     pub amounts: serde_json::Value,
+    /// JSON array of action items / tasks the message asks of the recipient.
     pub action_items: serde_json::Value,
+    /// Tag identifying the model that produced this row (used to detect
+    /// rows that need re-analysis when the model is upgraded).
     pub model_version: String,
+    /// Plain-text projection of the message body (HTML stripped, etc.).
     pub clean_text: String,
+    /// True when the analyser thinks the message asks the recipient to do
+    /// something.
     pub requires_action: bool,
+    /// Inferred sender intent (e.g. `inform`, `request`, `confirm`).
     pub sender_intent: String,
+    /// Optional ISO-8601 deadline string parsed from the message body.
     pub action_deadline: Option<String>,
 }
 
 // flag bitmask constants
+
+/// IMAP `\Seen` — the user has opened this message.
 pub const FLAG_SEEN: u32 = 0b0000_0001;
+/// IMAP `\Answered` — the user has sent a reply to this message.
 pub const FLAG_ANSWERED: u32 = 0b0000_0010;
+/// IMAP `\Flagged` — user-defined "starred" / important marker.
 pub const FLAG_FLAGGED: u32 = 0b0000_0100;
+/// IMAP `\Deleted` — message is marked for EXPUNGE on next sync.
 pub const FLAG_DELETED: u32 = 0b0000_1000;
+/// IMAP `\Draft` — message is a draft, not yet sent.
 pub const FLAG_DRAFT: u32 = 0b0001_0000;
+/// IMAP `\Recent` — set on first arrival, cleared after the first
+/// session that sees it. Not persisted across maildir round-trips.
 pub const FLAG_RECENT: u32 = 0b0010_0000;
 
 /// convert maildir flags to bitmask

@@ -2,12 +2,21 @@ use crate::pg::PgMailboxStore;
 
 /// contact info for importance scoring
 pub struct ContactInfo {
+    /// True when the user has sent at least one message to this contact
+    /// (i.e. the relationship is two-way).
     pub is_mutual: bool,
+    /// True when the contact is recognised as a mailing-list sender.
     pub is_mailing_list: bool,
+    /// True when the user has explicitly marked the contact as VIP.
     pub is_vip: bool,
+    /// True when the user has explicitly blocked the contact.
     pub is_blocked: bool,
+    /// Manual importance adjustment in `[-1.0, 1.0]` accumulated from
+    /// per-sender feedback (mark-important, mark-spam, etc.).
     pub importance_bias: f32,
+    /// Lifetime count of messages received from this contact.
     pub received_count: i32,
+    /// Lifetime count of messages sent to this contact.
     pub sent_count: i32,
 }
 

@@ -55,7 +55,30 @@ use std::io::Write;
 use async_trait::async_trait;
 
 /// One verified DMARC result, recorded per inbound message.
-#[derive(Debug, Clone)]
+///
+/// Two equivalent ways to construct one:
+///
+/// ```
+/// use mailrs_dmarc::DmarcResultRecord;
+/// // Fluent constructor — preferred for the canonical 6-field record.
+/// let r = DmarcResultRecord::new(
+///     "192.0.2.1", "example.com", "pass", "pass", "pass", "none",
+/// );
+/// # let _ = r;
+///
+/// // Struct literal — still supported, useful with partial values.
+/// let r = DmarcResultRecord {
+///     source_ip: "192.0.2.1".into(),
+///     ..Default::default()
+/// };
+/// # let _ = r;
+/// ```
+///
+/// **Forward-compatibility note:** this struct is not `#[non_exhaustive]`
+/// in 1.x to keep struct-literal call sites working. Future fields that
+/// don't fit the 6-field shape will arrive in a 2.0 release alongside
+/// `#[non_exhaustive]`.
+#[derive(Debug, Clone, Default)]
 pub struct DmarcResultRecord {
     /// Client-IP that delivered the message.
     pub source_ip: String,
@@ -69,6 +92,31 @@ pub struct DmarcResultRecord {
     pub dmarc_result: String,
     /// Action taken (`none` / `quarantine` / `reject`).
     pub disposition: String,
+}
+
+impl DmarcResultRecord {
+    /// Construct a [`DmarcResultRecord`] from the 6 canonical fields.
+    ///
+    /// Use this constructor in code outside the `mailrs-dmarc` crate
+    /// because [`DmarcResultRecord`] is `#[non_exhaustive]` and cannot
+    /// be built with struct-literal syntax from other crates.
+    pub fn new(
+        source_ip: impl Into<String>,
+        from_domain: impl Into<String>,
+        spf_result: impl Into<String>,
+        dkim_result: impl Into<String>,
+        dmarc_result: impl Into<String>,
+        disposition: impl Into<String>,
+    ) -> Self {
+        Self {
+            source_ip: source_ip.into(),
+            from_domain: from_domain.into(),
+            spf_result: spf_result.into(),
+            dkim_result: dkim_result.into(),
+            dmarc_result: dmarc_result.into(),
+            disposition: disposition.into(),
+        }
+    }
 }
 
 /// Pluggable storage for DMARC verification results.
