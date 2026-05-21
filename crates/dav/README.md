@@ -112,6 +112,21 @@ async fn calendar_route(
 
 The store impl is yours. The [mailrs] server wraps its `sqlx::PgPool` in a thin `DavAdapter` that bridges the schema's row types into `mailrs_dav::types` — about 250 LOC, worth a read as a reference implementation.
 
+## Tested
+
+`1.0.2` ships **117 tests** — 44 inline unit tests over the pure helpers (iCalendar / vCard scrapers, etag derivation, XML escaping, multistatus envelope, Depth parsing, multiget UID extraction, DavError → DavResponse mapping) and **73 protocol-level integration tests** that drive every handler entry point against in-memory `CalendarStore` / `AddressBookStore` impls:
+
+| Suite | Tests | Surface |
+| --- | ---: | --- |
+| `tests/principal.rs` | 5 | `principal_propfind` — discovery + supported-report-set + XML escaping |
+| `tests/caldav_collections.rs` | 13 | calendar home + collection PROPFIND + REPORT (multiget + query) |
+| `tests/caldav_resource.rs` | 15 | event GET / PUT / DELETE — etag preconditions, PUT → GET round-trip |
+| `tests/carddav_collections.rs` | 11 | address-book home + collection PROPFIND + REPORT |
+| `tests/carddav_resource.rs` | 13 | contact GET / PUT / DELETE |
+| `tests/store_error_propagation.rs` | 16 | every fallible store op → `DavError::ServerError` mapping |
+
+The fixtures (`InMemoryCalendarStore` / `InMemoryAddressBookStore`) implement both store traits faithfully — same return contracts as a real backend, with per-method error injection so each failure path can be exercised in isolation. Useful as a reference test harness for downstream consumers building their own CalDAV / CardDAV store.
+
 ## Roadmap
 
 `1.0` is the minimum viable surface — enough to drive Apple Calendar / Contacts, Thunderbird, DAVx⁵, and other mainstream clients for read + write of events and contacts. Items planned for `1.x`, in rough priority:
