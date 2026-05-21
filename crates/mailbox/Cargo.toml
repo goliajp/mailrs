@@ -2,7 +2,6 @@
 name = "mailrs-mailbox"
 version = "1.0.0"
 edition = "2024"
-rust-version = "1.85"
 description = "Mailbox metadata layer: PostgreSQL-backed message/thread store, flag operations, conversation views, and email-analysis projections for IMAP/JMAP servers."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"

@@ -2,7 +2,6 @@
 name = "mailrs-ical"
 version = "1.0.1"
 edition = "2024"
-rust-version = "1.85"
 description = "RFC 5545 (iCalendar) parser, serializer, and iTIP semantics — zero I/O, hand-rolled, with VTIMEZONE + RRULE support."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"

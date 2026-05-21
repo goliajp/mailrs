@@ -2,7 +2,6 @@
 name = "mailrs-maildir"
 version = "1.0.1"
 edition = "2024"
-rust-version = "1.85"
 description = "Maildir filesystem-format primitives: atomic delivery, directory scans, flag parsing — no IMAP/POP3 layer."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"
