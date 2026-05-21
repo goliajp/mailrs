@@ -1,8 +1,8 @@
-use crate::helpers::build_user_filter;
-use crate::store::MailboxStore;
+use crate::pg::helpers::build_user_filter;
+use crate::pg::PgMailboxStore;
 use crate::types::ConversationSummary;
 
-impl MailboxStore {
+impl PgMailboxStore {
     /// search conversations by subject or sender (ILIKE search)
     pub async fn search_conversations(
         &self,

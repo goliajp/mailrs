@@ -1,13 +1,7 @@
-use sqlx::PgPool;
-
-use crate::store::MailboxStore;
+use crate::pg::PgMailboxStore;
 use crate::types::Mailbox;
 
-impl MailboxStore {
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
-    }
-
+impl PgMailboxStore {
     /// create a mailbox, returns it if already exists
     pub async fn create_mailbox(&self, user: &str, name: &str) -> Result<Mailbox, sqlx::Error> {
         let uidvalidity = std::time::SystemTime::now()

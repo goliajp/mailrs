@@ -1,11 +1,11 @@
 use sqlx::PgPool;
 
-use crate::helpers::{extract_header_value, row_to_message_meta};
-use crate::store::MailboxStore;
+use crate::pg::helpers::{extract_header_value, row_to_message_meta};
+use crate::pg::PgMailboxStore;
 use crate::threading;
 use crate::types::MessageMeta;
 
-impl MailboxStore {
+impl PgMailboxStore {
     /// index a new message: assigns UID, inserts metadata, returns UID
     // 11 args mirror the messages-table columns the caller is already
     // computing from a parsed RFC 5322 message — wrapping them in a

@@ -1,5 +1,5 @@
 //! Smoke-level integration tests proving the testcontainers + sqlx + `init-schema.sql`
-//! setup works end-to-end against the public [`MailboxStore`] API.
+//! setup works end-to-end against the public [`PgMailboxStore`] API.
 //!
 //! These tests are intentionally lightweight — one or two per ops surface,
 //! enough to demonstrate the pattern. Bringing the test density up to
@@ -13,7 +13,7 @@
 mod common;
 
 use common::{seed_domain_account, seed_mailbox, setup_pg};
-use mailrs_mailbox::MailboxStore;
+use mailrs_mailbox::PgMailboxStore;
 
 const USER: &str = "alice@example.com";
 
@@ -41,7 +41,7 @@ async fn pg_container_starts_and_schema_applies() {
 async fn mailbox_store_new_constructs_from_pool() {
     let (_container, pool) = setup_pg().await;
 
-    let store = MailboxStore::new(pool.clone());
+    let store = PgMailboxStore::new(pool.clone());
 
     // Trivial assertion: the store hands the same pool back.
     assert!(
@@ -55,7 +55,7 @@ async fn count_messages_returns_zero_for_user_with_no_data() {
     let (_container, pool) = setup_pg().await;
     seed_domain_account(&pool, USER).await;
 
-    let store = MailboxStore::new(pool);
+    let store = PgMailboxStore::new(pool);
 
     assert_eq!(store.count_messages(USER).await, 0);
     assert_eq!(store.count_unseen(USER).await, 0);
@@ -101,7 +101,7 @@ async fn flag_ops_update_round_trip_via_real_pg() {
     .await
     .unwrap();
 
-    let store = MailboxStore::new(pool.clone());
+    let store = PgMailboxStore::new(pool.clone());
 
     // add_flags bumps flags via OR; verify the bit is set after.
     let modseq = store.add_flags(mailbox_id, 1, 1).await.unwrap();

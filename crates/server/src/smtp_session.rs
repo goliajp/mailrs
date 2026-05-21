@@ -52,7 +52,7 @@ pub struct ConnectionContext {
     pub greylist_config: GreylistConfig,
     pub mail_authenticator: Option<Arc<MessageAuthenticator>>,
     pub spam_score_threshold: f64,
-    pub mailbox_store: Option<Arc<mailrs_mailbox::MailboxStore>>,
+    pub mailbox_store: Option<Arc<mailrs_mailbox::PgMailboxStore>>,
     pub smuggle_protection: SmuggleProtection,
     pub auth_guard: Arc<AuthGuard>,
     pub domain_store: Option<Arc<DomainStore>>,
@@ -1342,7 +1342,7 @@ fn is_local_domain(domain: &str, local_domains: &[String]) -> bool {
 /// async post-delivery processing: contact upsert, content extraction, importance scoring, BIMI
 #[allow(clippy::too_many_arguments)]
 async fn post_delivery_process(
-    mb_store: &mailrs_mailbox::MailboxStore,
+    mb_store: &mailrs_mailbox::PgMailboxStore,
     user: &str,
     sender: &str,
     maildir_id: &str,

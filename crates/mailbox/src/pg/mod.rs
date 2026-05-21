@@ -1,0 +1,58 @@
+//! PostgreSQL reference implementation of [`MailboxStore`](crate::store::MailboxStore).
+//!
+//! [`PgMailboxStore`] satisfies the portable [`MailboxStore`] trait AND exposes
+//! a set of mailrs-specific inherent methods (PG-EXT) for product features that
+//! are not part of the portable contract: thread-level UI state (pin / archive
+//! / snooze), email-analysis annotations, contact tracking, semantic search,
+//! HTML / preview content projections.
+//!
+//! Programs that want to be store-agnostic should program against
+//! [`&dyn MailboxStore`](crate::store::MailboxStore). Programs that need the
+//! mailrs-specific features take `&PgMailboxStore` directly. README documents
+//! the split.
+
+mod analysis_ops;
+mod attachment_ops;
+mod contact_ops;
+mod flag_ops;
+pub(crate) mod helpers;
+mod mailbox_ops;
+mod message_ops;
+mod search_ops;
+mod thread_ops;
+mod usage_ops;
+
+use sqlx::PgPool;
+
+/// PostgreSQL-backed mailbox metadata store.
+///
+/// Wraps a [`sqlx::PgPool`] and implements [`MailboxStore`](crate::store::MailboxStore)
+/// plus a number of mailrs-specific inherent methods. See the module docs for
+/// the trait / PG-EXT distinction.
+pub struct PgMailboxStore {
+    pub(crate) pool: PgPool,
+}
+
+impl PgMailboxStore {
+    /// Construct from an existing connected pool. The caller owns the pool
+    /// lifecycle; `PgMailboxStore` does not close it on drop. Schema setup
+    /// (running `init-schema.sql`) is the caller's responsibility.
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
+    /// Borrow the underlying connection pool. Useful when downstream code
+    /// wants to run additional queries against the same connection.
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+}
+
+// Re-export PG-EXT public types so callers reach them via
+// `mailrs_mailbox::pg::{ContactInfo, EmailAnalysisInput}`.
+pub use crate::pg::analysis_ops::EmailAnalysisInput;
+pub use crate::pg::contact_ops::ContactInfo;
+
+// NOTE: `impl MailboxStore for PgMailboxStore` is added in stage 2b together
+// with server adaptation. Keeping them in lockstep avoids the complexity of
+// maintaining both MessageMeta and Message conversion paths during 2a.

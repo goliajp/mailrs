@@ -1,4 +1,4 @@
-use crate::store::MailboxStore;
+use crate::pg::PgMailboxStore;
 
 /// contact info for importance scoring
 pub struct ContactInfo {
@@ -11,7 +11,7 @@ pub struct ContactInfo {
     pub sent_count: i32,
 }
 
-impl MailboxStore {
+impl PgMailboxStore {
     /// upsert a contact on inbound email (received from sender)
     pub async fn upsert_contact_inbound(
         &self,

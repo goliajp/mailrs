@@ -4,7 +4,7 @@ use tokio::sync::mpsc;
 
 use mailrs_intelligence::analyze;
 use mailrs_intelligence::provider::LlmProvider;
-use mailrs_mailbox::{EmailAnalysisInput, MailboxStore};
+use mailrs_mailbox::{EmailAnalysisInput, PgMailboxStore};
 
 use crate::event_bus::{EventBus, SmtpEvent};
 use crate::message_util;
@@ -14,7 +14,7 @@ type Job = (i64, String, String, String, String); // (msg_id, user, maildir_id, 
 /// spawn the email analyzer — single serial queue, new emails pushed to front
 pub fn spawn_analyzer(
     provider: Arc<dyn LlmProvider>,
-    mailbox_store: Arc<MailboxStore>,
+    mailbox_store: Arc<PgMailboxStore>,
     event_bus: EventBus,
     maildir_root: String,
 ) {
@@ -39,7 +39,7 @@ pub fn spawn_analyzer(
 /// single serial worker
 async fn worker(
     provider: Arc<dyn LlmProvider>,
-    store: Arc<MailboxStore>,
+    store: Arc<PgMailboxStore>,
     maildir_root: String,
     mut new_rx: mpsc::UnboundedReceiver<Job>,
 ) {
@@ -89,7 +89,7 @@ async fn worker(
 #[allow(clippy::too_many_arguments)]
 async fn process_one(
     provider: &dyn LlmProvider,
-    store: &MailboxStore,
+    store: &PgMailboxStore,
     maildir_root: &str,
     (msg_id, user, maildir_id, sender, subject): Job,
     model_version: &str,
@@ -121,7 +121,7 @@ async fn process_one(
 
 /// listen for new messages and enqueue
 async fn listen_new_messages(
-    store: Arc<MailboxStore>,
+    store: Arc<PgMailboxStore>,
     event_bus: EventBus,
     tx: mpsc::UnboundedSender<Job>,
     model_version: String,
@@ -148,7 +148,7 @@ async fn listen_new_messages(
 /// analyze with up to 2 retries
 #[allow(clippy::too_many_arguments)]
 async fn analyze_with_retry(
-    provider: &dyn LlmProvider, store: &MailboxStore, maildir_root: &str,
+    provider: &dyn LlmProvider, store: &PgMailboxStore, maildir_root: &str,
     message_id: i64, user: &str, maildir_id: &str,
     sender_raw: &str, subject_raw: &str, model_version: &str,
 ) -> bool {
@@ -168,7 +168,7 @@ async fn analyze_with_retry(
 
 #[allow(clippy::too_many_arguments)]
 async fn do_analyze(
-    provider: &dyn LlmProvider, store: &MailboxStore, maildir_root: &str,
+    provider: &dyn LlmProvider, store: &PgMailboxStore, maildir_root: &str,
     message_id: i64, user: &str, maildir_id: &str,
     sender_raw: &str, subject_raw: &str, model_version: &str,
 ) -> bool {
