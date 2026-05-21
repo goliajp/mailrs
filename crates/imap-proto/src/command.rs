@@ -2,35 +2,157 @@
 /// (commands cross network boundaries, so we don't borrow).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImapCommand {
+    /// `CAPABILITY` — list supported extensions.
     Capability,
-    Login { username: String, password: String },
+    /// `LOGIN <user> <pass>` — authenticate with plain credentials.
+    Login {
+        /// Username argument.
+        username: String,
+        /// Password argument (plaintext per RFC 3501; clients should use STARTTLS).
+        password: String,
+    },
+    /// `LOGOUT` — close the connection.
     Logout,
-    List { reference: String, pattern: String },
-    Select { mailbox: String },
-    Examine { mailbox: String },
-    Fetch { sequence: String, attributes: String },
-    Store { sequence: String, action: String, flags: String },
-    Search { criteria: String },
+    /// `LIST <reference> <pattern>` — enumerate matching mailbox names.
+    List {
+        /// Reference name (usually empty string).
+        reference: String,
+        /// Pattern with `%` (single-level) and `*` (recursive) wildcards.
+        pattern: String,
+    },
+    /// `SELECT <mailbox>` — open a mailbox for read/write.
+    Select {
+        /// Mailbox name.
+        mailbox: String,
+    },
+    /// `EXAMINE <mailbox>` — open a mailbox read-only.
+    Examine {
+        /// Mailbox name.
+        mailbox: String,
+    },
+    /// `FETCH <seq> <attrs>` — retrieve message attributes / parts.
+    Fetch {
+        /// Sequence set (`1:10`, `*`, `1,3,5`, etc).
+        sequence: String,
+        /// Attribute spec (`FLAGS`, `BODY[]`, `(FLAGS BODY.PEEK[HEADER])`, ...).
+        attributes: String,
+    },
+    /// `STORE <seq> <action> <flags>` — set/add/remove flags.
+    Store {
+        /// Sequence set.
+        sequence: String,
+        /// One of `FLAGS` / `+FLAGS` / `-FLAGS` (+`.SILENT` variant).
+        action: String,
+        /// Flag list (e.g. `(\Seen)`).
+        flags: String,
+    },
+    /// `SEARCH <criteria>` — return UIDs matching the search keys.
+    Search {
+        /// Search criteria string (`UNSEEN FROM alice@x`, etc).
+        criteria: String,
+    },
+    /// `EXPUNGE` — purge messages with the `\Deleted` flag.
     Expunge,
+    /// `NOOP` — no-op (kept for keepalive + STATUS-update side effect).
     Noop,
+    /// `CLOSE` — close the current mailbox (expunge implicit).
     Close,
+    /// `IDLE` — push notifications until `DONE` (RFC 2177).
     Idle,
-    Append { mailbox: String, flags: Option<String>, literal_size: u32 },
-    Copy { sequence: String, mailbox: String },
-    Move { sequence: String, mailbox: String },
-    Uid { subcommand: Box<ImapCommand> },
-    Status { mailbox: String, items: String },
-    GetQuota { quotaroot: String },
-    GetQuotaRoot { mailbox: String },
-    Create { mailbox: String },
-    Delete { mailbox: String },
-    Rename { from: String, to: String },
-    Subscribe { mailbox: String },
-    Unsubscribe { mailbox: String },
-    Lsub { reference: String, pattern: String },
+    /// `APPEND <mailbox> [flags] {n}<CRLF>...` — upload a new message.
+    Append {
+        /// Target mailbox.
+        mailbox: String,
+        /// Optional initial flag list (e.g. `(\Seen \Flagged)`).
+        flags: Option<String>,
+        /// Literal byte count for the message body that follows.
+        literal_size: u32,
+    },
+    /// `COPY <seq> <mailbox>` — copy messages to another mailbox.
+    Copy {
+        /// Sequence set in the source mailbox.
+        sequence: String,
+        /// Destination mailbox name.
+        mailbox: String,
+    },
+    /// `MOVE <seq> <mailbox>` (RFC 6851) — move messages.
+    Move {
+        /// Sequence set in the source mailbox.
+        sequence: String,
+        /// Destination mailbox name.
+        mailbox: String,
+    },
+    /// `UID <subcommand>` — re-interpret the subcommand's sequence set as UIDs.
+    Uid {
+        /// The nested IMAP command operating on UIDs.
+        subcommand: Box<ImapCommand>,
+    },
+    /// `STATUS <mailbox> <items>` — read mailbox-level counts.
+    Status {
+        /// Mailbox name to inspect.
+        mailbox: String,
+        /// Item list (e.g. `(MESSAGES UNSEEN UIDNEXT UIDVALIDITY HIGHESTMODSEQ)`).
+        items: String,
+    },
+    /// `GETQUOTA <quotaroot>` — read a quota resource (RFC 2087).
+    GetQuota {
+        /// Quota root identifier.
+        quotaroot: String,
+    },
+    /// `GETQUOTAROOT <mailbox>` — list quota roots applying to a mailbox.
+    GetQuotaRoot {
+        /// Mailbox name.
+        mailbox: String,
+    },
+    /// `CREATE <mailbox>` — create a mailbox.
+    Create {
+        /// New mailbox name.
+        mailbox: String,
+    },
+    /// `DELETE <mailbox>` — delete a mailbox.
+    Delete {
+        /// Mailbox to delete.
+        mailbox: String,
+    },
+    /// `RENAME <from> <to>` — rename a mailbox.
+    Rename {
+        /// Existing mailbox name.
+        from: String,
+        /// New mailbox name.
+        to: String,
+    },
+    /// `SUBSCRIBE <mailbox>` — add a mailbox to the user's active list.
+    Subscribe {
+        /// Mailbox to subscribe to.
+        mailbox: String,
+    },
+    /// `UNSUBSCRIBE <mailbox>` — remove from subscription list.
+    Unsubscribe {
+        /// Mailbox to unsubscribe.
+        mailbox: String,
+    },
+    /// `LSUB <reference> <pattern>` — list subscribed mailboxes.
+    Lsub {
+        /// Reference name (usually empty).
+        reference: String,
+        /// Pattern.
+        pattern: String,
+    },
+    /// `NAMESPACE` — return per-user / per-shared / per-other namespace prefixes.
     Namespace,
-    Sort { criteria: String, charset: String, search_criteria: String },
+    /// `SORT <criteria> <charset> <search>` — server-side sorted SEARCH
+    /// (RFC 5256).
+    Sort {
+        /// Sort criteria (e.g. `(DATE)` / `(REVERSE ARRIVAL)`).
+        criteria: String,
+        /// Charset for text values in search criteria.
+        charset: String,
+        /// Search criteria (filter applied before sort).
+        search_criteria: String,
+    },
+    /// `ENABLE <ext>+` (RFC 5161) — opt into named extensions.
     Enable(Vec<String>),
+    /// `UNSELECT` (RFC 3691) — close mailbox without expunging.
     Unselect,
 }
 
@@ -317,20 +439,32 @@ fn parse_append_args(args: &str) -> Result<ImapCommand, ParseError> {
     Ok(ImapCommand::Append { mailbox, flags, literal_size })
 }
 
-/// parsed IMAP SEARCH key
+/// Parsed IMAP SEARCH key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SearchKey {
+    /// `ALL` — match every message in the mailbox.
     All,
+    /// `SEEN` — messages with the `\Seen` flag.
     Seen,
+    /// `UNSEEN` — messages without `\Seen`.
     Unseen,
+    /// `FLAGGED` — messages with `\Flagged`.
     Flagged,
+    /// `UNFLAGGED` — messages without `\Flagged`.
     Unflagged,
+    /// `ANSWERED` — messages with `\Answered`.
     Answered,
+    /// `UNANSWERED` — messages without `\Answered`.
     Unanswered,
+    /// `DELETED` — messages with `\Deleted`.
     Deleted,
+    /// `UNDELETED` — messages without `\Deleted`.
     Undeleted,
+    /// `DRAFT` — messages with `\Draft`.
     Draft,
+    /// `UNDRAFT` — messages without `\Draft`.
     Undraft,
+    /// `RECENT` — messages with `\Recent` (per-session).
     Recent,
     /// `FROM <string>` — substring match on the From header.
     From(String),

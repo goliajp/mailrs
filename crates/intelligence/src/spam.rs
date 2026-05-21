@@ -129,6 +129,7 @@ mod redis_impl {
     }
 
     impl RedisSpamCache {
+        /// Construct a Redis-backed spam-classification cache.
         pub fn new(conn: redis::aio::ConnectionManager) -> Self {
             Self { conn }
         }

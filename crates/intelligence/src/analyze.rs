@@ -22,28 +22,41 @@ pub const PROMPT_VERSION: &str = "v8";
 /// revisions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmailAnalysis {
+    /// Category label (free-form, but typically one of `personal` / `work` /
+    /// `transactional` / `promotion` / `notification` / `spam` / `scam`).
     #[serde(default)]
     pub category: String,
+    /// Risk score 0-100; 100 = highest risk (phishing, fraud, malware link).
     #[serde(default)]
     pub risk_score: u8,
+    /// One-line human-readable reason for the risk score.
     #[serde(default)]
     pub risk_reason: String,
+    /// 1-3 sentence summary of the message content.
     #[serde(default)]
     pub summary: String,
+    /// Extracted people / entities (JSON shape free-form per LLM impl).
     #[serde(default)]
     pub people: serde_json::Value,
+    /// Extracted dates / time references mentioned in the body.
     #[serde(default)]
     pub dates: serde_json::Value,
+    /// Extracted amounts / numbers / monetary values.
     #[serde(default)]
     pub amounts: serde_json::Value,
+    /// Action items the recipient might want to act on.
     #[serde(default)]
     pub action_items: serde_json::Value,
+    /// Cleaned plain-text body the LLM saw (matches mailrs-clean output).
     #[serde(default)]
     pub clean_text: String,
+    /// `true` when the LLM judged the message as requiring user action.
     #[serde(default)]
     pub requires_action: bool,
+    /// One-word sender intent (`request` / `inform` / `confirm` / `notify` / ...).
     #[serde(default)]
     pub sender_intent: String,
+    /// ISO-8601 date if an action deadline was detected.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub action_deadline: Option<String>,
 }

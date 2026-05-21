@@ -1,3 +1,5 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 //! RFC 5545 (iCalendar) + RFC 5546 (iTIP) parser, serializer, and typed
 //! semantics — hand-rolled, zero I/O.
@@ -61,14 +63,23 @@ use serde::Serialize;
 /// iTIP method (RFC 5546 §1.4 + §3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Method {
+    /// `REQUEST` — invitation or update.
     Request,
+    /// `REPLY` — attendee response (accept/decline/etc).
     Reply,
+    /// `CANCEL` — organizer cancels the event.
     Cancel,
+    /// `UPDATE` — non-significant update (no re-RSVP needed).
     Update,
+    /// `COUNTER` — attendee proposes a change.
     Counter,
+    /// `REFRESH` — attendee requests latest state.
     Refresh,
+    /// `ADD` — add an occurrence to a recurring event.
     Add,
+    /// `PUBLISH` — publish a non-interactive event (newsletter feed).
     Publish,
+    /// `DECLINECOUNTER` — organizer rejects an attendee's COUNTER.
     DeclineCounter,
 }
 
@@ -83,7 +94,9 @@ pub enum CalDateTime {
     /// `tz_name` is the raw TZID string; resolved at evaluation time via
     /// [`vtimezone`] (handles both IANA names and inline VTIMEZONE blocks).
     Zoned {
+        /// IANA timezone identifier or inline VTIMEZONE id.
         tz_name: String,
+        /// Local civil time in that zone.
         local: chrono::NaiveDateTime,
     },
     /// Date-only (RFC 5545 §3.3.4). e.g. `DTSTART;VALUE=DATE:19980118`.
@@ -93,43 +106,67 @@ pub enum CalDateTime {
 /// PARTSTAT parameter (RFC 5545 §3.2.12).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum PartStat {
+    /// `NEEDS-ACTION` — not yet responded.
     NeedsAction,
+    /// `ACCEPTED` — will attend.
     Accepted,
+    /// `DECLINED` — will not attend.
     Declined,
+    /// `TENTATIVE` — may attend.
     Tentative,
+    /// `DELEGATED` — passed to another attendee.
     Delegated,
+    /// `COMPLETED` — VTODO only.
     Completed,
+    /// `IN-PROCESS` — VTODO only.
     InProcess,
 }
 
 /// ROLE parameter (RFC 5545 §3.2.16).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Role {
+    /// `CHAIR` — meeting chair.
     Chair,
+    /// `REQ-PARTICIPANT` — required attendance.
     ReqParticipant,
+    /// `OPT-PARTICIPANT` — optional attendance.
     OptParticipant,
+    /// `NON-PARTICIPANT` — for-information-only.
     NonParticipant,
 }
 
+/// One ATTENDEE row from a VEVENT.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Attendee {
+    /// Mailto address (stripped of the `mailto:` prefix).
     pub email: String,
+    /// Common name (`CN=` parameter), if present.
     pub cn: Option<String>,
+    /// Response status.
     pub partstat: PartStat,
+    /// Participation role.
     pub role: Role,
+    /// `RSVP=TRUE` if the organizer wants an explicit response.
     pub rsvp: bool,
 }
 
+/// ORGANIZER or any other CAL-ADDRESS-shaped property.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Person {
+    /// Mailto address.
     pub email: String,
+    /// Common name (`CN=` parameter).
     pub cn: Option<String>,
 }
 
+/// STATUS property values for a VEVENT (RFC 5545 §3.8.1.11).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum EventStatus {
+    /// `CONFIRMED` — event is confirmed.
     Confirmed,
+    /// `TENTATIVE` — event is tentative.
     Tentative,
+    /// `CANCELLED` — event is cancelled.
     Cancelled,
 }
 
@@ -139,6 +176,7 @@ pub enum EventStatus {
 /// usable offset function lives in [`vtimezone`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct VTimezone {
+    /// TZID property — the timezone identifier this block defines.
     pub tzid: String,
     /// Raw STANDARD / DAYLIGHT subcomponents. Resolution to chrono-tz or
     /// custom offset happens lazily at evaluation time.
@@ -148,15 +186,22 @@ pub struct VTimezone {
 /// Generic raw component captured by the AST parser before semantic typing.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RawComponent {
+    /// Component name (e.g. `VEVENT`, `VALARM`, `STANDARD`).
     pub name: String,
+    /// Properties on this component.
     pub properties: Vec<RawProperty>,
+    /// Nested subcomponents (e.g. `VALARM` inside `VEVENT`).
     pub children: Vec<RawComponent>,
 }
 
+/// Single iCalendar property with its value + parameters.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RawProperty {
+    /// Property name (e.g. `DTSTART`, `SUMMARY`, `ATTENDEE`).
     pub name: String,
+    /// Parameter list (e.g. `TZID=America/New_York`).
     pub params: Vec<(String, String)>,
+    /// Property value string (un-unfolded).
     pub value: String,
 }
 
@@ -164,28 +209,47 @@ pub struct RawProperty {
 /// the server (MRS-3..MRS-9 all consume this).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ParsedInvite {
+    /// iTIP method (REQUEST/REPLY/CANCEL/...).
     pub method: Method,
+    /// `UID` — RFC 5545 §3.8.4.7.
     pub uid: String,
+    /// `SEQUENCE` — incremented on each update.
     pub sequence: i32,
+    /// `DTSTAMP` — when the iTIP message was created.
     pub dtstamp: DateTime<Utc>,
+    /// `DTSTART` — event start.
     pub dtstart: CalDateTime,
+    /// `DTEND` — event end (mutually exclusive with `duration`).
     pub dtend: Option<CalDateTime>,
+    /// `DURATION` — alternative to `DTEND`.
     pub duration: Option<chrono::Duration>,
+    /// `ORGANIZER` — event chair.
     pub organizer: Option<Person>,
+    /// `ATTENDEE` list.
     pub attendees: Vec<Attendee>,
     /// Raw RRULE string (e.g. `FREQ=WEEKLY;BYDAY=MO,WE,FR`). Expansion is
     /// delegated to the `rrule` crate at MRS-9 time, not done here.
     pub rrule: Option<String>,
+    /// `EXDATE` — explicit exclusions from the recurrence rule.
     pub exdate: Vec<CalDateTime>,
+    /// `RDATE` — explicit additions to the recurrence set.
     pub rdate: Vec<CalDateTime>,
+    /// `RECURRENCE-ID` — this iTIP message modifies a specific occurrence.
     pub recurrence_id: Option<CalDateTime>,
+    /// `STATUS` — CONFIRMED / TENTATIVE / CANCELLED.
     pub status: Option<EventStatus>,
+    /// `SUMMARY` — short title shown in calendar UIs.
     pub summary: String,
+    /// `LOCATION` — free-form location text.
     pub location: Option<String>,
+    /// `DESCRIPTION` — long-form body / notes.
     pub description: Option<String>,
+    /// `VTIMEZONE` blocks attached to the calendar; referenced by `TZID` in
+    /// other properties.
     pub vtimezones: Vec<VTimezone>,
 }
 
+/// Errors returned by [`parse_invite`].
 #[derive(Debug, PartialEq, Eq)]
 pub enum IcalError {
     /// Input bytes were not valid UTF-8 (RFC 5545 §3.1.4 mandates UTF-8).

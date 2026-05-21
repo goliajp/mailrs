@@ -1,3 +1,5 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 //! IMAP protocol parser and response formatter.
 //!
@@ -53,8 +55,10 @@
 //! [RFC 3501]: https://datatracker.ietf.org/doc/html/rfc3501
 //! [mailrs]: https://github.com/goliajp/mailrs
 
+/// IMAP4rev1 command parser + `ImapCommand` AST.
 pub mod command;
 pub mod response;
+/// Sequence-set parser + expansion (`1:10,12,*`).
 pub mod sequence;
 
 pub use command::{ImapCommand, ParseError, SearchKey, TaggedCommand, parse_command, parse_search_criteria};

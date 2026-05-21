@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-outbound-queue"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 description = "Outbound mail queue primitives: DKIM signing, DSN generation, MTA-STS lookup, retry/backoff, with a pluggable store trait and a Postgres reference implementation."
 license = "Apache-2.0 OR MIT"

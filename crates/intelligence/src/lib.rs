@@ -1,3 +1,5 @@
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 //! Email intelligence primitives — LLM-powered analysis with a pluggable provider.
 //!
@@ -56,8 +58,10 @@
 
 pub mod analyze;
 pub mod importance;
+/// Pluggable LLM provider trait (currently Claude / Ollama implementations).
 pub mod provider;
 pub mod spam;
+/// Schema.org JSON-LD extraction from HTML message bodies.
 pub mod structured;
 
 #[cfg(feature = "http")]
