@@ -20,6 +20,7 @@ mod mailbox_ops;
 mod message_ops;
 mod search_ops;
 mod thread_ops;
+mod trait_impl;
 mod usage_ops;
 
 use sqlx::PgPool;
