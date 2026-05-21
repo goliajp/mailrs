@@ -24,6 +24,8 @@ mailrs-maildir = "1"
 
 [dev-dependencies]
 criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+testcontainers = "0.27"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [[bench]]
 name = "threading"
