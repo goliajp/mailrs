@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-jmap"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2024"
 rust-version = "1.85"
 description = "JMAP (RFC 8620 + RFC 8621) server-side dispatcher and method handlers — framework-agnostic, BYO mail store via the MailStore trait."
@@ -28,4 +28,8 @@ criterion = { version = "0.7", default-features = false, features = ["cargo_benc
 
 [[bench]]
 name = "jmap"
+harness = false
+
+[[bench]]
+name = "dispatch"
 harness = false

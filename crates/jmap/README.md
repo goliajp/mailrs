@@ -116,6 +116,32 @@ The store impl is yours. The [mailrs] server uses a thin adapter that bridges it
 
 The in-memory fixture (`tests/common/mod.rs`) implements the trait faithfully — same return contracts as a real backend, per-method error injection so a single test can isolate a specific failure path. Useful as a reference implementation if you're building a JMAP test harness of your own.
 
+## Benchmarks
+
+`1.0.3` ships **23 criterion benchmarks** in two suites — pure-helper microbenchmarks plus async dispatcher benchmarks against an inline in-memory store. Useful both as a regression baseline and as a quick way to compare your own store impl's overhead against the dispatcher floor.
+
+`benches/jmap.rs` — sync helpers and composition paths:
+
+- `flags_to_keywords` / `keywords_to_flags` — bitmask ↔ JMAP keywords
+- `parse_email_db_id` / `parse_mailbox_db_id` — id parsers
+- `parse_address_list` — `From:` / `To:` splitter
+- `epoch_to_utc_string` — RFC 3339 rendering
+- `resolve_references` — back-reference resolver
+- `build_email_meta_*` — Email/get header / metadata composition (include-all vs narrow selector)
+- `extend_with_body_*` — body field composition (full payload vs raw-missing fallback)
+- `wants_body_*` — selector branching
+
+`benches/dispatch.rs` — `dispatch_method` / `dispatch_request` against a minimal in-memory store:
+
+- `dispatch_mailbox_get` / `dispatch_mailbox_query`
+- `dispatch_email_get_meta_only` / `dispatch_email_get_with_body`
+- `dispatch_email_query` / `dispatch_email_set_update`
+- `dispatch_thread_get` / `dispatch_email_submission_set`
+- `dispatch_request_single_call` — full envelope with one method
+- `dispatch_request_multi_call_back_ref` — canonical `Email/query → Email/get` flow with back-reference resolution
+
+Run with `cargo bench -p mailrs-jmap`. To verify your store hasn't introduced surprise overhead, plug your impl into a copy of `benches/dispatch.rs` and compare against the in-memory floor.
+
 ## Roadmap
 
 `1.0` is the minimum viable surface — enough to drive a webmail client with read, search, mark-read, send, and delete. Methods explicitly not yet implemented, in rough priority order for `1.x`:
