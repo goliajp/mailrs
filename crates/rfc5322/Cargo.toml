@@ -1,0 +1,29 @@
+[package]
+name = "mailrs-rfc5322"
+version = "1.0.0"
+edition = "2024"
+description = "Pull-based RFC 5322 message parser — lazy header lookup, byte-level scan, zero-alloc borrowed slices. Skip-ahead to the header you want without building a full Message tree."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-rfc5322"
+authors = ["GOLIA K.K."]
+keywords = ["email", "rfc5322", "parser", "smtp", "lazy"]
+categories = ["email", "parsing", "no-std::no-alloc"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+# No deps. RFC 5322 parsing is byte-level; this crate exists to NOT pull
+# in the full mail-parser tree-builder when callers only need a few
+# headers. Stay dep-light.
+
+[dev-dependencies]
+mail-parser = "0.11"  # for comparison benches only
+criterion = { workspace = true }
+
+[[bench]]
+name = "parse"
+harness = false

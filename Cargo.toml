@@ -20,6 +20,7 @@ members = [
     "crates/dav",
     "crates/inbound",
     "crates/rate-limit",
+    "crates/rfc5322",
     "crates/server",
 ]
 
