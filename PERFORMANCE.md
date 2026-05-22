@@ -154,15 +154,20 @@ can swing ±30%. Order-of-magnitude is stable; sub-nanosecond comparisons
 between two paths should always be re-measured on the consumer's own
 hardware.
 
-### Surfaced potential perf candidates (logged, not yet acted on)
+### Surfaced potential perf candidates
 
 1. `mailbox::InMemoryMailboxStore::query_messages` is ~120 µs for 1k
    messages because the fixture clones every matching `Message`
    (12+ String fields each). The PG impl pushes the work into SQL.
    Acceptable as fixture; flagged in README §"Performance".
-2. `inbound::make_delivery_decision(Junk)` is ~2.4× slower than Accept
-   entirely due to the `format!` for the score-breakdown reason. If
-   Junk traffic becomes a hot percentage, build the reason lazily.
+2. **`inbound::make_delivery_decision(Junk)` — partially fixed.** Was
+   ~735 ns vs ~337 ns Accept (2.4× gap). Replaced the `format!` macro
+   + `matched_rules.join(", ")` with a single pre-sized `String` +
+   `write!` macro + inline join: now measures **671 ns** (`cargo bench
+   -p mailrs-inbound -- decision/make_delivery_decision_junk`,
+   M-series Mac, release). **-64 ns / -8.7%** real measured. The gap
+   to Accept narrowed; remaining cost is `build_auth_header` which
+   both paths share.
 3. `smtp-client::dot_stuff(body_with_dots)` allocates a new `Vec<u8>`;
    the no-dot fast path returns the input slice unchanged. Trade-off
    noted; absolute cost (~1.6 µs for 5 KB) is small enough to defer.
