@@ -10,7 +10,9 @@ import { X } from 'lucide-react'
 import { marked } from 'marked'
 import {
   forwardRef,
+  lazy,
   type ReactNode,
+  Suspense,
   useCallback,
   useImperativeHandle,
   useRef,
@@ -21,9 +23,19 @@ import { AddBlockMenu } from '@/components/composer/add-block-menu'
 import { AttachmentBlock } from '@/components/composer/blocks/attachment-block'
 import { DividerBlock } from '@/components/composer/blocks/divider-block'
 import { QuoteBlock } from '@/components/composer/blocks/quote-block'
-import { SignatureBlock } from '@/components/composer/blocks/signature-block'
 import { TextBlock } from '@/components/composer/blocks/text-block'
 import { useBlockComposer } from '@/components/composer/use-block-composer'
+
+// SignatureBlock pulls in tiptap + prosemirror + lowlight + highlight.js
+// (≈700 kB raw). it only renders when the user has signatures enabled AND
+// is actively composing — separate chunk so the chat-list path never pays
+// for it. `marked` is similarly hoisted: only the "render-for-send" code
+// path needs it, so dynamic-import keeps it out of the hot bundle.
+const SignatureBlock = lazy(() =>
+  import('@/components/composer/blocks/signature-block').then((m) => ({
+    default: m.SignatureBlock,
+  }))
+)
 
 // keep backward-compatible type; rich is gone, markdown is the only authoring mode
 export type EditorMode = 'markdown' | 'preview'
@@ -289,12 +301,13 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
 
         case 'signature':
           return (
-            <SignatureBlock
-              data={block.data as SignatureBlockData}
-              disabled={disabled}
-              key={key}
-              onChange={(data) => updateBlock(block.id, data)}
-            />
+            <Suspense fallback={null} key={key}>
+              <SignatureBlock
+                data={block.data as SignatureBlockData}
+                disabled={disabled}
+                onChange={(data) => updateBlock(block.id, data)}
+              />
+            </Suspense>
           )
 
         case 'text':

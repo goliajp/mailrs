@@ -1,10 +1,7 @@
 import type { AttachmentInfo } from '@/lib/types'
 
 import { File } from 'lucide-react'
-import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react'
-import Markdown from 'react-markdown'
-import rehypeHighlight from 'rehype-highlight'
-import remarkGfm from 'remark-gfm'
+import { lazy, memo, Suspense, useCallback, useDeferredValue, useMemo, useState } from 'react'
 
 import { HtmlFrame } from '@/components/html-frame'
 import { MobileModal } from '@/components/mobile-modal'
@@ -13,58 +10,15 @@ import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
 import { getToken } from '@/store/auth'
 
-function CodeBlock({ children, className, ...props }: React.HTMLAttributes<HTMLElement>) {
-  const [copied, setCopied] = useState(false)
-  const code = String(children).replace(/\n$/, '')
-  const lang = className?.replace('language-', '') ?? ''
-
-  const copy = () => {
-    navigator.clipboard.writeText(code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  return (
-    <div className="group relative overflow-hidden">
-      {lang && (
-        <span className="text-fg-muted absolute top-2 right-10 text-xs opacity-100 transition-opacity md:text-[11px] md:opacity-0 md:group-hover:opacity-100">
-          {lang}
-        </span>
-      )}
-      <button
-        aria-label={copied ? 'Copied to clipboard' : 'Copy code'}
-        className="touch-target text-fg-muted hover:bg-bg-secondary hover:text-fg absolute top-2 right-2 rounded-md px-1.5 py-0.5 text-xs opacity-100 transition-opacity md:text-[11px] md:opacity-0 md:group-hover:opacity-100"
-        onClick={copy}
-      >
-        {copied ? 'Copied!' : 'Copy'}
-      </button>
-      <code className={className} {...props}>
-        {children}
-      </code>
-    </div>
-  )
-}
+// react-markdown + remark-gfm + rehype-highlight together drag in roughly
+// 150-200 kB of JS once highlight.js's language pack is in the graph. plain-
+// text emails (the overwhelming majority) never need this code path. lazy()
+// keeps it out of the eager chat chunk; <Suspense> falls back to the plain
+// <pre> rendering while the chunk fetches.
+const MarkdownViewer = lazy(() => import('@/components/markdown-viewer'))
 
 function looksLikeMarkdown(text: string): boolean {
   return /```|^#{1,6}\s|\*\*|__|\[.+\]\(.+\)/m.test(text)
-}
-
-const markdownComponents = {
-  code: ({ children, className, ...props }: React.HTMLAttributes<HTMLElement>) => {
-    const isBlock = className?.startsWith('language-') || String(children).includes('\n')
-    if (isBlock) {
-      return (
-        <CodeBlock className={className} {...props}>
-          {children}
-        </CodeBlock>
-      )
-    }
-    return (
-      <code className={className} {...props}>
-        {children}
-      </code>
-    )
-  },
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -255,25 +209,7 @@ function isExtractable(contentType: string): boolean {
   return contentType.startsWith('image/') || contentType === 'application/pdf'
 }
 
-function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
-  if (looksLikeMarkdown(body)) {
-    return (
-      <div
-        className={`prose prose-sm max-w-none ${
-          isOwn ? '[&_*]:text-white [&_a]:text-white/70 [&_code]:bg-white/20' : 'prose-fg'
-        }`}
-      >
-        <Markdown
-          components={markdownComponents}
-          rehypePlugins={[rehypeHighlight]}
-          remarkPlugins={[remarkGfm]}
-        >
-          {body}
-        </Markdown>
-      </div>
-    )
-  }
-
+function PlainPre({ body, isOwn }: { body: string; isOwn: boolean }) {
   return (
     <pre
       className={`font-sans text-sm leading-relaxed break-words whitespace-pre-wrap ${
@@ -283,4 +219,22 @@ function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
       {body}
     </pre>
   )
+}
+
+function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {
+  if (looksLikeMarkdown(body)) {
+    return (
+      <div
+        className={`prose prose-sm max-w-none ${
+          isOwn ? '[&_*]:text-white [&_a]:text-white/70 [&_code]:bg-white/20' : 'prose-fg'
+        }`}
+      >
+        <Suspense fallback={<PlainPre body={body} isOwn={isOwn} />}>
+          <MarkdownViewer body={body} />
+        </Suspense>
+      </div>
+    )
+  }
+
+  return <PlainPre body={body} isOwn={isOwn} />
 }

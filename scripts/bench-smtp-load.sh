@@ -57,10 +57,18 @@ echo "    perf-first binary size:    $PERF_SIZE"
 echo "    vanilla binary size:       $VANILLA_SIZE"
 echo ""
 
+# Use --no-deliver to isolate CPU-side work. The Maildir write involves
+# fsync per message which makes the bench disk-bound and masks the CPU
+# delta we're trying to measure (LTO / CGU / panic). See bench file
+# docstring "no-deliver mode" section for full rationale. Override with
+# EXTRA="" to bench full delivery path.
+EXTRA="${EXTRA---no-deliver}"
+
 run_round() {
   local bin="$1" label="$2" round="$3"
   echo "-- $label round $round --" >&2
-  "$bin" --duration "$DURATION" --conns "$CONNS" --warmup "$WARMUP" --label "$label"
+  # shellcheck disable=SC2086
+  "$bin" --duration "$DURATION" --conns "$CONNS" --warmup "$WARMUP" --label "$label" $EXTRA
 }
 
 PERF_LINES=()
