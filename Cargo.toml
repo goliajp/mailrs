@@ -28,6 +28,7 @@ members = [
     "crates/webhook-signature",
     "crates/dnsbl",
     "crates/clamav",
+    "crates/backoff",
     "crates/server",
 ]
 
