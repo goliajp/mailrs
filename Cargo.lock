@@ -2749,6 +2749,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-rate-limit"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc60a8b71ca927e8cf1e8112fc83041aa03c6ca233a8c15c1b4795d97fc415d7"
+dependencies = [
+ "async-trait",
+ "dashmap",
+]
+
+[[package]]
 name = "mailrs-server"
 version = "1.6.24"
 dependencies = [
@@ -2787,7 +2797,7 @@ dependencies = [
  "mailrs-maildir 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-outbound-queue 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-rate-limit",
+ "mailrs-rate-limit 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-shield 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
