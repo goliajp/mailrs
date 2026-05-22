@@ -1,0 +1,34 @@
+[package]
+name = "mailrs-spf"
+version = "1.0.0"
+edition = "2024"
+description = "RFC 7208 Sender Policy Framework verifier. Pure-Rust evaluator with a pluggable DNS resolver trait; ships an optional hickory-resolver-backed implementation. Bounded DNS-lookup limits + loop detection per spec."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-spf"
+authors = ["GOLIA K.K."]
+keywords = ["spf", "rfc7208", "email", "auth", "smtp"]
+categories = ["email", "network-programming"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = ["hickory"]
+# Ship a ready-made `SpfResolver` impl backed by `hickory-resolver`.
+# Disable if you have your own DNS layer to plug in.
+hickory = ["dep:hickory-resolver"]
+
+[dependencies]
+async-trait = "0.1"
+hickory-resolver = { version = "0.26", optional = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio = { workspace = true }
+
+[[bench]]
+name = "spf"
+harness = false

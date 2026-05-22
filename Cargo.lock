@@ -3095,6 +3095,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-spf"
+version = "1.0.0"
+dependencies = [
+ "async-trait",
+ "criterion",
+ "hickory-resolver",
+ "tokio",
+]
+
+[[package]]
 name = "mailrs-srs"
 version = "1.0.1"
 dependencies = [
