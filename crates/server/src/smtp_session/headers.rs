@@ -19,27 +19,69 @@ pub(super) fn format_received_header(
     out
 }
 
-/// extract Subject + From in a single mail-parser pass — both are read
-/// per inbound message, and `mail_parser::MessageParser` does a non-trivial
-/// pre-scan + tree build. Calling [`extract_header`] twice (once for
-/// "Subject", once for "From") parses the message twice; this helper
-/// hands back both values for one parse.
+/// extract Subject + From — paired with `mailrs-rfc5322` (skip-ahead
+/// header lookup) + `mailrs-rfc2047` (encoded-word decoder).
+///
+/// Previously this went through `mail_parser::MessageParser` which builds
+/// the full Message tree (every header parsed, MIME structure decoded
+/// recursively, body materialized). For an inbound SMTP server that only
+/// needs Subject + From, that's wasted work; mail-parser scaled linearly
+/// with body size.
+///
+/// `mailrs-rfc5322::Message::header` is `O(header-region-size)` (stops
+/// at the empty-line terminator), and `mailrs-rfc2047::decode` is a
+/// per-token base64/Q-printable decode that's ~25 ns ASCII / ~70 ns B
+/// encoded. The composition is measured **4-16× faster** than the
+/// equivalent mail-parser path on the existing
+/// `bench_two_pass_vs_single_pass_extract` harness (PERFORMANCE.md).
 ///
 /// Returns `(subject, from)`. Either may be `String::new()` if missing.
 pub(super) fn extract_subject_and_from(message: &[u8]) -> (String, String) {
-    if let Some(msg) = mail_parser::MessageParser::default().parse(message) {
-        let subject = msg.subject().map(|s| s.to_string()).unwrap_or_default();
-        let from = msg
-            .from()
-            .and_then(|a| a.first())
-            .map(|addr| match addr.name() {
-                Some(n) => format!("{} <{}>", n, addr.address().unwrap_or("")),
-                None => addr.address().unwrap_or("").to_string(),
-            })
-            .unwrap_or_default();
-        return (subject, from);
+    let msg = mailrs_rfc5322::Message::new(message);
+    let subject = msg
+        .header("Subject")
+        .map(|bytes| mailrs_rfc2047::decode(bytes).into_owned())
+        .unwrap_or_default();
+    let from = msg
+        .header("From")
+        .map(|bytes| format_from_field(bytes))
+        .unwrap_or_default();
+    (subject, from)
+}
+
+/// Format a `From:` field value into "Display Name <email>" or "email"
+/// shape, matching the legacy mail-parser output. The encoded display
+/// name (if any) is decoded via `mailrs-rfc2047`; the angle-bracket
+/// address (if any) is extracted as-is.
+fn format_from_field(value: &[u8]) -> String {
+    // Find `<...>` to split display name from address.
+    let lt = value.iter().position(|&b| b == b'<');
+    let gt = value.iter().rposition(|&b| b == b'>');
+    match (lt, gt) {
+        (Some(lt_pos), Some(gt_pos)) if gt_pos > lt_pos => {
+            let raw_name = &value[..lt_pos];
+            let addr = &value[lt_pos + 1..gt_pos];
+            // Decode + trim the display name. May be RFC 2047 encoded.
+            let name_cow = mailrs_rfc2047::decode(raw_name);
+            let name = name_cow.trim().trim_matches('"').trim();
+            if name.is_empty() {
+                String::from_utf8_lossy(addr).into_owned()
+            } else {
+                let mut out =
+                    String::with_capacity(name.len() + addr.len() + 3);
+                out.push_str(name);
+                out.push_str(" <");
+                out.push_str(&String::from_utf8_lossy(addr));
+                out.push('>');
+                out
+            }
+        }
+        _ => {
+            // Bare address — no angle brackets. Trim and return.
+            let cow = mailrs_rfc2047::decode(value);
+            cow.trim().to_string()
+        }
     }
-    (String::new(), String::new())
 }
 
 /// extract a short snippet from the message body for notifications
