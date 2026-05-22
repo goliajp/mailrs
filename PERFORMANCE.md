@@ -132,6 +132,25 @@ the criterion bench medians above instead.
 | `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
 | `triplet_key` | **~25 ns** | was 120 ns; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity` + `push_str` for **−82%** measured (~5× faster). Called per inbound message on the greylist hot path. |
 
+### `mailrs-webhook-signature` — HMAC-SHA256 webhook signing (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `sign` (32-byte payload) | **~420 ns** |
+| `sign` (1 KB payload) | **~1.6 µs** |
+| `sign` (100 KB payload) | **~92 µs** |
+| `verify` (correct path) | **~690 ns** |
+| `verify` (wrong secret, constant-time) | **~650 ns** |
+| `verify_any` (2 secrets, first matches) | **~700 ns** |
+| `verify_any` (2 secrets, second matches) | **~915 ns** |
+| `format_header` | **~36 ns** |
+| `parse_header` (with prefix) | **~16 ns** |
+
+Run: `cargo bench -p mailrs-webhook-signature --bench signing`.
+Constant-time HMAC compare via `hmac::Mac::verify_slice`. Generic
+GitHub/Stripe-style webhook auth primitive; pairs with any HTTP
+outbox.
+
 ### `mailrs-rfc2231` — MIME parameter encode + decode (criterion, M-series Mac, release)
 
 | Path | Median |
