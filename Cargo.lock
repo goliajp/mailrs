@@ -2562,6 +2562,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-dnsbl"
+version = "1.0.0"
+dependencies = [
+ "criterion",
+ "hickory-resolver",
+ "tokio",
+]
+
+[[package]]
 name = "mailrs-ical"
 version = "1.0.2"
 dependencies = [
@@ -2897,7 +2906,7 @@ dependencies = [
  "mailrs-rfc2047 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc5322 1.0.0",
- "mailrs-shield 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-shield 1.0.3",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2936,23 +2945,24 @@ dependencies = [
 [[package]]
 name = "mailrs-shield"
 version = "1.0.3"
-dependencies = [
- "criterion",
- "hickory-resolver",
- "redis",
- "sqlx",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-shield"
-version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51b25fc8bc07be0be71b4a73effc93961c4c0a94d2ee535e0c81460fac901aae"
 dependencies = [
  "hickory-resolver",
  "redis",
  "sqlx",
+]
+
+[[package]]
+name = "mailrs-shield"
+version = "1.0.4"
+dependencies = [
+ "criterion",
+ "hickory-resolver",
+ "mailrs-dnsbl",
+ "redis",
+ "sqlx",
+ "tokio",
 ]
 
 [[package]]

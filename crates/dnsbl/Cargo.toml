@@ -1,0 +1,27 @@
+[package]
+name = "mailrs-dnsbl"
+version = "1.0.0"
+edition = "2024"
+description = "RFC 5782 DNS-based blocklist lookup. Reverse-IPv4 + zone query + Spamhaus return-code interpretation + in-process TTL cache (positive + negative). Pairs with hickory-resolver for the DNS layer."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-dnsbl"
+authors = ["GOLIA K.K."]
+keywords = ["dnsbl", "smtp", "spam", "spamhaus", "rfc5782"]
+categories = ["email", "network-programming"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+hickory-resolver = "0.26"
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio = { workspace = true }
+
+[[bench]]
+name = "dnsbl"
+harness = false

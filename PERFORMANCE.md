@@ -132,6 +132,21 @@ the criterion bench medians above instead.
 | `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
 | `triplet_key` | **~25 ns** | was 120 ns; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity` + `push_str` for **−82%** measured (~5× faster). Called per inbound message on the greylist hot path. |
 
+### `mailrs-dnsbl` — RFC 5782 DNSBL primitive (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `reverse_ipv4` | **~45 ns** |
+| `dnsbl_query` (~20-char zone) | **~17 ns** |
+| `interpret_spamhaus` (Sbl reply) | **~1.15 ns** |
+| `interpret_spamhaus` (non-127.x → Clean) | **~1.22 ns** |
+| `DnsblCache` is_empty + len roundtrip | **~8.7 ns** |
+| `DnsblResult` eq | **~720 ps** |
+
+Run: `cargo bench -p mailrs-dnsbl --bench dnsbl`. Carved out of
+`mailrs-shield` for users who only need DNSBL — same code, own crate.
+`mailrs-shield` 1.0.4 re-exports the public surface unchanged.
+
 ### `mailrs-webhook-signature` — HMAC-SHA256 webhook signing (criterion, M-series Mac, release)
 
 | Path | Median |

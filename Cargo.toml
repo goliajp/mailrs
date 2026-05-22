@@ -26,6 +26,7 @@ members = [
     "crates/srs",
     "crates/rfc2231",
     "crates/webhook-signature",
+    "crates/dnsbl",
     "crates/server",
 ]
 
