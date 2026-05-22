@@ -35,3 +35,38 @@ warnings = "deny"
 
 [workspace.lints.clippy]
 all = { level = "deny" }
+
+# Performance-first release profile.
+#
+# mailrs's positioning: "modern Rust implementation of legacy email
+# protocols, performance-first". Default cargo release tunes for compile
+# time; we trade compile time for runtime quality.
+#
+# - lto = "fat": linker inlines + DCE's across crate boundaries,
+#   including across mailrs-* library boundaries. Non-negotiable for an
+#   SMTP/IMAP server where every µs in the handler matters.
+# - codegen-units = 1: single CGU per crate, optimizer sees every
+#   callee. Costs build time, recovers in binary quality.
+# - panic = "abort": no unwinding tables. Server panics terminate the
+#   process anyway (supervisor restarts). ~15-30% smaller binary,
+#   slightly faster Result-heavy hot paths.
+# - strip = "symbols": lean deploy binary.
+# - overflow-checks = false: release default, made explicit to prevent
+#   accidental flip.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+overflow-checks = false
+debug = false
+incremental = false
+
+# Perf-investigation profile: same optimization as release, keeps line
+# tables so flamegraphs / perf record / Instruments can attribute
+# samples. Use with `cargo build --profile release-debug`.
+[profile.release-debug]
+inherits = "release"
+debug = "line-tables-only"
+strip = "none"
