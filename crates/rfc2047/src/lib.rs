@@ -11,6 +11,41 @@ use std::borrow::Cow;
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 
+/// Encode a UTF-8 string as an RFC 2047 encoded-word **if and only if**
+/// it contains non-ASCII bytes. Pure-ASCII inputs are returned as
+/// borrowed `Cow::Borrowed` unchanged — no allocation, no wrapping.
+///
+/// The encoded form uses Base64 (`B`) with the UTF-8 charset:
+/// `=?UTF-8?B?<base64>?=`. This is the wire-form most receivers
+/// recognize. (Q encoding would sometimes produce shorter output for
+/// mostly-ASCII strings with a few non-ASCII chars, but the size
+/// difference is small and Base64 is robust across every charset.)
+///
+/// ```
+/// use mailrs_rfc2047::encode;
+/// // ASCII passes through borrowed, no allocation.
+/// assert_eq!(encode("Hello"), "Hello");
+/// // Non-ASCII becomes a UTF-8 Base64 encoded-word.
+/// assert_eq!(encode("日本語"), "=?UTF-8?B?5pel5pys6Kqe?=");
+/// ```
+///
+/// This is the inverse of [`decode`]: feeding `encode(decode(x))` back
+/// through `decode` returns the original string (idempotent for ASCII
+/// input, identity-modulo-canonicalization for encoded input).
+pub fn encode(input: &str) -> Cow<'_, str> {
+    if input.is_ascii() {
+        return Cow::Borrowed(input);
+    }
+    let encoded = B64.encode(input.as_bytes());
+    // Output layout: "=?UTF-8?B?" + base64 + "?=" — fixed 12 byte overhead
+    // around the base64 output.
+    let mut out = String::with_capacity(12 + encoded.len());
+    out.push_str("=?UTF-8?B?");
+    out.push_str(&encoded);
+    out.push_str("?=");
+    Cow::Owned(out)
+}
+
 /// Decode an RFC 2047 encoded header value into UTF-8.
 ///
 /// If the input contains no `=?…?=` tokens, the original byte slice is
@@ -262,6 +297,46 @@ fn push_lossy(out: &mut String, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn encode_ascii_is_borrowed() {
+        let r = encode("Hello World");
+        assert_eq!(r, "Hello World");
+        assert!(matches!(r, Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn encode_japanese() {
+        let r = encode("日本語");
+        assert_eq!(r, "=?UTF-8?B?5pel5pys6Kqe?=");
+    }
+
+    #[test]
+    fn encode_roundtrip_via_decode() {
+        let original = "café — 日本語 — émoji 🦀";
+        let encoded = encode(original);
+        // Decode it back; should match original.
+        let decoded = decode(encoded.as_bytes());
+        assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn encode_empty_string() {
+        let r = encode("");
+        assert_eq!(r, "");
+        assert!(matches!(r, Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn encode_pure_emoji() {
+        let r = encode("🦀🚀");
+        // It will be a UTF-8 Base64 encoded-word.
+        assert!(r.starts_with("=?UTF-8?B?"));
+        assert!(r.ends_with("?="));
+        // And it decodes back identically.
+        let decoded = decode(r.as_bytes());
+        assert_eq!(decoded, "🦀🚀");
+    }
 
     #[test]
     fn plain_ascii_is_borrowed() {

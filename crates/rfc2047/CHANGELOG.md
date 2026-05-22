@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-22
+
+### Added
+
+- `encode(&str) -> Cow<'_, str>` — complement to `decode`. ASCII input
+  returns borrowed (no allocation, no wrapping). Non-ASCII input
+  becomes `=?UTF-8?B?<base64>?=`. Measured ~80 ns ASCII passthrough,
+  ~130 ns Japanese encode (criterion, release).
+- Roundtrip test: `decode(encode(s))` returns `s` for arbitrary UTF-8
+  strings (verified for emoji, CJK, Latin-extended).
+- Comparative bench `encode/japanese` extends `benches/decode.rs`.
+
 ## [1.0.0] - 2026-05-22
 
 ### Added

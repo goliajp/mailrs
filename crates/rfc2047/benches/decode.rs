@@ -2,8 +2,28 @@
 //! `Subject` extraction (which also decodes encoded-words).
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use mailrs_rfc2047::decode;
+use mailrs_rfc2047::{decode, encode};
 use std::hint::black_box;
+
+fn bench_encode_ascii(c: &mut Criterion) {
+    let input = "This is an ASCII subject, plain English with no encoding.";
+    c.bench_function("encode/ascii_passthrough", |b| {
+        b.iter(|| {
+            let r = encode(black_box(input));
+            black_box(r)
+        });
+    });
+}
+
+fn bench_encode_japanese(c: &mut Criterion) {
+    let input = "日本語のメールサブジェクト";
+    c.bench_function("encode/japanese", |b| {
+        b.iter(|| {
+            let r = encode(black_box(input));
+            black_box(r)
+        });
+    });
+}
 
 fn bench_ascii_passthrough(c: &mut Criterion) {
     let input = b"This is an ASCII subject, plain English with no encoding.";
@@ -150,5 +170,7 @@ criterion_group!(
     bench_mixed_with_ascii,
     bench_vs_mail_parser_subject_ascii,
     bench_vs_mail_parser_subject_encoded,
+    bench_encode_ascii,
+    bench_encode_japanese,
 );
 criterion_main!(benches);
