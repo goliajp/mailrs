@@ -1,0 +1,23 @@
+[package]
+name = "mailrs-rate-limit"
+version = "1.0.0"
+edition = "2024"
+description = "Token-bucket rate limiting trait + in-memory reference impl. &str keys (IP / user / api-key / endpoint), unix-seconds time. Async, transport-agnostic, no protocol coupling. Standalone — bring your own storage backend."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-rate-limit"
+authors = ["GOLIA K.K."]
+keywords = ["rate-limiting", "throttle", "token-bucket", "smtp", "api"]
+categories = ["network-programming", "asynchronous"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1"
+dashmap = "6"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }

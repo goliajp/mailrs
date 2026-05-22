@@ -39,6 +39,7 @@ mailrs-shield = "1"
 mailrs-clean = "1"
 mailrs-dmarc = "1"
 mailrs-inbound = { path = "../inbound" }
+mailrs-rate-limit = { path = "../rate-limit" }
 sqlx = { workspace = true }
 redis = { workspace = true }
 hickory-resolver = "0.26"

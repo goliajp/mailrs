@@ -110,8 +110,12 @@ pub fn spawn_session_cleanup(state: Arc<WebState>) {
                 .sessions
                 .retain(|_, session| session.created_at.elapsed() < SESSION_TTL);
             // purge rate-limit buckets not seen in the last hour
-            let stale_before = Instant::now() - Duration::from_secs(3600);
-            state.web_rate_limiter.cleanup(stale_before);
+            let stale_before_unix_secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0)
+                .saturating_sub(3600);
+            state.web_rate_limiter.cleanup(stale_before_unix_secs).await;
             // clean up expired OIDC auth codes and refresh tokens
             if let Some(ref pool) = state.pg_pool {
                 let _ = crate::oidc_store::cleanup_expired_codes(pool).await;
