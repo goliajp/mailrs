@@ -84,7 +84,15 @@ where
                         full_message.clone(),
                         &ctx.hostname,
                     );
+                    let pipeline_started = std::time::Instant::now();
                     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;
+                    let pipeline_us = pipeline_started.elapsed().as_micros() as u64;
+                    tracing::debug!(
+                        phase = "inbound_pipeline",
+                        duration_us = pipeline_us,
+                        msg_size = full_message.len(),
+                        "stage complete"
+                    );
 
                     match decision {
                         DeliveryDecision::Reject { code, message } => {
@@ -367,10 +375,16 @@ where
                                     // extract_header twice parses twice. The
                                     // _and_from helper hands back both fields
                                     // for one parse.
+                                    let extract_started = std::time::Instant::now();
                                     let (subject, from_header) =
                                         super::super::headers::extract_subject_and_from(
                                             &full_message,
                                         );
+                                    tracing::debug!(
+                                        phase = "extract_subject_from",
+                                        duration_us = extract_started.elapsed().as_micros() as u64,
+                                        "stage complete"
+                                    );
                                     // use From header for sender (includes
                                     // display name); fall back to SMTP envelope
                                     // reverse_path
@@ -415,6 +429,7 @@ where
                                             .await;
                                     }
 
+                                    let index_started = std::time::Instant::now();
                                     let indexed_uid = mb_store
                                         .index_message(
                                             &user,
@@ -431,6 +446,11 @@ where
                                         )
                                         .await
                                         .ok();
+                                    tracing::debug!(
+                                        phase = "mailbox_index_message",
+                                        duration_us = index_started.elapsed().as_micros() as u64,
+                                        "stage complete"
+                                    );
 
                                     // emit NewMessage event
                                     let snippet = extract_snippet(&full_message);
