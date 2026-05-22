@@ -132,6 +132,21 @@ the criterion bench medians above instead.
 | `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
 | `triplet_key` | **~25 ns** | was 120 ns; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity` + `push_str` for **−82%** measured (~5× faster). Called per inbound message on the greylist hot path. |
 
+### `mailrs-rfc2231` — MIME parameter encode + decode (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `encode_param` (ASCII, legacy quoted) | **30 ns** |
+| `encode_param` (Japanese, extended) | **128 ns** |
+| `encode_param` (60-char Japanese filename) | **448 ns** |
+| `decode_param_value` (legacy quoted) | **9 ns** |
+| `decode_param_value` (legacy bareword) | **6 ns** |
+| `decode_param_value` (UTF-8 extended) | **100 ns** |
+| `decode_param_value` (ISO-8859-1 extended) | **133 ns** |
+
+Run: `cargo bench -p mailrs-rfc2231 --bench params`. Pairs with
+mailrs-rfc2047 to cover the full MIME header encoding suite.
+
 ### `mailrs-srs` — Sender Rewriting Scheme (criterion, M-series Mac, release)
 
 | Path | Median |

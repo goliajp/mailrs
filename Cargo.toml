@@ -24,6 +24,7 @@ members = [
     "crates/rfc5322",
     "crates/auth-guard",
     "crates/srs",
+    "crates/rfc2231",
     "crates/server",
 ]
 
