@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-tls-reload"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "Hot-reloadable rustls ServerConfig via arc-swap. Atomic cert/key rotation without dropping in-flight connections. Plus PEM file loader. Use with ACME, Let's Encrypt renewal hooks, or any cert-rotation flow."
 license = "Apache-2.0 OR MIT"
@@ -23,3 +23,6 @@ tokio-rustls = "0.26"
 
 [dev-dependencies]
 criterion = { workspace = true }
+rcgen = "0.13"
+# tls tests need rustls's "ring" provider to actually build a ServerConfig
+rustls = { version = "0.23", features = ["ring"] }
