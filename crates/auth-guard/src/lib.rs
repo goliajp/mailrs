@@ -84,15 +84,27 @@ pub struct AuthGuard {
     ip_failures: DashMap<IpAddr, FailureRecord>,
 }
 
-/// compute lockout duration with exponential backoff
+/// Compute the lockout duration with exponential backoff: `base ×
+/// multiplier^consecutive_lockouts`, capped at `max_secs`.
+///
+/// Returns seconds. Equivalent to constructing a [`mailrs_backoff::Backoff`]
+/// with `Jitter::None` and reading `base_delay(consecutive_lockouts)`,
+/// which is exactly what this function does internally. Lockouts are
+/// deterministic by design — you want every offender to see the same
+/// penalty — so no jitter.
 pub fn lockout_duration(
     base_secs: u64,
     consecutive_lockouts: u32,
     multiplier: f64,
     max_secs: u64,
 ) -> u64 {
-    let duration = (base_secs as f64 * multiplier.powi(consecutive_lockouts as i32)) as u64;
-    duration.min(max_secs)
+    let backoff = mailrs_backoff::Backoff {
+        initial: Duration::from_secs(base_secs),
+        multiplier,
+        max: Duration::from_secs(max_secs),
+        jitter: mailrs_backoff::Jitter::None,
+    };
+    backoff.base_delay(consecutive_lockouts).as_secs()
 }
 
 /// normalize IPv6 to /64 prefix for rate limiting

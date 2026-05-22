@@ -2478,19 +2478,20 @@ dependencies = [
 [[package]]
 name = "mailrs-auth-guard"
 version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "177a7224a1d4ab94b3cdb5c5af09f669be3032a5d4707fb64035eb152f03ba84"
 dependencies = [
- "criterion",
  "dashmap",
  "tracing",
 ]
 
 [[package]]
 name = "mailrs-auth-guard"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "177a7224a1d4ab94b3cdb5c5af09f669be3032a5d4707fb64035eb152f03ba84"
+version = "1.0.3"
 dependencies = [
+ "criterion",
  "dashmap",
+ "mailrs-backoff",
  "tracing",
 ]
 
@@ -2763,10 +2764,11 @@ dependencies = [
 [[package]]
 name = "mailrs-outbound-queue"
 version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44d681e33ba6566bfcfc6a32988a57c5bb83686199855fe85acd0ee276bd1048"
 dependencies = [
  "async-trait",
  "chrono",
- "criterion",
  "futures-util",
  "hickory-resolver",
  "mail-auth",
@@ -2781,15 +2783,15 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44d681e33ba6566bfcfc6a32988a57c5bb83686199855fe85acd0ee276bd1048"
+version = "1.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "criterion",
  "futures-util",
  "hickory-resolver",
  "mail-auth",
+ "mailrs-backoff",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "redis",
  "rustls-pki-types",
@@ -2922,7 +2924,8 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
- "mailrs-auth-guard 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-auth-guard 1.0.2",
+ "mailrs-backoff",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2934,7 +2937,7 @@ dependencies = [
  "mailrs-jmap 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-maildir 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-outbound-queue 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-outbound-queue 1.0.2",
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rate-limit 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2047 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
