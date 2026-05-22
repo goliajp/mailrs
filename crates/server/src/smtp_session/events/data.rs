@@ -151,10 +151,12 @@ where
 
             let msg_size = full_message.len();
 
-            // split recipients into local and remote
+            // split recipients into local and remote (pre-size by total
+            // recipients to avoid Vec growth allocations during the loop —
+            // typical mail has 1-3 recipients but bulk can spike to 100+)
             // remote_rcpts: (address, is_forwarded)
-            let mut initial_local: Vec<String> = Vec::new();
-            let mut remote_rcpts: Vec<(String, bool)> = Vec::new();
+            let mut initial_local: Vec<String> = Vec::with_capacity(forward_paths.len());
+            let mut remote_rcpts: Vec<(String, bool)> = Vec::with_capacity(forward_paths.len());
             for rcpt in &forward_paths {
                 if rcpt
                     .split_once('@')
@@ -167,8 +169,10 @@ where
                 }
             }
 
-            // resolve aliases for local recipients
-            let mut local_rcpts: Vec<String> = Vec::new();
+            // resolve aliases for local recipients (pre-sized: typically
+            // 1:1 with initial_local; alias expansion may add more but
+            // the initial size is a good lower bound)
+            let mut local_rcpts: Vec<String> = Vec::with_capacity(initial_local.len());
             for rcpt in &initial_local {
                 if let Some(ref ds) = ctx.domain_store {
                     match ds.resolve_recipient(rcpt).await {
