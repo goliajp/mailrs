@@ -497,9 +497,8 @@ HGyqyhI/o/owDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAANBAGc=
         let r = cert_days_remaining(expired_pem);
         // Accept either path: real expired cert → Ok(negative), garbage
         // → Err. Both indicate "don't trust this cert".
-        match r {
-            Ok(days) => assert!(days < 0, "expected negative days, got {days}"),
-            Err(_) => {} // also fine
+        if let Ok(days) = r {
+            assert!(days < 0, "expected negative days, got {days}");
         }
     }
 
