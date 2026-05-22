@@ -58,8 +58,19 @@ pub fn evaluate_triplet(
 }
 
 /// Compute a stable triplet key for storage.
+///
+/// Pre-sized + push-based to avoid the geometric resize cascade that
+/// `format!` does (16 → 32 → 64 byte capacity steps). Capacity bound
+/// is the three inputs + 2 separator bytes; typical real key is
+/// ~50-80 bytes (IPv4 + two email addresses).
 pub fn triplet_key(client_ip: &str, sender: &str, recipient: &str) -> String {
-    format!("{client_ip}|{sender}|{recipient}")
+    let mut out = String::with_capacity(client_ip.len() + sender.len() + recipient.len() + 2);
+    out.push_str(client_ip);
+    out.push('|');
+    out.push_str(sender);
+    out.push('|');
+    out.push_str(recipient);
+    out
 }
 
 #[cfg(feature = "redis-store")]
