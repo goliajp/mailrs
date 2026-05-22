@@ -61,18 +61,31 @@ impl Response {
 /// Format a multi-line EHLO response. The first line carries the hostname;
 /// each subsequent line carries one capability. Returns the full wire-format
 /// bytes including CRLFs.
+///
+/// Pre-sized buffer + direct `push_str` instead of `write!`-macro
+/// dispatch. Each line is `"250 " | "250-"` + the hostname or capability
+/// + `\r\n` — all `push_str` of `&str` slices, no formatting machinery.
 pub fn format_ehlo_response<S: AsRef<str>>(hostname: &str, capabilities: &[S]) -> String {
-    let mut buf = String::new();
+    // Capacity estimate: "250 " (4) + hostname + CRLF (2) + per-cap line.
+    // Each cap line is "250-" or "250 " (4) + cap.len() + CRLF (2).
+    let mut cap_len = 0usize;
+    for cap in capabilities {
+        cap_len += cap.as_ref().len() + 6;
+    }
+    let mut buf = String::with_capacity(hostname.len() + cap_len + 6);
     if capabilities.is_empty() {
-        write!(buf, "250 {hostname}\r\n").unwrap();
+        buf.push_str("250 ");
+        buf.push_str(hostname);
+        buf.push_str("\r\n");
     } else {
-        write!(buf, "250-{hostname}\r\n").unwrap();
+        buf.push_str("250-");
+        buf.push_str(hostname);
+        buf.push_str("\r\n");
+        let last = capabilities.len() - 1;
         for (i, cap) in capabilities.iter().enumerate() {
-            if i == capabilities.len() - 1 {
-                write!(buf, "250 {}\r\n", cap.as_ref()).unwrap();
-            } else {
-                write!(buf, "250-{}\r\n", cap.as_ref()).unwrap();
-            }
+            buf.push_str(if i == last { "250 " } else { "250-" });
+            buf.push_str(cap.as_ref());
+            buf.push_str("\r\n");
         }
     }
     buf
