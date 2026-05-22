@@ -43,6 +43,7 @@ mailrs-rate-limit = "1"
 mailrs-rfc5322 = "1"
 mailrs-rfc2047 = "1"
 mailrs-auth-guard = "1"
+mailrs-srs = { path = "../srs" }
 sqlx = { workspace = true }
 redis = { workspace = true }
 hickory-resolver = "0.26"

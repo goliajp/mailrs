@@ -1,0 +1,29 @@
+[package]
+name = "mailrs-srs"
+version = "1.0.0"
+edition = "2024"
+description = "Sender Rewriting Scheme (SRS, RFC-style) — rewrite envelope From for SPF-aware mail forwarding, with HMAC-keyed signature and timestamp. Forward + reverse + verify in one focused crate."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-srs"
+authors = ["GOLIA K.K."]
+keywords = ["smtp", "spf", "srs", "forwarding", "email"]
+categories = ["email", "network-programming"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = { workspace = true }
+hmac = "0.13"
+sha2 = "0.11"
+hex = "0.4"
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "srs"
+harness = false

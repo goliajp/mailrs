@@ -23,6 +23,7 @@ members = [
     "crates/rfc2047",
     "crates/rfc5322",
     "crates/auth-guard",
+    "crates/srs",
     "crates/server",
 ]
 

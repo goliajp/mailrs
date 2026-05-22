@@ -132,6 +132,21 @@ the criterion bench medians above instead.
 | `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
 | `triplet_key` | **~25 ns** | was 120 ns; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity` + `push_str` for **−82%** measured (~5× faster). Called per inbound message on the greylist hot path. |
 
+### `mailrs-srs` — Sender Rewriting Scheme (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `rewrite` (ASCII sender) | **171 ns** |
+| `reverse` (success, in window) | **208 ns** |
+| `reverse` (wrong secret, constant-time HMAC compare) | **127 ns** |
+| `reverse` (malformed input, early exit) | **11 ns** |
+
+Run: `cargo bench -p mailrs-srs --bench srs`. The constant-time HMAC
+byte compare is verified inline — the timing difference between
+success and wrong-secret paths is from the success path additionally
+allocating the recovered "local@domain" String; the actual byte
+comparison is constant-time.
+
 ### `mailrs-auth-guard` — failed-auth tracker (criterion, M-series Mac, release)
 
 | Path | Median |
