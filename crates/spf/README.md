@@ -96,11 +96,12 @@ Measured (criterion, M-series Mac, release):
 
 | Operation | Median |
 |---|---:|
-| `Record::parse` (simple v=spf1 ip4 -all) | TBD |
-| `Record::parse` (complex 8-mechanism record) | TBD |
-| `verify` pass-path (no real DNS) | TBD |
+| `Record::parse` (simple `v=spf1 ip4 -all`) | **82 ns** |
+| `Record::parse` (complex 8-mechanism record) | **484 ns** |
+| `verify` pass-path (no real DNS) | **244 ns** |
 
-Bench numbers updated post-publish. Reproduce:
+The verify number is the pure CPU work; actual production `verify`
+is dominated by DNS round-trips (typical 5-50 ms). Reproduce:
 `cargo bench -p mailrs-spf --bench spf`.
 
 ## License

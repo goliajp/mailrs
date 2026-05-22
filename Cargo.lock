@@ -2992,7 +2992,7 @@ dependencies = [
  "mailrs-shield 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-spf 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-spf 1.0.0",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3098,21 +3098,21 @@ dependencies = [
 [[package]]
 name = "mailrs-spf"
 version = "1.0.0"
-dependencies = [
- "async-trait",
- "criterion",
- "hickory-resolver",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-spf"
-version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "793568ed7e41151789b067f05a49097fe71096aee4933725cd118b32ab3e76a9"
 dependencies = [
  "async-trait",
  "hickory-resolver",
+]
+
+[[package]]
+name = "mailrs-spf"
+version = "1.0.1"
+dependencies = [
+ "async-trait",
+ "criterion",
+ "hickory-resolver",
+ "tokio",
 ]
 
 [[package]]
