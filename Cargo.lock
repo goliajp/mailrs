@@ -2485,6 +2485,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-auth-guard"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dde5fdb13dc4f3f3a503d6d3907db0144cf55c7177f99ba6c74363188285715d"
+dependencies = [
+ "dashmap",
+ "tracing",
+]
+
+[[package]]
 name = "mailrs-clean"
 version = "1.0.3"
 dependencies = [
@@ -2853,7 +2863,7 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
- "mailrs-auth-guard",
+ "mailrs-auth-guard 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dmarc 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
