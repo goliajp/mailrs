@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-shield"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2024"
 description = "SMTP anti-spam primitives: DNS blocklist (DNSBL) queries, greylisting policy with optional Redis store, and PTR / forward-confirmed reverse DNS (FCrDNS) checks."
 license = "Apache-2.0 OR MIT"
@@ -22,6 +22,7 @@ default = ["redis-store"]
 redis-store = ["dep:redis", "dep:sqlx"]
 
 [dependencies]
+mailrs-dnsbl = { path = "../dnsbl" }
 hickory-resolver = "0.26"
 
 # redis-store feature
