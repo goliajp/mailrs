@@ -19,9 +19,15 @@ use crate::dmarc_report::{DmarcReportStore, DmarcResultRecord, DmarcStore};
 /// Stage that performs SPF, DKIM, ARC, and DMARC verification and records
 /// the aggregate result in `ctx.auth_results`. On DMARC policy=reject
 /// returns `Decide(Reject)`; otherwise returns `Continue`.
+///
+/// Currently runs `mail-auth` for production decisions; if a
+/// `shadow_spf_resolver` is configured it also runs `mailrs-spf` in
+/// shadow mode and `tracing::warn!`s on divergence. This validates
+/// `mailrs-spf` against real prod traffic before we fully cut over.
 pub struct MailAuthStage {
     authenticator: Arc<MessageAuthenticator>,
     dmarc_report_store: Option<Arc<DmarcReportStore>>,
+    shadow_spf_resolver: Option<Arc<mailrs_spf::HickoryResolver>>,
 }
 
 impl MailAuthStage {
@@ -34,7 +40,18 @@ impl MailAuthStage {
         Self {
             authenticator,
             dmarc_report_store,
+            shadow_spf_resolver: None,
         }
+    }
+
+    /// Enable shadow-mode SPF validation against `mailrs-spf`. The
+    /// shadow result does not affect any decision; it's logged via
+    /// `tracing::info!` (matches) or `tracing::warn!` (divergences)
+    /// so we can validate the new crate against real prod traffic
+    /// before cutting over.
+    pub fn with_shadow_spf(mut self, resolver: Arc<mailrs_spf::HickoryResolver>) -> Self {
+        self.shadow_spf_resolver = Some(resolver);
+        self
     }
 }
 
@@ -55,6 +72,37 @@ impl Stage for MailAuthStage {
         let spf_output = self.authenticator.verify_spf(spf_params).await;
         let spf_str = spf_result_str(spf_output.result());
         ctx.auth_results.spf = spf_str.clone();
+
+        // Shadow validation against mailrs-spf — runs only when the
+        // optional resolver is configured. Does NOT affect any decision;
+        // we log matches at info, divergences at warn so we can audit.
+        if let Some(ref shadow) = self.shadow_spf_resolver {
+            let input = mailrs_spf::VerifyInput {
+                ip: ctx.client_ip,
+                helo: ctx.ehlo_domain.clone(),
+                mail_from: ctx.sender.clone(),
+            };
+            let shadow_result = mailrs_spf::verify(shadow.as_ref(), &input).await;
+            let shadow_str = shadow_result.as_str();
+            if shadow_str == spf_str {
+                tracing::info!(
+                    event = "spf_shadow_match",
+                    spf = %spf_str,
+                    domain = %input.target_domain(),
+                    "mailrs-spf matches mail-auth"
+                );
+            } else {
+                tracing::warn!(
+                    event = "spf_shadow_divergence",
+                    mail_auth = %spf_str,
+                    mailrs_spf = %shadow_str,
+                    domain = %input.target_domain(),
+                    helo = %ctx.ehlo_domain,
+                    sender = %ctx.sender,
+                    "SPF result divergence — mailrs-spf says different from mail-auth"
+                );
+            }
+        }
 
         // 2. DKIM + 3. ARC + 4. DMARC (need parsed message)
         let Some(auth_msg) = AuthenticatedMessage::parse(&ctx.message) else {

@@ -33,6 +33,7 @@ pub fn build_inbound_pipeline(
     resolver: Option<Arc<TokioResolver>>,
     mail_authenticator: Option<Arc<MessageAuthenticator>>,
     dmarc_report_store: Option<Arc<DmarcReportStore>>,
+    shadow_spf_resolver: Option<Arc<mailrs_spf::HickoryResolver>>,
     clamav_addr: Option<String>,
     llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     valkey: Option<redis::aio::ConnectionManager>,
@@ -47,7 +48,11 @@ pub fn build_inbound_pipeline(
         builder = builder.add(PtrStage::new(r));
     }
     if let Some(auth) = mail_authenticator {
-        builder = builder.add(MailAuthStage::new(auth, dmarc_report_store));
+        let mut stage = MailAuthStage::new(auth, dmarc_report_store);
+        if let Some(shadow) = shadow_spf_resolver {
+            stage = stage.with_shadow_spf(shadow);
+        }
+        builder = builder.add(stage);
     }
     if let Some(addr) = clamav_addr {
         builder = builder.add(ClamavStage::new(addr));

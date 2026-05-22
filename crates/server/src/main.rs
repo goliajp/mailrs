@@ -489,12 +489,21 @@ async fn main() {
 
     let users = Arc::new(user_store);
 
+    // Shadow-mode SPF: enable when resolver is up. mailrs-spf runs in
+    // parallel to mail-auth's SPF check, results compared via tracing
+    // logs, NO impact on production decisions. Once the divergence
+    // log stays clean for a while we cut over.
+    let shadow_spf_resolver = resolver.as_ref().map(|r| {
+        Arc::new(mailrs_spf::HickoryResolver::new((**r).clone()))
+    });
+
     let inbound_pipeline = crate::inbound::pipeline::build_inbound_pipeline(
         greylist_db.clone(),
         greylist_config.clone(),
         resolver.clone(),
         mail_authenticator.clone(),
         dmarc_report_store.clone(),
+        shadow_spf_resolver,
         cfg.clamav_addr.clone(),
         llm_provider.clone(),
         valkey_conn.clone(),
