@@ -2882,6 +2882,7 @@ dependencies = [
  "mailrs-shield 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-srs",
  "mime_guess",
  "password-hash",
  "pdf-extract",
@@ -2977,6 +2978,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60898f6b379b6caffb4c654370af3734fb7a73b75ed028b8dae782ee1b0b25cc"
 dependencies = [
  "base64",
+]
+
+[[package]]
+name = "mailrs-srs"
+version = "1.0.0"
+dependencies = [
+ "chrono",
+ "criterion",
+ "hex",
+ "hmac 0.13.0",
+ "sha2 0.11.0",
 ]
 
 [[package]]
