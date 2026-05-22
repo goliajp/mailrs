@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-srs"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "Sender Rewriting Scheme (SRS, RFC-style) — rewrite envelope From for SPF-aware mail forwarding, with HMAC-keyed signature and timestamp. Forward + reverse + verify in one focused crate."
 license = "Apache-2.0 OR MIT"

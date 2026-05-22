@@ -81,10 +81,8 @@ impl<'a> Message<'a> {
                     .all(|(a, b)| a.eq_ignore_ascii_case(b));
 
             // Find end-of-logical-line (handles folding)
-            let (line_end, after_crlf) = match crate::header::find_unfolded_line_end(bytes, cursor) {
-                Some(pair) => pair,
-                None => return None,
-            };
+            let (line_end, after_crlf) =
+                crate::header::find_unfolded_line_end(bytes, cursor)?;
 
             if has_match {
                 // Extract value: skip colon + optional single WSP

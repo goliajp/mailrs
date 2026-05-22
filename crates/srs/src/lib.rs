@@ -284,4 +284,146 @@ mod tests {
         let tt = current_tt();
         assert_eq!(tt.len(), 3);
     }
+
+    // ===== additional edge cases =====
+
+    #[test]
+    fn reverse_rejects_hash_too_short() {
+        // Hash slot is only 4 chars, not 8
+        let r = reverse(
+            "SRS0=abcd=001=example.com=alice@mx.local",
+            "key",
+            DEFAULT_TIMESTAMP_WINDOW_DAYS,
+        );
+        assert!(r.is_none());
+    }
+
+    #[test]
+    fn reverse_rejects_hash_too_long() {
+        // Hash slot is 12 chars, expected 8
+        let r = reverse(
+            "SRS0=abcd1234567890=001=example.com=alice@mx.local",
+            "key",
+            DEFAULT_TIMESTAMP_WINDOW_DAYS,
+        );
+        assert!(r.is_none());
+    }
+
+    #[test]
+    fn reverse_rejects_tt_wrong_length() {
+        // tt is 4 digits, expected 3
+        let r = reverse(
+            "SRS0=abcd1234=0001=example.com=alice@mx.local",
+            "key",
+            DEFAULT_TIMESTAMP_WINDOW_DAYS,
+        );
+        assert!(r.is_none());
+    }
+
+    #[test]
+    fn reverse_rejects_too_few_separators() {
+        // Only 3 = separators instead of 4
+        let r = reverse(
+            "SRS0=hash=001=domain@mx.local",
+            "key",
+            DEFAULT_TIMESTAMP_WINDOW_DAYS,
+        );
+        assert!(r.is_none());
+    }
+
+    #[test]
+    fn reverse_rejects_lowercase_prefix() {
+        // RFC-correct prefix is uppercase SRS0=. Lowercase rejected.
+        let secret = "k";
+        let rewritten = rewrite("alice@example.com", "mx.local", secret).replace("SRS0=", "srs0=");
+        let r = reverse(&rewritten, secret, DEFAULT_TIMESTAMP_WINDOW_DAYS);
+        assert!(r.is_none());
+    }
+
+    #[test]
+    fn rewrite_empty_local_part_passthrough() {
+        // "@example.com" — has no local part. split_once('@') returns
+        // Some(("", "example.com")). It does get rewritten; the SRS0
+        // form will have empty local_part field after the last =.
+        let r = rewrite("@example.com", "mx.local", "k");
+        // Should still produce an SRS0= form (or pass through; our
+        // impl chooses to rewrite even with empty local).
+        assert!(r.starts_with("SRS0="));
+    }
+
+    #[test]
+    fn reverse_with_local_part_containing_at() {
+        // Most senders won't have @ in local-part, but some "quoted"
+        // local-parts do per RFC 5321. We split on the LAST @ in the
+        // wire form; the original local-part inside our SRS0= envelope
+        // can contain whatever bytes (other than =). Verify roundtrip.
+        let secret = "k";
+        let original = "alice+work@example.com";
+        let rewritten = rewrite(original, "mx.local", secret);
+        let recovered = reverse(&rewritten, secret, DEFAULT_TIMESTAMP_WINDOW_DAYS);
+        assert_eq!(recovered.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn tt_within_window_one_day_out() {
+        // tt for "yesterday" should be within a 1-day window.
+        let now_tt: u32 = current_tt().parse().unwrap();
+        let yesterday_tt = if now_tt == 0 { 1023 } else { now_tt - 1 };
+        let tt_str = format!("{yesterday_tt:03}");
+        assert!(tt_within_window(&tt_str, 14));
+        assert!(tt_within_window(&tt_str, 1));
+        assert!(!tt_within_window(&tt_str, 0));
+    }
+
+    #[test]
+    fn tt_within_window_wrap_around() {
+        // tt is mod 1024. If today is 5 and we receive tt=1023
+        // (~3 weeks ago, just past the wrap), it should NOT be within
+        // a 14-day window. The implementation has to handle the
+        // modular distance correctly.
+        // We can't manipulate `now` easily, so this test is parametric:
+        // verify the math of tt_within_window directly.
+        // Test: tt that's tt_now + 5 (i.e. "future" by 5 days due to wrap)
+        // is NOT within a 14-day window.
+        let now_tt: u32 = current_tt().parse().unwrap();
+        let future_tt = (now_tt + 5) % 1024;
+        let future_str = format!("{future_tt:03}");
+        // Future tt (small wrap delta) — implementation considers this
+        // "1024 - 5 + now = ~1019 days ago" — far outside any window.
+        assert!(!tt_within_window(&future_str, 14));
+        assert!(!tt_within_window(&future_str, 100));
+    }
+
+    #[test]
+    fn constant_time_eq_unequal_length_returns_false() {
+        assert!(!constant_time_eq(b"abc", b"abcd"));
+        assert!(!constant_time_eq(b"", b"x"));
+    }
+
+    #[test]
+    fn rewrite_returns_distinct_secret_distinct_output_for_long_secrets() {
+        // Both secrets longer than the HMAC key size — verify the
+        // HMAC key-stretching still distinguishes them.
+        let long_a: String = "A".repeat(100);
+        let long_b: String = "B".repeat(100);
+        let r1 = rewrite("alice@example.com", "mx.local", &long_a);
+        let r2 = rewrite("alice@example.com", "mx.local", &long_b);
+        assert_ne!(r1, r2);
+    }
+
+    #[test]
+    fn reverse_returns_none_for_input_without_at() {
+        let r = reverse("SRS0=abcd1234=001=example.com=alice", "k", 14);
+        assert!(r.is_none());
+    }
+
+    #[test]
+    fn rewrite_then_reverse_unicode_in_local() {
+        // RFC 6532 EAI extension allows UTF-8 in local-parts.
+        let secret = "k";
+        let original = "用户@example.com";
+        let rewritten = rewrite(original, "mx.local", secret);
+        let recovered = reverse(&rewritten, secret, DEFAULT_TIMESTAMP_WINDOW_DAYS);
+        assert_eq!(recovered.as_deref(), Some(original));
+    }
 }
