@@ -2477,15 +2477,14 @@ dependencies = [
 
 [[package]]
 name = "mailrs-acme"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc1c4a62c7582baccdc807379b175db9e225d6eb4726688117147e8787ee2290"
+version = "1.0.1"
 dependencies = [
  "axum",
  "chrono",
+ "criterion",
  "futures-util",
  "instant-acme",
- "mailrs-tls-reload 1.0.0",
+ "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustls",
  "rustls-pki-types",
  "serde_json",
@@ -2497,13 +2496,14 @@ dependencies = [
 [[package]]
 name = "mailrs-acme"
 version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c040c7e16e4bae76578abdcac4c0dd465cd2ab867a59573191eb9726d87927ea"
 dependencies = [
  "axum",
  "chrono",
- "criterion",
  "futures-util",
  "instant-acme",
- "mailrs-tls-reload 1.0.0",
+ "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustls",
  "rustls-pki-types",
  "serde_json",
@@ -2969,7 +2969,7 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
- "mailrs-acme 1.0.0",
+ "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-auth-guard 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2993,7 +2993,7 @@ dependencies = [
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-tls-reload 1.0.0",
+ "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime_guess",
  "password-hash",
@@ -3119,11 +3119,11 @@ dependencies = [
 
 [[package]]
 name = "mailrs-tls-reload"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10ca1fd911d91f98b62899b5014f63cee9a34ad7c47ee17964f95e48b572810d"
+version = "1.0.1"
 dependencies = [
  "arc-swap",
+ "criterion",
+ "rcgen 0.13.2",
  "rustls",
  "rustls-pki-types",
  "tokio-rustls",
@@ -3132,10 +3132,10 @@ dependencies = [
 [[package]]
 name = "mailrs-tls-reload"
 version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7fc857705411136271084e48d6fa3c4c450b8cfedc46f4bc7d36e204e0e1a2d"
 dependencies = [
  "arc-swap",
- "criterion",
- "rcgen 0.13.2",
  "rustls",
  "rustls-pki-types",
  "tokio-rustls",
