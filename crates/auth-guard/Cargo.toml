@@ -1,0 +1,27 @@
+[package]
+name = "mailrs-auth-guard"
+version = "1.0.0"
+edition = "2024"
+description = "Per-IP + per-(IP, username) failed-auth counter with exponential-backoff lockout. IPv6 normalized to /64 prefix. Sharded DashMap; allocation-free on the success path."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-auth-guard"
+authors = ["GOLIA K.K."]
+keywords = ["auth", "rate-limit", "lockout", "smtp", "imap"]
+categories = ["authentication", "network-programming"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+dashmap = "6"
+tracing = "0.1"
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "guard"
+harness = false
