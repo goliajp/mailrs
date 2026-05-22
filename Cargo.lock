@@ -2491,7 +2491,7 @@ version = "1.0.3"
 dependencies = [
  "criterion",
  "dashmap",
- "mailrs-backoff",
+ "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing",
 ]
 
@@ -2501,6 +2501,12 @@ version = "1.0.0"
 dependencies = [
  "criterion",
 ]
+
+[[package]]
+name = "mailrs-backoff"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4099c3c303b269fad7b6a50508e59133845f5050ca0238bb82fb0f116b765942"
 
 [[package]]
 name = "mailrs-clamav"
@@ -2791,7 +2797,7 @@ dependencies = [
  "futures-util",
  "hickory-resolver",
  "mail-auth",
- "mailrs-backoff",
+ "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "redis",
  "rustls-pki-types",
@@ -2925,7 +2931,7 @@ dependencies = [
  "mail-auth",
  "mail-parser",
  "mailrs-auth-guard 1.0.2",
- "mailrs-backoff",
+ "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",

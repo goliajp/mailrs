@@ -25,7 +25,7 @@ pg = ["dep:sqlx", "dep:redis"]
 [dependencies]
 async-trait = "0.1"
 thiserror = "2"
-mailrs-backoff = { path = "../backoff" }
+mailrs-backoff = "1"
 tokio = { version = "1", features = ["sync", "time", "rt"] }
 tracing = "0.1"
 chrono = "0.4"
