@@ -14,15 +14,63 @@ or marketing material says.
 
 ## Measured
 
+### Workspace-level
+
 | Path | Measurement | Run command |
 |---|---|---|
-| Release binary size (mailrs-server) | 44 MB (default) → 22 MB (perf-first profile). Run on M-series Mac, `cargo build --release`. | `du -h /Volumes/.../target/release/mailrs-server` before/after the commit `9f21e0b`. |
-| `extract_subject_and_from` vs. two `extract_header` calls | Single-pass wins by 48-50% across 1KB/5KB/20KB messages (release). Absolute: saves 2.0-6.5 µs per message. | `MAILRS_BENCH=1 cargo test --release -p mailrs-server bench_two_pass_vs_single_pass -- --nocapture --test-threads=1` |
-| `make_delivery_decision` (Accept / Junk / Reject paths) | All under 5 µs (dev) ; under 1 µs (release). | `cargo test -p mailrs-inbound --test perf_gate` — see crates/inbound/BUDGETS.md row |
-| `build_auth_header` | < 1.5 µs (dev), < 0.6 µs (release). | crates/inbound/BUDGETS.md |
-| `ReceiveContext::to_pipeline_input` | < 200 ns (dev). | crates/inbound/BUDGETS.md |
-| `Pipeline::run` dispatch (4 noop stages) | < 50 µs (dev), < 5 µs (release). The framework cost — actual stage cost is dominated by their backends. | crates/inbound/BUDGETS.md |
-| Per-crate perf gates (15 crates) | Each gated path has an observed P95 documented in the crate's `BUDGETS.md`. | `cargo test -p mailrs-<crate> --test perf_gate` |
+| Release binary size (mailrs-server) | 44 MB (default) → 22 MB (perf-first profile). M-series Mac. | `du -h $TARGET_DIR/release/mailrs-server` before/after commit `9f21e0b`. |
+
+### `mailrs-inbound` (criterion bench, M-series Mac, release, 100-sample median ± 95% CI from criterion's own analysis)
+
+| Path | Median | Notes |
+|---|---:|---|
+| `decision::make_delivery_decision_greylist` | **2.4 ns** | trivial early return |
+| `context::receive_context_to_pipeline_input` | **65 ns** | per-message snapshot clone |
+| `pipeline_run/early_reject_short_circuit` | **201 ns** | first stage rejects → entire pipeline |
+| `auth_header::format_auth_results_header_quadruple` | **228 ns** | RFC 8601 4-method header |
+| `decision::make_delivery_decision_accept` | **337 ns** | Accept path + auth header build |
+| `auth_header::build_auth_header_no_reason` | **342 ns** | DMARC pass header (no reason) |
+| `decision::make_delivery_decision_dmarc_reject` | **408 ns** | Reject path + auth header build (header built even though not returned) |
+| `auth_header::build_auth_header_with_reason` | **429 ns** | DMARC fail header with `reason="policy=…"` |
+| `pipeline_run/4_noop_stages` | **610 ns** | framework dispatch cost only |
+| `pipeline_run/realistic_mix_6_stages` | **648 ns** | dispatch + 6 cheap noop-style stages |
+| `decision::make_delivery_decision_junk` | **735 ns** | Junk path — extra `format!` for score-breakdown reason |
+
+Run: `cargo bench -p mailrs-inbound --bench pipeline` (the bench file
+ships in `crates/inbound/benches/pipeline.rs`).
+
+### Other crate-level perf gates (regression-catch only)
+
+Each crate's `tests/perf_gate.rs` documents a budget per gated path and
+runs as part of `cargo test`. These are *not* publishable numbers (the
+gates have 15-30× headroom so they catch order-of-magnitude regressions,
+not micro-perf swings). Don't quote them as performance claims; quote
+the criterion bench medians above instead.
+
+| Crate | `cargo test -p mailrs-<crate> --test perf_gate` | Gate count |
+|---|---|---:|
+| mailrs-clean | budgets in `BUDGETS.md` | 3 |
+| mailrs-dav | budgets in `BUDGETS.md` | 3 |
+| mailrs-dmarc | budgets in `BUDGETS.md` | 2 |
+| mailrs-ical | budgets in `BUDGETS.md` | 2 |
+| mailrs-imap-proto | budgets in `BUDGETS.md` | 3 |
+| mailrs-inbound | budgets in `BUDGETS.md` | 8 |
+| mailrs-intelligence | budgets in `BUDGETS.md` | 2 |
+| mailrs-jmap | budgets in `BUDGETS.md` | 4 |
+| mailrs-mailbox | budgets in `BUDGETS.md` | 8 |
+| mailrs-outbound-queue | budgets in `BUDGETS.md` | 6 |
+| mailrs-postmaster | budgets in `BUDGETS.md` | 4 |
+| mailrs-rate-limit | budgets in `BUDGETS.md` | 4 |
+| mailrs-shield | budgets in `BUDGETS.md` | 5 |
+| mailrs-smtp-client | budgets in `BUDGETS.md` | 3 |
+| mailrs-smtp-proto | budgets in `BUDGETS.md` | 5 |
+| mailrs-maildir | budgets in `BUDGETS.md` | 3 |
+
+### Server-internal (`mailrs-server`, gated `#[test]` bench)
+
+| Path | Measurement | Run command |
+|---|---|---|
+| `extract_subject_and_from` vs. two `extract_header` calls | Single-pass wins **48-50%** across 1KB/5KB/20KB messages (release). Absolute: saves **2.0 / 3.1 / 6.5 µs** per message respectively. | `MAILRS_BENCH=1 cargo test --release -p mailrs-server bench_two_pass_vs_single_pass -- --nocapture --test-threads=1` |
 
 ## NOT measured (claims to retract or qualify)
 
