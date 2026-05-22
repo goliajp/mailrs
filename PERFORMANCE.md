@@ -132,6 +132,21 @@ the criterion bench medians above instead.
 | `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
 | `triplet_key` | **~25 ns** | was 120 ns; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity` + `push_str` for **−82%** measured (~5× faster). Called per inbound message on the greylist hot path. |
 
+### `mailrs-backoff` — exponential backoff with optional jitter (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `base_delay(attempt=3)` | **~8 ns** |
+| `delay(attempt=3, Jitter::None)` | **~23 ns** |
+| `delay(attempt=3, Jitter::Equal)` | **~31 ns** |
+| `delay(attempt=3, Jitter::Full)` | **~11 ns** |
+| `delay(attempt=100, capped)` | **~10 ns** |
+| `should_give_up` | **<1 ns** |
+
+Run: `cargo bench -p mailrs-backoff --bench backoff`. Generic
+exponential-backoff primitive with AWS-style jitter taxonomy
+(None/Equal/Full); zero runtime deps, caller supplies seed.
+
 ### `mailrs-clamav` — ClamAV TCP INSTREAM client (criterion, M-series Mac, release)
 
 CPU portion only — `scan` itself is network-bound (10-30 ms for a

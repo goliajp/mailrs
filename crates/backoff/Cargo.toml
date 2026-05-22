@@ -1,0 +1,23 @@
+[package]
+name = "mailrs-backoff"
+version = "1.0.0"
+edition = "2024"
+description = "Exponential backoff with optional jitter (AWS-style taxonomy: None / Equal / Full). Pure delay math — no I/O, no async, no allocation. Useful for any retry loop: SMTP outbound, webhook delivery, auth-lockout, HTTP client retries."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-backoff"
+authors = ["GOLIA K.K."]
+keywords = ["backoff", "retry", "jitter", "exponential", "thundering-herd"]
+categories = ["algorithms", "network-programming"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "backoff"
+harness = false
