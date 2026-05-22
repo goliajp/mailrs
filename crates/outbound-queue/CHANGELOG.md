@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-23
+
+### Changed
+
+- **`retry::retry_delay_secs` now backed by `mailrs-backoff`** —
+  internal switch from the hardcoded 8-slot array to
+  `Backoff::smtp_outbound` (initial 60s, 2.5× growth, 8h cap).
+  Schedule curve shifts slightly in attempts 1-5; cap unchanged at
+  attempt 7+.
+
+  Old: `[60, 300, 900, 1800, 3600, 7200, 14400, 28800]`
+  New: `[60, 150, 375, 937, 2343, 5859, 14648, 28800]`
+
+  Tests that asserted exact pre-1.1 values updated. If your
+  deployment requires the exact old curve, pin to 1.0.2 or compute
+  your own delays from a custom `mailrs_backoff::Backoff`.
+
+### Added
+
+- `retry::retry_delay_secs_jittered(attempt, seed)` — same curve with
+  Full jitter applied. Use this in production schedulers to spread
+  retry traffic and avoid synchronized retry bursts when many queue
+  rows fail simultaneously (MX outage, DNS hiccup).
+- `mailrs-backoff` runtime dep.
+
 ## [1.0.2] - 2026-05-22
 
 ### Added

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-05-23
+
+### Changed
+
+- `lockout_duration` now delegates to `mailrs-backoff` internally
+  rather than computing the exponential math inline. Numerically
+  identical (all existing tests pass unchanged); deduplicates the
+  third in-workspace copy of "exponential backoff with cap".
+- Added `mailrs-backoff` runtime dep.
+
 ## [1.0.2] - 2026-05-22
 
 ### Added
