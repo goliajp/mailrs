@@ -78,3 +78,13 @@ ldap3 = { version = "0.12.1", default-features = false, features = ["tls-rustls-
 chromiumoxide = { version = "0.9", default-features = false }
 jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 rsa = { version = "0.9", features = ["pem"] }
+
+# Network-driven SMTP load bench — substantiates / refutes the
+# "+10-20% throughput" claim from commit 9f21e0b (perf-first release
+# profile). Custom harness because the bench drives real TCP sessions
+# over localhost; criterion's iter model doesn't fit. See
+# benches/smtp_load.rs for full rationale.
+[[bench]]
+name = "smtp_load"
+harness = false
+path = "benches/smtp_load.rs"
