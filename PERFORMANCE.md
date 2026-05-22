@@ -132,6 +132,26 @@ the criterion bench medians above instead.
 | `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
 | `triplet_key` | **~25 ns** | was 120 ns; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity` + `push_str` for **−82%** measured (~5× faster). Called per inbound message on the greylist hot path. |
 
+### `mailrs-rfc5322` vs `mail-parser` — comparative bench
+
+| Operation | body size | mailrs-rfc5322 | mail-parser 0.11 | speedup |
+|---|---:|---:|---:|---:|
+| Subject + From lookup | 1 KB | **277 ns** | 2383 ns | **8.6×** |
+| Subject + From lookup | 5 KB | **281 ns** | 3378 ns | **12.0×** |
+| Subject + From lookup | 20 KB | **279 ns** | 6901 ns | **24.7×** |
+| body offset locate | 1 KB | **249 ns** | 2387 ns | **9.6×** |
+| body offset locate | 5 KB | **247 ns** | 3337 ns | **13.5×** |
+| body offset locate | 20 KB | **248 ns** | 6855 ns | **27.6×** |
+| Received-chain walk (3 hops) | — | **340 ns** | 3382 ns | **9.9×** |
+
+`mailrs-rfc5322` is **constant-time in body size** because the scanner
+stops at the header/body boundary. `mail-parser` is linear in body
+size because it builds the full Message tree. For an SMTP receive
+pipeline reading 2-5 headers per message, that's 6-7 µs/msg saved on
+20 KB messages — at 1000 msg/sec, **6-7 ms/sec of CPU freed.**
+
+Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
+
 ### `mailrs-clean` (criterion, `cargo bench -p mailrs-clean`)
 
 | Path | Median | Notes |
