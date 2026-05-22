@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-acme"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "High-level ACME (RFC 8555 / Let's Encrypt) orchestration: account load-or-create, HTTP-01 cert provisioning, expiry monitoring, periodic renewal task. Pairs with mailrs-tls-reload for atomic certificate swap without dropping in-flight connections. Optional axum-based HTTP-01 challenge server."
 license = "Apache-2.0 OR MIT"

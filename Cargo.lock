@@ -2133,7 +2133,7 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "hyper-util",
- "rcgen",
+ "rcgen 0.14.8",
  "rustls",
  "rustls-pki-types",
  "serde",
@@ -2478,13 +2478,14 @@ dependencies = [
 [[package]]
 name = "mailrs-acme"
 version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc1c4a62c7582baccdc807379b175db9e225d6eb4726688117147e8787ee2290"
 dependencies = [
  "axum",
  "chrono",
- "criterion",
  "futures-util",
  "instant-acme",
- "mailrs-tls-reload 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-tls-reload 1.0.0",
  "rustls",
  "rustls-pki-types",
  "serde_json",
@@ -2495,15 +2496,14 @@ dependencies = [
 
 [[package]]
 name = "mailrs-acme"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc1c4a62c7582baccdc807379b175db9e225d6eb4726688117147e8787ee2290"
+version = "1.0.1"
 dependencies = [
  "axum",
  "chrono",
+ "criterion",
  "futures-util",
  "instant-acme",
- "mailrs-tls-reload 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-tls-reload 1.0.0",
  "rustls",
  "rustls-pki-types",
  "serde_json",
@@ -2969,7 +2969,7 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
- "mailrs-acme 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-acme 1.0.0",
  "mailrs-auth-guard 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2993,7 +2993,7 @@ dependencies = [
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-tls-reload 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-tls-reload 1.0.0",
  "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime_guess",
  "password-hash",
@@ -3120,9 +3120,10 @@ dependencies = [
 [[package]]
 name = "mailrs-tls-reload"
 version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10ca1fd911d91f98b62899b5014f63cee9a34ad7c47ee17964f95e48b572810d"
 dependencies = [
  "arc-swap",
- "criterion",
  "rustls",
  "rustls-pki-types",
  "tokio-rustls",
@@ -3130,11 +3131,11 @@ dependencies = [
 
 [[package]]
 name = "mailrs-tls-reload"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10ca1fd911d91f98b62899b5014f63cee9a34ad7c47ee17964f95e48b572810d"
+version = "1.0.1"
 dependencies = [
  "arc-swap",
+ "criterion",
+ "rcgen 0.13.2",
  "rustls",
  "rustls-pki-types",
  "tokio-rustls",
@@ -4012,6 +4013,19 @@ checksum = "973443cf09a9c8656b574a866ab68dfa19f0867d0340648c7d2f6a71b8a8ea68"
 
 [[package]]
 name = "rcgen"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75e669e5202259b5314d1ea5397316ad400819437857b90861765f24c4cf80a2"
+dependencies = [
+ "pem",
+ "ring",
+ "rustls-pki-types",
+ "time",
+ "yasna 0.5.2",
+]
+
+[[package]]
+name = "rcgen"
 version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57f6d249aad744e274e682777a50283a225a32705394ee6d5fcc01efa25e4055"
@@ -4021,7 +4035,7 @@ dependencies = [
  "rustls-pki-types",
  "time",
  "x509-parser",
- "yasna",
+ "yasna 0.6.0",
 ]
 
 [[package]]
@@ -6459,6 +6473,15 @@ name = "xxhash-rust"
 version = "0.8.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
+
+[[package]]
+name = "yasna"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e17bb3549cc1321ae1296b9cdc2698e2b6cb1992adfa19a8c72e5b7a738f44cd"
+dependencies = [
+ "time",
+]
 
 [[package]]
 name = "yasna"

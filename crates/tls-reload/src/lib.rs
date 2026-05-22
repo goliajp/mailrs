@@ -114,14 +114,131 @@ pub fn load_tls_config(cert_path: &Path, key_path: &Path) -> io::Result<Arc<Serv
 mod tests {
     use super::*;
     use std::io::Write;
+    use std::sync::Once;
 
-    // Note: `TlsState`'s swap/current/acceptor mechanics are not unit-
-    // tested here because constructing a `rustls::ServerConfig` in
-    // isolation requires a crypto provider + a real cert (rustls 0.23
-    // refuses empty chains). That integration is covered by
-    // `mailrs-server`'s bin tests, which provide a configured cert.
-    // The wrapper itself is ~6 lines around `arc-swap` — its shape is
-    // covered by `arc-swap`'s own test suite.
+    /// Make sure rustls's default crypto provider is installed exactly
+    /// once for the test process. Required by rustls 0.23 before any
+    /// ServerConfig::builder() call.
+    fn install_crypto_provider() {
+        static INIT: Once = Once::new();
+        INIT.call_once(|| {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        });
+    }
+
+    /// Generate a fresh self-signed cert + key, written as PEM to two
+    /// temp files. Returns (cert_path, key_path).
+    ///
+    /// Uses an `AtomicU64` counter for the temp filename so concurrent
+    /// tests don't race on the same path.
+    fn make_self_signed_pem_files() -> (std::path::PathBuf, std::path::PathBuf) {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let nonce = COUNTER.fetch_add(1, Ordering::Relaxed);
+
+        let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])
+            .expect("rcgen self-signed");
+        let cert_pem = cert.cert.pem();
+        let key_pem = cert.key_pair.serialize_pem();
+        let pid = std::process::id();
+        let cert_path = std::env::temp_dir().join(format!("mailrs-tls-reload-{pid}-{nonce}-cert.pem"));
+        let key_path = std::env::temp_dir().join(format!("mailrs-tls-reload-{pid}-{nonce}-key.pem"));
+        std::fs::write(&cert_path, cert_pem).unwrap();
+        std::fs::write(&key_path, key_pem).unwrap();
+        (cert_path, key_path)
+    }
+
+    #[test]
+    fn load_tls_config_succeeds_with_valid_self_signed() {
+        install_crypto_provider();
+        let (cert_path, key_path) = make_self_signed_pem_files();
+        let _cfg = load_tls_config(&cert_path, &key_path).expect("valid PEMs should load");
+        // Successful load is the assertion. ServerConfig doesn't expose
+        // its inner cert chain via a public API we can introspect here;
+        // the fact that load returned Ok means rustls accepted the
+        // (chain, key) pair.
+    }
+
+    #[test]
+    fn tls_state_new_returns_acceptor() {
+        install_crypto_provider();
+        let (cert_path, key_path) = make_self_signed_pem_files();
+        let cfg = load_tls_config(&cert_path, &key_path).unwrap();
+        let state = TlsState::new((*cfg).clone());
+        let _acceptor = state.acceptor();
+        // Just verifying it constructs and yields an acceptor without
+        // panicking. Actual TLS handshake covered by mailrs-server bin
+        // tests.
+    }
+
+    #[test]
+    fn tls_state_swap_changes_current_pointer() {
+        install_crypto_provider();
+        let (cert_path, key_path) = make_self_signed_pem_files();
+        let cfg_a = load_tls_config(&cert_path, &key_path).unwrap();
+        let state = TlsState::new((*cfg_a).clone());
+        let before = state.current();
+        // Fresh cert → different Arc identity
+        let (cert_path_b, key_path_b) = make_self_signed_pem_files();
+        let cfg_b = load_tls_config(&cert_path_b, &key_path_b).unwrap();
+        state.swap((*cfg_b).clone());
+        let after = state.current();
+        assert!(
+            !Arc::ptr_eq(&before, &after),
+            "swap should produce a fresh Arc"
+        );
+    }
+
+    #[test]
+    fn tls_state_acceptor_snapshots_at_call_time() {
+        install_crypto_provider();
+        let (cert_path, key_path) = make_self_signed_pem_files();
+        let cfg = load_tls_config(&cert_path, &key_path).unwrap();
+        let state = TlsState::new((*cfg).clone());
+        let _acc1 = state.acceptor();
+        // Swap mid-flight:
+        let (cert_path_b, key_path_b) = make_self_signed_pem_files();
+        let cfg_b = load_tls_config(&cert_path_b, &key_path_b).unwrap();
+        state.swap((*cfg_b).clone());
+        // _acc1 was snapshotted before the swap, but TlsAcceptor doesn't
+        // expose the inner config for us to assert ptr equality here.
+        // The test is documentation-by-construction: it compiles + runs,
+        // demonstrating the snapshot path doesn't break under concurrent
+        // swap.
+    }
+
+    #[test]
+    fn tls_state_current_returns_arc() {
+        install_crypto_provider();
+        let (cert_path, key_path) = make_self_signed_pem_files();
+        let cfg = load_tls_config(&cert_path, &key_path).unwrap();
+        let state = TlsState::new((*cfg).clone());
+        let a = state.current();
+        let b = state.current();
+        // Without a swap in between, current() returns Arcs to the
+        // same underlying config.
+        assert!(Arc::ptr_eq(&a, &b));
+    }
+
+    #[test]
+    fn tls_state_clone_shares_inner() {
+        install_crypto_provider();
+        let (cert_path, key_path) = make_self_signed_pem_files();
+        let cfg = load_tls_config(&cert_path, &key_path).unwrap();
+        let state1 = TlsState::new((*cfg).clone());
+        let state2 = state1.clone();
+        // After clone, both share the same inner ArcSwap, so a swap
+        // through one is visible via the other.
+        let (cert_path_b, key_path_b) = make_self_signed_pem_files();
+        let cfg_b = load_tls_config(&cert_path_b, &key_path_b).unwrap();
+        let before = state2.current();
+        state1.swap((*cfg_b).clone());
+        let after_via_state2 = state2.current();
+        assert!(
+            !Arc::ptr_eq(&before, &after_via_state2),
+            "clone should observe swap"
+        );
+    }
 
     #[test]
     fn load_tls_config_rejects_missing_files() {
