@@ -2785,7 +2785,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-server"
-version = "1.6.24"
+version = "1.7.0"
 dependencies = [
  "arc-swap",
  "argon2",
