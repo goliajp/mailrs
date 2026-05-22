@@ -55,9 +55,21 @@
 //!   wall-clock latency is recorded.
 //! - Run for D seconds (default 30). Report msg/sec sustained plus
 //!   median / p99 / p999 latency.
-//! - The bench prints a single line of CSV-ish output:
-//!     `<duration_s>,<conns>,<msgs>,<throughput_msg_s>,<p50_us>,<p99_us>,<p999_us>`
-//!   so the wrapper script can collect rounds across profiles.
+//!
+//! `--no-deliver` mode (recommended for LTO comparison)
+//! ----------------------------------------------------
+//! By default the bench writes one Maildir file per delivered message,
+//! which calls `file.sync_all()` (fsync) on every message. Under
+//! concurrent load this disk-fsync queue dominates wall-clock latency
+//! and *masks* the LTO/CGU/panic CPU-side delta we want to measure —
+//! variance from page-cache / APFS behaviour easily hits ±30% between
+//! rounds.
+//!
+//! `--no-deliver` skips the Maildir write but keeps everything else
+//! (TCP, codec, `parse_command`, `Session` state machine, response
+//! formatting, `unstuff_data`). That's the slice of work the perf-first
+//! profile actually changes. Use this mode for the perf-first vs vanilla
+//! comparison.
 
 use std::env;
 use std::process::ExitCode;
@@ -130,7 +142,7 @@ impl Encoder<String> for Codec {
     }
 }
 
-async fn handle_connection(stream: TcpStream, maildir_root: Arc<String>) {
+async fn handle_connection(stream: TcpStream, maildir_root: Arc<String>, no_deliver: bool) {
     let hostname = "mx.bench.local";
     let config = SessionConfig::default();
     let mut session = Session::new(hostname, config);
@@ -183,17 +195,28 @@ async fn handle_connection(stream: TcpStream, maildir_root: Arc<String>) {
                             if let Some(Ok(Input::Data(raw))) = framed.next().await {
                                 let body = unstuff_data(&raw);
                                 let mut ok = true;
-                                for rcpt in &forward_paths {
-                                    if let Some((local, domain)) = rcpt.split_once('@') {
-                                        let path =
-                                            format!("{}/{domain}/{local}", maildir_root.as_str());
-                                        match Maildir::create(&path) {
-                                            Ok(md) => {
-                                                if md.deliver(&body).is_err() {
-                                                    ok = false;
+                                if no_deliver {
+                                    // CPU-only mode: still unstuff + iterate, but
+                                    // skip the fsync'd Maildir write. The disk
+                                    // path dominates wall-clock under load and
+                                    // masks the LTO/CGU/panic delta we want to
+                                    // measure.
+                                    std::hint::black_box(&body);
+                                } else {
+                                    for rcpt in &forward_paths {
+                                        if let Some((local, domain)) = rcpt.split_once('@') {
+                                            let path = format!(
+                                                "{}/{domain}/{local}",
+                                                maildir_root.as_str()
+                                            );
+                                            match Maildir::create(&path) {
+                                                Ok(md) => {
+                                                    if md.deliver(&body).is_err() {
+                                                        ok = false;
+                                                    }
                                                 }
+                                                Err(_) => ok = false,
                                             }
-                                            Err(_) => ok = false,
                                         }
                                     }
                                 }
@@ -231,7 +254,7 @@ async fn handle_connection(stream: TcpStream, maildir_root: Arc<String>) {
     }
 }
 
-async fn start_server(maildir_root: Arc<String>) -> u16 {
+async fn start_server(maildir_root: Arc<String>, no_deliver: bool) -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {
@@ -239,7 +262,7 @@ async fn start_server(maildir_root: Arc<String>) -> u16 {
             match listener.accept().await {
                 Ok((stream, _addr)) => {
                     let root = maildir_root.clone();
-                    tokio::spawn(async move { handle_connection(stream, root).await });
+                    tokio::spawn(async move { handle_connection(stream, root, no_deliver).await });
                 }
                 Err(_) => return,
             }
@@ -348,6 +371,7 @@ struct Args {
     conns: usize,
     warmup_s: u64,
     label: String,
+    no_deliver: bool,
 }
 
 fn parse_args() -> Args {
@@ -356,6 +380,7 @@ fn parse_args() -> Args {
         conns: 32,
         warmup_s: 3,
         label: String::new(),
+        no_deliver: false,
     };
     let argv: Vec<String> = env::args().collect();
     let mut i = 1;
@@ -376,6 +401,10 @@ fn parse_args() -> Args {
             "--label" => {
                 a.label = argv[i + 1].clone();
                 i += 2;
+            }
+            "--no-deliver" => {
+                a.no_deliver = true;
+                i += 1;
             }
             // criterion / cargo bench may pass --bench / test filters when
             // run via `cargo bench`. Ignore them so the binary still works.
@@ -411,7 +440,7 @@ async fn run_once(args: &Args) -> Result<(), String> {
         .to_string();
     let maildir_arc = Arc::new(maildir_root.clone());
 
-    let port = start_server(maildir_arc.clone()).await;
+    let port = start_server(maildir_arc.clone(), args.no_deliver).await;
     let body = Arc::new(build_body());
 
     // Warmup — don't measure these, just let the runtime + page cache settle.
@@ -474,12 +503,13 @@ async fn run_once(args: &Args) -> Result<(), String> {
 
     // CSV-ish line for scripts to slurp. Also a human header line on first run.
     println!(
-        "label={} duration_s={} conns={} msgs={} throughput_msg_s={:.1} p50_us={} p99_us={} p999_us={}",
+        "label={} mode={} duration_s={} conns={} msgs={} throughput_msg_s={:.1} p50_us={} p99_us={} p999_us={}",
         if args.label.is_empty() {
             "_"
         } else {
             args.label.as_str()
         },
+        if args.no_deliver { "no-deliver" } else { "deliver" },
         args.duration_s,
         args.conns,
         total_msgs,

@@ -1,12 +1,23 @@
 import type { TextBlockData } from '../types'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import Markdown from 'react-markdown'
-import rehypeHighlight from 'rehype-highlight'
-import remarkBreaks from 'remark-breaks'
-import remarkGfm from 'remark-gfm'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import { uploadInlineImage } from '@/components/rich-editor'
+
+// the markdown-preview pipeline (react-markdown + remark-* + rehype-highlight)
+// is ~150-200 kB. preview is opt-in via the "Preview" tab — most send paths
+// only ever see the edit textarea — so lazy-load it to keep the chat hot
+// path lean.
+const MarkdownPreview = lazy(() => import('@/components/composer/blocks/markdown-preview'))
 
 type Props = {
   data: TextBlockData
@@ -198,16 +209,16 @@ function PreviewBody({ content }: { content: string }) {
   const processed = useMemo(() => preserveBlankLines(content), [content])
   if (!content.trim()) {
     return (
-      <div className={PREVIEW_PROSE_CLASS} style={{ minHeight: `${MIN_HEIGHT_PX}px` }}>
+      <div className={`${PREVIEW_PROSE_CLASS} min-h-[240px]`}>
         <p className="text-fg-muted text-sm">Nothing to preview yet.</p>
       </div>
     )
   }
   return (
-    <div className={PREVIEW_PROSE_CLASS} style={{ minHeight: `${MIN_HEIGHT_PX}px` }}>
-      <Markdown rehypePlugins={[rehypeHighlight]} remarkPlugins={[remarkGfm, remarkBreaks]}>
-        {processed}
-      </Markdown>
+    <div className={`${PREVIEW_PROSE_CLASS} min-h-[240px]`}>
+      <Suspense fallback={<p className="text-fg-muted text-sm">Loading preview…</p>}>
+        <MarkdownPreview content={processed} />
+      </Suspense>
     </div>
   )
 }

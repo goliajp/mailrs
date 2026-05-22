@@ -97,7 +97,13 @@ export function RenderPreview({ html }: { html: string }) {
           </div>
           {active && (
             <div className="border-border overflow-auto rounded-md border bg-white">
-              <img alt={`${active.name} preview`} className="block" src={active.image_url} />
+              <img
+                alt={`${active.name} preview`}
+                className="block"
+                decoding="async"
+                loading="lazy"
+                src={active.image_url}
+              />
             </div>
           )}
         </>
