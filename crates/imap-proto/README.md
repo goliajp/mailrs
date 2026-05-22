@@ -64,6 +64,24 @@ See [`examples/parse_and_format.rs`](examples/parse_and_format.rs) for a longer 
 | `sequence` | `parse_sequence_set` / `sequence_set_to_uids`. Handles `*`, ranges, lists, clamping. |
 | `response` | `format_*` functions for both tagged (OK/NO/BAD) and untagged (CAPABILITY/LIST/FETCH/...) responses. |
 
+## Performance
+
+Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release profile. Medians from 100-sample runs.
+
+| Operation | Median | Notes |
+|---|---|---|
+| `parse_command("LOGIN alice secret\r\n")` | ~123 ns | with quoted-string args |
+| `parse_command("SELECT INBOX\r\n")` | ~58 ns | atom mailbox name |
+| `parse_command("FETCH 1:1000 (FLAGS BODY.PEEK[HEADER])\r\n")` | ~90 ns | typical IMAP client warm-up |
+| `parse_command(<UID SEARCH SINCE … NOT DELETED OR …>)` | ~155 ns | deeply nested search-key tree |
+| `parse_sequence_set("1,3,5,7,9,11")` | ~130 ns | 6 single uids |
+| `parse_sequence_set("1:100,200:300,400:500,*")` | ~108 ns | 3 ranges + special `*` |
+| `sequence_set_to_uids(<4001-element set>, max=10_000)` | ~3.0 µs | range expansion for FETCH/STORE |
+| `format_list("\\HasNoChildren", "/", "INBOX")` | ~67 ns | one untagged LIST line |
+| `format_fetch(uid=1, [4 items])` | ~420 ns | one untagged FETCH line with 4 sub-items |
+
+Re-run locally with `cargo bench -p mailrs-imap-proto`. See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets.
+
 ## License
 
 Licensed under either of:

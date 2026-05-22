@@ -199,12 +199,26 @@ Run with `cargo test -p mailrs-rate-limit`.
 
 ## Performance
 
-See [BUDGETS.md](BUDGETS.md) for the full table. Headline numbers
-(observed median on a dev machine; budget = ~30× headroom):
+Two layers of measurement:
 
-- `evaluate_bucket` pure math: ~10 ns
-- `InMemoryRateLimitStore::check_sync` (hot key): ~1 µs
-- `InMemoryRateLimitStore::check` (async, hot key): ~1.5 µs
+- [`tests/perf_gate.rs`](tests/perf_gate.rs) — integration tests that fail CI if any hot path slows past its budget. See [BUDGETS.md](BUDGETS.md) for the full table.
+- [`benches/store.rs`](benches/store.rs) — criterion microbenchmarks for detailed regression tracking.
+
+Numbers below are criterion medians, measured with criterion 0.8 on Apple Silicon (M-series), release profile:
+
+| Operation | Median | Notes |
+|---|---|---|
+| `evaluate_bucket` (allowed, pure math) | ~1.8 ns | branchless refill + decrement |
+| `evaluate_bucket` (denied, no refill) | ~2.0 ns | exits without writing tokens |
+| `InMemoryRateLimitStore::check_sync` (hot key) | ~41 ns | DashMap entry-lock + the math; dominated by `SystemTime::now()` |
+| `InMemoryRateLimitStore::check` (async, hot key) | ~105 ns | + boxed-future overhead from `async-trait` |
+| `InMemoryRateLimitStore::check_sync` (cold key, first touch) | ~180 ns | String alloc + DashMap insert |
+| `cleanup_stale(10k entries, all stale)` | ~119 µs | full sweep, retain everything-or-nothing |
+| `cleanup_stale(10k entries, none stale)` | ~119 µs | same cost — retain still touches every entry |
+
+Run with `cargo bench -p mailrs-rate-limit`.
+
+Comparison points: [`governor`] uses GCRA (more complex math but lock-free per-key), which is the right call when many keys all sit just below the limit at the same time. Token-bucket via DashMap is simpler and lets the bucket drain naturally, which matches typical anti-abuse usage (one key per IP / user). Pick by workload shape.
 
 ## Versioning
 

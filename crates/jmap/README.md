@@ -141,6 +141,29 @@ The in-memory fixture lives at [`mailrs_jmap::fixtures::InMemoryStore`](https://
 
 Run with `cargo bench -p mailrs-jmap`. To verify your store hasn't introduced surprise overhead, plug your impl into a copy of `benches/dispatch.rs` and compare against the in-memory floor.
 
+### Headline numbers
+
+Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release profile. Dispatcher numbers run against the in-memory store from `benches/dispatch.rs`, isolating framework overhead from real backend cost.
+
+| Operation | Median | Notes |
+|---|---|---|
+| `keywords_to_flags(["$seen", "$flagged"])` | ~5.6 ns | JMAP keyword names → flag bitmask |
+| `flags_to_keywords(0b11)` | ~91 ns | reverse direction, allocates `Vec<String>` |
+| `parse_email_db_id("M1")` / `parse_mailbox_db_id("M1")` | ~2-3 ns | id-format parsers |
+| `parse_address_list("Alice <a@x>, Bob <b@y>")` | ~1.2 µs | full mailbox-list tokenizer |
+| `epoch_to_utc_string(1_700_000_000)` | ~26 ns | RFC 3339 rendering |
+| `resolve_references(<one back-ref>)` | ~520 ns | JSON-pointer-style ref resolver |
+| `wants_body_no` / `wants_body_yes` | ~10 ns / ~760 ps | selector branching |
+| `extend_with_body_full` | ~2.0 µs | with body + raw fields populated |
+| `dispatch Mailbox/query` | ~900 ns | full dispatcher with in-memory store |
+| `dispatch Email/query` | ~2.4 µs | with sort + filter on 10-message store |
+| `dispatch Email/get (meta only)` | ~1.7 µs | metadata-only properties |
+| `dispatch Email/get (with body)` | ~1.6 µs | full body parse + extend |
+| `dispatch_request single call` | ~3.5 µs | envelope + serialize + dispatch |
+| `dispatch_request multi-call with back-ref` | ~10.4 µs | the canonical `Email/query → Email/get` flow |
+
+Numbers are in-process, in-memory; production cost is dominated by the store backend (PostgreSQL / network).
+
 ## Roadmap
 
 `1.0` is the minimum viable surface — enough to drive a webmail client with read, search, mark-read, send, and delete. Methods explicitly not yet implemented, in rough priority order for `1.x`:

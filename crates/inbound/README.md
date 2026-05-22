@@ -207,6 +207,28 @@ This keeps the framework dependency-light and free of opinion.
 
 Run with `cargo test -p mailrs-inbound`.
 
+## Performance
+
+[`benches/pipeline.rs`](benches/pipeline.rs) covers the four hot paths the SMTP DATA → response handler hits per message: final-decision policy, Authentication-Results building, `ReceiveContext` materialization, and `Pipeline::run` dispatch overhead with no-op stages (real stages dominate any production pipeline; this measures the framework floor).
+
+Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release profile.
+
+| Operation | Median | Notes |
+|---|---|---|
+| `make_delivery_decision` (Accept) | ~360 ns | builds + carries the auth header |
+| `make_delivery_decision` (Junk) | ~850 ns | extra `format!` for the reason string with score breakdown |
+| `make_delivery_decision` (DMARC reject) | ~465 ns | reject path still builds auth header for logging |
+| `make_delivery_decision` (Greylist) | ~3 ns | early-exit short-circuit |
+| `build_auth_header(no reason)` | ~380 ns | one allocation, four short string interpolations |
+| `build_auth_header(with reason)` | ~425 ns | + reason parenthetical |
+| `format_auth_results_header(quadruple)` | ~280 ns | flatten 4 `AuthResult`s into one header line |
+| `ReceiveContext::to_pipeline_input(5.0)` | ~200 ns | clones AuthResults + matched_rules + hostname |
+| `Pipeline::run` (4 no-op stages + decide) | ~600 ns | full async dispatch path |
+| `Pipeline::run` (4 noop + 2 scoring + decide) | ~635 ns | realistic stage mix |
+| `Pipeline::run` (early-reject after 2 stages) | ~185 ns | short-circuit on `StageOutcome::Decide` |
+
+Run with `cargo bench -p mailrs-inbound`. See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets — `Pipeline::run` dispatch is gated at 100 µs, with plenty of headroom over the ~600 ns measurement above.
+
 ## Versioning
 
 `1.x` follows semver. The stable public surface:
