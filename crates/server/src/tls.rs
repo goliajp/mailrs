@@ -31,13 +31,15 @@ pub fn load_tls_config(cert_path: &Path, key_path: &Path) -> io::Result<Arc<Serv
     let cert_data = std::fs::read(cert_path)?;
     let key_data = std::fs::read(key_path)?;
 
-    let certs = rustls_pemfile::certs(&mut &cert_data[..])
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    use rustls_pki_types::pem::PemObject;
+    use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
-    let key = rustls_pemfile::private_key(&mut &key_data[..])
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "no private key found"))?;
+    let certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(&cert_data)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
+
+    let key = PrivateKeyDer::from_pem_slice(&key_data)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
 
     let config = ServerConfig::builder()
         .with_no_client_auth()
