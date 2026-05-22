@@ -601,12 +601,19 @@ pub async fn lookup_bimi_logo(resolver: &TokioResolver, domain: &str) -> Option<
         .and_then(|rec| extract_bimi_logo_url(&rec))
 }
 
-// -- test-only helper functions for MTA-STS / TLSRPT parsing --
+// -- pure parsers for MTA-STS / TLSRPT records --
+//
+// These are `pub` so they can be reused as standalone primitives by
+// downstream callers (and gated by tests/perf_gate.rs). They are pure
+// string-processing helpers — no I/O, no allocation beyond the returned
+// values.
 
-#[cfg(test)]
-/// parse an MTA-STS policy body and extract key-value fields
-/// returns a vec of (key, value) pairs; handles both LF and CRLF line endings
-fn parse_mta_sts_policy(body: &str) -> Vec<(String, String)> {
+/// Parse an MTA-STS policy body and extract key-value fields.
+///
+/// Returns a `Vec<(key, value)>` of every non-blank line; handles both
+/// LF and CRLF line endings. Keys are lower-cased; values are trimmed.
+/// Lines without a colon are skipped.
+pub fn parse_mta_sts_policy(body: &str) -> Vec<(String, String)> {
     body.lines()
         .filter_map(|line| {
             let trimmed = line.trim();
@@ -647,16 +654,19 @@ fn extract_sts_max_age(fields: &[(String, String)]) -> Option<u64> {
         .and_then(|(_, v)| v.parse().ok())
 }
 
-#[cfg(test)]
-/// validate that a TLSRPT record has the required v=TLSRPTv1 tag and rua field
-fn validate_tlsrpt_record(record: &str) -> bool {
+/// Validate that a TLSRPT record has the required `v=TLSRPTv1` tag and a
+/// `rua=` field, per RFC 8460. Returns `true` when both are present;
+/// does not validate the URI inside `rua=`.
+pub fn validate_tlsrpt_record(record: &str) -> bool {
     record.contains("v=TLSRPTv1") && record.contains("rua=")
 }
 
-#[cfg(test)]
-/// extract reporting URI(s) from a TLSRPT record
-fn extract_tlsrpt_rua(record: &str) -> Vec<String> {
-    // format: v=TLSRPTv1; rua=mailto:reports@example.com,https://...
+/// Extract reporting URI(s) from a TLSRPT record.
+///
+/// TLSRPT format: `v=TLSRPTv1; rua=mailto:reports@example.com,https://...`.
+/// Returns each comma-separated URI in `rua=` as a separate `String`, or
+/// an empty `Vec` when the `rua=` field is missing.
+pub fn extract_tlsrpt_rua(record: &str) -> Vec<String> {
     record
         .split(';')
         .map(|part| part.trim())

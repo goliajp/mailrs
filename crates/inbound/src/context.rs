@@ -212,4 +212,46 @@ mod tests {
         assert_eq!(input.ptr_score, 0.5);
         assert_eq!(input.ai_score, 2.0);
     }
+
+    // ===== Additional corner-case tests =====
+
+    #[test]
+    fn clone_preserves_all_signal_state() {
+        // ReceiveContext is Clone; verify deep-copy of all mutable signals.
+        let mut c = ctx();
+        c.content_score = 4.2;
+        c.matched_rules.push("foo".into());
+        c.ai_score = 1.1;
+        let cloned = c.clone();
+        assert_eq!(cloned.content_score, 4.2);
+        assert_eq!(cloned.matched_rules, vec!["foo".to_string()]);
+        assert_eq!(cloned.ai_score, 1.1);
+        // mutating the clone doesn't affect the original
+        let mut cloned = cloned;
+        cloned.content_score = 0.0;
+        assert_eq!(c.content_score, 4.2);
+    }
+
+    #[test]
+    fn to_pipeline_input_clones_matched_rules() {
+        // The input must own its matched_rules — mutating the context after
+        // generating the input should not affect the input.
+        let mut c = ctx();
+        c.matched_rules.push("orig".into());
+        let input = c.to_pipeline_input(5.0);
+        c.matched_rules.push("post".into());
+        assert_eq!(input.matched_rules, vec!["orig"]);
+    }
+
+    #[test]
+    fn auth_results_clone_independence() {
+        // Cloning AuthResults must produce an independent copy.
+        let mut a = AuthResults {
+            spf: "pass".into(),
+            ..AuthResults::default()
+        };
+        let b = a.clone();
+        a.spf = "fail".into();
+        assert_eq!(b.spf, "pass");
+    }
 }

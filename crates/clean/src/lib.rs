@@ -697,4 +697,101 @@ mod tests {
         assert!(removed);
         assert!(result.contains("Important content"));
     }
+
+    // ===== Additional corner-case tests =====
+
+    #[test]
+    fn detect_tracking_pixel_singled_quotes() {
+        // tracking pixels often use single quotes — detection must cover both styles
+        let html = "<img src='https://track.example.com/o/' width='1' height='1'>";
+        assert!(detect_tracking_pixels(html));
+    }
+
+    #[test]
+    fn detect_tracking_by_known_domain_even_full_size() {
+        // A full-size image from a known tracking domain still counts as tracking.
+        let html = r#"<img src="https://list-manage.com/wf/open?u=x" width="600" height="400">"#;
+        assert!(detect_tracking_pixels(html));
+    }
+
+    #[test]
+    fn detect_tracking_by_path_keyword() {
+        let html = r#"<img src="https://example.com/track?id=1" width="600">"#;
+        assert!(detect_tracking_pixels(html));
+    }
+
+    #[test]
+    fn empty_html_returns_empty_result() {
+        let result = clean_email_html("");
+        assert_eq!(result.clean_text, "");
+        assert!(!result.has_tracking_pixel);
+        assert_eq!(result.link_count, 0);
+        assert_eq!(result.image_count, 0);
+        // ratio is 1.0 when html is empty
+        assert!((result.text_to_html_ratio - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn detect_bulk_sender_auto_submitted_no_is_not_bulk() {
+        // RFC 3834: auto-submitted: no means a human-sent reply, not bulk.
+        let headers = "From: alice@example.com\r\nAuto-Submitted: no\r\n";
+        assert!(!detect_bulk_sender(headers));
+    }
+
+    #[test]
+    fn detect_bulk_sender_auto_submitted_yes() {
+        // anything other than "no" is treated as auto / bulk
+        let headers = "From: x@y\r\nAuto-Submitted: auto-replied\r\n";
+        assert!(detect_bulk_sender(headers));
+    }
+
+    #[test]
+    fn is_automated_sender_postmaster_bounce_variants() {
+        assert!(is_automated_sender("postmaster@x.com"));
+        assert!(is_automated_sender("mailer-daemon@x.com"));
+        assert!(is_automated_sender("bounce-12345@x.com"));
+        assert!(is_automated_sender("bounces@x.com"));
+        assert!(is_automated_sender("notification-system@x.com"));
+        assert!(is_automated_sender("notifications@x.com"));
+        assert!(is_automated_sender("do-not-reply@x.com"));
+        assert!(is_automated_sender("donotreply@x.com"));
+        assert!(is_automated_sender("auto@x.com"));
+        // Negative cases
+        assert!(!is_automated_sender("alice@x.com"));
+        assert!(!is_automated_sender("not-noreply@x.com"));  // doesn't match exact pattern
+    }
+
+    #[test]
+    fn split_quoted_japanese_style_header() {
+        let text = "私の返事です。\n\n2025年1月1日 10:00 Alice <alice@x.com>:\n> 元のメッセージ";
+        let (new_content, quoted) = split_quoted_content(text);
+        assert_eq!(new_content, "私の返事です。");
+        assert_eq!(quoted.len(), 1);
+    }
+
+    #[test]
+    fn split_quoted_short_block_of_quotes_not_split() {
+        // Only 1-2 quoted lines is not enough to trigger split.
+        let text = "Reply.\n\n> one quoted line\n\nAnother line.";
+        let (new_content, _) = split_quoted_content(text);
+        assert!(new_content.contains("Another line"));
+    }
+
+    #[test]
+    fn count_pattern_case_insensitive() {
+        // count_pattern lowercases — uppercase tags should still count
+        let html = "<A href='1'>x</A><a href='2'>y</a>";
+        assert_eq!(count_pattern(html, "<a "), 2);
+    }
+
+    #[test]
+    fn footer_too_early_not_removed() {
+        // If footer keyword appears in the first 40% of html, removal is suppressed
+        // (otherwise we'd nuke most of the message).
+        let html = "<div>unsubscribe</div><div>actual content here that constitutes most of the email body text</div>";
+        let (result, removed) = remove_template_chrome(html);
+        assert!(!removed, "removal suppressed when it would consume too much content");
+        // unsubscribe word kept since not at the end
+        assert!(result.contains("unsubscribe"));
+    }
 }
