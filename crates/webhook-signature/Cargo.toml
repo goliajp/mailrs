@@ -1,0 +1,28 @@
+[package]
+name = "mailrs-webhook-signature"
+version = "1.0.0"
+edition = "2024"
+description = "HMAC-SHA256 webhook payload signing + verification. Header-format helpers (sha256=hash). Constant-time HMAC compare. Optional secret-rotation support so receivers can verify against current + previous key during rollovers."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-webhook-signature"
+authors = ["GOLIA K.K."]
+keywords = ["webhook", "hmac", "sha256", "signature", "auth"]
+categories = ["authentication", "web-programming"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+hmac = "0.13"
+sha2 = "0.11"
+hex = "0.4"
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "signing"
+harness = false

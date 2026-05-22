@@ -25,6 +25,7 @@ members = [
     "crates/auth-guard",
     "crates/srs",
     "crates/rfc2231",
+    "crates/webhook-signature",
     "crates/server",
 ]
 
