@@ -348,4 +348,85 @@ mod integration_tests {
         classify(&provider, Some(&cache), "a", "b", "c").await;
         assert_eq!(cache.inner.lock().unwrap().len(), 1, "low-score result still cached");
     }
+
+    // ===== Additional integration tests =====
+
+    #[tokio::test]
+    async fn classify_handles_empty_strings() {
+        // Edge case: empty sender/subject/body should still produce a cache key
+        // (the hasher tolerates empty input) and round-trip through the provider.
+        let provider = MockProvider {
+            canned: r#"{"score": 0.0, "reason": "empty"}"#.into(),
+            calls: Mutex::new(0),
+        };
+        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        let r = classify(&provider, Some(&cache), "", "", "").await.unwrap();
+        assert!((r.score - 0.0).abs() < 0.01);
+        assert_eq!(cache.inner.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn classify_cache_corrupted_value_falls_through_to_provider() {
+        // If the cached value is malformed, classify should fall through and
+        // ask the provider, then overwrite the cached value.
+        let provider = MockProvider {
+            canned: r#"{"score": 4.0, "reason": "fresh"}"#.into(),
+            calls: Mutex::new(0),
+        };
+        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        // pre-seed cache with garbage that has the correct key
+        let key = make_cache_key("a", "b", "c");
+        cache.inner.lock().unwrap().insert(key.clone(), "not-json".to_string());
+        let r = classify(&provider, Some(&cache), "a", "b", "c").await.unwrap();
+        assert!((r.score - 4.0).abs() < 0.01, "fell through to provider");
+        // and the cache was overwritten with a valid entry
+        let cached = cache.inner.lock().unwrap().get(&key).cloned().unwrap();
+        assert!(cached.contains("\"s\":4.0") || cached.contains("\"s\":4"));
+    }
+
+    #[tokio::test]
+    async fn classify_subject_change_busts_cache() {
+        let provider = MockProvider {
+            canned: r#"{"score": 1.0, "reason": "ok"}"#.into(),
+            calls: Mutex::new(0),
+        };
+        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        classify(&provider, Some(&cache), "a", "subj1", "body").await;
+        classify(&provider, Some(&cache), "a", "subj2", "body").await;
+        // Subject change must produce a distinct cache key -> provider called twice
+        assert_eq!(*provider.calls.lock().unwrap(), 2);
+        assert_eq!(cache.inner.lock().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn classify_returns_none_when_score_field_missing() {
+        // Response with a "reason" but no "score" must fail parsing.
+        let provider = MockProvider {
+            canned: r#"{"reason": "I forgot the score"}"#.into(),
+            calls: Mutex::new(0),
+        };
+        let r = classify(&provider, None, "a", "b", "c").await;
+        assert!(r.is_none());
+    }
+
+    #[tokio::test]
+    async fn classify_score_clamped_after_provider() {
+        // If provider returns out-of-range score (e.g. 15.0), it must be clamped to 10.0.
+        let provider = MockProvider {
+            canned: r#"{"score": 99.9, "reason": "off the scale"}"#.into(),
+            calls: Mutex::new(0),
+        };
+        let r = classify(&provider, None, "a", "b", "c").await.unwrap();
+        assert!((r.score - 10.0).abs() < 0.01);
+    }
+
+    #[tokio::test]
+    async fn classify_negative_score_clamped() {
+        let provider = MockProvider {
+            canned: r#"{"score": -5.0, "reason": "negative"}"#.into(),
+            calls: Mutex::new(0),
+        };
+        let r = classify(&provider, None, "a", "b", "c").await.unwrap();
+        assert!((r.score - 0.0).abs() < 0.01);
+    }
 }

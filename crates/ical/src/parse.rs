@@ -265,4 +265,116 @@ mod parse_tests {
         let lines = unfold("FOO:bar\r\n\tcontinued\r\n");
         assert_eq!(lines, vec!["FOO:barcontinued"]);
     }
+
+    // ===== Additional corner-case tests =====
+
+    #[test]
+    fn parse_property_line_missing_colon_errors() {
+        let r = parse_property_line("UID-without-colon");
+        assert!(matches!(r, Err(IcalError::InvalidSyntax(_))));
+    }
+
+    #[test]
+    fn parse_property_line_empty_name_errors() {
+        // ":just-value" — name is empty
+        let r = parse_property_line(":just-value");
+        assert!(matches!(r, Err(IcalError::InvalidSyntax(_))));
+    }
+
+    #[test]
+    fn parse_property_line_bare_flag_param() {
+        // Allowed by impl: param without '=' is a bare flag.
+        let p = parse_property_line("X-FLAG;BARE:value").unwrap();
+        assert_eq!(p.name, "X-FLAG");
+        assert_eq!(p.params.len(), 1);
+        assert_eq!(p.params[0].0, "BARE");
+        assert_eq!(p.params[0].1, "");
+        assert_eq!(p.value, "value");
+    }
+
+    #[test]
+    fn parse_property_line_empty_value() {
+        // "UID:" — name with empty value is well-formed
+        let p = parse_property_line("UID:").unwrap();
+        assert_eq!(p.name, "UID");
+        assert_eq!(p.value, "");
+    }
+
+    #[test]
+    fn parse_property_line_value_containing_colons() {
+        // "URL:https://example.com" — colon in value preserved after first ':'
+        let p = parse_property_line("URL:https://example.com").unwrap();
+        assert_eq!(p.name, "URL");
+        assert_eq!(p.value, "https://example.com");
+    }
+
+    #[test]
+    fn parse_calendar_no_vcalendar_errors() {
+        let r = parse_calendar("VERSION:2.0\r\n");
+        assert!(matches!(r, Err(IcalError::InvalidSyntax(_))));
+    }
+
+    #[test]
+    fn parse_calendar_unclosed_begin_errors() {
+        let r = parse_calendar("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x\r\nEND:VCALENDAR\r\n");
+        assert!(matches!(r, Err(IcalError::InvalidSyntax(_))));
+    }
+
+    #[test]
+    fn parse_calendar_mismatched_end_errors() {
+        let r = parse_calendar("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x\r\nEND:VTODO\r\nEND:VCALENDAR\r\n");
+        assert!(matches!(r, Err(IcalError::InvalidSyntax(_))));
+    }
+
+    #[test]
+    fn parse_calendar_property_outside_component_errors() {
+        // RFC violation: properties must live inside a BEGIN/END pair.
+        let r = parse_calendar("UID:x\r\nBEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n");
+        assert!(matches!(r, Err(IcalError::InvalidSyntax(_))));
+    }
+
+    #[test]
+    fn parse_calendar_outermost_not_vcalendar_errors() {
+        // The outermost component must be VCALENDAR.
+        let r = parse_calendar("BEGIN:VEVENT\r\nUID:x\r\nEND:VEVENT\r\n");
+        assert!(matches!(r, Err(IcalError::InvalidSyntax(_))));
+    }
+
+    #[test]
+    fn parse_calendar_end_without_begin_errors() {
+        let r = parse_calendar("END:VEVENT\r\n");
+        assert!(matches!(r, Err(IcalError::InvalidSyntax(_))));
+    }
+
+    #[test]
+    fn split_unquoted_semicolons_handles_quotes() {
+        let parts = split_unquoted_semicolons("CN=\"Doe;Jane\";PARTSTAT=ACCEPTED");
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0], "CN=\"Doe;Jane\"");
+        assert_eq!(parts[1], "PARTSTAT=ACCEPTED");
+    }
+
+    #[test]
+    fn unquote_param_strips_surrounding_quotes_only() {
+        assert_eq!(unquote_param("\"hello\""), "hello");
+        assert_eq!(unquote_param("no-quotes"), "no-quotes");
+        // Embedded quotes preserved.
+        assert_eq!(unquote_param("a\"b\"c"), "a\"b\"c");
+        // single quote at end shouldn't be treated as a closing quote
+        assert_eq!(unquote_param("\"unclosed"), "\"unclosed");
+    }
+
+    #[test]
+    fn unfold_empty_input() {
+        let lines = unfold("");
+        assert!(lines.is_empty());
+    }
+
+    #[test]
+    fn unfold_preserves_blank_separator_handling() {
+        // A line consisting solely of \r\n is a "blank line"; physical-line splitting
+        // produces an empty string that the impl skips.
+        let lines = unfold("FOO:bar\r\n\r\nBAZ:qux\r\n");
+        assert_eq!(lines, vec!["FOO:bar", "BAZ:qux"]);
+    }
 }

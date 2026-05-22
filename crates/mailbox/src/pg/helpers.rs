@@ -444,4 +444,120 @@ mod tests {
         assert!(debug.contains("EmailAnalysisRow"));
         assert!(debug.contains("finance"));
     }
+
+    // ===== Additional helpers corner-case tests =====
+
+    #[test]
+    fn build_user_filter_placeholder_indexing_is_dense() {
+        // Domain placeholders are consecutive: $start, $start+1, $start+2, ...
+        let doms = vec!["a".to_string(), "b".to_string(), "c".to_string(), "d".to_string()];
+        let (sql, _) = build_user_filter("u@a", Some(&doms), 7);
+        assert!(sql.contains("$7,$8,$9,$10"));
+    }
+
+    #[test]
+    fn build_user_filter_handles_large_start_idx() {
+        // Large start_idx (e.g. 1000) should not produce overflow or weird sql.
+        let (sql, _) = build_user_filter("u@x", None, 1000);
+        assert_eq!(sql, "mb.user_address = $1000");
+    }
+
+    #[test]
+    fn build_user_filter_with_single_domain_yields_single_placeholder() {
+        let doms = vec!["only.com".to_string()];
+        let (sql, _) = build_user_filter("u@only.com", Some(&doms), 2);
+        assert_eq!(
+            sql,
+            "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ($2))"
+        );
+    }
+
+    #[test]
+    fn build_user_filter_with_empty_user_still_includes_user_address() {
+        // The SQL fragment still uses the placeholder; bind value can be empty.
+        let (sql, binds) = build_user_filter("", None, 1);
+        assert_eq!(sql, "mb.user_address = $1");
+        assert_eq!(binds, vec![""]);
+    }
+
+    #[test]
+    fn extract_header_value_only_continuation_line() {
+        // A leading space on a header line is RFC 5322 folded-continuation.
+        // The current implementation does NOT join folded lines; the second
+        // line is treated as a regular header line that doesn't match.
+        let msg = b"Subject: First\r\n more text\r\n\r\n";
+        let result = extract_header_value(msg, "Subject");
+        // Whatever the current behavior, it MUST not panic and MUST start with "First".
+        assert!(result.starts_with("First"));
+    }
+
+    #[test]
+    fn extract_header_value_with_crlf_in_middle_of_value() {
+        // \r\n strictly separates lines; the impl uses .lines() which handles both LF and CRLF.
+        let msg = b"To: alice@x.com\r\nSubject: hello\r\nFrom: bob@y.com\r\n\r\nbody";
+        assert_eq!(extract_header_value(msg, "Subject"), "hello");
+        assert_eq!(extract_header_value(msg, "To"), "alice@x.com");
+        assert_eq!(extract_header_value(msg, "From"), "bob@y.com");
+    }
+
+    #[test]
+    fn extract_header_value_short_header_name() {
+        // single-letter header name should still work — boundary on prefix length
+        let msg = b"X: value\r\n\r\n";
+        assert_eq!(extract_header_value(msg, "X"), "value");
+    }
+
+    #[test]
+    fn extract_header_value_exact_prefix_length() {
+        // Header name length boundary: name "ID" (2 chars) → prefix len 3.
+        // Buffer "ID:y\r\n\r\n" is len 8, longer than prefix.
+        let msg = b"ID:y\r\n\r\n";
+        assert_eq!(extract_header_value(msg, "ID"), "y");
+    }
+
+    #[test]
+    fn extract_header_value_header_at_exact_buffer_boundary() {
+        // header without value (just "Subject:" exactly) — len equals prefix len + 0
+        let msg = b"Subject:\r\n";
+        // length condition is `line.len() > prefix.len()`. "Subject:" is exactly prefix.len(), so it's filtered out.
+        assert_eq!(extract_header_value(msg, "Subject"), "");
+    }
+
+    #[test]
+    fn row_to_message_meta_negative_uid_wraps_to_u32() {
+        // The function casts i32 → u32; negative becomes very large.
+        let row = (
+            1i64, 2i64, -1i32, "m".to_string(), "s".to_string(), "r".to_string(),
+            "sub".to_string(), 0i64, 0i32, 0i32, 0i64,
+            "".to_string(), "".to_string(), "".to_string(), 0i64,
+        );
+        let meta = row_to_message_meta(row);
+        assert_eq!(meta.uid, u32::MAX, "i32::-1 casts to u32::MAX");
+    }
+
+    #[test]
+    fn row_to_message_meta_negative_modseq_wraps_to_u64() {
+        let row = (
+            1i64, 2i64, 0i32, "m".to_string(), "s".to_string(), "r".to_string(),
+            "sub".to_string(), 0i64, 0i32, 0i32, 0i64,
+            "".to_string(), "".to_string(), "".to_string(), -1i64,
+        );
+        let meta = row_to_message_meta(row);
+        assert_eq!(meta.modseq, u64::MAX);
+    }
+
+    #[test]
+    fn row_to_message_meta_max_values_preserved() {
+        let row = (
+            i64::MAX, i64::MAX, i32::MAX,
+            "m".to_string(), "s".to_string(), "r".to_string(), "sub".to_string(),
+            i64::MAX, i32::MAX, i32::MAX, i64::MAX,
+            "mid".to_string(), "irt".to_string(), "tid".to_string(), i64::MAX,
+        );
+        let meta = row_to_message_meta(row);
+        assert_eq!(meta.id, i64::MAX);
+        assert_eq!(meta.uid, i32::MAX as u32);
+        assert_eq!(meta.size, i32::MAX as u32);
+        assert_eq!(meta.flags, i32::MAX as u32);
+    }
 }

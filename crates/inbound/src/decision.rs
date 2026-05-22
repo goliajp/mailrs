@@ -313,4 +313,84 @@ mod tests {
             other => panic!("expected Junk, got {other:?}"),
         }
     }
+
+    // ===== Additional corner-case tests =====
+
+    #[test]
+    fn virus_wins_over_dmarc_reject_simultaneously() {
+        // Combined edge: virus + dmarc=reject. Virus must win per RFC ordering
+        // (virus is a hard data-level decision; DMARC is alignment-level).
+        let mut input = baseline_input();
+        input.virus_found = Some("Test.Virus".into());
+        input.auth.dmarc_policy = DmarcPolicy::Reject;
+        match make_delivery_decision(&input) {
+            DeliveryDecision::Reject { code, message } => {
+                assert_eq!(code, 550);
+                assert!(message.contains("virus"));
+                assert!(!message.contains("DMARC"), "virus message should not mention DMARC");
+            }
+            other => panic!("expected virus Reject, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dmarc_none_does_not_reject_or_quarantine() {
+        // DmarcPolicy::None should not gate the message — it should fall through
+        // to score logic and eventually Accept.
+        let mut input = baseline_input();
+        input.auth.dmarc_policy = DmarcPolicy::None;
+        let d = make_delivery_decision(&input);
+        assert!(matches!(d, DeliveryDecision::Accept { .. }));
+    }
+
+    #[test]
+    fn score_exactly_at_threshold_yields_junk() {
+        // Boundary: score == threshold should also trigger Junk (>=).
+        let mut input = baseline_input();
+        input.content_score = 5.0;
+        input.spam_threshold = 5.0;
+        match make_delivery_decision(&input) {
+            DeliveryDecision::Junk { .. } => {}
+            other => panic!("expected Junk at == threshold, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn score_just_below_threshold_yields_accept() {
+        let mut input = baseline_input();
+        input.content_score = 4.999;
+        input.spam_threshold = 5.0;
+        let d = make_delivery_decision(&input);
+        assert!(matches!(d, DeliveryDecision::Accept { .. }));
+    }
+
+    #[test]
+    fn score_components_summed_independently() {
+        // 1.0 + 2.0 + 3.0 = 6.0 → above threshold 5.0
+        let mut input = baseline_input();
+        input.content_score = 1.0;
+        input.ptr_score = 2.0;
+        input.ai_score = 3.0;
+        match make_delivery_decision(&input) {
+            DeliveryDecision::Junk { reason, .. } => {
+                assert!(reason.contains("6.0") || reason.contains("6"));
+            }
+            other => panic!("expected Junk, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn empty_matched_rules_in_junk_reason_renders_cleanly() {
+        // When matched_rules is empty, reason should still be well-formed.
+        let mut input = baseline_input();
+        input.content_score = 10.0;
+        input.matched_rules.clear();
+        match make_delivery_decision(&input) {
+            DeliveryDecision::Junk { reason, .. } => {
+                // reason must still parse — empty rules list is OK
+                assert!(reason.contains("score"));
+            }
+            other => panic!("expected Junk, got {other:?}"),
+        }
+    }
 }

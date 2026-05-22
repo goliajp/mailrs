@@ -460,4 +460,112 @@ mod tests {
         let flags = bitmask_to_maildir_flags(FLAG_RECENT);
         assert!(flags.is_empty());
     }
+
+    // ===== Additional corner-case tests =====
+
+    #[test]
+    fn bitmask_to_maildir_flags_preserves_canonical_order() {
+        // The output order is Seen, Replied, Flagged, Trashed, Draft — fixed.
+        let all =
+            FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT;
+        let flags = bitmask_to_maildir_flags(all);
+        assert_eq!(
+            flags,
+            vec![Flag::Seen, Flag::Replied, Flag::Flagged, Flag::Trashed, Flag::Draft]
+        );
+    }
+
+    #[test]
+    fn bitmask_to_maildir_flags_recent_combined_with_others_excluded() {
+        // FLAG_RECENT must be silently dropped even when mixed with valid bits.
+        let bits = FLAG_SEEN | FLAG_RECENT | FLAG_FLAGGED;
+        let flags = bitmask_to_maildir_flags(bits);
+        assert_eq!(flags, vec![Flag::Seen, Flag::Flagged]);
+    }
+
+    #[test]
+    fn maildir_flags_to_bitmask_order_independent() {
+        // The semantic of OR is commutative — order in input vec doesn't matter.
+        let a = maildir_flags_to_bitmask(&[Flag::Flagged, Flag::Seen, Flag::Draft]);
+        let b = maildir_flags_to_bitmask(&[Flag::Draft, Flag::Flagged, Flag::Seen]);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn bitmask_roundtrip_excludes_recent() {
+        // Maildir doesn't persist \Recent; round-tripping FLAG_RECENT loses it.
+        let original = FLAG_SEEN | FLAG_RECENT;
+        let maildir = bitmask_to_maildir_flags(original);
+        let restored = maildir_flags_to_bitmask(&maildir);
+        assert_eq!(restored, FLAG_SEEN);
+        assert_eq!(restored & FLAG_RECENT, 0, "RECENT bit lost on roundtrip");
+    }
+
+    #[test]
+    fn flag_constants_have_distinct_bit_positions() {
+        // Defensive: ensure no two flag constants share a bit.
+        let all =
+            [FLAG_SEEN, FLAG_ANSWERED, FLAG_FLAGGED, FLAG_DELETED, FLAG_DRAFT, FLAG_RECENT];
+        for (i, a) in all.iter().enumerate() {
+            for b in &all[(i + 1)..] {
+                assert_eq!(a & b, 0, "0x{a:x} and 0x{b:x} share bits");
+            }
+        }
+    }
+
+    #[test]
+    fn flag_constants_use_low_byte_only() {
+        // Future-proofing: if a new flag is added, it must NOT clobber the
+        // low byte that downstream callers may already mask with 0xff.
+        // For now, all defined flags fit in 0x3f (6 bits).
+        let all = FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
+        assert_eq!(all, 0x3f);
+        assert!(all <= 0xff);
+    }
+
+    #[test]
+    fn bitmask_high_bits_ignored() {
+        // bits above FLAG_RECENT must not produce phantom maildir flags
+        let bits = 0xFFFF_FF00; // high bits only, none of FLAG_*
+        assert!(bitmask_to_maildir_flags(bits).is_empty());
+    }
+
+    #[test]
+    fn mailbox_status_default_is_zeroed() {
+        let s: MailboxStatus = Default::default();
+        assert_eq!(s.total, 0);
+        assert_eq!(s.unread, 0);
+        assert_eq!(s.recent, 0);
+    }
+
+    #[test]
+    fn query_filter_default_has_zero_position_and_zero_limit() {
+        // The default literal must be zero — caller is expected to set limit explicitly.
+        let f: QueryFilter = Default::default();
+        assert_eq!(f.position, 0);
+        assert_eq!(f.limit, 0);
+        assert!(f.mailbox_id.is_none());
+        assert!(f.user.is_none());
+        assert!(f.text.is_none());
+        assert!(f.has_keyword.is_none());
+        assert!(f.not_keyword.is_none());
+    }
+
+    #[test]
+    fn flag_op_set_add_remove_distinct() {
+        // sanity: the three variants are not collapsing.
+        let s = FlagOp::Set;
+        let a = FlagOp::Add;
+        let r = FlagOp::Remove;
+        assert_ne!(s, a);
+        assert_ne!(a, r);
+        assert_ne!(s, r);
+    }
+
+    #[test]
+    fn flag_action_alias_resolves_to_flag_op() {
+        // FlagAction is a back-compat alias for FlagOp; ensure both names resolve identically.
+        let a: FlagOp = FlagAction::Add;
+        assert_eq!(a, FlagOp::Add);
+    }
 }

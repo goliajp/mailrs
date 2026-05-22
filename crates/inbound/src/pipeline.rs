@@ -267,4 +267,132 @@ mod tests {
         let names: Vec<&str> = p.stage_names().collect();
         assert_eq!(names, vec!["alpha", "beta"]);
     }
+
+    // ===== Additional corner-case tests =====
+
+    #[tokio::test]
+    async fn mixed_continue_and_decide_short_circuits_only_at_decide() {
+        // Pattern: continue, continue, decide(reject), continue
+        // Only first three stages should run.
+        let counter = Arc::new(AtomicUsize::new(0));
+        let p = Pipeline::builder()
+            .add(RecordingStage {
+                name: "a",
+                counter: counter.clone(),
+                outcome: StageOutcome::Continue,
+            })
+            .add(RecordingStage {
+                name: "b",
+                counter: counter.clone(),
+                outcome: StageOutcome::Continue,
+            })
+            .add(RecordingStage {
+                name: "c-decides",
+                counter: counter.clone(),
+                outcome: StageOutcome::Decide(DeliveryDecision::Reject {
+                    code: 550,
+                    message: "5.7.1 blocked".into(),
+                }),
+            })
+            .add(RecordingStage {
+                name: "d-never-runs",
+                counter: counter.clone(),
+                outcome: StageOutcome::Continue,
+            })
+            .build();
+        let mut c = ctx();
+        let decision = p.run(&mut c).await;
+        match decision {
+            DeliveryDecision::Reject { code, .. } => assert_eq!(code, 550),
+            other => panic!("expected Reject, got {other:?}"),
+        }
+        assert_eq!(counter.load(Ordering::SeqCst), 3, "only 3 stages ran (a,b,c-decides)");
+    }
+
+    #[tokio::test]
+    async fn stage_names_match_add_order_exactly() {
+        // Verify stage_names preserves insertion order (Vec semantics).
+        let counter = Arc::new(AtomicUsize::new(0));
+        let p = Pipeline::builder()
+            .add(RecordingStage { name: "rate-limit", counter: counter.clone(), outcome: StageOutcome::Continue })
+            .add(RecordingStage { name: "ptr", counter: counter.clone(), outcome: StageOutcome::Continue })
+            .add(RecordingStage { name: "spf", counter: counter.clone(), outcome: StageOutcome::Continue })
+            .add(RecordingStage { name: "dkim", counter, outcome: StageOutcome::Continue })
+            .build();
+        let names: Vec<&str> = p.stage_names().collect();
+        assert_eq!(names, vec!["rate-limit", "ptr", "spf", "dkim"]);
+    }
+
+    #[tokio::test]
+    async fn spam_threshold_set_before_stages_still_applies() {
+        // Builder allows interleaving spam_threshold() and add() calls.
+        let p = Pipeline::builder()
+            .spam_threshold(2.0) // set first
+            .add(ScoringStage(2.5))
+            .build();
+        assert_eq!(p.spam_threshold(), 2.0);
+        let mut c = ctx();
+        c.auth_results.dmarc_policy = DmarcPolicy::Pass;
+        // 2.5 >= 2.0 → Junk
+        match p.run(&mut c).await {
+            DeliveryDecision::Junk { .. } => {}
+            other => panic!("expected Junk, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn spam_threshold_set_twice_takes_last_value() {
+        let p = Pipeline::builder()
+            .spam_threshold(2.0)
+            .spam_threshold(10.0) // overrides 2.0
+            .build();
+        assert_eq!(p.spam_threshold(), 10.0);
+    }
+
+    #[tokio::test]
+    async fn first_stage_decide_skips_all_other_stages() {
+        // Decide on the first stage skips everything else.
+        let counter = Arc::new(AtomicUsize::new(0));
+        let p = Pipeline::builder()
+            .add(RecordingStage {
+                name: "first-decides",
+                counter: counter.clone(),
+                outcome: StageOutcome::Decide(DeliveryDecision::Greylist),
+            })
+            .add(RecordingStage {
+                name: "never",
+                counter: counter.clone(),
+                outcome: StageOutcome::Continue,
+            })
+            .add(RecordingStage {
+                name: "also-never",
+                counter: counter.clone(),
+                outcome: StageOutcome::Continue,
+            })
+            .build();
+        let mut c = ctx();
+        assert_eq!(p.run(&mut c).await, DeliveryDecision::Greylist);
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn last_stage_decide_short_circuits_default_branch() {
+        // Even on the last stage, Decide overrides make_delivery_decision.
+        let counter = Arc::new(AtomicUsize::new(0));
+        let p = Pipeline::builder()
+            .add(RecordingStage {
+                name: "first",
+                counter: counter.clone(),
+                outcome: StageOutcome::Continue,
+            })
+            .add(RecordingStage {
+                name: "last-decides",
+                counter: counter.clone(),
+                outcome: StageOutcome::Decide(DeliveryDecision::Greylist),
+            })
+            .build();
+        let mut c = ctx();
+        // Default branch would Accept; the last-stage Decide must win.
+        assert_eq!(p.run(&mut c).await, DeliveryDecision::Greylist);
+    }
 }

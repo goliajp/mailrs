@@ -501,4 +501,103 @@ mod vtimezone_tests {
         let off = local_to_utc_offset_seconds(&tz, local).unwrap();
         assert_eq!(off, 9 * 3600);
     }
+
+    // ===== Additional corner-case tests =====
+
+    #[test]
+    fn parse_utc_offset_zero_handled() {
+        assert_eq!(parse_utc_offset("0000"), Some(0));
+        assert_eq!(parse_utc_offset("-0000"), Some(0));
+        assert_eq!(parse_utc_offset("+0000"), Some(0));
+    }
+
+    #[test]
+    fn parse_utc_offset_invalid_lengths_rejected() {
+        assert!(parse_utc_offset("+09").is_none());
+        assert!(parse_utc_offset("+093").is_none());
+        assert!(parse_utc_offset("+09301").is_none());
+        assert!(parse_utc_offset("+0930150").is_none());
+        assert!(parse_utc_offset("").is_none());
+    }
+
+    #[test]
+    fn parse_utc_offset_non_digit_rejected() {
+        assert!(parse_utc_offset("+abcd").is_none());
+        assert!(parse_utc_offset("+09xx").is_none());
+    }
+
+    #[test]
+    fn resolve_iana_trims_whitespace() {
+        // Leading/trailing whitespace should be tolerated.
+        let tz = resolve("  America/New_York  ", &[]).expect("trimmed IANA name");
+        match tz {
+            ResolvedTz::Iana(t) => assert_eq!(t.name(), "America/New_York"),
+            _ => panic!("expected Iana"),
+        }
+    }
+
+    #[test]
+    fn resolve_microsoft_alias_case_insensitive() {
+        // Aliases match case-insensitively.
+        let tz = resolve("TOKYO STANDARD TIME", &[]).expect("upper-case alias");
+        match tz {
+            ResolvedTz::Iana(t) => assert_eq!(t.name(), "Asia/Tokyo"),
+            _ => panic!("expected Iana"),
+        }
+    }
+
+    #[test]
+    fn resolve_empty_tzid_returns_none() {
+        assert!(resolve("", &[]).is_none());
+        assert!(resolve("   ", &[]).is_none());
+    }
+
+    #[test]
+    fn local_to_utc_offset_custom_finds_latest_transition() {
+        // Build a transition table manually and ensure walker picks latest valid.
+        let t1 = TzTransition {
+            effective_from: NaiveDateTime::parse_from_str("19700101T000000", "%Y%m%dT%H%M%S")
+                .unwrap(),
+            utc_offset_seconds: 3600,
+        };
+        let t2 = TzTransition {
+            effective_from: NaiveDateTime::parse_from_str("20000101T000000", "%Y%m%dT%H%M%S")
+                .unwrap(),
+            utc_offset_seconds: 7200,
+        };
+        let rt = ResolvedTz::Custom(vec![t1, t2]);
+        let local =
+            NaiveDateTime::parse_from_str("19990101T000000", "%Y%m%dT%H%M%S").unwrap();
+        assert_eq!(local_to_utc_offset_seconds(&rt, local), Some(3600));
+        let local_later =
+            NaiveDateTime::parse_from_str("20100101T000000", "%Y%m%dT%H%M%S").unwrap();
+        assert_eq!(local_to_utc_offset_seconds(&rt, local_later), Some(7200));
+    }
+
+    #[test]
+    fn local_to_utc_offset_custom_before_first_transition_returns_none() {
+        let t1 = TzTransition {
+            effective_from: NaiveDateTime::parse_from_str("20000101T000000", "%Y%m%dT%H%M%S")
+                .unwrap(),
+            utc_offset_seconds: 3600,
+        };
+        let rt = ResolvedTz::Custom(vec![t1]);
+        let local =
+            NaiveDateTime::parse_from_str("19990101T000000", "%Y%m%dT%H%M%S").unwrap();
+        assert!(local_to_utc_offset_seconds(&rt, local).is_none());
+    }
+
+    #[test]
+    fn resolve_inline_block_with_no_subs_falls_through_to_iana() {
+        // Empty raw_subs means build_transitions returns None; fall through.
+        let block = VTimezone {
+            tzid: "America/New_York".into(),
+            raw_subs: vec![],
+        };
+        let tz = resolve("America/New_York", &[block]).expect("fallback to IANA");
+        match tz {
+            ResolvedTz::Iana(_) => {}
+            _ => panic!("expected fallback to IANA when inline is empty"),
+        }
+    }
 }
