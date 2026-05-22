@@ -336,7 +336,7 @@ pub(crate) fn build_rfc5322_with_attachments(
     if !cc.is_empty() {
         msg.push_str(&format!("Cc: {}\r\n", cc.join(", ")));
     }
-    let encoded_subject = message_util::rfc2047_encode(subject);
+    let encoded_subject = mailrs_rfc2047::encode(subject);
     msg.push_str(&format!(
         "Subject: {encoded_subject}\r\n\
          Message-ID: <{message_id}>\r\n\
