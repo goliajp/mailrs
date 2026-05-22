@@ -1179,7 +1179,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2477,19 +2477,20 @@ dependencies = [
 
 [[package]]
 name = "mailrs-auth-guard"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "177a7224a1d4ab94b3cdb5c5af09f669be3032a5d4707fb64035eb152f03ba84"
+version = "1.0.3"
 dependencies = [
+ "criterion",
  "dashmap",
+ "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing",
 ]
 
 [[package]]
 name = "mailrs-auth-guard"
 version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a390fe252549a4900bfe7478a0c090e0d61f5c93a19c54aba292b4f61ab13275"
 dependencies = [
- "criterion",
  "dashmap",
  "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing",
@@ -2769,15 +2770,15 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44d681e33ba6566bfcfc6a32988a57c5bb83686199855fe85acd0ee276bd1048"
+version = "1.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "criterion",
  "futures-util",
  "hickory-resolver",
  "mail-auth",
+ "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "redis",
  "rustls-pki-types",
@@ -2790,10 +2791,11 @@ dependencies = [
 [[package]]
 name = "mailrs-outbound-queue"
 version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c56bde6ce5791326d1937ae3edceffeab6eaa01b38edf4f5c52f2651216bd25c"
 dependencies = [
  "async-trait",
  "chrono",
- "criterion",
  "futures-util",
  "hickory-resolver",
  "mail-auth",
@@ -2930,7 +2932,7 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
- "mailrs-auth-guard 1.0.2",
+ "mailrs-auth-guard 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2943,7 +2945,7 @@ dependencies = [
  "mailrs-jmap 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-maildir 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-outbound-queue 1.0.2",
+ "mailrs-outbound-queue 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rate-limit 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2047 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3274,7 +3276,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4224,7 +4226,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4283,7 +4285,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4686,7 +4688,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5057,7 +5059,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5955,7 +5957,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
