@@ -1150,9 +1150,9 @@ dependencies = [
 
 [[package]]
 name = "either"
-version = "1.15.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
+checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 dependencies = [
  "serde",
 ]
@@ -1424,9 +1424,9 @@ checksum = "037711b3d59c33004d3856fbdc83b99d4ff37a24768fa1be9ce3538a1cde4393"
 
 [[package]]
 name = "futures-timer"
-version = "3.0.3"
+version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f288b0a4f20f9a56b5d1da57e2227c661b7b16168e2f72365f57b63326e29b24"
+checksum = "af43fadb8a98512d547e37b4e92e0ced13e205c061b87b4623eff01d918d6968"
 
 [[package]]
 name = "futures-util"
@@ -2477,18 +2477,18 @@ dependencies = [
 
 [[package]]
 name = "mailrs-clean"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71aed1fc507c11dd5b201e801a523fd9b1435b75951e6341d05dae438a1c593c"
+version = "1.0.3"
 dependencies = [
+ "criterion",
  "html2text",
 ]
 
 [[package]]
 name = "mailrs-clean"
 version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a5a72de707c163d0dcc63b3a3abd3b7c778771626984442f943636d1bb72921"
 dependencies = [
- "criterion",
  "html2text",
 ]
 
@@ -2518,19 +2518,6 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dmarc"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb3ef3b6dc423032082b746c01e022575649f31c223047e88fbc44bc6d50718a"
-dependencies = [
- "async-trait",
- "base64",
- "chrono",
- "flate2",
- "sqlx",
-]
-
-[[package]]
-name = "mailrs-dmarc"
 version = "1.0.2"
 dependencies = [
  "async-trait",
@@ -2540,6 +2527,19 @@ dependencies = [
  "flate2",
  "sqlx",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-dmarc"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10f47c82f166947146da099d10ccf1cc31963a68de28fac385bd99c7433ac965"
+dependencies = [
+ "async-trait",
+ "base64",
+ "chrono",
+ "flate2",
+ "sqlx",
 ]
 
 [[package]]
@@ -2567,25 +2567,16 @@ dependencies = [
 
 [[package]]
 name = "mailrs-imap-proto"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa705f3440883f0ae5ef0c4a64d13a2d7c20d3373c9efed8946b7b29ac174acb"
-
-[[package]]
-name = "mailrs-imap-proto"
 version = "1.0.3"
 dependencies = [
  "criterion",
 ]
 
 [[package]]
-name = "mailrs-inbound"
+name = "mailrs-imap-proto"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "747315b7a520d473bb6d1c3e4b4b5e28c464f2b8bac2ed50482e1690d0b863fc"
-dependencies = [
- "async-trait",
-]
+checksum = "d4663c9fbc541c10769336630c3b3db383da1f9d71396919883454a0b2eb13cd"
 
 [[package]]
 name = "mailrs-inbound"
@@ -2594,6 +2585,15 @@ dependencies = [
  "async-trait",
  "criterion",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-inbound"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb49d6112a0a1fb6a11302d76b334f6b6dd71c3998e6628c5b9d599d84dc0b34"
+dependencies = [
+ "async-trait",
 ]
 
 [[package]]
@@ -2629,18 +2629,6 @@ dependencies = [
 
 [[package]]
 name = "mailrs-jmap"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "989050855a900035f8d3b044d2bf0174c6fd4f6e62ad852b07f772ddb0903e31"
-dependencies = [
- "async-trait",
- "chrono",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "mailrs-jmap"
 version = "1.1.1"
 dependencies = [
  "async-trait",
@@ -2649,6 +2637,18 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-jmap"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bd1e5ed26b7dc177079b40f105c35d1bce362ce5146c20bfa2141f8bc1835ba"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2709,7 +2709,7 @@ dependencies = [
  "futures-util",
  "hickory-resolver",
  "mail-auth",
- "mailrs-smtp-client 1.0.2",
+ "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "redis",
  "rustls-pki-types",
  "sqlx",
@@ -2729,7 +2729,7 @@ dependencies = [
  "futures-util",
  "hickory-resolver",
  "mail-auth",
- "mailrs-smtp-client 1.0.2",
+ "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "redis",
  "rustls-pki-types",
  "sqlx",
@@ -2765,22 +2765,22 @@ dependencies = [
 
 [[package]]
 name = "mailrs-rate-limit"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc60a8b71ca927e8cf1e8112fc83041aa03c6ca233a8c15c1b4795d97fc415d7"
-dependencies = [
- "async-trait",
- "dashmap",
-]
-
-[[package]]
-name = "mailrs-rate-limit"
 version = "1.0.1"
 dependencies = [
  "async-trait",
  "criterion",
  "dashmap",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-rate-limit"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c18710632c4f15e5ade733808048ce58a85b4ab87434f7727be0a98f5d91c040"
+dependencies = [
+ "async-trait",
+ "dashmap",
 ]
 
 [[package]]
@@ -2810,22 +2810,22 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
- "mailrs-clean 1.0.2",
+ "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-dmarc 1.0.1",
+ "mailrs-dmarc 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-imap-proto 1.0.2",
- "mailrs-inbound 1.0.3",
+ "mailrs-imap-proto 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-inbound 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-intelligence 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-jmap 1.1.0",
+ "mailrs-jmap 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-maildir 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-outbound-queue 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-rate-limit 1.0.0",
- "mailrs-shield 1.0.1",
- "mailrs-smtp-client 1.0.2",
- "mailrs-smtp-proto 1.0.2",
+ "mailrs-rate-limit 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-shield 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime_guess",
  "password-hash",
  "pdf-extract",
@@ -2859,38 +2859,24 @@ dependencies = [
 
 [[package]]
 name = "mailrs-shield"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c885880d1cf878b5546f0543f17e895918eeed4ff6eaac52c84e2d6bbd221d0"
+version = "1.0.3"
 dependencies = [
+ "criterion",
  "hickory-resolver",
  "redis",
  "sqlx",
+ "tokio",
 ]
 
 [[package]]
 name = "mailrs-shield"
 version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51b25fc8bc07be0be71b4a73effc93961c4c0a94d2ee535e0c81460fac901aae"
 dependencies = [
- "criterion",
  "hickory-resolver",
  "redis",
  "sqlx",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-smtp-client"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d22128efc37f8d2ba9772268c4d1579b3faa07beccbd0f17e56ee68fb5a70ae"
-dependencies = [
- "hickory-resolver",
- "rustls",
- "sha2 0.11.0",
- "tokio",
- "tokio-rustls",
- "webpki-roots",
 ]
 
 [[package]]
@@ -2907,12 +2893,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-smtp-proto"
-version = "1.0.2"
+name = "mailrs-smtp-client"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d75464a1eec0c24ee42a3dc850b45b17c4002d191ad2b71e967c458c995701f5"
+checksum = "6478f1386688c7e26b839f52d0d83c7e636b49f962c3aa09657be83cf461f724"
 dependencies = [
- "base64",
+ "hickory-resolver",
+ "rustls",
+ "sha2 0.11.0",
+ "tokio",
+ "tokio-rustls",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2921,6 +2912,15 @@ version = "1.0.4"
 dependencies = [
  "base64",
  "criterion",
+]
+
+[[package]]
+name = "mailrs-smtp-proto"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60898f6b379b6caffb4c654370af3734fb7a73b75ed028b8dae782ee1b0b25cc"
+dependencies = [
+ "base64",
 ]
 
 [[package]]
@@ -3666,7 +3666,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4276,9 +4276,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.149"
+version = "1.0.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86"
+checksum = "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9"
 dependencies = [
  "itoa",
  "memchr",
@@ -5880,6 +5880,15 @@ dependencies = [
 
 [[package]]
 name = "windows-sys"
+version = "0.60.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb"
+dependencies = [
+ "windows-targets 0.53.5",
+]
+
+[[package]]
+name = "windows-sys"
 version = "0.61.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
@@ -5911,11 +5920,28 @@ dependencies = [
  "windows_aarch64_gnullvm 0.52.6",
  "windows_aarch64_msvc 0.52.6",
  "windows_i686_gnu 0.52.6",
- "windows_i686_gnullvm",
+ "windows_i686_gnullvm 0.52.6",
  "windows_i686_msvc 0.52.6",
  "windows_x86_64_gnu 0.52.6",
  "windows_x86_64_gnullvm 0.52.6",
  "windows_x86_64_msvc 0.52.6",
+]
+
+[[package]]
+name = "windows-targets"
+version = "0.53.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4945f9f551b88e0d65f3db0bc25c33b8acea4d9e41163edf90dcd0b19f9069f3"
+dependencies = [
+ "windows-link",
+ "windows_aarch64_gnullvm 0.53.1",
+ "windows_aarch64_msvc 0.53.1",
+ "windows_i686_gnu 0.53.1",
+ "windows_i686_gnullvm 0.53.1",
+ "windows_i686_msvc 0.53.1",
+ "windows_x86_64_gnu 0.53.1",
+ "windows_x86_64_gnullvm 0.53.1",
+ "windows_x86_64_msvc 0.53.1",
 ]
 
 [[package]]
@@ -5931,6 +5957,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
 
 [[package]]
+name = "windows_aarch64_gnullvm"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9d8416fa8b42f5c947f8482c43e7d89e73a173cead56d044f6a56104a6d1b53"
+
+[[package]]
 name = "windows_aarch64_msvc"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5941,6 +5973,12 @@ name = "windows_aarch64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
+
+[[package]]
+name = "windows_aarch64_msvc"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9d782e804c2f632e395708e99a94275910eb9100b2114651e04744e9b125006"
 
 [[package]]
 name = "windows_i686_gnu"
@@ -5955,10 +5993,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b"
 
 [[package]]
+name = "windows_i686_gnu"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "960e6da069d81e09becb0ca57a65220ddff016ff2d6af6a223cf372a506593a3"
+
+[[package]]
 name = "windows_i686_gnullvm"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66"
+
+[[package]]
+name = "windows_i686_gnullvm"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa7359d10048f68ab8b09fa71c3daccfb0e9b559aed648a8f95469c27057180c"
 
 [[package]]
 name = "windows_i686_msvc"
@@ -5973,6 +6023,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
 
 [[package]]
+name = "windows_i686_msvc"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e7ac75179f18232fe9c285163565a57ef8d3c89254a30685b57d83a38d326c2"
+
+[[package]]
 name = "windows_x86_64_gnu"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5983,6 +6039,12 @@ name = "windows_x86_64_gnu"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78"
+
+[[package]]
+name = "windows_x86_64_gnu"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c3842cdd74a865a8066ab39c8a7a473c0778a3f29370b5fd6b4b9aa7df4a499"
 
 [[package]]
 name = "windows_x86_64_gnullvm"
@@ -5997,6 +6059,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
 
 [[package]]
+name = "windows_x86_64_gnullvm"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ffa179e2d07eee8ad8f57493436566c7cc30ac536a3379fdf008f47f6bb7ae1"
+
+[[package]]
 name = "windows_x86_64_msvc"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6007,6 +6075,12 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+
+[[package]]
+name = "windows_x86_64_msvc"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
 name = "winnow"
