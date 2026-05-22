@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-05-22
+
+### Added
+- New `benches/pipeline.rs` (4 bench groups, 11 cases) covering `make_delivery_decision` and `Pipeline::run`. Headline medians: `make_delivery_decision_accept` ~337 ns, `make_delivery_decision_junk` ~671 ns (was 735 ns), `pipeline_run/4_noop_stages` ~610 ns, `pipeline_run/early_reject_short_circuit` ~201 ns.
+- README `## Performance` section documenting the measured criterion medians (M-series Mac, release profile, 100-sample).
+
+### Changed
+- Junk-path `make_delivery_decision` -8.7% (735 ns → 671 ns) via pre-sized `String` + `write!` replacing `format!` + `matched_rules.join`.
+
 ## [1.0.2] - 2026-05-22
 
 ### Added
@@ -25,7 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release. Composable SMTP receive pipeline framework: `Stage` trait, early-reject executor, pure decision logic, and RFC 8601 Authentication-Results helpers. Framework-only — consumers bring their own greylist, DKIM, virus-scan, and scoring stages.
 
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-inbound-v1.0.2...HEAD
+[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-inbound-v1.0.3...HEAD
+[1.0.3]: https://github.com/goliajp/mailrs/compare/mailrs-inbound-v1.0.2...mailrs-inbound-v1.0.3
 [1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-inbound-v1.0.1...mailrs-inbound-v1.0.2
 [1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-inbound-v1.0.0...mailrs-inbound-v1.0.1
 [1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-inbound-v1.0.0

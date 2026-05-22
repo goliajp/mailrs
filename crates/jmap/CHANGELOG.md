@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-05-22
+
+### Added
+- README `## Performance` section with measured criterion medians: `keywords_to_flags` ~5.6 ns, dispatch `Email/query` ~2.4 µs, `dispatch_request` back-ref ~10.4 µs. M-series Mac, release profile, 100-sample.
+
 ## [1.1.0] - 2026-05-21
 
 ### Added
@@ -37,7 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release. Framework-agnostic JMAP (RFC 8620 + RFC 8621) server-side dispatcher and method handlers, with the mail store pluggable via the `MailStore` trait.
 
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.1.0...HEAD
+[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.1.1...HEAD
+[1.1.1]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.1.0...mailrs-jmap-v1.1.1
 [1.1.0]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.0.3...mailrs-jmap-v1.1.0
 [1.0.3]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.0.2...mailrs-jmap-v1.0.3
 [1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.0.1...mailrs-jmap-v1.0.2
