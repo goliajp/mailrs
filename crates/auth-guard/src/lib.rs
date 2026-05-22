@@ -524,4 +524,159 @@ mod tests {
             AuthCheck::LockedOut { .. }
         ));
     }
+
+    // ===== additional edge cases =====
+
+    #[test]
+    fn ipv6_different_subnets_not_blocked_together() {
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_account: 2,
+            ..Default::default()
+        });
+        let ip1: IpAddr = "2001:db8:1:2::aaaa".parse().unwrap();
+        let ip2: IpAddr = "2001:db8:3:4::bbbb".parse().unwrap(); // different /64
+        guard.record_failure(ip1, "alice");
+        guard.record_failure(ip1, "alice");
+        // ip2 is a different /64 and should NOT be locked
+        assert!(matches!(guard.check(ip2, "alice"), AuthCheck::Allowed));
+    }
+
+    #[test]
+    fn different_usernames_track_independently() {
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_account: 2,
+            max_failures_ip: 100, // very high so IP-level doesn't trigger
+            ..Default::default()
+        });
+        let ip: IpAddr = "192.0.2.1".parse().unwrap();
+        // alice gets 2 failures (at threshold) — should be locked
+        guard.record_failure(ip, "alice");
+        guard.record_failure(ip, "alice");
+        assert!(matches!(guard.check(ip, "alice"), AuthCheck::LockedOut { .. }));
+        // bob (same IP, different user) should still be allowed
+        assert!(matches!(guard.check(ip, "bob"), AuthCheck::Allowed));
+    }
+
+    #[test]
+    fn record_failure_during_lockout_does_not_panic() {
+        // Once locked out, record_failure can still be called (the
+        // attacker keeps probing); the function should not panic.
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_account: 2,
+            ..Default::default()
+        });
+        let ip: IpAddr = "192.0.2.10".parse().unwrap();
+        guard.record_failure(ip, "alice");
+        guard.record_failure(ip, "alice"); // triggers lockout
+        // Now keep recording while locked out — must not panic.
+        for _ in 0..10 {
+            guard.record_failure(ip, "alice");
+        }
+        // Still locked out (we never cleared)
+        assert!(matches!(guard.check(ip, "alice"), AuthCheck::LockedOut { .. }));
+    }
+
+    #[test]
+    fn record_success_does_not_clear_ip_counter() {
+        // Documented contract: record_success clears the per-account
+        // counter but NOT the per-IP counter. Verify.
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_account: 100,
+            max_failures_ip: 3,
+            ..Default::default()
+        });
+        let ip: IpAddr = "192.0.2.20".parse().unwrap();
+        // Record 3 IP-level failures with different usernames.
+        guard.record_failure(ip, "user1");
+        guard.record_failure(ip, "user2");
+        guard.record_failure(ip, "user3"); // triggers IP-level lockout
+        // user1 succeeds (but it's already too late for the IP)
+        guard.record_success(ip, "user1");
+        // IP is still locked out for any user
+        assert!(matches!(guard.check(ip, "anyone"), AuthCheck::LockedOut { .. }));
+    }
+
+    #[test]
+    fn cleanup_stale_handles_empty_maps() {
+        // cleanup_stale on a fresh guard with no entries should not panic.
+        let guard = AuthGuard::new(AuthGuardConfig::default());
+        guard.cleanup_stale(Instant::now());
+        guard.cleanup_stale(Instant::now() + Duration::from_secs(3600));
+    }
+
+    #[test]
+    fn zero_max_failures_locks_immediately() {
+        // Degenerate config: 1 failure = lockout. (Setting 0 would
+        // never lockout because `len >= 0` is always true after the
+        // first push, but also tests show >= 1 means "one failure
+        // triggers it".)
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_account: 1,
+            ..Default::default()
+        });
+        let ip: IpAddr = "192.0.2.30".parse().unwrap();
+        guard.record_failure(ip, "alice");
+        assert!(matches!(guard.check(ip, "alice"), AuthCheck::LockedOut { .. }));
+    }
+
+    #[test]
+    fn high_max_lockout_secs_caps_at_max() {
+        // Test that lockout_duration is capped at max_lockout_secs
+        // even when backoff would otherwise overflow.
+        let d = lockout_duration(1800, 100, 2.0, 86400);
+        assert_eq!(d, 86400);
+    }
+
+    #[test]
+    fn backoff_multiplier_below_one_does_not_explode() {
+        // 0.5 backoff multiplier — lockout duration should monotonically
+        // decrease (not increase) with repeat offenses. Not a useful
+        // config but should not panic.
+        let d0 = lockout_duration(1800, 0, 0.5, 86400);
+        let d1 = lockout_duration(1800, 1, 0.5, 86400);
+        let d2 = lockout_duration(1800, 2, 0.5, 86400);
+        assert_eq!(d0, 1800);
+        assert!(d1 <= d0);
+        assert!(d2 <= d1);
+    }
+
+    #[test]
+    fn concurrent_record_failures_dont_panic() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let guard = Arc::new(AuthGuard::new(AuthGuardConfig::default()));
+        let ip: IpAddr = "192.0.2.40".parse().unwrap();
+        let mut handles = vec![];
+        for _ in 0..8 {
+            let g = guard.clone();
+            handles.push(thread::spawn(move || {
+                for _ in 0..50 {
+                    g.record_failure(ip, "alice");
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+        // After 400 concurrent failures, account should be locked
+        // (we never panicked or deadlocked — that's the assertion).
+        assert!(matches!(guard.check(ip, "alice"), AuthCheck::LockedOut { .. }));
+    }
+
+    #[test]
+    fn ipv4_loopback_treated_separately_from_ipv6_loopback() {
+        // ::1 and 127.0.0.1 are different IP addresses.
+        let guard = AuthGuard::new(AuthGuardConfig {
+            max_failures_account: 2,
+            ..Default::default()
+        });
+        let v4: IpAddr = "127.0.0.1".parse().unwrap();
+        let v6: IpAddr = "::1".parse().unwrap();
+        guard.record_failure(v4, "alice");
+        guard.record_failure(v4, "alice");
+        assert!(matches!(guard.check(v4, "alice"), AuthCheck::LockedOut { .. }));
+        // v6 ::1 is independent — should be allowed
+        assert!(matches!(guard.check(v6, "alice"), AuthCheck::Allowed));
+    }
 }

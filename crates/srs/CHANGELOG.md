@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-22
+
+### Added
+
+- 13 new edge-case tests: hash too short, hash too long, tt wrong
+  length, too few `=` separators, lowercase prefix rejection, empty
+  local-part rewrite, local-part containing `+`, tt-window edge
+  with yesterday's timestamp, tt-window wrap-around math,
+  constant-time-eq unequal length, long secrets (>HMAC key size),
+  no-@ input rejection, RFC 6532 UTF-8 local-part roundtrip.
+- Lib test count 15 → 28.
+
+No behavior change; pure coverage-density bump.
+
 ## [1.0.0] - 2026-05-22
 
 ### Added

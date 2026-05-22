@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-05-22
+
+### Added
+
+- 16 new edge-case tests covering: Q encoding with Latin-1 chars,
+  empty encoded-word body (`=?UTF-8?B??=`), adjacent encoded-words
+  with different charsets, encoded-word at start/end of input,
+  encoded-word inside quoted-string display name, charset name
+  case-insensitivity, Shift_JIS / EUC-JP / Big5 decode paths,
+  uppercase + lowercase hex in Q encoding, underscore + equals
+  semantics, encode/decode roundtrip for Japanese subjects.
+- Lib test count 24 → 40.
+
+No behavior change; this is a pure coverage-density bump.
+
 ## [1.1.0] - 2026-05-22
 
 ### Added

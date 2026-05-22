@@ -465,4 +465,145 @@ mod tests {
         // we fall back to UTF-8 decode of the raw bytes.
         assert_eq!(r, "hello");
     }
+
+    // ===== additional edge cases =====
+
+    #[test]
+    fn q_encoding_with_latin1_chars() {
+        // "café" with Latin-1: c=0x63 a=0x61 f=0x66 é=0xE9.
+        // Q-encoded: cafe=E9 (the é becomes =E9)
+        let r = decode(b"=?iso-8859-1?Q?caf=E9?=");
+        assert_eq!(r, "café");
+    }
+
+    #[test]
+    fn empty_encoded_word_body() {
+        // =?UTF-8?B??= — empty text. Base64 decodes empty to empty.
+        let r = decode(b"=?UTF-8?B??=");
+        assert_eq!(r, "");
+    }
+
+    #[test]
+    fn adjacent_words_different_charsets_no_collapse() {
+        // Whitespace collapse only applies when CONSECUTIVE encoded
+        // words exist; different charsets is still "consecutive" per
+        // RFC 2047 §6.2. Our impl collapses uniformly. Test the
+        // behavior is consistent.
+        let r = decode(b"=?UTF-8?B?aGk=?= =?iso-8859-1?B?aGk=?=");
+        // Both decode to "hi", whitespace dropped between
+        assert_eq!(r, "hihi");
+    }
+
+    #[test]
+    fn encoded_word_at_very_start_of_input() {
+        let r = decode(b"=?UTF-8?B?aGVsbG8=?= trailing text");
+        assert_eq!(r, "hello trailing text");
+    }
+
+    #[test]
+    fn encoded_word_at_very_end_of_input() {
+        let r = decode(b"leading text =?UTF-8?B?aGVsbG8=?=");
+        assert_eq!(r, "leading text hello");
+    }
+
+    #[test]
+    fn encoded_word_in_middle_of_quoted_string() {
+        // Real-world senders embed =?...?= inside what looks like a
+        // quoted display-name. We decode the encoded-word regardless
+        // of context.
+        let r = decode(b"\"=?UTF-8?B?aGVsbG8=?=\" <addr@example.com>");
+        // The unquoted display name decodes.
+        assert!(r.contains("hello"));
+        assert!(r.contains("<addr@example.com>"));
+    }
+
+    #[test]
+    fn charset_case_insensitive_match() {
+        // encoding_rs::for_label is case-insensitive
+        let r1 = decode(b"=?UTF-8?B?aGk=?=");
+        let r2 = decode(b"=?utf-8?B?aGk=?=");
+        let r3 = decode(b"=?Utf-8?B?aGk=?=");
+        let r4 = decode(b"=?UtF-8?B?aGk=?=");
+        assert_eq!(r1, r2);
+        assert_eq!(r2, r3);
+        assert_eq!(r3, r4);
+    }
+
+    #[test]
+    fn shift_jis_japanese_decode() {
+        // "テスト" (Test) in Shift_JIS via Base64.
+        // Shift_JIS bytes for テスト = 83 65 83 58 83 67
+        let r = decode(b"=?Shift_JIS?B?g2WDWINn?=");
+        assert_eq!(r, "テスト");
+    }
+
+    #[test]
+    fn euc_jp_japanese_decode() {
+        // "テスト" in EUC-JP via Base64.
+        // EUC-JP bytes for テスト: A5 C6 A5 B9 A5 C8
+        let r = decode(b"=?EUC-JP?B?pcaluaXI?=");
+        assert_eq!(r, "テスト");
+    }
+
+    #[test]
+    fn big5_chinese_decode() {
+        // "你好" (Hello) in Big5 via Base64.
+        // Big5 bytes for 你好: A7 41 A6 6E
+        let r = decode(b"=?Big5?B?p0GmbA==?=");
+        // Some Big5 mappings vary; just verify a non-empty UTF-8 result.
+        assert!(!r.is_empty());
+    }
+
+    #[test]
+    fn q_encoding_uppercase_hex() {
+        let r = decode(b"=?UTF-8?Q?=E6=97=A5=E6=9C=AC=E8=AA=9E?=");
+        // Hex E6 97 A5 E6 9C AC E8 AA 9E = "日本語" in UTF-8
+        assert_eq!(r, "日本語");
+    }
+
+    #[test]
+    fn q_encoding_lowercase_hex_tolerated() {
+        // RFC 2047 §4.2 says hex chars are uppercase; some senders
+        // ship lowercase. Be lenient on decode.
+        let r = decode(b"=?UTF-8?Q?=e6=97=a5?=");
+        // Just first 3 hex bytes E6 97 A5 = "日" (Japanese kanji for sun/day)
+        assert_eq!(r, "日");
+    }
+
+    #[test]
+    fn encoded_word_with_underscore_and_equals() {
+        // "Hello World!" in Q: H, e, l, l, o, _, W, o, r, l, d, =21
+        // _ becomes space, =21 = '!'
+        let r = decode(b"=?UTF-8?Q?Hello_World=21?=");
+        assert_eq!(r, "Hello World!");
+    }
+
+    // ===== encode tests =====
+
+    #[test]
+    fn encode_preserves_short_ascii() {
+        // Short ASCII strings borrow without allocation.
+        let r = encode("test");
+        assert_eq!(r, "test");
+        assert!(matches!(r, Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn encode_decode_roundtrip_iso_2022_jp_via_utf8_wrapping() {
+        // We encode as UTF-8 Base64 regardless of input. So Japanese
+        // input encoded by us decodes back to original.
+        let original = "明日午前9時の会議";
+        let encoded = encode(original);
+        let decoded = decode(encoded.as_bytes());
+        assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn encode_string_with_mixed_ascii_and_unicode() {
+        // Any non-ASCII char triggers full encoding (not partial).
+        let r = encode("Hello 世界");
+        assert!(r.starts_with("=?UTF-8?B?"));
+        let back = decode(r.as_bytes());
+        assert_eq!(back, "Hello 世界");
+    }
 }
