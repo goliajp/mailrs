@@ -29,6 +29,7 @@ members = [
     "crates/dnsbl",
     "crates/clamav",
     "crates/backoff",
+    "crates/tls-reload",
     "crates/server",
 ]
 

@@ -1,0 +1,25 @@
+[package]
+name = "mailrs-tls-reload"
+version = "1.0.0"
+edition = "2024"
+description = "Hot-reloadable rustls ServerConfig via arc-swap. Atomic cert/key rotation without dropping in-flight connections. Plus PEM file loader. Use with ACME, Let's Encrypt renewal hooks, or any cert-rotation flow."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-tls-reload"
+authors = ["GOLIA K.K."]
+keywords = ["tls", "rustls", "hot-reload", "arc-swap", "certificate"]
+categories = ["cryptography", "network-programming"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+arc-swap = "1"
+rustls = "0.23"
+rustls-pki-types = { version = "1", features = ["alloc"] }
+tokio-rustls = "0.26"
+
+[dev-dependencies]
+criterion = { workspace = true }

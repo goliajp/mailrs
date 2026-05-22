@@ -2955,6 +2955,7 @@ dependencies = [
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-tls-reload",
  "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime_guess",
  "password-hash",
@@ -3076,6 +3077,17 @@ dependencies = [
  "hex",
  "hmac 0.13.0",
  "sha2 0.11.0",
+]
+
+[[package]]
+name = "mailrs-tls-reload"
+version = "1.0.0"
+dependencies = [
+ "arc-swap",
+ "criterion",
+ "rustls",
+ "rustls-pki-types",
+ "tokio-rustls",
 ]
 
 [[package]]
