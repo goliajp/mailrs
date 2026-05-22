@@ -25,7 +25,7 @@ use crate::event_bus::{next_connection_id, EventBus, SmtpEvent};
 use mail_auth::MessageAuthenticator;
 
 use crate::inbound::auth_guard::AuthGuard;
-use crate::inbound::rate_limit::RateLimiter;
+use crate::inbound::rate_limit::{RateLimitStore, RateLimiter};
 use crate::tls::TlsState;
 use crate::users::UserStore;
 use crate::web::WebState;
@@ -79,7 +79,7 @@ pub async fn handle_plain_connection(
     });
 
     // rate limit check
-    if !ctx.rate_limiter.check(addr.ip()) {
+    if !ctx.rate_limiter.check(&addr.ip().to_string()).await {
         let mut framed = Framed::new(
             stream,
             SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection),

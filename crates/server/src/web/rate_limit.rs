@@ -5,13 +5,13 @@ use axum::extract::{ConnectInfo, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
-use crate::inbound::rate_limit::{RateLimiter, TokenBucketConfig};
+use crate::inbound::rate_limit::{RateLimitStore, RateLimiter, TokenBucketConfig};
 
 /// web API rate limiter holding separate buckets for different tiers
 pub struct WebRateLimiter {
     /// strict limiter for auth endpoints (10 req/min)
     pub auth: RateLimiter,
-    /// relaxed limiter for general API endpoints (100 req/min)
+    /// relaxed limiter for general API endpoints (300 req/min)
     pub general: RateLimiter,
 }
 
@@ -30,9 +30,9 @@ impl WebRateLimiter {
     }
 
     /// remove stale entries (call periodically from cleanup task)
-    pub fn cleanup(&self, before: std::time::Instant) {
-        self.auth.cleanup_stale(before);
-        self.general.cleanup_stale(before);
+    pub async fn cleanup(&self, before_unix_secs: u64) {
+        self.auth.cleanup_stale(before_unix_secs).await;
+        self.general.cleanup_stale(before_unix_secs).await;
     }
 }
 
@@ -43,7 +43,7 @@ pub async fn auth_rate_limit(
     request: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> Response {
-    if !limiter.auth.check(addr.ip()) {
+    if !limiter.auth.check(&addr.ip().to_string()).await {
         return rate_limit_response(60);
     }
     next.run(request).await
@@ -56,7 +56,7 @@ pub async fn general_rate_limit(
     request: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> Response {
-    if !limiter.general.check(addr.ip()) {
+    if !limiter.general.check(&addr.ip().to_string()).await {
         return rate_limit_response(60);
     }
     next.run(request).await
@@ -80,58 +80,62 @@ fn rate_limit_response(retry_after_secs: u64) -> Response {
 mod tests {
     use super::*;
 
-    #[test]
-    fn web_rate_limiter_new_defaults() {
+    fn ip_str(last: u8) -> String {
+        format!("10.0.0.{last}")
+    }
+
+    #[tokio::test]
+    async fn web_rate_limiter_new_defaults() {
         let limiter = WebRateLimiter::new();
         assert!(limiter.auth.is_empty());
         assert!(limiter.general.is_empty());
     }
 
-    #[test]
-    fn auth_limiter_allows_10_then_rejects() {
+    #[tokio::test]
+    async fn auth_limiter_allows_10_then_rejects() {
         let limiter = WebRateLimiter::new();
-        let ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 0, 0, 1));
+        let ip = ip_str(1);
         for _ in 0..10 {
-            assert!(limiter.auth.check(ip));
+            assert!(limiter.auth.check(&ip).await);
         }
-        assert!(!limiter.auth.check(ip));
+        assert!(!limiter.auth.check(&ip).await);
     }
 
-    #[test]
-    fn general_limiter_allows_300_then_rejects() {
+    #[tokio::test]
+    async fn general_limiter_allows_300_then_rejects() {
         let limiter = WebRateLimiter::new();
-        let ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 0, 0, 2));
+        let ip = ip_str(2);
         for _ in 0..300 {
-            assert!(limiter.general.check(ip));
+            assert!(limiter.general.check(&ip).await);
         }
-        assert!(!limiter.general.check(ip));
+        assert!(!limiter.general.check(&ip).await);
     }
 
-    #[test]
-    fn auth_and_general_are_independent() {
+    #[tokio::test]
+    async fn auth_and_general_are_independent() {
         let limiter = WebRateLimiter::new();
-        let ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 0, 0, 3));
+        let ip = ip_str(3);
         // exhaust auth
         for _ in 0..10 {
-            limiter.auth.check(ip);
+            limiter.auth.check(&ip).await;
         }
-        assert!(!limiter.auth.check(ip));
+        assert!(!limiter.auth.check(&ip).await);
         // general still has tokens
-        assert!(limiter.general.check(ip));
+        assert!(limiter.general.check(&ip).await);
     }
 
-    #[test]
-    fn cleanup_works() {
+    #[tokio::test]
+    async fn cleanup_works() {
         let limiter = WebRateLimiter::new();
-        let ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 0, 0, 4));
-        limiter.auth.check(ip);
-        limiter.general.check(ip);
-        assert_eq!(limiter.auth.len(), 1);
-        assert_eq!(limiter.general.len(), 1);
-        // cleanup with future timestamp
-        limiter.cleanup(std::time::Instant::now() + std::time::Duration::from_secs(3600));
-        assert_eq!(limiter.auth.len(), 0);
-        assert_eq!(limiter.general.len(), 0);
+        let ip = ip_str(4);
+        limiter.auth.check(&ip).await;
+        limiter.general.check(&ip).await;
+        assert_eq!(limiter.auth.len().await, 1);
+        assert_eq!(limiter.general.len().await, 1);
+        // cleanup with far-future timestamp drops everything
+        limiter.cleanup(u64::MAX).await;
+        assert_eq!(limiter.auth.len().await, 0);
+        assert_eq!(limiter.general.len().await, 0);
     }
 
     #[test]
