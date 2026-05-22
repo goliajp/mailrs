@@ -19,72 +19,27 @@ pub(super) fn format_received_header(
     out
 }
 
-/// extract a header value from raw message bytes (with RFC 2047 decoding)
-pub(super) fn extract_header(message: &[u8], name: &str) -> String {
-    // use mail-parser for proper RFC 2047 encoded-word decoding
+/// extract Subject + From in a single mail-parser pass — both are read
+/// per inbound message, and `mail_parser::MessageParser` does a non-trivial
+/// pre-scan + tree build. Calling [`extract_header`] twice (once for
+/// "Subject", once for "From") parses the message twice; this helper
+/// hands back both values for one parse.
+///
+/// Returns `(subject, from)`. Either may be `String::new()` if missing.
+pub(super) fn extract_subject_and_from(message: &[u8]) -> (String, String) {
     if let Some(msg) = mail_parser::MessageParser::default().parse(message) {
-        match name.to_lowercase().as_str() {
-            "subject" => {
-                if let Some(s) = msg.subject() {
-                    return s.to_string();
-                }
-            }
-            "from" => {
-                if let Some(addr) = msg.from().and_then(|a| a.first()) {
-                    return match addr.name() {
-                        Some(name) => format!("{} <{}>", name, addr.address().unwrap_or("")),
-                        None => addr.address().unwrap_or("").to_string(),
-                    };
-                }
-            }
-            _ => {}
-        }
+        let subject = msg.subject().map(|s| s.to_string()).unwrap_or_default();
+        let from = msg
+            .from()
+            .and_then(|a| a.first())
+            .map(|addr| match addr.name() {
+                Some(n) => format!("{} <{}>", n, addr.address().unwrap_or("")),
+                None => addr.address().unwrap_or("").to_string(),
+            })
+            .unwrap_or_default();
+        return (subject, from);
     }
-    // fallback: naive line scan, no full UTF-8 transcode.
-    // bytes pre-scan: most headers are ASCII; we only String-build the match.
-    let name_lower = name.as_bytes().to_ascii_lowercase();
-    let mut start = 0;
-    while start < message.len() {
-        // find end of line (\r\n or \n)
-        let lf = message[start..].iter().position(|&b| b == b'\n');
-        let end = match lf {
-            Some(i) => start + i,
-            None => message.len(),
-        };
-        let mut line_end = end;
-        if line_end > start && message[line_end - 1] == b'\r' {
-            line_end -= 1;
-        }
-        let line = &message[start..line_end];
-        // blank line ends header block
-        if line.is_empty() {
-            break;
-        }
-        // header line must have colon; compare name prefix case-insensitively
-        if let Some(colon) = line.iter().position(|&b| b == b':')
-            && colon == name_lower.len()
-            && line[..colon]
-                .iter()
-                .zip(name_lower.iter())
-                .all(|(a, b)| a.eq_ignore_ascii_case(b))
-        {
-            let value = &line[colon + 1..];
-            // trim leading whitespace, return lossy-decoded owned string
-            let trimmed = trim_ascii_left(value);
-            return String::from_utf8_lossy(trimmed).trim().to_string();
-        }
-        start = end + 1;
-    }
-    String::new()
-}
-
-#[inline]
-fn trim_ascii_left(s: &[u8]) -> &[u8] {
-    let mut i = 0;
-    while i < s.len() && (s[i] == b' ' || s[i] == b'\t') {
-        i += 1;
-    }
-    &s[i..]
+    (String::new(), String::new())
 }
 
 /// extract a short snippet from the message body for notifications

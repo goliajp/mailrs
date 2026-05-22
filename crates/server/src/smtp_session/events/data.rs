@@ -17,7 +17,7 @@ use crate::inbound::pipeline::DeliveryDecision;
 use crate::sieve::{compile_sieve, evaluate_sieve_with_envelope, SieveAction};
 
 use super::super::address::is_local_domain;
-use super::super::headers::{extract_header, extract_snippet, format_received_header};
+use super::super::headers::{extract_snippet, format_received_header};
 use super::super::post_delivery::post_delivery_process;
 use super::super::srs::srs_rewrite;
 use super::super::{ConnectionContext, SessionAction, DATA_TIMEOUT};
@@ -362,10 +362,18 @@ where
                                     let user = format!("{local}@{domain}");
                                     let _ = mb_store.ensure_default_mailboxes(&user).await;
                                     let now = chrono::Utc::now().timestamp();
-                                    let subject = extract_header(&full_message, "Subject");
-                                    // use From header for sender (includes display name);
-                                    // fall back to SMTP envelope reverse_path
-                                    let from_header = extract_header(&full_message, "from");
+                                    // single-pass extract: mail-parser builds a
+                                    // full Message tree per call; calling
+                                    // extract_header twice parses twice. The
+                                    // _and_from helper hands back both fields
+                                    // for one parse.
+                                    let (subject, from_header) =
+                                        super::super::headers::extract_subject_and_from(
+                                            &full_message,
+                                        );
+                                    // use From header for sender (includes
+                                    // display name); fall back to SMTP envelope
+                                    // reverse_path
                                     let sender = if from_header.is_empty() {
                                         reverse_path.clone()
                                     } else {
