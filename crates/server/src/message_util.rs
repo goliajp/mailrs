@@ -1,16 +1,9 @@
-use base64::Engine;
 use mail_parser::MimeHeaders;
 use serde::Serialize;
 
-/// RFC 2047 encode a string if it contains non-ASCII characters
-pub(crate) fn rfc2047_encode(s: &str) -> String {
-    if s.is_ascii() {
-        return s.to_string();
-    }
-    // use base64 encoding for reliability with all character sets
-    let encoded = base64::engine::general_purpose::STANDARD.encode(s.as_bytes());
-    format!("=?UTF-8?B?{encoded}?=")
-}
+// rfc2047_encode lives in `mailrs-rfc2047` (1.1.0+) as `encode`. The
+// thin server-internal wrapper was deleted in favor of the published
+// crate; call sites use `mailrs_rfc2047::encode` directly.
 
 /// RFC 2231 encode a parameter value for use in Content-Type/Content-Disposition
 pub(crate) fn rfc2231_encode_param(name: &str, value: &str) -> String {
@@ -158,18 +151,6 @@ pub(crate) fn decode_header(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn rfc2047_encode_ascii_passthrough() {
-        assert_eq!(rfc2047_encode("Hello World"), "Hello World");
-    }
-
-    #[test]
-    fn rfc2047_encode_non_ascii() {
-        let encoded = rfc2047_encode("日本語");
-        assert!(encoded.starts_with("=?UTF-8?B?"));
-        assert!(encoded.ends_with("?="));
-    }
 
     #[test]
     fn rfc2231_encode_ascii_quoted() {

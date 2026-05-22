@@ -2804,7 +2804,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-rfc2047"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "base64",
  "criterion",
@@ -2814,9 +2814,9 @@ dependencies = [
 
 [[package]]
 name = "mailrs-rfc2047"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bd4d4628094b6709cd6a06e6870aa62d69a5f904cbff2e6d8e26d7fb9428f3b"
+checksum = "42a2f7ac09fdbec5d8e449884d1f3e78d3f6b0c7cc3d79ef7e3bdefab4cbadae"
 dependencies = [
  "base64",
  "encoding_rs",
@@ -2877,7 +2877,7 @@ dependencies = [
  "mailrs-outbound-queue 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rate-limit 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-rfc2047 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc2047 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc5322 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-shield 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
