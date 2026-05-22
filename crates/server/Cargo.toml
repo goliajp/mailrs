@@ -30,7 +30,7 @@ mailrs-outbound-queue = "1"
 mailrs-imap-proto = "1"
 mailrs-ical = "1"
 mailrs-intelligence = "1"
-mailrs-mailbox = { path = "../mailbox" }
+mailrs-mailbox = "1"
 mailrs-jmap = "1"
 mailrs-dav = "1"
 async-trait = "0.1"
@@ -38,7 +38,7 @@ mailrs-postmaster = "1"
 mailrs-shield = "1"
 mailrs-clean = "1"
 mailrs-dmarc = "1"
-mailrs-inbound = { path = "../inbound" }
+mailrs-inbound = "1"
 mailrs-rate-limit = "1"
 sqlx = { workspace = true }
 redis = { workspace = true }

@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-rate-limit"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "Token-bucket rate limiting trait + in-memory reference impl. &str keys (IP / user / api-key / endpoint), unix-seconds time. Async, transport-agnostic, no protocol coupling. Standalone — bring your own storage backend."
 license = "Apache-2.0 OR MIT"
