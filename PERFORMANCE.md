@@ -132,6 +132,21 @@ the criterion bench medians above instead.
 | `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
 | `triplet_key` | **~25 ns** | was 120 ns; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity` + `push_str` for **−82%** measured (~5× faster). Called per inbound message on the greylist hot path. |
 
+### `mailrs-auth-guard` — failed-auth tracker (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `check` — empty map (success path) | **43 ns** |
+| `check` — below threshold | **46 ns** |
+| `check` — IP locked out | **51 ns** |
+| `record_failure` — fresh key | **127 ns** |
+| `record_failure` — repeat | **75 ns** |
+| `record_success` — clear counter | **62 ns** |
+
+Run: `cargo bench -p mailrs-auth-guard --bench guard`. The success
+path (`check` → `Allowed`) is the hot one — every legitimate login
+goes through it, two DashMap reads + no allocation.
+
 ### `mailrs-rfc2047` — encoded-word decoder (criterion, M-series Mac, release)
 
 | Path | Median | Notes |

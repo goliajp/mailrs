@@ -44,7 +44,7 @@ pub(super) fn extract_subject_and_from(message: &[u8]) -> (String, String) {
         .unwrap_or_default();
     let from = msg
         .header("From")
-        .map(|bytes| format_from_field(bytes))
+        .map(format_from_field)
         .unwrap_or_default();
     (subject, from)
 }

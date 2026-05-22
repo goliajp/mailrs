@@ -22,6 +22,7 @@ members = [
     "crates/rate-limit",
     "crates/rfc2047",
     "crates/rfc5322",
+    "crates/auth-guard",
     "crates/server",
 ]
 
