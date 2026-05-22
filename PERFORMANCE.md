@@ -132,6 +132,23 @@ the criterion bench medians above instead.
 | `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
 | `triplet_key` | **~25 ns** | was 120 ns; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity` + `push_str` for **−82%** measured (~5× faster). Called per inbound message on the greylist hot path. |
 
+### `mailrs-clamav` — ClamAV TCP INSTREAM client (criterion, M-series Mac, release)
+
+CPU portion only — `scan` itself is network-bound (10-30 ms for a
+localhost clamd scan of a typical 100 KB payload).
+
+| Path | Median |
+|---|---:|
+| `parse_response` (clean) | **~9 ns** |
+| `parse_response` (virus, short name) | **~60 ns** |
+| `parse_response` (virus, long name) | **~78 ns** |
+| `parse_response` (error reply) | **~49 ns** |
+| `parse_response` (empty input) | **~21 ns** |
+
+Run: `cargo bench -p mailrs-clamav --bench clamav`. Extracted from
+server's content_scan.rs; server re-exports `scan_clamav` +
+`parse_clamav_response` for back-compat with existing call sites.
+
 ### `mailrs-dnsbl` — RFC 5782 DNSBL primitive (criterion, M-series Mac, release)
 
 | Path | Median |
