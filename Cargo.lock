@@ -2838,7 +2838,7 @@ checksum = "7b302e9484297227bff3f27b5b830365cfe5355f96e25981d711630bafe9e7e5"
 
 [[package]]
 name = "mailrs-server"
-version = "1.7.2"
+version = "1.7.3"
 dependencies = [
  "arc-swap",
  "argon2",
