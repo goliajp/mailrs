@@ -13,7 +13,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 tokio-rustls = "0.26"
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "tls12", "std"] }
-rustls-pemfile = "2"
+rustls-pki-types = { version = "1", features = ["std", "alloc"] }
 bytes = "1"
 futures-util = { version = "0.3", features = ["sink"] }
 chrono = { version = "0.4", features = ["serde"] }

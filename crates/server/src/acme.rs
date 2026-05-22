@@ -137,9 +137,12 @@ fn build_server_config(
     cert_pem: &str,
     key_pem: &str,
 ) -> Result<ServerConfig, Box<dyn std::error::Error>> {
-    let certs = rustls_pemfile::certs(&mut cert_pem.as_bytes()).collect::<Result<Vec<_>, _>>()?;
-    let key = rustls_pemfile::private_key(&mut key_pem.as_bytes())?
-        .ok_or("no private key found in PEM")?;
+    use rustls_pki_types::pem::PemObject;
+    use rustls_pki_types::{CertificateDer, PrivateKeyDer};
+
+    let certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(cert_pem.as_bytes())
+        .collect::<Result<Vec<_>, _>>()?;
+    let key = PrivateKeyDer::from_pem_slice(key_pem.as_bytes())?;
 
     let config = ServerConfig::builder()
         .with_no_client_auth()
