@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-auth-guard"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "Per-IP + per-(IP, username) failed-auth counter with exponential-backoff lockout. IPv6 normalized to /64 prefix. Sharded DashMap; allocation-free on the success path."
 license = "Apache-2.0 OR MIT"
