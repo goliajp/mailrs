@@ -185,9 +185,10 @@ Run: `cargo bench -p mailrs-rfc2047 --bench decode`.
 
 | Operation | body size | mailrs-rfc5322 | mail-parser 0.11 | speedup |
 |---|---:|---:|---:|---:|
-| Subject + From lookup | 1 KB | **277 ns** | 2383 ns | **8.6×** |
-| Subject + From lookup | 5 KB | **281 ns** | 3378 ns | **12.0×** |
-| Subject + From lookup | 20 KB | **279 ns** | 6901 ns | **24.7×** |
+| Subject + From lookup | 1 KB | **212 ns** | 2383 ns | **11.2×** |
+| Subject + From lookup | 5 KB | **212 ns** | 3378 ns | **15.9×** |
+| Subject + From lookup | 20 KB | **212 ns** | 6901 ns | **32.5×** |
+| Target at end of 50 headers (worst case) | — | **393 ns** | n/a | n/a |
 | body offset locate | 1 KB | **249 ns** | 2387 ns | **9.6×** |
 | body offset locate | 5 KB | **247 ns** | 3337 ns | **13.5×** |
 | body offset locate | 20 KB | **248 ns** | 6855 ns | **27.6×** |
