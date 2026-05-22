@@ -2571,6 +2571,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-dnsbl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b03f2803d9bc554f04b6f2542e656674517084c3ca107269533ba73475e5310"
+dependencies = [
+ "hickory-resolver",
+]
+
+[[package]]
 name = "mailrs-ical"
 version = "1.0.2"
 dependencies = [
@@ -2959,7 +2968,7 @@ version = "1.0.4"
 dependencies = [
  "criterion",
  "hickory-resolver",
- "mailrs-dnsbl",
+ "mailrs-dnsbl 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "redis",
  "sqlx",
  "tokio",

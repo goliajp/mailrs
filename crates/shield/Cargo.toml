@@ -22,7 +22,7 @@ default = ["redis-store"]
 redis-store = ["dep:redis", "dep:sqlx"]
 
 [dependencies]
-mailrs-dnsbl = { path = "../dnsbl" }
+mailrs-dnsbl = "1"
 hickory-resolver = "0.26"
 
 # redis-store feature
