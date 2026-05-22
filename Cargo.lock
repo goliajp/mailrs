@@ -2901,7 +2901,7 @@ dependencies = [
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-webhook-signature",
+ "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime_guess",
  "password-hash",
  "pdf-extract",
@@ -3027,6 +3027,17 @@ name = "mailrs-webhook-signature"
 version = "1.0.0"
 dependencies = [
  "criterion",
+ "hex",
+ "hmac 0.13.0",
+ "sha2 0.11.0",
+]
+
+[[package]]
+name = "mailrs-webhook-signature"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6c8658cb3ad48d79bce90da4530984d65d50f6216a7e4041989a905cfa60136"
+dependencies = [
  "hex",
  "hmac 0.13.0",
  "sha2 0.11.0",
