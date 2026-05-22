@@ -1,39 +1,6 @@
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
-
-/// scan message via ClamAV's INSTREAM protocol (clamd TCP socket)
-pub async fn scan_clamav(addr: &str, data: &[u8]) -> ClamavResult {
-    let mut stream = match TcpStream::connect(addr).await {
-        Ok(s) => s,
-        Err(e) => return ClamavResult::Error(format!("connect failed: {e}")),
-    };
-
-    // send zINSTREAM command
-    if stream.write_all(b"zINSTREAM\0").await.is_err() {
-        return ClamavResult::Error("write command failed".into());
-    }
-
-    // send data in chunks (max 2MB each per ClamAV protocol)
-    const CHUNK_SIZE: usize = 2 * 1024 * 1024;
-    for chunk in data.chunks(CHUNK_SIZE) {
-        let len = (chunk.len() as u32).to_be_bytes();
-        if stream.write_all(&len).await.is_err() || stream.write_all(chunk).await.is_err() {
-            return ClamavResult::Error("write data failed".into());
-        }
-    }
-
-    // send terminator (zero-length chunk)
-    if stream.write_all(&0u32.to_be_bytes()).await.is_err() {
-        return ClamavResult::Error("write terminator failed".into());
-    }
-
-    // read response
-    let mut response = vec![0u8; 1024];
-    match stream.read(&mut response).await {
-        Ok(n) => parse_clamav_response(&response[..n]),
-        Err(e) => ClamavResult::Error(format!("read failed: {e}")),
-    }
-}
+// ClamAV INSTREAM client lives in mailrs-clamav 1.0.0; we re-export
+// for back-compat with the previous internal API names.
+pub use mailrs_clamav::{parse_response as parse_clamav_response, scan as scan_clamav, ClamavResult};
 
 /// content scanning result
 #[derive(Debug, Clone, PartialEq)]
@@ -41,35 +8,6 @@ pub enum ScanResult {
     Clean { score: f64 },
     Spam { score: f64, rules: Vec<String> },
     Virus { name: String },
-}
-
-/// ClamAV scan result
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ClamavResult {
-    Clean,
-    Virus(String),
-    Error(String),
-}
-
-/// parse ClamAV INSTREAM response
-pub fn parse_clamav_response(response: &[u8]) -> ClamavResult {
-    let s = String::from_utf8_lossy(response);
-    let s = s.trim_end_matches('\0').trim();
-
-    if s.ends_with("OK") {
-        ClamavResult::Clean
-    } else if let Some(found_pos) = s.find("FOUND") {
-        // format: "stream: VirusName FOUND"
-        let virus = s[..found_pos]
-            .trim()
-            .rsplit(':')
-            .next()
-            .unwrap_or("")
-            .trim();
-        ClamavResult::Virus(virus.to_string())
-    } else {
-        ClamavResult::Error(s.to_string())
-    }
 }
 
 /// content scoring rule

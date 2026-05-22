@@ -1,0 +1,26 @@
+[package]
+name = "mailrs-clamav"
+version = "1.0.0"
+edition = "2024"
+description = "Async ClamAV (clamd) TCP client. Implements the INSTREAM protocol for malware scanning, plus PING and VERSION commands. Tokio-based; no external state."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-clamav"
+authors = ["GOLIA K.K."]
+keywords = ["clamav", "clamd", "antivirus", "smtp", "instream"]
+categories = ["email", "network-programming"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "clamav"
+harness = false

@@ -2495,6 +2495,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-clamav"
+version = "1.0.0"
+dependencies = [
+ "criterion",
+ "tokio",
+]
+
+[[package]]
 name = "mailrs-clean"
 version = "1.0.3"
 dependencies = [
@@ -2899,6 +2907,7 @@ dependencies = [
  "mail-auth",
  "mail-parser",
  "mailrs-auth-guard 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-clamav",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dmarc 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
