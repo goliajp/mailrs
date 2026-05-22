@@ -52,6 +52,25 @@ let (fresh, quoted) = split_quoted_content(
 
 Tracking-domain list is `const` and exhaustive for the top 18 commercial email-marketing platforms — see `lib.rs` for the current list.
 
+## Performance
+
+[`benches/clean.rs`](benches/clean.rs) covers the HTML cleaner across realistic email sizes plus the sender heuristics + quote splitter. Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release profile.
+
+| Operation | Input size | Median | Throughput |
+|---|---|---|---|
+| `clean_email_html` (short body) | 60 B | ~20 µs | — |
+| `clean_email_html` (short marketing) | 560 B | ~56 µs | ~10 MB/s |
+| `clean_email_html` (5 KB marketing) | 5.6 KB | ~336 µs | ~17 MB/s |
+| `clean_email_html` (50 KB worst-case) | 56 KB | ~2.5 ms | ~22 MB/s |
+| `detect_bulk_sender` (with List-Id) | — | ~60 ns | — |
+| `is_automated_sender("no-reply@…")` | — | ~50 ns | — |
+| `is_automated_sender(human address)` | — | ~50 ns | — |
+| `split_quoted_content` (typical reply) | — | ~970 ns | — |
+
+The cost is dominated by `scraper` parser construction + tree walk; the per-byte rate is roughly flat across input sizes once parser startup is amortized. For workloads that process every inbound message at SMTP time, this means a 50 KB worst-case marketing email costs ~2.5 ms of CPU on top of the DATA-stage I/O.
+
+Run with `cargo bench -p mailrs-clean`. See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets.
+
 ## What this is NOT
 
 - Not a general HTML sanitizer — for that, use [`ammonia`]. We make email-specific assumptions (single-document message, no script execution, structured-output text).

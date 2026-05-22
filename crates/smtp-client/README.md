@@ -68,6 +68,24 @@ See [`examples/resolve_and_connect.rs`](examples/resolve_and_connect.rs) for an 
 | `connection` | `SmtpConnection` wraps a TLS-upgradable read/write loop with timeouts. |
 | `response` | Parses single- and multi-line SMTP replies ([RFC 5321 §4.2.1]). |
 
+## Performance
+
+Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release profile. Medians from 100-sample runs.
+
+| Operation | Median | Notes |
+|---|---|---|
+| `parse_response("250 OK\r\n")` | ~30 ns | single-line reply |
+| `parse_response(<10-line EHLO greeting>)` | ~290 ns | full multi-line continuation parsing |
+| `dot_stuff(<5 KB body, no dots>)` | ~1.4 µs | scans for leading dots, returns input slice when none |
+| `dot_stuff(<5 KB body, every-other line starts with .>)` | ~1.6 µs | copies on first hit, then dot-stuffs |
+| `sort_mx_records(n=20)` | ~12 ns | preference + tie-break alphabetical |
+| `fallback_to_domain("example.com")` | ~24 ns | constructs the single-record fallback |
+| `MxCache::is_empty()` / `len()` / `cleanup()` (empty cache) | ~4 ns | mutex acquire + check |
+
+`MxCache::resolve` itself isn't bench-able offline (it depends on a live `DnsResolver`); in production the hit path is one mutex-locked HashMap lookup + a `Vec<MxRecord>` clone.
+
+Re-run locally with `cargo bench -p mailrs-smtp-client`. See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets.
+
 ## Why a separate crate?
 
 Most "SMTP client" crates either bundle a full MUA (auth, MIME building, attachments) or stop at "TCP+EHLO+MAIL FROM". For an MTA you want neither: you already have the message bytes, and what you actually need is the long tail — preference-sorted MX lists, DANE-verified TLS, robust multi-line reply parsing, and timeouts that don't let one slow remote hold up a connection pool. That's what this crate is.

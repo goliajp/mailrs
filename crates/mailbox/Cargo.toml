@@ -31,3 +31,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 [[bench]]
 name = "threading"
 harness = false
+
+[[bench]]
+name = "store_ops"
+harness = false

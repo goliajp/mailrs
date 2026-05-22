@@ -3,11 +3,12 @@
 //! Run with: `cargo bench -p mailrs-smtp-client`.
 
 use std::hint::black_box;
+use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 
 use mailrs_smtp_client::connection::dot_stuff;
-use mailrs_smtp_client::mx::{MxRecord, fallback_to_domain, sort_mx_records};
+use mailrs_smtp_client::mx::{MxCache, MxRecord, fallback_to_domain, sort_mx_records};
 use mailrs_smtp_client::response::parse_response;
 
 const SHORT_EHLO: &str = "250 OK\r\n";
@@ -70,5 +71,18 @@ fn bench_mx_sort(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_parse_response, bench_dot_stuff, bench_mx_sort);
+fn bench_mx_cache(c: &mut Criterion) {
+    // MxCache::resolve requires a live DnsResolver — not bench-able offline.
+    // We bench the sync introspection paths plus `cleanup` on an empty cache
+    // (the no-op fast path that runs on every periodic sweep when no entries
+    // have aged out).
+    let cache = MxCache::new(Duration::from_secs(300));
+    let mut group = c.benchmark_group("mx_cache");
+    group.bench_function("is_empty_fresh", |b| b.iter(|| cache.is_empty()));
+    group.bench_function("len_fresh", |b| b.iter(|| cache.len()));
+    group.bench_function("cleanup_empty", |b| b.iter(|| cache.cleanup()));
+    group.finish();
+}
+
+criterion_group!(benches, bench_parse_response, bench_dot_stuff, bench_mx_sort, bench_mx_cache);
 criterion_main!(benches);

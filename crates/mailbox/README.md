@@ -131,6 +131,35 @@ Run the PG suite (needs Docker):
 cargo test -p mailrs-mailbox --test smoke -- --test-threads=1
 ```
 
+## Performance
+
+Two bench files cover this crate:
+
+- [`benches/threading.rs`](benches/threading.rs) — pure-helper microbenchmarks (header extraction, message-id normalization, thread resolution).
+- [`benches/store_ops.rs`](benches/store_ops.rs) — `InMemoryMailboxStore` ops, exercising the trait dispatch + RwLock + Vec backing.
+
+Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release profile.
+
+| Operation | Median | Notes |
+|---|---|---|
+| `extract_message_id(short header)` | ~150 ns | typical 6-header message |
+| `extract_message_id(15-line marketing header)` | ~470 ns | scans the full header block |
+| `extract_in_reply_to(short header)` | ~180 ns | early-exit when missing |
+| `extract_in_reply_to(15-line marketing header)` | ~485 ns | scans for the `In-Reply-To:` line |
+| `normalize_message_id("  <abc-123@…>  ")` | ~8 ns | trim + lowercase |
+| `resolve_thread_id(<new root>)` | ~16 ns | no parent lookup |
+| `resolve_thread_id(<known parent>)` | ~14 ns | with parent-lookup closure |
+| `insert_message` (first, empty mailbox) | ~1.2 µs | metadata write through RwLock + 12 string allocations |
+| `query_messages` (mailbox scope, paginate first 50 of 1k) | ~115 µs | clone + sort_unstable across 1000 messages; the PG impl uses SQL ORDER BY + LIMIT |
+| `query_messages` (text substring match on 1k) | ~120 µs | three case-insensitive substring scans per message |
+| `add_flags` (hot path) | ~55 ns | one Vec lookup + flag OR + modseq bump |
+| `store_flags_if_unchanged` (CONDSTORE) | ~57 ns | compare-and-swap, same cost as `add_flags` |
+| `mailbox_status(1k messages)` | ~520 ns | total / unread / recent counts |
+
+Run with `cargo bench -p mailrs-mailbox`. The `query_messages` and `insert_into_1k_mailbox` numbers are dev-fixture cost — the PG impl pushes the work into the database and is not benched here (its cost is dominated by network + planner latency).
+
+See [`BUDGETS.md`](./BUDGETS.md) for the regression budgets gated by [`tests/perf_gate.rs`](tests/perf_gate.rs).
+
 ## Versioning
 
 `1.x` follows semver. The stable public surface:

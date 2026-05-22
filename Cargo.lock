@@ -2745,6 +2745,7 @@ name = "mailrs-rate-limit"
 version = "1.0.0"
 dependencies = [
  "async-trait",
+ "criterion",
  "dashmap",
  "tokio",
 ]

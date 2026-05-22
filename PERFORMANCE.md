@@ -66,11 +66,106 @@ the criterion bench medians above instead.
 | mailrs-smtp-proto | budgets in `BUDGETS.md` | 5 |
 | mailrs-maildir | budgets in `BUDGETS.md` | 3 |
 
+### `mailrs-smtp-proto` (criterion, `cargo bench -p mailrs-smtp-proto`)
+
+| Path | Median | Notes |
+|---|---:|---|
+| `parse_command/EHLO` | **22 ns** | hot wire-parse path |
+| `parse_command/DATA` | **22 ns** | |
+| `parse_command/RCPT_TO` | **70 ns** | envelope address extract |
+| `parse_command/MAIL_FROM` | **103 ns** | envelope address extract |
+| `format_ehlo_response` | **307 ns** | full multi-line EHLO response build |
+| `address/is_valid_typical` | **10 ns** | |
+| `address/split_typical` | **12 ns** | |
+
+### `mailrs-smtp-client` (criterion, `cargo bench -p mailrs-smtp-client`)
+
+| Path | Median | Notes |
+|---|---:|---|
+| `sort_mx_records(20)` | **~12 ns** | MX priority sort |
+| `parse_response(short)` | **~30 ns** | 250 OK |
+| `parse_response(10-line EHLO)` | **~290 ns** | multi-line response |
+| `dot_stuff(5 KB no dots)` | **~1.4 µs** | passthrough fast-path |
+| `dot_stuff(5 KB with dots)` | **~1.6 µs** | allocates new Vec to escape |
+
+### `mailrs-imap-proto` (criterion, `cargo bench -p mailrs-imap-proto`)
+
+| Path | Median | Notes |
+|---|---:|---|
+| `parse_command(LOGIN)` | **~123 ns** | |
+| `parse_command(complex UID SEARCH)` | **~155 ns** | |
+| `sequence_set_to_uids(4001 uids)` | **~3.0 µs** | range expansion |
+
+### `mailrs-jmap` (criterion, `cargo bench -p mailrs-jmap`)
+
+| Path | Median | Notes |
+|---|---:|---|
+| `keywords_to_flags` | **~5.6 ns** | bitmask conversion |
+| `dispatch Email/query` | **~2.4 µs** | single dispatch w/ in-memory store |
+| `dispatch_request multi-call back-ref` | **~10.4 µs** | full JMAP `Request` with `#ref` |
+
+### `mailrs-mailbox` (criterion, `cargo bench -p mailrs-mailbox`)
+
+| Path | Median | Notes |
+|---|---:|---|
+| `add_flags` hot path | **~55 ns** | DashMap entry update |
+| `extract_message_id(short header)` | **~150 ns** | per-message threading helper |
+| `query_messages text-match 1k msg` | **~120 µs** | fixture-impl (clones full Message rows — PG impl pushes work into SQL; see README §"Performance") |
+
+### `mailrs-rate-limit` (criterion, `cargo bench -p mailrs-rate-limit`)
+
+| Path | Median | Notes |
+|---|---:|---|
+| `evaluate_bucket/allowed` (pure math) | **1.7 ns** | f64 arithmetic, no I/O |
+| `evaluate_bucket/denied_no_refill` | **1.6 ns** | |
+| `check_hot_key/sync` | **33 ns** | bypass async trait |
+| `check_hot_key/async` | **84 ns** | through `RateLimitStore` trait |
+| `check_cold_key/first_touch` | **~140 ns** | DashMap insert path |
+| `cleanup_stale(10k)` | **~100 µs** | batch scan + retain |
+
+### `mailrs-shield` (criterion, `cargo bench -p mailrs-shield`)
+
+| Path | Median | Notes |
+|---|---:|---|
+| `interpret_spamhaus` | **~700 ps** | bit interpretation of A-record octets |
+| `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
+| `triplet_key` | **~120 ns** | greylist key build |
+
+### `mailrs-clean` (criterion, `cargo bench -p mailrs-clean`)
+
+| Path | Median | Notes |
+|---|---:|---|
+| `clean_email_html(5 KB marketing)` | **~336 µs** | typical-size hot path |
+| `clean_email_html(50 KB worst-case)` | **~2.5 ms** | **~22 MB/s** throughput |
+
 ### Server-internal (`mailrs-server`, gated `#[test]` bench)
 
 | Path | Measurement | Run command |
 |---|---|---|
 | `extract_subject_and_from` vs. two `extract_header` calls | Single-pass wins **48-50%** across 1KB/5KB/20KB messages (release). Absolute: saves **2.0 / 3.1 / 6.5 µs** per message respectively. | `MAILRS_BENCH=1 cargo test --release -p mailrs-server bench_two_pass_vs_single_pass -- --nocapture --test-threads=1` |
+
+### Variance note
+
+All numbers above are **criterion 100-sample median on a single M-series
+Mac running release profile**. Re-running on the same machine within
+minutes typically lands within ±5% of these medians; under heavy
+concurrent load (a build going at the same time) sub-µs-scale benches
+can swing ±30%. Order-of-magnitude is stable; sub-nanosecond comparisons
+between two paths should always be re-measured on the consumer's own
+hardware.
+
+### Surfaced potential perf candidates (logged, not yet acted on)
+
+1. `mailbox::InMemoryMailboxStore::query_messages` is ~120 µs for 1k
+   messages because the fixture clones every matching `Message`
+   (12+ String fields each). The PG impl pushes the work into SQL.
+   Acceptable as fixture; flagged in README §"Performance".
+2. `inbound::make_delivery_decision(Junk)` is ~2.4× slower than Accept
+   entirely due to the `format!` for the score-breakdown reason. If
+   Junk traffic becomes a hot percentage, build the reason lazily.
+3. `smtp-client::dot_stuff(body_with_dots)` allocates a new `Vec<u8>`;
+   the no-dot fast path returns the input slice unchanged. Trade-off
+   noted; absolute cost (~1.6 µs for 5 KB) is small enough to defer.
 
 ## NOT measured (claims to retract or qualify)
 

@@ -82,6 +82,24 @@ println!("{score:.1}");
 # }
 ```
 
+## Performance
+
+Microbenchmarks for the pure helpers (no live resolver hits) live in [`benches/ops.rs`](benches/ops.rs). Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release profile.
+
+| Operation | Median | Notes |
+|---|---|---|
+| `dnsbl::reverse_ipv4(1.2.3.4)` | ~110 ns | builds the `4.3.2.1.zen.spamhaus.org.`-shape name |
+| `dnsbl::interpret_spamhaus(127.0.0.2)` | ~700 ps | match-arm dispatch, no allocation |
+| `greylist::evaluate_triplet(first seen)` | ~850 ps | always defers |
+| `greylist::evaluate_triplet(retry within delay)` | ~1.5 ns | timestamp delta + comparison |
+| `greylist::triplet_key(ip, sender, rcpt)` | ~120 ns | one `format!` + lowercase normalization |
+| `ptr::ptr_score_from_names(match)` | ~85 ns | scans the candidate names for the EHLO domain |
+| `ptr::ptr_score_from_names(no match)` | ~200 ns | runs the full FCrDNS scoring fallback |
+
+Live-resolver paths (`check_client_ptr`, `dnsbl::check`, `greylist::GreylistDb::is_allowed`) aren't bench-able offline; production latency is dominated by DNS / Redis round-trips, not the pure helpers above.
+
+Run with `cargo bench -p mailrs-shield`. See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets.
+
 ## Feature flags
 
 | Flag | Default | What it enables |
