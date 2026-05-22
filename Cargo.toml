@@ -30,6 +30,7 @@ members = [
     "crates/clamav",
     "crates/backoff",
     "crates/tls-reload",
+    "crates/acme",
     "crates/server",
 ]
 

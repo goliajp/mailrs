@@ -2476,6 +2476,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-acme"
+version = "1.0.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "criterion",
+ "futures-util",
+ "instant-acme",
+ "mailrs-tls-reload 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustls",
+ "rustls-pki-types",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "x509-parser",
+]
+
+[[package]]
 name = "mailrs-auth-guard"
 version = "1.0.3"
 dependencies = [
@@ -2932,6 +2950,7 @@ dependencies = [
  "ldap3",
  "mail-auth",
  "mail-parser",
+ "mailrs-acme",
  "mailrs-auth-guard 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",

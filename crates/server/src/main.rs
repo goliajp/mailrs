@@ -140,7 +140,13 @@ async fn main() {
                 panic!("MAILRS_ACME_EMAIL is set but MAILRS_ACME_DOMAINS is empty");
             }
 
-            acme::spawn_challenge_server(challenge_tokens.clone(), shutdown_rx.clone());
+            use std::net::SocketAddr;
+            let challenge_addr: SocketAddr = ([0, 0, 0, 0], 80).into();
+            acme::spawn_challenge_server(
+                challenge_tokens.clone(),
+                challenge_addr,
+                shutdown_rx.clone(),
+            );
 
             let (tls, account) = acme::init(
                 email,
@@ -154,10 +160,13 @@ async fn main() {
 
             acme::spawn_renewal_task(
                 account,
-                domains.clone(),
                 challenge_tokens.clone(),
-                cfg.acme_dir.clone(),
                 tls.clone(),
+                acme::RenewalConfig {
+                    domains: domains.clone(),
+                    acme_dir: cfg.acme_dir.clone(),
+                    ..Default::default()
+                },
                 shutdown_rx.clone(),
             );
 

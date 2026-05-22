@@ -1,0 +1,39 @@
+[package]
+name = "mailrs-acme"
+version = "1.0.0"
+edition = "2024"
+description = "High-level ACME (RFC 8555 / Let's Encrypt) orchestration: account load-or-create, HTTP-01 cert provisioning, expiry monitoring, periodic renewal task. Pairs with mailrs-tls-reload for atomic certificate swap without dropping in-flight connections. Optional axum-based HTTP-01 challenge server."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-acme"
+authors = ["GOLIA K.K."]
+keywords = ["acme", "letsencrypt", "tls", "certificate", "rfc8555"]
+categories = ["cryptography", "network-programming", "asynchronous"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = ["axum-http"]
+# Enable the bundled axum-based HTTP-01 challenge server. Disable if
+# you want to serve `/.well-known/acme-challenge/{token}` from your
+# own HTTP stack (hyper, actix-web, warp, …).
+axum-http = ["dep:axum"]
+
+[dependencies]
+mailrs-tls-reload = "1"
+instant-acme = { version = "0.8", features = ["rcgen"] }
+rustls = "0.23"
+rustls-pki-types = { version = "1", features = ["alloc"] }
+tokio = { workspace = true }
+futures-util = { version = "0.3", features = ["sink"] }
+chrono = { version = "0.4", features = ["serde"] }
+x509-parser = "0.18"
+serde_json = "1"
+tracing = "0.1"
+axum = { version = "0.8", optional = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
