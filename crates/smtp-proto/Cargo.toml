@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-smtp-proto"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2024"
 description = "SMTP protocol parser, formatter, and session state machine (RFC 5321) — zero I/O, async-runtime-agnostic."
 license = "Apache-2.0 OR MIT"
