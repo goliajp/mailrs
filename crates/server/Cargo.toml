@@ -48,7 +48,7 @@ mailrs-rfc2231 = "1"
 mailrs-webhook-signature = "1"
 mailrs-clamav = "1"
 mailrs-backoff = "1"
-mailrs-tls-reload = { path = "../tls-reload" }
+mailrs-tls-reload = "1"
 sqlx = { workspace = true }
 redis = { workspace = true }
 hickory-resolver = "0.26"
