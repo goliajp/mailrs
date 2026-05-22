@@ -157,5 +157,63 @@ fn bench_received_chain(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_header_lookup, bench_body_offset, bench_received_chain);
+/// Worst-case header lookup: target is the LAST of 50 headers.
+/// Mirrors realistic inbound shapes (SaaS notification mails with
+/// many X-* metadata headers + Authentication-Results chains).
+fn bench_header_lookup_target_at_end(c: &mut Criterion) {
+    let mut raw = Vec::new();
+    for i in 0..49 {
+        raw.extend_from_slice(format!("X-Filler-{i}: value{i}\r\n").as_bytes());
+    }
+    raw.extend_from_slice(b"X-Target: bingo\r\n\r\nbody bytes here");
+
+    c.bench_function("header_lookup_worst_case_50_headers", |b| {
+        b.iter(|| {
+            let m = Message::new(black_box(&raw));
+            let r = m.header("X-Target");
+            black_box(r)
+        });
+    });
+}
+
+/// Full iteration over a 50-header message via `headers()`.
+fn bench_headers_iteration_50(c: &mut Criterion) {
+    let mut raw = Vec::new();
+    for i in 0..50 {
+        raw.extend_from_slice(format!("X-Field-{i}: value{i}\r\n").as_bytes());
+    }
+    raw.extend_from_slice(b"\r\nbody");
+
+    c.bench_function("headers_iter_50_fields", |b| {
+        b.iter(|| {
+            let m = Message::new(black_box(&raw));
+            let count = m.headers().count();
+            black_box(count)
+        });
+    });
+}
+
+/// `body_offset()` cached call — should be a Cell::get + branch.
+/// Calls body() once to prime, then re-measures.
+fn bench_body_offset_cached(c: &mut Criterion) {
+    let msg = build_sample(5);
+    let m = Message::new(&msg);
+    let _ = m.body(); // prime the cache
+    c.bench_function("body_offset_cached_call", |b| {
+        b.iter(|| {
+            let r = m.body_offset();
+            black_box(r)
+        });
+    });
+}
+
+criterion_group!(
+    benches,
+    bench_header_lookup,
+    bench_body_offset,
+    bench_received_chain,
+    bench_header_lookup_target_at_end,
+    bench_headers_iteration_50,
+    bench_body_offset_cached,
+);
 criterion_main!(benches);

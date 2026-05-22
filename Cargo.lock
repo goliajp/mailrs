@@ -2825,16 +2825,16 @@ dependencies = [
 [[package]]
 name = "mailrs-rfc5322"
 version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b302e9484297227bff3f27b5b830365cfe5355f96e25981d711630bafe9e7e5"
+
+[[package]]
+name = "mailrs-rfc5322"
+version = "1.0.1"
 dependencies = [
  "criterion",
  "mail-parser",
 ]
-
-[[package]]
-name = "mailrs-rfc5322"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b302e9484297227bff3f27b5b830365cfe5355f96e25981d711630bafe9e7e5"
 
 [[package]]
 name = "mailrs-server"
@@ -2878,7 +2878,7 @@ dependencies = [
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rate-limit 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2047 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-rfc5322 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc5322 1.0.0",
  "mailrs-shield 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-rfc5322"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "Pull-based RFC 5322 message parser — lazy header lookup, byte-level scan, zero-alloc borrowed slices. Skip-ahead to the header you want without building a full Message tree."
 license = "Apache-2.0 OR MIT"
