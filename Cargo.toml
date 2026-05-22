@@ -86,3 +86,16 @@ incremental = false
 inherits = "release"
 debug = "line-tables-only"
 strip = "none"
+
+# Vanilla release profile — defaults restored. Exists solely so we can
+# compare the perf-first profile against an honest baseline (see
+# `crates/server/benches/smtp_load.rs` and PERFORMANCE.md row for commit
+# 9f21e0b). Not for deploy: produces the larger / slower-Result-path
+# binary the perf-first profile was introduced to avoid.
+#
+# Use with `cargo build --profile release-vanilla -p mailrs-server`.
+[profile.release-vanilla]
+inherits = "release"
+lto = false
+codegen-units = 16
+panic = "unwind"
