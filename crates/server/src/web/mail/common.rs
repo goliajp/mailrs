@@ -12,7 +12,6 @@ use axum::Json;
 use base64::Engine;
 use rand_core::RngCore;
 
-use crate::message_util;
 
 use super::{SendResult, WebState};
 
@@ -412,13 +411,13 @@ pub(crate) fn build_rfc5322_with_attachments(
         // attachment parts
         for att in attachments {
             msg.push_str(&format!("--{boundary}\r\n"));
-            let name_param = message_util::rfc2231_encode_param("name", &att.filename);
+            let name_param = mailrs_rfc2231::encode_param("name", &att.filename);
             msg.push_str(&format!(
                 "Content-Type: {}; {name_param}\r\n",
                 att.content_type
             ));
             msg.push_str("Content-Transfer-Encoding: base64\r\n");
-            let filename_param = message_util::rfc2231_encode_param("filename", &att.filename);
+            let filename_param = mailrs_rfc2231::encode_param("filename", &att.filename);
             msg.push_str(&format!(
                 "Content-Disposition: attachment; {filename_param}\r\n\r\n",
             ));

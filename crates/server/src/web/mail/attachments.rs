@@ -83,7 +83,7 @@ pub(crate) async fn get_attachment(
                         let inline = content_type.starts_with("image/")
                             || content_type.starts_with("text/")
                             || content_type == "application/pdf";
-                        let param = message_util::rfc2231_encode_param("filename", &filename);
+                        let param = mailrs_rfc2231::encode_param("filename", &filename);
                         let disposition = if inline {
                             format!("inline; {param}")
                         } else {

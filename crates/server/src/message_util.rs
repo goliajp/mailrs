@@ -1,28 +1,11 @@
 use mail_parser::MimeHeaders;
 use serde::Serialize;
 
-// rfc2047_encode lives in `mailrs-rfc2047` (1.1.0+) as `encode`. The
-// thin server-internal wrapper was deleted in favor of the published
-// crate; call sites use `mailrs_rfc2047::encode` directly.
-
-/// RFC 2231 encode a parameter value for use in Content-Type/Content-Disposition
-pub(crate) fn rfc2231_encode_param(name: &str, value: &str) -> String {
-    if value.is_ascii() {
-        format!("{name}=\"{value}\"")
-    } else {
-        let encoded: String = value
-            .bytes()
-            .map(|b| {
-                if b.is_ascii_alphanumeric() || b == b'.' || b == b'-' || b == b'_' {
-                    (b as char).to_string()
-                } else {
-                    format!("%{b:02X}")
-                }
-            })
-            .collect();
-        format!("{name}*=UTF-8''{encoded}")
-    }
-}
+// rfc2047_encode lives in `mailrs-rfc2047` (1.1.0+) as `encode`.
+// rfc2231_encode_param lives in `mailrs-rfc2231` (1.0.0+) as `encode_param`.
+// Both thin server-internal wrappers were deleted; call sites use the
+// published crates directly via `mailrs_rfc2047::encode` and
+// `mailrs_rfc2231::encode_param`.
 
 #[derive(Serialize, Clone)]
 pub(crate) struct AttachmentInfo {
@@ -151,18 +134,6 @@ pub(crate) fn decode_header(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn rfc2231_encode_ascii_quoted() {
-        assert_eq!(rfc2231_encode_param("filename", "test.pdf"), "filename=\"test.pdf\"");
-    }
-
-    #[test]
-    fn rfc2231_encode_non_ascii_percent() {
-        let result = rfc2231_encode_param("filename", "資料.pdf");
-        assert!(result.starts_with("filename*=UTF-8''"));
-        assert!(result.contains(".pdf"));
-    }
 
     #[test]
     fn extract_header_simple() {

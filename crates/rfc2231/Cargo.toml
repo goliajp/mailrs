@@ -1,0 +1,26 @@
+[package]
+name = "mailrs-rfc2231"
+version = "1.0.0"
+edition = "2024"
+description = "RFC 2231 MIME parameter encoder + decoder. Handles non-ASCII filenames in Content-Type / Content-Disposition (e.g. `filename*=UTF-8''…`). Pairs with mailrs-rfc2047 for the full MIME header encoding suite."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-rfc2231"
+authors = ["GOLIA K.K."]
+keywords = ["email", "rfc2231", "mime", "encoded", "parameter"]
+categories = ["email", "encoding", "parser-implementations"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+encoding_rs = "0.8"
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "params"
+harness = false
