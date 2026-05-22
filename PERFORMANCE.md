@@ -132,6 +132,25 @@ the criterion bench medians above instead.
 | `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
 | `triplet_key` | **~25 ns** | was 120 ns; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity` + `push_str` for **−82%** measured (~5× faster). Called per inbound message on the greylist hot path. |
 
+### `mailrs-rfc2047` — encoded-word decoder (criterion, M-series Mac, release)
+
+| Path | Median | Notes |
+|---|---:|---|
+| `decode/ascii_passthrough` | **25 ns** | fast-path: scan for `=?`, return `Cow::Borrowed` |
+| `decode/utf8_B_simple` | **66 ns** | UTF-8 Base64 short subject |
+| `decode/utf8_Q_simple` | **78 ns** | UTF-8 Quoted-printable short subject |
+| `decode/iso_2022_jp` | **154 ns** | ISO-2022-JP via `encoding_rs` (Japanese subjects) |
+| `decode/mixed_ascii_and_encoded` | **104 ns** | `Re: =?…?= text` shape |
+
+### Subject extraction: `mailrs-rfc2047` vs `mail-parser` full parse
+
+| Subject form | mail-parser | mailrs-rfc2047 (post-rfc5322 header lookup) | speedup |
+|---|---:|---:|---:|
+| ASCII | 442 ns | **28 ns** | **15.8×** |
+| UTF-8 Base64 encoded | 439 ns | **110 ns** | **4.0×** |
+
+Run: `cargo bench -p mailrs-rfc2047 --bench decode`.
+
 ### `mailrs-rfc5322` vs `mail-parser` — comparative bench
 
 | Operation | body size | mailrs-rfc5322 | mail-parser 0.11 | speedup |

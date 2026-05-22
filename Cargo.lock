@@ -2784,6 +2784,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-rfc2047"
+version = "1.0.0"
+dependencies = [
+ "base64",
+ "criterion",
+ "encoding_rs",
+ "mail-parser",
+]
+
+[[package]]
 name = "mailrs-rfc5322"
 version = "1.0.0"
 dependencies = [

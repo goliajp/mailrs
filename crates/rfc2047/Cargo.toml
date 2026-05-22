@@ -1,0 +1,28 @@
+[package]
+name = "mailrs-rfc2047"
+version = "1.0.0"
+edition = "2024"
+description = "RFC 2047 MIME encoded-word decoder. Decodes =?charset?(B|Q)?text?= subjects + display names to UTF-8. Supports the full WHATWG Encoding charset set via encoding_rs (UTF-8, ISO-8859-*, Windows-*, ISO-2022-JP, Shift_JIS, EUC-KR, GB18030, …)."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-rfc2047"
+authors = ["GOLIA K.K."]
+keywords = ["email", "rfc2047", "mime", "encoded-word", "decoder"]
+categories = ["email", "encoding", "parser-implementations"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+encoding_rs = "0.8"
+base64 = "0.22"
+
+[dev-dependencies]
+criterion = { workspace = true }
+mail-parser = "0.11"  # comparison bench only
+
+[[bench]]
+name = "decode"
+harness = false
