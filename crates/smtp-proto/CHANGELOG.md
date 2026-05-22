@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-05-22
+
+### Added
+- README `## Performance` section with measured criterion medians: `parse_command(EHLO)` ~22 ns, `parse_command(MAIL FROM)` ~103 ns, `format_ehlo_response` ~307 ns. M-series Mac, release profile, 100-sample.
+
 ## [1.0.2] - 2026-05-22
 
 ### Added
@@ -27,7 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release. Zero-I/O, async-runtime-agnostic SMTP protocol parser, formatter, and session state machine (RFC 5321).
 
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-proto-v1.0.2...HEAD
+[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-proto-v1.0.3...HEAD
+[1.0.3]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-proto-v1.0.2...mailrs-smtp-proto-v1.0.3
 [1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-proto-v1.0.1...mailrs-smtp-proto-v1.0.2
 [1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-proto-v1.0.0...mailrs-smtp-proto-v1.0.1
 [1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-smtp-proto-v1.0.0

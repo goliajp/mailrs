@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-05-22
+
+### Added
+- README `## Performance` section with measured criterion medians: `clean_email_html(5KB)` ~336 µs, `clean_email_html(50KB)` ~2.5 ms (~22 MB/s). M-series Mac, release profile, 100-sample.
+
 ## [1.0.2] - 2026-05-22
 
 ### Added
@@ -27,7 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release. Zero-I/O email content cleanup primitives: HTML sanitization, tracking-pixel detection, bulk/automated-sender heuristics, and quoted-reply splitting.
 
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-clean-v1.0.2...HEAD
+[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-clean-v1.0.3...HEAD
+[1.0.3]: https://github.com/goliajp/mailrs/compare/mailrs-clean-v1.0.2...mailrs-clean-v1.0.3
 [1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-clean-v1.0.1...mailrs-clean-v1.0.2
 [1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-clean-v1.0.0...mailrs-clean-v1.0.1
 [1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-clean-v1.0.0
