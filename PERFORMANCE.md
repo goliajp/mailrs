@@ -132,6 +132,18 @@ the criterion bench medians above instead.
 | `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
 | `triplet_key` | **~25 ns** | was 120 ns; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity` + `push_str` for **−82%** measured (~5× faster). Called per inbound message on the greylist hot path. |
 
+### `mailrs-spf` — RFC 7208 SPF verifier (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `Record::parse` (simple `v=spf1 ip4 -all`) | **82 ns** |
+| `Record::parse` (complex 8-mechanism record) | **484 ns** |
+| `verify` pass path (no real DNS) | **244 ns** |
+
+Run: `cargo bench -p mailrs-spf --bench spf`. Production `verify` is
+dominated by DNS round-trips (5-50 ms); the bench numbers above are
+the pure CPU portion.
+
 ### `mailrs-backoff` — exponential backoff with optional jitter (criterion, M-series Mac, release)
 
 | Path | Median |

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-23
+
+### Changed
+
+- README + workspace PERFORMANCE.md updated with measured criterion
+  numbers from the bench harness (was: TBD).
+  - `Record::parse` simple: 82 ns
+  - `Record::parse` complex 8-mechanism: 484 ns
+  - `verify` pass-path (no DNS): 244 ns
+
+No code change.
+
 ## [1.0.0] - 2026-05-23
 
 ### Added

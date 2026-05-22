@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-spf"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "RFC 7208 Sender Policy Framework verifier. Pure-Rust evaluator with a pluggable DNS resolver trait; ships an optional hickory-resolver-backed implementation. Bounded DNS-lookup limits + loop detection per spec."
 license = "Apache-2.0 OR MIT"
