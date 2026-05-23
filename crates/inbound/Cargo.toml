@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-inbound"
-version = "1.0.5"
+version = "1.1.0"
 edition = "2024"
 description = "Composable SMTP receive pipeline framework — Stage trait + early-reject executor + pure decision logic + RFC 8601 Authentication-Results helpers. Framework-only; bring your own greylist / DKIM / virus-scan / scoring stages."
 license = "Apache-2.0 OR MIT"
@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 async-trait = "0.1"
+tracing = "0.1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }
