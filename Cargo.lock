@@ -2832,6 +2832,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-mime"
+version = "1.0.0"
+dependencies = [
+ "base64",
+ "criterion",
+ "encoding_rs",
+ "mail-parser",
+ "mailrs-rfc2047 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc5322 1.0.0",
+]
+
+[[package]]
 name = "mailrs-outbound-queue"
 version = "1.1.0"
 dependencies = [

@@ -33,6 +33,7 @@ members = [
     "crates/acme",
     "crates/spf",
     "crates/dkim",
+    "crates/mime",
     "crates/server",
 ]
 
