@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-05-23
+
+### Added
+
+- **`verify_all(resolver, raw_message) -> Vec<SignatureOutput>`** —
+  the multi-signature counterpart to `verify`. Walks every
+  `DKIM-Signature` header on the message and verifies each one
+  independently, returning one `SignatureOutput { result, header }`
+  per signature.
+
+  Real-world messages routinely carry 2-3 signatures: the original
+  signer, every forwarder that re-signs, mailing-list software that
+  attaches a list-signature. DMARC alignment must consider every
+  `d=` independently (any aligned-and-passing signature satisfies the
+  aligned-DKIM half of DMARC), so a single-signature `verify` left
+  the caller to roll their own multi-sig walk. `verify_all` removes
+  that hazard.
+
+  `SignatureOutput::domain()` + `SignatureOutput::is_pass()` are the
+  two-line API for DMARC consumers.
+
+- `pub headers::find_all_header_values_in_raw(headers, name) -> Vec<String>`
+  — the multi-match counterpart to `find_header_value_in_raw`.
+  Returns folded values in source order.
+
+### Changed
+
+- `verify_inner` factored into `verify_one(resolver, raw, header_value,
+  headers_raw, body_offset)` so `verify` and `verify_all` share the
+  same per-signature pipeline. Behaviour identical; `verify` still
+  walks the first `DKIM-Signature` and returns the same `DkimResult`
+  values it did in 1.2.
+
+### Tests
+
+- `tests/multi_sig.rs` — end-to-end: two real RSA-2048 keypairs sign
+  the same message under different selectors / domains, resolver maps
+  each selector to its public key TXT, `verify_all` returns both
+  with `Pass` + correct `d=`. Plus an "empty message → empty result"
+  test and a "one good signature + one tampered signature →
+  Pass + Fail" test.
+
+### Impact on `mailrs` server
+
+This release is the prerequisite for cutting server DMARC over to
+`mailrs-dmarc` (DEPS_AUDIT #1 final step). DMARC alignment needs
+per-signature `d=`, which requires `verify_all`.
+
 ## [1.2.0] - 2026-05-23
 
 ### Added

@@ -36,6 +36,7 @@ pub fn build_inbound_pipeline(
     shadow_spf_resolver: Option<Arc<mailrs_spf::HickoryResolver>>,
     shadow_dkim_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
     shadow_arc_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
+    shadow_dmarc_resolver: Option<Arc<TokioResolver>>,
     clamav_addr: Option<String>,
     llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     valkey: Option<redis::aio::ConnectionManager>,
@@ -59,6 +60,9 @@ pub fn build_inbound_pipeline(
         }
         if let Some(shadow) = shadow_arc_resolver {
             stage = stage.with_shadow_arc(shadow);
+        }
+        if let Some(shadow) = shadow_dmarc_resolver {
+            stage = stage.with_shadow_dmarc(shadow);
         }
         builder = builder.add(stage);
     }

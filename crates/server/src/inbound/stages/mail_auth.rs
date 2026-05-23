@@ -30,6 +30,7 @@ pub struct MailAuthStage {
     shadow_spf_resolver: Option<Arc<mailrs_spf::HickoryResolver>>,
     shadow_dkim_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
     shadow_arc_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
+    shadow_dmarc_resolver: Option<Arc<hickory_resolver::TokioResolver>>,
 }
 
 impl MailAuthStage {
@@ -45,6 +46,7 @@ impl MailAuthStage {
             shadow_spf_resolver: None,
             shadow_dkim_resolver: None,
             shadow_arc_resolver: None,
+            shadow_dmarc_resolver: None,
         }
     }
 
@@ -74,6 +76,39 @@ impl MailAuthStage {
     pub fn with_shadow_arc(mut self, resolver: Arc<mailrs_dkim::HickoryDkimResolver>) -> Self {
         self.shadow_arc_resolver = Some(resolver);
         self
+    }
+
+    /// Enable shadow-mode DMARC validation against `mailrs-dmarc`.
+    /// Looks up `_dmarc.<from-domain>` via the hickory resolver,
+    /// parses the policy, builds a `DmarcInput` from the SPF / DKIM
+    /// (via `mailrs_dkim::verify_all`) we have for this message, runs
+    /// `mailrs_dmarc::evaluate`, and compares the coarse pass/fail
+    /// verdict against mail-auth's. No decision impact — logs only.
+    pub fn with_shadow_dmarc(mut self, resolver: Arc<hickory_resolver::TokioResolver>) -> Self {
+        self.shadow_dmarc_resolver = Some(resolver);
+        self
+    }
+}
+
+/// Extract the `@<domain>` part from an RFC 5322 `From:` line.
+/// Returns `None` if no `@` is present or the input is malformed.
+///
+/// Handles both `local@domain` and `Name <local@domain>` forms.
+/// Tolerates trailing whitespace / CRLF.
+fn from_domain(from_header: &str) -> Option<String> {
+    let mut s = from_header.trim();
+    if let Some(lt) = s.rfind('<')
+        && let Some(gt) = s.rfind('>')
+        && gt > lt
+    {
+        s = &s[lt + 1..gt];
+    }
+    let at = s.rfind('@')?;
+    let domain = s[at + 1..].trim_matches(|c: char| c == '>' || c.is_whitespace());
+    if domain.is_empty() {
+        None
+    } else {
+        Some(domain.to_ascii_lowercase())
     }
 }
 
@@ -194,37 +229,43 @@ impl Stage for MailAuthStage {
             "fail".into()
         };
 
-        // Shadow validation against mailrs-dkim — same pattern as the
-        // SPF shadow path above. Runs only when the optional resolver
-        // is configured; DOES NOT affect any decision.
-        if let Some(ref shadow) = self.shadow_dkim_resolver {
-            let shadow_result = mailrs_dkim::verify(shadow.as_ref(), &ctx.message).await;
-            // Map both to a coarse string for comparison: pass/fail/none.
-            // (mailrs-dkim returns 7 values; we collapse to 3 to match
-            // the mail-auth-derived ctx.auth_results.dkim field.)
-            let shadow_coarse = match shadow_result {
-                mailrs_dkim::DkimResult::Pass => "pass",
-                mailrs_dkim::DkimResult::None => "none",
-                _ => "fail",
-            };
-            let mail_auth_coarse = ctx.auth_results.dkim.as_str();
-            if shadow_coarse == mail_auth_coarse {
-                tracing::info!(
-                    event = "dkim_shadow_match",
-                    dkim = %mail_auth_coarse,
-                    "mailrs-dkim matches mail-auth"
-                );
+        // Shadow validation against mailrs-dkim. Since 1.3 we use
+        // `verify_all` so every DKIM-Signature header is verified
+        // independently (a single message commonly carries 2-3 sigs).
+        // Stashed for the shadow DMARC step below — DMARC alignment
+        // needs the per-sig `d=` list, not a single verdict.
+        let shadow_dkim_outputs: Vec<mailrs_dkim::SignatureOutput> =
+            if let Some(ref shadow) = self.shadow_dkim_resolver {
+                let outputs = mailrs_dkim::verify_all(shadow.as_ref(), &ctx.message).await;
+                let shadow_coarse = if outputs.is_empty() {
+                    "none"
+                } else if outputs.iter().any(|o| o.is_pass()) {
+                    "pass"
+                } else {
+                    "fail"
+                };
+                let mail_auth_coarse = ctx.auth_results.dkim.as_str();
+                if shadow_coarse == mail_auth_coarse {
+                    tracing::info!(
+                        event = "dkim_shadow_match",
+                        dkim = %mail_auth_coarse,
+                        sigs = outputs.len(),
+                        "mailrs-dkim verify_all matches mail-auth"
+                    );
+                } else {
+                    tracing::warn!(
+                        event = "dkim_shadow_divergence",
+                        mail_auth = %mail_auth_coarse,
+                        mailrs_dkim = %shadow_coarse,
+                        sigs = outputs.len(),
+                        sender = %ctx.sender,
+                        "DKIM result divergence — mailrs-dkim verify_all says different from mail-auth"
+                    );
+                }
+                outputs
             } else {
-                tracing::warn!(
-                    event = "dkim_shadow_divergence",
-                    mail_auth = %mail_auth_coarse,
-                    mailrs_dkim = %shadow_coarse,
-                    mailrs_dkim_detail = %shadow_result,
-                    sender = %ctx.sender,
-                    "DKIM result divergence — mailrs-dkim says different from mail-auth"
-                );
-            }
-        }
+                Vec::new()
+            };
 
         let mail_from_domain = ctx
             .sender
@@ -238,6 +279,103 @@ impl Stage for MailAuthStage {
         let dmarc_pass = dmarc_output.dkim_result() == &mail_auth::DmarcResult::Pass
             || dmarc_output.spf_result() == &mail_auth::DmarcResult::Pass;
         let mut dmarc_quarantine = false;
+
+        // Shadow DMARC via mailrs-dmarc. Resolves _dmarc.<from-domain>,
+        // parses the policy, builds a DmarcInput from the SPF / DKIM
+        // signals we already have, evaluates, and compares the coarse
+        // pass/fail verdict. Decision impact: none — log only.
+        if let Some(ref dmarc_resolver) = self.shadow_dmarc_resolver {
+            use hickory_resolver::proto::rr::RData;
+            // 1. Extract From: domain.
+            let from_dom = mailrs_rfc5322::Message::new(&ctx.message)
+                .header_str("From")
+                .and_then(from_domain);
+            if let Some(from_d) = from_dom {
+                // 2. Lookup _dmarc.<from> TXT.
+                let q = format!("_dmarc.{from_d}");
+                match dmarc_resolver.txt_lookup(q.clone()).await {
+                    Ok(lookup) => {
+                        let txt: String = lookup
+                            .answers()
+                            .iter()
+                            .filter_map(|r| match &r.data {
+                                RData::TXT(t) => Some(t.to_string()),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>()
+                            .join("");
+                        // 3. Parse policy.
+                        match mailrs_dmarc::DmarcPolicy::parse(&txt) {
+                            Ok(policy) => {
+                                let spf_pass = ctx.auth_results.spf == "pass";
+                                let spf_input = if spf_pass {
+                                    Some(mailrs_dmarc::SpfResult {
+                                        domain: mail_from_domain.to_string(),
+                                        pass: true,
+                                    })
+                                } else {
+                                    None
+                                };
+                                let dkim_input = shadow_dkim_outputs
+                                    .iter()
+                                    .filter_map(|o| {
+                                        let d = o.domain();
+                                        if d.is_empty() {
+                                            None
+                                        } else {
+                                            Some(mailrs_dmarc::DkimSignatureResult {
+                                                d_domain: d.to_string(),
+                                                pass: o.is_pass(),
+                                            })
+                                        }
+                                    })
+                                    .collect::<Vec<_>>();
+                                let input = mailrs_dmarc::DmarcInput {
+                                    from_domain: from_d.clone(),
+                                    policy_domain: from_d.clone(),
+                                    spf: spf_input,
+                                    dkim: dkim_input,
+                                };
+                                let outcome = mailrs_dmarc::evaluate(&policy, &input);
+                                let shadow_coarse = if outcome.dmarc_pass {
+                                    "pass"
+                                } else {
+                                    "fail"
+                                };
+                                let mail_auth_coarse =
+                                    if dmarc_pass { "pass" } else { "fail" };
+                                if shadow_coarse == mail_auth_coarse {
+                                    tracing::info!(
+                                        event = "dmarc_shadow_match",
+                                        dmarc = %mail_auth_coarse,
+                                        domain = %from_d,
+                                        "mailrs-dmarc matches mail-auth"
+                                    );
+                                } else {
+                                    tracing::warn!(
+                                        event = "dmarc_shadow_divergence",
+                                        mail_auth = %mail_auth_coarse,
+                                        mailrs_dmarc = %shadow_coarse,
+                                        domain = %from_d,
+                                        sender = %ctx.sender,
+                                        "DMARC result divergence — mailrs-dmarc says different from mail-auth"
+                                    );
+                                }
+                            }
+                            Err(_) => {
+                                // Unparseable policy — mail-auth would
+                                // typically classify as none. Skip
+                                // shadow comparison rather than emit a
+                                // misleading divergence.
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        // No _dmarc TXT — same as policy=none. Skip.
+                    }
+                }
+            }
+        }
 
         if dmarc_pass {
             ctx.auth_results.dmarc = "pass".into();

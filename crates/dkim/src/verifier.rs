@@ -9,10 +9,40 @@ use crate::crypto::{extract_public_key, verify_signature};
 use crate::error::{DkimError, DkimResult};
 use crate::header::DkimHeader;
 use crate::headers::{
-    body_offset_minus_blank, clear_b_value, find_body_offset, find_header_value,
-    find_header_value_in_raw,
+    body_offset_minus_blank, clear_b_value, find_all_header_values_in_raw, find_body_offset,
+    find_header_value, find_header_value_in_raw,
 };
 use crate::resolver::DkimResolver;
+
+/// Per-signature verification output. One entry per `DKIM-Signature`
+/// header observed on the message (regardless of whether it parsed
+/// or verified).
+///
+/// Returned by [`verify_all`] — the multi-signature counterpart to
+/// [`verify`]. Real-world messages routinely carry two or three
+/// signatures (original signer, mail-list forwarder, etc.) and DMARC
+/// alignment must consider each `d=` independently.
+#[derive(Debug, Clone)]
+pub struct SignatureOutput {
+    /// RFC 8601 verdict for this signature: `Pass`, `Fail`,
+    /// `PermError`, `TempError`, `Neutral`, `Policy`, `None`.
+    pub result: DkimResult,
+    /// Parsed header on success. `None` when the header value failed
+    /// to parse (`result` will be `PermError` in that case).
+    pub header: Option<DkimHeader>,
+}
+
+impl SignatureOutput {
+    /// Convenience: return `d=` if the header parsed, else empty.
+    pub fn domain(&self) -> &str {
+        self.header.as_ref().map(|h| h.domain.as_str()).unwrap_or("")
+    }
+
+    /// Convenience: `true` when this signature verified successfully.
+    pub fn is_pass(&self) -> bool {
+        matches!(self.result, DkimResult::Pass)
+    }
+}
 
 /// Verify a DKIM-signed message.
 ///
@@ -26,19 +56,75 @@ use crate::resolver::DkimResolver;
 /// internal to verification (DNS failures, key parse errors) are
 /// mapped to the appropriate `temperror`/`permerror`/`neutral` value.
 pub async fn verify<R: DkimResolver + ?Sized>(resolver: &R, raw_message: &[u8]) -> DkimResult {
-    match verify_inner(resolver, raw_message).await {
+    let (header_value, headers_raw, body_offset) = match extract_dkim_signature(raw_message) {
+        Ok(v) => v,
+        Err(e) => return e.to_result(),
+    };
+    match verify_one(resolver, raw_message, &header_value, headers_raw, body_offset).await {
         Ok(r) => r,
         Err(e) => e.to_result(),
     }
 }
 
-async fn verify_inner<R: DkimResolver + ?Sized>(
+/// Verify EVERY `DKIM-Signature` header on `raw_message` and return
+/// one [`SignatureOutput`] per signature, in the order they appeared.
+///
+/// Real messages commonly have multiple DKIM-Signature headers:
+/// - The original sender's signature.
+/// - Each forwarder's signature added on relay.
+/// - Mailing-list software's "list-signature" attestation.
+///
+/// DMARC alignment must consider every signature's `d=` independently
+/// — at least one aligned-and-passing signature is enough for the
+/// aligned-DKIM half of DMARC. This is the API that lets a caller
+/// compute that without hand-rolling the multi-sig walk.
+///
+/// If the message has zero `DKIM-Signature` headers, returns an empty
+/// `Vec` (the caller decides whether that means `dkim=none` or to skip).
+pub async fn verify_all<R: DkimResolver + ?Sized>(
     resolver: &R,
     raw_message: &[u8],
+) -> Vec<SignatureOutput> {
+    let body_offset = match find_body_offset(raw_message) {
+        Some(o) => o,
+        None => return Vec::new(),
+    };
+    let headers_raw = &raw_message[..body_offset_minus_blank(body_offset, raw_message)];
+    let values = find_all_header_values_in_raw(headers_raw, b"DKIM-Signature");
+    let mut out = Vec::with_capacity(values.len());
+    for value in values {
+        // Parse first so callers can still see `d=` even on verify-fail.
+        let header = match DkimHeader::parse(&value) {
+            Ok(h) => h,
+            Err(e) => {
+                out.push(SignatureOutput {
+                    result: e.to_result(),
+                    header: None,
+                });
+                continue;
+            }
+        };
+        let result = match verify_one(resolver, raw_message, &value, headers_raw, body_offset).await
+        {
+            Ok(r) => r,
+            Err(e) => e.to_result(),
+        };
+        out.push(SignatureOutput {
+            result,
+            header: Some(header),
+        });
+    }
+    out
+}
+
+async fn verify_one<R: DkimResolver + ?Sized>(
+    resolver: &R,
+    raw_message: &[u8],
+    header_value: &str,
+    signed_headers_raw: &[u8],
+    body_offset: usize,
 ) -> Result<DkimResult, DkimError> {
-    // 1. Locate the DKIM-Signature header value + body offset.
-    let (header_value, signed_headers_raw, body_offset) = extract_dkim_signature(raw_message)?;
-    let header = DkimHeader::parse(&header_value)?;
+    let header = DkimHeader::parse(header_value)?;
 
     // 2. Check expiry.
     if let Some(x) = header.expiration {
@@ -94,7 +180,7 @@ async fn verify_inner<R: DkimResolver + ?Sized>(
         // signal but doesn't break verification.
     }
     // Append the DKIM-Signature header itself with `b=` value cleared.
-    let dkim_sig_b_cleared = clear_b_value(&header_value);
+    let dkim_sig_b_cleared = clear_b_value(header_value);
     let canon_dkim = canonicalize_header(
         "DKIM-Signature",
         &dkim_sig_b_cleared,
