@@ -880,6 +880,11 @@ async fn main() {
 }
 
 #[allow(clippy::too_many_arguments)]
+#[tracing::instrument(
+    name = "pop3.conn",
+    skip(stream, mailbox_store, users, auth_guard, domain_store, ldap_config, maildir_root),
+    fields(peer = %addr),
+)]
 async fn handle_pop3_connection(
     stream: TcpStream,
     addr: std::net::SocketAddr,
@@ -937,6 +942,11 @@ async fn handle_pop3_connection(
     }
 }
 
+#[tracing::instrument(
+    name = "managesieve.conn",
+    skip(stream, users, auth_guard, domain_store, ldap_config),
+    fields(peer = %addr),
+)]
 async fn handle_managesieve_connection(
     stream: TcpStream,
     addr: std::net::SocketAddr,
@@ -992,6 +1002,11 @@ async fn handle_managesieve_connection(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[tracing::instrument(
+    name = "imap.conn",
+    skip(stream, mailbox_store, users, auth_guard, domain_store, ldap_config, event_bus, hostname, maildir_root),
+    fields(peer = %addr),
+)]
 async fn handle_imap_connection<S>(
     stream: S,
     addr: std::net::SocketAddr,
