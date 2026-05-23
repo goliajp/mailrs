@@ -1,0 +1,43 @@
+[package]
+name = "mailrs-cross-runner"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+# Standalone — outside the main workspace so we can pin profile.release
+# locally without polluting the workspace settings.
+[workspace]
+
+[dependencies]
+mailrs-spf = { path = "../../crates/spf", default-features = false }
+mailrs-dkim = { path = "../../crates/dkim", default-features = false }
+mailrs-ical = { path = "../../crates/ical" }
+mailrs-rfc5322 = { path = "../../crates/rfc5322" }
+mailrs-mime = { path = "../../crates/mime" }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+debug = false
+
+[[bin]]
+name = "spf"
+path = "src/spf.rs"
+
+[[bin]]
+name = "dkim"
+path = "src/dkim.rs"
+
+[[bin]]
+name = "ical"
+path = "src/ical.rs"
+
+[[bin]]
+name = "rfc5322"
+path = "src/rfc5322.rs"
+
+[[bin]]
+name = "mime"
+path = "src/mime.rs"

@@ -159,6 +159,52 @@ Token-bucket semantics are preserved end-to-end — capacity/refill_rate config 
 
 We're a pure function `base_delay(attempt: u32)`; `exponential-backoff` is iterator-shaped and pays setup cost per call. Different API contracts; the comparison is "how much does the typical retry loop pay per probe". Mailrs wins because we don't allocate.
 
+#### `mailrs-smtp-proto` vs `smtp-codec` 0.2 (Rust nom-based SMTP parser)
+
+| Command | mailrs-smtp-proto | smtp-codec | Winner |
+|---|---:|---:|---|
+| `EHLO mail.example.com` | 18 ns | 126 ns | **mailrs 7×** ✅ |
+| `MAIL FROM:<…> SIZE=…` | 95 ns | 198 ns | **mailrs 2×** ✅ |
+| `RCPT TO:<…>` | 68 ns | 148 ns | **mailrs 2.2×** ✅ |
+| `DATA` | 16 ns | 12 ns | smtp-codec +25% (trivial cmd) |
+
+smtp-codec's nom-grammar pays a fixed setup cost per command. Our hand-written byte-level parser wins everything but the smallest possible command. Bench source: `crates/smtp-proto/benches/compare_smtp_codec.rs`.
+
+#### `mailrs-imap-proto` vs `imap-codec` 2.0-alpha (Rust nom-based IMAP codec)
+
+| Command | mailrs-imap-proto | imap-codec | Winner |
+|---|---:|---:|---|
+| `A001 SELECT INBOX` | 86 ns | 60 ns | imap-codec +43% ⚠ |
+| `A002 FETCH 1:100 (FLAGS BODY[…])` | 127 ns | 278 ns | **mailrs 2.2×** ✅ |
+| `A003 LOGIN alice@example.com password` | 222 ns | 110 ns | imap-codec 2× ⚠ |
+| `A004 NOOP` | 71 ns | 32 ns | imap-codec 2.2× ⚠ |
+
+Honest mixed result. imap-codec has years of nom-tuning behind it. Our handler wins on the *complex* FETCH case (where their grammar's combinator overhead shows), loses on the simple commands. We dominate downstream on sequence sets and search criteria though — see `parse_sequence_set` perf gate in `BUDGETS.md`. Bench source: `crates/imap-proto/benches/compare_imap_codec.rs`.
+
+### Cross-language (`bench-harness/`)
+
+Sub-process bench harness in `bench-harness/` runs the same operations
+across Rust + C + Go on identical corpus files. C and Go runners are
+best-effort — skipped if the toolchain / library isn't installed.
+
+First end-to-end run (2026-05-23, Darwin 25.5.0 arm64):
+
+| Scenario | Rust (mailrs) | C | Go |
+|---|---:|---:|---:|
+| RFC 5322 read + Subject + From | **53 ns** | n/a | net/mail: 1267 ns (**24× slower**) |
+| SPF parse — simple | **69 ns** | libspf2: not installed | n/a |
+| SPF parse — complex | **446 ns** | libspf2: not installed | n/a |
+| DKIM-Signature parse | **482 ns** | opendkim: not yet wired | n/a |
+| iCalendar parse | **1.85 µs** | libical: not installed | n/a |
+| MIME tree parse (simple msg) | **670 ns** | GMime: not yet wired | n/a |
+
+The net/mail comparison is the only fully-paired data point so far. The
+24× headroom on a stdlib-vs-stdlib comparison is the kind of gap we
+expected and were going for ("modern Rust implementation of legacy
+email protocols, performance-first"). C-library wiring is best-effort
+— anyone with `brew install libspf2 libical` can re-run with full
+coverage. See `bench-harness/README.md` for setup.
+
 ### `mailrs-smtp-proto` (criterion, `cargo bench -p mailrs-smtp-proto`)
 
 | Path | Median | Notes |

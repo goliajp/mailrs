@@ -1,4 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use mail_parser::MimeHeaders;
 use mailrs_mime::parse;
 use std::hint::black_box;
 
@@ -74,6 +75,8 @@ fn bench_vs_mail_parser_simple(c: &mut Criterion) {
 }
 
 fn bench_vs_mail_parser_invite(c: &mut Criterion) {
+    // Fair comparison: "find the text/calendar part and return its body length".
+    // Both libraries walk the MIME tree; we measure the same end-to-end work.
     let mut group = c.benchmark_group("vs_mail_parser/find_calendar");
     group.bench_function("mailrs_mime", |b| {
         b.iter(|| {
@@ -84,8 +87,22 @@ fn bench_vs_mail_parser_invite(c: &mut Criterion) {
     group.bench_function("mail_parser", |b| {
         b.iter(|| {
             let parsed = mail_parser::MessageParser::default().parse(black_box(INVITE));
-            // Approximate equivalent: get the first sub-part's raw length
-            let r = parsed.and_then(|m| m.parts.first().map(|p| p.raw_len()));
+            // Apples-to-apples: walk parts, find the one whose content-type
+            // is `text/calendar`, return its decoded body length. This is the
+            // actual same operation `mailrs_mime::Part::find_by_content_type`
+            // does for the same input.
+            let r = parsed.and_then(|m| {
+                // mail-parser ships an `is_content_type(type, subtype)` helper
+                // that walks each part's content_type header — same logical
+                // operation as our `find_by_content_type("text/calendar")`.
+                m.parts.iter().find_map(|p| {
+                    if p.is_content_type("text", "calendar") {
+                        Some(p.contents().len())
+                    } else {
+                        None
+                    }
+                })
+            });
             black_box(r)
         });
     });

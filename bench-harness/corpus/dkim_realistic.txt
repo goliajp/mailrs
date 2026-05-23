@@ -1,0 +1,1 @@
+ v=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com; s=mail; h=From:To:Subject:Date:Message-ID:MIME-Version:Content-Type; bh=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=; b=signature1234567890abcdefghijklmnopqrstuvwxyz
