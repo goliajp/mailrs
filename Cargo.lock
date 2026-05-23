@@ -2703,6 +2703,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-arc"
+version = "1.0.0"
+dependencies = [
+ "async-trait",
+ "base64",
+ "criterion",
+ "ed25519-dalek",
+ "mailrs-dkim 1.1.3",
+ "rsa",
+ "sha2 0.10.9",
+ "tokio",
+]
+
+[[package]]
 name = "mailrs-auth-guard"
 version = "1.0.3"
 dependencies = [

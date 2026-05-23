@@ -1,0 +1,41 @@
+[package]
+name = "mailrs-arc"
+version = "1.0.0"
+edition = "2024"
+description = "RFC 8617 Authenticated Received Chain (ARC) — header parsing, chain extraction, and signature verification. ARC extends DKIM/SPF/DMARC across forwarders by chaining per-hop authentication results inside cryptographically-sealed header sets. Pairs with mailrs-dkim for canonicalization + RSA verify, mailrs-spf / mailrs-dmarc for the auth-results that ARC carries forward."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-arc"
+authors = ["GOLIA K.K."]
+keywords = ["arc", "rfc8617", "email", "auth", "smtp"]
+categories = ["email", "cryptography", "network-programming"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = ["hickory"]
+# Re-export the hickory-backed resolver adapter for DNS-based public-key
+# lookup. Disable to bring your own DNS layer via the `ArcResolver` trait.
+hickory = ["mailrs-dkim/hickory"]
+
+[dependencies]
+async-trait = "0.1"
+base64 = "0.22"
+sha2 = { version = "0.10", features = ["oid"] }
+rsa = "0.9"
+ed25519-dalek = "2"
+# DKIM canonicalization + RSA verify are byte-identical between RFC 6376
+# and RFC 8617 §5 (ARC-Message-Signature uses the same algorithms), so
+# we route through mailrs-dkim instead of duplicating ~400 LOC of canon.
+mailrs-dkim = { path = "../dkim", version = "1.1", default-features = false }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio = { workspace = true }
+
+[[bench]]
+name = "arc"
+harness = false
