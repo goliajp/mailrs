@@ -2663,20 +2663,6 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dkim"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b970e58b1b30c0d2df9c512837f2c6490189e8307959e4ae154b1b82ace0b296"
-dependencies = [
- "async-trait",
- "base64",
- "ed25519-dalek",
- "hickory-resolver",
- "rsa",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "mailrs-dkim"
 version = "1.1.1"
 dependencies = [
  "async-trait",
@@ -2687,6 +2673,20 @@ dependencies = [
  "rsa",
  "sha2 0.10.9",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-dkim"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "576bdf2373a63778dea0b36dd7e6d47415b4d0bb9d7c96dc68b938ccd3b9d632"
+dependencies = [
+ "async-trait",
+ "base64",
+ "ed25519-dalek",
+ "hickory-resolver",
+ "rsa",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -2902,12 +2902,12 @@ dependencies = [
 
 [[package]]
 name = "mailrs-mime"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb0cfaa4b4805cfcc58846546eb07ecb650d82c175fb237c272a031cb510d794"
+version = "1.0.1"
 dependencies = [
  "base64",
+ "criterion",
  "encoding_rs",
+ "mail-parser",
  "mailrs-rfc2047 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc5322 1.0.0",
@@ -2916,11 +2916,11 @@ dependencies = [
 [[package]]
 name = "mailrs-mime"
 version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11ea9d0d0e4ad1674c40fa3e12df30dc79c2689020507fd0bb6d07ae964a43df"
 dependencies = [
  "base64",
- "criterion",
  "encoding_rs",
- "mail-parser",
  "mailrs-rfc2047 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc5322 1.0.0",
@@ -3096,7 +3096,7 @@ dependencies = [
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-dkim 1.1.0",
+ "mailrs-dkim 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dmarc 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-imap-proto 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3105,7 +3105,7 @@ dependencies = [
  "mailrs-jmap 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-maildir 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-mime 1.0.0",
+ "mailrs-mime 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-outbound-queue 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rate-limit 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3115,7 +3115,7 @@ dependencies = [
  "mailrs-shield 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-spf 1.0.1",
+ "mailrs-spf 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3220,22 +3220,22 @@ dependencies = [
 
 [[package]]
 name = "mailrs-spf"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11dabe240604e7880ebca08a74bee5657c30725bfd95d3a00e30107ec9c69cd2"
-dependencies = [
- "async-trait",
- "hickory-resolver",
-]
-
-[[package]]
-name = "mailrs-spf"
 version = "1.0.2"
 dependencies = [
  "async-trait",
  "criterion",
  "hickory-resolver",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-spf"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7328fb1727ccee79df1cec24b9b37cb966f49444c7aa961369b337e95dd299b"
+dependencies = [
+ "async-trait",
+ "hickory-resolver",
 ]
 
 [[package]]
