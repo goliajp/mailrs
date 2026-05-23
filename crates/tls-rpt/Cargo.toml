@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-tls-rpt"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2024"
 description = "RFC 8460 SMTP TLS Reporting (TLSRPT) — _smtp._tls TXT record parser, RFC 8460 §4 JSON report data model, FailureType enum (14 result-type values from §4.3), and a builder that takes per-connection event facts and produces an owned daily report ready to serialize + sign + submit. Pure: no SMTP / HTTPS / gzip in-crate. Pairs with mailrs-mta-sts."
 license = "Apache-2.0 OR MIT"
@@ -25,9 +25,13 @@ flate2 = "1"
 # base64 is needed to wrap the gzipped report inside a MIME
 # attachment for the mailto: submission path (RFC 8460 §5.3).
 base64 = "0.22"
+# async-trait makes Store object-safe so callers can stash an
+# `Arc<dyn Store>` and swap impls without generic plumbing.
+async-trait = "0.1"
 
 [dev-dependencies]
 criterion = { workspace = true }
+tokio = { workspace = true }
 
 [[bench]]
 name = "tls_rpt"
