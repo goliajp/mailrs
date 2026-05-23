@@ -6,7 +6,6 @@
 
 use std::time::Duration;
 
-use mail_parser::MimeHeaders;
 use sqlx::PgPool;
 
 use crate::content_extract::{self, ExtractionResult, MAX_EXTRACT_SIZE};
@@ -86,11 +85,8 @@ async fn process_message(
     let raw = message_util::read_message_raw(maildir_root, user_address, maildir_id)
         .ok_or("raw message not found")?;
 
-    let parsed = mail_parser::MessageParser::default()
-        .parse(&raw)
-        .ok_or("parse failed")?;
-
-    let attachments: Vec<_> = parsed.attachments().collect();
+    let parsed = mailrs_mime::parse(&raw);
+    let attachments: Vec<&mailrs_mime::Part> = parsed.attachments().collect();
 
     if attachments.is_empty() {
         // no attachments — insert sentinel so we skip this message next time
@@ -100,16 +96,7 @@ async fn process_message(
 
     let mut inserted = 0u32;
     for (index, att) in attachments.iter().enumerate() {
-        let content_type = att
-            .content_type()
-            .map(|ct| {
-                if let Some(sub) = ct.subtype() {
-                    format!("{}/{}", ct.ctype(), sub)
-                } else {
-                    ct.ctype().to_string()
-                }
-            })
-            .unwrap_or_else(|| "application/octet-stream".into());
+        let content_type = att.content_type.mime_type();
 
         // skip unsupported types early
         let method = content_extract::extraction_method(&content_type);
@@ -117,13 +104,13 @@ async fn process_message(
             continue;
         }
 
-        let data = att.contents();
+        let data = &att.body;
         if data.len() > MAX_EXTRACT_SIZE {
             continue;
         }
 
         // run extraction in blocking thread (tesseract is CPU-bound)
-        let data_owned = data.to_vec();
+        let data_owned = data.clone();
         let ct = content_type.clone();
         let result = tokio::task::spawn_blocking(move || {
             content_extract::extract_content(&data_owned, &ct, DEFAULT_OCR_LANGS)

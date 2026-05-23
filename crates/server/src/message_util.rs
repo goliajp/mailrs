@@ -1,4 +1,3 @@
-use mail_parser::MimeHeaders;
 use serde::Serialize;
 
 // rfc2047_encode lives in `mailrs-rfc2047` (1.1.0+) as `encode`.
@@ -65,53 +64,59 @@ pub(crate) fn extract_header_from_raw(data: &[u8], name: &str) -> String {
     String::new()
 }
 
-/// parse raw message bytes into text body, html body, and attachment list
+/// Parse raw message bytes into text body, html body, and attachment list.
+///
+/// Now backed by `mailrs-mime` (the workspace-owned MIME tree parser).
+/// The shape of the returned tuple is unchanged.
 pub(crate) fn parse_message(data: &[u8]) -> (Option<String>, Option<String>, Vec<AttachmentInfo>) {
-    let msg = match mail_parser::MessageParser::default().parse(data) {
-        Some(m) => m,
-        None => {
-            // fallback: treat entire message as plain text
-            return (
-                Some(String::from_utf8_lossy(data).into_owned()),
-                None,
-                vec![],
-            );
+    let root = mailrs_mime::parse(data);
+
+    // Collect first text/plain and first text/html via depth-first walk.
+    let mut text_body: Option<String> = None;
+    let mut html_body: Option<String> = None;
+    for part in root.walk() {
+        let mt = part.content_type.mime_type();
+        if text_body.is_none() && mt == "text/plain" {
+            text_body = part.body_text();
+        } else if html_body.is_none() && mt == "text/html" {
+            html_body = part.body_text();
         }
-    };
+        if text_body.is_some() && html_body.is_some() {
+            break;
+        }
+    }
 
-    let text_body = msg.body_text(0).map(|s| s.into_owned());
-    let html_body = msg.body_html(0).map(|s| s.into_owned());
+    // If we ended up with no parts whatsoever (rare malformed input),
+    // fall back to treating the raw bytes as plain text.
+    if text_body.is_none() && html_body.is_none() && root.children.is_empty() {
+        if root.content_type.type_ == "text" {
+            text_body = root.body_text();
+        } else {
+            text_body = Some(String::from_utf8_lossy(data).into_owned());
+        }
+    }
 
-    // ensure text_body is always present: derive from html if missing
+    // Ensure text_body is always present: derive from html if missing.
     let text_body = text_body.or_else(|| {
         html_body
             .as_deref()
             .and_then(|html| html2text::from_read(html.as_bytes(), 80).ok())
     });
 
-    let attachments = msg
+    let attachments = root
         .attachments()
         .map(|att| {
-            // try Content-Disposition filename first, then Content-Type name attribute
-            let filename = att
-                .attachment_name()
-                .or_else(|| att.content_type().and_then(|ct| ct.attribute("name")))
-                .unwrap_or("unnamed")
-                .to_string();
-            let content_type = att
-                .content_type()
-                .map(|ct: &mail_parser::ContentType| {
-                    if let Some(sub) = ct.subtype() {
-                        format!("{}/{}", ct.ctype(), sub)
-                    } else {
-                        ct.ctype().to_string()
-                    }
-                })
-                .unwrap_or_else(|| "application/octet-stream".into());
+            let filename = att.attachment_filename().unwrap_or("unnamed").to_string();
+            let content_type = att.content_type.mime_type();
+            let content_type = if content_type.ends_with('/') || content_type.starts_with('/') {
+                "application/octet-stream".to_string()
+            } else {
+                content_type
+            };
             AttachmentInfo {
                 filename,
                 content_type,
-                size: att.len() as u32,
+                size: att.body.len() as u32,
             }
         })
         .collect();
@@ -119,16 +124,16 @@ pub(crate) fn parse_message(data: &[u8]) -> (Option<String>, Option<String>, Vec
     (text_body, html_body, attachments)
 }
 
-/// decode RFC 2047 encoded-word in header values stored in the database
+/// Decode RFC 2047 encoded-word in header values stored in the database.
+///
+/// Now backed directly by `mailrs-rfc2047::decode` — used to go through
+/// a fake-message round trip via `mail-parser` just to reach its
+/// encoded-word decoder. Now one direct call.
 pub(crate) fn decode_header(value: &str) -> String {
     if !value.contains("=?") {
         return value.to_string();
     }
-    let fake = format!("Subject: {value}\r\n\r\n");
-    mail_parser::MessageParser::default()
-        .parse(fake.as_bytes())
-        .and_then(|m| m.subject().map(|s| s.to_string()))
-        .unwrap_or_else(|| value.to_string())
+    mailrs_rfc2047::decode(value.as_bytes()).into_owned()
 }
 
 #[cfg(test)]

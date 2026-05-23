@@ -6,7 +6,6 @@ use std::sync::Arc;
 use axum::extract::{Multipart, State};
 use axum::response::IntoResponse;
 use axum::Json;
-use mail_parser::MimeHeaders;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 
@@ -316,45 +315,40 @@ async fn extract_full_forward_by_id(
     // use the existing parser that handles nested MIME well
     let (text_body, html_body, _) = message_util::parse_message(&raw);
 
-    // parse attachments from raw MIME
+    // parse attachments from raw MIME via mailrs-mime
     let mut attachments = Vec::new();
-    if let Some(parsed) = mail_parser::MessageParser::default().parse(&raw) {
-        for part in parsed.parts.iter().skip(1) {
-            let disp = part.content_disposition();
-            let is_attachment = disp
-                .map(|d| d.ctype() == "attachment" || d.ctype() == "inline")
-                .unwrap_or(false);
-            let ct = part.content_type();
-            let is_body_part = ct
-                .map(|c| {
-                    let main = c.ctype();
-                    let sub = c.subtype().unwrap_or("");
-                    (main == "text" && (sub == "plain" || sub == "html")) && !is_attachment
-                })
-                .unwrap_or(false);
-            if is_body_part {
-                continue;
-            }
+    let parsed = mailrs_mime::parse(&raw);
+    for part in parsed.walk() {
+        let mt = part.content_type.mime_type();
+        // Skip the root node + text body parts (only iterate leaf
+        // attachments). text/plain + text/html WITHOUT attachment
+        // disposition are body parts.
+        if part.content_type.is_multipart() {
+            continue;
+        }
+        let is_text_body_part = (mt == "text/plain" || mt == "text/html")
+            && part
+                .disposition
+                .as_ref()
+                .map(|d| !d.is_attachment())
+                .unwrap_or(true);
+        if is_text_body_part {
+            continue;
+        }
 
-            let filename = part
-                .attachment_name()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "attachment".into());
-            let content_type = ct
-                .map(|c| {
-                    let sub = c.subtype().unwrap_or("octet-stream");
-                    format!("{}/{}", c.ctype(), sub)
-                })
-                .unwrap_or_else(|| "application/octet-stream".into());
+        let filename = part.attachment_filename().unwrap_or("attachment").to_string();
+        let content_type = if mt.is_empty() || mt == "/" {
+            "application/octet-stream".to_string()
+        } else {
+            mt
+        };
 
-            let body_bytes = part.contents();
-            if !body_bytes.is_empty() {
-                attachments.push(AttachmentData {
-                    filename,
-                    content_type,
-                    data: body_bytes.to_vec(),
-                });
-            }
+        if !part.body.is_empty() {
+            attachments.push(AttachmentData {
+                filename,
+                content_type,
+                data: part.body.clone(),
+            });
         }
     }
 
