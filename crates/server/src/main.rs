@@ -504,6 +504,10 @@ async fn main() {
     // ARC reuses the DKIM resolver (ArcResolver = DkimResolver). One
     // hickory bind, two stones.
     let shadow_arc_resolver = shadow_dkim_resolver.clone();
+    // DMARC's shadow path needs raw TXT lookup against the hickory
+    // TokioResolver (mailrs-dmarc itself is a pure evaluator with no
+    // DNS). Same resolver mail-auth already uses.
+    let shadow_dmarc_resolver = resolver.clone();
 
     let inbound_pipeline = crate::inbound::pipeline::build_inbound_pipeline(
         greylist_db.clone(),
@@ -514,6 +518,7 @@ async fn main() {
         shadow_spf_resolver,
         shadow_dkim_resolver,
         shadow_arc_resolver,
+        shadow_dmarc_resolver,
         cfg.clamav_addr.clone(),
         llm_provider.clone(),
         valkey_conn.clone(),

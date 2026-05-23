@@ -75,6 +75,50 @@ pub fn find_header_value_in_raw(headers: &[u8], name: &[u8]) -> Result<String, D
     Err(DkimError::MissingHeader)
 }
 
+/// Find ALL header values (folded) by name in a raw headers region.
+/// Returns owned `String`s in the order they appeared. Empty when
+/// the header is not present.
+///
+/// Used for multi-signature DKIM verification: a single message can
+/// carry multiple `DKIM-Signature:` headers (one from the original
+/// signer, one from a mail-list forwarder, etc.) and each must be
+/// verified independently.
+pub fn find_all_header_values_in_raw(headers: &[u8], name: &[u8]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < headers.len() {
+        if i + name.len() < headers.len()
+            && headers[i..i + name.len()].eq_ignore_ascii_case(name)
+            && headers[i + name.len()] == b':'
+        {
+            let value_start = i + name.len() + 1;
+            let mut j = value_start;
+            while j < headers.len() {
+                if headers[j] == b'\n' {
+                    let after = j + 1;
+                    if after < headers.len() && matches!(headers[after], b' ' | b'\t') {
+                        j += 1;
+                        continue;
+                    }
+                    out.push(String::from_utf8_lossy(&headers[value_start..j]).into_owned());
+                    i = j;
+                    break;
+                }
+                j += 1;
+            }
+            if j >= headers.len() {
+                out.push(String::from_utf8_lossy(&headers[value_start..j]).into_owned());
+                return out;
+            }
+        }
+        while i < headers.len() && headers[i] != b'\n' {
+            i += 1;
+        }
+        i += 1;
+    }
+    out
+}
+
 /// Find a header value (folded) by name in a raw headers region.
 /// Returns `Some(value)` on success or `None` if not found.
 ///
@@ -191,6 +235,38 @@ mod tests {
             clear_b_value(v),
             "i=1; a=rsa-sha256; d=ex.com; s=mail; h=From; bh=BH; b="
         );
+    }
+
+    #[test]
+    fn find_all_header_values_in_raw_zero_matches() {
+        let headers = b"From: a\r\n";
+        assert!(find_all_header_values_in_raw(headers, b"DKIM-Signature").is_empty());
+    }
+
+    #[test]
+    fn find_all_header_values_in_raw_single_match() {
+        let headers = b"DKIM-Signature: v=1; d=a.com\r\nFrom: a\r\n";
+        let v = find_all_header_values_in_raw(headers, b"DKIM-Signature");
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0], " v=1; d=a.com\r");
+    }
+
+    #[test]
+    fn find_all_header_values_in_raw_multi_match() {
+        let headers = b"DKIM-Signature: v=1; d=a.com\r\nFrom: a\r\nDKIM-Signature: v=1; d=b.com\r\n";
+        let v = find_all_header_values_in_raw(headers, b"DKIM-Signature");
+        assert_eq!(v.len(), 2);
+        assert_eq!(v[0], " v=1; d=a.com\r");
+        assert_eq!(v[1], " v=1; d=b.com\r");
+    }
+
+    #[test]
+    fn find_all_header_values_in_raw_handles_folded() {
+        let headers = b"DKIM-Signature: v=1;\r\n d=a.com\r\nDKIM-Signature: v=1; d=b.com\r\n";
+        let v = find_all_header_values_in_raw(headers, b"DKIM-Signature");
+        assert_eq!(v.len(), 2);
+        assert!(v[0].contains("d=a.com"));
+        assert!(v[1].contains("d=b.com"));
     }
 
     #[test]
