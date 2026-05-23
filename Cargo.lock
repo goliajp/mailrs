@@ -3071,10 +3071,11 @@ dependencies = [
 [[package]]
 name = "mailrs-outbound-queue"
 version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c56bde6ce5791326d1937ae3edceffeab6eaa01b38edf4f5c52f2651216bd25c"
 dependencies = [
  "async-trait",
  "chrono",
- "criterion",
  "futures-util",
  "hickory-resolver",
  "mail-auth",
@@ -3090,12 +3091,11 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c56bde6ce5791326d1937ae3edceffeab6eaa01b38edf4f5c52f2651216bd25c"
+version = "1.1.1"
 dependencies = [
  "async-trait",
  "chrono",
+ "criterion",
  "futures-util",
  "hickory-resolver",
  "mail-auth",
@@ -3252,7 +3252,7 @@ dependencies = [
  "mailrs-mailbox 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-maildir 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mime 1.0.1",
- "mailrs-outbound-queue 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-outbound-queue 1.1.0",
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rate-limit 1.0.1",
  "mailrs-rfc2047 1.1.1",

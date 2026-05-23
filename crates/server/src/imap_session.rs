@@ -94,7 +94,14 @@ impl ImapSession {
     }
 
     /// process a raw command line, return result
+    #[tracing::instrument(name = "imap.cmd", skip(self, line), fields(verb))]
     pub async fn handle_line(&mut self, line: &str) -> HandleResult {
+        // Record the IMAP verb (first whitespace token after the tag) into
+        // the span — gives operators a per-command breakdown in OTel UIs
+        // without needing the full line (which can contain passwords).
+        if let Some(verb) = line.split_whitespace().nth(1) {
+            tracing::Span::current().record("verb", verb.to_ascii_uppercase());
+        }
         // log all commands for debugging
         {
             let username = match &self.state {
