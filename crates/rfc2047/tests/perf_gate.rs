@@ -68,8 +68,11 @@ fn mixed_ascii_and_encoded_under_budget() {
     let median = time_median(|| {
         let _ = decode(input);
     });
-    // Budget: 2 µs (release P95 ~104 ns).
-    let budget = Duration::from_micros(2);
+    // Budget: 5 µs (release P95 ~104 ns, but CI/loaded-machine variance
+    // can push it past 2 µs intermittently). Wider headroom catches
+    // order-of-magnitude regressions without false-failing on background
+    // CPU contention.
+    let budget = Duration::from_micros(5);
     assert!(
         median < budget,
         "mixed_ascii_and_encoded median {median:?} exceeded {budget:?}"
