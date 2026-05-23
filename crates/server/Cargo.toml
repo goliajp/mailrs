@@ -51,6 +51,7 @@ mailrs-backoff = "1"
 mailrs-tls-reload = "1"
 mailrs-acme = "1"
 mailrs-spf = "1"
+mailrs-dkim = "1"
 sqlx = { workspace = true }
 redis = { workspace = true }
 hickory-resolver = "0.26"

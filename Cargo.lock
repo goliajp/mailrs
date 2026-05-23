@@ -2618,6 +2618,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-dkim"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cd491ed1181315b2cecdbdcf4d5b456f86a2d44c749fb6fbd51f22f7c2f6f39"
+dependencies = [
+ "async-trait",
+ "base64",
+ "hickory-resolver",
+ "rsa",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "mailrs-dmarc"
 version = "1.0.2"
 dependencies = [
@@ -2988,6 +3001,7 @@ dependencies = [
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-dkim 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dmarc 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-imap-proto 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
