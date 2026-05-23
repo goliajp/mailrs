@@ -1,0 +1,29 @@
+[package]
+name = "mailrs-mta-sts"
+version = "1.0.0"
+edition = "2024"
+description = "RFC 8461 MTA Strict Transport Security (MTA-STS) — policy + STS record parsers, MX pattern matching, enforce(policy, mx) decision, plus a Cache trait + in-memory reference impl. Pure: no HTTP / DNS — bring your own resolver and HTTPS client and feed the parsed bytes in."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-mta-sts"
+authors = ["GOLIA K.K."]
+keywords = ["mta-sts", "rfc8461", "email", "smtp", "tls"]
+categories = ["email", "network-programming", "parser-implementations"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1"
+# `sync` only — for `RwLock` in the InMemoryCache. No `rt` or `net`.
+tokio = { version = "1", default-features = false, features = ["sync"] }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio = { workspace = true }
+
+[[bench]]
+name = "mta_sts"
+harness = false
