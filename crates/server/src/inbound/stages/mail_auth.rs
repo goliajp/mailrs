@@ -28,6 +28,7 @@ pub struct MailAuthStage {
     authenticator: Arc<MessageAuthenticator>,
     dmarc_report_store: Option<Arc<DmarcReportStore>>,
     shadow_spf_resolver: Option<Arc<mailrs_spf::HickoryResolver>>,
+    shadow_dkim_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
 }
 
 impl MailAuthStage {
@@ -41,6 +42,7 @@ impl MailAuthStage {
             authenticator,
             dmarc_report_store,
             shadow_spf_resolver: None,
+            shadow_dkim_resolver: None,
         }
     }
 
@@ -51,6 +53,14 @@ impl MailAuthStage {
     /// before cutting over.
     pub fn with_shadow_spf(mut self, resolver: Arc<mailrs_spf::HickoryResolver>) -> Self {
         self.shadow_spf_resolver = Some(resolver);
+        self
+    }
+
+    /// Enable shadow-mode DKIM validation against `mailrs-dkim`. Same
+    /// pattern as [`with_shadow_spf`](Self::with_shadow_spf) — runs in
+    /// parallel to mail-auth's verifier and logs match/divergence.
+    pub fn with_shadow_dkim(mut self, resolver: Arc<mailrs_dkim::HickoryDkimResolver>) -> Self {
+        self.shadow_dkim_resolver = Some(resolver);
         self
     }
 }
@@ -130,6 +140,38 @@ impl Stage for MailAuthStage {
         } else {
             "fail".into()
         };
+
+        // Shadow validation against mailrs-dkim — same pattern as the
+        // SPF shadow path above. Runs only when the optional resolver
+        // is configured; DOES NOT affect any decision.
+        if let Some(ref shadow) = self.shadow_dkim_resolver {
+            let shadow_result = mailrs_dkim::verify(shadow.as_ref(), &ctx.message).await;
+            // Map both to a coarse string for comparison: pass/fail/none.
+            // (mailrs-dkim returns 7 values; we collapse to 3 to match
+            // the mail-auth-derived ctx.auth_results.dkim field.)
+            let shadow_coarse = match shadow_result {
+                mailrs_dkim::DkimResult::Pass => "pass",
+                mailrs_dkim::DkimResult::None => "none",
+                _ => "fail",
+            };
+            let mail_auth_coarse = ctx.auth_results.dkim.as_str();
+            if shadow_coarse == mail_auth_coarse {
+                tracing::info!(
+                    event = "dkim_shadow_match",
+                    dkim = %mail_auth_coarse,
+                    "mailrs-dkim matches mail-auth"
+                );
+            } else {
+                tracing::warn!(
+                    event = "dkim_shadow_divergence",
+                    mail_auth = %mail_auth_coarse,
+                    mailrs_dkim = %shadow_coarse,
+                    mailrs_dkim_detail = %shadow_result,
+                    sender = %ctx.sender,
+                    "DKIM result divergence — mailrs-dkim says different from mail-auth"
+                );
+            }
+        }
 
         let mail_from_domain = ctx
             .sender
