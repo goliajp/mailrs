@@ -14,7 +14,7 @@ mod health;
 mod calendar;
 
 mod ldap_auth;
-mod imap_format;
+
 mod imap_session;
 pub mod inbound;
 mod inline_image;

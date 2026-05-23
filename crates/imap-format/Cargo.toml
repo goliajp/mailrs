@@ -1,0 +1,19 @@
+[package]
+name = "mailrs-imap-format"
+version = "1.0.0"
+edition = "2024"
+description = "IMAP wire-format helpers (RFC 9051): FLAGS / INTERNALDATE / quoted string / address structures / BODY[…] section extraction / BODYSTRUCTURE assembly. Pairs with mailrs-imap-proto (parsing + state machine) and mailrs-imap-codec (line + literal framing). 22 standalone pure functions, no I/O."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-imap-format"
+authors = ["GOLIA K.K."]
+keywords = ["imap", "rfc9051", "email", "wire-format", "bodystructure"]
+categories = ["email", "parser-implementations", "encoding"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = { workspace = true }
