@@ -3304,7 +3304,7 @@ dependencies = [
  "mailrs-spf 1.0.2",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-tls-rpt 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-tls-rpt 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime_guess",
  "password-hash",
@@ -3477,19 +3477,23 @@ dependencies = [
 
 [[package]]
 name = "mailrs-tls-rpt"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
+ "base64",
  "criterion",
+ "flate2",
  "serde",
  "serde_json",
 ]
 
 [[package]]
 name = "mailrs-tls-rpt"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caa08247e62ecbef3c0afd00472f21d3d2693768e79bf7a29ef725833b6e1c93"
+checksum = "0b47a609bd01160bf9cfb524cda382f8812d946c4ae3d426d9cd31c0fa03d223"
 dependencies = [
+ "base64",
+ "flate2",
  "serde",
  "serde_json",
 ]

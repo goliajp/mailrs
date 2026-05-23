@@ -1,5 +1,44 @@
 # Changelog — mailrs-tls-rpt
 
+## 1.1.0 — 2026-05-23
+
+### Added
+
+- `pub mod submit` — pure helpers for packaging a [`Report`] into
+  the bytes a TLSRPT receiver expects on either submission path:
+  - `gzip_report(&Report) -> std::io::Result<Vec<u8>>` —
+    `serde_json::to_vec` then gzip with default level. Body for
+    HTTPS POST (`Content-Type: application/tlsrpt+gzip`) or for
+    the email attachment.
+  - `build_submission_email(&SubmissionEmailOpts) -> Vec<u8>` —
+    assembles an RFC 5322 `multipart/report; report-type=tlsrpt`
+    email body wrapping the gzipped report as an
+    `application/tlsrpt+gzip` attachment, per RFC 8460 §5.3.
+    Subject format exact:
+    `Report Domain: <recv> Submitter: <us> Report-ID: <id@us>`.
+    Caller prepends `DKIM-Signature:` and submits via SMTP.
+  - `SubmissionEmailOpts { from_address, to_address,
+    receiving_domain, submitter_domain, report_id, date_rfc2822,
+    boundary, report_gzipped }`.
+- New runtime deps: `flate2` (gzip), `base64` (MIME attachment).
+
+### Tests
+
+- 9 new tests covering gzip round-trip, RFC-8460 subject format,
+  Message-ID shape, attachment Content-Type, supplied-boundary
+  use, CRLF-only line endings, and RFC 2045 §6.8 76-char base64
+  line wrapping.
+
+### Why this release exists
+
+mailrs-tls-rpt 1.0 shipped the data model + report builder. 1.1
+adds the "package for the wire" layer so the server (or any
+caller) can produce the actual bytes that go on the network. The
+two submission transports (SMTP via `mailto:` rua endpoints, HTTPS
+POST via `https:` rua endpoints) are out of scope — both are pure
+caller concerns, since they need access to the caller's outbound
+SMTP queue / HTTP client / DKIM key.
+
 ## 1.0.0 — 2026-05-23
 
 Initial stable release. RFC 8460 SMTP TLS Reporting (TLSRPT) record
