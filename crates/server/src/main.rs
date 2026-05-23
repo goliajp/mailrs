@@ -1,7 +1,6 @@
 mod acme;
 mod ai_analyzer;
 mod api_key_store;
-mod codec;
 mod config;
 mod content_extract;
 mod content_worker;

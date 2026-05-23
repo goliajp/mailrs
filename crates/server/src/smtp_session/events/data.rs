@@ -10,7 +10,7 @@ use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::{Session, State};
 use mailrs_smtp_proto::unstuff_data;
 
-use crate::codec::{SmtpCodec, SmtpInput};
+use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 use crate::domain_store::ResolvedRecipient;
 use crate::event_bus::SmtpEvent;
 use crate::inbound::pipeline::DeliveryDecision;

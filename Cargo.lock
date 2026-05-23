@@ -3300,6 +3300,7 @@ dependencies = [
  "mailrs-rfc5322 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-shield 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-smtp-codec 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-spf 1.0.2",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3386,6 +3387,24 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "webpki-roots",
+]
+
+[[package]]
+name = "mailrs-smtp-codec"
+version = "1.0.0"
+dependencies = [
+ "bytes",
+ "tokio-util",
+]
+
+[[package]]
+name = "mailrs-smtp-codec"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5e14838e2fac05ca919631b08fb9c548663db2b8e31d835dd9b07289eebe3d3"
+dependencies = [
+ "bytes",
+ "tokio-util",
 ]
 
 [[package]]
