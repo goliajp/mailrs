@@ -12,8 +12,6 @@
 //! (`mailrs_ical::parse_invite`) then validates the bytes are RFC 5545
 //! conformant.
 
-use mail_parser::{MessageParser, MimeHeaders, PartType};
-
 /// What the inbound pipeline gets back when it finds a calendar part.
 pub struct ExtractedInvite {
     /// Raw `text/calendar` body bytes (post-MIME-decode).
@@ -27,43 +25,25 @@ pub struct ExtractedInvite {
     pub content_type_method: String,
 }
 
-/// Scan a parsed [`Message`] for a `text/calendar` part. Returns the first
+/// Scan a parsed message for a `text/calendar` part. Returns the first
 /// match. None when no such part exists.
+///
+/// Now backed by `mailrs-mime` (deps-audit #2 stone); previously used
+/// `mail-parser`. Behavior identical.
 pub fn extract_invite_part(data: &[u8]) -> Option<ExtractedInvite> {
-    let msg = MessageParser::default().parse(data)?;
-    for part in &msg.parts {
-        if !is_text_calendar(part) {
-            continue;
-        }
-        let bytes = match &part.body {
-            PartType::Text(s) => s.as_bytes().to_vec(),
-            PartType::Html(s) => s.as_bytes().to_vec(),
-            PartType::Binary(b) | PartType::InlineBinary(b) => b.to_vec(),
-            PartType::Multipart(_) | PartType::Message(_) => continue,
-        };
-        let content_type_method = part
-            .content_type()
-            .and_then(|ct| ct.attribute("method"))
-            .unwrap_or("")
-            .to_ascii_uppercase();
-        return Some(ExtractedInvite {
-            ics_bytes: bytes,
-            content_type_method,
-        });
-    }
-    None
-}
-
-fn is_text_calendar(part: &mail_parser::MessagePart<'_>) -> bool {
-    let Some(ct) = part.content_type() else {
-        return false;
-    };
-    if !ct.ctype().eq_ignore_ascii_case("text") {
-        return false;
-    }
-    ct.subtype()
-        .map(|st| st.eq_ignore_ascii_case("calendar"))
-        .unwrap_or(false)
+    let root = mailrs_mime::parse(data);
+    let part = root.find_by_content_type("text/calendar")?;
+    let content_type_method = part
+        .content_type
+        .params
+        .get("method")
+        .cloned()
+        .unwrap_or_default()
+        .to_ascii_uppercase();
+    Some(ExtractedInvite {
+        ics_bytes: part.body.clone(),
+        content_type_method,
+    })
 }
 
 #[cfg(test)]

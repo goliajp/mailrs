@@ -6,7 +6,6 @@ use axum::extract::{Multipart, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use mail_parser::MimeHeaders;
 use serde::Serialize;
 
 use crate::message_util;
@@ -58,26 +57,18 @@ pub(crate) async fn get_attachment(
     for mb in &mailboxes {
         if let Ok(Some(msg)) = mb_store.get_message(mb.id, uid).await {
             let raw = message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id);
-            if let Some(data) = raw
-                && let Some(parsed) = mail_parser::MessageParser::default().parse(&data) {
-                    let attachments: Vec<_> = parsed.attachments().collect();
-                    if let Some(att) = attachments.get(index) {
-                        let filename = att
-                            .attachment_name()
-                            .or_else(|| att.content_type().and_then(|ct| ct.attribute("name")))
-                            .unwrap_or("unnamed")
-                            .to_string();
-                        let content_type = att
-                            .content_type()
-                            .map(|ct| {
-                                if let Some(sub) = ct.subtype() {
-                                    format!("{}/{}", ct.ctype(), sub)
-                                } else {
-                                    ct.ctype().to_string()
-                                }
-                            })
-                            .unwrap_or_else(|| "application/octet-stream".into());
-                        let body = att.contents().to_vec();
+            if let Some(data) = raw {
+                let parsed = mailrs_mime::parse(&data);
+                let attachments: Vec<&mailrs_mime::Part> = parsed.attachments().collect();
+                if let Some(att) = attachments.get(index) {
+                    let filename = att.attachment_filename().unwrap_or("unnamed").to_string();
+                    let content_type = att.content_type.mime_type();
+                    let content_type = if content_type.is_empty() || content_type == "/" {
+                        "application/octet-stream".to_string()
+                    } else {
+                        content_type
+                    };
+                    let body = att.body.clone();
 
                         // use inline for browser-viewable types, attachment for the rest
                         let inline = content_type.starts_with("image/")
