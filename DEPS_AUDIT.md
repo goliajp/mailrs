@@ -114,7 +114,7 @@ ecosystem we'd benefit from owning end-to-end:
 
 | Planned stone | Boundary | Why | Status |
 |---|---|---|---|
-| `mailrs-arc` 1.0 | RFC 8617 — Authenticated Received Chain (DKIM/SPF/DMARC chained across forwarders) | Closes the email-auth quartet; reuses our `mailrs-dkim` canon + verify | ✅ Shipped — structural verify in 1.0; crypto AMS/AS verify reserved for 1.1 |
+| `mailrs-arc` 1.0 | RFC 8617 — Authenticated Received Chain (DKIM/SPF/DMARC chained across forwarders) | Closes the email-auth quartet; reuses our `mailrs-dkim` canon + verify | ✅ Shipped — structural verify in 1.0, **crypto AMS/AS verify in 1.1** (RSA-SHA256 + Ed25519-SHA256, end-to-end roundtrip-tested with real RSA-2048 keypairs) |
 | `mailrs-mta-sts` 1.0 | RFC 8461 — MTA Strict Transport Security policy lookup + cache + decide | Currently embedded in `mailrs-postmaster` as a diagnostic only; lift to a real policy enforcer | ✅ Shipped 2026-05-23 — parsers + `enforce(&Policy, mx)` + Cache trait + `InMemoryCache` |
 
 ## Self-check (template for the next audit pass)

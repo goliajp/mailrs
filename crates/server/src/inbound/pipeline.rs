@@ -35,6 +35,7 @@ pub fn build_inbound_pipeline(
     dmarc_report_store: Option<Arc<DmarcReportStore>>,
     shadow_spf_resolver: Option<Arc<mailrs_spf::HickoryResolver>>,
     shadow_dkim_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
+    shadow_arc_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
     clamav_addr: Option<String>,
     llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     valkey: Option<redis::aio::ConnectionManager>,
@@ -55,6 +56,9 @@ pub fn build_inbound_pipeline(
         }
         if let Some(shadow) = shadow_dkim_resolver {
             stage = stage.with_shadow_dkim(shadow);
+        }
+        if let Some(shadow) = shadow_arc_resolver {
+            stage = stage.with_shadow_arc(shadow);
         }
         builder = builder.add(stage);
     }

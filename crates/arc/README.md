@@ -33,8 +33,8 @@ override forwarder breakage.
 | Extract chain from raw message + group by instance | ✅ |
 | Validate chain contiguity (no gaps from `i=1`) | ✅ |
 | Validate `cv=` integrity (first = `none`, rest = `pass`/`fail`) | ✅ |
-| Cryptographic AMS + AS verify (RSA-SHA256 / Ed25519-SHA256) | 1.1 — see below |
-| ARC sealing (add a new set on outbound forward) | 1.1 |
+| Cryptographic AMS + AS verify (RSA-SHA256 / Ed25519-SHA256) | ✅ (since 1.1) |
+| ARC sealing (add a new set on outbound forward) | planned 1.2 |
 
 The structural layer alone is enough to:
 
@@ -42,14 +42,25 @@ The structural layer alone is enough to:
   any DNS work).
 - Detect `cv=` inconsistencies that prove the chain was tampered with
   (first set with `cv=pass`, two sets with `cv=none`, etc.).
-- Carry the chain forward to the cryptographic layer in 1.1.
+- Carry the chain forward to the cryptographic layer.
 
-Crypto in 1.1 will reuse [`mailrs_dkim::canon`] byte-for-byte —
-RFC 8617 §5 says ARC-Message-Signature uses the same algorithms and
-canonicalization as DKIM-Signature, so we route through the
-battle-tested implementation instead of duplicating ~400 LOC.
+Since 1.1, the cryptographic layer ([`verify_chain_with_crypto`])
+walks the chain from highest instance down and, for each set,
+verifies (a) `ARC-Message-Signature` (body hash + signed-header
+block, RFC 8617 §5.1.1 — same shape as DKIM §3.7) and (b) `ARC-Seal`
+(chain-prefix block, RFC 8617 §5.1.2, always relaxed/relaxed canon).
+A single failure short-circuits to `ChainOutcome::Fail { reason }`
+with the offending instance + header type.
+
+The crypto routes through `mailrs_dkim::crypto::verify_signature` +
+`mailrs_dkim::canon::*` — RFC 8617 §5 specifies the same algorithms
+and canonicalization as DKIM-Signature, so we share one verified
+implementation instead of duplicating ~400 LOC of canon + ~100 LOC
+of RSA/Ed25519 verify.
 
 ## Example
+
+### Structural only (synchronous, no DNS)
 
 ```rust
 use mailrs_arc::{ArcChain, verify_chain, ChainOutcome};
@@ -67,6 +78,22 @@ let chain = ArcChain::extract(raw_message).unwrap().unwrap();
 assert_eq!(chain.sets.len(), 1);
 assert_eq!(verify_chain(&chain), ChainOutcome::Pass);
 ```
+
+### Full crypto verify (async, requires DNS)
+
+```rust,ignore
+use mailrs_arc::{ArcChain, ChainOutcome, verify_chain_with_crypto};
+
+let chain = ArcChain::extract(raw_message)?.unwrap();
+match verify_chain_with_crypto(&chain, &my_resolver, raw_message).await? {
+    ChainOutcome::Pass => { /* trust chain's accumulated authres */ }
+    ChainOutcome::Fail { reason } => { /* "ams i=2: …" or "as i=1: …" */ }
+    _ => unreachable!(),
+}
+```
+
+`my_resolver` is any `mailrs_dkim::DkimResolver` impl — wire your
+existing DKIM resolver here, ARC reuses the same DNS surface.
 
 ## Performance
 
@@ -92,10 +119,11 @@ mailrs-arc 1.0 ships ARC as a standalone primitive. Use it with
 mailrs-spf / mailrs-dkim / mailrs-dmarc (the rest of the email-auth
 stack) or stand-alone with whatever auth stack you already have.
 
-For mailrs's own server, mailrs-arc 1.0 closes
+For mailrs's own server, mailrs-arc 1.1 closes
 [DEPS_AUDIT](https://github.com/goliajp/mailrs/blob/main/DEPS_AUDIT.md)
-candidate #1 — the server can drop `mail-auth` from its runtime
-dependencies once 1.1 ships the cryptographic layer.
+candidate #1 — the server's inbound stage can swap
+`mail_authenticator.verify_arc` for `verify_chain_with_crypto` and
+drop `mail-auth` from runtime dependencies entirely.
 
 ## License
 

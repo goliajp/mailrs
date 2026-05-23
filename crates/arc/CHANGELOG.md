@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-23
+
+### Added
+
+- **`crypto` module** — real cryptographic AMS and AS verification.
+  Closes the gap reserved in 1.0's `ChainOutcome::CryptoUnimplemented`
+  branch. Re-uses `mailrs_dkim::crypto::verify_signature` (lifted
+  in dkim 1.2) and `mailrs_dkim::canon::*` for byte-identical
+  canonicalization — no algorithm code is duplicated.
+  - `verify_ams(&ArcSet, raw_message, &resolver)` — verifies one
+    instance's `ARC-Message-Signature` body-hash + signed-header
+    block against the DNS-fetched public key. Same canon + algorithm
+    set as DKIM (`rsa-sha256` / `ed25519-sha256`).
+  - `verify_as(&ArcChain, instance, &resolver)` — verifies one
+    instance's `ARC-Seal` against the chain prefix (AAR_j + AMS_j +
+    AS_j for `j=1..i`, then `AS_i` with `b=` cleared), always
+    relaxed/relaxed per RFC 8617 §5.1.2.
+- `verify_chain_with_crypto` now walks the chain from highest
+  instance down and runs both `verify_ams` and `verify_as` for every
+  set. Returns `ChainOutcome::Pass` only if every signature
+  cryptographically validates; `ChainOutcome::Fail { reason }` names
+  the first failure with `"ams i=N: …"` / `"as i=N: …"`.
+
+### Tests
+
+- `tests/crypto_roundtrip.rs` — full end-to-end RSA-2048 keypair →
+  sign AMS over a real message → sign AS over the chain prefix →
+  run `verify_chain_with_crypto` with a public-key-returning
+  `DkimResolver` → assert `Pass`. Plus a tampered-body twin test
+  that asserts `Fail` for body-hash mismatch.
+- Existing 33 structural tests continue to pass.
+
+### Errors added
+
+- `ArcError::BodyHashMismatch` — body's recomputed SHA-256 didn't
+  match `bh=`.
+- `ArcError::InvalidBase64(tag)` — `b=` / `bh=` failed to decode.
+- `ArcError::MalformedMessage` — no end-of-headers found in input.
+
+### Deprecated
+
+- `ChainOutcome::CryptoUnimplemented` — kept for API compatibility
+  with 1.0 callers that pattern-matched on it, but
+  `verify_chain_with_crypto` no longer returns this variant. New
+  code should treat it as unreachable.
+
+### Dependencies
+
+- Bumps `mailrs-dkim` floor from `1.1` to `1.2` (needs the new
+  `crypto` + `headers` modules).
+- Dropped direct `rsa` + `ed25519-dalek` + `sha2` + `base64` deps
+  from the runtime build — those now come transitively through
+  `mailrs-dkim`. The crate's own compiled binary footprint is
+  unchanged.
+- `[dev-dependencies]` add `rsa` / `rand` / `base64` / `sha2` /
+  `async-trait` for the crypto roundtrip integration tests only.
+
+### Impact on `mailrs` server
+
+This release lets the server drop its `mail_authenticator.verify_arc`
+call (and ultimately `mail-auth` from its runtime deps once the
+remaining DKIM / SPF shadow paths are removed). Tracked under
+DEPS_AUDIT #1.
+
 ## [1.0.0] - 2026-05-23
 
 ### Added

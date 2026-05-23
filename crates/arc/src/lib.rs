@@ -47,15 +47,15 @@
 //!   concern; this crate returns the verdict, the server enforces.
 
 pub mod chain;
+pub mod crypto;
 pub mod error;
 pub mod header;
 pub mod resolver;
 pub mod verify;
 
 pub use chain::{ArcChain, ArcSet};
+pub use crypto::{verify_ams, verify_as};
 pub use error::ArcError;
-pub use header::{
-    ArcAuthResults, ArcMessageSignature, ArcSeal, ArcSealCv,
-};
+pub use header::{ArcAuthResults, ArcMessageSignature, ArcSeal, ArcSealCv};
 pub use resolver::ArcResolver;
-pub use verify::{verify_chain, ChainOutcome};
+pub use verify::{ChainOutcome, verify_chain, verify_chain_with_crypto};

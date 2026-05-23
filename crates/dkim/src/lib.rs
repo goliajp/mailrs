@@ -5,13 +5,17 @@
 //! Module layout:
 //! - [`header`]    — DKIM-Signature header parser
 //! - [`canon`]     — header + body canonicalization (simple / relaxed)
+//! - [`headers`]   — low-level byte-region helpers (body offset, fold-aware find, b= clear)
+//! - [`crypto`]    — standalone RSA-SHA256 / Ed25519-SHA256 signature verify + DNS pubkey parse
 //! - [`resolver`]  — [`DkimResolver`] trait + (optional) hickory impl
 //! - [`verifier`]  — full verify() entry point
 //! - [`error`]     — error / temp-fail / perm-fail types
 
 pub mod canon;
+pub mod crypto;
 pub mod error;
 pub mod header;
+pub mod headers;
 pub mod resolver;
 pub mod verifier;
 
