@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-05-23
+
+### Changed
+
+- `parse_addr_and_prefix` returns `&str` instead of `String` for the address
+  half — drops one allocation per `ip4:` / `ip6:` mechanism on the hot path.
+  No public API change.
+
+### Performance
+
+Measured (criterion, M-series Mac, release, `--quick`):
+
+| Input | Before | After | mail-auth 0.9 |
+|---|---:|---:|---:|
+| `v=spf1 ip4:... -all` (3 mech) | 71 ns | **62 ns** | 51 ns |
+| 8-mechanism complex | 387 ns | **344 ns** | 400 ns |
+| 8-include pathological | 375 ns | **379 ns** | 545 ns |
+
+Net: mailrs-spf wins the realistic + pathological cases, loses by 11 ns
+on tiny 3-mechanism records (mail-auth's byte-iter dispatch is tighter on
+short inputs). Bench source: `benches/compare_mail_auth.rs`.
+
+### Added
+
+- `benches/compare_mail_auth.rs` — head-to-head parse bench against `mail-auth`.
+
 ## [1.0.2] - 2026-05-23
 
 ### Added

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-05-23
+
+### Changed
+
+- **DKIM-Signature header parser rewritten as a single-pass byte scanner.**
+  Replaces the prior `unfold(...) + parse_tag_list(...) -> HashMap<String,String>`
+  pipeline. No public API change; 44 inline tests unchanged + green.
+
+### Performance
+
+Measured (criterion, M-series Mac, release, `--quick`):
+
+| Input | Before | After | mail-auth 0.9 |
+|---|---:|---:|---:|
+| minimal (7 tags) | 674 ns | **158 ns** (−77%) | 159 ns |
+| realistic (folded, 11 tags) | 1.4 µs | **436 ns** (−69%) | 405 ns |
+
+Result: from 4.1× / 3.6× slower than `mail-auth` → within ±7%. Bench source:
+`benches/compare_mail_auth.rs`. Reproduce: `cargo bench -p mailrs-dkim --bench compare_mail_auth`.
+
+### Added
+
+- `benches/compare_mail_auth.rs` — head-to-head bench against the same `mail-auth`
+  version the workspace already pulls in.
+
 ## [1.1.1] - 2026-05-23
 
 ### Added

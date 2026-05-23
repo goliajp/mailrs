@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-23
+
+### Added
+
+- `benches/compare_exponential_backoff.rs` — head-to-head bench vs the
+  `exponential-backoff` 2.x crate.
+
+### Performance
+
+Measured (criterion, M-series Mac, release, `--quick`):
+
+| Input | mailrs-backoff | exponential-backoff 2 |
+|---|---:|---:|
+| single attempt, no jitter | **2 ns** | 52 ns (26×) |
+| single attempt, full jitter | **3 ns** | 52 ns (17×) |
+| 8-attempt chain, no jitter | **10 ns** | 79 ns (8×) |
+
+We're a pure `base_delay(attempt: u32) -> Duration` function;
+`exponential-backoff` is iterator-shaped and pays per-call setup cost.
+
+No lib code change.
+
 ## [1.0.0] - 2026-05-23
 
 ### Added

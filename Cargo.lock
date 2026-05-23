@@ -1230,7 +1230,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1282,6 +1282,15 @@ checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
 dependencies = [
  "event-listener",
  "pin-project-lite",
+]
+
+[[package]]
+name = "exponential-backoff"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "020662aa57307d8884be79fca464cce073745cfe6ac70805770972113ca6ee95"
+dependencies = [
+ "fastrand",
 ]
 
 [[package]]
@@ -1381,6 +1390,12 @@ name = "foldhash"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
+
+[[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "form_urlencoded"
@@ -1564,6 +1579,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "governor"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9efcab3c1958580ff1f25a2a41be1668f7603d849bb63af523b208a3cc1223b8"
+dependencies = [
+ "cfg-if",
+ "dashmap",
+ "futures-sink",
+ "futures-timer",
+ "futures-util",
+ "getrandom 0.3.4",
+ "hashbrown 0.16.1",
+ "nonzero_ext",
+ "parking_lot",
+ "portable-atomic",
+ "quanta",
+ "rand 0.9.4",
+ "smallvec",
+ "spinning_top",
+ "web-time",
+]
+
+[[package]]
 name = "h2"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1613,7 +1651,18 @@ checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
+ "foldhash 0.1.5",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
 ]
 
 [[package]]
@@ -1999,6 +2048,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "icalendar"
+version = "0.17.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "264fe856964b7a84076dec2d8ea29fce7c9b422968c9a2f404d4aa3771ae2179"
+dependencies = [
+ "chrono",
+ "iso8601",
+ "nom 8.0.0",
+ "nom-language",
+ "uuid",
+]
+
+[[package]]
 name = "icu_collections"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2219,6 +2281,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d98f6fed1fde3f8c21bc40a1abb88dd75e67924f9cffc3ef95607bad8017f8e2"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "iso8601"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1082f0c48f143442a1ac6122f67e360ceee130b967af4d50996e5154a45df46"
+dependencies = [
+ "nom 8.0.0",
 ]
 
 [[package]]
@@ -2575,7 +2646,7 @@ version = "1.0.3"
 dependencies = [
  "criterion",
  "dashmap",
- "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-backoff 1.0.0",
  "tracing",
 ]
 
@@ -2586,15 +2657,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a390fe252549a4900bfe7478a0c090e0d61f5c93a19c54aba292b4f61ab13275"
 dependencies = [
  "dashmap",
- "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-backoff 1.0.0",
  "tracing",
-]
-
-[[package]]
-name = "mailrs-backoff"
-version = "1.0.0"
-dependencies = [
- "criterion",
 ]
 
 [[package]]
@@ -2602,6 +2666,14 @@ name = "mailrs-backoff"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4099c3c303b269fad7b6a50508e59133845f5050ca0238bb82fb0f116b765942"
+
+[[package]]
+name = "mailrs-backoff"
+version = "1.0.1"
+dependencies = [
+ "criterion",
+ "exponential-backoff",
+]
 
 [[package]]
 name = "mailrs-clamav"
@@ -2664,20 +2736,6 @@ dependencies = [
 [[package]]
 name = "mailrs-dkim"
 version = "1.1.1"
-dependencies = [
- "async-trait",
- "base64",
- "criterion",
- "ed25519-dalek",
- "hickory-resolver",
- "rsa",
- "sha2 0.10.9",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-dkim"
-version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "576bdf2373a63778dea0b36dd7e6d47415b4d0bb9d7c96dc68b938ccd3b9d632"
 dependencies = [
@@ -2687,6 +2745,21 @@ dependencies = [
  "hickory-resolver",
  "rsa",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "mailrs-dkim"
+version = "1.1.2"
+dependencies = [
+ "async-trait",
+ "base64",
+ "criterion",
+ "ed25519-dalek",
+ "hickory-resolver",
+ "mail-auth",
+ "rsa",
+ "sha2 0.10.9",
+ "tokio",
 ]
 
 [[package]]
@@ -2746,22 +2819,23 @@ dependencies = [
 [[package]]
 name = "mailrs-ical"
 version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2f48fce8bceb495525ad5911b443b8511a83db1bc1333b8463db2e8ddddc150"
 dependencies = [
  "chrono",
  "chrono-tz",
- "criterion",
  "rrule",
  "serde",
 ]
 
 [[package]]
 name = "mailrs-ical"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2f48fce8bceb495525ad5911b443b8511a83db1bc1333b8463db2e8ddddc150"
+version = "1.0.3"
 dependencies = [
  "chrono",
  "chrono-tz",
+ "criterion",
+ "icalendar",
  "rrule",
  "serde",
 ]
@@ -2936,7 +3010,7 @@ dependencies = [
  "futures-util",
  "hickory-resolver",
  "mail-auth",
- "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-backoff 1.0.0",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "redis",
  "rustls-pki-types",
@@ -2957,7 +3031,7 @@ dependencies = [
  "futures-util",
  "hickory-resolver",
  "mail-auth",
- "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-backoff 1.0.0",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "redis",
  "rustls-pki-types",
@@ -2995,21 +3069,22 @@ dependencies = [
 [[package]]
 name = "mailrs-rate-limit"
 version = "1.0.1"
-dependencies = [
- "async-trait",
- "criterion",
- "dashmap",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-rate-limit"
-version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c18710632c4f15e5ade733808048ce58a85b4ab87434f7727be0a98f5d91c040"
 dependencies = [
  "async-trait",
  "dashmap",
+]
+
+[[package]]
+name = "mailrs-rate-limit"
+version = "1.0.2"
+dependencies = [
+ "async-trait",
+ "criterion",
+ "dashmap",
+ "governor",
+ "tokio",
 ]
 
 [[package]]
@@ -3092,13 +3167,13 @@ dependencies = [
  "mail-parser",
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-auth-guard 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-backoff 1.0.0",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0",
- "mailrs-dkim 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-dkim 1.1.1",
  "mailrs-dmarc 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-ical 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-ical 1.0.2",
  "mailrs-imap-proto 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-inbound 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-intelligence 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3108,14 +3183,14 @@ dependencies = [
  "mailrs-mime 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-outbound-queue 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-rate-limit 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rate-limit 1.0.1",
  "mailrs-rfc2047 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc5322 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-shield 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-spf 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-spf 1.0.2",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3221,21 +3296,22 @@ dependencies = [
 [[package]]
 name = "mailrs-spf"
 version = "1.0.2"
-dependencies = [
- "async-trait",
- "criterion",
- "hickory-resolver",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-spf"
-version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7328fb1727ccee79df1cec24b9b37cb966f49444c7aa961369b337e95dd299b"
 dependencies = [
  "async-trait",
  "hickory-resolver",
+]
+
+[[package]]
+name = "mailrs-spf"
+version = "1.0.3"
+dependencies = [
+ "async-trait",
+ "criterion",
+ "hickory-resolver",
+ "mail-auth",
+ "tokio",
 ]
 
 [[package]]
@@ -3467,6 +3543,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nom-language"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2de2bc5b451bfedaef92c90b8939a8fff5770bdcc1fafd6239d086aab8fa6b29"
+dependencies = [
+ "nom 8.0.0",
+]
+
+[[package]]
 name = "nom_locate"
 version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3478,12 +3563,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nonzero_ext"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38bf9645c8b145698bb0b18a4637dcacbc421ea49bef2317e4fd8065a387cf21"
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3982,6 +4073,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0c5ccf5294c6ccd63a74f1565028353830a9c2f5eb0c682c355c471726a6e3f"
 
 [[package]]
+name = "quanta"
+version = "0.12.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3ab5a9d756f0d97bdc89019bd2e4ea098cf9cde50ee7564dde6b81ccc8f06c7"
+dependencies = [
+ "crossbeam-utils",
+ "libc",
+ "once_cell",
+ "raw-cpuid",
+ "wasi",
+ "web-sys",
+ "winapi",
+]
+
+[[package]]
 name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4154,6 +4260,15 @@ name = "rangemap"
 version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "973443cf09a9c8656b574a866ab68dfa19f0867d0340648c7d2f6a71b8a8ea68"
+
+[[package]]
+name = "raw-cpuid"
+version = "11.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "498cd0dc59d73224351ee52a95fee0f1a617a2eae0e7d9d720cc622c73a54186"
+dependencies = [
+ "bitflags",
+]
 
 [[package]]
 name = "rcgen"
@@ -4446,7 +4561,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4505,7 +4620,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4908,7 +5023,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4916,6 +5031,15 @@ name = "spin"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+dependencies = [
+ "lock_api",
+]
+
+[[package]]
+name = "spinning_top"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d96d2d1d716fb500937168cc09353ffdc7a012be8475ac7308e1bdf0e3923300"
 dependencies = [
  "lock_api",
 ]
@@ -5279,7 +5403,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6177,7 +6301,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

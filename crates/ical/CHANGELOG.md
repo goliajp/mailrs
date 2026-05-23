@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-05-23
+
+### Added
+
+- `benches/compare_icalendar.rs` — head-to-head bench vs the `icalendar` 0.17
+  crate (the most popular Rust iCalendar parser).
+
+### Performance
+
+Measured (criterion, M-series Mac, release, `--quick`):
+
+| Input | mailrs-ical | icalendar 0.17 |
+|---|---:|---:|
+| simple VEVENT | **1.44 µs** | 5.33 µs (3.7×) |
+| VEVENT + RRULE | **1.63 µs** | 5.96 µs (3.7×) |
+| VTIMEZONE + VEVENT | **2.67 µs** | 9.21 µs (3.4×) |
+
+Clean sweep on the parse path. icalendar's builder / serializer APIs are
+broader than ours; we don't bench those.
+
+No lib code change.
+
 ## [1.0.2] - 2026-05-22
 
 ### Added

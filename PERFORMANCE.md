@@ -67,6 +67,88 @@ the criterion bench medians above instead.
 | mailrs-smtp-proto | budgets in `BUDGETS.md` | 5 |
 | mailrs-maildir | budgets in `BUDGETS.md` | 3 |
 
+### Head-to-head vs. Rust community competitors (criterion, M-series Mac, release profile, `--quick` mode)
+
+Honest comparison. Wins **and** losses. Bench source: `crates/<crate>/benches/compare_<competitor>.rs` (each crate's compare bench is reproducible in-tree).
+
+#### `mailrs-spf` vs `mail-auth` 0.9 (SPF half — the DEPS_AUDIT #1 reason)
+
+| Input | mailrs-spf | mail-auth | Winner |
+|---|---:|---:|---|
+| `v=spf1 ip4:... -all` (3 mech) | 62 ns | 51 ns | mail-auth **+22%** ⚠ |
+| 8-mechanism complex | 344 ns | 400 ns | **mailrs +16%** ✅ |
+| 8-include pathological | 379 ns | 545 ns | **mailrs +44%** ✅ |
+
+Read: mail-auth's byte-iter parser is tighter on tiny records; mailrs wins anything realistic-sized. Recent commit `5f2a98e` shaved off 9 ns on the simple case by switching `parse_addr_and_prefix` to return `&str` instead of `String`.
+
+#### `mailrs-dkim` vs `mail-auth` 0.9 (DKIM-Signature header parse)
+
+| Input | mailrs-dkim | mail-auth | Winner |
+|---|---:|---:|---|
+| minimal (7 tags) | 158 ns | 159 ns | **tie** ✅ |
+| realistic (folded, 11 tags) | 436 ns | 405 ns | mail-auth +7% (close) |
+
+Before commit `fc8a72c` we were 4.1× / 3.6× slower (single-pass byte scanner replaces the HashMap + unfold pre-pass; 44 inline tests unchanged). Body+header canonicalization comparison is non-trivial because mail-auth streams into a `HashContext` and we return `Vec<u8>` — apples-to-pears, deferred.
+
+#### `mailrs-mime` vs `mail-parser` (MIME body parse)
+
+| Input | mailrs-mime | mail-parser | Winner |
+|---|---:|---:|---|
+| simple `text/plain` body_text | 153 ns | 184 ns | **mailrs +17%** ✅ |
+| find `text/calendar` part | 1.20 µs | 595 ns (proxy) | mail-parser 2.0× ⚠ |
+
+`find_calendar` comparison is approximate — mail-parser doesn't have an exact equivalent so we benchmark "first sub-part raw_len" as a proxy. Apples-to-apples requires building a mail-parser visitor; deferred.
+
+#### `mailrs-rfc5322` vs `mail-parser` (header lookup, lazy)
+
+mailrs-rfc5322 is pull-based: it scans for the requested header without parsing the body. mail-parser eagerly parses everything. Comparison is therefore by body size — the lazy crate's wall-clock cost is constant.
+
+| Body size | mailrs-rfc5322 (subject + from) | mail-parser (full parse) | Winner |
+|---|---:|---:|---|
+| 1 KB | 215 ns | 2.35 µs | **mailrs 11×** ✅ |
+| 5 KB | 213 ns | 3.30 µs | **mailrs 15×** ✅ |
+| 20 KB | 213 ns | 6.99 µs | **mailrs 33×** ✅ |
+
+This is the "lazy beats eager" payoff under load. If you only need 1-2 headers per message — which the SMTP frontline does — `mailrs-rfc5322` is the right tool. Use `mail-parser` when you need full-tree access in one shot.
+
+#### `mailrs-rfc2047` vs `mail-parser` (subject extraction)
+
+| Input | mailrs-rfc2047 (single-field) | mail-parser (full message) | Winner |
+|---|---:|---:|---|
+| ASCII subject | 23 ns | 323 ns | **mailrs 14×** ✅ |
+| =?UTF-8?B?...?= encoded | 85 ns | 346 ns | **mailrs 4×** ✅ |
+
+Same caveat as rfc5322: the right comparison is "minimum cost to get the user-visible Subject string", and a focused crate beats a tree builder. mail-parser remains the right call when you want the full structured Message at once.
+
+#### `mailrs-ical` vs `icalendar` 0.17 (RFC 5545 parse)
+
+| Input | mailrs-ical | icalendar | Winner |
+|---|---:|---:|---|
+| simple VEVENT | 1.44 µs | 5.33 µs | **mailrs 3.7×** ✅ |
+| VEVENT + RRULE | 1.63 µs | 5.96 µs | **mailrs 3.7×** ✅ |
+| VTIMEZONE + VEVENT | 2.67 µs | 9.21 µs | **mailrs 3.4×** ✅ |
+
+Clean sweep on parse. Note: `icalendar` has serializer / builder APIs we don't bench against because mailrs-ical's serializer surface is narrower.
+
+#### `mailrs-rate-limit` vs `governor` 0.10 (token bucket vs GCRA)
+
+| Input | mailrs-rate-limit | governor | Winner |
+|---|---:|---:|---|
+| hot key, allowed | 31 ns | 14 ns | governor 2.2× ⚠ |
+| cold key first-touch | 306 ns | 221 ns | governor +28% ⚠ |
+
+Honest loss. GCRA needs only a single atomic CAS per check; token bucket has two-field state and uses a DashMap entry lock. We shaved 9% off the hot path by switching to `get_mut` before falling back to `entry().or_insert_with(...)` (no `to_owned()` alloc on the hot path), but closing the remaining 17 ns gap requires either dropping token-bucket semantics or switching off DashMap. **If you need a strict token bucket — what mailrs's SMTP frontline actually wants — we're the right tool.** If you can accept GCRA semantics, governor is faster.
+
+#### `mailrs-backoff` vs `exponential-backoff` 2
+
+| Input | mailrs-backoff | exponential-backoff | Winner |
+|---|---:|---:|---|
+| single attempt, no jitter | 2 ns | 52 ns | **mailrs 26×** ✅ |
+| single attempt, full jitter | 3 ns | 52 ns | **mailrs 17×** ✅ |
+| 8-attempt chain, no jitter | 10 ns | 79 ns | **mailrs 8×** ✅ |
+
+We're a pure function `base_delay(attempt: u32)`; `exponential-backoff` is iterator-shaped and pays setup cost per call. Different API contracts; the comparison is "how much does the typical retry loop pay per probe". Mailrs wins because we don't allocate.
+
 ### `mailrs-smtp-proto` (criterion, `cargo bench -p mailrs-smtp-proto`)
 
 | Path | Median | Notes |
