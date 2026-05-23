@@ -104,8 +104,10 @@ where
                         "stage complete"
                     );
 
+                    use std::sync::atomic::Ordering;
                     match decision {
                         DeliveryDecision::Reject { code, message } => {
+                            ctx.web_state.inbound_reject_total.fetch_add(1, Ordering::Relaxed);
                             let class = (code / 100) as u8;
                             let resp = Response::new(
                                 code,
@@ -126,6 +128,7 @@ where
                             return SessionAction::Continue;
                         }
                         DeliveryDecision::Greylist => {
+                            ctx.web_state.inbound_defer_total.fetch_add(1, Ordering::Relaxed);
                             let resp = Response::new(
                                 451,
                                 Some(mailrs_smtp_proto::EnhancedCode {
@@ -148,6 +151,7 @@ where
                             auth_header,
                             reason,
                         } => {
+                            ctx.web_state.inbound_junk_total.fetch_add(1, Ordering::Relaxed);
                             tracing::info!(
                                 event = "junk",
                                 id = conn_id,
@@ -160,6 +164,7 @@ where
                             target_folder = "Junk";
                         }
                         DeliveryDecision::Accept { auth_header } => {
+                            ctx.web_state.inbound_accept_total.fetch_add(1, Ordering::Relaxed);
                             let mut new_msg = auth_header.into_bytes();
                             new_msg.extend_from_slice(&full_message);
                             full_message = new_msg;

@@ -74,6 +74,15 @@ pub struct WebState {
     pub total_connections: AtomicU64,
     pub total_messages: AtomicU64,
     pub active_connections: AtomicU64,
+    /// Per-verdict counters for inbound DATA decisions. Incremented in
+    /// the SMTP DATA handler after `mailrs_inbound::Pipeline::run`
+    /// returns. Exposed via the Prometheus `/metrics` endpoint as
+    /// `mailrs_inbound_verdict_total{verdict="…"}` so operators can
+    /// see the rejection mix at a glance.
+    pub inbound_accept_total: AtomicU64,
+    pub inbound_reject_total: AtomicU64,
+    pub inbound_defer_total: AtomicU64,
+    pub inbound_junk_total: AtomicU64,
     pub outbound_queue: Option<sqlx::PgPool>,
     pub mailbox_store: Option<Arc<PgMailboxStore>>,
     pub domain_store: Option<Arc<DomainStore>>,
@@ -137,6 +146,10 @@ impl WebState {
             total_connections: AtomicU64::new(0),
             total_messages: AtomicU64::new(0),
             active_connections: AtomicU64::new(0),
+            inbound_accept_total: AtomicU64::new(0),
+            inbound_reject_total: AtomicU64::new(0),
+            inbound_defer_total: AtomicU64::new(0),
+            inbound_junk_total: AtomicU64::new(0),
             outbound_queue: None,
             mailbox_store: None,
             domain_store: None,
