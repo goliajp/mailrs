@@ -545,6 +545,7 @@ async fn main() {
     listeners::spawn_plain(
         format!("0.0.0.0:{}", cfg.smtp_port),
         "smtp",
+        shutdown_rx.clone(),
         move |stream, addr| {
             let ctx = ctx_smtp.clone();
             async move { smtp_session::handle_plain_connection(stream, addr, ctx).await }
@@ -557,6 +558,7 @@ async fn main() {
     listeners::spawn_plain(
         format!("0.0.0.0:{}", cfg.submission_port),
         "submission",
+        shutdown_rx.clone(),
         move |stream, addr| {
             let ctx = ctx_sub.clone();
             async move { smtp_session::handle_plain_connection(stream, addr, ctx).await }
@@ -570,6 +572,7 @@ async fn main() {
         listeners::spawn_plain(
             format!("0.0.0.0:{}", cfg.smtps_port),
             "smtps",
+            shutdown_rx.clone(),
             move |stream, addr| {
                 let ctx = ctx_tls.clone();
                 async move { smtp_session::handle_tls_connection(stream, addr, ctx).await }
@@ -639,6 +642,7 @@ async fn main() {
         listeners::spawn_plain(
             format!("0.0.0.0:{}", cfg.imap_port),
             "imap",
+            shutdown_rx.clone(),
             move |stream, addr| {
                 let mb = mb_store.clone();
                 let u = imap_users.clone();
@@ -670,6 +674,7 @@ async fn main() {
         listeners::spawn_plain(
             format!("0.0.0.0:{}", cfg.imaps_port),
             "imaps",
+            shutdown_rx.clone(),
             move |stream, addr| {
                 let tls = imaps_tls.clone();
                 let mb = mb_store.clone();
@@ -708,6 +713,7 @@ async fn main() {
         listeners::spawn_plain(
             format!("0.0.0.0:{}", cfg.pop3_port),
             "pop3",
+            shutdown_rx.clone(),
             move |stream, addr| {
                 let mb = mb_store.clone();
                 let u = pop3_users.clone();
@@ -732,6 +738,7 @@ async fn main() {
         listeners::spawn_plain(
             format!("0.0.0.0:{}", cfg.managesieve_port),
             "managesieve",
+            shutdown_rx.clone(),
             move |stream, addr| {
                 let u = sieve_users.clone();
                 let ag = sieve_auth_guard.clone();
