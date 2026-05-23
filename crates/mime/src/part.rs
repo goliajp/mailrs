@@ -35,9 +35,11 @@ impl Part {
     /// `<type>/<subtype>` (lowercased compare). Returns `None` if
     /// no part matches.
     pub fn find_by_content_type(&self, mime_type: &str) -> Option<&Part> {
-        let target = mime_type.to_ascii_lowercase();
-        self.walk()
-            .find(|p| p.content_type.mime_type() == target)
+        // Split the target once into (type, subtype) and compare bytewise.
+        // Recursive descent — no Vec allocation for the walk stack, which
+        // [`Self::walk`] would otherwise do.
+        let (target_type, target_subtype) = mime_type.split_once('/')?;
+        find_by_ct_recursive(self, target_type, target_subtype)
     }
 
     /// Depth-first iterator over self + all descendant parts.
@@ -109,6 +111,26 @@ impl Part {
 
 /// Depth-first iterator over a part tree (yields self first, then
 /// children recursively).
+fn find_by_ct_recursive<'a>(
+    part: &'a Part,
+    target_type: &str,
+    target_subtype: &str,
+) -> Option<&'a Part> {
+    if part.content_type.type_.eq_ignore_ascii_case(target_type)
+        && part.content_type.subtype.eq_ignore_ascii_case(target_subtype)
+    {
+        return Some(part);
+    }
+    for child in &part.children {
+        if let Some(found) = find_by_ct_recursive(child, target_type, target_subtype) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// Depth-first iterator over a [`Part`] tree. Constructed by
+/// [`Part::walk`]. Visits `self` first then each child in document order.
 pub struct Walker<'a> {
     stack: Vec<&'a Part>,
 }

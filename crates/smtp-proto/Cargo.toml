@@ -20,7 +20,12 @@ base64 = "0.22"
 
 [dev-dependencies]
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+smtp-codec = "0.2"
 
 [[bench]]
 name = "parse"
+harness = false
+
+[[bench]]
+name = "compare_smtp_codec"
 harness = false

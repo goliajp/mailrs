@@ -17,7 +17,12 @@ workspace = true
 
 [dev-dependencies]
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+imap-codec = "2.0.0-alpha.7"
 
 [[bench]]
 name = "parse"
+harness = false
+
+[[bench]]
+name = "compare_imap_codec"
 harness = false
