@@ -847,12 +847,21 @@ async fn main() {
             }));
 
             // Periodic TLSRPT flush task — every 24h, build the
-            // accumulated report and log as JSON. (Submission to rua
-            // endpoints is a follow-up; this proves the data flow
-            // works against real outbound traffic first.)
+            // accumulated report and submit to each rua endpoint
+            // (mailto: via outbound queue, https: via reqwest POST).
             let tls_rpt_flush = tls_rpt_obs.clone();
             let hostname_for_tls_rpt = cfg.hostname.clone();
+            let resolver_for_tls_rpt = resolver.clone();
+            let pool_for_tls_rpt = outbound_queue.clone();
             tokio::spawn(async move {
+                // One reqwest client shared across windows. rustls,
+                // 30s timeout, no redirects (RFC 8460 §6 says POST
+                // to the literal URL).
+                let http = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(30))
+                    .redirect(reqwest::redirect::Policy::none())
+                    .build()
+                    .ok();
                 let mut tick = tokio::time::interval(tokio::time::Duration::from_secs(86_400));
                 tick.tick().await; // skip the immediate first tick
                 loop {
@@ -864,30 +873,34 @@ async fn main() {
                         hostname_for_tls_rpt,
                         now.format("%Y%m%d")
                     );
+                    let submitter_address = format!("tlsrpt@{hostname_for_tls_rpt}");
                     if let Some(report) = tls_rpt_flush
                         .take_report(
                             &hostname_for_tls_rpt,
-                            &format!("mailto:postmaster@{hostname_for_tls_rpt}"),
+                            &format!("mailto:{submitter_address}"),
                             &report_id,
                             &start.to_rfc3339(),
                             &now.to_rfc3339(),
                         )
                         .await
                     {
-                        match serde_json::to_string(&report) {
-                            Ok(json) => tracing::info!(
-                                event = "tls_rpt_report_built",
-                                policies = report.policies.len(),
-                                report_id = %report_id,
-                                report = %json,
-                                "TLSRPT daily report built (not yet submitted)"
-                            ),
-                            Err(e) => tracing::warn!(
-                                event = "tls_rpt_report_serialize_error",
-                                error = %e,
-                                "TLSRPT serialize failed"
-                            ),
-                        }
+                        let (ok, failed) = outbound_tls_rpt::submit_report(
+                            &report,
+                            &hostname_for_tls_rpt,
+                            &submitter_address,
+                            resolver_for_tls_rpt.as_ref(),
+                            pool_for_tls_rpt.as_ref(),
+                            http.as_ref(),
+                        )
+                        .await;
+                        tracing::info!(
+                            event = "tls_rpt_submission_summary",
+                            policies = report.policies.len(),
+                            endpoints_ok = ok,
+                            endpoints_failed = failed,
+                            report_id = %report_id,
+                            "TLSRPT daily submission complete"
+                        );
                     }
                 }
             });

@@ -6,6 +6,7 @@ pub mod error;
 pub mod failure;
 pub mod record;
 pub mod report;
+pub mod submit;
 
 pub use error::TlsRptError;
 pub use failure::FailureType;
@@ -14,3 +15,4 @@ pub use report::{
     DateRange, FailureDetail, FailureEvent, PolicyBlock, PolicyReport, PolicyType, Report,
     ReportBuilder, SuccessEvent, SummaryBlock,
 };
+pub use submit::{SubmissionEmailOpts, build_submission_email, gzip_report};
