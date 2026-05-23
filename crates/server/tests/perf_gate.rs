@@ -90,12 +90,20 @@ fn smtp_session_data_then_maildir_deliver_under_budget() {
     }
     let elapsed = start.elapsed();
     let per_msg = elapsed / iterations;
-    // Budget: 20 ms covers slow CI disks + macOS APFS sync overhead.
-    // Tighten only if the workload becomes filesystem-bottlenecked enough
-    // that we want to track it explicitly.
+    // Budget split by build profile — debug builds run this loop
+    // ~2-3× slower because the maildir / smtp-proto stones aren't
+    // inlined, so a single 20 ms ceiling would false-fail under
+    // `cargo test` (which release.sh runs in debug). Both budgets are
+    // intentionally loose enough to catch order-of-magnitude regressions
+    // without flaking on background CPU/disk contention.
+    let budget = if cfg!(debug_assertions) {
+        Duration::from_millis(50)
+    } else {
+        Duration::from_millis(20)
+    };
     assert!(
-        per_msg < Duration::from_millis(20),
-        "full SMTP→maildir per-msg {per_msg:?} (budget: 20 ms)"
+        per_msg < budget,
+        "full SMTP→maildir per-msg {per_msg:?} (budget: {budget:?})"
     );
 }
 
