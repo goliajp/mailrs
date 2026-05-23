@@ -33,7 +33,13 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 /// through `decode` returns the original string (idempotent for ASCII
 /// input, identity-modulo-canonicalization for encoded input).
 pub fn encode(input: &str) -> Cow<'_, str> {
-    if input.is_ascii() {
+    // Fast path: pure ASCII *and* free of any literal `=?` sequence —
+    // `=?` is the start-of-encoded-word marker RFC 2047 §2 reserves, so
+    // an ASCII input that already contains it cannot safely pass through
+    // borrowed (decoding the unchanged output would interpret the
+    // literal `=?` as an encoded-word start and corrupt the payload —
+    // found via fuzz, see CHANGELOG 1.1.2).
+    if input.is_ascii() && !input.as_bytes().windows(2).any(|w| w == b"=?") {
         return Cow::Borrowed(input);
     }
     let encoded = B64.encode(input.as_bytes());

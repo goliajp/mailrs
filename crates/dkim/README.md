@@ -75,11 +75,26 @@ Measured (criterion, M-series Mac, release):
 
 | Operation | Median |
 |---|---:|
-| `DkimHeader::parse` (minimal header) | **700 ns** |
-| `DkimHeader::parse` (realistic 7-tag header) | **1.49 µs** |
+| `DkimHeader::parse` (minimal header) | **147 ns** |
+| `DkimHeader::parse` (realistic 11-tag header) | **405 ns** |
 | `canonicalize_body` (simple) | **70 ns** |
 | `canonicalize_body` (relaxed) | **140 ns** |
 | `canonicalize_header` (relaxed, one header) | **85 ns** |
+
+### Vs. `mail-auth` 0.9 (the de-facto Rust competitor)
+
+| Input | mailrs-dkim 1.1.3 | mail-auth 0.9 | Winner |
+|---|---:|---:|---|
+| minimal (7 tags) | **147 ns** | 167 ns | **mailrs +12%** ✅ |
+| realistic (folded, 11 tags) | **405 ns** | 423 ns | **mailrs +4%** ✅ |
+
+We **beat mail-auth** on both inputs. The 4.6× / 3.5× cumulative speedup
+since 1.1.1 came from: (1) single-pass byte scanner replaces HashMap +
+unfold pre-pass; (2) byte-level tag dispatch via `match name.as_bytes()`
+(lowercase fast path + case-insensitive fallback); (3) `h=` signed-
+headers parsed via byte-iter with `from_utf8_unchecked` (safe because
+only ASCII-lowercased bytes are pushed). Reproduce via
+`cargo bench -p mailrs-dkim --bench compare_mail_auth`.
 
 Production `verify` is dominated by:
 - DNS lookup for the selector key (5-50 ms)

@@ -191,19 +191,28 @@ First end-to-end run (2026-05-23, Darwin 25.5.0 arm64):
 
 | Scenario | Rust (mailrs) | C | Go |
 |---|---:|---:|---:|
-| RFC 5322 read + Subject + From | **53 ns** | n/a | net/mail: 1267 ns (**24× slower**) |
-| SPF parse — simple | **69 ns** | libspf2: not installed | n/a |
-| SPF parse — complex | **446 ns** | libspf2: not installed | n/a |
-| DKIM-Signature parse | **482 ns** | opendkim: not yet wired | n/a |
-| iCalendar parse | **1.85 µs** | libical: not installed | n/a |
-| MIME tree parse (simple msg) | **670 ns** | GMime: not yet wired | n/a |
+| RFC 5322 read + Subject + From | **46 ns** | n/a | net/mail: 1440 ns (**mailrs 31× faster**) |
+| SPF parse — simple | **65 ns** | libspf2: not on brew (source build) | n/a |
+| SPF parse — complex | **401 ns** | libspf2: not on brew (source build) | n/a |
+| DKIM-Signature parse | **431 ns** | opendkim: not on brew (source build) | n/a |
+| iCalendar parse | **1.76 µs** | libical 4.0: 7032 ns (**mailrs 4.0× faster**) | n/a |
+| MIME tree parse (simple msg) | **601 ns** | GMime: not yet wired | n/a |
 
-The net/mail comparison is the only fully-paired data point so far. The
-24× headroom on a stdlib-vs-stdlib comparison is the kind of gap we
-expected and were going for ("modern Rust implementation of legacy
-email protocols, performance-first"). C-library wiring is best-effort
-— anyone with `brew install libspf2 libical` can re-run with full
-coverage. See `bench-harness/README.md` for setup.
+Two fully-paired cross-language data points so far, both wins for
+mailrs by margins that match the "modern Rust implementation,
+performance-first" positioning:
+
+- **vs. Go stdlib `net/mail.ReadMessage`** — mailrs-rfc5322 is **31×
+  faster** doing the same "read message + extract Subject + From"
+  workload.
+- **vs. C library `libical` 4.0** (the 20+ year reference impl
+  powering Evolution, GNOME Calendar, etc.) — mailrs-ical parses the
+  same iCalendar input **4.0× faster**.
+
+C library wiring is best-effort. libspf2 and opendkim aren't on brew;
+adding them requires a source build. The C runner stubs in
+`bench-harness/c/` are ready — any contributor with a built libspf2
+can drop in the binary and `scripts/run-all.sh` will pick it up.
 
 ### `mailrs-smtp-proto` (criterion, `cargo bench -p mailrs-smtp-proto`)
 

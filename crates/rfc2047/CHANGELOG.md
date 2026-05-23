@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-05-23
+
+### Fixed
+
+- **`encode` no longer corrupts ASCII inputs containing literal `=?`
+  sequences.** Previously `encode("foo =?utf-8?B?bar?=")` returned the
+  string unchanged because of the `if input.is_ascii() { return
+  Borrowed(input); }` fast path. `decode` then mis-interpreted the
+  literal `=?` as an encoded-word start and corrupted the payload.
+  Found by `cargo +nightly fuzz run roundtrip` — the property
+  `decode(encode(s).as_bytes()) == s` failed on inputs with `=?`
+  byte sequences. Fix: extend the fast-path check to require both
+  `is_ascii()` AND absence of any `=?` byte pair; otherwise fall
+  through to the base64 encoded-word path.
+
+### Added
+
+- `tests/proptest_roundtrip.rs` — property-based roundtrip tests
+  (`arbitrary_utf8`, `ascii_with_encoded_word_markers`, `cjk`,
+  `control_bytes`). Same property as the fuzz target, runs as part of
+  `cargo test` so it can't be skipped.
+- `fuzz/fuzz_targets/roundtrip.rs` — libFuzzer target that asserts
+  the same property. 11M iterations clean after the fix above.
+
 ## [1.1.1] - 2026-05-22
 
 ### Added

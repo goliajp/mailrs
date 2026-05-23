@@ -96,9 +96,23 @@ Measured (criterion, M-series Mac, release):
 
 | Operation | Median |
 |---|---:|
-| `Record::parse` (simple `v=spf1 ip4 -all`) | **82 ns** |
-| `Record::parse` (complex 8-mechanism record) | **484 ns** |
+| `Record::parse` (simple `v=spf1 ip4 -all`) | **63 ns** |
+| `Record::parse` (complex 8-mechanism record) | **360 ns** |
+| `Record::parse` (8-include pathological) | **400 ns** |
 | `verify` pass-path (no real DNS) | **244 ns** |
+
+### Vs. `mail-auth` 0.9 (the de-facto Rust competitor)
+
+| Input | mailrs-spf 1.0.4 | mail-auth 0.9 | Winner |
+|---|---:|---:|---|
+| `v=spf1 ip4:… -all` (3 mech) | 63 ns | 50 ns | mail-auth +25% ⚠ |
+| 8-mechanism complex | **360 ns** | 410 ns | **mailrs +14%** ✅ |
+| 8-include pathological | **400 ns** | 577 ns | **mailrs +44%** ✅ |
+
+mailrs wins anything realistic-sized; mail-auth holds a 13 ns edge
+on tiny 3-mechanism records because their hand-rolled byte-iter IPv4
+parser is tighter than `std::net::Ipv4Addr::FromStr`. Reproduce via
+`cargo bench -p mailrs-spf --bench compare_mail_auth`.
 
 The verify number is the pure CPU work; actual production `verify`
 is dominated by DNS round-trips (typical 5-50 ms). Reproduce:

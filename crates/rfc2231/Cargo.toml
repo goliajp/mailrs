@@ -20,6 +20,7 @@ encoding_rs = "0.8"
 
 [dev-dependencies]
 criterion = { workspace = true }
+proptest = "1"
 
 [[bench]]
 name = "params"
