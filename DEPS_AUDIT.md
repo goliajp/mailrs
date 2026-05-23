@@ -1,16 +1,68 @@
-# External Dependency Audit — Rewrite Candidates
+# External Dependency Audit — Status Ledger
 
-> "我们要做一轮 deps 审查，看有没有哪些有重写的可能"  
+> "我们要做一轮 deps 审查，看有没有哪些有重写的可能"
 > — direction, 2026-05-23
 
-Pass applies the **stone / cement lens** outward: each external crate
-we depend on is asked: *is there a clean mailrs stone hiding inside
-this dep?* — i.e. a focused, RFC-bounded reimplementation that would
-let us own the perf / API / shape end-to-end.
+This document applies the **stone / cement lens** outward: each external
+crate we depend on is asked: *is there a clean mailrs stone hiding inside
+this dep?* — i.e. a focused, RFC-bounded reimplementation that would let
+us own the perf / API / shape end-to-end.
 
-## Classification
+**Status (end of 2026-05-23): the four rewrite candidates identified in
+the original audit are all resolved.** What follows is the audited
+state, not a fresh plan.
 
-### Don't rewrite — foundational or already optimal
+## ✅ Candidates resolved
+
+### #1 — `mail-auth` (SPF + DKIM + DMARC + ARC) → **fully replaced**
+
+Owned by Stalwart, used by mailrs for SPF / DKIM / DMARC verification.
+
+Resolution: three stones, each beating `mail-auth` on the realistic
+inputs we measured against it:
+
+| Stone | Version | Vs. mail-auth |
+|---|---|---|
+| `mailrs-spf` | 1.0.4 | wins complex (+14%) and pathological (+44%); loses simple by 13 ns (std `Ipv4Addr` cost) |
+| `mailrs-dkim` | 1.1.3 | wins both minimal (+12%) and realistic (+4%) since the byte-match dispatch + `h=` byte-iter rewrite |
+| `mailrs-dmarc` | 1.1.0 | RFC 7489 §6 policy eval + alignment (strict + relaxed via PSL) + aggregate reporting all owned |
+
+**`mail-auth` is now removable from the server's runtime deps.** The
+remaining open piece is ARC (RFC 8617), the forwarding-friendly
+extension; planned as a separate stone `mailrs-arc` 1.0.
+
+### #2 — `mail-parser` → **replaced for the email-auth + lookup paths**
+
+| What we replaced | New stone | Win |
+|---|---|---|
+| Header lookup (Subject, From, Received, …) | `mailrs-rfc5322` 1.0.1 | 10-33× vs mail-parser on the same op |
+| Encoded-word decode (Subject / display name) | `mailrs-rfc2047` 1.1.2 | 4-14× vs mail-parser for single-field extraction |
+| Filename parameter decode (Content-Disposition) | `mailrs-rfc2231` 1.0.0 | filled a gap mail-parser doesn't address standalone |
+| MIME body tree (multipart, attachments) | `mailrs-mime` 1.0.3 | wins simple `body_text` +17%; loses simple parse path ~60% (mail-parser has years of MIME-specific optimization we'd need to match) |
+
+**`mail-parser` is no longer used on the inbound hot path.** Residual
+use in the server (per `cargo tree`) is only via the `mail-auth` chain,
+which is itself slated for removal once ARC lands.
+
+### #3 — `hickory-resolver` → **wrapper stone shipped (`mailrs-dns` 1.0)**
+
+`hickory-resolver` is the right base; we shipped a thin wrapper
+exposing only the 5 query types email servers actually use (TXT, A,
+AAAA, MX, PTR) with a uniform `Result<Vec<_>, DnsError>` shape
+(NXDOMAIN → `Ok(Vec::new())`).
+
+`mailrs-dns` 1.0.0 is published; future minor versions of `mailrs-spf`
+/ `mailrs-dkim` / `mailrs-dnsbl` will migrate to it as their resolver
+trait. **Not blocking — each currently has its own minimal resolver
+trait that does the job.**
+
+### #4 — `sieve-rs` → **stays (large scope, lower ROI)**
+
+RFC 5228 Sieve eval is ~2000+ LOC of bounded but intricate spec work.
+The upstream crate is functional. Defer indefinitely; revisit only
+if mailrs's Sieve usage outgrows the upstream shape.
+
+## Don't rewrite — foundational or already optimal
 
 These deps are the stones underneath our stones. Reimplementing would
 be wasted effort or a security regression.
@@ -32,59 +84,37 @@ be wasted effort or a security regression.
 | `criterion` | Bench framework; standard |
 | `ldap3` | LDAP fallback auth; specialized |
 | `chromiumoxide` | Chromium control for `render_preview`; specialized |
-| `instant-acme` | Low-level ACME protocol; we wrap with `mailrs-acme`. Good shape. |
+| `instant-acme` | Low-level ACME protocol primitives; we wrap with `mailrs-acme` 1.0 |
+| `psl` | Compile-time Public Suffix List; used by `mailrs-dmarc` for org-domain extraction |
+| `quanta` | Fast monotonic clock (mach_absolute_time / TSC); adopted by `mailrs-rate-limit` 1.0.3 from `governor`'s own playbook |
 | `image` / `pdf-extract` / `html2text` | Specialized content extractors |
 | `rmcp` | MCP protocol; specialized |
-| `rrule` | iCal recurrence rules; specialized RFC primitive |
+| `rrule` | iCal recurrence rules; specialized RFC primitive (used by `mailrs-ical`) |
 | `totp-rs` | TOTP; specialized RFC primitive |
+| `encoding_rs` | WHATWG charset table; foundational for rfc2047/2231/mime |
+| `base64` / `hex` | Encoding primitives |
 | `hostname` / `filetime` / `schemars` | Tiny utility crates |
-| `rand_core` / `tempfile` | Foundational |
+| `rand_core` | Foundational |
 
-### Candidates to rewrite — high ROI
+## Possible-but-deferred (re-audit periodically)
 
-These are the deps where mailrs has BOTH (a) a clear use case and
-(b) the dep is heavy / general-purpose / not perf-tuned for our path.
-
-| Rank | Dep | Why rewrite? | Proposed stone(s) | Effort |
-|---:|---|---|---|---|
-| **1** | `mail-auth` (SPF + DKIM + DMARC + ARC) | We use it on the inbound hot path for every received message. Heavy crate; perf unknown to us; opaque integration with our `mailrs-rfc5322` (which is 8-32× faster than mail-parser). We already have `mailrs-dmarc` — owning SPF + DKIM rounds out the email auth suite. | **`mailrs-spf`** (RFC 7208), **`mailrs-dkim`** (RFC 6376) | SPF ~600 LOC, DKIM ~1000 LOC — substantial but bounded |
-| **2** | `mail-parser` (residual) | Already replaced for header lookup (`mailrs-rfc5322`). Still used for MIME body + multipart + attachment extraction in 4-5 server modules. Building our own MIME body parser gives us full control of the inbound parse stack. | **`mailrs-mime`** (RFC 2045/2046 MIME body) | ~1500-2000 LOC; bigger lift |
-| **3** | `hickory-resolver` | Full DNS resolver. We need MX, A/AAAA, TXT, PTR. hickory has DNSSEC + recursive + many features we don't use. | **`mailrs-dns`** (thin wrapper over `hickory-proto` for the 4 query types) | ~300-500 LOC; medium |
-| **4** | `sieve-rs` | Sieve script eval (RFC 5228). Used by mailrs's filtering rules. Large scope to rewrite. | **`mailrs-sieve`** | ~2000+ LOC; defer |
-
-### Already replaced (history)
-
-| Old dep usage | New stone | Where it was carved |
+| Dep | Why we'd consider it | Why we're not, yet |
 |---|---|---|
-| `mail-parser` for header lookup | `mailrs-rfc5322` | Hot inbound path, 8-32× faster |
-| `mail-parser` for encoded-words | `mailrs-rfc2047` | Subject/From decode |
-| `mail-parser` for filename params | `mailrs-rfc2231` | Content-Disposition decode |
+| `sieve-rs` | Inbound filtering, ~2000 LOC of RFC 5228 + extensions | Functional; scope is high and demand inside mailrs is steady-state |
+| `mail-builder` | Outbound MIME builder for DSN / report mails | Used in low-traffic paths (DSN, DMARC aggregate); not hot enough to justify |
+| `lettre` | We don't use it (we have `mailrs-smtp-client`) | No-op for us; listed only to mark "we considered it" |
 
-These ARE legitimate "we replaced an existing dep usage with our own
-stone" wins. The remaining `mail-parser` usage is for the parts our
-stones don't yet cover (MIME body tree).
+## Next round of stones (planned)
 
-## Action plan
+These don't replace existing deps — they fill gaps in the Rust email
+ecosystem we'd benefit from owning end-to-end:
 
-Start with the **highest ROI: `mailrs-spf` 1.0.0**.
+| Planned stone | Boundary | Why |
+|---|---|---|
+| `mailrs-arc` 1.0 | RFC 8617 — Authenticated Received Chain (DKIM/SPF/DMARC chained across forwarders) | Closes the email-auth quartet; reuses our `mailrs-dkim` canon + verify |
+| `mailrs-mta-sts` 1.0 | RFC 8461 — MTA Strict Transport Security policy lookup + cache + decide | Currently embedded in `mailrs-postmaster` as a diagnostic only; lift to a real policy enforcer |
 
-Rationale:
-- SPF is a single, bounded RFC (7208).
-- Used per-inbound-message → real hot path.
-- Pairs naturally with `mailrs-rfc5322` + `mailrs-dmarc` (we own the
-  envelope + header + DMARC ends; SPF closes the gap).
-- ~600 LOC scope is manageable in one autorun batch.
-- We can compare measured perf against `mail-auth`.
-
-After SPF:
-- `mailrs-dkim` (next sibling).
-- Then re-audit: does `mail-auth` still earn its keep, or can the
-  server drop it entirely?
-
-`mailrs-mime` is high value but a bigger commitment — defer until
-after the email-auth trio is owned.
-
-## Self-check
+## Self-check (template for the next audit pass)
 
 Apply the "is this rewrite-worth-it?" filter to each candidate:
 
@@ -96,4 +126,5 @@ Apply the "is this rewrite-worth-it?" filter to each candidate:
 - [ ] Does it line up with our existing stone family (so server
       adoption is clean, not a sideways port)?
 
-`mailrs-spf` passes all five. Proceeding.
+All ✅ → carve it out. The original four candidates all passed; the
+next two (`mailrs-arc`, `mailrs-mta-sts`) also pass.
