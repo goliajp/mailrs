@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-23
+
+### Added
+
+- `tests/perf_gate.rs` with 3 regression budgets (parse simple,
+  parse multipart, find text/calendar).
+- `BUDGETS.md` documenting the perf table + non-budgets.
+
+No lib code change.
+
 ## [1.0.0] - 2026-05-23
 
 ### Added
@@ -47,3 +57,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-mime-v1.0.0...HEAD
 [1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-mime-v1.0.0
+

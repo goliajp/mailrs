@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-05-23
+
+### Added
+
+- `tests/perf_gate.rs` with 5 regression budgets (parser + canon).
+- `BUDGETS.md` documenting the perf table + non-budgets.
+
+No lib code change.
+
 ## [1.1.0] - 2026-05-23
 
 ### Added

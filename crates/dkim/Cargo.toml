@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-dkim"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2024"
 description = "RFC 6376 DKIM signature verifier. Parses DKIM-Signature headers, applies simple/relaxed canonicalization, verifies rsa-sha256 signatures against the selector TXT record. Pluggable DNS via DkimResolver trait."
 license = "Apache-2.0 OR MIT"
