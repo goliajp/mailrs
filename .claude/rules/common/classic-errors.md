@@ -188,6 +188,84 @@ These were tested and cause frames to not be presented to screen. Events are pro
 
 **How to resist the reflex:** When you notice a flag or property that "would look nice in the UI", write the idea in a TODO or research note and keep going. Only implement it if product / design explicitly accepts it.
 
+## @tanstack/react-virtual on a WebSocket-fed list MUST pass `getItemKey`
+
+**Context:** Any React app rendering a long list via
+`@tanstack/react-virtual` where the source array can change order or
+have items inserted at the top — WebSocket-pushed mailbox view,
+chat conversation list, live activity feed.
+
+**Bug:** Adjacent rows visually overlap on screen — two distinct
+items drawn at the same Y position, the lower item partially or
+fully covered by the upper one. The user sees content from row N+1
+peeking out from under the content of row N, or two row contents
+mashed together. Shows up most after a WS event pushes a new item
+to the top of the list, and clears (sometimes) after a hard
+refresh.
+
+**Real incident (2026-05-24, mailrs):** the conversation list
+overlapped every other-or-so row right after `Today` and `Yesterday`
+section dividers. Previously "fixed" in commit `7bcce33` by bumping
+`estimateSize` 88→120px, but the actual bug came back the moment a
+real row pushed past 120px. The user reported "又出现了" with a
+screenshot — and the screenshot showed two distinct messages
+(different senders, different subjects) overlaid at the exact same
+Y. Diagnosed as the same root cause the `estimateSize` bump had
+been masking.
+
+**Root cause:** `useVirtualizer` defaults to keying its internal
+height-measurement cache by ARRAY INDEX. When a WS event inserts a
+new item at index 0, every existing item shifts to index+1 — and
+the virtualizer keeps using the old per-index cache entries, so
+every row now has the height of the row that USED to live at its
+new index. The off-by-one heights compound: row 5's start position
+gets computed from the wrong heights for rows 0-4, and so on. The
+drift only shows as visible overlap once cumulative error exceeds
+the headroom left by `estimateSize`. Bumping `estimateSize` only
+delays the bug; it doesn't fix it.
+
+A separate but related symptom: React component identity also
+breaks (selection state / context-menu state on rows gets blown
+away on push) because index-keyed React children get reused for
+different data. `key={item.id}` on the React element handles the
+React side, but does NOT fix the virtualizer's internal cache.
+
+**Fix:** Pass an explicit `getItemKey(index)` that returns a stable
+per-row identifier (same shape as the React `key` you already use).
+Mirroring the two means virtualizer cache and React reconciliation
+agree on identity, and the cache moves with the data when the
+array shifts.
+
+```typescript
+useVirtualizer({
+  count: items.length,
+  estimateSize,
+  getScrollElement,
+  // CRITICAL when items can be inserted/sorted at runtime.
+  getItemKey: (index) => stableIdFor(items[index]),
+})
+```
+
+**Rules going forward:**
+
+1. **Any react-virtual list fed by WS / RQ-invalidation / sort
+   change → must have `getItemKey`.** Static lists (fully
+   build-time, never re-ordered) can skip it. Anything else, no.
+2. **Row-overlap reports are suspect-the-measurement-cache, not
+   suspect-the-CSS.** Bumping `estimateSize` or adding margin
+   between rows masks the bug; it doesn't fix it. If a row-overlap
+   report comes back after a previous "fix" was a sizing tweak,
+   the next thing to check is `getItemKey`, full stop.
+3. **The React `key` and the virtualizer `getItemKey` must
+   compute from the SAME source field.** Drift between them
+   guarantees the bug on the next list mutation. Best practice:
+   define `stableKey(item)` once and call it from both sites.
+
+**Why this matters beyond just one view:** the same default-keys-
+by-index footgun applies to every virtualizer in the project,
+including `react-window` and any custom virtualization. Every
+WS-fed list needs the same audit pass.
+
 ## Silent switch from small core to big core in a dual-core system
 
 **Context:** Any project with an explicit big.LITTLE / small-core-first design philosophy — cheap local inference (Ollama, on-device) handles the bulk of work, and the expensive remote API (Claude, GPT, etc.) is reserved for a small number of narrow, user-facing, high-value paths. The design contract is that background / periodic / learning tasks MUST run on the small core; the big core is a scarce resource metered by user-visible value.

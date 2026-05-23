@@ -39,6 +39,7 @@ members = [
     "crates/mta-sts",
     "crates/tls-rpt",
     "crates/smtp-codec",
+    "crates/imap-codec",
     "crates/server",
 ]
 

@@ -12,7 +12,7 @@ mod event_bus;
 mod fbl;
 mod health;
 mod calendar;
-mod imap_codec;
+
 mod ldap_auth;
 mod imap_format;
 mod imap_session;
@@ -1140,7 +1140,7 @@ async fn handle_imap_connection<S>(
     use futures_util::{SinkExt, StreamExt};
     use tokio_util::codec::Framed;
 
-    let mut framed = Framed::new(stream, imap_codec::ImapCodec::new());
+    let mut framed = Framed::new(stream, mailrs_imap_codec::ImapCodec::new());
     let greeting = imap_session::imap_greeting(hostname);
     if framed.send(greeting).await.is_err() {
         return;
@@ -1158,7 +1158,7 @@ async fn handle_imap_connection<S>(
 
     while let Some(result) = framed.next().await {
         match result {
-            Ok(imap_codec::ImapInput::Line(line)) => {
+            Ok(mailrs_imap_codec::ImapInput::Line(line)) => {
                 let result = session.handle_line(&line).await;
                 match result {
                     imap_session::HandleResult::Responses(responses) => {
@@ -1204,7 +1204,7 @@ async fn handle_imap_connection<S>(
                                     }
                                 }
                                 frame = framed.next() => {
-                                    if let Some(Ok(imap_codec::ImapInput::Line(done_line))) = frame
+                                    if let Some(Ok(mailrs_imap_codec::ImapInput::Line(done_line))) = frame
                                         && done_line.trim().eq_ignore_ascii_case("DONE") {
                                             let resp = mailrs_imap_proto::format_ok(&tag, "IDLE terminated").into_bytes();
                                             if framed.send(resp).await.is_err() {
@@ -1218,7 +1218,7 @@ async fn handle_imap_connection<S>(
                     }
                 }
             }
-            Ok(imap_codec::ImapInput::LiteralData(data)) => {
+            Ok(mailrs_imap_codec::ImapInput::LiteralData(data)) => {
                 let responses = session.handle_literal_data(&data).await;
                 let is_logout = responses.iter().any(|r| r.windows(3).any(|w| w == b"BYE"));
                 for resp in responses {
