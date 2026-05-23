@@ -1,0 +1,31 @@
+[package]
+name = "mailrs-mime"
+version = "1.0.0"
+edition = "2024"
+description = "RFC 2045/2046 MIME body parser. Walks the multipart tree, decodes Content-Transfer-Encoding (base64, quoted-printable, 7bit, 8bit, binary), exposes text/HTML extraction + find-by-content-type + attachment iteration. Layered on mailrs-rfc5322 (headers) + mailrs-rfc2231 (parameters) + mailrs-rfc2047 (encoded-words)."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-mime"
+authors = ["GOLIA K.K."]
+keywords = ["mime", "rfc2045", "email", "multipart", "parser"]
+categories = ["email", "parser-implementations", "encoding"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailrs-rfc5322 = "1"
+mailrs-rfc2047 = "1"
+mailrs-rfc2231 = "1"
+base64 = "0.22"
+encoding_rs = "0.8"
+
+[dev-dependencies]
+criterion = { workspace = true }
+mail-parser = "0.11"  # comparison bench only
+
+[[bench]]
+name = "mime"
+harness = false
