@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-05-23
+
+### Changed
+
+- `find_by_content_type` rewritten: splits `mime_type` arg once into
+  `(type, subtype)` and compares bytewise per part instead of calling
+  `self.content_type.mime_type()` (which allocated `format!("{type}/{subtype}")`).
+  Switched from `Walker` (Vec-backed) to recursive descent — no walk-stack
+  allocation on the find path.
+
+### Performance
+
+Apples-to-apples comparison vs `mail-parser::is_content_type("text", "calendar")`
+(criterion, M-series Mac, release, `--quick`):
+
+| Input | mailrs-mime 1.0.1 | mailrs-mime 1.0.2 | mail-parser |
+|---|---:|---:|---:|
+| parse + find_calendar | 1.20 µs | 1.32 µs | 820 ns |
+
+Honest: parse path still loses by ~60% (mail-parser has years of MIME-
+specific optimization). `find_by_content_type` itself is now allocation-
+free — but parse dominates the total cost.
+
+### Added
+
+- `bench-harness/` cross-language harness uses this crate for the Rust
+  side of MIME comparisons.
+
+No public API change.
+
+
 ## [1.0.1] - 2026-05-23
 
 ### Added
