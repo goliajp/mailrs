@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-05-23
+
+### Added
+
+- `tracing::instrument` on `deliver_domain_static` — emits an
+  `info_span!("outbound.deliver_domain", domain, n_messages,
+  max_per_conn)` for each per-domain delivery batch. Combined with the
+  existing log lines inside the worker, distributed-trace viewers now
+  show one span per domain delivery attempt instead of correlating
+  loose log lines by timestamp.
+
+No public API change.
+
 ## [1.1.0] - 2026-05-23
 
 ### Changed

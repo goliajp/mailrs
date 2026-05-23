@@ -259,6 +259,11 @@ async fn enqueue_dsn(pool: &PgPool, hostname: &str, msg: &QueuedMessage, error: 
 }
 
 /// deliver messages to a single domain (used by concurrent workers)
+#[tracing::instrument(
+    name = "outbound.deliver_domain",
+    skip(resolver, hostname, messages, pool, event_sender),
+    fields(domain, n_messages = messages.len(), max_per_conn),
+)]
 async fn deliver_domain_static(
     resolver: &TokioResolver,
     hostname: &str,
