@@ -1,0 +1,35 @@
+[package]
+name = "mailrs-dkim-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+# Standalone — not part of the workspace so it can pull libfuzzer-sys (which
+# requires nightly) without dragging the rest of the build along.
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.mailrs-dkim]
+path = ".."
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "parse_header"
+path = "fuzz_targets/parse_header.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "canonicalize"
+path = "fuzz_targets/canonicalize.rs"
+test = false
+doc = false
+bench = false

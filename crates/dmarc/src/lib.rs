@@ -1,10 +1,21 @@
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
-//! DMARC aggregate report tooling (RFC 7489).
+//! DMARC (RFC 7489) — policy parsing, identifier alignment, message
+//! evaluation, and aggregate-report generation.
 //!
-//! `mailrs-dmarc` covers the parts of RFC 7489 §12 that aren't already
-//! in `mail-auth` (which handles the verification side):
+//! ## 1.1 — full mail-auth replacement
+//!
+//! As of 1.1 this crate **fully replaces** the DMARC half of
+//! `stalwart/mail-auth`:
+//!
+//! - [`policy::DmarcPolicy::parse`] — TXT record parser (RFC 7489 §6.3).
+//! - [`align::check`] — identifier alignment, strict + relaxed (RFC 7489 §3.1).
+//! - [`eval::evaluate`] — pure-function DMARC outcome from SPF + DKIM
+//!   verdicts + policy (RFC 7489 §6.6).
+//!
+//! The original 1.0 surface (aggregate reporting, store trait, XML
+//! builder, mailto extraction) is unchanged:
 //!
 //! - **Result recording** — [`DmarcStore`] trait + a Postgres reference
 //!   impl ([`PgDmarcStore`]) behind the default `pg-store` feature.
@@ -53,6 +64,14 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use async_trait::async_trait;
+
+pub mod align;
+pub mod eval;
+pub mod policy;
+
+pub use align::{check as align_check, organizational_domain};
+pub use eval::{evaluate, DkimSignatureResult, DmarcInput, DmarcOutcome, SpfResult};
+pub use policy::{Alignment, DmarcParseError, DmarcPolicy, PolicyAction};
 
 /// One verified DMARC result, recorded per inbound message.
 ///
