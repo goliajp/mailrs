@@ -1,11 +1,57 @@
-// IMAP formatting and MIME parsing utilities
-//
-// extracted from imap_session.rs for maintainability
+//! IMAP wire-format helpers (RFC 9051 §6.4 FETCH responses, §7.5
+//! BODYSTRUCTURE assembly, §9 ABNF for FLAGS / INTERNALDATE).
+//!
+//! Pairs with [`mailrs-imap-proto`](https://crates.io/crates/mailrs-imap-proto)
+//! (command parsing + session state machine) and
+//! [`mailrs-imap-codec`](https://crates.io/crates/mailrs-imap-codec)
+//! (line / literal framing) to form a complete RFC 9051 receive +
+//! response stack.
+//!
+//! 22 standalone helpers grouped by concern:
+//!
+//! - **FLAGS** — `format_imap_flags` / `parse_imap_flags` map the 6
+//!   standard system flags between `u32` bitmask and IMAP
+//!   `(\Seen \Flagged …)` syntax. Bit assignments are exposed via
+//!   the `FLAG_*` `pub const` so callers can construct masks
+//!   without round-tripping through strings.
+//! - **INTERNALDATE** — `format_internal_date(i64)` formats a Unix
+//!   timestamp as IMAP's `"DD-Mon-YYYY HH:MM:SS +ZZZZ"`.
+//! - **String quoting** — `escape_imap_string` / `escape_imap_str`
+//!   / `quote_or_nil` handle IMAP's `"…"` quoted-string with
+//!   `\`-escapes-or-`NIL` rules.
+//! - **Address parsing** — `format_imap_address` + `format_addr_list`
+//!   turn RFC 5322 addresses (with optional display name) into
+//!   IMAP's `((name route mailbox host))` structure.
+//! - **BODY[] section requests** — `parse_header_fields_request`
+//!   (`BODY[HEADER.FIELDS (…)]`) + `parse_generic_body_sections`
+//!   (`BODY[1]`, `BODY[1.MIME]`, etc.).
+//! - **MIME walk** — `extract_header_section` / `extract_body_section`
+//!   / `extract_header_fields` / `parse_mime_headers` (returns
+//!   [`MimeInfo`]) / `split_mime_parts` / `find_line_offset` /
+//!   `trim_part_trailing_newline` / `extract_mime_part`.
+//! - **BODYSTRUCTURE** — `build_bodystructure` recurses through
+//!   multipart trees and emits the RFC-9051 §7.5.2 form.
+//!
+//! All helpers are pure functions — no I/O, no async.
 
-use mailrs_mailbox::{FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_RECENT, FLAG_SEEN};
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+
+/// IMAP `\Seen` system flag. Bit-0 of the standard u32 mask.
+pub const FLAG_SEEN: u32 = 0b0000_0001;
+/// IMAP `\Answered` system flag. Bit-1.
+pub const FLAG_ANSWERED: u32 = 0b0000_0010;
+/// IMAP `\Flagged` system flag (star). Bit-2.
+pub const FLAG_FLAGGED: u32 = 0b0000_0100;
+/// IMAP `\Deleted` system flag (queued for expunge). Bit-3.
+pub const FLAG_DELETED: u32 = 0b0000_1000;
+/// IMAP `\Draft` system flag. Bit-4.
+pub const FLAG_DRAFT: u32 = 0b0001_0000;
+/// IMAP `\Recent` system flag (set by EXAMINE/SELECT). Bit-5.
+pub const FLAG_RECENT: u32 = 0b0010_0000;
 
 /// convert bitmask flags to IMAP flag string
-pub(crate) fn format_imap_flags(flags: u32) -> String {
+pub fn format_imap_flags(flags: u32) -> String {
     let mut parts = Vec::new();
     if flags & FLAG_SEEN != 0 {
         parts.push("\\Seen");
@@ -29,7 +75,7 @@ pub(crate) fn format_imap_flags(flags: u32) -> String {
 }
 
 /// parse IMAP flag names from a FLAGS string like "(\\Seen \\Flagged)"
-pub(crate) fn parse_imap_flags(s: &str) -> u32 {
+pub fn parse_imap_flags(s: &str) -> u32 {
     let s = s.trim().trim_start_matches('(').trim_end_matches(')');
     let mut bits = 0u32;
     for part in s.split_whitespace() {
@@ -47,18 +93,24 @@ pub(crate) fn parse_imap_flags(s: &str) -> u32 {
     bits
 }
 
-pub(crate) fn format_internal_date(timestamp: i64) -> String {
+/// Format a Unix timestamp as an IMAP `INTERNALDATE` value
+/// (`"DD-Mon-YYYY HH:MM:SS +ZZZZ"`, RFC 9051 §9 ABNF
+/// `date-time`).
+pub fn format_internal_date(timestamp: i64) -> String {
     use chrono::DateTime;
     let dt = DateTime::from_timestamp(timestamp, 0).unwrap_or_default();
     dt.format("%d-%b-%Y %H:%M:%S %z").to_string()
 }
 
-pub(crate) fn escape_imap_string(s: &str) -> String {
+/// Escape `\` and `"` characters for embedding inside an IMAP
+/// `"…"` quoted string. Does NOT add the surrounding quotes —
+/// see [`quote_or_nil`] for the full quoted-or-`NIL` decision.
+pub fn escape_imap_string(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 /// quote a string for IMAP or return NIL if empty
-pub(crate) fn quote_or_nil(s: &str) -> String {
+pub fn quote_or_nil(s: &str) -> String {
     if s.is_empty() {
         "NIL".to_string()
     } else {
@@ -68,7 +120,7 @@ pub(crate) fn quote_or_nil(s: &str) -> String {
 
 /// parse an email address "Name <user@host>" or "user@host" into IMAP address structure
 /// returns ((name NIL mailbox host)) or NIL if empty
-pub(crate) fn format_imap_address(addr: &str) -> String {
+pub fn format_imap_address(addr: &str) -> String {
     let addr = addr.trim();
     if addr.is_empty() {
         return "NIL".to_string();
@@ -105,7 +157,7 @@ pub(crate) fn format_imap_address(addr: &str) -> String {
 
 /// parse BODY[HEADER.FIELDS (field-list)] or BODY.PEEK[HEADER.FIELDS (field-list)]
 /// returns (field_names, raw_section_text)
-pub(crate) fn parse_header_fields_request(attributes: &str) -> Option<(Vec<String>, String)> {
+pub fn parse_header_fields_request(attributes: &str) -> Option<(Vec<String>, String)> {
     let upper = attributes.to_uppercase();
     let marker = "HEADER.FIELDS";
     let pos = upper.find(marker)?;
@@ -123,7 +175,7 @@ pub(crate) fn parse_header_fields_request(attributes: &str) -> Option<(Vec<Strin
 
 /// parse all generic BODY[section] requests like BODY[1], BODY[1.1], BODY[1.MIME], BODY.PEEK[1]
 /// returns all section specifiers (e.g. ["1", "1.1", "1.MIME"])
-pub(crate) fn parse_generic_body_sections(attributes: &str) -> Vec<String> {
+pub fn parse_generic_body_sections(attributes: &str) -> Vec<String> {
     let upper = attributes.to_uppercase();
     let mut sections = Vec::new();
 
@@ -159,7 +211,7 @@ pub(crate) fn parse_generic_body_sections(attributes: &str) -> Vec<String> {
 }
 
 /// extract only the specified header fields from raw message
-pub(crate) fn extract_header_fields(data: &[u8], fields: &[String]) -> Vec<u8> {
+pub fn extract_header_fields(data: &[u8], fields: &[String]) -> Vec<u8> {
     let header = extract_header_section(data);
     let header_str = String::from_utf8_lossy(&header);
     let mut result = Vec::new();
@@ -190,7 +242,7 @@ pub(crate) fn extract_header_fields(data: &[u8], fields: &[String]) -> Vec<u8> {
 }
 
 /// extract header section from raw message (up to \r\n\r\n)
-pub(crate) fn extract_header_section(data: &[u8]) -> Vec<u8> {
+pub fn extract_header_section(data: &[u8]) -> Vec<u8> {
     if let Some(pos) = data.windows(4).position(|w| w == b"\r\n\r\n") {
         data[..pos + 4].to_vec()
     } else if let Some(pos) = data.windows(2).position(|w| w == b"\n\n") {
@@ -201,7 +253,7 @@ pub(crate) fn extract_header_section(data: &[u8]) -> Vec<u8> {
 }
 
 /// extract body section from raw message (after \r\n\r\n)
-pub(crate) fn extract_body_section(data: &[u8]) -> Vec<u8> {
+pub fn extract_body_section(data: &[u8]) -> Vec<u8> {
     if let Some(pos) = data.windows(4).position(|w| w == b"\r\n\r\n") {
         data[pos + 4..].to_vec()
     } else if let Some(pos) = data.windows(2).position(|w| w == b"\n\n") {
@@ -211,21 +263,32 @@ pub(crate) fn extract_body_section(data: &[u8]) -> Vec<u8> {
     }
 }
 
-/// parsed MIME content-type info
-pub(crate) struct MimeInfo {
+/// Parsed `Content-Type` + `Content-Transfer-Encoding` +
+/// `Content-Disposition` info extracted from a single MIME part's
+/// header block. Returned by [`parse_mime_headers`].
+pub struct MimeInfo {
+    /// `Content-Type` major type ("TEXT", "MULTIPART", "APPLICATION", ...). Uppercase.
     pub media_type: String,
+    /// `Content-Type` subtype ("PLAIN", "HTML", "MIXED", "PDF", ...). Uppercase.
     pub subtype: String,
+    /// `Content-Type` `charset=` parameter. Defaults to `"UTF-8"`.
     pub charset: String,
+    /// `Content-Transfer-Encoding` ("7BIT", "BASE64", "QUOTED-PRINTABLE", "8BIT"). Defaults to `"7BIT"`.
     pub encoding: String,
+    /// `Content-Type` `boundary=` parameter for multipart bodies. `None` for non-multipart.
     pub boundary: Option<String>,
+    /// `Content-Type` `name=` parameter (legacy way to name an attachment).
     pub name: Option<String>,
+    /// `Content-ID` value with `<…>` brackets stripped.
     pub content_id: Option<String>,
+    /// `Content-Disposition` value: `"attachment"` or `"inline"`. `None` if absent.
     pub disposition: Option<String>,
+    /// `Content-Disposition` `filename=` parameter — preferred over `name=` when present.
     pub disposition_filename: Option<String>,
 }
 
 /// parse content-type and transfer-encoding from header text
-pub(crate) fn parse_mime_headers(header: &str) -> MimeInfo {
+pub fn parse_mime_headers(header: &str) -> MimeInfo {
     let mut media_type = "TEXT".to_string();
     let mut subtype = "PLAIN".to_string();
     let mut charset = "UTF-8".to_string();
@@ -376,7 +439,7 @@ pub(crate) fn parse_mime_headers(header: &str) -> MimeInfo {
 }
 
 /// split multipart body by boundary, returning each part as raw bytes (including part headers)
-pub(crate) fn split_mime_parts<'a>(body: &'a [u8], boundary: &str) -> Vec<&'a [u8]> {
+pub fn split_mime_parts<'a>(body: &'a [u8], boundary: &str) -> Vec<&'a [u8]> {
     let delim = format!("--{boundary}");
     let body_str = String::from_utf8_lossy(body);
     let mut parts = Vec::new();
@@ -421,7 +484,7 @@ pub(crate) fn split_mime_parts<'a>(body: &'a [u8], boundary: &str) -> Vec<&'a [u
 }
 
 /// find byte offset of line number in body
-pub(crate) fn find_line_offset(body: &[u8], target_line: usize) -> Option<usize> {
+pub fn find_line_offset(body: &[u8], target_line: usize) -> Option<usize> {
     let mut line_num = 0;
     let mut pos = 0;
     while pos < body.len() {
@@ -443,7 +506,7 @@ pub(crate) fn find_line_offset(body: &[u8], target_line: usize) -> Option<usize>
 }
 
 /// trim trailing CRLF/LF from part body (boundary transport padding per RFC 2046)
-pub(crate) fn trim_part_trailing_newline(data: &[u8]) -> &[u8] {
+pub fn trim_part_trailing_newline(data: &[u8]) -> &[u8] {
     let mut end = data.len();
     if end >= 2 && data[end - 2] == b'\r' && data[end - 1] == b'\n' {
         end -= 2;
@@ -544,12 +607,12 @@ fn build_part_bodystructure(part_data: &[u8]) -> String {
 }
 
 /// escape double quotes in IMAP string literals
-pub(crate) fn escape_imap_str(s: &str) -> String {
+pub fn escape_imap_str(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 /// build BODYSTRUCTURE for a message (handles multipart, with extension data)
-pub(crate) fn build_bodystructure(data: &[u8]) -> String {
+pub fn build_bodystructure(data: &[u8]) -> String {
     let header_bytes = extract_header_section(data);
     let header = String::from_utf8_lossy(&header_bytes);
     let body = extract_body_section(data);
@@ -629,7 +692,7 @@ pub(crate) fn build_bodystructure(data: &[u8]) -> String {
 }
 
 /// extract a specific MIME part by number (e.g. "1", "2", "1.1", "1.MIME")
-pub(crate) fn extract_mime_part(data: &[u8], section: &str) -> Option<Vec<u8>> {
+pub fn extract_mime_part(data: &[u8], section: &str) -> Option<Vec<u8>> {
     let upper = section.to_uppercase();
     if upper.ends_with(".MIME") {
         let base = &section[..section.len() - 5];
@@ -707,7 +770,7 @@ fn find_mime_part_body(data: &[u8], section: &str) -> Option<Vec<u8>> {
 }
 
 /// format a comma-separated list of addresses into IMAP address list
-pub(crate) fn format_addr_list(addrs: &str) -> String {
+pub fn format_addr_list(addrs: &str) -> String {
     let addrs = addrs.trim();
     if addrs.is_empty() {
         return "NIL".to_string();

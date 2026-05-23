@@ -11,7 +11,7 @@ use mailrs_mailbox::{
 };
 
 use crate::domain_store::DomainStore;
-use crate::imap_format::{
+use mailrs_imap_format::{
     build_bodystructure, extract_body_section, extract_header_fields, extract_header_section,
     extract_mime_part, format_addr_list, format_imap_flags, format_internal_date,
     parse_generic_body_sections, parse_header_fields_request, parse_imap_flags, quote_or_nil,
@@ -1748,7 +1748,7 @@ pub fn imap_greeting(hostname: &str) -> Vec<u8> {
 mod tests {
     use super::*;
     // additional imports not already brought in by super::* from module-level use
-    use crate::imap_format::{
+    use mailrs_imap_format::{
         escape_imap_str, escape_imap_string, find_line_offset, format_imap_address,
         split_mime_parts, trim_part_trailing_newline,
     };
