@@ -65,6 +65,7 @@ mod srs;
 use events::handle_event;
 
 /// handle a plain-text SMTP connection (port 25/587), may upgrade via STARTTLS
+#[tracing::instrument(name = "smtp.conn", skip(stream, ctx), fields(peer = %addr, tls = false))]
 pub async fn handle_plain_connection(
     stream: TcpStream,
     addr: SocketAddr,
@@ -212,6 +213,7 @@ pub async fn handle_plain_connection(
 }
 
 /// handle an implicit TLS connection (port 465)
+#[tracing::instrument(name = "smtps.conn", skip(stream, ctx), fields(peer = %addr, tls = true))]
 pub async fn handle_tls_connection(
     stream: TcpStream,
     addr: SocketAddr,
