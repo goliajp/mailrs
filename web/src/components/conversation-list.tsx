@@ -1198,6 +1198,20 @@ function VirtualConversationList({
       return 120
     },
     getScrollElement: () => parentRef.current,
+    // CRITICAL: react-virtual keys its internal measurement cache by
+    // index by default. When a WebSocket event pushes a new
+    // conversation onto the top of the list, every existing item
+    // shifts down by one — and the virtualizer keeps mapping each
+    // index to whichever row USED to live there, producing
+    // off-by-one heights that compound into visible row-overlap.
+    // Stable key per logical item (matches the React component key
+    // a few lines below) eliminates the cache misalignment.
+    getItemKey: (index) => {
+      const item = items[index]
+      if (item.type === 'conversation') return `c:${item.convo.thread_id}`
+      if (item.type === 'divider') return `d:${item.label}`
+      return item.type
+    },
   })
 
   // pull-to-refresh state (must be before early returns)
