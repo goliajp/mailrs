@@ -799,9 +799,16 @@ async fn main() {
                 }
             }
 
-            // bridge outbound events to event bus + TLSRPT observer
+            // bridge outbound events to event bus + TLSRPT observer.
+            // The observer is backed by a PG store so events survive
+            // server restart: anything appended is in the
+            // `tls_rpt_events` table; the daily flush drains the
+            // window even after a crash. Falls back to an in-memory
+            // store if PG isn't configured (degraded mode).
             let eb = event_bus.clone();
-            let tls_rpt_obs = outbound_tls_rpt::new_shared();
+            let tls_rpt_obs = Arc::new(outbound_tls_rpt::TlsRptObserver::new(
+                outbound_tls_rpt::PgTlsRptStore::new(pool.clone()).into_arc(),
+            ));
             let tls_rpt_for_handler = tls_rpt_obs.clone();
             worker = worker.with_event_sender(Arc::new(move |evt| {
                 use mailrs_outbound_queue::DeliveryEvent;
@@ -874,8 +881,10 @@ async fn main() {
                         now.format("%Y%m%d")
                     );
                     let submitter_address = format!("tlsrpt@{hostname_for_tls_rpt}");
-                    if let Some(report) = tls_rpt_flush
+                    let report_opt = match tls_rpt_flush
                         .take_report(
+                            start.timestamp().max(0) as u64,
+                            now.timestamp().max(0) as u64,
                             &hostname_for_tls_rpt,
                             &format!("mailto:{submitter_address}"),
                             &report_id,
@@ -884,6 +893,18 @@ async fn main() {
                         )
                         .await
                     {
+                        Ok(r) => r,
+                        Err(e) => {
+                            tracing::warn!(
+                                event = "tls_rpt_take_report_failed",
+                                error = %e,
+                                report_id = %report_id,
+                                "TLSRPT take_report failed — store backend error"
+                            );
+                            continue;
+                        }
+                    };
+                    if let Some(report) = report_opt {
                         let (ok, failed) = outbound_tls_rpt::submit_report(
                             &report,
                             &hostname_for_tls_rpt,

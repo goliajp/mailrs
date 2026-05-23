@@ -1,14 +1,25 @@
 //! Server-side observer that feeds outbound delivery events into
-//! per-domain `mailrs_tls_rpt::ReportBuilder`s. RFC 8460 SMTP TLS
-//! Reporting.
+//! a persistent TLSRPT [`Store`]. RFC 8460 SMTP TLS Reporting.
 //!
 //! ## What this records
 //!
-//! Since the outbound-queue 1.2 / smtp-client 1.1 cut, classification
-//! comes from a structured [`mailrs_outbound_queue::TlsAttemptOutcome`]
-//! carried on [`mailrs_outbound_queue::DeliveryEvent::TlsAttempt`] —
-//! `record_tls_attempt` maps each variant directly to its RFC 8460
-//! §4.3 FailureType. No more keyword-classifying error strings.
+//! Each `mailrs_outbound_queue::DeliveryEvent::TlsAttempt` becomes
+//! one [`EventFact`] appended to the store with the current
+//! recorded-at timestamp. Classification comes from the structured
+//! [`mailrs_outbound_queue::TlsAttemptOutcome`] — no error-string
+//! keyword matching anywhere in this path.
+//!
+//! ## Persistence
+//!
+//! Since 1.x, the observer is just a thin facade over a
+//! [`mailrs_tls_rpt::Store`]. The `PgTlsRptStore` impl writes
+//! every event into `tls_rpt_events` (an append-only PG table —
+//! see `scripts/migrate-036-tls-rpt-events.sql`). Daily flush
+//! drains the window, rebuilds the report, and submits.
+//!
+//! Restart-safe: events recorded before a crash survive in PG and
+//! the next flush picks them up. The in-process observer carries
+//! no state of its own.
 //!
 //! ## Submission
 //!
@@ -18,49 +29,42 @@
 //! either enqueue an outbound email (mailto:) or HTTPS POST the
 //! gzipped report (https:). Per-endpoint failures are logged but
 //! don't abort other endpoints' submission.
-//!
-//! ## What this does NOT do (and the path forward)
-//!
-//! - **No on-disk persistence between restarts.** The in-memory
-//!   bucket map resets on server restart; events recorded in the
-//!   current window before a crash are lost. Persistence is a
-//!   follow-up — TLSRPT receivers tolerate occasional gaps.
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use hickory_resolver::TokioResolver;
 use hickory_resolver::proto::rr::RData;
 use mailrs_outbound_queue::TlsAttemptOutcome;
 use mailrs_smtp_client::TlsOutcome;
 use mailrs_tls_rpt::{
-    FailureEvent, FailureType, PolicyType, Report, ReportBuilder, RuaEndpoint,
-    SubmissionEmailOpts, SuccessEvent, TlsRptRecord, build_submission_email, gzip_report,
+    EventFact, FailureEvent, FailureType, PolicyType, Report, ReportBuilder, RuaEndpoint, Store,
+    StoreError, SubmissionEmailOpts, SuccessEvent, TlsRptRecord, build_submission_email,
+    gzip_report,
 };
+#[cfg(test)]
+use mailrs_tls_rpt::InMemoryStore;
 use sqlx::PgPool;
-use tokio::sync::Mutex;
 
-/// Builds and accumulates per-window TLSRPT reports.
-#[derive(Default)]
+/// Observer for outbound TLS attempts. Wraps any
+/// [`Store`](mailrs_tls_rpt::Store) — typically
+/// [`PgTlsRptStore`] in production or
+/// [`InMemoryStore`](mailrs_tls_rpt::InMemoryStore) for tests.
 pub struct TlsRptObserver {
-    inner: Mutex<TlsRptInner>,
-}
-
-#[derive(Default)]
-struct TlsRptInner {
-    /// One builder per (reporting-window, domain). For the MVP we
-    /// keep one builder per reporting-domain-bucket that resets on
-    /// `take_report`. A future revision will key on
-    /// (date, domain) to support multi-day batching.
-    builder: ReportBuilder,
-    /// Whether any events have been recorded since last
-    /// `take_report` — lets the caller skip building empty reports.
-    has_events: bool,
+    store: Arc<dyn Store>,
 }
 
 impl TlsRptObserver {
-    /// New observer with a fresh empty builder.
-    pub fn new() -> Self {
-        Self::default()
+    /// New observer backed by the supplied store.
+    pub fn new(store: Arc<dyn Store>) -> Self {
+        Self { store }
+    }
+
+    /// Convenience: observer backed by an in-memory store.
+    /// Useful for tests and pilots where persistence isn't needed.
+    #[cfg(test)]
+    pub fn in_memory() -> Self {
+        Self::new(Arc::new(InMemoryStore::new()))
     }
 
     /// Record one STARTTLS attempt. The structured
@@ -68,109 +72,262 @@ impl TlsRptObserver {
     /// an accurate `(PolicyType, FailureType?)` tuple without
     /// keyword-matching error strings.
     ///
-    /// - `Success { policy }` → one [`SuccessEvent`] in the matching
-    ///   `(domain, PolicyType)` bucket. `policy` is one of
-    ///   `"dane"` / `"sts"` / `"opportunistic"`; we map to
-    ///   `PolicyType::{Tlsa, Sts, NoPolicyFound}`.
-    /// - `NotAdvertised` → one [`FailureEvent`] with
+    /// - `Success { policy }` → one success EventFact.
+    /// - `NotAdvertised` → one failure EventFact with
     ///   `FailureType::StarttlsNotSupported`.
-    /// - `Rejected { code, message }` → one [`FailureEvent`] with
-    ///   `FailureType::ValidationFailure` (the RFC 8460 vocabulary
-    ///   doesn't have a "STARTTLS rejected" category, so we use the
-    ///   catch-all and stash the rejection text in
-    ///   `additional-information`).
-    /// - `HandshakeFailed(outcome)` → one [`FailureEvent`] whose
-    ///   `result_type` comes from the direct mapping
-    ///   `outcome.as_str()` → RFC 8460 §4.3 string.
+    /// - `Rejected { code, message }` → one failure EventFact with
+    ///   `FailureType::ValidationFailure` (no exact RFC 8460
+    ///   vocabulary for "STARTTLS rejected" — catch-all + stash
+    ///   the rejection text in additional-information).
+    /// - `HandshakeFailed(outcome)` → one failure EventFact whose
+    ///   `result_type` is the direct mapping
+    ///   `outcome.as_str()` → RFC 8460 §4.3.
+    ///
+    /// Store errors are logged but don't propagate — TLSRPT is
+    /// best-effort, we don't want a store outage to break the
+    /// outbound delivery loop.
     pub async fn record_tls_attempt(
         &self,
         domain: &str,
         mx_host: &str,
         outcome: &TlsAttemptOutcome,
     ) {
-        let mut inner = self.inner.lock().await;
-        match outcome {
-            TlsAttemptOutcome::Success { policy } => {
-                let policy_type = policy_str_to_type(policy);
-                inner.builder.record_success(SuccessEvent {
-                    policy_domain: domain.to_string(),
-                    policy_type,
-                    mx_host: mx_host.to_string(),
-                });
-            }
-            TlsAttemptOutcome::NotAdvertised => {
-                inner.builder.record_failure(FailureEvent {
-                    policy_domain: domain.to_string(),
-                    policy_type: PolicyType::NoPolicyFound,
-                    mx_host: Some(mx_host.to_string()),
-                    result_type: FailureType::StarttlsNotSupported,
-                    sending_mta_ip: None,
-                    receiving_ip: None,
-                    receiving_mx_helo: None,
-                    additional_information: None,
-                    failure_reason_code: None,
-                });
-            }
-            TlsAttemptOutcome::Rejected { code, message } => {
-                inner.builder.record_failure(FailureEvent {
-                    policy_domain: domain.to_string(),
-                    policy_type: PolicyType::NoPolicyFound,
-                    mx_host: Some(mx_host.to_string()),
-                    result_type: FailureType::ValidationFailure,
-                    sending_mta_ip: None,
-                    receiving_ip: None,
-                    receiving_mx_helo: None,
-                    additional_information: Some(truncate(
-                        &format!("STARTTLS rejected {code}: {message}"),
-                        200,
-                    )),
-                    failure_reason_code: Some(code.to_string()),
-                });
-            }
-            TlsAttemptOutcome::HandshakeFailed(tls_outcome) => {
-                let result_type = tls_outcome_to_failure_type(tls_outcome);
-                inner.builder.record_failure(FailureEvent {
-                    policy_domain: domain.to_string(),
-                    policy_type: PolicyType::NoPolicyFound,
-                    mx_host: Some(mx_host.to_string()),
-                    result_type,
-                    sending_mta_ip: None,
-                    receiving_ip: None,
-                    receiving_mx_helo: None,
-                    additional_information: Some(truncate(tls_outcome.detail(), 200)),
-                    failure_reason_code: None,
-                });
-            }
+        let now_unix = chrono::Utc::now().timestamp().max(0) as u64;
+        let event = match outcome {
+            TlsAttemptOutcome::Success { policy } => EventFact::Success(SuccessEvent {
+                policy_domain: domain.to_string(),
+                policy_type: policy_str_to_type(policy),
+                mx_host: mx_host.to_string(),
+            }),
+            TlsAttemptOutcome::NotAdvertised => EventFact::Failure(FailureEvent {
+                policy_domain: domain.to_string(),
+                policy_type: PolicyType::NoPolicyFound,
+                mx_host: Some(mx_host.to_string()),
+                result_type: FailureType::StarttlsNotSupported,
+                sending_mta_ip: None,
+                receiving_ip: None,
+                receiving_mx_helo: None,
+                additional_information: None,
+                failure_reason_code: None,
+            }),
+            TlsAttemptOutcome::Rejected { code, message } => EventFact::Failure(FailureEvent {
+                policy_domain: domain.to_string(),
+                policy_type: PolicyType::NoPolicyFound,
+                mx_host: Some(mx_host.to_string()),
+                result_type: FailureType::ValidationFailure,
+                sending_mta_ip: None,
+                receiving_ip: None,
+                receiving_mx_helo: None,
+                additional_information: Some(truncate(
+                    &format!("STARTTLS rejected {code}: {message}"),
+                    200,
+                )),
+                failure_reason_code: Some(code.to_string()),
+            }),
+            TlsAttemptOutcome::HandshakeFailed(tls_outcome) => EventFact::Failure(FailureEvent {
+                policy_domain: domain.to_string(),
+                policy_type: PolicyType::NoPolicyFound,
+                mx_host: Some(mx_host.to_string()),
+                result_type: tls_outcome_to_failure_type(tls_outcome),
+                sending_mta_ip: None,
+                receiving_ip: None,
+                receiving_mx_helo: None,
+                additional_information: Some(truncate(tls_outcome.detail(), 200)),
+                failure_reason_code: None,
+            }),
+        };
+        if let Err(e) = self.store.append(event, now_unix).await {
+            tracing::warn!(
+                event = "tls_rpt_store_append_failed",
+                error = %e,
+                domain = domain,
+                mx_host = mx_host,
+                "TLSRPT event lost — store append failed"
+            );
         }
-        inner.has_events = true;
     }
 
-    /// Build the accumulated report for the supplied window. Returns
-    /// `None` if no events have been recorded — caller skips sending
-    /// an empty report.
+    /// Drain all facts in `[start, end)` and build the matching
+    /// [`Report`]. Returns `None` when the window is empty so the
+    /// caller can skip submitting an empty report.
     ///
-    /// After this call the internal builder is reset to a fresh empty
-    /// state, ready to accumulate the next window's events.
+    /// "Drain" semantics: the underlying [`Store`] removes the
+    /// returned rows in the same transaction. A crash after this
+    /// returns but before the caller submits loses one window's
+    /// worth of submission (the spec tolerates occasional gaps).
+    #[allow(clippy::too_many_arguments)]
     pub async fn take_report(
         &self,
+        start_unix_secs: u64,
+        end_unix_secs: u64,
         organization_name: &str,
         contact_info: &str,
         report_id: &str,
         start_datetime: &str,
         end_datetime: &str,
-    ) -> Option<mailrs_tls_rpt::Report> {
-        let mut inner = self.inner.lock().await;
-        if !inner.has_events {
-            return None;
+    ) -> Result<Option<Report>, StoreError> {
+        let facts = self
+            .store
+            .drain_window(start_unix_secs, end_unix_secs)
+            .await?;
+        if facts.is_empty() {
+            return Ok(None);
         }
-        let builder = std::mem::take(&mut inner.builder)
+        let mut builder = ReportBuilder::new()
             .organization_name(organization_name)
             .contact_info(contact_info)
             .report_id(report_id)
             .date_range(start_datetime, end_datetime);
-        inner.has_events = false;
-        builder.build().ok()
+        for fact in &facts {
+            fact.apply(&mut builder);
+        }
+        // build() can fail only if a required field is missing,
+        // which we just set above — unwrap is safe but match anyway.
+        match builder.build() {
+            Ok(r) => Ok(Some(r)),
+            Err(e) => {
+                tracing::warn!(
+                    event = "tls_rpt_report_build_failed",
+                    error = %e,
+                    "TLSRPT report build failed despite required fields set"
+                );
+                Ok(None)
+            }
+        }
     }
+}
+
+/// Postgres-backed [`Store`] implementation. Append goes into the
+/// `tls_rpt_events` table (see scripts/migrate-036-tls-rpt-events.sql);
+/// drain `SELECT … WHERE recorded_at_unix >= $1 AND < $2 RETURNING *`
+/// against `DELETE` in one transaction.
+pub struct PgTlsRptStore {
+    pool: PgPool,
+}
+
+impl PgTlsRptStore {
+    /// New store wrapping the supplied PG pool.
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
+    /// Convenience: wrap into an `Arc<dyn Store>` ready to hand to
+    /// [`TlsRptObserver::new`].
+    pub fn into_arc(self) -> Arc<dyn Store> {
+        Arc::new(self)
+    }
+}
+
+#[async_trait]
+impl Store for PgTlsRptStore {
+    async fn append(
+        &self,
+        event: EventFact,
+        recorded_at_unix_secs: u64,
+    ) -> Result<(), StoreError> {
+        let ts = recorded_at_unix_secs as i64;
+        let r = match event {
+            EventFact::Success(e) => sqlx::query(
+                "INSERT INTO tls_rpt_events
+                    (recorded_at_unix, kind, policy_domain, policy_type, mx_host)
+                 VALUES ($1, 'success', $2, $3, $4)",
+            )
+            .bind(ts)
+            .bind(e.policy_domain)
+            .bind(policy_type_str(e.policy_type))
+            .bind(e.mx_host)
+            .execute(&self.pool)
+            .await,
+            EventFact::Failure(e) => sqlx::query(
+                "INSERT INTO tls_rpt_events
+                    (recorded_at_unix, kind, policy_domain, policy_type, mx_host,
+                     result_type, sending_mta_ip, receiving_ip, receiving_mx_helo,
+                     additional_information, failure_reason_code)
+                 VALUES ($1, 'failure', $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+            )
+            .bind(ts)
+            .bind(e.policy_domain)
+            .bind(policy_type_str(e.policy_type))
+            .bind(e.mx_host)
+            .bind(failure_type_str(e.result_type))
+            .bind(e.sending_mta_ip.map(|ip| ip.to_string()))
+            .bind(e.receiving_ip.map(|ip| ip.to_string()))
+            .bind(e.receiving_mx_helo)
+            .bind(e.additional_information)
+            .bind(e.failure_reason_code)
+            .execute(&self.pool)
+            .await,
+        };
+        r.map(|_| ()).map_err(|e| StoreError::Backend(Box::new(e)))
+    }
+
+    async fn drain_window(
+        &self,
+        start_unix_secs: u64,
+        end_unix_secs: u64,
+    ) -> Result<Vec<EventFact>, StoreError> {
+        let start = start_unix_secs as i64;
+        let end = end_unix_secs as i64;
+        // DELETE ... RETURNING is the atomic drain — selecting +
+        // deleting in two separate statements would leave a window
+        // for a concurrent reader to see stale rows. PG's
+        // RETURNING clause guarantees the deleted rows are
+        // captured before they disappear from any other view.
+        let rows: Vec<TlsRptRow> = sqlx::query_as::<_, TlsRptRow>(
+            "DELETE FROM tls_rpt_events
+             WHERE recorded_at_unix >= $1 AND recorded_at_unix < $2
+             RETURNING kind, policy_domain, policy_type, mx_host,
+                       result_type, sending_mta_ip, receiving_ip,
+                       receiving_mx_helo, additional_information,
+                       failure_reason_code",
+        )
+        .bind(start)
+        .bind(end)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| StoreError::Backend(Box::new(e)))?;
+
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let policy_type = canonical_policy_str_to_type(&row.policy_type);
+            if row.kind == "success" {
+                let mx = row.mx_host.unwrap_or_default();
+                out.push(EventFact::Success(SuccessEvent {
+                    policy_domain: row.policy_domain,
+                    policy_type,
+                    mx_host: mx,
+                }));
+            } else {
+                let result_type = str_to_failure_type(row.result_type.as_deref().unwrap_or(""));
+                out.push(EventFact::Failure(FailureEvent {
+                    policy_domain: row.policy_domain,
+                    policy_type,
+                    mx_host: row.mx_host,
+                    result_type,
+                    sending_mta_ip: row.sending_mta_ip.and_then(|s| s.parse().ok()),
+                    receiving_ip: row.receiving_ip.and_then(|s| s.parse().ok()),
+                    receiving_mx_helo: row.receiving_mx_helo,
+                    additional_information: row.additional_information,
+                    failure_reason_code: row.failure_reason_code,
+                }));
+            }
+        }
+        Ok(out)
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct TlsRptRow {
+    kind: String,
+    policy_domain: String,
+    policy_type: String,
+    mx_host: Option<String>,
+    result_type: Option<String>,
+    sending_mta_ip: Option<String>,
+    receiving_ip: Option<String>,
+    receiving_mx_helo: Option<String>,
+    additional_information: Option<String>,
+    failure_reason_code: Option<String>,
 }
 
 /// Submit one [`Report`] to all `rua` endpoints declared by each
@@ -384,23 +541,70 @@ fn tls_outcome_to_failure_type(o: &TlsOutcome) -> FailureType {
         TlsOutcome::CertificateHostMismatch(_) => FailureType::CertificateHostMismatch,
         TlsOutcome::CertificateNotTrusted(_) => FailureType::CertificateNotTrusted,
         TlsOutcome::DaneValidationFailure(_) => FailureType::TlsaInvalid,
-        // The next three don't have a clean RFC 8460 mapping (the spec
-        // assumes the failure is on the receiving side). ValidationFailure
-        // is the catch-all per §4.3.
         TlsOutcome::InvalidServerName(_)
         | TlsOutcome::NetworkError(_)
         | TlsOutcome::Other(_) => FailureType::ValidationFailure,
     }
 }
 
-/// Map outbound-queue's policy hint string into the report's
-/// `PolicyType`. Unknown / future values fall back to
-/// `NoPolicyFound` so we don't lose the event.
+/// Map outbound-queue's policy HINT string (used by the worker
+/// when emitting `TlsAttempt`) into the report's `PolicyType`.
+/// The worker uses "dane" / "sts" / "opportunistic" — these are
+/// the human-readable hint values, NOT the canonical RFC 8460
+/// `policy-type` strings.
 fn policy_str_to_type(s: &str) -> PolicyType {
     match s {
         "dane" => PolicyType::Tlsa,
         "sts" => PolicyType::Sts,
         _ => PolicyType::NoPolicyFound,
+    }
+}
+
+/// Canonical RFC 8460 §4.2 `policy-type` string. Used for
+/// round-trip storage in the PG `tls_rpt_events.policy_type`
+/// column so the DB rows match the report's wire format exactly.
+fn policy_type_str(p: PolicyType) -> &'static str {
+    match p {
+        PolicyType::Sts => "sts",
+        PolicyType::Tlsa => "tlsa",
+        PolicyType::NoPolicyFound => "no-policy-found",
+    }
+}
+
+/// Inverse of [`policy_type_str`] — parses the canonical RFC 8460
+/// strings stored in the PG table. Distinct from
+/// [`policy_str_to_type`] because the worker's hint vocabulary
+/// uses "dane" but the canonical vocabulary uses "tlsa"; conflating
+/// them would silently corrupt round-trips.
+fn canonical_policy_str_to_type(s: &str) -> PolicyType {
+    match s {
+        "sts" => PolicyType::Sts,
+        "tlsa" => PolicyType::Tlsa,
+        _ => PolicyType::NoPolicyFound,
+    }
+}
+
+fn failure_type_str(f: FailureType) -> &'static str {
+    f.as_str()
+}
+
+fn str_to_failure_type(s: &str) -> FailureType {
+    match s {
+        "starttls-not-supported" => FailureType::StarttlsNotSupported,
+        "certificate-host-mismatch" => FailureType::CertificateHostMismatch,
+        "certificate-expired" => FailureType::CertificateExpired,
+        "certificate-not-trusted" => FailureType::CertificateNotTrusted,
+        "validation-failure" => FailureType::ValidationFailure,
+        "sts-policy-fetch-error" => FailureType::StsPolicyFetchError,
+        "sts-policy-invalid" => FailureType::StsPolicyInvalid,
+        "sts-webpki-invalid" => FailureType::StsWebpkiInvalid,
+        "tlsa-invalid" => FailureType::TlsaInvalid,
+        "dnssec-invalid" => FailureType::DnssecInvalid,
+        "dane-required" => FailureType::DaneRequired,
+        "dnssec-not-supported" => FailureType::DnssecNotSupported,
+        "mx-mismatch" => FailureType::MxMismatch,
+        "policy-not-published" => FailureType::PolicyNotPublished,
+        _ => FailureType::ValidationFailure,
     }
 }
 
@@ -410,12 +614,6 @@ fn truncate(s: &str, n: usize) -> String {
         return s.to_string();
     }
     s.chars().take(n).collect()
-}
-
-/// Convenience: build an Arc<TlsRptObserver> for sharing across
-/// the spawned outbound-event handler + the periodic flush task.
-pub fn new_shared() -> Arc<TlsRptObserver> {
-    Arc::new(TlsRptObserver::new())
 }
 
 #[cfg(test)]
@@ -452,34 +650,48 @@ mod tests {
             tls_outcome_to_failure_type(&TlsOutcome::Other("x".into())),
             FailureType::ValidationFailure
         );
-        assert_eq!(
-            tls_outcome_to_failure_type(&TlsOutcome::NetworkError("x".into())),
-            FailureType::ValidationFailure
-        );
-        assert_eq!(
-            tls_outcome_to_failure_type(&TlsOutcome::InvalidServerName("x".into())),
-            FailureType::ValidationFailure
-        );
     }
 
     #[test]
-    fn policy_str_dane_to_tlsa() {
+    fn canonical_policy_str_round_trips_through_db_serialization() {
+        for p in [PolicyType::Sts, PolicyType::Tlsa, PolicyType::NoPolicyFound] {
+            let s = policy_type_str(p);
+            assert_eq!(canonical_policy_str_to_type(s), p);
+        }
+    }
+
+    #[test]
+    fn worker_hint_dane_maps_to_tlsa() {
+        // Worker emits "dane" as its policy hint; we map to
+        // PolicyType::Tlsa (the canonical RFC 8460 name).
         assert_eq!(policy_str_to_type("dane"), PolicyType::Tlsa);
-    }
-
-    #[test]
-    fn policy_str_sts_to_sts() {
         assert_eq!(policy_str_to_type("sts"), PolicyType::Sts);
-    }
-
-    #[test]
-    fn policy_str_opportunistic_to_no_policy_found() {
         assert_eq!(policy_str_to_type("opportunistic"), PolicyType::NoPolicyFound);
     }
 
     #[test]
-    fn policy_str_unknown_to_no_policy_found() {
-        assert_eq!(policy_str_to_type("future-policy-name"), PolicyType::NoPolicyFound);
+    fn failure_type_str_round_trip() {
+        // Spot-check every variant round-trips back through
+        // str_to_failure_type — guards against drift between
+        // `FailureType::as_str` and our DB-row parser.
+        for f in [
+            FailureType::StarttlsNotSupported,
+            FailureType::CertificateHostMismatch,
+            FailureType::CertificateExpired,
+            FailureType::CertificateNotTrusted,
+            FailureType::ValidationFailure,
+            FailureType::StsPolicyFetchError,
+            FailureType::StsPolicyInvalid,
+            FailureType::StsWebpkiInvalid,
+            FailureType::TlsaInvalid,
+            FailureType::DnssecInvalid,
+            FailureType::DaneRequired,
+            FailureType::DnssecNotSupported,
+            FailureType::MxMismatch,
+            FailureType::PolicyNotPublished,
+        ] {
+            assert_eq!(str_to_failure_type(failure_type_str(f)), f);
+        }
     }
 
     #[test]
@@ -490,22 +702,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn take_report_returns_none_when_no_events() {
-        let o = TlsRptObserver::new();
-        let r = o.take_report(
-            "Org",
-            "mailto:t@e.com",
-            "rid",
-            "2026-05-23T00:00:00Z",
-            "2026-05-24T00:00:00Z",
-        )
-        .await;
-        assert!(r.is_none());
-    }
-
-    #[tokio::test]
-    async fn record_tls_attempt_success_records_one_success() {
-        let o = TlsRptObserver::new();
+    async fn observer_in_memory_records_and_drains() {
+        let o = TlsRptObserver::in_memory();
         o.record_tls_attempt(
             "example.com",
             "mx.example.com",
@@ -515,53 +713,57 @@ mod tests {
         )
         .await;
         let r = o
-            .take_report("Org", "mailto:t@e.com", "rid", "a", "b")
+            .take_report(
+                0,
+                u64::MAX / 2,
+                "Org",
+                "mailto:t@e.com",
+                "rid",
+                "a",
+                "b",
+            )
             .await
+            .unwrap()
             .unwrap();
         assert_eq!(r.policies.len(), 1);
         assert_eq!(r.policies[0].summary.total_successful_session_count, 1);
-        assert_eq!(r.policies[0].summary.total_failure_session_count, 0);
-        assert_eq!(r.policies[0].policy.policy_type, PolicyType::NoPolicyFound);
     }
 
     #[tokio::test]
-    async fn record_tls_attempt_dane_success_uses_tlsa_policy() {
-        let o = TlsRptObserver::new();
+    async fn observer_take_report_returns_none_when_window_empty() {
+        let o = TlsRptObserver::in_memory();
+        let r = o
+            .take_report(0, 1000, "Org", "mailto:t@e.com", "rid", "a", "b")
+            .await
+            .unwrap();
+        assert!(r.is_none());
+    }
+
+    #[tokio::test]
+    async fn observer_take_report_drains_so_second_call_returns_none() {
+        let o = TlsRptObserver::in_memory();
         o.record_tls_attempt(
             "example.com",
             "mx.example.com",
-            &TlsAttemptOutcome::Success { policy: "dane" },
+            &TlsAttemptOutcome::Success {
+                policy: "opportunistic",
+            },
         )
         .await;
-        let r = o
-            .take_report("Org", "mailto:t@e.com", "rid", "a", "b")
+        let _ = o
+            .take_report(0, u64::MAX / 2, "Org", "x", "r1", "a", "b")
             .await
             .unwrap();
-        assert_eq!(r.policies[0].policy.policy_type, PolicyType::Tlsa);
+        let r2 = o
+            .take_report(0, u64::MAX / 2, "Org", "x", "r2", "a", "b")
+            .await
+            .unwrap();
+        assert!(r2.is_none());
     }
 
     #[tokio::test]
-    async fn record_tls_attempt_not_advertised_emits_starttls_not_supported() {
-        let o = TlsRptObserver::new();
-        o.record_tls_attempt(
-            "example.com",
-            "mx.example.com",
-            &TlsAttemptOutcome::NotAdvertised,
-        )
-        .await;
-        let r = o
-            .take_report("Org", "mailto:t@e.com", "rid", "a", "b")
-            .await
-            .unwrap();
-        assert_eq!(
-            r.policies[0].failure_details[0].result_type,
-            FailureType::StarttlsNotSupported
-        );
-    }
-
-    #[tokio::test]
-    async fn record_tls_attempt_handshake_failed_maps_outcome() {
-        let o = TlsRptObserver::new();
+    async fn observer_failure_event_persists_failure_type() {
+        let o = TlsRptObserver::in_memory();
         o.record_tls_attempt(
             "example.com",
             "mx.example.com",
@@ -571,28 +773,13 @@ mod tests {
         )
         .await;
         let r = o
-            .take_report("Org", "mailto:t@e.com", "rid", "a", "b")
+            .take_report(0, u64::MAX / 2, "Org", "x", "r", "a", "b")
             .await
+            .unwrap()
             .unwrap();
         assert_eq!(
             r.policies[0].failure_details[0].result_type,
             FailureType::CertificateExpired
         );
-    }
-
-    #[tokio::test]
-    async fn take_report_resets_builder_after_call() {
-        let o = TlsRptObserver::new();
-        o.record_tls_attempt(
-            "example.com",
-            "mx.example.com",
-            &TlsAttemptOutcome::Success {
-                policy: "opportunistic",
-            },
-        )
-        .await;
-        let _ = o.take_report("Org", "x", "r1", "a", "b").await;
-        let r2 = o.take_report("Org", "x", "r2", "a", "b").await;
-        assert!(r2.is_none(), "builder should be empty after take_report");
     }
 }

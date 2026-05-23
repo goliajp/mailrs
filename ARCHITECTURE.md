@@ -132,7 +132,7 @@ boundary → who calls it inside mailrs.
 | `mailrs-acme` | ACME (RFC 8555 / Let's Encrypt) orchestration + HTTP-01 + renewal | RFC 8555 | server |
 | `mailrs-dns` | Thin hickory-resolver wrapper exposing only TXT / A / AAAA / MX / PTR | hickory + uniform shape | (future: spf/dkim/dnsbl migration target) |
 | `mailrs-mta-sts` | RFC 8461 STS record + policy parser, MX wildcard match, `enforce(&Policy, mx)` decision, Cache trait (no HTTP / DNS in-crate) | RFC 8461 | server (outbound-queue MTA-STS path) |
-| `mailrs-tls-rpt` | RFC 8460 SMTP TLS Reporting — `_smtp._tls.<domain>` TXT parser, full §4 JSON report data model (serde), `FailureType` enum (14 §4.3 values), `ReportBuilder` aggregating per-connection event facts into the bucketed JSON receivers expect. No SMTP / HTTPS / gzip in-crate. | RFC 8460 | server (planned: outbound TLS observer) |
+| `mailrs-tls-rpt` | RFC 8460 SMTP TLS Reporting — `_smtp._tls.<domain>` TXT parser, full §4 JSON report data model (serde), `FailureType` enum (14 §4.3 values), `ReportBuilder` aggregating per-connection event facts. Since 1.1: `submit` module (gzip + §5.3 multipart/report email build). Since 1.2: `Store` trait + `InMemoryStore` for append/drain persistence. | RFC 8460 | server (outbound TLS observer + PG-backed store) |
 
 ### Server building blocks (opinionated, but BYO-store)
 

@@ -1,5 +1,48 @@
 # Changelog — mailrs-tls-rpt
 
+## 1.2.0 — 2026-05-23
+
+### Added
+
+- `pub mod store` — persistent store trait for TLSRPT event facts,
+  same shape as `mailrs_mta_sts::Cache`. Lets the caller plug in
+  any backend (PG, Redis, file) while the crate itself only knows
+  about the abstract `Store` trait.
+  - `EventFact` enum — `Success(SuccessEvent)` or
+    `Failure(FailureEvent)`. `apply(&mut ReportBuilder)` helper
+    re-feeds a fact into a builder.
+  - `Store` async trait: `append(event, ts) -> Result<(), StoreError>`
+    and `drain_window(start, end) -> Result<Vec<EventFact>, StoreError>`.
+  - Drain semantics are atomic + half-open `[start, end)`. The
+    impl deletes drained rows in the same transaction as
+    returning them — no risk of double-reporting if the server
+    crashes mid-flush. (The server submitter rebuilds the report
+    from the returned facts.)
+  - `InMemoryStore` reference impl — `Mutex<Vec<(ts, fact)>>`.
+    Sufficient for single-process MTAs and tests; the server
+    crate provides a PG-backed impl.
+- New runtime dep: `async-trait`.
+
+### Tests
+
+- 5 new tests covering append/drain round-trip, half-open window
+  boundaries, empty windows, start-boundary inclusion, and
+  `EventFact::apply` rebuilding a `Report` from drained facts.
+
+### Why this release exists
+
+The data flow before 1.2 went: outbound observer → in-memory
+`ReportBuilder` → daily flush. A server restart between events
+and the next flush lost the window's data silently.
+
+With `Store` in place, the observer can write each event through
+to persistent storage immediately (e.g. an append-only PG table),
+and the flush task rebuilds the report from the persisted facts.
+Restart-safe by construction.
+
+The trait is `Send + Sync` and object-safe, so callers stash an
+`Arc<dyn Store>` and swap impls without generic plumbing.
+
 ## 1.1.0 — 2026-05-23
 
 ### Added
