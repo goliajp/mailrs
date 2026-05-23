@@ -1063,6 +1063,23 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         app = app.fallback_service(ServeDir::new(dir).fallback(ServeFile::new(index)));
     }
 
+    // HTTP-request-level tracing span. Wraps EVERY route (including the
+    // post-with_state merges above) so all per-handler log lines + any
+    // future #[instrument] handlers nest under one `web.req` span per
+    // request. Span carries method + URI; status code + latency are added
+    // on response.
+    app = app.layer(
+        tower_http::trace::TraceLayer::new_for_http().make_span_with(
+            |req: &axum::http::Request<_>| {
+                tracing::info_span!(
+                    "web.req",
+                    method = %req.method(),
+                    uri = %req.uri(),
+                )
+            },
+        ),
+    );
+
     app
 }
 
