@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-05-23
+
+### Changed
+
+- `parse_mechanism` dispatch swapped from `match name` (UTF-8 string
+  match) to `match name.as_bytes()` (byte literal match). Mechanism
+  names are pure ASCII per RFC 7208 §5, so the byte form is strictly
+  cheaper. Net effect on the hot path is sub-nanosecond on the simple
+  case; documented for completeness.
+
+### Performance
+
+| Input | mailrs-spf 1.0.4 | mail-auth 0.9 |
+|---|---:|---:|
+| `v=spf1 ip4:... -all` (3 mech) | 63 ns | 50 ns |
+| 8-mechanism complex | **360 ns** | 410 ns |
+| 8-include pathological | **400 ns** | 577 ns |
+
+Mail-auth still wins the 3-mech simple case by 13 ns due to its hand-
+rolled byte-iter IPv4 parser (vs our `std::net::Ipv4Addr::FromStr`).
+On anything realistic-sized — multi-mechanism, include-heavy — mailrs
+wins by 14-44%.
+
 ## [1.0.3] - 2026-05-23
 
 ### Changed

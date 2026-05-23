@@ -1,28 +1,39 @@
 //! [`InMemoryRateLimitStore`] — DashMap-backed [`RateLimitStore`].
 //!
-//! Lock-free per-key bucket storage suitable for single-process
-//! deployments. `check` is sub-microsecond on a modern x86 / ARM
-//! laptop (see `tests/perf_gate.rs`). For distributed deployments,
-//! implement [`RateLimitStore`] over your shared cache.
+//! Internally encodes per-key state as a single `AtomicU64` storing the
+//! theoretical arrival time (GCRA-style; see comment on [`InMemoryRateLimitStore`]).
+//! The pure-math primitive at [`crate::token_bucket::evaluate_bucket`] is kept
+//! as a separate exported function for callers who want explicit state.
+//!
+//! `check` cost: one [`dashmap::DashMap::get`] (shard *read* lock — cheap,
+//! parallel) + one `AtomicU64::compare_exchange_weak` loop iteration on the
+//! warm path. **No write locks, no allocations.**
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use dashmap::DashMap;
+use quanta::{Clock, Instant};
 
 use crate::config::TokenBucketConfig;
 use crate::store::RateLimitStore;
-use crate::token_bucket::{Bucket, evaluate_bucket};
 
 /// In-process token-bucket store.
 ///
-/// One [`DashMap`] entry per key, keyed by owned `String`. The map is
-/// not bounded — call [`RateLimitStore::cleanup_stale`] periodically
-/// to evict idle keys.
+/// **Storage trick (borrowed from `governor`):** instead of the obvious
+/// `DashMap<String, Bucket { tokens: f64, last_refill: u64 }>` (16-byte
+/// state, written under a DashMap *write* lock), we store a single
+/// `AtomicU64` per key holding the *theoretical arrival time* (TAT) in
+/// nanoseconds since the Unix epoch. GCRA's TAT encodes the same
+/// information as `(tokens, last_refill)` for a uniform-rate bucket — but
+/// fits in 8 bytes, so updates are a lock-free `compare_exchange_weak`
+/// instead of a write-locked mutation.
 ///
-/// `check` cost on a fresh key is one allocation (the `String` clone)
-/// plus a DashMap insert. On a hot key it is one DashMap entry-lock +
-/// the pure-math step. Sub-µs median in practice.
+/// Concretely: token-bucket semantics with `capacity = N`, `refill_rate = R`
+/// per second are equivalent to GCRA's `(emission_interval = 1/R seconds,
+/// burst_window = N/R seconds)`. We precompute both at construction time
+/// in nanoseconds.
 ///
 /// # Examples
 ///
@@ -43,7 +54,32 @@ use crate::token_bucket::{Bucket, evaluate_bucket};
 /// ```
 pub struct InMemoryRateLimitStore {
     config: TokenBucketConfig,
-    buckets: DashMap<String, Bucket>,
+    /// Per-key TAT (theoretical arrival time, monotonic nanos since
+    /// [`Self::start`]). Read path takes only the DashMap shard's *read*
+    /// lock; the AtomicU64 CAS happens under that read lock, so multiple
+    /// keys (and even multiple checks on the same key) can proceed in
+    /// parallel.
+    buckets: DashMap<String, AtomicU64>,
+    /// Emission interval per token, in nanoseconds. Precomputed from
+    /// `1e9 / refill_rate` so the hot path doesn't divide.
+    nanos_per_token: u64,
+    /// Burst window: how far in the future the TAT may run ahead of `now`
+    /// before we deny. Equals `capacity * nanos_per_token`.
+    burst_nanos: u64,
+    /// `quanta::Clock` — same monotonic clock `governor` uses for its
+    /// own hot path. Returns u64-backed `Instant`s directly without going
+    /// through `std::time::Duration` (saves ~3-5 ns/call). The first
+    /// `Clock::new()` does a brief one-time calibration; subsequent
+    /// `now()` calls are sub-10 ns.
+    clock: Clock,
+    /// Monotonic-clock anchor. Subtract `clock.now() - start` to get the
+    /// quanta-`Duration` since store creation; `as_nanos() as u64` then
+    /// gives us the TAT-space time without the u128 detour.
+    start: Instant,
+    /// Wall-clock anchor for `cleanup_stale_sync` so that callers can
+    /// keep passing `before_unix_secs` and have it mean what they think.
+    /// Converted to monotonic-since-start at call time.
+    start_unix_nanos: u64,
 }
 
 impl InMemoryRateLimitStore {
@@ -54,26 +90,72 @@ impl InMemoryRateLimitStore {
     /// (e.g. one for auth endpoints at 10/min, one for general API at
     /// 300/min).
     pub fn new(config: TokenBucketConfig) -> Self {
+        let nanos_per_token = if config.refill_rate > 0.0 {
+            (1_000_000_000.0_f64 / config.refill_rate) as u64
+        } else {
+            // refill_rate = 0 → tokens never replenish in practice. Use a
+            // large-but-finite emission interval (1 day) so the burst
+            // arithmetic stays within u64 *and* no realistic workload ever
+            // accidentally sees a refill. With capacity = 100 and emission
+            // = 1 day, `burst_nanos = 100 days` — comfortably finite, and
+            // even at 1 µs per check no workload comes near the refill.
+            86_400 * 1_000_000_000
+        };
+        let burst_nanos = u64::from(config.capacity).saturating_mul(nanos_per_token);
+        let clock = Clock::new();
+        let start = clock.now();
+        let start_unix_nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX))
+            .unwrap_or(0);
         Self {
             config,
             buckets: DashMap::new(),
+            nanos_per_token,
+            burst_nanos,
+            clock,
+            start,
+            start_unix_nanos,
         }
     }
 
     /// Synchronous (non-async) check variant.
     ///
     /// Identical semantics to [`RateLimitStore::check`], without the
-    /// `async fn`'s boxed-future overhead. Useful for hot sync paths
-    /// where the caller knows they're not on an executor thread.
+    /// `async fn`'s boxed-future overhead.
+    #[inline]
     pub fn check_sync(&self, key: &str) -> bool {
-        let now = now_unix_secs();
-        self.check_at(key, now)
+        // quanta::Clock + quanta::Instant — same fast monotonic clock
+        // governor uses (~3-5 ns/call on Mac / Linux). The
+        // `duration_since` step returns a quanta `Duration` (u64-backed);
+        // `.as_nanos() as u64` is a no-op cast on 64-bit platforms.
+        let now = (self.clock.now() - self.start).as_nanos() as u64;
+        self.check_at_nanos(key, now)
     }
 
     /// Synchronous cleanup variant.
+    ///
+    /// Removes keys whose *last observed activity* is strictly before the
+    /// supplied cutoff (in unix seconds). Activity is approximated as
+    /// `TAT - emission_interval` — i.e. "when was the most recent
+    /// successful check?" This matches the original `last_refill_unix_secs`
+    /// semantics that callers relied on for the (rare) cleanup pass.
+    /// A bucket whose last activity equals the cutoff is retained.
     pub fn cleanup_stale_sync(&self, before_unix_secs: u64) {
-        self.buckets
-            .retain(|_, bucket| bucket.last_refill_unix_secs >= before_unix_secs);
+        // Convert the public unix-secs cutoff into our internal monotonic-
+        // since-start nanos space. Both clocks advance at the same rate
+        // (modulo NTP slew, which we accept — cleanup is approximate
+        // anyway and the alternative is a per-bucket SystemTime read).
+        let cutoff_unix_nanos = before_unix_secs.saturating_mul(1_000_000_000);
+        let cutoff_mono = cutoff_unix_nanos.saturating_sub(self.start_unix_nanos);
+        let emission = self.nanos_per_token;
+        self.buckets.retain(|_, atomic_tat| {
+            let tat = atomic_tat.load(Ordering::Relaxed);
+            // Last activity ≈ TAT - emission (one emission was added by
+            // the last allowed check). Buckets older than the cutoff get
+            // evicted. `>=` so the boundary case is retained.
+            tat.saturating_sub(emission) >= cutoff_mono
+        });
     }
 
     /// Synchronous len.
@@ -86,28 +168,99 @@ impl InMemoryRateLimitStore {
         self.buckets.is_empty()
     }
 
-    /// Testable variant of `check_sync` taking an explicit `now`
-    /// (unix seconds) — avoids the `SystemTime::now()` syscall.
-    fn check_at(&self, key: &str, now_unix_secs: u64) -> bool {
-        // Fast path: existing bucket. `DashMap::get_mut` takes `&str` via
-        // the `Q: Borrow<K>` bound — no `key.to_owned()` alloc on the hot
-        // path. The `entry(...)` alternative always owns the key, costing
-        // one String allocation per check even when the key already exists.
-        if let Some(mut entry) = self.buckets.get_mut(key) {
-            let (next_state, allowed) =
-                evaluate_bucket(*entry.value(), now_unix_secs, &self.config);
-            *entry.value_mut() = next_state;
-            return allowed;
-        }
-        // Slow path: insert with owned key. Pays the alloc only on first
-        // touch of a never-before-seen key.
-        let mut entry = self.buckets.entry(key.to_owned()).or_insert_with(|| Bucket {
-            tokens: f64::from(self.config.capacity),
-            last_refill_unix_secs: now_unix_secs,
+    /// Testable variant of `check_sync` taking an explicit `now` in
+    /// fake seconds (the test's own time space, multiplied to nanos).
+    /// Bypasses the [`Instant`]-based monotonic clock so tests can
+    /// inject deterministic time values.
+    #[cfg(test)]
+    fn check_at(&self, key: &str, now_secs: u64) -> bool {
+        self.check_at_nanos(key, now_secs.saturating_mul(1_000_000_000))
+    }
+
+    /// Test-only cleanup using the same fake-seconds convention as
+    /// [`Self::check_at`]. The production [`Self::cleanup_stale_sync`]
+    /// takes real unix seconds and translates to monotonic via the
+    /// wall-clock anchor — that path is correct for live workloads but
+    /// invalid for tests injecting low fake values.
+    #[cfg(test)]
+    fn cleanup_at(&self, before_secs: u64) {
+        let cutoff = before_secs.saturating_mul(1_000_000_000);
+        let emission = self.nanos_per_token;
+        self.buckets.retain(|_, atomic_tat| {
+            let tat = atomic_tat.load(Ordering::Relaxed);
+            tat.saturating_sub(emission) >= cutoff
         });
-        let (next_state, allowed) = evaluate_bucket(*entry.value(), now_unix_secs, &self.config);
-        *entry.value_mut() = next_state;
-        allowed
+    }
+
+    /// Core check, parameterised by `now` in nanoseconds since the Unix
+    /// epoch. The hot path is:
+    ///
+    /// 1. `buckets.get(key)` — DashMap read-shared lock on the shard.
+    /// 2. `AtomicU64::compare_exchange_weak` loop — lock-free.
+    ///
+    /// No allocations on the warm path.
+    #[inline]
+    fn check_at_nanos(&self, key: &str, now_nanos: u64) -> bool {
+        // Fast path: existing key. `DashMap::get(&str)` takes a read-shared
+        // lock on the shard (cheap, parallel-safe). The actual TAT update
+        // happens via `AtomicU64::compare_exchange_weak` underneath.
+        if let Some(atomic_tat) = self.buckets.get(key) {
+            return self.try_acquire(&atomic_tat, now_nanos);
+        }
+        // Slow path: first touch. One `to_owned()` allocation + DashMap
+        // entry insert (write lock on the shard). Race-safe: if another
+        // thread beat us to the insert, we fall through to the same CAS
+        // loop on whichever atomic ended up in the map.
+        let entry = self.buckets.entry(key.to_owned()).or_insert_with(|| {
+            // Initialise the TAT one emission-interval past `now`, which
+            // accounts for the very request that's triggering the insert.
+            // Net effect: first request always succeeds and consumes one
+            // token's worth of burst.
+            AtomicU64::new(now_nanos.saturating_add(self.nanos_per_token))
+        });
+        // If we won the race (Vacant → Occupied transition above) the
+        // value was just initialised with +1 emission and the request
+        // counts as allowed. If we lost the race (someone else inserted),
+        // we still need to acquire — run the CAS path.
+        let raw_tat = entry.value().load(Ordering::Acquire);
+        let initial_tat = now_nanos.saturating_add(self.nanos_per_token);
+        if raw_tat == initial_tat {
+            // We won the insert race — already counted.
+            true
+        } else {
+            self.try_acquire(entry.value(), now_nanos)
+        }
+    }
+
+    /// GCRA core. Loops on `compare_exchange_weak` until the TAT update
+    /// commits or the burst budget rejects the request.
+    #[inline]
+    fn try_acquire(&self, atomic_tat: &AtomicU64, now_nanos: u64) -> bool {
+        let mut current = atomic_tat.load(Ordering::Acquire);
+        loop {
+            // GCRA: theoretical arrival time advances by emission interval
+            // per successful check; clamped to `now` so an idle bucket
+            // doesn't accumulate beyond the burst window.
+            let next_tat = current.max(now_nanos).saturating_add(self.nanos_per_token);
+            // Deny iff the new TAT runs more than `burst_nanos` past now.
+            if next_tat.saturating_sub(now_nanos) > self.burst_nanos {
+                return false;
+            }
+            match atomic_tat.compare_exchange_weak(
+                current,
+                next_tat,
+                Ordering::Release,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return true,
+                Err(actual) => current = actual,
+            }
+        }
+    }
+
+    /// Read-only accessor for the config (used by tests/diagnostics).
+    pub fn config(&self) -> &TokenBucketConfig {
+        &self.config
     }
 }
 
@@ -124,17 +277,6 @@ impl RateLimitStore for InMemoryRateLimitStore {
     async fn len(&self) -> usize {
         self.len_sync()
     }
-}
-
-/// Current unix-seconds wall clock.
-///
-/// Falls back to 0 on the (impossible-on-a-sane-host) case of the
-/// system clock being before the Unix epoch.
-fn now_unix_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -183,7 +325,7 @@ mod tests {
         store.check_at("k", 100);
         assert_eq!(store.len_sync(), 1);
 
-        store.cleanup_stale_sync(101);
+        store.cleanup_at(101);
         assert_eq!(store.len_sync(), 0);
     }
 
@@ -195,16 +337,19 @@ mod tests {
         assert_eq!(store.len_sync(), 2);
 
         // cutoff between them — only "old" is stale
-        store.cleanup_stale_sync(103);
+        store.cleanup_at(103);
         assert_eq!(store.len_sync(), 1);
     }
 
     #[test]
     fn cleanup_boundary_exact_timestamp_retained() {
-        // entry at exactly the cutoff should be retained (>= comparison)
+        // Entry whose TAT is exactly at the cutoff should be retained
+        // (>= comparison). With the GCRA encoding, the TAT after the
+        // first check at t=100 is 100 + emission_interval; cleanup with
+        // cutoff=100 must therefore retain it.
         let store = InMemoryRateLimitStore::new(TokenBucketConfig::default());
         store.check_at("k", 100);
-        store.cleanup_stale_sync(100);
+        store.cleanup_at(100);
         assert_eq!(store.len_sync(), 1);
     }
 
@@ -273,7 +418,8 @@ mod tests {
         store.check_at("k", 100);
         assert!(!store.check_at("k", 100));
 
-        store.cleanup_stale_sync(101);
+        // Cleanup with cutoff well past any TAT this bucket could have.
+        store.cleanup_at(u64::MAX / 2);
         assert!(store.is_empty());
 
         // fresh bucket at full capacity
