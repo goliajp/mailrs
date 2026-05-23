@@ -39,6 +39,14 @@ pub enum ArcError {
         /// Instance number whose signature failed.
         instance: u32,
     },
+    /// AMS body hash (`bh=`) did not match the recomputed hash of the
+    /// canonicalized body.
+    BodyHashMismatch,
+    /// A base64 tag (`b=` / `bh=`) failed to decode.
+    InvalidBase64(String),
+    /// The raw message has no detectable end-of-headers terminator
+    /// (no CRLF CRLF, no LF LF).
+    MalformedMessage,
 }
 
 impl std::fmt::Display for ArcError {
@@ -65,6 +73,9 @@ impl std::fmt::Display for ArcError {
             Self::SignatureMismatch { header, instance } => {
                 write!(f, "signature mismatch on {header} i={instance}")
             }
+            Self::BodyHashMismatch => write!(f, "body hash (bh=) mismatch"),
+            Self::InvalidBase64(tag) => write!(f, "invalid base64 in tag: {tag}"),
+            Self::MalformedMessage => write!(f, "malformed message: no end-of-headers"),
         }
     }
 }

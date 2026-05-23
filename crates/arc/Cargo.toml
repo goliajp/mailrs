@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-arc"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 description = "RFC 8617 Authenticated Received Chain (ARC) — header parsing, chain extraction, and signature verification. ARC extends DKIM/SPF/DMARC across forwarders by chaining per-hop authentication results inside cryptographically-sealed header sets. Pairs with mailrs-dkim for canonicalization + RSA verify, mailrs-spf / mailrs-dmarc for the auth-results that ARC carries forward."
 license = "Apache-2.0 OR MIT"
@@ -25,16 +25,26 @@ hickory = ["mailrs-dkim/hickory"]
 async-trait = "0.1"
 base64 = "0.22"
 sha2 = { version = "0.10", features = ["oid"] }
-rsa = "0.9"
-ed25519-dalek = "2"
-# DKIM canonicalization + RSA verify are byte-identical between RFC 6376
-# and RFC 8617 §5 (ARC-Message-Signature uses the same algorithms), so
-# we route through mailrs-dkim instead of duplicating ~400 LOC of canon.
-mailrs-dkim = { path = "../dkim", version = "1.1", default-features = false }
+# DKIM canonicalization + crypto primitives are byte-identical between
+# RFC 6376 and RFC 8617 §5 (AMS uses the same canonicalization +
+# algorithms; AS uses relaxed/relaxed + the same algorithms). Route
+# through mailrs-dkim instead of duplicating ~600 LOC of canon + crypto.
+# 1.2 exposes the `crypto` + `headers` modules we now depend on.
+mailrs-dkim = { path = "../dkim", version = "1.2", default-features = false }
 
 [dev-dependencies]
 criterion = { workspace = true }
 tokio = { workspace = true }
+# Crypto signing primitives — used by integration tests to produce real
+# RSA-SHA256 / Ed25519-SHA256 signed AMS / AS headers and round-trip
+# them through verify_chain_with_crypto. Not used by the runtime crate
+# (verification side reuses mailrs-dkim's crypto primitives).
+# rsa 0.9 pulls rand_core 0.6 — match that so RsaPrivateKey::new accepts our RNG.
+rsa = { version = "0.9", features = ["sha2"] }
+rand = "0.8"
+base64 = "0.22"
+sha2 = { version = "0.10", features = ["oid"] }
+async-trait = "0.1"
 
 [[bench]]
 name = "arc"

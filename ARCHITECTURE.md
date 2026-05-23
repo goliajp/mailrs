@@ -115,7 +115,7 @@ boundary → who calls it inside mailrs.
 | `mailrs-spf` | RFC 7208 SPF record parser + verifier (beats mail-auth on realistic + pathological inputs) | RFC 7208 | server |
 | `mailrs-dkim` | RFC 6376 DKIM signer + verifier (beats mail-auth on both inputs since 1.1.3) | RFC 6376 | server |
 | `mailrs-dmarc` | DMARC TXT policy parse + alignment (DKIM `d=` / SPF MAIL FROM, strict + relaxed via Public Suffix List) + pure-fn `evaluate` + aggregate XML reporting | RFC 7489 | server |
-| `mailrs-arc` | Authenticated Received Chain — 3 header parsers + chain extract + structural verify. Crypto AMS/AS verify reserved for 1.1, reuses `mailrs-dkim` canon. Only standalone Rust ARC implementation (mail-auth bundles it). | RFC 8617 | server (1.1) |
+| `mailrs-arc` | Authenticated Received Chain — 3 header parsers + chain extract + structural verify + **crypto AMS/AS verify** (1.1, RSA-SHA256 / Ed25519-SHA256 via `mailrs_dkim::crypto`). Only standalone Rust ARC implementation (mail-auth bundles it). | RFC 8617 | server (shadow) |
 | `mailrs-srs` | Sender Rewriting Scheme (SPF-aware forwarding) | RFC 6730 | server |
 
 ### Infra / utilities

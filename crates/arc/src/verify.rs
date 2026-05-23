@@ -13,20 +13,11 @@
 //!    signature algorithms (RSA-SHA256 / Ed25519-SHA256) per
 //!    RFC 8617 §5.
 //!
-//! This 1.0 release implements the structural layer fully and gates
-//! the cryptographic layer behind [`verify_chain_with_crypto`]
-//! (which returns [`ChainOutcome::CryptoUnimplemented`] for now —
-//! 1.1 will plug in the AMS / AS hash + RSA verify, reusing
-//! [`mailrs_dkim::canon`] for byte-identical canonicalization).
-//!
-//! The structural layer alone is enough to:
-//!
-//! - Detect malformed / sparse / over-long chains (rejecting before
-//!   any DNS lookup).
-//! - Detect `cv=` inconsistencies that prove the chain was tampered
-//!   with (e.g. first set with `cv=pass`, or two sets with `cv=none`).
-//! - Carry the chain forward to the cryptographic layer when it
-//!   lands in 1.1.
+//! Since 1.1, [`verify_chain_with_crypto`] runs the full crypto layer:
+//! it walks the chain from the highest instance down, verifying each
+//! AMS + AS against DNS-fetched keys via [`crate::crypto`]. The
+//! structural-only variant [`verify_chain`] remains available for
+//! callers that want early rejection before any DNS lookup.
 
 use crate::chain::ArcChain;
 use crate::error::ArcError;
@@ -48,8 +39,15 @@ pub enum ChainOutcome {
         reason: String,
     },
     /// Structural layer passed; cryptographic layer not yet
-    /// implemented (slated for 1.1). Treat as `Pass` for structural
-    /// trust, fall back to non-ARC DMARC for the cryptographic call.
+    /// implemented. Returned by [`verify_chain_with_crypto`] only when
+    /// it is invoked from a path that requested structural-only
+    /// (none of the current public APIs return this — it is retained
+    /// for compatibility with 1.0 callers that pattern-matched on it).
+    #[deprecated(
+        since = "1.1.0",
+        note = "verify_chain_with_crypto now performs cryptographic verification; \
+                this variant is no longer returned"
+    )]
     CryptoUnimplemented,
 }
 
@@ -106,26 +104,42 @@ pub fn verify_chain(chain: &ArcChain) -> ChainOutcome {
 
 /// Full ARC chain verification including cryptographic checks.
 ///
-/// **Not implemented in 1.0.** Returns
-/// [`ChainOutcome::CryptoUnimplemented`] after running the structural
-/// layer ([`verify_chain`]); if the structural layer fails, that
-/// failure is returned instead.
+/// For each set from highest instance down, verifies (a) the AMS
+/// against the message body + signed headers, and (b) the AS against
+/// the chain prefix per RFC 8617 §5.1.2. A single failure returns
+/// [`ChainOutcome::Fail`] with a short reason; the chain only
+/// achieves [`ChainOutcome::Pass`] when every AMS and every AS
+/// verifies cryptographically.
 ///
-/// 1.1 will fill in, for each set from highest `i` downward:
-/// compute the AMS body+header hash via [`mailrs_dkim::canon`],
-/// DNS-lookup `<selector>._domainkey.<domain>` for both the AMS
-/// and AS keys, then RSA-SHA256 or Ed25519-SHA256 verify each
-/// signature. Stop on the first failure; the chain's verdict is
-/// whatever the highest-instance set's verify yields.
+/// Crypto delegates to [`crate::crypto`] which re-uses
+/// [`mailrs_dkim::crypto`] for the actual RSA-SHA256 /
+/// Ed25519-SHA256 primitive.
 pub async fn verify_chain_with_crypto<R: ArcResolver + ?Sized>(
     chain: &ArcChain,
-    _resolver: &R,
-    _raw_message: &[u8],
+    resolver: &R,
+    raw_message: &[u8],
 ) -> Result<ChainOutcome, ArcError> {
     match verify_chain(chain) {
-        ChainOutcome::Pass => Ok(ChainOutcome::CryptoUnimplemented),
-        other => Ok(other),
+        ChainOutcome::Pass => {}
+        other => return Ok(other),
     }
+    // Walk highest → lowest; a tampered later set is the most useful
+    // signal for downstream DMARC (the latest forwarder is who
+    // attaches the chain we trust). For each instance verify AMS then
+    // AS — both must pass.
+    for set in chain.sets.iter().rev() {
+        if let Err(e) = crate::crypto::verify_ams(set, raw_message, resolver).await {
+            return Ok(ChainOutcome::Fail {
+                reason: format!("ams i={}: {e}", set.i),
+            });
+        }
+        if let Err(e) = crate::crypto::verify_as(chain, set.i, resolver).await {
+            return Ok(ChainOutcome::Fail {
+                reason: format!("as i={}: {e}", set.i),
+            });
+        }
+    }
+    Ok(ChainOutcome::Pass)
 }
 
 #[cfg(test)]
@@ -191,13 +205,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn crypto_verify_returns_unimplemented_when_structural_passes() {
+    async fn crypto_verify_returns_fail_when_dns_empty_after_structural_pass() {
+        // Structural layer passes, but the DummyResolver returns an
+        // empty TXT vector — fetch_public_key bubbles that up as Dns,
+        // which verify_chain_with_crypto maps to ChainOutcome::Fail
+        // with a "ams i=1: …" reason.
         let m = msg_with(&[SET1_AAR, SET1_AMS, SET1_AS_NONE]);
         let chain = ArcChain::extract(&m).unwrap().unwrap();
         let r = verify_chain_with_crypto(&chain, &DummyResolver, &m)
             .await
             .unwrap();
-        assert_eq!(r, ChainOutcome::CryptoUnimplemented);
+        match r {
+            ChainOutcome::Fail { reason } => assert!(reason.starts_with("ams i=1:"), "{reason}"),
+            other => panic!("expected Fail, got {other:?}"),
+        }
     }
 
     #[tokio::test]

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-05-23
+
+### Added
+
+- `pub mod crypto` — extracted from `verifier.rs`:
+  - `extract_public_key(txt)` — parse a DKIM TXT record's `p=` tag
+    into raw key bytes (PKCS8 DER for RSA, raw 32 bytes for Ed25519).
+  - `verify_signature(algorithm, key, signed_data, sig)` — standalone
+    RSA-SHA256 / Ed25519-SHA256 verify primitive. No DKIM-Signature
+    layout assumptions, so other email-auth crates (e.g. `mailrs-arc`'s
+    AMS / AS verify) can reuse exactly the same crypto core.
+- `pub mod headers` — extracted from `verifier.rs`:
+  - `find_body_offset` / `body_offset_minus_blank` — RFC 5322
+    headers-vs-body terminator location, tolerant of lone-LF EOL.
+  - `find_header_value` / `find_header_value_in_raw` — RFC 5322
+    fold-aware (`CRLF + WSP`) header lookup, owning + borrowing
+    variants.
+  - `clear_b_value` — replace the value of a `b=` tag in a signature
+    header with empty bytes, for header-hash input construction.
+
+### Changed
+
+- `verifier::verify` now delegates to `crypto::verify_signature` and
+  `headers::*` instead of inlining the implementations. Behaviour
+  identical; the lift is purely about reuse. Verified by the existing
+  47-test unit suite.
+
+### Notes
+
+This release exists to support the upcoming `mailrs-arc` 1.1 crypto
+AMS / AS verify path. The new modules are deliberately small and the
+function signatures are stable — they are the API contract
+`mailrs-arc` 1.1 will depend on.
+
 ## [1.1.3] - 2026-05-23
 
 ### Changed

@@ -501,6 +501,9 @@ async fn main() {
     let shadow_dkim_resolver = resolver.as_ref().map(|r| {
         Arc::new(mailrs_dkim::HickoryDkimResolver::new((**r).clone()))
     });
+    // ARC reuses the DKIM resolver (ArcResolver = DkimResolver). One
+    // hickory bind, two stones.
+    let shadow_arc_resolver = shadow_dkim_resolver.clone();
 
     let inbound_pipeline = crate::inbound::pipeline::build_inbound_pipeline(
         greylist_db.clone(),
@@ -510,6 +513,7 @@ async fn main() {
         dmarc_report_store.clone(),
         shadow_spf_resolver,
         shadow_dkim_resolver,
+        shadow_arc_resolver,
         cfg.clamav_addr.clone(),
         llm_provider.clone(),
         valkey_conn.clone(),

@@ -29,6 +29,7 @@ pub struct MailAuthStage {
     dmarc_report_store: Option<Arc<DmarcReportStore>>,
     shadow_spf_resolver: Option<Arc<mailrs_spf::HickoryResolver>>,
     shadow_dkim_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
+    shadow_arc_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
 }
 
 impl MailAuthStage {
@@ -43,6 +44,7 @@ impl MailAuthStage {
             dmarc_report_store,
             shadow_spf_resolver: None,
             shadow_dkim_resolver: None,
+            shadow_arc_resolver: None,
         }
     }
 
@@ -61,6 +63,16 @@ impl MailAuthStage {
     /// parallel to mail-auth's verifier and logs match/divergence.
     pub fn with_shadow_dkim(mut self, resolver: Arc<mailrs_dkim::HickoryDkimResolver>) -> Self {
         self.shadow_dkim_resolver = Some(resolver);
+        self
+    }
+
+    /// Enable shadow-mode ARC validation against `mailrs-arc` 1.1.
+    /// Re-uses the DKIM hickory resolver because `ArcResolver = DkimResolver`.
+    /// Runs in parallel to mail-auth's `verify_arc` and logs
+    /// match/divergence — validates the new crypto path against real
+    /// prod traffic before cutting over.
+    pub fn with_shadow_arc(mut self, resolver: Arc<mailrs_dkim::HickoryDkimResolver>) -> Self {
+        self.shadow_arc_resolver = Some(resolver);
         self
     }
 }
@@ -129,6 +141,47 @@ impl Stage for MailAuthStage {
         } else {
             "fail".into()
         };
+
+        // Shadow-mode ARC via mailrs-arc 1.1. Reads the same raw
+        // bytes mail-auth read, runs structural + crypto verify
+        // through its own DKIM-shaped resolver. Logs match /
+        // divergence; does NOT affect any decision.
+        if let Some(ref shadow) = self.shadow_arc_resolver {
+            let shadow_coarse =
+                match mailrs_arc::ArcChain::extract(&ctx.message) {
+                    Ok(None) => "none",
+                    Err(_) => "fail",
+                    Ok(Some(chain)) => {
+                        match mailrs_arc::verify_chain_with_crypto(
+                            &chain,
+                            shadow.as_ref(),
+                            &ctx.message,
+                        )
+                        .await
+                        {
+                            Ok(mailrs_arc::ChainOutcome::Pass) => "pass",
+                            Ok(_) => "fail",
+                            Err(_) => "fail",
+                        }
+                    }
+                };
+            let mail_auth_coarse = ctx.auth_results.arc.as_str();
+            if shadow_coarse == mail_auth_coarse {
+                tracing::info!(
+                    event = "arc_shadow_match",
+                    arc = %mail_auth_coarse,
+                    "mailrs-arc matches mail-auth"
+                );
+            } else {
+                tracing::warn!(
+                    event = "arc_shadow_divergence",
+                    mail_auth = %mail_auth_coarse,
+                    mailrs_arc = %shadow_coarse,
+                    sender = %ctx.sender,
+                    "ARC result divergence — mailrs-arc says different from mail-auth"
+                );
+            }
+        }
 
         ctx.auth_results.dkim = if dkim_outputs.is_empty() {
             "none".into()
