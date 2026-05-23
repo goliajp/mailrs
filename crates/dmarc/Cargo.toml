@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-dmarc"
-version = "1.0.2"
+version = "1.1.0"
 edition = "2024"
 description = "DMARC (RFC 7489) aggregate report generation: result recording, XML report builder, report-mail formatter, rua extraction. Pluggable store trait with a Postgres reference impl."
 license = "Apache-2.0 OR MIT"
@@ -26,6 +26,10 @@ async-trait = "0.1"
 base64 = "0.22"
 chrono = "0.4"
 flate2 = "1"
+thiserror = "2"
+# Public Suffix List for organizational-domain extraction (DMARC relaxed
+# alignment, RFC 7489 §3.2). Compile-time PSL, no runtime download.
+psl = "2"
 
 # pg-store feature
 sqlx = { workspace = true, optional = true }

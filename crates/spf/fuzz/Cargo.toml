@@ -1,0 +1,27 @@
+[package]
+name = "mailrs-spf-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.mailrs-spf]
+path = ".."
+default-features = false
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "parse_record"
+path = "fuzz_targets/parse_record.rs"
+test = false
+doc = false
+bench = false
