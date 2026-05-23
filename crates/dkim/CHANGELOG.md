@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-05-23
+
+### Added
+
+- `crypto::sign_signature(&CryptoSigningKey, signed_data) -> Result<Vec<u8>, DkimError>`
+  — standalone sign primitive that mirrors `verify_signature` exactly.
+  Hash algorithm implied by the key (RSA-SHA256 / Ed25519-SHA256).
+  Returns raw signature bytes; caller does base64 + tag assembly.
+- `crypto::CryptoSigningKey<'a>` enum (Rsa / Ed25519) with `algorithm()`
+  helper. Borrows the key so callers can share one parsed key across
+  multiple sign calls.
+
+### Changed
+
+- `sign::sign` now delegates to `crypto::sign_signature` instead of
+  inlining the RSA + Ed25519 sign calls. Behaviour byte-identical;
+  shared code path means a future fix in `crypto::sign_signature`
+  benefits both the high-level DKIM signer and any sister crate
+  using the primitive directly (e.g. `mailrs-arc` 1.2's ARC sealing).
+
+### Tests
+
+- 3 new unit tests for `sign_signature`: Ed25519 sign↔verify
+  roundtrip, tampered-data rejection, algorithm helper.
+- Full 70-test dkim suite green (58 lib + 3 multi_sig + 5 perf_gate
+  + 4 sign_roundtrip).
+
+### Why this release exists
+
+This is the prerequisite for `mailrs-arc` 1.2's ARC sealing path.
+ARC seals are signed via the same RSA-SHA256 / Ed25519-SHA256
+primitive as DKIM but over a completely different byte sequence
+(the chain prefix per RFC 8617 §5.1.2, not a message body). Lifting
+the primitive into `crypto::sign_signature` lets `mailrs-arc`
+import one function instead of duplicating the rsa/ed25519
+adapter — and any drift between the two crates' crypto would
+immediately break both their roundtrip tests, which is the
+correctness guarantee we want.
+
 ## [1.4.0] - 2026-05-23
 
 ### Added

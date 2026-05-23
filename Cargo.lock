@@ -1265,7 +1265,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2705,27 +2705,28 @@ dependencies = [
 [[package]]
 name = "mailrs-arc"
 version = "1.1.0"
-dependencies = [
- "async-trait",
- "base64",
- "criterion",
- "mailrs-dkim 1.4.0",
- "rand 0.8.6",
- "rsa",
- "sha2 0.10.9",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-arc"
-version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49d12e1f07ffb6c02a8b6757cfafab432c1619f603784f77157cda291025e783"
 dependencies = [
  "async-trait",
  "base64",
- "mailrs-dkim 1.3.0",
+ "mailrs-dkim 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "mailrs-arc"
+version = "1.2.0"
+dependencies = [
+ "async-trait",
+ "base64",
+ "criterion",
+ "ed25519-dalek",
+ "mailrs-dkim 1.5.0",
+ "rand 0.8.6",
+ "rsa",
+ "sha2 0.10.9",
+ "tokio",
 ]
 
 [[package]]
@@ -2823,21 +2824,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dkim"
-version = "1.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11b0f7e9a90686986c4c50178ebd705ff28021f695ebb59ccfa853e4c48d0e70"
-dependencies = [
- "async-trait",
- "base64",
- "ed25519-dalek",
- "hickory-resolver",
- "rsa",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "mailrs-dkim"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -2849,6 +2836,20 @@ dependencies = [
  "rsa",
  "sha2 0.10.9",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-dkim"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db959556398263504c28fafed75961d5f8cff9f068e10614e414e2a1f7c0df70"
+dependencies = [
+ "async-trait",
+ "base64",
+ "ed25519-dalek",
+ "hickory-resolver",
+ "rsa",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -3273,13 +3274,13 @@ dependencies = [
  "mail-auth",
  "mail-parser",
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-arc 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-arc 1.1.0",
  "mailrs-auth-guard 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-backoff 1.0.0",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0",
- "mailrs-dkim 1.3.0",
+ "mailrs-dkim 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dmarc 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.2",
  "mailrs-imap-proto 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3693,7 +3694,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4730,7 +4731,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4789,7 +4790,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5214,7 +5215,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5594,7 +5595,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6508,7 +6509,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

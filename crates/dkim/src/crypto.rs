@@ -7,15 +7,40 @@
 //! Both DKIM (RFC 6376) and ARC (RFC 8617) sign a SHA-256 hash of a
 //! canonicalized header block with the same algorithm set. Once you've
 //! produced the canonicalized hash-input bytes, the actual signature
-//! check is identical — that's what [`verify_signature`] is for.
+//! check is identical — that's what [`verify_signature`] +
+//! [`sign_signature`] are for.
 
 use base64::Engine as _;
 use rsa::Pkcs1v15Sign;
+use rsa::RsaPrivateKey;
 use rsa::pkcs8::DecodePublicKey;
 use sha2::{Digest, Sha256};
 
 use crate::error::DkimError;
 use crate::header::Algorithm;
+
+/// Private key for [`sign_signature`]. Mirrors
+/// [`crate::sign::DkimSigningKey`] but lives at the lower
+/// "raw bytes in → raw signature out" layer so other crates in the
+/// email-auth family (notably `mailrs-arc`'s ARC sealing path) can
+/// reuse the same RSA-SHA256 / Ed25519-SHA256 sign primitive
+/// without depending on the DKIM signed-message layout.
+pub enum CryptoSigningKey<'a> {
+    /// RSA — produces an RSA-SHA256 signature.
+    Rsa(&'a RsaPrivateKey),
+    /// Ed25519 — produces an Ed25519-SHA256 signature (RFC 8463).
+    Ed25519(&'a ed25519_dalek::SigningKey),
+}
+
+impl<'a> CryptoSigningKey<'a> {
+    /// Return the [`Algorithm`] this key signs with.
+    pub fn algorithm(&self) -> Algorithm {
+        match self {
+            Self::Rsa(_) => Algorithm::RsaSha256,
+            Self::Ed25519(_) => Algorithm::Ed25519Sha256,
+        }
+    }
+}
 
 /// Parse a public-key DNS TXT record into the raw key bytes referenced
 /// by the `p=` tag.
@@ -109,6 +134,51 @@ pub fn verify_signature(
     }
 }
 
+/// Sign `signed_data` and return the raw signature bytes (NOT
+/// base64-encoded). Caller is responsible for base64 encoding +
+/// header tag assembly.
+///
+/// The hash algorithm is implied by the key — RSA-SHA256 for
+/// [`CryptoSigningKey::Rsa`], Ed25519-SHA256 for
+/// [`CryptoSigningKey::Ed25519`] (RFC 8463 §3: signs the SHA-256
+/// hash of the signed-header block, not the block itself).
+///
+/// Mirrors [`verify_signature`] exactly so any caller can pair
+/// `sign_signature` + `verify_signature` for a self-consistent
+/// sign/verify roundtrip.
+///
+/// # Errors
+///
+/// [`DkimError::InvalidKey`] when the underlying `rsa` crate
+/// rejects the signing operation (very rare — only on malformed
+/// keys). Ed25519 signing cannot fail at runtime.
+pub fn sign_signature(
+    key: &CryptoSigningKey<'_>,
+    signed_data: &[u8],
+) -> Result<Vec<u8>, DkimError> {
+    match key {
+        CryptoSigningKey::Rsa(priv_key) => {
+            let mut hasher = Sha256::new();
+            hasher.update(signed_data);
+            let digest = hasher.finalize();
+            let scheme = Pkcs1v15Sign::new::<Sha256>();
+            priv_key
+                .sign(scheme, &digest)
+                .map_err(|e| DkimError::InvalidKey(format!("RSA sign failed: {e}")))
+        }
+        CryptoSigningKey::Ed25519(signing_key) => {
+            // RFC 8463 §3: signature is over the SHA-256 hash of the
+            // signed data, NOT the data itself.
+            let mut hasher = Sha256::new();
+            hasher.update(signed_data);
+            let digest = hasher.finalize();
+            use ed25519_dalek::Signer as _;
+            let sig = signing_key.sign(&digest);
+            Ok(sig.to_bytes().to_vec())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,5 +223,45 @@ mod tests {
         let key = [0u8; 31];
         let r = verify_signature(Algorithm::Ed25519Sha256, &key, b"data", &[0u8; 64]);
         assert!(matches!(r, Err(DkimError::InvalidKey(_))));
+    }
+
+    #[test]
+    fn sign_then_verify_ed25519_roundtrip() {
+        let secret = [7u8; 32];
+        let signing = ed25519_dalek::SigningKey::from_bytes(&secret);
+        let verifying = signing.verifying_key();
+        let key = CryptoSigningKey::Ed25519(&signing);
+        let sig = sign_signature(&key, b"hello").unwrap();
+        verify_signature(
+            Algorithm::Ed25519Sha256,
+            verifying.as_bytes(),
+            b"hello",
+            &sig,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn sign_then_verify_ed25519_rejects_tampered_data() {
+        let secret = [7u8; 32];
+        let signing = ed25519_dalek::SigningKey::from_bytes(&secret);
+        let verifying = signing.verifying_key();
+        let key = CryptoSigningKey::Ed25519(&signing);
+        let sig = sign_signature(&key, b"hello").unwrap();
+        let r = verify_signature(
+            Algorithm::Ed25519Sha256,
+            verifying.as_bytes(),
+            b"tampered",
+            &sig,
+        );
+        assert!(matches!(r, Err(DkimError::SignatureMismatch)));
+    }
+
+    #[test]
+    fn signing_key_algorithm_helper() {
+        let secret = [0u8; 32];
+        let signing = ed25519_dalek::SigningKey::from_bytes(&secret);
+        let key = CryptoSigningKey::Ed25519(&signing);
+        assert_eq!(key.algorithm(), Algorithm::Ed25519Sha256);
     }
 }

@@ -22,11 +22,11 @@
 //! There is no `a=` tag in [`SignOpts`] — pass the right key.
 
 use base64::Engine as _;
-use rsa::Pkcs1v15Sign;
 use rsa::RsaPrivateKey;
 use sha2::{Digest, Sha256};
 
 use crate::canon::{canonicalize_body, canonicalize_header};
+use crate::crypto::{CryptoSigningKey, sign_signature};
 use crate::error::DkimError;
 use crate::header::{Algorithm, Canon};
 use crate::headers::{body_offset_minus_blank, find_body_offset, find_header_value};
@@ -248,29 +248,15 @@ pub fn sign(
     };
     signed_block.extend_from_slice(canon_dkim_trimmed);
 
-    // 4. Sign.
-    let sig_b64 = match key {
-        DkimSigningKey::Rsa(priv_key) => {
-            let mut hasher = Sha256::new();
-            hasher.update(&signed_block);
-            let digest = hasher.finalize();
-            let scheme = Pkcs1v15Sign::new::<Sha256>();
-            let signature = priv_key
-                .sign(scheme, &digest)
-                .map_err(|e| DkimError::InvalidKey(format!("RSA sign failed: {e}")))?;
-            base64::engine::general_purpose::STANDARD.encode(&signature)
-        }
-        DkimSigningKey::Ed25519(signing_key) => {
-            // RFC 8463 §3: signature is over the SHA-256 hash of the
-            // signed-header block (NOT the block itself).
-            let mut hasher = Sha256::new();
-            hasher.update(&signed_block);
-            let digest = hasher.finalize();
-            use ed25519_dalek::Signer as _;
-            let sig = signing_key.sign(&digest);
-            base64::engine::general_purpose::STANDARD.encode(sig.to_bytes())
-        }
+    // 4. Sign via the standalone crypto primitive — same one ARC
+    // uses for seal signing, so any drift would break verify in
+    // both crates simultaneously.
+    let crypto_key = match key {
+        DkimSigningKey::Rsa(k) => CryptoSigningKey::Rsa(k),
+        DkimSigningKey::Ed25519(k) => CryptoSigningKey::Ed25519(k),
     };
+    let sig = sign_signature(&crypto_key, &signed_block)?;
+    let sig_b64 = base64::engine::general_purpose::STANDARD.encode(&sig);
 
     // 5. Substitute b= value and emit the full header line.
     Ok(format!("DKIM-Signature: {tags}{sig_b64}\r\n"))
