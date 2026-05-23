@@ -805,46 +805,40 @@ async fn main() {
             let tls_rpt_for_handler = tls_rpt_obs.clone();
             worker = worker.with_event_sender(Arc::new(move |evt| {
                 use mailrs_outbound_queue::DeliveryEvent;
-                // Clone the event for the SmtpEvent translation; the
-                // TLSRPT branch needs domain + error string.
                 let tls_obs = tls_rpt_for_handler.clone();
+                // TlsAttempt is the only event the TLSRPT observer
+                // cares about. Success/Failed/Bounced carry only
+                // queue-row metadata, which is web-UI territory.
                 let smtp_evt = match evt {
                     DeliveryEvent::Attempt { queue_id, domain } => {
                         SmtpEvent::DeliveryAttempt { queue_id, domain }
                     }
-                    DeliveryEvent::Success { queue_id, ref domain } => {
-                        // Fire-and-forget: record into the TLSRPT
-                        // bucket. MX host is unknown at this layer
-                        // (smtp-client doesn't surface it via the
-                        // current DeliveryEvent shape), so we use the
-                        // domain as a placeholder. A follow-up will
-                        // extend DeliveryEvent with the actual mx
-                        // hostname for proper per-MX bucketing.
-                        let dom = domain.clone();
+                    DeliveryEvent::TlsAttempt {
+                        domain,
+                        mx_host,
+                        outcome,
+                    } => {
                         tokio::spawn(async move {
-                            tls_obs.record_success(&dom, &dom).await;
+                            tls_obs
+                                .record_tls_attempt(&domain, &mx_host, &outcome)
+                                .await;
                         });
-                        SmtpEvent::DeliverySuccess {
-                            queue_id,
-                            domain: domain.clone(),
-                        }
+                        // No SmtpEvent for TLS-level events yet (web
+                        // UI doesn't surface them). Skip emitting.
+                        return;
+                    }
+                    DeliveryEvent::Success { queue_id, domain } => {
+                        SmtpEvent::DeliverySuccess { queue_id, domain }
                     }
                     DeliveryEvent::Failed {
                         queue_id,
-                        ref domain,
-                        ref error,
-                    } => {
-                        let dom = domain.clone();
-                        let err = error.clone();
-                        tokio::spawn(async move {
-                            tls_obs.record_failure(&dom, None, &err).await;
-                        });
-                        SmtpEvent::DeliveryFailed {
-                            queue_id,
-                            domain: domain.clone(),
-                            error: error.clone(),
-                        }
-                    }
+                        domain,
+                        error,
+                    } => SmtpEvent::DeliveryFailed {
+                        queue_id,
+                        domain,
+                        error,
+                    },
                     DeliveryEvent::Bounced { queue_id, sender } => {
                         SmtpEvent::BounceGenerated { queue_id, sender }
                     }
