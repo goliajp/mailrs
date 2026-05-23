@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-05-23
+
+### Added
+
+- 39 new inline tests across `carddav.rs` (+22) and `caldav.rs` (+17)
+  covering precondition handling and report semantics:
+  - Contact / event PUT: `201` on create vs `204` on update,
+    `If-Match` correct/wrong etag, `If-None-Match: *` for new vs
+    existing resources.
+  - Address book / calendar PROPFIND: `Depth: 0` returns only the
+    collection, `Depth: 1` lists children, default-collection
+    creation is idempotent across repeated home-PROPFINDs.
+  - REPORT multiget with empty UID list, with missing UIDs, and
+    `calendar-query` / `addressbook-query` no-filter forms.
+  - DELETE on missing event/contact returns `NotFound`.
+  - `urlencode` byte-level assertions for alphanumeric pass-through,
+    space encoding, special chars, and per-byte UTF-8 (Japanese).
+- Lib test count: 44 → 83.
+
+No lib code change.
+
 ## [1.1.0] - 2026-05-21
 
 ### Added

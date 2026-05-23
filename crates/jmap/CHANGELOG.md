@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-05-23
+
+### Added
+
+- 32 new inline tests in `methods/email.rs` (23) and `methods/submission.rs` (9)
+  exercising `Email/get`, `Email/query`, `Email/set`, and
+  `EmailSubmission/set` happy paths and edge cases:
+  - `Email/get`: missing IDs, malformed IDs, mixed existing+missing,
+    missing `ids` argument.
+  - `Email/query`: `inMailbox` filter (matching and unknown), `hasKeyword`
+    / `notKeyword` filters, case-insensitive `text` filter, ascending /
+    descending sort, `position` pagination, `limit` clamping at 500.
+  - `Email/set`: `destroy` sets `FLAG_DELETED`, malformed-id partition
+    into `notDestroyed`, keyword replace + PatchObject path form
+    (`keywords/$seen: true|false`), clearing one flag preserves others.
+  - `EmailSubmission/set`: missing/malformed `emailId`, missing db row,
+    `read_message_raw` returning `None`, success/failure outcome
+    propagation, multiple-create partition.
+- Lib test count: 36 → 68.
+
+No lib code change.
+
 ## [1.1.1] - 2026-05-22
 
 ### Added

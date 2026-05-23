@@ -370,4 +370,242 @@ mod tests {
         assert!(text.contains("/B/a.vcf"));
         assert!(!text.contains("/B/b.vcf"));
     }
+
+    // ===== edge cases added for full coverage =====
+
+    #[tokio::test]
+    async fn contact_get_missing_returns_not_found() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        let r = contact_get(&s, bid, "nonexistent").await;
+        assert!(matches!(r, Err(DavError::NotFound)));
+    }
+
+    #[tokio::test]
+    async fn contact_delete_missing_returns_not_found() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        let r = contact_delete(&s, bid, "nope").await;
+        assert!(matches!(r, Err(DavError::NotFound)));
+    }
+
+    #[tokio::test]
+    async fn contact_put_create_returns_201() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        let r = contact_put(&s, bid, "x", None, None, "BEGIN:VCARD\nUID:x\nEND:VCARD")
+            .await
+            .unwrap();
+        assert_eq!(r.status, 201, "create should be 201 Created");
+    }
+
+    #[tokio::test]
+    async fn contact_put_update_returns_204() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        let _ = contact_put(&s, bid, "x", None, None, "BEGIN:VCARD\nFN:Old\nEND:VCARD")
+            .await
+            .unwrap();
+        let r2 = contact_put(&s, bid, "x", None, None, "BEGIN:VCARD\nFN:New\nEND:VCARD")
+            .await
+            .unwrap();
+        assert_eq!(r2.status, 204, "update should be 204 No Content");
+    }
+
+    #[tokio::test]
+    async fn contact_put_if_match_correct_etag_succeeds() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        let body = "BEGIN:VCARD\nUID:x\nEND:VCARD";
+        s.add_contact(bid, "x", body);
+        let etag = etag_of(body);
+        let r = contact_put(
+            &s,
+            bid,
+            "x",
+            Some(&format!("\"{etag}\"")),
+            None,
+            "BEGIN:VCARD\nFN:Updated\nEND:VCARD",
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.status, 204);
+    }
+
+    #[tokio::test]
+    async fn contact_put_if_match_wrong_etag_412() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        s.add_contact(bid, "x", "BEGIN:VCARD\nEND:VCARD");
+        let r = contact_put(
+            &s,
+            bid,
+            "x",
+            Some("\"wrong-etag\""),
+            None,
+            "BEGIN:VCARD\nFN:N\nEND:VCARD",
+        )
+        .await;
+        assert!(matches!(r, Err(DavError::PreconditionFailed)));
+    }
+
+    #[tokio::test]
+    async fn contact_put_if_none_match_star_existing_412() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        s.add_contact(bid, "x", "BEGIN:VCARD\nEND:VCARD");
+        let r = contact_put(&s, bid, "x", None, Some("*"), "BEGIN:VCARD\nFN:N\nEND:VCARD")
+            .await;
+        assert!(matches!(r, Err(DavError::PreconditionFailed)));
+    }
+
+    #[tokio::test]
+    async fn contact_put_if_none_match_star_new_succeeds() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        let r = contact_put(&s, bid, "new", None, Some("*"), "BEGIN:VCARD\nFN:N\nEND:VCARD")
+            .await
+            .unwrap();
+        assert_eq!(r.status, 201);
+    }
+
+    #[tokio::test]
+    async fn addressbook_home_propfind_depth_0_no_children() {
+        let s = MemAB::default();
+        let r = addressbook_home_propfind(&s, "u", 0).await.unwrap();
+        let text = String::from_utf8(r.body).unwrap();
+        // depth=0 → only the home collection itself, no books listed
+        assert!(text.contains("/dav/contacts/u/"));
+        // ensure_default created "Default" book, but depth=0 doesn't enumerate
+        assert!(!text.contains("/dav/contacts/u/Default/"));
+    }
+
+    #[tokio::test]
+    async fn addressbook_home_propfind_depth_1_lists_books() {
+        let s = MemAB::default();
+        s.add_book("u", "Work");
+        let r = addressbook_home_propfind(&s, "u", 1).await.unwrap();
+        let text = String::from_utf8(r.body).unwrap();
+        // depth=1 enumerates books under the home
+        assert!(text.contains("/dav/contacts/u/Work/"));
+    }
+
+    #[tokio::test]
+    async fn addressbook_home_propfind_creates_default() {
+        // First call should create a Default address book for a brand-new user.
+        let s = MemAB::default();
+        let _ = addressbook_home_propfind(&s, "new_user", 1).await.unwrap();
+        let books = s.list_address_books("new_user").await.unwrap();
+        assert_eq!(books.len(), 1);
+        assert_eq!(books[0].name, "Default");
+    }
+
+    #[tokio::test]
+    async fn addressbook_home_propfind_idempotent_default_creation() {
+        // Second call shouldn't create another Default.
+        let s = MemAB::default();
+        let _ = addressbook_home_propfind(&s, "u", 1).await.unwrap();
+        let _ = addressbook_home_propfind(&s, "u", 1).await.unwrap();
+        let books = s.list_address_books("u").await.unwrap();
+        assert_eq!(books.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn addressbook_propfind_depth_1_lists_contacts() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        s.add_contact(bid, "a", "BEGIN:VCARD\nEND:VCARD");
+        let r = addressbook_propfind(&s, "u", "B", bid, 1).await.unwrap();
+        let text = String::from_utf8(r.body).unwrap();
+        assert!(text.contains("/dav/contacts/u/B/a.vcf"));
+    }
+
+    #[tokio::test]
+    async fn addressbook_propfind_depth_0_just_book() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        s.add_contact(bid, "a", "BEGIN:VCARD\nEND:VCARD");
+        let r = addressbook_propfind(&s, "u", "B", bid, 0).await.unwrap();
+        let text = String::from_utf8(r.body).unwrap();
+        // depth=0: only the book itself, no contacts enumerated
+        assert!(text.contains("/dav/contacts/u/B/"));
+        assert!(!text.contains(".vcf"));
+    }
+
+    #[tokio::test]
+    async fn addressbook_report_query_no_filter_returns_all() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        s.add_contact(bid, "a", "BEGIN:VCARD\nUID:a\nEND:VCARD");
+        s.add_contact(bid, "b", "BEGIN:VCARD\nUID:b\nEND:VCARD");
+        let body = "<CR:addressbook-query xmlns:CR=\"urn:ietf:params:xml:ns:carddav\"></CR:addressbook-query>";
+        let r = addressbook_report(&s, "u", "B", bid, body).await.unwrap();
+        let text = String::from_utf8(r.body).unwrap();
+        // No filter support → returns all
+        assert!(text.contains("/B/a.vcf"));
+        assert!(text.contains("/B/b.vcf"));
+    }
+
+    #[tokio::test]
+    async fn addressbook_report_multiget_empty_uids() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        s.add_contact(bid, "a", "BEGIN:VCARD\nEND:VCARD");
+        // multiget with no <D:href> children
+        let body = "<CR:addressbook-multiget xmlns:CR=\"urn:ietf:params:xml:ns:carddav\"></CR:addressbook-multiget>";
+        let r = addressbook_report(&s, "u", "B", bid, body).await.unwrap();
+        // Empty UID list → empty multistatus
+        let text = String::from_utf8(r.body).unwrap();
+        assert!(!text.contains("/B/a.vcf"));
+    }
+
+    #[tokio::test]
+    async fn addressbook_report_multiget_missing_uid_filtered_out() {
+        let s = MemAB::default();
+        let bid = s.add_book("u", "B");
+        s.add_contact(bid, "a", "BEGIN:VCARD\nUID:a\nEND:VCARD");
+        let body = "<CR:addressbook-multiget xmlns:CR=\"urn:ietf:params:xml:ns:carddav\">\
+                    <D:href>/dav/contacts/u/B/missing.vcf</D:href>\
+                    <D:href>/dav/contacts/u/B/a.vcf</D:href></CR:addressbook-multiget>";
+        let r = addressbook_report(&s, "u", "B", bid, body).await.unwrap();
+        let text = String::from_utf8(r.body).unwrap();
+        // Only existing UID surfaces
+        assert!(text.contains("/B/a.vcf"));
+        assert!(!text.contains("/B/missing.vcf"));
+    }
+
+    #[test]
+    fn urlencode_alphanumeric_passthrough() {
+        assert_eq!(urlencode("hello"), "hello");
+        assert_eq!(urlencode("a-b_c.d~e"), "a-b_c.d~e");
+        assert_eq!(urlencode("123"), "123");
+    }
+
+    #[test]
+    fn urlencode_space_encoded() {
+        assert_eq!(urlencode("hello world"), "hello%20world");
+    }
+
+    #[test]
+    fn urlencode_special_chars() {
+        assert_eq!(urlencode("/"), "%2F");
+        assert_eq!(urlencode("?"), "%3F");
+        assert_eq!(urlencode("&"), "%26");
+    }
+
+    #[test]
+    fn urlencode_japanese_utf8_each_byte() {
+        // "日" = E6 97 A5 in UTF-8 → %E6%97%A5
+        assert_eq!(urlencode("日"), "%E6%97%A5");
+    }
+
+    #[tokio::test]
+    async fn ensure_default_address_book_idempotent() {
+        let s = MemAB::default();
+        s.ensure_default_address_book("u").await.unwrap();
+        s.ensure_default_address_book("u").await.unwrap();
+        s.ensure_default_address_book("u").await.unwrap();
+        let books = s.list_address_books("u").await.unwrap();
+        assert_eq!(books.len(), 1, "called 3 times; should still only have 1 Default");
+    }
 }

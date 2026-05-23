@@ -305,3 +305,435 @@ pub async fn handle_email_set(
         }),
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::store::{MailStore, StoreError};
+    use crate::types::{
+        Mailbox, MailboxCounts, Message, ParsedBody, SubmissionResult,
+        FLAG_DELETED, FLAG_FLAGGED, FLAG_SEEN,
+    };
+    use async_trait::async_trait;
+    use serde_json::json;
+    use std::sync::Mutex;
+
+    fn msg(id: i64, mailbox_id: i64, uid: u32, subject: &str, internal_date: i64) -> Message {
+        Message {
+            id,
+            mailbox_id,
+            uid,
+            sender: "alice@example.com".into(),
+            recipients: "bob@example.com".into(),
+            subject: subject.into(),
+            date: internal_date,
+            size: 100,
+            flags: 0,
+            internal_date,
+            message_id: format!("msg-{id}@x"),
+            in_reply_to: String::new(),
+            thread_id: format!("thread-{id}"),
+            user_address: "u".into(),
+            new_content: None,
+            blob_id: format!("blob-{id}"),
+        }
+    }
+
+    #[derive(Default)]
+    struct MemStore {
+        mailboxes: Mutex<Vec<(String, Mailbox)>>,
+        messages: Mutex<Vec<Message>>,
+    }
+
+    impl MemStore {
+        fn add_mailbox(&self, user: &str, id: i64, name: &str) {
+            self.mailboxes.lock().unwrap().push((
+                user.into(),
+                Mailbox { id, name: name.into() },
+            ));
+        }
+        fn add_message(&self, m: Message) {
+            self.messages.lock().unwrap().push(m);
+        }
+    }
+
+    #[async_trait]
+    impl MailStore for MemStore {
+        async fn list_mailboxes(&self, user: &str) -> Result<Vec<Mailbox>, StoreError> {
+            Ok(self
+                .mailboxes
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(u, _)| u == user)
+                .map(|(_, m)| m.clone())
+                .collect())
+        }
+        async fn mailbox_status(&self, _: i64) -> Result<MailboxCounts, StoreError> {
+            Ok(MailboxCounts::default())
+        }
+        async fn list_messages(
+            &self,
+            mb: i64,
+            offset: u32,
+            limit: u32,
+        ) -> Result<Vec<Message>, StoreError> {
+            let all: Vec<Message> = self
+                .messages
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|m| m.mailbox_id == mb)
+                .cloned()
+                .collect();
+            Ok(all.into_iter().skip(offset as usize).take(limit as usize).collect())
+        }
+        async fn get_message_by_db_id(
+            &self,
+            _user: &str,
+            id: i64,
+        ) -> Result<Option<Message>, StoreError> {
+            Ok(self.messages.lock().unwrap().iter().find(|m| m.id == id).cloned())
+        }
+        async fn list_thread_messages(
+            &self,
+            _user: &str,
+            tid: &str,
+        ) -> Result<Vec<Message>, StoreError> {
+            Ok(self
+                .messages
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|m| m.thread_id == tid)
+                .cloned()
+                .collect())
+        }
+        async fn update_flags(
+            &self,
+            mb: i64,
+            uid: u32,
+            flags: u32,
+        ) -> Result<(), StoreError> {
+            for m in self.messages.lock().unwrap().iter_mut() {
+                if m.mailbox_id == mb && m.uid == uid {
+                    m.flags = flags;
+                }
+            }
+            Ok(())
+        }
+        async fn add_flags(
+            &self,
+            mb: i64,
+            uid: u32,
+            flags: u32,
+        ) -> Result<(), StoreError> {
+            for m in self.messages.lock().unwrap().iter_mut() {
+                if m.mailbox_id == mb && m.uid == uid {
+                    m.flags |= flags;
+                }
+            }
+            Ok(())
+        }
+        async fn read_message_raw(&self, _: &Message) -> Option<Vec<u8>> {
+            None
+        }
+        fn parse_message(&self, _: &[u8]) -> ParsedBody {
+            ParsedBody::default()
+        }
+        async fn submit_message(
+            &self,
+            _: &str,
+            _: &Message,
+            _: &[u8],
+        ) -> SubmissionResult {
+            SubmissionResult {
+                success: false,
+                message: None,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn email_get_returns_metadata_for_valid_id() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_message(msg(42, 1, 1, "Hi", 1000));
+        let args = json!({ "ids": ["msg-42"] });
+        let (_method, result) = handle_email_get(&args, "u", &s).await.unwrap();
+        let list = result["list"].as_array().unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(result["notFound"].as_array().unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn email_get_malformed_id_goes_to_not_found() {
+        let s = MemStore::default();
+        let args = json!({ "ids": ["bogus-id"] });
+        let (_, result) = handle_email_get(&args, "u", &s).await.unwrap();
+        let not_found = result["notFound"].as_array().unwrap();
+        assert_eq!(not_found.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn email_get_missing_db_id_goes_to_not_found() {
+        let s = MemStore::default();
+        let args = json!({ "ids": ["msg-99999"] });
+        let (_, result) = handle_email_get(&args, "u", &s).await.unwrap();
+        assert_eq!(result["list"].as_array().unwrap().len(), 0);
+        assert_eq!(result["notFound"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn email_get_mixed_existing_and_missing() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_message(msg(1, 1, 1, "A", 1));
+        let args = json!({ "ids": ["msg-1", "msg-99", "garbage"] });
+        let (_, result) = handle_email_get(&args, "u", &s).await.unwrap();
+        assert_eq!(result["list"].as_array().unwrap().len(), 1);
+        assert_eq!(result["notFound"].as_array().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn email_get_requires_ids_argument() {
+        let s = MemStore::default();
+        let args = json!({});
+        let r = handle_email_get(&args, "u", &s).await;
+        assert!(matches!(r, Err(JmapMethodError::InvalidArguments(_))));
+    }
+
+    #[tokio::test]
+    async fn email_query_no_filter_returns_all() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_message(msg(1, 1, 1, "A", 100));
+        s.add_message(msg(2, 1, 2, "B", 200));
+        s.add_message(msg(3, 1, 3, "C", 300));
+        let args = json!({});
+        let (_, result) = handle_email_query(&args, "u", &s).await.unwrap();
+        assert_eq!(result["total"].as_u64().unwrap(), 3);
+        assert_eq!(result["ids"].as_array().unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn email_query_in_mailbox_filter() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_mailbox("u", 2, "Sent");
+        s.add_message(msg(1, 1, 1, "in inbox", 100));
+        s.add_message(msg(2, 2, 1, "in sent", 200));
+        let args = json!({ "filter": { "inMailbox": "mb-1" } });
+        let (_, result) = handle_email_query(&args, "u", &s).await.unwrap();
+        assert_eq!(result["total"].as_u64().unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn email_query_in_mailbox_unknown_returns_empty() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_message(msg(1, 1, 1, "a", 100));
+        let args = json!({ "filter": { "inMailbox": "mb-999" } });
+        let (_, result) = handle_email_query(&args, "u", &s).await.unwrap();
+        assert_eq!(result["total"].as_u64().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn email_query_has_keyword_seen() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        let mut a = msg(1, 1, 1, "A", 100);
+        a.flags = FLAG_SEEN;
+        s.add_message(a);
+        s.add_message(msg(2, 1, 2, "B", 200)); // unseen
+        let args = json!({ "filter": { "hasKeyword": "$seen" } });
+        let (_, result) = handle_email_query(&args, "u", &s).await.unwrap();
+        assert_eq!(result["total"].as_u64().unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn email_query_not_keyword_filters_out_match() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        let mut seen = msg(1, 1, 1, "A", 100);
+        seen.flags = FLAG_SEEN;
+        s.add_message(seen);
+        s.add_message(msg(2, 1, 2, "B", 200)); // unseen
+        let args = json!({ "filter": { "notKeyword": "$seen" } });
+        let (_, result) = handle_email_query(&args, "u", &s).await.unwrap();
+        assert_eq!(result["total"].as_u64().unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn email_query_text_filter_matches_subject() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_message(msg(1, 1, 1, "Important Notice", 100));
+        s.add_message(msg(2, 1, 2, "Other Stuff", 200));
+        let args = json!({ "filter": { "text": "important" } });
+        let (_, result) = handle_email_query(&args, "u", &s).await.unwrap();
+        assert_eq!(result["total"].as_u64().unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn email_query_text_filter_case_insensitive() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_message(msg(1, 1, 1, "URGENT", 100));
+        let args = json!({ "filter": { "text": "urgent" } });
+        let (_, result) = handle_email_query(&args, "u", &s).await.unwrap();
+        assert_eq!(result["total"].as_u64().unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn email_query_sort_descending_default() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_message(msg(1, 1, 1, "A", 100));
+        s.add_message(msg(2, 1, 2, "B", 200));
+        s.add_message(msg(3, 1, 3, "C", 300));
+        let args = json!({});
+        let (_, result) = handle_email_query(&args, "u", &s).await.unwrap();
+        let ids: Vec<&str> = result["ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        assert_eq!(ids[0], "msg-3");
+    }
+
+    #[tokio::test]
+    async fn email_query_sort_ascending_via_args() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_message(msg(1, 1, 1, "A", 100));
+        s.add_message(msg(2, 1, 2, "B", 200));
+        let args = json!({ "sort": [{ "isAscending": true }] });
+        let (_, result) = handle_email_query(&args, "u", &s).await.unwrap();
+        let ids: Vec<&str> = result["ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        assert_eq!(ids[0], "msg-1");
+    }
+
+    #[tokio::test]
+    async fn email_query_limit_caps_at_500() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        let args = json!({ "limit": 9999 });
+        let (_, result) = handle_email_query(&args, "u", &s).await.unwrap();
+        assert_eq!(result["total"].as_u64().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn email_query_pagination_position_skips() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        for i in 1..=5 {
+            s.add_message(msg(i, 1, i as u32, "msg", i * 100));
+        }
+        let args = json!({ "position": 2, "limit": 10, "sort": [{ "isAscending": true }] });
+        let (_, result) = handle_email_query(&args, "u", &s).await.unwrap();
+        assert_eq!(result["total"].as_u64().unwrap(), 5);
+        let ids = result["ids"].as_array().unwrap();
+        assert_eq!(ids.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn email_set_destroy_marks_deleted_flag() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_message(msg(1, 1, 1, "A", 100));
+        let args = json!({ "destroy": ["msg-1"] });
+        let (_, result) = handle_email_set(&args, "u", &s).await.unwrap();
+        let destroyed = result["destroyed"].as_array().unwrap();
+        assert_eq!(destroyed.len(), 1);
+        let stored = s.messages.lock().unwrap()[0].clone();
+        assert!(stored.flags & FLAG_DELETED != 0);
+    }
+
+    #[tokio::test]
+    async fn email_set_destroy_malformed_id_in_not_destroyed() {
+        let s = MemStore::default();
+        let args = json!({ "destroy": ["bogus"] });
+        let (_, result) = handle_email_set(&args, "u", &s).await.unwrap();
+        let not_destroyed = result["notDestroyed"].as_object().unwrap();
+        assert!(not_destroyed.contains_key("bogus"));
+    }
+
+    #[tokio::test]
+    async fn email_set_update_keywords_replace() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_message(msg(1, 1, 1, "A", 100));
+        let args = json!({
+            "update": {
+                "msg-1": { "keywords": { "$seen": true, "$flagged": true } }
+            }
+        });
+        let (_, result) = handle_email_set(&args, "u", &s).await.unwrap();
+        assert!(result["updated"].as_object().unwrap().contains_key("msg-1"));
+        let stored = s.messages.lock().unwrap()[0].clone();
+        assert!(stored.flags & FLAG_SEEN != 0);
+        assert!(stored.flags & FLAG_FLAGGED != 0);
+    }
+
+    #[tokio::test]
+    async fn email_set_update_keywords_patch_path_form() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        s.add_message(msg(1, 1, 1, "A", 100));
+        let args = json!({
+            "update": {
+                "msg-1": { "keywords/$seen": true }
+            }
+        });
+        let (_, result) = handle_email_set(&args, "u", &s).await.unwrap();
+        assert!(result["updated"].as_object().unwrap().contains_key("msg-1"));
+        let stored = s.messages.lock().unwrap()[0].clone();
+        assert!(stored.flags & FLAG_SEEN != 0);
+    }
+
+    #[tokio::test]
+    async fn email_set_update_keywords_patch_clears_flag() {
+        let s = MemStore::default();
+        s.add_mailbox("u", 1, "INBOX");
+        let mut m = msg(1, 1, 1, "A", 100);
+        m.flags = FLAG_SEEN | FLAG_FLAGGED;
+        s.add_message(m);
+        let args = json!({
+            "update": {
+                "msg-1": { "keywords/$seen": false }
+            }
+        });
+        let _ = handle_email_set(&args, "u", &s).await.unwrap();
+        let stored = s.messages.lock().unwrap()[0].clone();
+        assert_eq!(stored.flags & FLAG_SEEN, 0);
+        assert!(stored.flags & FLAG_FLAGGED != 0);
+    }
+
+    #[tokio::test]
+    async fn email_set_update_malformed_id_in_not_updated() {
+        let s = MemStore::default();
+        let args = json!({
+            "update": {
+                "bogus": { "keywords/$seen": true }
+            }
+        });
+        let (_, result) = handle_email_set(&args, "u", &s).await.unwrap();
+        assert!(result["notUpdated"].as_object().unwrap().contains_key("bogus"));
+    }
+
+    #[tokio::test]
+    async fn email_set_empty_args_returns_empty_collections() {
+        let s = MemStore::default();
+        let args = json!({});
+        let (_, result) = handle_email_set(&args, "u", &s).await.unwrap();
+        assert_eq!(result["destroyed"].as_array().unwrap().len(), 0);
+        assert_eq!(result["updated"].as_object().unwrap().len(), 0);
+    }
+}

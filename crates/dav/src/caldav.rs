@@ -555,4 +555,163 @@ mod tests {
         assert!(text.contains("a.ics"));
         assert!(text.contains("b.ics"));
     }
+
+    #[tokio::test]
+    async fn event_delete_missing_returns_not_found() {
+        let store = MemStore::default();
+        let cid = store.add_calendar("u", "Work");
+        let r = event_delete(&store, cid, "ghost").await;
+        assert!(matches!(r, Err(DavError::NotFound)));
+    }
+
+    #[tokio::test]
+    async fn event_put_create_returns_201() {
+        let store = MemStore::default();
+        let cid = store.add_calendar("u", "Work");
+        let resp = event_put(&store, cid, "new", None, None, "ICS").await.unwrap();
+        assert_eq!(resp.status, 201);
+    }
+
+    #[tokio::test]
+    async fn event_put_update_returns_204() {
+        let store = MemStore::default();
+        let cid = store.add_calendar("u", "Work");
+        let _ = event_put(&store, cid, "x", None, None, "v1").await.unwrap();
+        let resp = event_put(&store, cid, "x", None, None, "v2").await.unwrap();
+        assert_eq!(resp.status, 204);
+    }
+
+    #[tokio::test]
+    async fn event_put_if_match_correct_etag_succeeds() {
+        let store = MemStore::default();
+        let cid = store.add_calendar("u", "Work");
+        let _ = event_put(&store, cid, "x", None, None, "v1").await.unwrap();
+        let etag = store.event_etag(cid, "x").await.unwrap().unwrap();
+        let if_match = format!("\"{etag}\"");
+        let resp = event_put(&store, cid, "x", Some(&if_match), None, "v2")
+            .await
+            .unwrap();
+        assert_eq!(resp.status, 204);
+    }
+
+    #[tokio::test]
+    async fn event_put_if_match_wrong_etag_412() {
+        let store = MemStore::default();
+        let cid = store.add_calendar("u", "Work");
+        let _ = event_put(&store, cid, "x", None, None, "v1").await.unwrap();
+        let r = event_put(&store, cid, "x", Some("\"deadbeef\""), None, "v2").await;
+        assert!(matches!(r, Err(DavError::PreconditionFailed)));
+    }
+
+    #[tokio::test]
+    async fn event_put_if_none_match_star_new_succeeds() {
+        let store = MemStore::default();
+        let cid = store.add_calendar("u", "Work");
+        let resp = event_put(&store, cid, "fresh", None, Some("*"), "ICS")
+            .await
+            .unwrap();
+        assert_eq!(resp.status, 201);
+    }
+
+    #[tokio::test]
+    async fn calendar_home_propfind_creates_default() {
+        // Empty store + propfind on home → ensure_default_calendar fires
+        let store = MemStore::default();
+        let resp = calendar_home_propfind(&store, "newuser", 1).await.unwrap();
+        // After call, default calendar should exist
+        let cals = store.list_calendars("newuser").await.unwrap();
+        assert_eq!(cals.len(), 1);
+        assert_eq!(resp.status, 207);
+    }
+
+    #[tokio::test]
+    async fn calendar_home_propfind_idempotent_default_creation() {
+        let store = MemStore::default();
+        let _ = calendar_home_propfind(&store, "u", 1).await.unwrap();
+        let _ = calendar_home_propfind(&store, "u", 1).await.unwrap();
+        let cals = store.list_calendars("u").await.unwrap();
+        assert_eq!(cals.len(), 1, "default calendar must only be created once");
+    }
+
+    #[tokio::test]
+    async fn calendar_propfind_depth_0_just_collection() {
+        let store = MemStore::default();
+        let cid = store.add_calendar("u", "Work");
+        store.add_event(cid, "a", "BEGIN:VEVENT\nUID:a\nEND:VEVENT");
+        let resp = calendar_propfind(&store, "u", "Work", cid, 0).await.unwrap();
+        let text = String::from_utf8(resp.body).unwrap();
+        assert!(text.contains("/dav/calendars/u/Work/"));
+        assert!(!text.contains("a.ics"));
+    }
+
+    #[tokio::test]
+    async fn calendar_propfind_depth_1_lists_events() {
+        let store = MemStore::default();
+        let cid = store.add_calendar("u", "Work");
+        store.add_event(cid, "a", "BEGIN:VEVENT\nUID:a\nEND:VEVENT");
+        store.add_event(cid, "b", "BEGIN:VEVENT\nUID:b\nEND:VEVENT");
+        let resp = calendar_propfind(&store, "u", "Work", cid, 1).await.unwrap();
+        let text = String::from_utf8(resp.body).unwrap();
+        assert!(text.contains("a.ics"));
+        assert!(text.contains("b.ics"));
+    }
+
+    #[tokio::test]
+    async fn calendar_report_multiget_empty_uids() {
+        let store = MemStore::default();
+        let cid = store.add_calendar("u", "Work");
+        store.add_event(cid, "a", "BEGIN:VEVENT\nUID:a\nEND:VEVENT");
+        // multiget marker but zero <D:href>
+        let body = "<C:calendar-multiget xmlns:C=\"urn:ietf:params:xml:ns:caldav\"/>";
+        let resp = calendar_report(&store, "u", "Work", cid, body).await.unwrap();
+        let text = String::from_utf8(resp.body).unwrap();
+        assert!(!text.contains("a.ics"));
+    }
+
+    #[tokio::test]
+    async fn calendar_report_multiget_missing_uid_filtered_out() {
+        let store = MemStore::default();
+        let cid = store.add_calendar("u", "Work");
+        store.add_event(cid, "a", "BEGIN:VEVENT\nUID:a\nEND:VEVENT");
+        let body = "<C:calendar-multiget xmlns:C=\"urn:ietf:params:xml:ns:caldav\">\
+            <D:href>/dav/calendars/u/Work/ghost.ics</D:href></C:calendar-multiget>";
+        let resp = calendar_report(&store, "u", "Work", cid, body).await.unwrap();
+        let text = String::from_utf8(resp.body).unwrap();
+        assert!(!text.contains("ghost.ics"));
+        assert!(!text.contains("a.ics"));
+    }
+
+    #[tokio::test]
+    async fn calendar_home_depth_zero_does_not_list_calendars() {
+        let store = MemStore::default();
+        store.add_calendar("u", "Work");
+        store.add_calendar("u", "Personal");
+        let resp = calendar_home_propfind(&store, "u", 0).await.unwrap();
+        let text = String::from_utf8(resp.body).unwrap();
+        // The home itself appears, but children must not
+        assert!(text.contains("/dav/calendars/u/"));
+        assert!(!text.contains("/Work/"));
+        assert!(!text.contains("/Personal/"));
+    }
+
+    #[test]
+    fn urlencode_alphanumeric_passthrough() {
+        assert_eq!(urlencode("Hello123-_.~"), "Hello123-_.~");
+    }
+
+    #[test]
+    fn urlencode_space_encoded() {
+        assert_eq!(urlencode("a b"), "a%20b");
+    }
+
+    #[test]
+    fn urlencode_special_chars() {
+        assert_eq!(urlencode("a/b?c"), "a%2Fb%3Fc");
+    }
+
+    #[test]
+    fn urlencode_japanese_utf8_each_byte() {
+        // 日 = E6 97 A5 in UTF-8 → "%E6%97%A5"
+        assert_eq!(urlencode("日"), "%E6%97%A5");
+    }
 }
