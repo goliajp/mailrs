@@ -19,7 +19,8 @@ or marketing material says.
 | Path | Measurement | Run command |
 |---|---|---|
 | Release binary size (mailrs-server) | 44 MB (default) → 22 MB (perf-first profile). M-series Mac. | `du -h $TARGET_DIR/release/mailrs-server` before/after commit `9f21e0b`. |
-| SMTP receive throughput (perf-first vs vanilla profile) | **+2.10%** throughput (267.2 vs 261.7 msg/s median, 3 rounds × 30s × 32 conns); **p99 latency −5.57%** (179.7 ms vs 190.3 ms). The original commit claim of "+10-20% throughput" was wrong; the real measured win is much smaller but still positive and consistent. Binary-size win is the dominant payoff of the perf-first profile. | `scripts/bench-smtp-load.sh 30 32 3` (builds both `release` and `release-vanilla` profiles, runs 3 rounds each, prints comparison) |
+| SMTP receive throughput (perf-first vs vanilla profile, original measurement 2026-05) | **+2.10%** throughput (267.2 vs 261.7 msg/s median, 3 rounds × 30s × 32 conns); **p99 latency −5.57%** (179.7 ms vs 190.3 ms). The original commit claim of "+10-20% throughput" was wrong; the real measured win is much smaller but still positive and consistent. Binary-size win is the dominant payoff of the perf-first profile. | `scripts/bench-smtp-load.sh 30 32 3` (builds both `release` and `release-vanilla` profiles, runs 3 rounds each, prints comparison) |
+| SMTP receive throughput, **current** (post tracing + listener refactor, 2026-05-23) | **300.2 msg/s** (1 round × 30s × 32 conns, perf-first profile), **P50 106 ms, P99 152 ms, P999 166 ms** — single-round number, not a perf-first-vs-vanilla comparison. Logged here as the latest end-to-end number after all stone-level optimizations + the server-level listener helper refactor + tracing span addition. | `cargo bench -p mailrs-server --bench smtp_load --release -- --duration 30 --conns 32` |
 
 ### `mailrs-inbound` (criterion bench, M-series Mac, release, 100-sample median ± 95% CI from criterion's own analysis)
 
