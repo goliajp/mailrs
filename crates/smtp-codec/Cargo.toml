@@ -1,0 +1,20 @@
+[package]
+name = "mailrs-smtp-codec"
+version = "1.0.0"
+edition = "2024"
+description = "Tokio Decoder/Encoder for the RFC 5321 SMTP wire format — switches between line-oriented command mode (CRLF-terminated, ≤1024 octets) and DATA mode (raw bytes until CRLF.CRLF terminator). Includes optional SMTP-smuggling protection: detects bare-LF before the dot-terminator and either rejects the payload (Strict) or normalizes line endings (Permissive)."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-smtp-codec"
+authors = ["GOLIA K.K."]
+keywords = ["smtp", "rfc5321", "tokio", "codec", "smuggling"]
+categories = ["email", "network-programming", "asynchronous"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+bytes = "1"
+tokio-util = { version = "0.7", features = ["codec"] }

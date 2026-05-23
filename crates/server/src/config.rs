@@ -24,12 +24,11 @@ pub enum TlsMode {
     None,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SmuggleProtection {
-    Strict,
-    Permissive,
-    Off,
-}
+// `SmuggleProtection` moved to the `mailrs-smtp-codec` stone in
+// 2026-05-24. Re-exported here so existing `crate::config::SmuggleProtection`
+// imports across the server keep working — new code should import
+// directly from `mailrs_smtp_codec`.
+pub use mailrs_smtp_codec::SmuggleProtection;
 
 pub struct ServerConfig {
     pub hostname: String,

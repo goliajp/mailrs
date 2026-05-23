@@ -5,7 +5,7 @@ use tokio_util::codec::Framed;
 use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::Session;
 
-use crate::codec::SmtpCodec;
+use mailrs_smtp_codec::SmtpCodec;
 use crate::event_bus::SmtpEvent;
 
 use super::super::{ConnectionContext, SessionAction};
