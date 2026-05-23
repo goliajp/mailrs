@@ -74,11 +74,7 @@ async fn verify_inner<R: DkimResolver + ?Sized>(
         .iter()
         .find(|s| s.contains("p="))
         .ok_or_else(|| DkimError::InvalidKey("no p= tag in TXT".into()))?;
-    let key_pem_der = extract_public_key(key_txt)?;
-    let public_key =
-        rsa::RsaPublicKey::from_public_key_der(&key_pem_der).map_err(|e| {
-            DkimError::InvalidKey(format!("RSA PKCS8 decode failed: {e}"))
-        })?;
+    let key_bytes = extract_public_key(key_txt)?;
 
     // 5. Compute the canonicalized signed-header block (per RFC 6376
     //    §3.7, the signed headers are emitted in the order listed by
@@ -117,16 +113,53 @@ async fn verify_inner<R: DkimResolver + ?Sized>(
 
     match header.algorithm {
         Algorithm::RsaSha256 => {
+            // Parse PKCS8 DER → RsaPublicKey
+            let public_key = rsa::RsaPublicKey::from_public_key_der(&key_bytes).map_err(|e| {
+                DkimError::InvalidKey(format!("RSA PKCS8 decode failed: {e}"))
+            })?;
             // Hash the signed-header block ourselves, then call the
-            // low-level Pkcs1v15Sign::verify. This avoids the
-            // `VerifyingKey<Sha256>` generic that's sensitive to
-            // sha2 version skew between workspace and rsa's traits.
+            // low-level Pkcs1v15Sign::verify (avoids sha2 version skew
+            // between workspace and rsa's traits).
             let mut hasher = Sha256::new();
             hasher.update(&signed_block);
             let digest = hasher.finalize();
             let scheme = Pkcs1v15Sign::new::<Sha256>();
             public_key
                 .verify(scheme, &digest, &signature_bytes)
+                .map_err(|_| DkimError::SignatureMismatch)?;
+        }
+        Algorithm::Ed25519Sha256 => {
+            // RFC 8463: Ed25519 public key is the raw 32-byte
+            // little-endian key encoded in base64. (NOT PKCS8.)
+            if key_bytes.len() != 32 {
+                return Err(DkimError::InvalidKey(format!(
+                    "ed25519 key wrong length: {} (expected 32)",
+                    key_bytes.len()
+                )));
+            }
+            let mut key_arr = [0u8; 32];
+            key_arr.copy_from_slice(&key_bytes);
+            let verifying_key = ed25519_dalek::VerifyingKey::from_bytes(&key_arr).map_err(
+                |e| DkimError::InvalidKey(format!("ed25519 key decode: {e}")),
+            )?;
+            // RFC 8463 §3: signature is over the SHA-256 hash of the
+            // signed-header block (NOT the block itself).
+            let mut hasher = Sha256::new();
+            hasher.update(&signed_block);
+            let digest = hasher.finalize();
+            // ed25519 sigs are 64 bytes
+            if signature_bytes.len() != 64 {
+                return Err(DkimError::InvalidBase64(format!(
+                    "b= ed25519 sig wrong length: {}",
+                    signature_bytes.len()
+                )));
+            }
+            let mut sig_arr = [0u8; 64];
+            sig_arr.copy_from_slice(&signature_bytes);
+            let signature = ed25519_dalek::Signature::from_bytes(&sig_arr);
+            use ed25519_dalek::Verifier as _;
+            verifying_key
+                .verify(&digest, &signature)
                 .map_err(|_| DkimError::SignatureMismatch)?;
         }
     }

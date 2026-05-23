@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-23
+
+### Added
+
+- **`a=ed25519-sha256`** signature verification per RFC 8463.
+  Closes the algorithm gap left in 1.0; the verifier now supports
+  both real-world algorithms.
+- `Algorithm::Ed25519Sha256` variant.
+- `ed25519-dalek = "2"` dependency.
+- 1 new test (`parse_ed25519_sha256_algorithm`).
+
+RFC 8463 specifics:
+- Public key in TXT is raw 32-byte Ed25519 key, base64-encoded
+  (NOT PKCS8-wrapped like RSA).
+- Signature is over the SHA-256 hash of the canonicalized
+  signed-header block (the hash, not the block itself — RFC 8463 §3).
+
 ## [1.0.0] - 2026-05-23
 
 ### Added

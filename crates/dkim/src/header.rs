@@ -7,6 +7,9 @@ use crate::error::DkimError;
 pub enum Algorithm {
     /// `a=rsa-sha256` — RSA over SHA-256. ~99% of real-world DKIM.
     RsaSha256,
+    /// `a=ed25519-sha256` — Ed25519 over SHA-256, per RFC 8463.
+    /// Modern but rare; ~1% of real-world DKIM in 2026.
+    Ed25519Sha256,
 }
 
 /// Canonicalization variant.
@@ -93,6 +96,7 @@ impl DkimHeader {
             .ok_or_else(|| DkimError::MissingTag("a".into()))?;
         let algorithm = match a.trim() {
             "rsa-sha256" => Algorithm::RsaSha256,
+            "ed25519-sha256" => Algorithm::Ed25519Sha256,
             other => return Err(DkimError::UnsupportedAlgorithm(other.to_string())),
         };
 
@@ -370,6 +374,16 @@ mod tests {
             "v=1; a=rsa-sha1; d=e.com; s=s; h=From; bh=A; b=B",
         );
         assert!(matches!(r, Err(DkimError::UnsupportedAlgorithm(_))));
+    }
+
+    #[test]
+    fn parse_ed25519_sha256_algorithm() {
+        // RFC 8463 ed25519-sha256 is accepted in 1.1+
+        let r = DkimHeader::parse(
+            "v=1; a=ed25519-sha256; d=e.com; s=s; h=From; bh=A; b=B",
+        )
+        .unwrap();
+        assert_eq!(r.algorithm, Algorithm::Ed25519Sha256);
     }
 
     #[test]
