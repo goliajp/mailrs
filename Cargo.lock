@@ -2704,18 +2704,6 @@ dependencies = [
 
 [[package]]
 name = "mailrs-arc"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49d12e1f07ffb6c02a8b6757cfafab432c1619f603784f77157cda291025e783"
-dependencies = [
- "async-trait",
- "base64",
- "mailrs-dkim 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "mailrs-arc"
 version = "1.2.0"
 dependencies = [
  "async-trait",
@@ -2727,6 +2715,20 @@ dependencies = [
  "rsa",
  "sha2 0.10.9",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-arc"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b775e5232a35ee6f5b5938715c2e7dfb3560cd1ee17820cc148f6e038c048c50"
+dependencies = [
+ "async-trait",
+ "base64",
+ "ed25519-dalek",
+ "mailrs-dkim 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rsa",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -3274,7 +3276,7 @@ dependencies = [
  "mail-auth",
  "mail-parser",
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-arc 1.1.0",
+ "mailrs-arc 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-auth-guard 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-backoff 1.0.0",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3302,6 +3304,7 @@ dependencies = [
  "mailrs-spf 1.0.2",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-tls-rpt 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime_guess",
  "password-hash",
@@ -3477,6 +3480,16 @@ name = "mailrs-tls-rpt"
 version = "1.0.0"
 dependencies = [
  "criterion",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mailrs-tls-rpt"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "caa08247e62ecbef3c0afd00472f21d3d2693768e79bf7a29ef725833b6e1c93"
+dependencies = [
  "serde",
  "serde_json",
 ]

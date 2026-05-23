@@ -28,6 +28,7 @@ mod render_preview;
 mod reputation;
 mod search_index;
 mod listeners;
+mod outbound_tls_rpt;
 mod sieve;
 mod smtp_session;
 pub(crate) mod system_config;
@@ -798,32 +799,104 @@ async fn main() {
                 }
             }
 
-            // bridge outbound events to event bus
+            // bridge outbound events to event bus + TLSRPT observer
             let eb = event_bus.clone();
+            let tls_rpt_obs = outbound_tls_rpt::new_shared();
+            let tls_rpt_for_handler = tls_rpt_obs.clone();
             worker = worker.with_event_sender(Arc::new(move |evt| {
                 use mailrs_outbound_queue::DeliveryEvent;
+                // Clone the event for the SmtpEvent translation; the
+                // TLSRPT branch needs domain + error string.
+                let tls_obs = tls_rpt_for_handler.clone();
                 let smtp_evt = match evt {
                     DeliveryEvent::Attempt { queue_id, domain } => {
                         SmtpEvent::DeliveryAttempt { queue_id, domain }
                     }
-                    DeliveryEvent::Success { queue_id, domain } => {
-                        SmtpEvent::DeliverySuccess { queue_id, domain }
+                    DeliveryEvent::Success { queue_id, ref domain } => {
+                        // Fire-and-forget: record into the TLSRPT
+                        // bucket. MX host is unknown at this layer
+                        // (smtp-client doesn't surface it via the
+                        // current DeliveryEvent shape), so we use the
+                        // domain as a placeholder. A follow-up will
+                        // extend DeliveryEvent with the actual mx
+                        // hostname for proper per-MX bucketing.
+                        let dom = domain.clone();
+                        tokio::spawn(async move {
+                            tls_obs.record_success(&dom, &dom).await;
+                        });
+                        SmtpEvent::DeliverySuccess {
+                            queue_id,
+                            domain: domain.clone(),
+                        }
                     }
                     DeliveryEvent::Failed {
                         queue_id,
-                        domain,
-                        error,
-                    } => SmtpEvent::DeliveryFailed {
-                        queue_id,
-                        domain,
-                        error,
-                    },
+                        ref domain,
+                        ref error,
+                    } => {
+                        let dom = domain.clone();
+                        let err = error.clone();
+                        tokio::spawn(async move {
+                            tls_obs.record_failure(&dom, None, &err).await;
+                        });
+                        SmtpEvent::DeliveryFailed {
+                            queue_id,
+                            domain: domain.clone(),
+                            error: error.clone(),
+                        }
+                    }
                     DeliveryEvent::Bounced { queue_id, sender } => {
                         SmtpEvent::BounceGenerated { queue_id, sender }
                     }
                 };
                 eb.emit(smtp_evt);
             }));
+
+            // Periodic TLSRPT flush task — every 24h, build the
+            // accumulated report and log as JSON. (Submission to rua
+            // endpoints is a follow-up; this proves the data flow
+            // works against real outbound traffic first.)
+            let tls_rpt_flush = tls_rpt_obs.clone();
+            let hostname_for_tls_rpt = cfg.hostname.clone();
+            tokio::spawn(async move {
+                let mut tick = tokio::time::interval(tokio::time::Duration::from_secs(86_400));
+                tick.tick().await; // skip the immediate first tick
+                loop {
+                    tick.tick().await;
+                    let now = chrono::Utc::now();
+                    let start = now - chrono::Duration::hours(24);
+                    let report_id = format!(
+                        "{}-tlsrpt-{}",
+                        hostname_for_tls_rpt,
+                        now.format("%Y%m%d")
+                    );
+                    if let Some(report) = tls_rpt_flush
+                        .take_report(
+                            &hostname_for_tls_rpt,
+                            &format!("mailto:postmaster@{hostname_for_tls_rpt}"),
+                            &report_id,
+                            &start.to_rfc3339(),
+                            &now.to_rfc3339(),
+                        )
+                        .await
+                    {
+                        match serde_json::to_string(&report) {
+                            Ok(json) => tracing::info!(
+                                event = "tls_rpt_report_built",
+                                policies = report.policies.len(),
+                                report_id = %report_id,
+                                report = %json,
+                                "TLSRPT daily report built (not yet submitted)"
+                            ),
+                            Err(e) => tracing::warn!(
+                                event = "tls_rpt_report_serialize_error",
+                                error = %e,
+                                "TLSRPT serialize failed"
+                            ),
+                        }
+                    }
+                }
+            });
 
             let rx = shutdown_rx.clone();
             tokio::spawn(async move {
