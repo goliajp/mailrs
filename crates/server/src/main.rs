@@ -27,6 +27,7 @@ mod rbl_monitor;
 mod render_preview;
 mod reputation;
 mod search_index;
+mod listeners;
 mod sieve;
 mod smtp_session;
 pub(crate) mod system_config;
@@ -540,73 +541,41 @@ async fn main() {
     });
 
     // port 25/2525: plain SMTP (STARTTLS optional)
-    let smtp_addr = format!("0.0.0.0:{}", cfg.smtp_port);
-    let smtp_listener = TcpListener::bind(&smtp_addr)
-        .await
-        .expect("failed to bind SMTP port");
-    tracing::info!(addr = smtp_addr.as_str(), "SMTP listening");
+    let ctx_smtp = ctx.clone();
+    listeners::spawn_plain(
+        format!("0.0.0.0:{}", cfg.smtp_port),
+        "smtp",
+        move |stream, addr| {
+            let ctx = ctx_smtp.clone();
+            async move { smtp_session::handle_plain_connection(stream, addr, ctx).await }
+        },
+    )
+    .await;
 
     // port 587/2587: submission (STARTTLS optional)
-    let sub_addr = format!("0.0.0.0:{}", cfg.submission_port);
-    let sub_listener = TcpListener::bind(&sub_addr)
-        .await
-        .expect("failed to bind submission port");
-    tracing::info!(addr = sub_addr.as_str(), "submission listening");
-
-    // spawn SMTP listener
-    let ctx_smtp = ctx.clone();
-    tokio::spawn(async move {
-        loop {
-            match smtp_listener.accept().await {
-                Ok((stream, addr)) => {
-                    let ctx = ctx_smtp.clone();
-                    tokio::spawn(async move {
-                        smtp_session::handle_plain_connection(stream, addr, ctx).await
-                    });
-                }
-                Err(e) => eprintln!("smtp accept error: {e}"),
-            }
-        }
-    });
-
-    // spawn submission listener
     let ctx_sub = ctx.clone();
-    tokio::spawn(async move {
-        loop {
-            match sub_listener.accept().await {
-                Ok((stream, addr)) => {
-                    let ctx = ctx_sub.clone();
-                    tokio::spawn(async move {
-                        smtp_session::handle_plain_connection(stream, addr, ctx).await
-                    });
-                }
-                Err(e) => eprintln!("submission accept error: {e}"),
-            }
-        }
-    });
+    listeners::spawn_plain(
+        format!("0.0.0.0:{}", cfg.submission_port),
+        "submission",
+        move |stream, addr| {
+            let ctx = ctx_sub.clone();
+            async move { smtp_session::handle_plain_connection(stream, addr, ctx).await }
+        },
+    )
+    .await;
 
     // port 465/2465: implicit TLS (only if TLS configured)
     if tls_state.is_some() {
-        let smtps_addr = format!("0.0.0.0:{}", cfg.smtps_port);
-        let smtps_listener = TcpListener::bind(&smtps_addr)
-            .await
-            .expect("failed to bind SMTPS port");
-        tracing::info!(addr = smtps_addr.as_str(), "SMTPS listening");
-
         let ctx_tls = ctx.clone();
-        tokio::spawn(async move {
-            loop {
-                match smtps_listener.accept().await {
-                    Ok((stream, addr)) => {
-                        let ctx = ctx_tls.clone();
-                        tokio::spawn(async move {
-                            smtp_session::handle_tls_connection(stream, addr, ctx).await
-                        });
-                    }
-                    Err(e) => eprintln!("smtps accept error: {e}"),
-                }
-            }
-        });
+        listeners::spawn_plain(
+            format!("0.0.0.0:{}", cfg.smtps_port),
+            "smtps",
+            move |stream, addr| {
+                let ctx = ctx_tls.clone();
+                async move { smtp_session::handle_tls_connection(stream, addr, ctx).await }
+            },
+        )
+        .await;
     }
 
     // web API + WebSocket
@@ -658,15 +627,8 @@ async fn main() {
         .ok();
     });
 
-    // IMAP listener
-    if let Some(ref mb_store) = mailbox_store {
-        let imap_addr = format!("0.0.0.0:{}", cfg.imap_port);
-        let imap_listener = TcpListener::bind(&imap_addr)
-            .await
-            .expect("failed to bind IMAP port");
-        tracing::info!(addr = imap_addr.as_str(), "IMAP listening");
-
-        let imap_mb_store = mb_store.clone();
+    // IMAP listener (plain, port 143/1143)
+    if let Some(mb_store) = mailbox_store.as_ref().cloned() {
         let imap_users = users.clone();
         let imap_hostname = cfg.hostname.clone();
         let imap_maildir_root = cfg.maildir_root.clone();
@@ -674,144 +636,113 @@ async fn main() {
         let imap_domain_store = domain_store.clone();
         let imap_event_bus = event_bus.clone();
         let imap_ldap = ldap_config.clone();
-        tokio::spawn(async move {
-            loop {
-                match imap_listener.accept().await {
-                    Ok((stream, addr)) => {
-                        let mb = imap_mb_store.clone();
-                        let u = imap_users.clone();
-                        let h = imap_hostname.clone();
-                        let mr = imap_maildir_root.clone();
-                        let ag = imap_auth_guard.clone();
-                        let ds = imap_domain_store.clone();
-                        let eb = imap_event_bus.clone();
-                        let ldap = imap_ldap.clone();
-                        tokio::spawn(async move {
-                            handle_imap_connection(stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr).await;
-                        });
-                    }
-                    Err(e) => eprintln!("imap accept error: {e}"),
+        listeners::spawn_plain(
+            format!("0.0.0.0:{}", cfg.imap_port),
+            "imap",
+            move |stream, addr| {
+                let mb = mb_store.clone();
+                let u = imap_users.clone();
+                let h = imap_hostname.clone();
+                let mr = imap_maildir_root.clone();
+                let ag = imap_auth_guard.clone();
+                let ds = imap_domain_store.clone();
+                let eb = imap_event_bus.clone();
+                let ldap = imap_ldap.clone();
+                async move {
+                    handle_imap_connection(stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr).await;
                 }
-            }
-        });
+            },
+        )
+        .await;
     }
 
     // IMAPS listener (implicit TLS, port 993)
-    if tls_state.is_some()
-        && let Some(ref mb_store) = mailbox_store {
-            let imaps_addr = format!("0.0.0.0:{}", cfg.imaps_port);
-            let imaps_listener = TcpListener::bind(&imaps_addr)
-                .await
-                .expect("failed to bind IMAPS port");
-            tracing::info!(addr = imaps_addr.as_str(), "IMAPS listening");
-
-            // safe: outer `if tls_state.is_some()` guarantees this
-            let Some(imaps_tls) = tls_state.clone() else {
-                unreachable!("tls_state checked above");
-            };
-            let imaps_mb_store = mb_store.clone();
-            let imaps_users = users.clone();
-            let imaps_hostname = cfg.hostname.clone();
-            let imaps_maildir_root = cfg.maildir_root.clone();
-            let imaps_auth_guard = auth_guard.clone();
-            let imaps_domain_store = domain_store.clone();
-            let imaps_event_bus = event_bus.clone();
-            let imaps_ldap = ldap_config.clone();
-            tokio::spawn(async move {
-                loop {
-                    match imaps_listener.accept().await {
-                        Ok((stream, addr)) => {
-                            let tls = imaps_tls.clone();
-                            let mb = imaps_mb_store.clone();
-                            let u = imaps_users.clone();
-                            let h = imaps_hostname.clone();
-                            let mr = imaps_maildir_root.clone();
-                            let ag = imaps_auth_guard.clone();
-                            let ds = imaps_domain_store.clone();
-                            let eb = imaps_event_bus.clone();
-                            let ldap = imaps_ldap.clone();
-                            tokio::spawn(async move {
-                                match tls.acceptor().accept(stream).await {
-                                    Ok(tls_stream) => {
-                                        handle_imap_connection(
-                                            tls_stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr,
-                                        )
-                                        .await;
-                                    }
-                                    Err(e) => {
-                                        eprintln!("imaps tls handshake error from {addr}: {e}");
-                                    }
-                                }
-                            });
+    if let (Some(mb_store), Some(imaps_tls)) =
+        (mailbox_store.as_ref().cloned(), tls_state.clone())
+    {
+        let imaps_users = users.clone();
+        let imaps_hostname = cfg.hostname.clone();
+        let imaps_maildir_root = cfg.maildir_root.clone();
+        let imaps_auth_guard = auth_guard.clone();
+        let imaps_domain_store = domain_store.clone();
+        let imaps_event_bus = event_bus.clone();
+        let imaps_ldap = ldap_config.clone();
+        listeners::spawn_plain(
+            format!("0.0.0.0:{}", cfg.imaps_port),
+            "imaps",
+            move |stream, addr| {
+                let tls = imaps_tls.clone();
+                let mb = mb_store.clone();
+                let u = imaps_users.clone();
+                let h = imaps_hostname.clone();
+                let mr = imaps_maildir_root.clone();
+                let ag = imaps_auth_guard.clone();
+                let ds = imaps_domain_store.clone();
+                let eb = imaps_event_bus.clone();
+                let ldap = imaps_ldap.clone();
+                async move {
+                    match tls.acceptor().accept(stream).await {
+                        Ok(tls_stream) => {
+                            handle_imap_connection(
+                                tls_stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr,
+                            )
+                            .await;
                         }
-                        Err(e) => eprintln!("imaps accept error: {e}"),
+                        Err(e) => {
+                            tracing::error!(?addr, error = %e, "imaps tls handshake error");
+                        }
                     }
                 }
-            });
-        }
+            },
+        )
+        .await;
+    }
 
     // POP3 listener
-    if let Some(ref mb_store) = mailbox_store {
-        let pop3_addr = format!("0.0.0.0:{}", cfg.pop3_port);
-        let pop3_listener = TcpListener::bind(&pop3_addr)
-            .await
-            .expect("failed to bind POP3 port");
-        tracing::info!(addr = pop3_addr.as_str(), "POP3 listening");
-
-        let pop3_mb_store = mb_store.clone();
+    if let Some(mb_store) = mailbox_store.as_ref().cloned() {
         let pop3_users = users.clone();
         let pop3_maildir_root = cfg.maildir_root.clone();
         let pop3_auth_guard = auth_guard.clone();
         let pop3_domain_store = domain_store.clone();
         let pop3_ldap = ldap_config.clone();
-        tokio::spawn(async move {
-            loop {
-                match pop3_listener.accept().await {
-                    Ok((stream, addr)) => {
-                        let mb = pop3_mb_store.clone();
-                        let u = pop3_users.clone();
-                        let mr = pop3_maildir_root.clone();
-                        let ag = pop3_auth_guard.clone();
-                        let ds = pop3_domain_store.clone();
-                        let ldap = pop3_ldap.clone();
-                        tokio::spawn(async move {
-                            handle_pop3_connection(stream, addr, mb, u, ag, ds, ldap, &mr).await;
-                        });
-                    }
-                    Err(e) => eprintln!("pop3 accept error: {e}"),
+        listeners::spawn_plain(
+            format!("0.0.0.0:{}", cfg.pop3_port),
+            "pop3",
+            move |stream, addr| {
+                let mb = mb_store.clone();
+                let u = pop3_users.clone();
+                let mr = pop3_maildir_root.clone();
+                let ag = pop3_auth_guard.clone();
+                let ds = pop3_domain_store.clone();
+                let ldap = pop3_ldap.clone();
+                async move {
+                    handle_pop3_connection(stream, addr, mb, u, ag, ds, ldap, &mr).await;
                 }
-            }
-        });
+            },
+        )
+        .await;
     }
 
     // ManageSieve listener (RFC 5804)
     {
-        let sieve_addr = format!("0.0.0.0:{}", cfg.managesieve_port);
-        let sieve_listener = TcpListener::bind(&sieve_addr)
-            .await
-            .expect("failed to bind ManageSieve port");
-        tracing::info!(addr = sieve_addr.as_str(), "ManageSieve listening");
-
         let sieve_users = users.clone();
         let sieve_auth_guard = auth_guard.clone();
         let sieve_domain_store = domain_store.clone();
         let sieve_ldap = ldap_config.clone();
-        tokio::spawn(async move {
-            loop {
-                match sieve_listener.accept().await {
-                    Ok((stream, addr)) => {
-                        let u = sieve_users.clone();
-                        let ag = sieve_auth_guard.clone();
-                        let ds = sieve_domain_store.clone();
-                        let ldap = sieve_ldap.clone();
-                        tokio::spawn(async move {
-                            handle_managesieve_connection(stream, addr, u, ag, ds, ldap).await;
-                        });
-                    }
-                    Err(e) => eprintln!("managesieve accept error: {e}"),
+        listeners::spawn_plain(
+            format!("0.0.0.0:{}", cfg.managesieve_port),
+            "managesieve",
+            move |stream, addr| {
+                let u = sieve_users.clone();
+                let ag = sieve_auth_guard.clone();
+                let ds = sieve_domain_store.clone();
+                let ldap = sieve_ldap.clone();
+                async move {
+                    handle_managesieve_connection(stream, addr, u, ag, ds, ldap).await;
                 }
-            }
-        });
+            },
+        )
+        .await;
     }
 
     // delivery worker (outbound queue)
