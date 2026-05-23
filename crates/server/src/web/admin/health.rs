@@ -37,6 +37,10 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
     let active_connections = state.active_connections.load(Ordering::Relaxed);
     let total_messages = state.total_messages.load(Ordering::Relaxed);
     let active_sessions = state.sessions.len() as u64;
+    let inbound_accept = state.inbound_accept_total.load(Ordering::Relaxed);
+    let inbound_reject = state.inbound_reject_total.load(Ordering::Relaxed);
+    let inbound_defer = state.inbound_defer_total.load(Ordering::Relaxed);
+    let inbound_junk = state.inbound_junk_total.load(Ordering::Relaxed);
     let account_cache_size = state
         .domain_store
         .as_ref()
@@ -91,6 +95,12 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
     let _ = writeln!(body, "# HELP mailrs_account_cache_size Domain store cache entries");
     let _ = writeln!(body, "# TYPE mailrs_account_cache_size gauge");
     let _ = writeln!(body, "mailrs_account_cache_size {account_cache_size}");
+    let _ = writeln!(body, "# HELP mailrs_inbound_verdict_total Inbound DATA decisions by verdict (since process start)");
+    let _ = writeln!(body, "# TYPE mailrs_inbound_verdict_total counter");
+    let _ = writeln!(body, "mailrs_inbound_verdict_total{{verdict=\"accept\"}} {inbound_accept}");
+    let _ = writeln!(body, "mailrs_inbound_verdict_total{{verdict=\"reject\"}} {inbound_reject}");
+    let _ = writeln!(body, "mailrs_inbound_verdict_total{{verdict=\"defer\"}} {inbound_defer}");
+    let _ = writeln!(body, "mailrs_inbound_verdict_total{{verdict=\"junk\"}} {inbound_junk}");
     let _ = writeln!(body, "# HELP mailrs_queue_pending Pending outbound messages");
     let _ = writeln!(body, "# TYPE mailrs_queue_pending gauge");
     let _ = writeln!(body, "mailrs_queue_pending {pending}");
