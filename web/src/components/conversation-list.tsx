@@ -157,7 +157,16 @@ const ConversationItem = memo(function ConversationItem({
       <button
         aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
         aria-selected={selected && !batchMode}
-        className={`focus-visible:ring-accent/50 relative flex w-full items-start gap-3 border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:ring-2 focus-visible:outline-none ${
+        // h-24 (96px) — HARD-FIXED row height. The previous design let
+        // the row collapse when convo.snippet was empty, which mixed
+        // two row-heights into the same list and broke the virtualizer's
+        // dynamic-size measureElement path (measureElement race +
+        // selected-state re-measure + absolute-positioned siblings ⇒
+        // intermittent row overlap, see classic-errors.md). With a
+        // fixed height the virtualizer never has to re-measure anything,
+        // so the overlap bug class is eliminated by construction —
+        // no patch, no hack.
+        className={`focus-visible:ring-accent/50 relative flex h-24 w-full items-start gap-3 overflow-hidden border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:ring-2 focus-visible:outline-none ${
           selected && !batchMode ? 'border-l-accent' : 'border-l-transparent'
         } ${!hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''} ${
           selected && !batchMode
@@ -1184,28 +1193,31 @@ function VirtualConversationList({
   const virtualizer = useVirtualizer({
     count: items.length,
     overscan: 10,
+    // Fixed per-type heights. Matches the CSS h-24 / h-8 / h-12 on
+    // ConversationItem / DateDivider / sentinel + end markers.
+    //
+    // NOTE: this used to be `estimateSize` paired with
+    // `ref={virtualizer.measureElement}` for dynamic-size mode. That
+    // path turns out to be fundamentally racy when combined with
+    // absolute-positioned children — selected-state re-renders fire
+    // measureElement again, the virtualizer cache updates, but
+    // already-rendered siblings keep their stale `translateY`. Visible
+    // result: row overlap (classic-errors.md "react-virtual on a
+    // WebSocket-fed list MUST pass getItemKey" entry was a partial
+    // fix; the real fix is below — kill the dynamic-size path
+    // entirely so there is nothing to race against).
     estimateSize: (index) => {
       const item = items[index]
       if (item.type === 'divider') return 32
       if (item.type === 'sentinel' || item.type === 'end') return 48
-      // Generous over-estimate of the worst-case conversation row
-      // (long subject wrapping + 3-line snippet + counter badge).
-      // measureElement shrinks rows that come in smaller — an
-      // over-estimate leaves harmless gaps for one frame; an
-      // under-estimate makes adjacent rows visually overlap. 120 has
-      // headroom for newsletter-style rows that exceeded the previous
-      // 88px estimate when their snippet wrapped to three full lines.
-      return 120
+      return 96 // matches `h-24` on the row button
     },
     getScrollElement: () => parentRef.current,
-    // CRITICAL: react-virtual keys its internal measurement cache by
-    // index by default. When a WebSocket event pushes a new
-    // conversation onto the top of the list, every existing item
-    // shifts down by one — and the virtualizer keeps mapping each
-    // index to whichever row USED to live there, producing
-    // off-by-one heights that compound into visible row-overlap.
-    // Stable key per logical item (matches the React component key
-    // a few lines below) eliminates the cache misalignment.
+    // Stable per-logical-item key so the virtualizer's internal cache
+    // moves with the data when items are inserted / sorted by a WS
+    // push. Still needed: even fixed-size virtualizers use this for
+    // identity tracking of the scroll position. Keep in sync with the
+    // React key applied a few lines below.
     getItemKey: (index) => {
       const item = items[index]
       if (item.type === 'conversation') return `c:${item.convo.thread_id}`
@@ -1346,10 +1358,13 @@ function VirtualConversationList({
                 : item.type
           return (
             <div
+              // No `ref={virtualizer.measureElement}` — fixed-size mode
+              // (see useVirtualizer config above). The estimateSize
+              // value IS the row height; nothing to measure, nothing
+              // to race against.
               className="absolute top-0 left-0 w-full"
               data-index={virtualItem.index}
               key={itemKey}
-              ref={virtualizer.measureElement}
               style={{ transform: `translateY(${virtualItem.start}px)` }}
             >
               {item.type === 'divider' && <DateDivider label={item.label} />}
