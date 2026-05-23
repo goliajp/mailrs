@@ -296,6 +296,9 @@ async fn login_inner(
             if let Some(ref guard) = state.auth_guard {
                 guard.record_failure(addr.ip(), &req.address);
             }
+            state
+                .auth_failure_total
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({"error": "invalid credentials"})),
@@ -378,6 +381,9 @@ async fn login_inner(
     if let Some(ref guard) = state.auth_guard {
         guard.record_success(addr.ip(), &req.address);
     }
+    state
+        .auth_success_total
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
     // audit log successful login
     if let Some(ref ds) = state.domain_store {

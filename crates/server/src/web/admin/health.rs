@@ -41,6 +41,8 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
     let inbound_reject = state.inbound_reject_total.load(Ordering::Relaxed);
     let inbound_defer = state.inbound_defer_total.load(Ordering::Relaxed);
     let inbound_junk = state.inbound_junk_total.load(Ordering::Relaxed);
+    let auth_success = state.auth_success_total.load(Ordering::Relaxed);
+    let auth_failure = state.auth_failure_total.load(Ordering::Relaxed);
     let account_cache_size = state
         .domain_store
         .as_ref()
@@ -101,6 +103,10 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
     let _ = writeln!(body, "mailrs_inbound_verdict_total{{verdict=\"reject\"}} {inbound_reject}");
     let _ = writeln!(body, "mailrs_inbound_verdict_total{{verdict=\"defer\"}} {inbound_defer}");
     let _ = writeln!(body, "mailrs_inbound_verdict_total{{verdict=\"junk\"}} {inbound_junk}");
+    let _ = writeln!(body, "# HELP mailrs_auth_total Web login attempts by outcome (since process start)");
+    let _ = writeln!(body, "# TYPE mailrs_auth_total counter");
+    let _ = writeln!(body, "mailrs_auth_total{{outcome=\"success\"}} {auth_success}");
+    let _ = writeln!(body, "mailrs_auth_total{{outcome=\"failure\"}} {auth_failure}");
     let _ = writeln!(body, "# HELP mailrs_queue_pending Pending outbound messages");
     let _ = writeln!(body, "# TYPE mailrs_queue_pending gauge");
     let _ = writeln!(body, "mailrs_queue_pending {pending}");

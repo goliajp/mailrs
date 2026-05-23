@@ -83,6 +83,12 @@ pub struct WebState {
     pub inbound_reject_total: AtomicU64,
     pub inbound_defer_total: AtomicU64,
     pub inbound_junk_total: AtomicU64,
+    /// Per-outcome counters for web login attempts. A sustained spike
+    /// in `auth_failure_total` against a single account or from a
+    /// single IP is the canonical password-attack signal. Exposed as
+    /// `mailrs_auth_total{outcome="success|failure"}`.
+    pub auth_success_total: AtomicU64,
+    pub auth_failure_total: AtomicU64,
     pub outbound_queue: Option<sqlx::PgPool>,
     pub mailbox_store: Option<Arc<PgMailboxStore>>,
     pub domain_store: Option<Arc<DomainStore>>,
@@ -150,6 +156,8 @@ impl WebState {
             inbound_reject_total: AtomicU64::new(0),
             inbound_defer_total: AtomicU64::new(0),
             inbound_junk_total: AtomicU64::new(0),
+            auth_success_total: AtomicU64::new(0),
+            auth_failure_total: AtomicU64::new(0),
             outbound_queue: None,
             mailbox_store: None,
             domain_store: None,
