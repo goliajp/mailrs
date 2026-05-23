@@ -2605,6 +2605,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-dkim"
+version = "1.0.0"
+dependencies = [
+ "async-trait",
+ "base64",
+ "criterion",
+ "hickory-resolver",
+ "rsa",
+ "sha2 0.10.9",
+ "tokio",
+]
+
+[[package]]
 name = "mailrs-dmarc"
 version = "1.0.2"
 dependencies = [
