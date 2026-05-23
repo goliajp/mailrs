@@ -89,7 +89,7 @@ backoff implementations (`outbound-queue::retry`, `auth-guard::
 lockout_duration`, `server::webhook::store::retry_delay_secs`) →
 single `mailrs-backoff` primitive with `Jitter` taxonomy.
 
-## Current stones (32 published as of 2026-05-23)
+## Current stones (33 published as of 2026-05-23)
 
 Each row: one-sentence identity → which RFC/concept defines the
 boundary → who calls it inside mailrs.
@@ -131,6 +131,7 @@ boundary → who calls it inside mailrs.
 | `mailrs-tls-reload` | Hot-reloadable rustls `ServerConfig` via arc-swap + PEM loader | rustls integration | server, acme |
 | `mailrs-acme` | ACME (RFC 8555 / Let's Encrypt) orchestration + HTTP-01 + renewal | RFC 8555 | server |
 | `mailrs-dns` | Thin hickory-resolver wrapper exposing only TXT / A / AAAA / MX / PTR | hickory + uniform shape | (future: spf/dkim/dnsbl migration target) |
+| `mailrs-mta-sts` | RFC 8461 STS record + policy parser, MX wildcard match, `enforce(&Policy, mx)` decision, Cache trait (no HTTP / DNS in-crate) | RFC 8461 | server (outbound-queue MTA-STS path) |
 
 ### Server building blocks (opinionated, but BYO-store)
 

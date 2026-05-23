@@ -3083,6 +3083,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-mta-sts"
+version = "1.0.0"
+dependencies = [
+ "async-trait",
+ "criterion",
+ "tokio",
+]
+
+[[package]]
 name = "mailrs-outbound-queue"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
