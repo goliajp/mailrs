@@ -35,6 +35,7 @@ members = [
     "crates/dkim",
     "crates/mime",
     "crates/dns",
+    "crates/arc",
     "crates/server",
 ]
 

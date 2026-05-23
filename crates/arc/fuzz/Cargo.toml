@@ -1,0 +1,41 @@
+[package]
+name = "mailrs-arc-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.mailrs-arc]
+path = ".."
+default-features = false
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "parse_ams"
+path = "fuzz_targets/parse_ams.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_seal"
+path = "fuzz_targets/parse_seal.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "extract_chain"
+path = "fuzz_targets/extract_chain.rs"
+test = false
+doc = false
+bench = false
