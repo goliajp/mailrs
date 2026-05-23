@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-23
+
+### Added
+
+- **Tracing instrumentation on `Pipeline::run`.** Emits one
+  `info_span!("inbound.pipeline", n_stages, spam_threshold)` for the
+  whole run + one nested `debug_span!("inbound.stage", name=…)` per
+  evaluated stage. Per-stage futures are attached via
+  `tracing::Instrument` so the spans correctly survive `.await`
+  suspension. When a `tracing-subscriber` is set up and the caller is
+  already inside a span (e.g. `smtp.conn` on mailrs-server's connection
+  handler), the pipeline + stage spans nest under it automatically and
+  show up as a clean tree in any OTel-compatible viewer.
+- New dependency: `tracing = "0.1"`. No-op overhead when no subscriber
+  is attached (~5-15 ns / stage measured; within criterion noise of the
+  previous baseline at 610 ns / 4-noop-stages).
+
+### Notes
+
+- The `Stage` trait is unchanged. Stage implementors don't have to
+  opt in — the executor wraps every `stage.evaluate()` call in a span
+  using the stage's existing `name()` for the span field.
+- Public API unchanged. Existing callers see no behaviour change beyond
+  the new span emissions.
+
 ## [1.0.3] - 2026-05-22
 
 ### Added

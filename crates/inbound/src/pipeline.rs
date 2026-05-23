@@ -42,13 +42,32 @@ impl Pipeline {
     /// If every stage returns `Continue`, the final decision is computed
     /// from the accumulated signals via
     /// [`make_delivery_decision`](crate::make_delivery_decision).
+    ///
+    /// **Tracing.** Emits one `info_span!("inbound.pipeline", n_stages, …)`
+    /// for the whole run + one nested `debug_span!("inbound.stage",
+    /// name=…)` per evaluated stage. Each per-stage future is attached
+    /// via `tracing::Instrument` so the span correctly survives `.await`
+    /// suspension. If a `tracing-subscriber` is set up and the caller's
+    /// connection handler is itself in a span (e.g. `smtp.conn`), the
+    /// pipeline span nests under it automatically.
+    #[tracing::instrument(
+        name = "inbound.pipeline",
+        skip(self, ctx),
+        fields(n_stages = self.stages.len(), spam_threshold = self.spam_threshold),
+    )]
     pub async fn run(&self, ctx: &mut ReceiveContext) -> DeliveryDecision {
+        use tracing::Instrument;
         for stage in &self.stages {
-            if let StageOutcome::Decide(d) = stage.evaluate(ctx).await {
+            let stage_span = tracing::debug_span!("inbound.stage", name = stage.name());
+            let outcome = stage.evaluate(ctx).instrument(stage_span).await;
+            if let StageOutcome::Decide(d) = outcome {
+                tracing::debug!(stage = stage.name(), "pipeline short-circuit");
                 return d;
             }
         }
-        make_delivery_decision(&ctx.to_pipeline_input(self.spam_threshold))
+        let decision = make_delivery_decision(&ctx.to_pipeline_input(self.spam_threshold));
+        tracing::debug!(?decision, "pipeline ran to completion");
+        decision
     }
 
     /// Iterate over stage names, in order. Useful for introspection /
