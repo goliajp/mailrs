@@ -2640,18 +2640,6 @@ dependencies = [
 [[package]]
 name = "mailrs-dav"
 version = "1.1.0"
-dependencies = [
- "async-trait",
- "chrono",
- "criterion",
- "hex",
- "sha2 0.11.0",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-dav"
-version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "017fc55dcd732173a584b0a62e4ef659b0a48f9e6cbf551f7f20df0558e3aff8"
 dependencies = [
@@ -2659,6 +2647,18 @@ dependencies = [
  "chrono",
  "hex",
  "sha2 0.11.0",
+]
+
+[[package]]
+name = "mailrs-dav"
+version = "1.1.1"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "criterion",
+ "hex",
+ "sha2 0.11.0",
+ "tokio",
 ]
 
 [[package]]
@@ -2831,18 +2831,6 @@ dependencies = [
 [[package]]
 name = "mailrs-jmap"
 version = "1.1.1"
-dependencies = [
- "async-trait",
- "chrono",
- "criterion",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-jmap"
-version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bd1e5ed26b7dc177079b40f105c35d1bce362ce5146c20bfa2141f8bc1835ba"
 dependencies = [
@@ -2850,6 +2838,18 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mailrs-jmap"
+version = "1.1.2"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "criterion",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -3095,14 +3095,14 @@ dependencies = [
  "mailrs-backoff 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-dav 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-dav 1.1.0",
  "mailrs-dkim 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dmarc 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-imap-proto 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-inbound 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-intelligence 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-jmap 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-jmap 1.1.1",
  "mailrs-mailbox 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-maildir 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mime 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
