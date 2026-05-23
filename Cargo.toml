@@ -37,6 +37,7 @@ members = [
     "crates/dns",
     "crates/arc",
     "crates/mta-sts",
+    "crates/tls-rpt",
     "crates/server",
 ]
 
