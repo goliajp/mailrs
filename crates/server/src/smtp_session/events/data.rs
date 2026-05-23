@@ -22,6 +22,16 @@ use super::super::post_delivery::post_delivery_process;
 use super::super::srs::srs_rewrite;
 use super::super::{ConnectionContext, SessionAction, DATA_TIMEOUT};
 
+#[tracing::instrument(
+    name = "smtp.data",
+    skip(framed, session, ctx),
+    fields(
+        conn_id,
+        from = %reverse_path,
+        n_rcpts = forward_paths.len(),
+        peer = %addr,
+    ),
+)]
 pub(super) async fn handle_need_data<S>(
     framed: &mut Framed<S, SmtpCodec>,
     session: &mut Session,
