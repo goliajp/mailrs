@@ -51,11 +51,13 @@ pub mod crypto;
 pub mod error;
 pub mod header;
 pub mod resolver;
+pub mod seal;
 pub mod verify;
 
 pub use chain::{ArcChain, ArcSet};
 pub use crypto::{verify_ams, verify_as};
 pub use error::ArcError;
-pub use header::{ArcAuthResults, ArcMessageSignature, ArcSeal, ArcSealCv};
+pub use header::{Algorithm, ArcAuthResults, ArcMessageSignature, ArcSeal, ArcSealCv, Canon};
 pub use resolver::ArcResolver;
+pub use seal::{ArcSigningKey, SealOpts, SealedHeaders, seal};
 pub use verify::{ChainOutcome, verify_chain, verify_chain_with_crypto};

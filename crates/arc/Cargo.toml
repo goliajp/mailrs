@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-arc"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2024"
 description = "RFC 8617 Authenticated Received Chain (ARC) — header parsing, chain extraction, and signature verification. ARC extends DKIM/SPF/DMARC across forwarders by chaining per-hop authentication results inside cryptographically-sealed header sets. Pairs with mailrs-dkim for canonicalization + RSA verify, mailrs-spf / mailrs-dmarc for the auth-results that ARC carries forward."
 license = "Apache-2.0 OR MIT"
@@ -29,8 +29,15 @@ sha2 = { version = "0.10", features = ["oid"] }
 # RFC 6376 and RFC 8617 §5 (AMS uses the same canonicalization +
 # algorithms; AS uses relaxed/relaxed + the same algorithms). Route
 # through mailrs-dkim instead of duplicating ~600 LOC of canon + crypto.
-# 1.2 exposes the `crypto` + `headers` modules we now depend on.
-mailrs-dkim = { path = "../dkim", version = "1.2", default-features = false }
+# 1.5 exposes the `crypto::sign_signature` we use for ARC sealing.
+mailrs-dkim = { path = "../dkim", version = "1.5", default-features = false }
+# RSA + Ed25519 private-key types appear in our public API
+# (`ArcSigningKey<'_>`) so callers can borrow their already-parsed
+# keys. Already transitively present via mailrs-dkim; making the
+# dep direct keeps `cargo doc` resolving the types in this crate's
+# docs.
+rsa = "0.9"
+ed25519-dalek = "2"
 
 [dev-dependencies]
 criterion = { workspace = true }

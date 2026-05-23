@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-05-23
+
+### Added
+
+- **`pub mod seal`** — the outbound forwarder side. With 1.0 we
+  parsed chains, with 1.1 we verified them; with 1.2 we can also
+  produce them. mailrs-arc now covers both directions of RFC 8617.
+  This is the first standalone Rust ARC implementation with
+  sign+verify in a single independent crate (mail-auth bundles the
+  whole email-auth stack; this is the carved-out primitive).
+- `ArcSigningKey<'a>::{Rsa(&RsaPrivateKey), Ed25519(&SigningKey)}` —
+  algorithm implied by the key variant. Borrows the parsed key so
+  forwarders can share one parsed key across many seal calls.
+- `SealOpts { domain, selector, signed_headers, canon_*, cv,
+  authres, timestamp }` — everything a forwarder needs to attach
+  one hop's worth of ARC headers.
+- `seal(raw_msg, &key, &opts, prior) -> Result<SealedHeaders, ArcError>` —
+  produces the three header lines (`aar`, `ams`, `seal`) ready to
+  prepend in that order. `SealedHeaders::concat()` is the
+  convenience helper.
+
+### Validation rules enforced by `seal`
+
+- First hop (`prior=None`): `cv` MUST be `None`.
+- Later hop (`prior=Some(_)`): `cv` MUST NOT be `None`.
+- New instance number (`prior.highest_instance()+1`) MUST be ≤ 50
+  per RFC 8617 §4.2.1; otherwise `ArcError::ChainTooLong`.
+
+### Tests
+
+- `tests/seal_roundtrip.rs` — for every supported scenario:
+  - First-hop seal: `cv=none` chain, run through
+    `verify_chain_with_crypto` → `Pass`.
+  - Two-hop seal: start with a key_A-signed first hop, then attach
+    a key_B-signed second hop with `cv=pass`. Resolver returns the
+    right key per query. Full chain → `Pass`.
+  - First hop with `cv=pass` rejected (`InvalidCv`).
+  - Later hop with `cv=none` rejected (`InvalidCv`).
+- Plus 6 internal seal-side unit tests for type / string helpers.
+- Full 50-test arc suite green (40 lib + 2 crypto roundtrip + 4
+  perf gate + 4 seal roundtrip).
+
+### Dependencies
+
+- Bumps `mailrs-dkim` floor from `1.2` to `1.5` (needs the new
+  `crypto::sign_signature` primitive).
+- Adds direct `rsa` + `ed25519-dalek` runtime deps because the
+  key types appear in the public `ArcSigningKey<'_>` enum.
+  Already in the transitive graph via `mailrs-dkim`; making the
+  deps direct keeps `cargo doc` resolving the types in this
+  crate's docs.
+
+### Why this matters
+
+A verifier-only ARC crate is incomplete: an MTA that receives
+forwarded mail can validate inbound chains but can't extend them
+when it forwards further. `mailrs-arc` 1.2 closes that loop. The
+first hop / later hop / `cv=` integrity rules are enforced in the
+public API so callers can't produce malformed chains by accident.
+
 ## [1.1.0] - 2026-05-23
 
 ### Added
