@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-05-23
+
+### Changed
+
+- **`parse` no longer allocates the multipart preamble** — was
+  `body.to_vec()` on every multipart node (often 1KB+ per typical
+  message), now `Vec::new()` since RFC 2046 §5.1.1 calls preamble
+  "rarely interesting" and downstream code never reads it.
+- **Header values borrow from the input** when ASCII (the common
+  case). Previously `String::from_utf8_lossy` allocated a `String`
+  for each of the 4 headers (Content-Type, Content-Disposition,
+  Content-ID, Content-Transfer-Encoding) on every part. Now `&str`
+  borrows in the hot path; lossy fallback only for non-UTF-8.
+- **`split_multipart` builds delimiter bytes flat** instead of
+  `format!("--{boundary}")`. Cheaper string concat for what amounts
+  to a fixed-template byte buffer.
+
+### Added
+
+- `fuzz/` — libFuzzer target `parse` (committed in the previous
+  fuzz-sweep commit). 2.5M iterations clean.
+
+Public API unchanged; tests unchanged + green (45 lib tests).
+
 ## [1.0.2] - 2026-05-23
 
 ### Changed

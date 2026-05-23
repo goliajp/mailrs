@@ -210,15 +210,37 @@ Numbers below are criterion medians, measured with criterion 0.8 on Apple Silico
 |---|---|---|
 | `evaluate_bucket` (allowed, pure math) | ~1.8 ns | branchless refill + decrement |
 | `evaluate_bucket` (denied, no refill) | ~2.0 ns | exits without writing tokens |
-| `InMemoryRateLimitStore::check_sync` (hot key) | ~41 ns | DashMap entry-lock + the math; dominated by `SystemTime::now()` |
-| `InMemoryRateLimitStore::check` (async, hot key) | ~105 ns | + boxed-future overhead from `async-trait` |
-| `InMemoryRateLimitStore::check_sync` (cold key, first touch) | ~180 ns | String alloc + DashMap insert |
+| `InMemoryRateLimitStore::check_sync` (hot key) | **13-16 ns** | `quanta::Clock` + AtomicU64 GCRA-encoded TAT + DashMap shard read lock |
+| `InMemoryRateLimitStore::check` (async, hot key) | ~85 ns | + boxed-future overhead from `async-trait` |
+| `InMemoryRateLimitStore::check_sync` (cold key, first touch) | ~280 ns | String alloc + DashMap insert |
 | `cleanup_stale(10k entries, all stale)` | ~119 µs | full sweep, retain everything-or-nothing |
 | `cleanup_stale(10k entries, none stale)` | ~119 µs | same cost — retain still touches every entry |
 
 Run with `cargo bench -p mailrs-rate-limit`.
 
-Comparison points: [`governor`] uses GCRA (more complex math but lock-free per-key), which is the right call when many keys all sit just below the limit at the same time. Token-bucket via DashMap is simpler and lets the bucket drain naturally, which matches typical anti-abuse usage (one key per IP / user). Pick by workload shape.
+### Vs. [`governor`] 0.10 (the de-facto Rust GCRA crate)
+
+As of 1.0.3 we **match or slightly beat** governor on the hot path. The
+earlier 2× governor lead was three pieces of open-source homework we
+hadn't done — adopted in 1.0.3, all credited to governor's source:
+
+| Operation | mailrs-rate-limit 1.0.3 | governor 0.10 |
+|---|---:|---:|
+| hot key, allowed | **13-16 ns** | 14-18 ns |
+| cold key first-touch | 275-372 ns | 290-420 ns |
+
+The three things that closed the gap: (1) per-key state collapsed into
+a single `AtomicU64` holding a GCRA-style TAT — DashMap shard *read*
+lock + lock-free CAS instead of write-locked entry mutation; (2)
+`quanta::Clock` for the time source — u64-backed monotonic Instant
+without going through `Duration` (~3-5 ns vs `SystemTime::now()`'s
+~10 ns); (3) `nanos_per_token` + `burst_nanos` precomputed at
+construction so the hot path is integer arithmetic only.
+
+Token-bucket semantics (`capacity` + `refill_rate` config) are
+preserved — GCRA's TAT is just a more compact encoding of the same
+state for a uniform-rate bucket. See [`crates/rate-limit/src/in_memory.rs`](src/in_memory.rs)
+for the implementation; reproduce numbers with `cargo bench -p mailrs-rate-limit --bench compare_governor`.
 
 ## Versioning
 

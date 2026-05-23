@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-rfc2047"
-version = "1.1.1"
+version = "1.1.2"
 edition = "2024"
 description = "RFC 2047 MIME encoded-word decoder. Decodes =?charset?(B|Q)?text?= subjects + display names to UTF-8. Supports the full WHATWG Encoding charset set via encoding_rs (UTF-8, ISO-8859-*, Windows-*, ISO-2022-JP, Shift_JIS, EUC-KR, GB18030, …)."
 license = "Apache-2.0 OR MIT"
@@ -22,6 +22,7 @@ base64 = "0.22"
 [dev-dependencies]
 criterion = { workspace = true }
 mail-parser = "0.11"  # comparison bench only
+proptest = "1"
 
 [[bench]]
 name = "decode"

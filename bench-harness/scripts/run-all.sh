@@ -45,6 +45,14 @@ if command -v cc >/dev/null 2>&1; then
     else
         echo "skip: libspf2 not installed (brew install libspf2 / apt install libspf2-dev)" >> "$REPORT"
     fi
+    # Augment PKG_CONFIG_PATH with Homebrew Cellar paths if present —
+    # Homebrew on Apple Silicon doesn't auto-add these.
+    if [ -d /opt/homebrew/Cellar ]; then
+        for pc in /opt/homebrew/Cellar/libical/*/lib/pkgconfig \
+                  /opt/homebrew/Cellar/icu4c*/*/lib/pkgconfig; do
+            [ -d "$pc" ] && export PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-}:$pc"
+        done
+    fi
     if pkg-config --exists libical 2>/dev/null && \
        cc -O2 ical_libical.c $(pkg-config --cflags --libs libical) -o ical_libical 2>/dev/null; then
         ./ical_libical ../corpus/ical_simple.ics "$ITERS_MED" 2>&1 | tee -a "$REPORT" || true
