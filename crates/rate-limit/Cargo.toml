@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-rate-limit"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 description = "Token-bucket rate limiting trait + in-memory reference impl. &str keys (IP / user / api-key / endpoint), unix-seconds time. Async, transport-agnostic, no protocol coupling. Standalone — bring your own storage backend."
 license = "Apache-2.0 OR MIT"
@@ -22,7 +22,12 @@ dashmap = "6"
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+governor = "0.10"
 
 [[bench]]
 name = "store"
+harness = false
+
+[[bench]]
+name = "compare_governor"
 harness = false

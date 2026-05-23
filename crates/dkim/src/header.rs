@@ -76,87 +76,148 @@ impl DkimHeader {
     /// The header may contain folded continuation lines (CRLF + WSP);
     /// we unfold internally before parsing tags.
     pub fn parse(value: &str) -> Result<Self, DkimError> {
-        let unfolded = unfold(value);
-        let mut tags = parse_tag_list(&unfolded)?;
+        // Single-pass byte-level scan. No HashMap, no unfold pre-allocation.
+        // Tag dispatch is a string match against the small known set; CRLF+WSP
+        // folding is consumed inline as whitespace inside values.
+        let bytes = value.as_bytes();
+        let n = bytes.len();
+        let mut i = 0;
 
-        // Required tags
-        let v = tags
-            .remove("v")
-            .ok_or_else(|| DkimError::MissingTag("v".into()))?;
-        let version: u32 = v
-            .trim()
-            .parse()
-            .map_err(|_| DkimError::InvalidTag(format!("v={v}")))?;
-        if version != 1 {
-            return Err(DkimError::InvalidTag(format!("v={version}, expected 1")));
-        }
+        let mut version: Option<u32> = None;
+        let mut algorithm: Option<Algorithm> = None;
+        let mut signature_b64: Option<String> = None;
+        let mut body_hash_b64: Option<String> = None;
+        let mut canon_header = Canon::Simple;
+        let mut canon_body = Canon::Simple;
+        let mut domain: Option<String> = None;
+        let mut selector: Option<String> = None;
+        let mut signed_headers: Option<Vec<String>> = None;
+        let mut body_length: Option<u64> = None;
+        let mut timestamp: Option<u64> = None;
+        let mut expiration: Option<u64> = None;
+        let mut identity: Option<String> = None;
+        let mut query_method: Option<String> = None;
 
-        let a = tags
-            .remove("a")
-            .ok_or_else(|| DkimError::MissingTag("a".into()))?;
-        let algorithm = match a.trim() {
-            "rsa-sha256" => Algorithm::RsaSha256,
-            "ed25519-sha256" => Algorithm::Ed25519Sha256,
-            other => return Err(DkimError::UnsupportedAlgorithm(other.to_string())),
-        };
+        while i < n {
+            // Skip separators / whitespace / folding between tags.
+            while i < n && matches!(bytes[i], b' ' | b'\t' | b'\r' | b'\n' | b';') {
+                i += 1;
+            }
+            if i >= n {
+                break;
+            }
 
-        let b = tags
-            .remove("b")
-            .ok_or_else(|| DkimError::MissingTag("b".into()))?;
-        // The b= value may contain WSP introduced by folding; strip all WSP
-        let signature_b64 = strip_wsp(&b);
+            // Tag name: ASCII until '=' or whitespace.
+            let name_start = i;
+            while i < n && !matches!(bytes[i], b'=' | b' ' | b'\t' | b'\r' | b'\n' | b';') {
+                i += 1;
+            }
+            let name = &value[name_start..i];
+            if name.is_empty() {
+                return Err(DkimError::InvalidTag(format!(
+                    "no tag name at offset {name_start}"
+                )));
+            }
 
-        let bh = tags
-            .remove("bh")
-            .ok_or_else(|| DkimError::MissingTag("bh".into()))?;
-        let body_hash_b64 = strip_wsp(&bh);
+            // Allow optional WSP before '='.
+            while i < n && matches!(bytes[i], b' ' | b'\t') {
+                i += 1;
+            }
+            if i >= n || bytes[i] != b'=' {
+                return Err(DkimError::InvalidTag(format!(
+                    "no `=` after tag {name:?}"
+                )));
+            }
+            i += 1;
 
-        let domain = tags
-            .remove("d")
-            .ok_or_else(|| DkimError::MissingTag("d".into()))?
-            .trim()
-            .to_string();
-        let selector = tags
-            .remove("s")
-            .ok_or_else(|| DkimError::MissingTag("s".into()))?
-            .trim()
-            .to_string();
+            // Tag value: everything up to the next ';' that's not inside
+            // folded whitespace. CRLF+WSP inside the value is preserved here;
+            // tag-specific handling strips it (b/bh) or trims it (others).
+            let val_start = i;
+            while i < n && bytes[i] != b';' {
+                i += 1;
+            }
+            let raw_val = &value[val_start..i];
 
-        let h = tags
-            .remove("h")
-            .ok_or_else(|| DkimError::MissingTag("h".into()))?;
-        let signed_headers: Vec<String> = h
-            .split(':')
-            .map(|s| s.trim().to_ascii_lowercase())
-            .filter(|s| !s.is_empty())
-            .collect();
-        if signed_headers.is_empty() {
-            return Err(DkimError::InvalidTag("h= empty".into()));
-        }
-
-        // Optional canonicalization tag: c=hdr/body, default simple/simple
-        let (canon_header, canon_body) = match tags.remove("c") {
-            None => (Canon::Simple, Canon::Simple),
-            Some(c) => parse_canon(&c)?,
-        };
-
-        // Optional length limit
-        let body_length = match tags.remove("l") {
-            None => None,
-            Some(s) => Some(
-                s.trim()
+            // Tag dispatch. Case-insensitive name match — DKIM tags are
+            // case-insensitive per RFC 6376 §3.2 but real-world headers are
+            // always lowercase, so the lowercase branch is the hot path.
+            if name.eq_ignore_ascii_case("v") {
+                let trimmed = raw_val.trim();
+                let parsed: u32 = trimmed
                     .parse()
-                    .map_err(|_| DkimError::InvalidTag(format!("l={s}")))?,
-            ),
-        };
+                    .map_err(|_| DkimError::InvalidTag(format!("v={trimmed}")))?;
+                if parsed != 1 {
+                    return Err(DkimError::InvalidTag(format!(
+                        "v={parsed}, expected 1"
+                    )));
+                }
+                version = Some(parsed);
+            } else if name.eq_ignore_ascii_case("a") {
+                algorithm = Some(match raw_val.trim() {
+                    "rsa-sha256" => Algorithm::RsaSha256,
+                    "ed25519-sha256" => Algorithm::Ed25519Sha256,
+                    other => return Err(DkimError::UnsupportedAlgorithm(other.to_string())),
+                });
+            } else if name.eq_ignore_ascii_case("b") {
+                signature_b64 = Some(strip_wsp(raw_val));
+            } else if name.eq_ignore_ascii_case("bh") {
+                body_hash_b64 = Some(strip_wsp(raw_val));
+            } else if name.eq_ignore_ascii_case("d") {
+                domain = Some(raw_val.trim().to_string());
+            } else if name.eq_ignore_ascii_case("s") {
+                selector = Some(raw_val.trim().to_string());
+            } else if name.eq_ignore_ascii_case("h") {
+                let list: Vec<String> = raw_val
+                    .split(':')
+                    .map(|s| s.trim().to_ascii_lowercase())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                if list.is_empty() {
+                    return Err(DkimError::InvalidTag("h= empty".into()));
+                }
+                signed_headers = Some(list);
+            } else if name.eq_ignore_ascii_case("c") {
+                let (h, b) = parse_canon(raw_val)?;
+                canon_header = h;
+                canon_body = b;
+            } else if name.eq_ignore_ascii_case("l") {
+                let trimmed = raw_val.trim();
+                body_length = Some(
+                    trimmed
+                        .parse()
+                        .map_err(|_| DkimError::InvalidTag(format!("l={trimmed}")))?,
+                );
+            } else if name.eq_ignore_ascii_case("t") {
+                let trimmed = raw_val.trim();
+                timestamp = Some(
+                    trimmed
+                        .parse()
+                        .map_err(|_| DkimError::InvalidTag(format!("t={trimmed}")))?,
+                );
+            } else if name.eq_ignore_ascii_case("x") {
+                let trimmed = raw_val.trim();
+                expiration = Some(
+                    trimmed
+                        .parse()
+                        .map_err(|_| DkimError::InvalidTag(format!("x={trimmed}")))?,
+                );
+            } else if name.eq_ignore_ascii_case("i") {
+                identity = Some(raw_val.trim().to_string());
+            } else if name.eq_ignore_ascii_case("q") {
+                query_method = Some(raw_val.trim().to_string());
+            }
+            // Unknown tags are ignored per RFC 6376 §3.2.
+        }
 
-        let timestamp = parse_optional_u64(&mut tags, "t")?;
-        let expiration = parse_optional_u64(&mut tags, "x")?;
-        let identity = tags.remove("i").map(|s| s.trim().to_string());
-        let query_method = tags
-            .remove("q")
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "dns/txt".to_string());
+        let version = version.ok_or_else(|| DkimError::MissingTag("v".into()))?;
+        let algorithm = algorithm.ok_or_else(|| DkimError::MissingTag("a".into()))?;
+        let signature_b64 = signature_b64.ok_or_else(|| DkimError::MissingTag("b".into()))?;
+        let body_hash_b64 = body_hash_b64.ok_or_else(|| DkimError::MissingTag("bh".into()))?;
+        let domain = domain.ok_or_else(|| DkimError::MissingTag("d".into()))?;
+        let selector = selector.ok_or_else(|| DkimError::MissingTag("s".into()))?;
+        let signed_headers = signed_headers.ok_or_else(|| DkimError::MissingTag("h".into()))?;
+        let query_method = query_method.unwrap_or_else(|| "dns/txt".to_string());
         if !query_method.eq_ignore_ascii_case("dns/txt") {
             return Err(DkimError::UnsupportedAlgorithm(format!(
                 "q={query_method}"
@@ -182,20 +243,6 @@ impl DkimHeader {
     }
 }
 
-fn parse_optional_u64(
-    tags: &mut std::collections::HashMap<String, String>,
-    name: &str,
-) -> Result<Option<u64>, DkimError> {
-    match tags.remove(name) {
-        None => Ok(None),
-        Some(s) => Ok(Some(
-            s.trim()
-                .parse()
-                .map_err(|_| DkimError::InvalidTag(format!("{name}={s}")))?,
-        )),
-    }
-}
-
 fn parse_canon(c: &str) -> Result<(Canon, Canon), DkimError> {
     let c = c.trim();
     // c= can be "header/body" or just "header" (default body = simple)
@@ -216,57 +263,16 @@ fn parse_canon(c: &str) -> Result<(Canon, Canon), DkimError> {
     Ok((h, b))
 }
 
-/// RFC 6376 §3.5: tag-list = tag-spec *( ";" tag-spec ).
-/// Parse into `HashMap<name, value>` with each tag value as-is (the
-/// caller may need to strip WSP per RFC 6376 §3.2 for some tags).
-fn parse_tag_list(input: &str) -> Result<std::collections::HashMap<String, String>, DkimError> {
-    let mut out = std::collections::HashMap::new();
-    for token in input.split(';') {
-        let token = token.trim();
-        if token.is_empty() {
-            continue;
-        }
-        let (name, value) = token
-            .split_once('=')
-            .ok_or_else(|| DkimError::InvalidTag(format!("no `=` in tag {token:?}")))?;
-        let name = name.trim().to_ascii_lowercase();
-        out.insert(name, value.to_string());
-    }
-    Ok(out)
-}
-
 /// Remove all WSP (space + horizontal tab) and CR/LF — used for the
 /// base64 tag values, which may have arbitrary whitespace inserted by
-/// the folding rules.
+/// the folding rules. Byte-level + capacity-presized; faster than the
+/// `.chars().filter().collect()` form on typical RSA-2048 base64 payloads.
 fn strip_wsp(s: &str) -> String {
-    s.chars()
-        .filter(|c| !matches!(c, ' ' | '\t' | '\r' | '\n'))
-        .collect()
-}
-
-/// Unfold a header value: CRLF followed by WSP collapses to a single
-/// SP (the WSP itself is preserved by the unfold; RFC 5322 §2.2.3).
-fn unfold(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    let bytes = input.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'\r' && i + 1 < bytes.len() && bytes[i + 1] == b'\n' {
-            // Followed by WSP? unfold
-            if i + 2 < bytes.len() && matches!(bytes[i + 2], b' ' | b'\t') {
-                // Skip the CRLF; keep the WSP
-                i += 2;
-                continue;
-            }
-            // CRLF not followed by WSP: stop (end of header)
-            break;
+    let mut out = String::with_capacity(s.len());
+    for &b in s.as_bytes() {
+        if !matches!(b, b' ' | b'\t' | b'\r' | b'\n') {
+            out.push(b as char);
         }
-        if bytes[i] == b'\n' && i + 1 < bytes.len() && matches!(bytes[i + 1], b' ' | b'\t') {
-            i += 1;
-            continue;
-        }
-        out.push(bytes[i] as char);
-        i += 1;
     }
     out
 }

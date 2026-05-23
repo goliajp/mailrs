@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-05-23
+
+### Changed
+
+- `InMemoryRateLimitStore::check_at` tries `DashMap::get_mut(&str)` before
+  falling back to `entry(key.to_owned()).or_insert_with(...)`. Saves one
+  `String` allocation per check on the hot path (warm key, the realistic
+  case in any SMTP/IMAP frontline).
+
+### Performance
+
+Measured (criterion, M-series Mac, release, `--quick`):
+
+| Input | Before | After | governor 0.10 |
+|---|---:|---:|---:|
+| hot key, allowed | 34 ns | **31 ns** | 14 ns |
+| cold key first-touch | n/a | 306 ns | 221 ns |
+
+Honest: governor (GCRA) still wins by 2.2× on the warm path because it can
+fit its state in a single u64 and use atomic CAS. We have to lock a DashMap
+entry to update both `tokens` + `last_refill_unix_secs`. If you can accept
+GCRA semantics, governor is the right call. If you need strict token-bucket
+semantics — the only thing that works for "5 SMTP attempts per second with
+burst capacity 10" — mailrs-rate-limit is the right call.
+
+### Added
+
+- `benches/compare_governor.rs` — head-to-head bench against `governor` 0.10.
+
 ## [1.0.1] - 2026-05-22
 
 ### Added

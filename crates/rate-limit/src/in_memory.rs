@@ -89,11 +89,22 @@ impl InMemoryRateLimitStore {
     /// Testable variant of `check_sync` taking an explicit `now`
     /// (unix seconds) — avoids the `SystemTime::now()` syscall.
     fn check_at(&self, key: &str, now_unix_secs: u64) -> bool {
+        // Fast path: existing bucket. `DashMap::get_mut` takes `&str` via
+        // the `Q: Borrow<K>` bound — no `key.to_owned()` alloc on the hot
+        // path. The `entry(...)` alternative always owns the key, costing
+        // one String allocation per check even when the key already exists.
+        if let Some(mut entry) = self.buckets.get_mut(key) {
+            let (next_state, allowed) =
+                evaluate_bucket(*entry.value(), now_unix_secs, &self.config);
+            *entry.value_mut() = next_state;
+            return allowed;
+        }
+        // Slow path: insert with owned key. Pays the alloc only on first
+        // touch of a never-before-seen key.
         let mut entry = self.buckets.entry(key.to_owned()).or_insert_with(|| Bucket {
             tokens: f64::from(self.config.capacity),
             last_refill_unix_secs: now_unix_secs,
         });
-
         let (next_state, allowed) = evaluate_bucket(*entry.value(), now_unix_secs, &self.config);
         *entry.value_mut() = next_state;
         allowed

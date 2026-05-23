@@ -274,14 +274,16 @@ fn split_qualifier(token: &str) -> (Qualifier, &str) {
     (Qualifier::Pass, token) // default qualifier is `+`
 }
 
-fn parse_addr_and_prefix(value: &str, default: u8) -> Result<(String, u8), SpfError> {
+/// Borrow-returning variant — avoids the `to_string()` allocation that the
+/// SPF hot path used to pay per `ip4:`/`ip6:` mechanism.
+fn parse_addr_and_prefix(value: &str, default: u8) -> Result<(&str, u8), SpfError> {
     if let Some((addr, prefix_str)) = value.rsplit_once('/') {
         let prefix: u8 = prefix_str
             .parse()
             .map_err(|_| SpfError::InvalidRecord(format!("bad prefix: {prefix_str}")))?;
-        Ok((addr.to_string(), prefix))
+        Ok((addr, prefix))
     } else {
-        Ok((value.to_string(), default))
+        Ok((value, default))
     }
 }
 

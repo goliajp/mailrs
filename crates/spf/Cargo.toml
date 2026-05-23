@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-spf"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2024"
 description = "RFC 7208 Sender Policy Framework verifier. Pure-Rust evaluator with a pluggable DNS resolver trait; ships an optional hickory-resolver-backed implementation. Bounded DNS-lookup limits + loop detection per spec."
 license = "Apache-2.0 OR MIT"
@@ -28,7 +28,14 @@ hickory-resolver = { version = "0.26", optional = true }
 [dev-dependencies]
 criterion = { workspace = true }
 tokio = { workspace = true }
+# Comparator for honest head-to-head benches. Same `mail-auth` version the
+# server crate already pulls in transitively, so no extra resolution cost.
+mail-auth = "0.9"
 
 [[bench]]
 name = "spf"
+harness = false
+
+[[bench]]
+name = "compare_mail_auth"
 harness = false
