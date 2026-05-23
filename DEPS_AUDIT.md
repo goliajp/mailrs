@@ -26,10 +26,13 @@ inputs we measured against it:
 | `mailrs-spf` | 1.0.4 | wins complex (+14%) and pathological (+44%); loses simple by 13 ns (std `Ipv4Addr` cost) |
 | `mailrs-dkim` | 1.1.3 | wins both minimal (+12%) and realistic (+4%) since the byte-match dispatch + `h=` byte-iter rewrite |
 | `mailrs-dmarc` | 1.1.0 | RFC 7489 §6 policy eval + alignment (strict + relaxed via PSL) + aggregate reporting all owned |
+| `mailrs-arc` | 1.0.0 | RFC 8617 ARC headers + chain extract + structural verify (cv= integrity, contiguity). Cryptographic AMS+AS verify reserved for 1.1 — that completes the `mail-auth` runtime-drop. |
 
-**`mail-auth` is now removable from the server's runtime deps.** The
-remaining open piece is ARC (RFC 8617), the forwarding-friendly
-extension; planned as a separate stone `mailrs-arc` 1.0.
+**Status:** SPF, DKIM, DMARC are full replacements. ARC 1.0 covers
+structural verification — enough to reject malformed chains before any
+DNS work. `mail-auth` becomes fully removable from the server once
+**mailrs-arc 1.1** ships the cryptographic AMS + AS verification layer
+(reuses `mailrs-dkim` canon for byte-identical canonicalization).
 
 ### #2 — `mail-parser` → **replaced for the email-auth + lookup paths**
 
