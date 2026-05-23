@@ -10,7 +10,7 @@ use crate::dkim_sign::{self, DkimSignConfig};
 use crate::dsn;
 use crate::queue::{self, QueuedMessage};
 use crate::retry::{retry_delay_secs, should_bounce};
-use crate::{DeliveryEvent, DeliveryEventSender};
+use crate::{DeliveryEvent, DeliveryEventSender, TlsAttemptOutcome};
 
 /// Delivery worker configuration.
 #[derive(Debug, Clone)]
@@ -339,7 +339,7 @@ async fn deliver_domain_static(
     for mx in &mx_records {
         let mut all_ok = true;
         for chunk in &chunks {
-            match try_deliver_via_mx(hostname, &mx.exchange, chunk, resolver).await {
+            match try_deliver_via_mx(hostname, &mx.exchange, domain, chunk, resolver, event_sender).await {
                 Ok(()) => {
                     let now = chrono::Utc::now().timestamp();
                     for msg in *chunk {
@@ -410,21 +410,46 @@ pub enum TlsPolicy {
 async fn try_deliver_via_mx(
     hostname: &str,
     mx_host: &str,
+    domain: &str,
     messages: &[QueuedMessage],
     resolver: &TokioResolver,
+    event_sender: Option<&DeliveryEventSender>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    try_deliver_via_mx_with_tls(hostname, mx_host, messages, TlsPolicy::Opportunistic, resolver)
-        .await
+    try_deliver_via_mx_with_tls(
+        hostname,
+        mx_host,
+        domain,
+        messages,
+        TlsPolicy::Opportunistic,
+        resolver,
+        event_sender,
+    )
+    .await
 }
 
 /// try to deliver messages via a specific MX host with explicit TLS policy
 async fn try_deliver_via_mx_with_tls(
     hostname: &str,
     mx_host: &str,
+    domain: &str,
     messages: &[QueuedMessage],
     tls_policy: TlsPolicy,
     resolver: &TokioResolver,
+    event_sender: Option<&DeliveryEventSender>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use mailrs_smtp_client::StarttlsResult;
+
+    // Helper to emit a TlsAttempt event with the given outcome.
+    let emit_tls = |outcome: TlsAttemptOutcome| {
+        if let Some(es) = event_sender {
+            es(DeliveryEvent::TlsAttempt {
+                domain: domain.to_string(),
+                mx_host: mx_host.to_string(),
+                outcome,
+            });
+        }
+    };
+
     let mut smtp = mailrs_smtp_client::SmtpConnection::connect(mx_host, 25).await?;
     let ehlo_resp = smtp.ehlo(hostname).await?;
 
@@ -443,31 +468,70 @@ async fn try_deliver_via_mx_with_tls(
     if ehlo_resp.has_extension("STARTTLS") {
         let tls_result = if has_dane {
             // use DANE-verified TLS
-            smtp.starttls_dane(mx_host, tlsa_records).await
+            smtp.try_starttls_dane(mx_host, tlsa_records).await
         } else {
             // standard PKIX TLS
-            smtp.starttls(mx_host).await
+            smtp.try_starttls(mx_host).await
         };
 
         match tls_result {
-            Ok(tls_smtp) => {
+            StarttlsResult::Success(tls_smtp) => {
                 smtp = tls_smtp;
                 let _ = smtp.ehlo(hostname).await?;
-                if has_dane {
+                let policy: &'static str = if has_dane {
                     tracing::debug!("DANE-verified TLS established with {mx_host}");
+                    "dane"
                 } else {
                     tracing::debug!("TLS established with {mx_host}");
-                }
+                    "opportunistic"
+                };
+                emit_tls(TlsAttemptOutcome::Success { policy });
             }
-            Err(e) => {
+            StarttlsResult::Rejected {
+                conn,
+                code,
+                message,
+            } => {
+                emit_tls(TlsAttemptOutcome::Rejected {
+                    code,
+                    message: message.clone(),
+                });
                 if has_dane || tls_policy == TlsPolicy::Require {
                     return Err(format!(
-                        "STARTTLS failed for {mx_host}{}: {e}",
-                        if has_dane { " (DANE required)" } else { " (TLS required)" }
+                        "STARTTLS rejected by {mx_host} ({code}): {message}{}",
+                        if has_dane {
+                            " (DANE required)"
+                        } else {
+                            " (TLS required)"
+                        }
                     )
                     .into());
                 }
-                tracing::warn!("STARTTLS failed for {mx_host}: {e}, reconnecting without TLS");
+                tracing::warn!(
+                    "STARTTLS rejected by {mx_host} ({code}): {message}; continuing in plain"
+                );
+                // Connection is still usable in plain mode per
+                // StarttlsResult::Rejected contract.
+                smtp = conn;
+            }
+            StarttlsResult::HandshakeFailed { outcome, source } => {
+                emit_tls(TlsAttemptOutcome::HandshakeFailed(outcome.clone()));
+                if has_dane || tls_policy == TlsPolicy::Require {
+                    return Err(format!(
+                        "STARTTLS handshake failed for {mx_host} ({}): {source}{}",
+                        outcome.as_str(),
+                        if has_dane {
+                            " (DANE required)"
+                        } else {
+                            " (TLS required)"
+                        }
+                    )
+                    .into());
+                }
+                tracing::warn!(
+                    "STARTTLS handshake failed for {mx_host} ({}): {source}; reconnecting in plain",
+                    outcome.as_str()
+                );
                 smtp = mailrs_smtp_client::SmtpConnection::connect(mx_host, 25).await?;
                 let resp = smtp.ehlo(hostname).await?;
                 if !resp.is_positive() {
@@ -476,12 +540,14 @@ async fn try_deliver_via_mx_with_tls(
             }
         }
     } else if has_dane || tls_policy == TlsPolicy::Require {
+        emit_tls(TlsAttemptOutcome::NotAdvertised);
         return Err(format!(
             "{mx_host} does not advertise STARTTLS{}",
             if has_dane { " (DANE TLSA records present, TLS required)" } else { " and TLS is required" }
         )
         .into());
     } else {
+        emit_tls(TlsAttemptOutcome::NotAdvertised);
         tracing::info!("delivering to {mx_host} without TLS (STARTTLS not advertised)");
     }
 

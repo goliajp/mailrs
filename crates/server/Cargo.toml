@@ -25,8 +25,8 @@ toml = "1"
 axum = { version = "0.8", features = ["ws", "multipart"] }
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
 dashmap = "6"
-mailrs-smtp-client = "1"
-mailrs-outbound-queue = "1"
+mailrs-smtp-client = "1.1"
+mailrs-outbound-queue = "1.2"
 mailrs-imap-proto = "1"
 mailrs-ical = "1"
 mailrs-intelligence = "1"

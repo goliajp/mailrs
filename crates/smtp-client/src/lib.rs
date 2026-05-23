@@ -76,8 +76,14 @@ pub mod dane;
 pub mod mx;
 /// RFC 5321 multi-line response parser (`250-XXX` continuation lines).
 pub mod response;
+/// Structured outcomes of STARTTLS attempts — discriminated enum
+/// suitable for direct mapping to `mailrs_tls_rpt::FailureType`
+/// (RFC 8460 §4.3) and any downstream decision that wants more
+/// than an opaque `io::Error`.
+pub mod tls_outcome;
 
 pub use connection::{SmtpConnection, TimeoutConfig};
 pub use dane::{DaneVerifier, TlsaRecord, dane_tls_config, resolve_tlsa};
 pub use mx::{MxCache, MxRecord, TokioResolver, fallback_to_domain, resolve_mx, sort_mx_records};
 pub use response::{SmtpResponse, parse_response};
+pub use tls_outcome::{StarttlsResult, TlsOutcome};

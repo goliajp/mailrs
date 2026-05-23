@@ -79,7 +79,7 @@ pub use pg_store::{PgQueueStore, RedisNotifier};
 pub use worker::{DeliveryWorker, WorkerConfig, group_by_domain};
 
 /// Outbound delivery event for external observers (admin UI, audit log,
-/// metrics pipeline).
+/// metrics pipeline, TLSRPT reporter).
 #[derive(Debug, Clone)]
 pub enum DeliveryEvent {
     /// A delivery attempt is starting for `queue_id` targeting `domain`.
@@ -88,6 +88,22 @@ pub enum DeliveryEvent {
         queue_id: i64,
         /// Destination domain for this attempt.
         domain: String,
+    },
+    /// The STARTTLS phase completed (success or failure). Emitted
+    /// once per MX connection right after the TLS handshake, before
+    /// any RCPT TO / DATA. Carries structured outcome suitable for
+    /// TLSRPT (RFC 8460) reporting.
+    ///
+    /// Not emitted when the connection is plain (no STARTTLS
+    /// attempted), in which case the caller should record the
+    /// session as untrusted-TLS via its own logging.
+    TlsAttempt {
+        /// Destination domain (the recipient's, not the MX's).
+        domain: String,
+        /// MX hostname we connected to.
+        mx_host: String,
+        /// Structured outcome of the TLS attempt.
+        outcome: TlsAttemptOutcome,
     },
     /// The message was accepted by the remote MX.
     Success {
@@ -114,6 +130,35 @@ pub enum DeliveryEvent {
         /// Original envelope sender — the DSN gets queued back to them.
         sender: String,
     },
+}
+
+/// Outcome of one STARTTLS attempt, carried by
+/// [`DeliveryEvent::TlsAttempt`]. The four variants discriminate
+/// between TLS success, server-side refusal (still safely usable
+/// in plain), and handshake failure (with the structured
+/// [`mailrs_smtp_client::TlsOutcome`] underneath).
+#[derive(Debug, Clone)]
+pub enum TlsAttemptOutcome {
+    /// STARTTLS completed; encrypted channel established.
+    /// `policy` tells the report which policy gated this attempt
+    /// (`"dane"`, `"sts"`, or `"opportunistic"`).
+    Success {
+        /// Which policy class was active for this attempt.
+        policy: &'static str,
+    },
+    /// Server did not advertise STARTTLS in the EHLO response.
+    /// Maps to RFC 8460 `starttls-not-supported`.
+    NotAdvertised,
+    /// Server rejected the `STARTTLS` command (returned 4xx/5xx).
+    Rejected {
+        /// SMTP response code.
+        code: u16,
+        /// SMTP response text.
+        message: String,
+    },
+    /// TLS handshake started but failed mid-way. The wrapped
+    /// [`mailrs_smtp_client::TlsOutcome`] is RFC 8460 §4.3-aligned.
+    HandshakeFailed(mailrs_smtp_client::TlsOutcome),
 }
 
 /// Callback channel for [`DeliveryEvent`] notifications. Wrapped in `Arc` so

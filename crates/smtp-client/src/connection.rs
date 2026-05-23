@@ -11,6 +11,7 @@ use tokio_rustls::TlsConnector;
 
 use crate::mx::{format_mail_from, format_rcpt_to};
 use crate::response::{parse_response, SmtpResponse};
+use crate::tls_outcome::{StarttlsResult, TlsOutcome};
 
 /// Connection timeout configuration.
 #[derive(Debug, Clone)]
@@ -128,14 +129,53 @@ impl SmtpConnection {
         self.send_command(&format!("EHLO {hostname}\r\n")).await
     }
 
-    /// upgrade to TLS via STARTTLS
-    pub async fn starttls(mut self, hostname: &str) -> io::Result<Self> {
-        let resp = self.send_command("STARTTLS\r\n").await?;
+    /// Upgrade to TLS via STARTTLS — classic API returning the
+    /// upgraded connection or an opaque `io::Error`.
+    ///
+    /// Internally delegates to [`Self::try_starttls`]. Callers that
+    /// want structured TLS-failure classification (for TLSRPT
+    /// reporting, metrics labels, etc.) should call `try_starttls`
+    /// directly.
+    pub async fn starttls(self, hostname: &str) -> io::Result<Self> {
+        self.try_starttls(hostname).await.into_io_result()
+    }
+
+    /// Upgrade to TLS via STARTTLS with DANE TLSA verification —
+    /// classic API. See [`Self::try_starttls_dane`] for the
+    /// structured variant.
+    pub async fn starttls_dane(
+        self,
+        hostname: &str,
+        tlsa_records: Vec<crate::dane::TlsaRecord>,
+    ) -> io::Result<Self> {
+        self.try_starttls_dane(hostname, tlsa_records)
+            .await
+            .into_io_result()
+    }
+
+    /// Upgrade to TLS via STARTTLS, returning a structured
+    /// [`StarttlsResult`] that discriminates between server-side
+    /// rejection (connection still usable) and handshake failure
+    /// (connection unrecoverable, must reconnect). On handshake
+    /// failure, the wrapped [`TlsOutcome`] is RFC 8460 §4.3-aligned
+    /// so callers can build TLSRPT reports directly.
+    pub async fn try_starttls(mut self, hostname: &str) -> StarttlsResult {
+        let resp = match self.send_command("STARTTLS\r\n").await {
+            Ok(r) => r,
+            Err(e) => {
+                let outcome = crate::tls_outcome::classify_io_error(&e, false);
+                return StarttlsResult::HandshakeFailed {
+                    outcome,
+                    source: e,
+                };
+            }
+        };
         if !resp.is_positive() {
-            return Err(io::Error::other(format!(
-                "STARTTLS rejected: {}",
-                resp.message()
-            )));
+            return StarttlsResult::Rejected {
+                conn: self,
+                code: resp.code,
+                message: resp.message(),
+            };
         }
 
         let mut config = ClientConfig::builder()
@@ -147,60 +187,112 @@ impl SmtpConnection {
 
         let connector = TlsConnector::from(Arc::new(config));
         let server_name: rustls::pki_types::ServerName<'static> =
-            hostname.to_string().try_into().map_err(|e| {
-                io::Error::new(io::ErrorKind::InvalidInput, format!("invalid SNI: {e}"))
-            })?;
+            match hostname.to_string().try_into() {
+                Ok(n) => n,
+                Err(e) => {
+                    let detail = format!("{e}");
+                    return StarttlsResult::HandshakeFailed {
+                        outcome: TlsOutcome::InvalidServerName(detail.clone()),
+                        source: io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("invalid SNI: {detail}"),
+                        ),
+                    };
+                }
+            };
 
-        // extract inner TCP stream
         let inner = self.stream.into_inner();
         let tcp = match inner {
             Transport::Plain(tcp) => tcp,
             Transport::Tls(_) => {
-                return Err(io::Error::other("already using TLS"));
+                let e = io::Error::other("already using TLS");
+                return StarttlsResult::HandshakeFailed {
+                    outcome: TlsOutcome::Other(e.to_string()),
+                    source: e,
+                };
             }
         };
 
-        let tls_stream = connector.connect(server_name, tcp).await?;
-        Ok(Self {
-            stream: BufStream::new(Transport::Tls(Box::new(tls_stream))),
-            command_timeout: self.command_timeout,
-        })
+        match connector.connect(server_name, tcp).await {
+            Ok(tls_stream) => StarttlsResult::Success(Self {
+                stream: BufStream::new(Transport::Tls(Box::new(tls_stream))),
+                command_timeout: self.command_timeout,
+            }),
+            Err(e) => {
+                let outcome = crate::tls_outcome::classify_io_error(&e, false);
+                StarttlsResult::HandshakeFailed { outcome, source: e }
+            }
+        }
     }
 
-    /// upgrade to TLS via STARTTLS with DANE TLSA verification
-    pub async fn starttls_dane(
+    /// Upgrade to TLS via STARTTLS with DANE TLSA verification,
+    /// returning a structured [`StarttlsResult`]. DANE-specific
+    /// certificate rejections are reported as
+    /// [`TlsOutcome::DaneValidationFailure`] rather than the PKIX
+    /// `CertificateNotTrusted` so TLSRPT reports can distinguish
+    /// `tlsa-invalid` from generic untrusted-CA failures.
+    pub async fn try_starttls_dane(
         mut self,
         hostname: &str,
         tlsa_records: Vec<crate::dane::TlsaRecord>,
-    ) -> io::Result<Self> {
-        let resp = self.send_command("STARTTLS\r\n").await?;
+    ) -> StarttlsResult {
+        let resp = match self.send_command("STARTTLS\r\n").await {
+            Ok(r) => r,
+            Err(e) => {
+                let outcome = crate::tls_outcome::classify_io_error(&e, true);
+                return StarttlsResult::HandshakeFailed {
+                    outcome,
+                    source: e,
+                };
+            }
+        };
         if !resp.is_positive() {
-            return Err(io::Error::other(format!(
-                "STARTTLS rejected: {}",
-                resp.message()
-            )));
+            return StarttlsResult::Rejected {
+                conn: self,
+                code: resp.code,
+                message: resp.message(),
+            };
         }
 
         let config = crate::dane::dane_tls_config(tlsa_records);
         let connector = TlsConnector::from(Arc::new(config));
         let server_name: rustls::pki_types::ServerName<'static> =
-            hostname.to_string().try_into().map_err(|e| {
-                io::Error::new(io::ErrorKind::InvalidInput, format!("invalid SNI: {e}"))
-            })?;
+            match hostname.to_string().try_into() {
+                Ok(n) => n,
+                Err(e) => {
+                    let detail = format!("{e}");
+                    return StarttlsResult::HandshakeFailed {
+                        outcome: TlsOutcome::InvalidServerName(detail.clone()),
+                        source: io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("invalid SNI: {detail}"),
+                        ),
+                    };
+                }
+            };
 
         let inner = self.stream.into_inner();
         let tcp = match inner {
             Transport::Plain(tcp) => tcp,
             Transport::Tls(_) => {
-                return Err(io::Error::other("already using TLS"));
+                let e = io::Error::other("already using TLS");
+                return StarttlsResult::HandshakeFailed {
+                    outcome: TlsOutcome::Other(e.to_string()),
+                    source: e,
+                };
             }
         };
 
-        let tls_stream = connector.connect(server_name, tcp).await?;
-        Ok(Self {
-            stream: BufStream::new(Transport::Tls(Box::new(tls_stream))),
-            command_timeout: self.command_timeout,
-        })
+        match connector.connect(server_name, tcp).await {
+            Ok(tls_stream) => StarttlsResult::Success(Self {
+                stream: BufStream::new(Transport::Tls(Box::new(tls_stream))),
+                command_timeout: self.command_timeout,
+            }),
+            Err(e) => {
+                let outcome = crate::tls_outcome::classify_io_error(&e, true);
+                StarttlsResult::HandshakeFailed { outcome, source: e }
+            }
+        }
     }
 
     /// send MAIL FROM, RCPT TO, DATA, and message body
