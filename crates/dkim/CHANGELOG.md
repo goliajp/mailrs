@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-05-23
+
+### Added
+
+- **`pub mod sign`** — the long-missing signer half of the crate.
+  Closes the asymmetry where outbound paths had to reach for
+  `mail-auth` for signing while verify went through `mailrs-dkim`.
+- `DkimSigningKey::{Rsa(RsaPrivateKey), Ed25519(SigningKey)}` —
+  algorithm is implied by the key variant (no `a=` tag in
+  [`SignOpts`]; pass the right key).
+- `SignOpts::new(domain, selector)` chainable builder with
+  `add_signed_header` / `signed_headers([...])` / `timestamp(t)` /
+  `expiration(x)` plus explicit `canon_header` / `canon_body`
+  fields. Sensible defaults: relaxed/relaxed, no expiry, no AUID,
+  no body-length limit.
+- `sign(raw_message, &key, &opts) -> Result<String, DkimError>` —
+  returns the full `DKIM-Signature: <tags>\r\n` line ready to
+  prepend to the wire bytes. Reuses
+  `mailrs_dkim::canon::{canonicalize_body, canonicalize_header}` +
+  `mailrs_dkim::headers::*` so sign and verify share one
+  canonicalization implementation by construction (no drift
+  possible under refactor).
+
+### Tests
+
+- `tests/sign_roundtrip.rs` — for every supported algorithm
+  (RSA-SHA256 + Ed25519-SHA256) and canon mode (relaxed/relaxed +
+  simple/simple) plus the optional-tag matrix (t= + x=), generate
+  a real 2048-bit RSA / 32-byte Ed25519 keypair, sign a real
+  message, then `verify_all` the result through a public-key-
+  returning `DkimResolver`. Every signature must `Pass`. This is
+  the proof that sign and verify agree against themselves with no
+  trust-me intermediate.
+- 4 internal sign-side unit tests for builder + algorithm mapping.
+- Full 67-test suite (lib 55 + multi-sig 3 + perf 5 + sign 4) is green.
+
+### Notes for callers
+
+- The signer is **synchronous + I/O-free**; it only needs the
+  message bytes + private key. No DNS, no clock dependency. The
+  optional `t=` timestamp is supplied by the caller so tests can
+  pin time.
+- Header-name handling: sign lowercases header names before
+  canonicalization to mirror what `DkimHeader::parse` does on
+  verify. For RELAXED canon this is a no-op; for SIMPLE canon it
+  ensures byte-identical hash input between sign and verify.
+- The `b=` placeholder is constructed at the END of the tag list
+  so appending the signature bytes never disturbs other tag
+  values. The leading space after `:` and the trailing CRLF are
+  handled to byte-match what `find_header_value_in_raw` will see
+  on the verify side.
+
+### Impact on `mailrs` server
+
+This is the last building block for the outbound DKIM cutover.
+Once integrated, the outbound queue can drop `mail-auth`'s signer.
+Combined with the inbound shadow paths (mailrs-spf / mailrs-dkim
+verify_all / mailrs-arc / mailrs-dmarc), that's the full code path
+needed to remove `mail-auth` from server runtime deps — the final
+close on DEPS_AUDIT #1.
+
 ## [1.3.0] - 2026-05-23
 
 ### Added

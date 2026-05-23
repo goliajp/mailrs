@@ -17,11 +17,13 @@ pub mod error;
 pub mod header;
 pub mod headers;
 pub mod resolver;
+pub mod sign;
 pub mod verifier;
 
 pub use error::{DkimError, DkimResult};
 pub use header::{Algorithm, Canon, DkimHeader};
 pub use resolver::DkimResolver;
+pub use sign::{DkimSigningKey, SignOpts, sign};
 pub use verifier::{SignatureOutput, verify, verify_all};
 
 #[cfg(feature = "hickory")]
