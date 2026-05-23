@@ -168,6 +168,12 @@ pub(crate) async fn deliver_message_ex(
                     .await
                 {
                     errors.push(format!("{rcpt}: {e}"));
+                } else if let Some(ref vk) = state.valkey {
+                    // Bust the recipient's conversation caches so the
+                    // newly-delivered local message shows up on their
+                    // next thread/list fetch — without this, the cached
+                    // thread list silently misses the message until TTL.
+                    crate::conversation_cache::bust_user(&vk.clone(), rcpt).await;
                 }
             }
         } else if let Some(ref pool) = state.outbound_queue {
@@ -205,6 +211,18 @@ pub(crate) async fn deliver_message_ex(
                 ts,
             )
             .await;
+        // Bust the sender's conversation caches so the newly-Sent
+        // message shows up in the thread view on the next fetch.
+        // Without this, multi-turn conversation replies appeared to
+        // "succeed" (Sent folder gets the message, API returns 200) but
+        // the cached thread list silently dropped them until TTL expiry.
+        // Use `bust_user` since the per-thread cache key depends on the
+        // mailbox-store-assigned thread_id which we don't have in this
+        // scope yet; the wider bust is acceptable here because send is
+        // a comparatively rare operation.
+        if let Some(ref vk) = state.valkey {
+            crate::conversation_cache::bust_user(&vk.clone(), from).await;
+        }
     }
 
     if errors.is_empty() {
