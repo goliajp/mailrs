@@ -1,0 +1,37 @@
+[package]
+name = "mailrs-dkim"
+version = "1.0.0"
+edition = "2024"
+description = "RFC 6376 DKIM signature verifier. Parses DKIM-Signature headers, applies simple/relaxed canonicalization, verifies rsa-sha256 signatures against the selector TXT record. Pluggable DNS via DkimResolver trait."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-dkim"
+authors = ["GOLIA K.K."]
+keywords = ["dkim", "rfc6376", "email", "auth", "smtp"]
+categories = ["email", "cryptography", "network-programming"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = ["hickory"]
+# Re-export mailrs-spf's HickoryResolver-shape adapter under a tiny
+# DkimResolver impl. Disable to bring your own DNS layer.
+hickory = ["dep:hickory-resolver"]
+
+[dependencies]
+async-trait = "0.1"
+sha2 = { version = "0.10", features = ["oid"] }  # pinned + oid for AssociatedOid
+base64 = "0.22"
+rsa = "0.9"
+hickory-resolver = { version = "0.26", optional = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio = { workspace = true }
+
+[[bench]]
+name = "dkim"
+harness = false
