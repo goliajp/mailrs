@@ -75,20 +75,24 @@ Honest comparison. Wins **and** losses. Bench source: `crates/<crate>/benches/co
 
 | Input | mailrs-spf | mail-auth | Winner |
 |---|---:|---:|---|
-| `v=spf1 ip4:... -all` (3 mech) | 62 ns | 51 ns | mail-auth **+22%** ⚠ |
-| 8-mechanism complex | 344 ns | 400 ns | **mailrs +16%** ✅ |
-| 8-include pathological | 379 ns | 545 ns | **mailrs +44%** ✅ |
+| `v=spf1 ip4:... -all` (3 mech) | 63 ns | 50 ns | mail-auth +25% ⚠ |
+| 8-mechanism complex | 360 ns | 410 ns | **mailrs +14%** ✅ |
+| 8-include pathological | 400 ns | 577 ns | **mailrs +44%** ✅ |
 
-Read: mail-auth's byte-iter parser is tighter on tiny records; mailrs wins anything realistic-sized. Recent commit `5f2a98e` shaved off 9 ns on the simple case by switching `parse_addr_and_prefix` to return `&str` instead of `String`.
+Read: mail-auth's hand-rolled byte-iter IPv4 parser is tighter than `std::net::Ipv4Addr::FromStr` on tiny records; closing that last 13 ns would require shipping our own IPv4 parser (diminishing returns). On anything realistic-sized — multi-mechanism, include-heavy — mailrs wins.
 
 #### `mailrs-dkim` vs `mail-auth` 0.9 (DKIM-Signature header parse)
 
 | Input | mailrs-dkim | mail-auth | Winner |
 |---|---:|---:|---|
-| minimal (7 tags) | 158 ns | 159 ns | **tie** ✅ |
-| realistic (folded, 11 tags) | 436 ns | 405 ns | mail-auth +7% (close) |
+| minimal (7 tags) | 147 ns | 167 ns | **mailrs +12%** ✅ |
+| realistic (folded, 11 tags, 7 signed headers) | 405 ns | 423 ns | **mailrs +4%** ✅ |
 
-Before commit `fc8a72c` we were 4.1× / 3.6× slower (single-pass byte scanner replaces the HashMap + unfold pre-pass; 44 inline tests unchanged). Body+header canonicalization comparison is non-trivial because mail-auth streams into a `HashContext` and we return `Vec<u8>` — apples-to-pears, deferred.
+Before the perf-batch (commit `8eba06c` and later) we were 4.1× / 3.6× slower than mail-auth. Two changes closed the gap and then surpassed it:
+1. Single-pass byte scanner replaces the HashMap + unfold pre-pass.
+2. Byte-level dispatch (`match name.as_bytes() { b"v" => ..., b"a" => ... }`) + byte-iter `h=` parsing with `from_utf8_unchecked` (safe because only ASCII bytes pushed).
+
+44 inline tests unchanged. Body+header canonicalization comparison still deferred (mail-auth streams into a `HashContext` and we return `Vec<u8>` — apples-to-pears).
 
 #### `mailrs-mime` vs `mail-parser` (MIME body parse)
 
@@ -130,14 +134,20 @@ Same caveat as rfc5322: the right comparison is "minimum cost to get the user-vi
 
 Clean sweep on parse. Note: `icalendar` has serializer / builder APIs we don't bench against because mailrs-ical's serializer surface is narrower.
 
-#### `mailrs-rate-limit` vs `governor` 0.10 (token bucket vs GCRA)
+#### `mailrs-rate-limit` vs `governor` 0.10 (DashMap-backed)
 
 | Input | mailrs-rate-limit | governor | Winner |
 |---|---:|---:|---|
-| hot key, allowed | 31 ns | 14 ns | governor 2.2× ⚠ |
-| cold key first-touch | 306 ns | 221 ns | governor +28% ⚠ |
+| hot key, allowed | 13-16 ns | 14-18 ns | **mailrs +6-10%** ✅ |
+| cold key first-touch | 275-372 ns | 290-420 ns | comparable (noisy) |
 
-Honest loss. GCRA needs only a single atomic CAS per check; token bucket has two-field state and uses a DashMap entry lock. We shaved 9% off the hot path by switching to `get_mut` before falling back to `entry().or_insert_with(...)` (no `to_owned()` alloc on the hot path), but closing the remaining 17 ns gap requires either dropping token-bucket semantics or switching off DashMap. **If you need a strict token bucket — what mailrs's SMTP frontline actually wants — we're the right tool.** If you can accept GCRA semantics, governor is faster.
+Caught up. The earlier 2.2× governor lead came from three sources, all of them governor's open-source homework that we hadn't done:
+
+1. **GCRA-style storage.** Old impl stored `Bucket { tokens: f64, last_refill: u64 }` and took a `DashMap` *write lock* per check. New impl stores a single `AtomicU64` holding the theoretical-arrival-time (TAT) in monotonic nanos; reads take the DashMap shard's *read* lock and the update is a `compare_exchange_weak` loop. Multiple checks on the same key can now proceed in parallel; updates are lock-free.
+2. **`quanta` clock.** `SystemTime::now()` (~10 ns syscall) → `quanta::Clock::now()` (~3-5 ns mach_absolute_time, same library governor uses). The `Duration → u128 nanos → u64` cast chain that `std::time::Instant::elapsed()` requires was the last ~5 ns; quanta returns u64-backed `Instant`s directly.
+3. **Pre-computed config.** `nanos_per_token` and `burst_nanos` are computed once at construction so the hot path is integer arithmetic only.
+
+Token-bucket semantics are preserved end-to-end — capacity/refill_rate config is identical; the GCRA encoding is an equivalent way to represent the same state. See `crates/rate-limit/src/in_memory.rs` for the implementation.
 
 #### `mailrs-backoff` vs `exponential-backoff` 2
 

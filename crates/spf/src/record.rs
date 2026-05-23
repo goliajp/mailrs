@@ -183,8 +183,11 @@ fn parse_mechanism(token: &str) -> Result<Mechanism, SpfError> {
         }
     };
 
-    match name {
-        "all" => {
+    // Byte-match on the mechanism name. Avoids the UTF-8-aware `&str` match
+    // path — mechanism names are pure ASCII so the byte form is strictly
+    // cheaper at runtime.
+    match name.as_bytes() {
+        b"all" => {
             if value.is_some() {
                 return Err(SpfError::InvalidRecord(format!(
                     "'all' takes no value: {token}"
@@ -192,7 +195,7 @@ fn parse_mechanism(token: &str) -> Result<Mechanism, SpfError> {
             }
             Ok(Mechanism::All { qualifier })
         }
-        "ip4" => {
+        b"ip4" => {
             let v = value.ok_or_else(|| SpfError::InvalidRecord("ip4: missing value".into()))?;
             let (addr_str, prefix) = parse_addr_and_prefix(v, 32)?;
             let addr: Ipv4Addr = addr_str
@@ -204,7 +207,7 @@ fn parse_mechanism(token: &str) -> Result<Mechanism, SpfError> {
                 prefix,
             })
         }
-        "ip6" => {
+        b"ip6" => {
             let v = value.ok_or_else(|| SpfError::InvalidRecord("ip6: missing value".into()))?;
             let (addr_str, prefix) = parse_addr_and_prefix(v, 128)?;
             let addr: Ipv6Addr = addr_str
@@ -216,7 +219,7 @@ fn parse_mechanism(token: &str) -> Result<Mechanism, SpfError> {
                 prefix,
             })
         }
-        "a" => {
+        b"a" => {
             let (domain, ip4_prefix, ip6_prefix) = parse_a_mx_value(value)?;
             Ok(Mechanism::A {
                 qualifier,
@@ -225,7 +228,7 @@ fn parse_mechanism(token: &str) -> Result<Mechanism, SpfError> {
                 ip6_prefix,
             })
         }
-        "mx" => {
+        b"mx" => {
             let (domain, ip4_prefix, ip6_prefix) = parse_a_mx_value(value)?;
             Ok(Mechanism::Mx {
                 qualifier,
@@ -234,7 +237,7 @@ fn parse_mechanism(token: &str) -> Result<Mechanism, SpfError> {
                 ip6_prefix,
             })
         }
-        "include" => {
+        b"include" => {
             let v = value
                 .ok_or_else(|| SpfError::InvalidRecord("include: missing domain".into()))?;
             Ok(Mechanism::Include {
@@ -242,7 +245,7 @@ fn parse_mechanism(token: &str) -> Result<Mechanism, SpfError> {
                 domain: v.to_string(),
             })
         }
-        "exists" => {
+        b"exists" => {
             let v = value
                 .ok_or_else(|| SpfError::InvalidRecord("exists: missing domain".into()))?;
             Ok(Mechanism::Exists {
@@ -250,17 +253,15 @@ fn parse_mechanism(token: &str) -> Result<Mechanism, SpfError> {
                 domain: v.to_string(),
             })
         }
-        "ptr" => {
-            // RFC 7208 §5.5 marks ptr as not-recommended; we treat it
-            // as `+all`-equivalent (always-match) when the qualifier
-            // is `+`, otherwise we follow the qualifier. Out of v1.0
-            // scope to actually do PTR lookups — return permerror.
+        b"ptr" => {
+            // RFC 7208 §5.5 marks ptr as not-recommended; v1.0 of this
+            // crate doesn't implement PTR lookups → permerror.
             Err(SpfError::InvalidRecord(
                 "ptr mechanism not supported (RFC 7208 §5.5 deprecates)".into(),
             ))
         }
-        other => Err(SpfError::InvalidRecord(format!(
-            "unknown mechanism: {other}"
+        _ => Err(SpfError::InvalidRecord(format!(
+            "unknown mechanism: {name}"
         ))),
     }
 }

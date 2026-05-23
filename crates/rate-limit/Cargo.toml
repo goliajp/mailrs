@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-rate-limit"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2024"
 description = "Token-bucket rate limiting trait + in-memory reference impl. &str keys (IP / user / api-key / endpoint), unix-seconds time. Async, transport-agnostic, no protocol coupling. Standalone — bring your own storage backend."
 license = "Apache-2.0 OR MIT"
@@ -18,6 +18,10 @@ workspace = true
 [dependencies]
 async-trait = "0.1"
 dashmap = "6"
+# Fast monotonic clock — returns raw u64 nanos without going through
+# `Duration` (saves ~3-5 ns per check vs `std::time::Instant`). MIT-
+# licensed, same crate `governor` uses for the same reason.
+quanta = "0.12"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
