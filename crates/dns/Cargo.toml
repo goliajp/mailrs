@@ -1,0 +1,29 @@
+[package]
+name = "mailrs-dns"
+version = "1.0.0"
+edition = "2024"
+description = "Light hickory-resolver wrapper exposing the 5 DNS query types email servers actually use (TXT, A, AAAA, MX, PTR). NXDOMAIN mapped to empty Vec for consistent caller code. Shared trait so future versions of mailrs-spf/dkim/dnsbl can adopt one resolver shape."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-dns"
+authors = ["GOLIA K.K."]
+keywords = ["dns", "resolver", "email", "hickory", "smtp"]
+categories = ["network-programming", "email"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = ["hickory"]
+# Ship a ready-made `DnsResolver` impl backed by `hickory-resolver`.
+hickory = ["dep:hickory-resolver"]
+
+[dependencies]
+async-trait = "0.1"
+hickory-resolver = { version = "0.26", optional = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio = { workspace = true }

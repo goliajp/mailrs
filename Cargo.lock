@@ -2716,6 +2716,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-dns"
+version = "1.0.0"
+dependencies = [
+ "async-trait",
+ "criterion",
+ "hickory-resolver",
+ "tokio",
+]
+
+[[package]]
 name = "mailrs-dnsbl"
 version = "1.0.0"
 dependencies = [
