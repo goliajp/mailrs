@@ -346,6 +346,7 @@ pub async fn handle_connection<S>(
     use futures_util::{SinkExt, StreamExt};
     use tokio_util::codec::Framed;
 
+    metrics::counter!("mailrs_imap_connections_total").increment(1);
     let mut framed = Framed::new(stream, mailrs_imap_codec::ImapCodec::new());
     let greeting = imap_greeting(hostname);
     if framed.send(greeting).await.is_err() {

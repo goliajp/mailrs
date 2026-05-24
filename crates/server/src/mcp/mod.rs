@@ -1848,6 +1848,7 @@ pub fn setup_mcp(state: Arc<WebState>) -> axum::Router<Arc<WebState>> {
     let state_clone = state.clone();
     let service = StreamableHttpService::new(
         move || {
+            metrics::counter!("mailrs_mcp_sessions_total").increment(1);
             // read auth user from task-local (set by mcp_auth_middleware)
             let auth_user = MCP_AUTH_USER
                 .try_with(|u| u.clone())

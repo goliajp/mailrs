@@ -114,6 +114,9 @@ pub struct WebState {
     pub meili: Option<Arc<crate::search_index::MeiliClient>>,
     pub render_preview: Option<Arc<crate::render_preview::RenderPreviewClient>>,
     pub system_config: Option<Arc<crate::system_config::SystemConfigStore>>,
+    /// Prometheus exporter handle for `/metrics` rendering. `None`
+    /// only in unit tests that don't install the global recorder.
+    pub metrics_handle: Option<metrics_exporter_prometheus::PrometheusHandle>,
 }
 
 /// spawn a background task to clean up expired sessions and stale rate-limit buckets every hour
@@ -183,7 +186,13 @@ impl WebState {
             meili: None,
             render_preview: None,
             system_config: None,
+            metrics_handle: None,
         }
+    }
+
+    pub fn with_metrics_handle(mut self, h: metrics_exporter_prometheus::PrometheusHandle) -> Self {
+        self.metrics_handle = Some(h);
+        self
     }
 
     pub fn with_smtp_config(mut self, snapshot: SmtpConfigSnapshot) -> Self {
