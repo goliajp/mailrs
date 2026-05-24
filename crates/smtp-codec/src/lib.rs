@@ -349,4 +349,79 @@ mod tests {
     fn codec_default_builds_without_args() {
         let _c = SmtpCodec::default();
     }
+
+    /// Strict mode + clean payload must pass through unchanged.
+    /// Covers the strict-no-smuggle fallthrough path (decode
+    /// returns Data even though smuggle_protection is Strict,
+    /// because has_smuggle_sequence returned None).
+    #[test]
+    fn codec_data_mode_strict_passes_clean_payload() {
+        let mut codec = SmtpCodec::new().with_smuggle_protection(SmuggleProtection::Strict);
+        codec.enter_data_mode();
+        let mut buf = BytesMut::from("clean body\r\n.\r\n".as_bytes());
+        let r = codec.decode(&mut buf).unwrap();
+        assert!(matches!(r, Some(SmtpInput::Data(_))), "got {r:?}");
+    }
+
+    /// Off mode must pass smuggle-bearing payloads through
+    /// untouched (no rejection, no normalization). Covers the
+    /// SmuggleProtection::Off arm (line 142) plus the post-match
+    /// Data fallthrough (line 144).
+    #[test]
+    fn codec_data_mode_off_passes_smuggle_unchanged() {
+        let mut codec = SmtpCodec::new().with_smuggle_protection(SmuggleProtection::Off);
+        codec.enter_data_mode();
+        let payload = b"smuggled\n.\r\nbody\r\n.\r\n";
+        let mut buf = BytesMut::from(&payload[..]);
+        match codec.decode(&mut buf).unwrap() {
+            Some(SmtpInput::Data(d)) => {
+                // The decoder splits at the FIRST \r\n.\r\n it
+                // finds, which sits before "body" — so the data
+                // payload contains everything up to that point
+                // *with* the smuggle sequence preserved.
+                assert!(d.contains(&b'\n'), "should preserve bare LF");
+                assert!(d.windows(3).any(|w| w == b"\n.\r" || w == b"\n.\n"),
+                    "should preserve smuggle dot pattern");
+            }
+            other => panic!("expected Data, got {other:?}"),
+        }
+    }
+
+    /// Decoder must return `Ok(None)` (not error) while waiting
+    /// for the data terminator. Covers the incomplete-data path
+    /// (line 146).
+    #[test]
+    fn codec_data_mode_returns_none_until_terminator() {
+        let mut codec = SmtpCodec::new();
+        codec.enter_data_mode();
+        let mut buf = BytesMut::from("incomplete body...".as_bytes());
+        let r = codec.decode(&mut buf).unwrap();
+        assert!(r.is_none(), "should wait for \\r\\n.\\r\\n");
+    }
+
+    /// Encoder writes bytes into dst verbatim. Covers Encoder
+    /// impl (lines 167-170).
+    #[test]
+    fn codec_encode_appends_bytes() {
+        let mut codec = SmtpCodec::new();
+        let mut dst = BytesMut::new();
+        codec.encode("250 OK\r\n".to_string(), &mut dst).unwrap();
+        assert_eq!(&dst[..], b"250 OK\r\n");
+        // Second encode appends, doesn't overwrite.
+        codec.encode("221 bye\r\n".to_string(), &mut dst).unwrap();
+        assert_eq!(&dst[..], b"250 OK\r\n221 bye\r\n");
+    }
+
+    /// has_smuggle_sequence should detect the bare-LF + dot +
+    /// CRLF variant (not just bare-LF + dot + LF). Covers line
+    /// 197 (the CRLF arm inside the smuggle detector).
+    #[test]
+    fn smuggle_bare_lf_dot_crlf_explicit() {
+        // \n.\r\n appearing in the middle of a payload (no
+        // leading \r before the \n) is the canonical SMTP
+        // smuggling vector.
+        let data = b"prefix\n.\r\nsuffix";
+        assert!(has_smuggle_sequence(data).is_some(),
+            "should detect bare-LF + dot + CRLF");
+    }
 }
