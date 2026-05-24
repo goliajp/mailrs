@@ -734,3 +734,46 @@ fn scan_cur_multiple_files_mixed_flags() {
     assert!(ids.contains("msg3"));
     assert!(ids.contains("msg4"));
 }
+
+#[test]
+fn create_cached_initial_call_creates_dirs() {
+    let dir = tmpdir();
+    let path = dir.path().join("user-mailbox");
+    let _md = Maildir::create_cached(&path).unwrap();
+    assert!(path.join("tmp").is_dir());
+    assert!(path.join("new").is_dir());
+    assert!(path.join("cur").is_dir());
+}
+
+#[test]
+fn create_cached_repeated_calls_idempotent() {
+    let dir = tmpdir();
+    let path = dir.path().join("user-mailbox");
+    // First call creates dirs.
+    let _md1 = Maildir::create_cached(&path).unwrap();
+    // Subsequent calls succeed without re-creating (idempotent).
+    let md2 = Maildir::create_cached(&path).unwrap();
+    let md3 = Maildir::create_cached(&path).unwrap();
+    // All should be able to deliver a message.
+    md2.deliver(b"From: a@b\r\n\r\n1\r\n").unwrap();
+    md3.deliver(b"From: a@b\r\n\r\n2\r\n").unwrap();
+    let new_entries = md3.scan_new().unwrap();
+    assert_eq!(new_entries.len(), 2);
+}
+
+#[test]
+fn create_cached_invalidate_then_recreate() {
+    let dir = tmpdir();
+    let path = dir.path().join("user-mailbox");
+    let _md = Maildir::create_cached(&path).unwrap();
+    // Wipe the directory off disk to simulate external deletion.
+    fs::remove_dir_all(&path).unwrap();
+    // Without invalidation, cache still says "ensured" → next
+    // create_cached would silently skip mkdir and then deliver()
+    // would fail (path doesn't exist). Invalidate to force a real
+    // re-create.
+    Maildir::invalidate_cache(&path);
+    let md = Maildir::create_cached(&path).unwrap();
+    md.deliver(b"From: a@b\r\n\r\nok\r\n").unwrap();
+    assert!(path.join("tmp").is_dir());
+}

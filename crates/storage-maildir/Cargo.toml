@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-maildir"
-version = "1.0.2"
+version = "1.1.0"
 edition = "2024"
 description = "Maildir filesystem-format primitives: atomic delivery, directory scans, flag parsing — no IMAP/POP3 layer."
 license = "Apache-2.0 OR MIT"
@@ -17,6 +17,11 @@ workspace = true
 
 [dependencies]
 hostname = "0.4"
+# Sharded HashMap for the per-path "have we ensured this Maildir's
+# tmp/new/cur exist?" cache. See `Maildir::create_cached`. DashMap
+# is the standard Rust choice for cheap-read+rare-write maps in a
+# multi-threaded async setting; sharded internally, no global lock.
+dashmap = "6"
 
 [dev-dependencies]
 filetime = "0.2"

@@ -163,6 +163,16 @@ pub fn add_flag(info: &str, flag: Flag) -> String {
     serialize_flags(&flags)
 }
 
+/// Process-wide cache of "paths whose tmp/new/cur we've already
+/// ensured exist". Populated lazily by [`Maildir::create_cached`].
+///
+/// **Why a static is OK here:** the set of Maildir paths a single
+/// process touches is bounded by the user count, which is bounded
+/// by the underlying storage anyway. Memory is one `PathBuf` per
+/// distinct user, ~few hundred KiB at the high end.
+static ENSURED_PATHS: std::sync::LazyLock<dashmap::DashMap<PathBuf, ()>> =
+    std::sync::LazyLock::new(dashmap::DashMap::new);
+
 impl Maildir {
     /// Create a Maildir at the given path, creating `tmp/`, `new/`, and
     /// `cur/` if they don't already exist.
@@ -172,6 +182,51 @@ impl Maildir {
         fs::create_dir_all(root.join("new"))?;
         fs::create_dir_all(root.join("cur"))?;
         Ok(Self { root })
+    }
+
+    /// Like [`Maildir::create`] but caches the per-path
+    /// "tmp/new/cur ensured" outcome in a process-wide
+    /// `DashMap<PathBuf, ()>`. The first call per `path` does the
+    /// usual three `create_dir_all` syscalls; every subsequent
+    /// call for the same path is a single DashMap lookup
+    /// (~10 ns) and skips the syscalls entirely.
+    ///
+    /// **When to use:** inbound delivery hot paths where the same
+    /// user receives many messages — the per-message
+    /// `create_dir_all` is the same 12-syscall storm wasted every
+    /// time. Profile data on mailrs's inbound SMTP path showed
+    /// `stat` + `DirBuilder::_create` taking ~37% of CPU before
+    /// this cache existed (samply, 2026-05-24).
+    ///
+    /// **When NOT to use:** one-off setup paths (admin tool
+    /// creating a new user's mailbox, test setup, etc.) —
+    /// [`Maildir::create`] is fine there and never hits a cache
+    /// miss penalty.
+    ///
+    /// Cache entries never expire. If you intentionally delete a
+    /// user's Maildir directory while the process is running,
+    /// call [`Maildir::invalidate_cache`] to drop the stale
+    /// "ensured" marker.
+    pub fn create_cached(path: impl AsRef<Path>) -> io::Result<Self> {
+        let root = path.as_ref().to_path_buf();
+        if ENSURED_PATHS.contains_key(&root) {
+            // Fast path — directories already known to exist.
+            return Ok(Self { root });
+        }
+        // Slow path — first sight of this path; do the syscalls.
+        fs::create_dir_all(root.join("tmp"))?;
+        fs::create_dir_all(root.join("new"))?;
+        fs::create_dir_all(root.join("cur"))?;
+        ENSURED_PATHS.insert(root.clone(), ());
+        Ok(Self { root })
+    }
+
+    /// Drop the cached "tmp/new/cur ensured" marker for `path`.
+    /// Call after manually removing or recreating a Maildir on
+    /// disk so the next [`Maildir::create_cached`] call re-runs
+    /// the `create_dir_all` syscalls.
+    pub fn invalidate_cache(path: impl AsRef<Path>) {
+        ENSURED_PATHS.remove(path.as_ref());
     }
 
     /// Open an existing Maildir. Does not check that the subdirectories

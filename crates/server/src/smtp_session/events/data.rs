@@ -377,7 +377,15 @@ where
                             }
 
                     let path = format!("{}/{domain}/{local}", ctx.maildir_root);
-                    match Maildir::create(&path) {
+                    // create_cached: mailrs-maildir 1.1 caches the
+                    // per-path tmp/new/cur existence check in a
+                    // process-wide DashMap. First delivery per user
+                    // pays the original ~12 stat + 3 mkdir cost;
+                    // subsequent deliveries skip all of it. Profile
+                    // (samply, 2026-05-24) showed Path::is_dir +
+                    // DirBuilder taking 37% of CPU on the inbound
+                    // hot path before this switch.
+                    match Maildir::create_cached(&path) {
                         Ok(md) => match md.deliver(&full_message) {
                             Ok(id) => {
                                 // index in mailbox store if available
