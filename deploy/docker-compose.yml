@@ -1,7 +1,7 @@
 services:
   postgres:
     container_name: mailrs-postgres
-    image: pgvector/pgvector:pg18-trixie
+    image: pgvector/pgvector:0.8.2-pg18-trixie
     environment:
       POSTGRES_USER: mailrs
       POSTGRES_PASSWORD: ${MAILRS_PG_PASSWORD:-mailrs}
@@ -13,7 +13,7 @@ services:
 
   valkey:
     container_name: mailrs-valkey
-    image: valkey/valkey:9-alpine
+    image: valkey/valkey:9.1-alpine
     volumes:
       - valkey-data:/data
     restart: unless-stopped

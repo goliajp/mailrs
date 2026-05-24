@@ -1,7 +1,7 @@
 services:
   postgres:
     container_name: mailrs-postgres
-    image: pgvector/pgvector:pg18-trixie
+    image: pgvector/pgvector:0.8.2-pg18-trixie
     environment:
       POSTGRES_DB: mailrs
       POSTGRES_USER: mailrs
@@ -21,7 +21,7 @@ services:
 
   valkey:
     container_name: mailrs-valkey
-    image: valkey/valkey:9-alpine
+    image: valkey/valkey:9.1-alpine
     ports:
       - "6379:6379"
     volumes:
