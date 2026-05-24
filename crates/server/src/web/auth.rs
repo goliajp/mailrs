@@ -263,30 +263,83 @@ async fn login_inner(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(req): Json<LoginRequest>,
 ) -> impl IntoResponse {
-    if req.address.len() > super::MAX_ADMIN_FIELD_LEN || req.password.len() > 1024 {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "invalid input length"})),
-        );
+    if let Some(resp) = validate_login_input_lengths(&req) {
+        return resp;
+    }
+    if state.domain_store.is_none() {
+        return auth_not_configured();
+    }
+    if let Some(resp) = lockout_response(&state, addr.ip(), &req.address) {
+        return resp;
     }
 
-    let Some(ref ds) = state.domain_store else {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "auth not configured"})),
-        );
+    let account = match verify_password_and_load_account(&state, &req, addr.ip()).await {
+        Ok(a) => a,
+        Err(resp) => return resp,
     };
 
-    // check auth guard before attempting verification
-    if let Some(ref guard) = state.auth_guard
-        && let AuthCheck::LockedOut { remaining_secs } = guard.check(addr.ip(), &req.address) {
-            return (
-                StatusCode::TOO_MANY_REQUESTS,
-                Json(serde_json::json!({
-                    "error": format!("Too many auth failures, try again in {remaining_secs}s")
-                })),
-            );
-        }
+    match check_totp(&state, &req, addr.ip()).await {
+        TotpOutcome::Ok => {}
+        TotpOutcome::RequiresCode => return totp_required_response(),
+        TotpOutcome::Failed(resp) => return resp,
+    }
+
+    issue_session_response(&state, &account, addr.ip()).await
+}
+
+// ---------- one-purpose helpers for login_inner ----------
+
+fn validate_login_input_lengths(
+    req: &LoginRequest,
+) -> Option<(StatusCode, Json<serde_json::Value>)> {
+    if req.address.len() > super::MAX_ADMIN_FIELD_LEN || req.password.len() > 1024 {
+        Some((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid input length"})),
+        ))
+    } else {
+        None
+    }
+}
+
+fn auth_not_configured() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({"error": "auth not configured"})),
+    )
+}
+
+/// If `state.auth_guard` reports a lockout for `(ip, address)`,
+/// produce the 429 response. Otherwise return None and the caller
+/// proceeds to credential verification.
+fn lockout_response(
+    state: &WebState,
+    ip: std::net::IpAddr,
+    address: &str,
+) -> Option<(StatusCode, Json<serde_json::Value>)> {
+    let guard = state.auth_guard.as_ref()?;
+    if let AuthCheck::LockedOut { remaining_secs } = guard.check(ip, address) {
+        Some((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(serde_json::json!({
+                "error": format!("Too many auth failures, try again in {remaining_secs}s")
+            })),
+        ))
+    } else {
+        None
+    }
+}
+
+/// Look up the account, verify the password (argon2 OR plain
+/// fallback), try LDAP if password failed. Records failures on
+/// the auth_guard, logs to audit. Returns the account on success
+/// or the 401 response on any failure.
+async fn verify_password_and_load_account(
+    state: &Arc<WebState>,
+    req: &LoginRequest,
+    ip: std::net::IpAddr,
+) -> Result<crate::domain_store::Account, (StatusCode, Json<serde_json::Value>)> {
+    let ds = state.domain_store.as_ref().expect("checked in caller");
 
     let (account, password_hash) = match ds.get_account_with_hash(&req.address).await {
         Ok(Some(pair)) => pair,
@@ -294,28 +347,26 @@ async fn login_inner(
             // constant-time rejection: spend the same time as a real argon2 verify
             crate::users::dummy_verify(&req.password);
             if let Some(ref guard) = state.auth_guard {
-                guard.record_failure(addr.ip(), &req.address);
+                guard.record_failure(ip, &req.address);
             }
             state
                 .auth_failure_total
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            return (
+            return Err((
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({"error": "invalid credentials"})),
-            );
+            ));
         }
     };
 
     if !account.active {
-        return (
+        return Err((
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({"error": "account disabled"})),
-        );
+        ));
     }
 
-    // verify password
     let mut valid = if password_hash.is_empty() {
-        // accounts with no password hash cannot log in via password
         false
     } else if password_hash.starts_with("$argon2") {
         crate::users::UserStore::verify_hash(&req.password, &password_hash)
@@ -323,74 +374,121 @@ async fn login_inner(
         password_hash == req.password
     };
 
-    // try LDAP fallback if password verification failed
     if !valid
-        && let Some(ref ldap) = state.ldap_config {
-            valid = ldap.authenticate(&req.address, &req.password).await;
-        }
+        && let Some(ref ldap) = state.ldap_config
+    {
+        valid = ldap.authenticate(&req.address, &req.password).await;
+    }
 
     if !valid {
         if let Some(ref guard) = state.auth_guard {
-            guard.record_failure(addr.ip(), &req.address);
+            guard.record_failure(ip, &req.address);
         }
-        if let Some(ref ds) = state.domain_store {
-            ds.log_audit(&req.address, "login_failed", "", &format!("ip={}", addr.ip())).await;
-        }
-        return (
+        ds.log_audit(&req.address, "login_failed", "", &format!("ip={ip}"))
+            .await;
+        return Err((
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({"error": "invalid credentials"})),
-        );
+        ));
     }
 
-    // check TOTP 2FA
-    if let Some(ref ds) = state.domain_store
-        && let Ok(Some((secret, true, _recovery_codes))) = ds.get_totp_secret(&req.address).await {
-            match &req.totp_code {
-                None => {
-                    // TOTP enabled but no code provided — ask client to provide one
-                    return (
-                        StatusCode::OK,
-                        Json(serde_json::json!({"requires_totp": true})),
-                    );
-                }
-                Some(code) => {
-                    let code_valid = crate::totp::verify_code(&secret, code);
-                    // if TOTP code invalid, try recovery code
-                    let recovery_valid = if !code_valid {
-                        ds.consume_recovery_code(&req.address, code).await.unwrap_or(false)
-                    } else {
-                        false
-                    };
-                    if !code_valid && !recovery_valid {
-                        if let Some(ref guard) = state.auth_guard {
-                            guard.record_failure(addr.ip(), &req.address);
-                        }
-                        ds.log_audit(&req.address, "totp_failed", "", &format!("ip={}", addr.ip())).await;
-                        return (
-                            StatusCode::UNAUTHORIZED,
-                            Json(serde_json::json!({"error": "invalid TOTP code"})),
-                        );
-                    }
-                    if recovery_valid {
-                        ds.log_audit(&req.address, "recovery_code_used", "", &format!("ip={}", addr.ip())).await;
-                    }
-                }
-            }
-        }
+    Ok(account)
+}
 
+/// Outcome of a TOTP 2FA check during login.
+enum TotpOutcome {
+    /// Either TOTP isn't enabled for this account, or the
+    /// provided code (or recovery code) verified successfully.
+    Ok,
+    /// TOTP is enabled but the request didn't include a code;
+    /// caller should respond with `{"requires_totp": true}` so
+    /// the client knows to prompt for one.
+    RequiresCode,
+    /// TOTP code (and recovery-code fallback) both rejected;
+    /// caller should return the bundled 401 response.
+    Failed((StatusCode, Json<serde_json::Value>)),
+}
+
+/// Check TOTP 2FA per RFC 6238. Returns `Ok` if 2FA is disabled
+/// or the code (or one-shot recovery code) verifies. Records
+/// failures on the auth_guard + writes a `totp_failed` audit row;
+/// records a `recovery_code_used` audit row when the user falls
+/// back to a recovery code.
+async fn check_totp(
+    state: &Arc<WebState>,
+    req: &LoginRequest,
+    ip: std::net::IpAddr,
+) -> TotpOutcome {
+    let Some(ref ds) = state.domain_store else {
+        return TotpOutcome::Ok;
+    };
+    let Ok(Some((secret, true, _recovery_codes))) = ds.get_totp_secret(&req.address).await else {
+        return TotpOutcome::Ok;
+    };
+    let Some(code) = req.totp_code.as_ref() else {
+        return TotpOutcome::RequiresCode;
+    };
+
+    let code_valid = crate::totp::verify_code(&secret, code);
+    let recovery_valid = if !code_valid {
+        ds.consume_recovery_code(&req.address, code)
+            .await
+            .unwrap_or(false)
+    } else {
+        false
+    };
+
+    if !code_valid && !recovery_valid {
+        if let Some(ref guard) = state.auth_guard {
+            guard.record_failure(ip, &req.address);
+        }
+        ds.log_audit(&req.address, "totp_failed", "", &format!("ip={ip}"))
+            .await;
+        return TotpOutcome::Failed((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "invalid TOTP code"})),
+        ));
+    }
+
+    if recovery_valid {
+        ds.log_audit(
+            &req.address,
+            "recovery_code_used",
+            "",
+            &format!("ip={ip}"),
+        )
+        .await;
+    }
+    TotpOutcome::Ok
+}
+
+fn totp_required_response() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"requires_totp": true})),
+    )
+}
+
+/// Record success on auth_guard + metrics + audit log, load
+/// effective permissions, generate a session token, return the
+/// 200 login response with the token + display name + perms.
+async fn issue_session_response(
+    state: &Arc<WebState>,
+    account: &crate::domain_store::Account,
+    ip: std::net::IpAddr,
+) -> (StatusCode, Json<serde_json::Value>) {
     if let Some(ref guard) = state.auth_guard {
-        guard.record_success(addr.ip(), &req.address);
+        guard.record_success(ip, &account.address);
     }
     state
         .auth_success_total
         .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-    // audit log successful login
     if let Some(ref ds) = state.domain_store {
-        ds.log_audit(&req.address, "login", "", &format!("ip={}", addr.ip())).await;
+        ds.log_audit(&account.address, "login", "", &format!("ip={ip}"))
+            .await;
     }
 
-    // load permissions
     let permissions = if let Some(ref ds) = state.domain_store {
         Arc::new(
             ds.load_account_permissions(&account.address)
@@ -405,7 +503,6 @@ async fn login_inner(
         ))
     };
 
-    // generate token
     let mut bytes = [0u8; 32];
     rand_core::OsRng.fill_bytes(&mut bytes);
     let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
