@@ -1,0 +1,89 @@
+# cargo-deny configuration for mailrs.
+# See https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+all-features = false
+no-default-features = false
+
+[advisories]
+# Track advisory db; let `cargo deny check advisories` fail on any
+# unhandled vulnerability. Document ignores here with reason.
+ignore = [
+    # RUSTSEC-2023-0071 — RSA crate Marvin Attack (timing sidechannel
+    # on RSA private key during decryption / signing). No upstream fix
+    # available as of 2026-05-25.
+    #
+    # mailrs threat model: RSA is used only by mailrs-dkim for DKIM
+    # signing (outbound) and signature verification (inbound). In
+    # both paths the network attacker observes only the final signed
+    # message or the verification verdict — never per-operation
+    # timing. Marvin Attack requires the attacker to repeatedly
+    # probe a TLS/CMS endpoint with crafted ciphertexts AND time
+    # each operation; DKIM exposes neither surface. Risk: acceptable.
+    #
+    # Re-evaluate when: (a) upstream `rsa` ships a fix, (b) we add
+    # any RSA-using endpoint that returns per-op timing (e.g. RSA-
+    # based TLS, S/MIME decrypt-by-recipient).
+    { id = "RUSTSEC-2023-0071", reason = "DKIM uses RSA but does not expose per-op timing to attackers; tracked in REFACTOR-V2-v0.6-security.md" },
+]
+
+[licenses]
+# OSI/FSF-approved permissive licenses we accept across the workspace.
+# Anything outside this list must either get an exception entry below
+# or — for genuinely problematic licenses (AGPL, GPL, etc.) — be
+# refused at the dependency-review stage.
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.8
+
+# Per-crate license exceptions. Each entry must be justified by a
+# legal-compliance reason in the comment.
+exceptions = [
+    # sieve-rs is AGPL-3.0-only. mailrs-sieve wraps it for RFC 5228
+    # evaluation in the inbound pipeline. AGPL infection means the
+    # mailrs-server binary that links sieve-rs (transitively) must
+    # itself comply with AGPL when distributed as a network service
+    # (§13 Remote Network Interaction). We satisfy this by publishing
+    # the full mailrs source under Apache-2.0 OR MIT at
+    # github.com/goliajp/mailrs and declaring server-side AGPL
+    # acceptance for the Sieve subsystem only.
+    #
+    # Long-term plan: replace sieve-rs with a mailrs-owned RFC 5228
+    # implementation (DEPS_AUDIT.md candidate #4) under permissive
+    # license. Tracked as v0.6 cold backlog: "rewrite Sieve as stone".
+    { allow = ["AGPL-3.0-only"], crate = "sieve-rs" },
+]
+
+# `ring` license needs a clarify entry because the auto-detector trips
+# on its multi-file LICENSE format.
+[[licenses.clarify]]
+crate = "ring"
+expression = "ISC AND MIT AND OpenSSL"
+license-files = [
+    { path = "LICENSE", hash = 0xbd0eed23 },
+]
+
+[bans]
+# Many crates in our tree have multiple versions due to differing minor
+# pins by transitives; treat as warn so audit stays useful without
+# burying the real signal.
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
