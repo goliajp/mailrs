@@ -345,54 +345,7 @@ async fn main() {
 
     spawn_smtp_listeners(&ctx, &cfg, tls_state.is_some(), shutdown_rx.clone()).await;
 
-    // web API + WebSocket
-    let web_addr = format!("0.0.0.0:{}", cfg.web_port);
-    let web_listener = TcpListener::bind(&web_addr)
-        .await
-        .expect("failed to bind web port");
-    tracing::info!(addr = web_addr.as_str(), "web API listening");
-
-    let static_dir = cfg
-        .web_static_dir
-        .as_ref()
-        .map(|p| p.to_string_lossy().into_owned());
-
-    // spawn session cleanup task
-    web::spawn_session_cleanup(web_state.clone());
-
-    // spawn domain store cache eviction task
-    if let Some(ref ds) = domain_store {
-        let ds_cleanup = ds.clone();
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
-            loop {
-                interval.tick().await;
-                let evicted = ds_cleanup.evict_expired();
-                if evicted > 0 {
-                    eprintln!("domain cache: evicted {evicted} expired entries");
-                }
-            }
-        });
-    }
-
-    let app = web::router(web_state, static_dir.as_deref());
-    let web_shutdown = shutdown_rx.clone();
-    tokio::spawn(async move {
-        axum::serve(
-            web_listener,
-            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
-        )
-        .with_graceful_shutdown(async move {
-            let mut rx = web_shutdown;
-            while rx.changed().await.is_ok() {
-                if *rx.borrow() {
-                    break;
-                }
-            }
-        })
-        .await
-        .ok();
-    });
+    spawn_web_server(web_state, &cfg, &domain_store, shutdown_rx.clone()).await;
 
     spawn_imap_listeners(
         &mailbox_store,
@@ -436,7 +389,104 @@ async fn main() {
         shutdown_rx.clone(),
     );
 
-    // global webhook (fire-and-forget POST on new mail, reads URL from system config store)
+    spawn_webhook_subsystem(
+        &pg_pool,
+        &event_bus,
+        &system_config_store,
+        shutdown_rx.clone(),
+    );
+
+    spawn_dmarc_aggregate_task(
+        &dmarc_report_store,
+        &ctx.resolver,
+        &cfg,
+        ctx.outbound_queue.clone(),
+        shutdown_rx.clone(),
+    );
+
+    spawn_rbl_monitor(&ctx.resolver, &cfg.hostname, &valkey_conn);
+
+    // keep main alive
+    tokio::signal::ctrl_c()
+        .await
+        .expect("failed to listen for ctrl+c");
+    tracing::info!("shutting down");
+    let _ = shutdown_tx.send(true);
+}
+
+/// Bind the web HTTP listener, spawn the session-cleanup task,
+/// spawn the domain-store cache-eviction task (60s interval), and
+/// spawn the axum serve task with graceful shutdown wired to the
+/// shared `shutdown_rx`.
+async fn spawn_web_server(
+    web_state: Arc<WebState>,
+    cfg: &config::ServerConfig,
+    domain_store: &Option<Arc<domain_store::DomainStore>>,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
+    let web_addr = format!("0.0.0.0:{}", cfg.web_port);
+    let web_listener = TcpListener::bind(&web_addr)
+        .await
+        .expect("failed to bind web port");
+    tracing::info!(addr = web_addr.as_str(), "web API listening");
+
+    let static_dir = cfg
+        .web_static_dir
+        .as_ref()
+        .map(|p| p.to_string_lossy().into_owned());
+
+    web::spawn_session_cleanup(web_state.clone());
+
+    if let Some(ds) = domain_store {
+        let ds_cleanup = ds.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                let evicted = ds_cleanup.evict_expired();
+                if evicted > 0 {
+                    eprintln!("domain cache: evicted {evicted} expired entries");
+                }
+            }
+        });
+    }
+
+    let app = web::router(web_state, static_dir.as_deref());
+    let web_shutdown = shutdown_rx;
+    tokio::spawn(async move {
+        axum::serve(
+            web_listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .with_graceful_shutdown(async move {
+            let mut rx = web_shutdown;
+            while rx.changed().await.is_ok() {
+                if *rx.borrow() {
+                    break;
+                }
+            }
+        })
+        .await
+        .ok();
+    });
+}
+
+/// Spawn three webhook-related background tasks:
+///   1. Global webhook — fire-and-forget POST on every event,
+///      URL pulled from the runtime-editable system config.
+///   2. PG webhook listener — subscribes to PG NOTIFY channels
+///      so a `mailrs webhook fire` from another process triggers
+///      delivery.
+///   3. Webhook delivery worker — drains the webhook queue with
+///      retry/backoff.
+///
+/// Items 2 and 3 need a PG pool; item 1 is independent.
+fn spawn_webhook_subsystem(
+    pg_pool: &Option<sqlx::PgPool>,
+    event_bus: &EventBus,
+    system_config_store: &Arc<system_config::SystemConfigStore>,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
     {
         let eb = event_bus.clone();
         let store = system_config_store.clone();
@@ -447,8 +497,7 @@ async fn main() {
         eprintln!("global webhook enabled");
     }
 
-    // webhook listener + delivery worker
-    if let Some(ref pool) = pg_pool {
+    if let Some(pool) = pg_pool {
         let pool_clone = pool.clone();
         let eb = event_bus.clone();
         let rx = shutdown_rx.clone();
@@ -457,43 +506,53 @@ async fn main() {
         });
 
         let worker = webhook::worker::WebhookWorker::new(pool.clone());
-        let rx = shutdown_rx.clone();
+        let rx = shutdown_rx;
         tokio::spawn(async move {
             worker.run(rx).await;
         });
         eprintln!("mailrs webhook system started");
     }
+}
 
-    // DMARC aggregate report generation
-    if let (Some(dmarc_store), Some(resolver)) = (&dmarc_report_store, &ctx.resolver) {
-        dmarc_report::spawn_daily_report_task(
-            dmarc_store.clone(),
-            cfg.hostname.clone(),
-            format!("postmaster@{}", cfg.hostname),
-            cfg.hostname.clone(),
-            resolver.clone(),
-            ctx.outbound_queue.clone(),
-            shutdown_rx.clone(),
-        );
-        eprintln!("DMARC report generation enabled");
-    }
+/// Spawn the daily DMARC aggregate-report builder + submitter.
+/// Reads per-message DMARC outcomes the inbound pipeline
+/// recorded, batches per-domain rua reports, sends via the
+/// outbound queue addressed to `postmaster@<hostname>`.
+/// No-op without a DMARC report store or DNS resolver.
+fn spawn_dmarc_aggregate_task(
+    dmarc_report_store: &Option<Arc<dmarc_report::DmarcReportStore>>,
+    resolver: &Option<Arc<hickory_resolver::TokioResolver>>,
+    cfg: &config::ServerConfig,
+    outbound_queue: Option<sqlx::PgPool>,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
+    let (Some(dmarc_store), Some(resolver)) = (dmarc_report_store, resolver) else {
+        return;
+    };
+    dmarc_report::spawn_daily_report_task(
+        dmarc_store.clone(),
+        cfg.hostname.clone(),
+        format!("postmaster@{}", cfg.hostname),
+        cfg.hostname.clone(),
+        resolver.clone(),
+        outbound_queue,
+        shutdown_rx,
+    );
+    eprintln!("DMARC report generation enabled");
+}
 
-    // RBL blocklist monitoring
-    if let Some(ref resolver) = ctx.resolver {
-        rbl_monitor::start(
-            resolver.clone(),
-            cfg.hostname.clone(),
-            valkey_conn.clone(),
-        );
-        eprintln!("RBL blocklist monitor started");
-    }
-
-    // keep main alive
-    tokio::signal::ctrl_c()
-        .await
-        .expect("failed to listen for ctrl+c");
-    tracing::info!("shutting down");
-    let _ = shutdown_tx.send(true);
+/// Spawn the RBL (DNS blocklist) self-monitor — periodically
+/// checks whether our hostname is listed on common RBLs and logs
+/// a warning if so. Helps operators notice reputation hits before
+/// outbound delivery starts bouncing.
+fn spawn_rbl_monitor(
+    resolver: &Option<Arc<hickory_resolver::TokioResolver>>,
+    hostname: &str,
+    valkey_conn: &Option<redis::aio::ConnectionManager>,
+) {
+    let Some(resolver) = resolver else { return };
+    rbl_monitor::start(resolver.clone(), hostname.to_string(), valkey_conn.clone());
+    eprintln!("RBL blocklist monitor started");
 }
 
 /// Subscribe to `SmtpEvent::NewMessage` and drop the Valkey cache
