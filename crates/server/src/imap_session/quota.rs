@@ -8,15 +8,13 @@
 
 use mailrs_imap_proto::{format_no, format_ok, format_quota, format_quotaroot};
 
-use super::{ImapSession, ImapState};
+use super::ImapSession;
 
 impl ImapSession {
     pub(super) async fn handle_getquota(&self, tag: &str, quotaroot: &str) -> Vec<String> {
-        let username = match &self.state {
-            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
-                username
-            }
-            ImapState::NotAuthenticated => return vec![format_no(tag, "not authenticated")],
+        let username = match self.authenticated_username(tag) {
+            Ok(u) => u,
+            Err(resp) => return resp,
         };
 
         // quotaroot is the username (user-level quota)
@@ -46,11 +44,9 @@ impl ImapSession {
     }
 
     pub(super) async fn handle_getquotaroot(&self, tag: &str, mailbox: &str) -> Vec<String> {
-        let username = match &self.state {
-            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
-                username
-            }
-            ImapState::NotAuthenticated => return vec![format_no(tag, "not authenticated")],
+        let username = match self.authenticated_username(tag) {
+            Ok(u) => u,
+            Err(resp) => return resp,
         };
 
         let usage = self.mailbox_store.user_storage_usage(username).await;
