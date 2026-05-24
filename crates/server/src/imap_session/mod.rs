@@ -1,0 +1,278 @@
+use std::sync::Arc;
+
+use mailrs_imap_proto::{
+    format_bad, format_ok, parse_command, ImapCommand, TaggedCommand,
+};
+use mailrs_mailbox::{Mailbox, PgMailboxStore};
+
+use crate::domain_store::DomainStore;
+use crate::inbound::auth_guard::AuthGuard;
+use crate::users::UserStore;
+
+// IMAP session — split across submodules in this directory:
+//   auth, mailbox, fetch, store, search, copy_move, append, uid,
+//   idle, quota. Each submodule attaches `impl ImapSession`
+//   blocks for its verb group. mod.rs owns the types, the
+//   constructor, and the `handle_line` / `handle_command` dispatch.
+
+mod append;
+mod auth;
+mod copy_move;
+mod fetch;
+mod idle;
+mod mailbox;
+mod quota;
+mod search;
+mod store;
+mod uid;
+
+#[cfg(test)]
+mod tests;
+
+/// Convert string responses to byte vectors — IMAP wire-format
+/// helpers in this module return `Vec<String>` for command results
+/// that don't embed binary payloads (most of them); the dispatch
+/// layer wraps them into `HandleResult::Responses(Vec<Vec<u8>>)`.
+pub(super) fn strs_to_bytes(strs: Vec<String>) -> Vec<Vec<u8>> {
+    strs.into_iter().map(|s| s.into_bytes()).collect()
+}
+
+/// Result of handling one IMAP command line.
+pub enum HandleResult {
+    /// Plain response payloads (one wire frame each).
+    Responses(Vec<Vec<u8>>),
+    /// APPEND-style continuation: client should send `size` more
+    /// bytes of literal data, which the session consumes via
+    /// [`ImapSession::handle_literal_data`].
+    NeedLiteral {
+        /// The `+ Ready for literal data` continuation line.
+        continuation: Vec<u8>,
+        /// Number of literal bytes to read next.
+        size: u32,
+    },
+    /// IDLE-style sustained continuation: the connection enters
+    /// idle mode and waits for status updates (driven by the
+    /// session manager). The `tag` belongs to the IDLE command
+    /// itself so the eventual `DONE` can ack it.
+    EnterIdle {
+        /// The `+ idling` continuation line.
+        continuation: Vec<u8>,
+        /// IDLE command tag — replayed on the closing OK.
+        tag: String,
+    },
+}
+
+/// In-flight APPEND state — set by `append::handle_append_start`
+/// and consumed by `ImapSession::handle_literal_data`.
+pub(super) struct PendingAppend {
+    pub(super) tag: String,
+    pub(super) mailbox: String,
+    pub(super) flags: u32,
+}
+
+/// IMAP session state machine — drives an authenticated client
+/// connection through the IMAP4rev1 protocol. Each command goes
+/// through [`Self::handle_line`] → `handle_command` and dispatches
+/// to a per-verb handler in one of the sibling submodules.
+/// Field visibility is `pub(super)` so those split-impl handlers
+/// can access session state — this is internal plumbing, not part
+/// of the public API.
+pub struct ImapSession {
+    /// PG-backed mailbox / message metadata store.
+    pub mailbox_store: Arc<PgMailboxStore>,
+    pub(super) users: Arc<UserStore>,
+    pub(super) state: ImapState,
+    pub(super) pending_append: Option<PendingAppend>,
+    /// Filesystem root for Maildir storage (one subdir per
+    /// `<domain>/<localpart>`). Used by `read_message_file` and
+    /// the APPEND path.
+    pub maildir_root: String,
+    pub(super) auth_guard: Option<Arc<AuthGuard>>,
+    pub(super) peer_addr: Option<std::net::IpAddr>,
+    pub(super) domain_store: Option<Arc<DomainStore>>,
+    pub(super) ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
+}
+
+pub(super) enum ImapState {
+    NotAuthenticated,
+    Authenticated {
+        username: String,
+    },
+    Selected {
+        username: String,
+        mailbox: Mailbox,
+    },
+}
+
+impl ImapSession {
+    pub fn new(mailbox_store: Arc<PgMailboxStore>, users: Arc<UserStore>) -> Self {
+        Self {
+            mailbox_store,
+            users,
+            state: ImapState::NotAuthenticated,
+            pending_append: None,
+            maildir_root: String::new(),
+            auth_guard: None,
+            peer_addr: None,
+            domain_store: None,
+            ldap_config: None,
+        }
+    }
+
+    pub fn with_maildir_root(mut self, root: &str) -> Self {
+        self.maildir_root = root.to_string();
+        self
+    }
+
+    pub fn with_auth_guard(mut self, guard: Arc<AuthGuard>, addr: std::net::IpAddr) -> Self {
+        self.auth_guard = Some(guard);
+        self.peer_addr = Some(addr);
+        self
+    }
+
+    pub fn with_domain_store(mut self, store: Arc<DomainStore>) -> Self {
+        self.domain_store = Some(store);
+        self
+    }
+
+    pub fn with_ldap_config(mut self, config: Arc<crate::ldap_auth::LdapConfig>) -> Self {
+        self.ldap_config = Some(config);
+        self
+    }
+
+    /// process a raw command line, return result
+    #[tracing::instrument(name = "imap.cmd", skip(self, line), fields(verb))]
+    pub async fn handle_line(&mut self, line: &str) -> HandleResult {
+        // Record the IMAP verb (first whitespace token after the tag) into
+        // the span — gives operators a per-command breakdown in OTel UIs
+        // without needing the full line (which can contain passwords).
+        if let Some(verb) = line.split_whitespace().nth(1) {
+            tracing::Span::current().record("verb", verb.to_ascii_uppercase());
+        }
+        // log all commands for debugging
+        {
+            let username = match &self.state {
+                ImapState::Selected { username, .. } | ImapState::Authenticated { username } => {
+                    username.as_str()
+                }
+                _ => "?",
+            };
+            // hide passwords in LOGIN commands
+            let display = if line.to_uppercase().contains("LOGIN") {
+                let parts: Vec<&str> = line.splitn(4, ' ').collect();
+                if parts.len() >= 4 {
+                    format!("{} {} {} ***", parts[0], parts[1], parts[2])
+                } else {
+                    line.trim().to_string()
+                }
+            } else {
+                line.trim().to_string()
+            };
+            eprintln!("IMAP [{username}] << {display}");
+        }
+        match parse_command(line) {
+            Ok(cmd) => self.handle_command(&cmd).await,
+            Err(e) => {
+                // try to extract tag for error response
+                let tag = line.split_whitespace().next().unwrap_or("*");
+                HandleResult::Responses(strs_to_bytes(vec![format_bad(
+                    tag,
+                    &format!("parse error: {e}"),
+                )]))
+            }
+        }
+    }
+
+    async fn handle_command(&mut self, cmd: &TaggedCommand) -> HandleResult {
+        let tag = &cmd.tag;
+
+        // FETCH returns Vec<Vec<u8>> directly (binary-safe)
+        if let ImapCommand::Fetch {
+            sequence,
+            attributes,
+        } = &cmd.command
+        {
+            return HandleResult::Responses(
+                self.handle_fetch(tag, sequence, attributes, false).await,
+            );
+        }
+
+        // UID might contain FETCH
+        if let ImapCommand::Uid { subcommand } = &cmd.command {
+            return HandleResult::Responses(self.handle_uid(tag, subcommand.as_ref()).await);
+        }
+
+        // all other commands return Vec<String>, convert to Vec<Vec<u8>>
+        let responses = match &cmd.command {
+            ImapCommand::Capability => self.handle_capability(tag),
+            ImapCommand::Login { username, password } => {
+                self.handle_login(tag, username, password).await
+            }
+            ImapCommand::Logout => self.handle_logout(tag),
+            ImapCommand::Noop => vec![format_ok(tag, "NOOP completed")],
+            ImapCommand::List { reference, pattern } => {
+                self.handle_list(tag, reference, pattern).await
+            }
+            ImapCommand::Select { mailbox } => self.handle_select(tag, mailbox).await,
+            ImapCommand::Examine { mailbox } => self.handle_examine(tag, mailbox).await,
+            ImapCommand::Store {
+                sequence,
+                action,
+                flags,
+            } => self.handle_store(tag, sequence, action, flags, false).await,
+            ImapCommand::Search { criteria } => self.handle_search(tag, criteria).await,
+            ImapCommand::Expunge => self.handle_expunge(tag).await,
+            ImapCommand::Close => self.handle_close(tag).await,
+            ImapCommand::Idle => {
+                return self.handle_idle(tag);
+            }
+            ImapCommand::GetQuota { quotaroot } => self.handle_getquota(tag, quotaroot).await,
+            ImapCommand::GetQuotaRoot { mailbox } => self.handle_getquotaroot(tag, mailbox).await,
+            ImapCommand::Append {
+                mailbox,
+                flags,
+                literal_size,
+            } => {
+                return self
+                    .handle_append_start(tag, mailbox, flags.as_deref(), *literal_size)
+                    .await;
+            }
+            ImapCommand::Copy { sequence, mailbox } => {
+                self.handle_copy(tag, sequence, mailbox, false).await
+            }
+            ImapCommand::Move { sequence, mailbox } => {
+                self.handle_move(tag, sequence, mailbox, false).await
+            }
+            ImapCommand::Status { mailbox, items } => {
+                self.handle_status(tag, mailbox, items).await
+            }
+            ImapCommand::Create { mailbox } => self.handle_create(tag, mailbox).await,
+            ImapCommand::Delete { mailbox } => self.handle_delete(tag, mailbox).await,
+            ImapCommand::Rename { from, to } => self.handle_rename(tag, from, to).await,
+            ImapCommand::Subscribe { mailbox: _ } => {
+                vec![format_ok(tag, "SUBSCRIBE completed")]
+            }
+            ImapCommand::Unsubscribe { mailbox: _ } => {
+                vec![format_ok(tag, "UNSUBSCRIBE completed")]
+            }
+            ImapCommand::Lsub { reference, pattern } => {
+                self.handle_lsub(tag, reference, pattern).await
+            }
+            ImapCommand::Namespace => self.handle_namespace(tag),
+            ImapCommand::Sort { criteria, search_criteria, .. } => {
+                self.handle_sort(tag, criteria, search_criteria, false).await
+            }
+            ImapCommand::Enable(caps) => self.handle_enable(tag, caps),
+            ImapCommand::Unselect => self.handle_unselect(tag),
+            _ => unreachable!(), // Fetch and Uid handled above
+        };
+        HandleResult::Responses(strs_to_bytes(responses))
+    }
+}
+
+/// Format the IMAP server greeting `* OK [<hostname>] IMAP4rev1
+/// server ready\r\n` — written by the listener immediately after
+/// `accept` so the client knows the server is alive.
+pub fn imap_greeting(hostname: &str) -> Vec<u8> {
+    format!("* OK [{hostname}] IMAP4rev1 server ready\r\n").into_bytes()
+}
