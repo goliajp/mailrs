@@ -363,118 +363,30 @@ async fn main() {
         tracing::info!("LDAP authentication enabled");
     }
 
-    let smtp_snapshot = crate::web::SmtpConfigSnapshot {
-        hostname: cfg.hostname.clone(),
-        smtp_port: cfg.smtp_port,
-        submission_port: cfg.submission_port,
-        imap_port: cfg.imap_port,
-        local_domains: cfg.local_domains.clone(),
-        max_message_size: None,
-        tls_enabled: cfg.has_tls() || cfg.acme_email.is_some(),
-    };
-
-    let mut ws = WebState::new(event_bus.clone())
-        .with_maildir_root(cfg.maildir_root.clone())
-        .with_hostname(cfg.hostname.clone())
-        .with_auth_guard(auth_guard.clone())
-        .with_health(health_state.clone())
-        .with_smtp_config(smtp_snapshot);
-    if let Some(ref pool) = pg_pool {
-        ws = ws.with_pg(pool.clone());
-    }
-    if let Some(ref vk) = valkey_conn {
-        ws = ws.with_valkey(vk.clone());
-    }
-    if let Some(ref q) = outbound_queue {
-        ws = ws.with_queue(q.clone());
-    }
-    if let Some(ref mb) = mailbox_store {
-        ws = ws.with_mailbox(mb.clone());
-    }
-    if let Some(ref ds) = domain_store {
-        ws = ws.with_domain_store(ds.clone());
-    }
-    if let Some(ref mode) = cfg.mta_sts_mode {
-        ws = ws.with_mta_sts(
-            mode.clone(),
-            cfg.mta_sts_mx.clone(),
-            cfg.mta_sts_max_age,
-            cfg.mta_sts_id.clone(),
-        );
-    }
-    if let Some(ref provider) = llm_provider {
-        ws = ws.with_llm(provider.clone());
-    }
-    if let Some(ref r) = resolver {
-        ws = ws.with_resolver(r.clone());
-    }
-    if let Some(ref sel) = cfg.dkim_selector {
-        ws = ws.with_dkim_selector(sel.clone());
-    }
-    if let Some(ref ldap) = ldap_config {
-        ws = ws.with_ldap_config(ldap.clone());
-    }
-    // Chrome CDP for email rendering preview
-    if let Some(ref url) = cfg.chrome_cdp_url {
-        let client = Arc::new(render_preview::RenderPreviewClient::new(url.clone(), 5));
-        ws = ws.with_render_preview(client);
-        eprintln!("Email render preview enabled (Chrome CDP: {url})");
-    }
-    // Meilisearch full-text search
-    let meili_client = if let Some(ref url) = cfg.meili_url {
+    let meili_client = cfg.meili_url.as_ref().map(|url| {
         let key = cfg.meili_key.clone().unwrap_or_default();
-        let client = Arc::new(search_index::MeiliClient::new(url.clone(), key));
-        ws = ws.with_meili(client.clone());
-        Some(client)
-    } else {
-        None
-    };
-    // system config store (runtime-editable config from DB)
-    let system_config_store = {
-        let env_defaults = system_config::RuntimeConfig::from_server_config(&cfg);
-        let store = Arc::new(system_config::SystemConfigStore::new(
-            pg_pool.clone(),
-            valkey_conn.clone(),
-            env_defaults,
-        ));
-        if pg_pool.is_some()
-            && let Err(e) = store.load_from_db().await {
-                tracing::warn!("failed to load system config from DB: {e}");
-            }
-        let store_bg = store.clone();
-        let rx = shutdown_rx.clone();
-        tokio::spawn(async move {
-            system_config::reload_task(store_bg, rx).await;
-        });
-        store
-    };
-    ws = ws.with_system_config(system_config_store.clone());
+        Arc::new(search_index::MeiliClient::new(url.clone(), key))
+    });
 
-    // OIDC client (Sign in with external IdP)
-    if let (Ok(client_id), Ok(client_secret), Ok(issuer)) = (
-        std::env::var("MAILRS_OIDC_CLIENT_ID"),
-        std::env::var("MAILRS_OIDC_CLIENT_SECRET"),
-        std::env::var("MAILRS_OIDC_ISSUER"),
-    ) {
-        let redirect_uri = std::env::var("MAILRS_OIDC_REDIRECT_URI")
-            .unwrap_or_else(|_| format!("https://{}/api/auth/oidc/callback", cfg.hostname));
-        let authorize_url = std::env::var("MAILRS_OIDC_AUTHORIZE_URL")
-            .unwrap_or_else(|_| format!("{issuer}/authorize"));
-        let token_url = std::env::var("MAILRS_OIDC_TOKEN_URL")
-            .unwrap_or_else(|_| format!("{issuer}/token"));
-        let userinfo_url = std::env::var("MAILRS_OIDC_USERINFO_URL")
-            .unwrap_or_else(|_| format!("{issuer}/userinfo"));
-        tracing::info!("OIDC client configured (issuer={})", issuer);
-        ws = ws.with_oidc(crate::web::OidcConfig {
-            client_id,
-            client_secret,
-            authorize_url,
-            token_url,
-            userinfo_url,
-            redirect_uri,
-        });
-    }
-    let web_state = Arc::new(ws);
+    let system_config_store =
+        init_system_config_store(&cfg, &pg_pool, &valkey_conn, shutdown_rx.clone()).await;
+
+    let web_state = Arc::new(build_web_state(WebStateInputs {
+        cfg: &cfg,
+        event_bus: event_bus.clone(),
+        auth_guard: auth_guard.clone(),
+        health_state: health_state.clone(),
+        pg_pool: &pg_pool,
+        valkey_conn: &valkey_conn,
+        outbound_queue: &outbound_queue,
+        mailbox_store: &mailbox_store,
+        domain_store: &domain_store,
+        llm_provider: &llm_provider,
+        resolver: &resolver,
+        ldap_config: &ldap_config,
+        meili_client: meili_client.as_ref(),
+        system_config_store: system_config_store.clone(),
+    }));
 
     // spawn meilisearch indexer
     if let (Some(meili), Some(pool)) = (&meili_client, &pg_pool) {
@@ -678,6 +590,153 @@ async fn main() {
         .expect("failed to listen for ctrl+c");
     tracing::info!("shutting down");
     let _ = shutdown_tx.send(true);
+}
+
+/// Initialize the runtime-editable system config store, hydrate
+/// from PG if available, and spawn the background reload task
+/// that picks up DB changes without a restart.
+async fn init_system_config_store(
+    cfg: &config::ServerConfig,
+    pg_pool: &Option<sqlx::PgPool>,
+    valkey_conn: &Option<redis::aio::ConnectionManager>,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) -> Arc<system_config::SystemConfigStore> {
+    let env_defaults = system_config::RuntimeConfig::from_server_config(cfg);
+    let store = Arc::new(system_config::SystemConfigStore::new(
+        pg_pool.clone(),
+        valkey_conn.clone(),
+        env_defaults,
+    ));
+    if pg_pool.is_some()
+        && let Err(e) = store.load_from_db().await
+    {
+        tracing::warn!("failed to load system config from DB: {e}");
+    }
+    let store_bg = store.clone();
+    tokio::spawn(async move {
+        system_config::reload_task(store_bg, shutdown_rx).await;
+    });
+    store
+}
+
+/// Inputs to [`build_web_state`] — bundling them in a struct
+/// avoids a 14-argument fn signature and makes the call site
+/// readable. All fields are borrows of values already live in
+/// `main` at the build point.
+struct WebStateInputs<'a> {
+    cfg: &'a config::ServerConfig,
+    event_bus: EventBus,
+    auth_guard: Arc<AuthGuard>,
+    health_state: health::HealthState,
+    pg_pool: &'a Option<sqlx::PgPool>,
+    valkey_conn: &'a Option<redis::aio::ConnectionManager>,
+    outbound_queue: &'a Option<sqlx::PgPool>,
+    mailbox_store: &'a Option<Arc<PgMailboxStore>>,
+    domain_store: &'a Option<Arc<domain_store::DomainStore>>,
+    llm_provider: &'a Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
+    resolver: &'a Option<Arc<hickory_resolver::TokioResolver>>,
+    ldap_config: &'a Option<Arc<crate::ldap_auth::LdapConfig>>,
+    meili_client: Option<&'a Arc<search_index::MeiliClient>>,
+    system_config_store: Arc<system_config::SystemConfigStore>,
+}
+
+/// Build the `WebState` from optional backends. Optional pieces
+/// (PG, Valkey, mailbox, domain store, LLM, resolver, LDAP,
+/// Meilisearch, Chrome render preview, OIDC client) only attach
+/// when the corresponding backend was successfully initialized.
+fn build_web_state(i: WebStateInputs<'_>) -> WebState {
+    let smtp_snapshot = crate::web::SmtpConfigSnapshot {
+        hostname: i.cfg.hostname.clone(),
+        smtp_port: i.cfg.smtp_port,
+        submission_port: i.cfg.submission_port,
+        imap_port: i.cfg.imap_port,
+        local_domains: i.cfg.local_domains.clone(),
+        max_message_size: None,
+        tls_enabled: i.cfg.has_tls() || i.cfg.acme_email.is_some(),
+    };
+
+    let mut ws = WebState::new(i.event_bus)
+        .with_maildir_root(i.cfg.maildir_root.clone())
+        .with_hostname(i.cfg.hostname.clone())
+        .with_auth_guard(i.auth_guard)
+        .with_health(i.health_state)
+        .with_smtp_config(smtp_snapshot)
+        .with_system_config(i.system_config_store);
+
+    if let Some(pool) = i.pg_pool {
+        ws = ws.with_pg(pool.clone());
+    }
+    if let Some(vk) = i.valkey_conn {
+        ws = ws.with_valkey(vk.clone());
+    }
+    if let Some(q) = i.outbound_queue {
+        ws = ws.with_queue(q.clone());
+    }
+    if let Some(mb) = i.mailbox_store {
+        ws = ws.with_mailbox(mb.clone());
+    }
+    if let Some(ds) = i.domain_store {
+        ws = ws.with_domain_store(ds.clone());
+    }
+    if let Some(ref mode) = i.cfg.mta_sts_mode {
+        ws = ws.with_mta_sts(
+            mode.clone(),
+            i.cfg.mta_sts_mx.clone(),
+            i.cfg.mta_sts_max_age,
+            i.cfg.mta_sts_id.clone(),
+        );
+    }
+    if let Some(provider) = i.llm_provider {
+        ws = ws.with_llm(provider.clone());
+    }
+    if let Some(r) = i.resolver {
+        ws = ws.with_resolver(r.clone());
+    }
+    if let Some(ref sel) = i.cfg.dkim_selector {
+        ws = ws.with_dkim_selector(sel.clone());
+    }
+    if let Some(ldap) = i.ldap_config {
+        ws = ws.with_ldap_config(ldap.clone());
+    }
+    if let Some(ref url) = i.cfg.chrome_cdp_url {
+        let client = Arc::new(render_preview::RenderPreviewClient::new(url.clone(), 5));
+        ws = ws.with_render_preview(client);
+        eprintln!("Email render preview enabled (Chrome CDP: {url})");
+    }
+    if let Some(meili) = i.meili_client {
+        ws = ws.with_meili(meili.clone());
+    }
+    if let Some(oidc) = oidc_client_from_env(&i.cfg.hostname) {
+        tracing::info!("OIDC client configured (issuer={})", oidc.token_url);
+        ws = ws.with_oidc(oidc);
+    }
+    ws
+}
+
+/// Read `MAILRS_OIDC_*` env vars and build the external-IdP
+/// "Sign in with X" config. Returns None unless the three
+/// required vars (CLIENT_ID, CLIENT_SECRET, ISSUER) are all set;
+/// derives optional URLs from `ISSUER` if not overridden.
+fn oidc_client_from_env(hostname: &str) -> Option<crate::web::OidcConfig> {
+    let client_id = std::env::var("MAILRS_OIDC_CLIENT_ID").ok()?;
+    let client_secret = std::env::var("MAILRS_OIDC_CLIENT_SECRET").ok()?;
+    let issuer = std::env::var("MAILRS_OIDC_ISSUER").ok()?;
+    let redirect_uri = std::env::var("MAILRS_OIDC_REDIRECT_URI")
+        .unwrap_or_else(|_| format!("https://{hostname}/api/auth/oidc/callback"));
+    let authorize_url = std::env::var("MAILRS_OIDC_AUTHORIZE_URL")
+        .unwrap_or_else(|_| format!("{issuer}/authorize"));
+    let token_url =
+        std::env::var("MAILRS_OIDC_TOKEN_URL").unwrap_or_else(|_| format!("{issuer}/token"));
+    let userinfo_url = std::env::var("MAILRS_OIDC_USERINFO_URL")
+        .unwrap_or_else(|_| format!("{issuer}/userinfo"));
+    Some(crate::web::OidcConfig {
+        client_id,
+        client_secret,
+        authorize_url,
+        token_url,
+        userinfo_url,
+        redirect_uri,
+    })
 }
 
 /// Spawn the three SMTP-family listeners that all dispatch into
