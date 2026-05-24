@@ -376,13 +376,14 @@ where
 
             // FBL: check if this is an ARF complaint report to abuse@
             if local_rcpts.iter().any(|r| r.starts_with("abuse@") || r.starts_with("postmaster@"))
-                && let Some((reported_addr, feedback_type)) = crate::fbl::parse_arf_report(&full_message) {
-                    eprintln!("FBL: received {feedback_type} complaint for {reported_addr}");
+                && let Some(report) = mailrs_arf::parse(&full_message)
+                && let Some(reported_addr) = report.complainant() {
+                    eprintln!("FBL: received {} complaint for {reported_addr}", report.feedback_type);
                     if let Some(ref queue_pool) = ctx.outbound_queue {
                         let _ = mailrs_outbound_queue::queue::add_suppression(
                             queue_pool,
-                            &reported_addr,
-                            &format!("FBL complaint: {feedback_type}"),
+                            reported_addr,
+                            &format!("FBL complaint: {}", report.feedback_type),
                             None,
                         ).await;
                     }

@@ -213,7 +213,6 @@ pub(crate) async fn send_message(
 
 /// extract full body (text + html) and all attachments from an existing message for forwarding
 /// tries message_id first (globally unique), falls back to uid
-
 async fn extract_full_forward_by_id(
     state: &WebState,
     user: &str,

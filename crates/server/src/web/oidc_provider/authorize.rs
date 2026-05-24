@@ -192,7 +192,6 @@ fn try_extract_session(
 }
 
 /// generate a random authorization code (32 bytes hex-encoded)
-
 fn generate_auth_code() -> String {
     oidc_store::generate_random_hex(32)
 }
@@ -229,7 +228,6 @@ fn build_authorize_url(hostname: &str, params: &AuthorizeQuery) -> String {
 }
 
 /// PKCE S256: SHA-256 hash of verifier, base64url-encoded without padding
-
 fn error_redirect_or_json(
     redirect_uri: &str,
     state: Option<&str>,

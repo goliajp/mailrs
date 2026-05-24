@@ -49,7 +49,6 @@ pub struct CalendarEventRow {
 ///   the user's own calendar
 /// - UPDATE/CANCEL state machine (MRS-7): inbound REQUEST/UPDATE/CANCEL
 ///   normalised + reconciled
-
 #[derive(sqlx::FromRow)]
 struct EventRowSqlx {
     id: i64,
@@ -114,7 +113,6 @@ impl From<EventRowSqlx> for CalendarEventRow {
 /// - `Date(d)` → `Some(d at 00:00:00 UTC)` — calendar-day events occupy
 ///   the full UTC day for conflict purposes (good enough for v1 — refine
 ///   with VALUE=DATE-aware overlap once MRS-9 lands).
-
 mod convert;
 mod queries;
 mod upsert;

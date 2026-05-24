@@ -2732,6 +2732,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-arf"
+version = "1.0.0"
+dependencies = [
+ "criterion",
+]
+
+[[package]]
 name = "mailrs-attachment-extract"
 version = "1.0.0"
 dependencies = [
@@ -3355,6 +3362,7 @@ dependencies = [
  "mail-parser",
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-arc 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-arf",
  "mailrs-attachment-extract 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-auth-guard 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-backoff 1.0.0",

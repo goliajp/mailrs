@@ -249,7 +249,6 @@ pub(super) struct CounterRequest {
 /// instead of accepting/declining outright (RFC 5546 §3.4 COUNTER). Sends
 /// METHOD=COUNTER iCalendar back to the organizer; organizer-side calendar
 /// surfaces it as a counter-proposal that organizer can accept (which
-
 pub(super) async fn submit_counter(
     Path(uid): Path<u32>,
     AuthUser { address: user, .. }: AuthUser,

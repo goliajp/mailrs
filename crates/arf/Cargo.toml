@@ -1,0 +1,25 @@
+[package]
+name = "mailrs-arf"
+version = "1.0.0"
+edition = "2024"
+description = "RFC 5965 Abuse Reporting Format (ARF / feedback-report) parser. Extracts Feedback-Type, original recipient, source IP, and other fields from machine-readable abuse / spam-complaint reports sent via the standard feedback-loop multipart/report format."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-arf"
+authors = ["GOLIA K.K."]
+keywords = ["smtp", "abuse", "fbl", "arf", "email"]
+categories = ["email", "parser-implementations"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "arf"
+harness = false

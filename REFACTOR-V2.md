@@ -62,7 +62,7 @@ Cement 二次审计。这次刚拆完所有大文件，module boundary 是历史
 
 | # | 步骤 | 检测命令 |
 |---|---|---|
-| 1 | 把 ARCHITECTURE.md 当前 cement 表 (24 条) + 拆分后新 module 全部列出 | 文档 `docs/v0.2-cement-list.md` 存在 |
+| 1 | 把 ARCHITECTURE.md 当前 cement 表 (24 条) + 拆分后新 module 全部列出 | 文档 `REFACTOR-V2-v0.2-cement-audit.md` 存在 |
 | 2 | 对每个 cement / 新 module 跑"all ✓ lens"判断：non-mailrs 项目能用 / 单句 identity / 无项目特定 import / 有 hot path / ≤500 LOC | 同文档每行打分 |
 | 3 | 列出"可抽" stone 候选（all ✓ 都过的）+ 估算每个的 boundary 与 publish ROI | 同文档候选清单 + 排序 |
 | 4 | 选 top 1 候选（信息密度最高 / 边界最干净），写 candidate-extraction plan | 候选名 + 拆解 step |

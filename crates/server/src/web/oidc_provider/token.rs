@@ -400,7 +400,6 @@ fn pkce_s256(verifier: &str) -> String {
 }
 
 /// return an error as either a redirect (with error params) or JSON
-
 #[cfg(test)]
 mod tests {
     use super::*;
