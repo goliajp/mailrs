@@ -70,20 +70,27 @@ audit 文档 + finding 见 [REFACTOR-V2-v0.2-cement-audit.md](./REFACTOR-V2-v0.2
 总计 5 类指标可 curl: SMTP / IMAP / POP3 / MCP / outbound-queue。
 详情 [REFACTOR-V2-v0.3-metrics.md](./REFACTOR-V2-v0.3-metrics.md)。
 
-## L3a v0.4 Hot 计划 (当前活跃 checkpoint — 线性、无分叉)
+## L3a v0.4 Hot 计划 ✅ closed (62 → tracing + CI lint)
 
-日志格式统一 + 字段 schema + CI lint。
+62 个 production `eprintln!` 全部转为 `tracing::*`，字段 schema 文档化，
+CI lint script 上线。Step 4 (现有 tracing normalize) + Step 5 (hot-path
+`#[tracing::instrument]`) 进 v0.4 cold backlog —— trigger 已满足（log
+schema 文档化 + 所有 hot path 已有结构化日志），后续 instrument 加层
+属于增量优化，不阻塞 v0.5。
+
+## L3a v0.5 Hot 计划 (当前活跃 checkpoint — 线性、无分叉)
+
+API drift 审计：REST + MCP + OpenAPI + llm-full.txt 四份"API 声明"
+是否同步。
 
 | # | 步骤 | 检测命令 |
 |---|---|---|
-| 1 | 全量审计：grep `eprintln!`/`println!`/`tracing::{error,warn,info,debug}!` 调用，输出统计表 | `REFACTOR-V2-v0.4-log-audit.md` 含 callsite 表 |
-| 2 | 定义字段 schema (`event=`, `conn_id=`, `user=`, `error=` 等)，写到 docs 里 | 同文档含 schema |
-| 3 | 转换所有 `eprintln!` → `tracing::error!`/`warn!` (按上下文) | grep `eprintln!` 在非 bench 代码中 == 0 |
-| 4 | 给现有 tracing 调用 normalize `event=` 字段（如 "smtp_data" / "imap_select"） | grep 抽样验证 |
-| 5 | 加 hot path `#[tracing::instrument]`（IMAP handle_line, POP3 handle_line, MCP per-tool） | 抽样 grep |
-| 6 | 加 CI lint script: `scripts/check-no-eprintln.sh` 跑 grep + exit 1 if 命中 | script 存在 + 在 pre-flight 通过 |
-| 7 | `cargo test --workspace` + `cargo clippy --workspace --all-targets -- -D warnings` | 0 failed / 0 warn |
-| 8 | `./scripts/release.sh` patch 发版 | tag 推到 origin |
+| 1 | 提取四份声明的 endpoint 列表（REST router、MCP tools、openapi.json paths、llm-full.txt） | `REFACTOR-V2-v0.5-api-drift.md` 含 4 列表 |
+| 2 | 计算 4 维 diff：哪些路径 / tools 只在一份 / 两份 / 三份里 | 同文档含 drift 矩阵 |
+| 3 | 按 `rules/api-update-checklist.md` 修每个 drift（少哪同步哪） | drift 矩阵清零 |
+| 4 | 加 CI lint: `scripts/check-api-drift.sh` 比对 REST router vs openapi.json paths | script 存在 + 通过 |
+| 5 | `cargo test --workspace` + clippy 通过 | 0 failed / 0 warn |
+| 6 | `./scripts/release.sh` patch 发版 | tag 推到 origin |
 
 ## L3b v2 Cold 计划 (本版本剩余 — 不写 step 级)
 
@@ -132,6 +139,7 @@ audit 文档 + finding 见 [REFACTOR-V2-v0.2-cement-audit.md](./REFACTOR-V2-v0.2
 | v0.1 | 2026-05-25 | ✅ negative-result 文档化（trigger 替代分支）| [REFACTOR-V2-v0.1-finding.md](./REFACTOR-V2-v0.1-finding.md): bench 已到 disk-fsync ceiling，下一波 perf 必须先建 infra 或与 v0.3 metrics 合并 |
 | v0.2 | 2026-05-25 | ✅ 新 stone published (`mailrs-arf` 1.0.0) | [REFACTOR-V2-v0.2-cement-audit.md](./REFACTOR-V2-v0.2-cement-audit.md): 40 cement 文件审计 → 1 stone 抽出。`mailrs-arf` 1.16 µs/report, 18 测试, 首个 Rust ARF parser。Server `fbl.rs` (37 LOC) 删除 → 用 stone |
 | v0.3 | 2026-05-25 | ✅ /metrics live + 5/5 类指标 (SMTP/IMAP/POP3/MCP/queue) | [REFACTOR-V2-v0.3-metrics.md](./REFACTOR-V2-v0.3-metrics.md): metrics-rs facade 装入 + IMAP/POP3/MCP 新 counters + 旧手写层并存 |
+| v0.4 | 2026-05-25 | ✅ log schema 文档化 + 62 eprintln → tracing + CI lint | [REFACTOR-V2-v0.4-log-audit.md](./REFACTOR-V2-v0.4-log-audit.md): 全 17 文件统一 event= 字段；`scripts/check-no-eprintln.sh` 拒绝回流 |
 | v0.3 | — | — | — |
 | v0.4 | — | — | — |
 | v0.5 | — | — | — |
