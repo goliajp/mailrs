@@ -253,18 +253,51 @@ useVirtualizer({
    build-time, never re-ordered) can skip it. Anything else, no.
 2. **Row-overlap reports are suspect-the-measurement-cache, not
    suspect-the-CSS.** Bumping `estimateSize` or adding margin
-   between rows masks the bug; it doesn't fix it. If a row-overlap
-   report comes back after a previous "fix" was a sizing tweak,
-   the next thing to check is `getItemKey`, full stop.
+   between rows masks the bug; it doesn't fix it.
 3. **The React `key` and the virtualizer `getItemKey` must
    compute from the SAME source field.** Drift between them
    guarantees the bug on the next list mutation. Best practice:
    define `stableKey(item)` once and call it from both sites.
 
+**The 2026-05-24 follow-up — when row overlap comes back AGAIN
+after fixing `getItemKey`:** there's a second class of races in
+the dynamic-size path of react-virtual that no amount of
+`getItemKey` / `estimateSize` patching can fix. Specifically:
+
+- The row's height changes after first render (selection state
+  toggles a border, hover state shows extra UI, snippet is
+  conditional, etc.)
+- `measureElement` fires the new height into the virtualizer
+- The virtualizer updates the cache for THIS row's index
+- BUT already-rendered sibling rows keep their stale
+  `translateY` — they don't reflow until the next layout pass
+- Visual: rows overlap until the next scroll event nudges a
+  re-layout
+
+The **彻底 fix** (commit `<TODO>` in mailrs) is: kill the
+dynamic-size path entirely. Force rows to a fixed CSS height
+(`h-24` etc.) + drop the `ref={virtualizer.measureElement}`
+prop. The `estimateSize` value becomes the ground truth for
+height, the virtualizer never re-measures anything, and the
+entire race class is eliminated by construction.
+
+The trade is: rows can no longer dynamically size to their
+content. Snippet truncation must be lossy (`truncate` /
+`overflow-hidden`). For mailbox / chat / activity-feed lists
+this is almost always the right trade — predictable layout
+beats Pixel-perfect content fitting.
+
+**Rule of thumb:** any list where rows can change height after
+first render is a dynamic-size virtualizer waiting to overlap.
+If it's a WS-fed list, force fixed-height. If you can't force
+fixed-height, don't virtualize.
+
 **Why this matters beyond just one view:** the same default-keys-
 by-index footgun applies to every virtualizer in the project,
-including `react-window` and any custom virtualization. Every
-WS-fed list needs the same audit pass.
+including `react-window` and any custom virtualization. The
+dynamic-size race applies wherever rows are
+absolute-positioned + size depends on a frame-by-frame measure.
+Every WS-fed list needs the audit pass + the fixed-height check.
 
 ## Silent switch from small core to big core in a dual-core system
 

@@ -1,0 +1,25 @@
+[package]
+name = "mailrs-attachment-extract"
+version = "1.0.0"
+edition = "2024"
+description = "Extract text from email attachments (PDF + image OCR). PDF text via `pdf-extract` (pure Rust); OCR via the `tesseract` CLI subprocess (not linked as a C library). Two-stage fallback for scanned PDFs: try embedded text first, fall back to OCR on the raw bytes if the text is too short. Returns `ExtractionResult` with text + language + confidence + page count + JSON metadata."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-attachment-extract"
+authors = ["GOLIA K.K."]
+keywords = ["attachment", "pdf", "ocr", "tesseract", "email"]
+categories = ["email", "text-processing", "filesystem"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+pdf-extract = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
