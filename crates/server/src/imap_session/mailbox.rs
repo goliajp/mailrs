@@ -17,13 +17,9 @@ impl ImapSession {
         _reference: &str,
         pattern: &str,
     ) -> Vec<String> {
-        let username = match &self.state {
-            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
-                username
-            }
-            ImapState::NotAuthenticated => {
-                return vec![format_no(tag, "not authenticated")];
-            }
+        let username = match self.authenticated_username(tag) {
+            Ok(u) => u,
+            Err(resp) => return resp,
         };
 
         let mailboxes = match self.mailbox_store.list_mailboxes(username).await {
@@ -51,13 +47,9 @@ impl ImapSession {
     }
 
     pub(super) async fn handle_create(&self, tag: &str, mailbox: &str) -> Vec<String> {
-        let username = match &self.state {
-            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
-                username
-            }
-            ImapState::NotAuthenticated => {
-                return vec![format_no(tag, "not authenticated")];
-            }
+        let username = match self.authenticated_username(tag) {
+            Ok(u) => u,
+            Err(resp) => return resp,
         };
 
         match self.mailbox_store.create_mailbox(username, mailbox).await {
@@ -67,13 +59,9 @@ impl ImapSession {
     }
 
     pub(super) async fn handle_delete(&self, tag: &str, mailbox: &str) -> Vec<String> {
-        let username = match &self.state {
-            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
-                username
-            }
-            ImapState::NotAuthenticated => {
-                return vec![format_no(tag, "not authenticated")];
-            }
+        let username = match self.authenticated_username(tag) {
+            Ok(u) => u,
+            Err(resp) => return resp,
         };
 
         if mailbox.eq_ignore_ascii_case("INBOX") {
@@ -88,13 +76,9 @@ impl ImapSession {
     }
 
     pub(super) async fn handle_rename(&self, tag: &str, from: &str, to: &str) -> Vec<String> {
-        let username = match &self.state {
-            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
-                username
-            }
-            ImapState::NotAuthenticated => {
-                return vec![format_no(tag, "not authenticated")];
-            }
+        let username = match self.authenticated_username(tag) {
+            Ok(u) => u,
+            Err(resp) => return resp,
         };
 
         if from.eq_ignore_ascii_case("INBOX") {
@@ -113,13 +97,9 @@ impl ImapSession {
     }
 
     pub(super) async fn handle_select(&mut self, tag: &str, mailbox_name: &str) -> Vec<String> {
-        let username = match &self.state {
-            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
-                username.clone()
-            }
-            ImapState::NotAuthenticated => {
-                return vec![format_no(tag, "not authenticated")];
-            }
+        let username = match self.authenticated_username_owned(tag) {
+            Ok(u) => u,
+            Err(resp) => return resp,
         };
 
         match self
@@ -173,13 +153,9 @@ impl ImapSession {
 
     pub(super) async fn handle_examine(&mut self, tag: &str, mailbox_name: &str) -> Vec<String> {
         // same as SELECT but read-only
-        let username = match &self.state {
-            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
-                username.clone()
-            }
-            ImapState::NotAuthenticated => {
-                return vec![format_no(tag, "not authenticated")];
-            }
+        let username = match self.authenticated_username_owned(tag) {
+            Ok(u) => u,
+            Err(resp) => return resp,
         };
 
         match self
@@ -260,11 +236,9 @@ impl ImapSession {
         mailbox: &str,
         items: &str,
     ) -> Vec<String> {
-        let username = match &self.state {
-            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
-                username
-            }
-            ImapState::NotAuthenticated => return vec![format_no(tag, "not authenticated")],
+        let username = match self.authenticated_username(tag) {
+            Ok(u) => u,
+            Err(resp) => return resp,
         };
 
         // look up the mailbox by name to get accurate counts
@@ -313,14 +287,12 @@ impl ImapSession {
         _reference: &str,
         _pattern: &str,
     ) -> Vec<String> {
-        match &self.state {
-            ImapState::Authenticated { .. } | ImapState::Selected { .. } => {
-                vec![
-                    "* LSUB () \"/\" \"INBOX\"".to_string(),
-                    format_ok(tag, "LSUB completed"),
-                ]
-            }
-            ImapState::NotAuthenticated => vec![format_no(tag, "not authenticated")],
+        if let Err(resp) = self.authenticated_username(tag) {
+            return resp;
         }
+        vec![
+            "* LSUB () \"/\" \"INBOX\"".to_string(),
+            format_ok(tag, "LSUB completed"),
+        ]
     }
 }

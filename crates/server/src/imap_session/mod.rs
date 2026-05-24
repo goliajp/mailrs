@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mailrs_imap_proto::{
-    format_bad, format_ok, parse_command, ImapCommand, TaggedCommand,
+    format_bad, format_no, format_ok, parse_command, ImapCommand, TaggedCommand,
 };
 use mailrs_mailbox::{Mailbox, PgMailboxStore};
 
@@ -138,6 +138,40 @@ impl ImapSession {
     pub fn with_ldap_config(mut self, config: Arc<crate::ldap_auth::LdapConfig>) -> Self {
         self.ldap_config = Some(config);
         self
+    }
+
+    // ---------- state-borrow helpers used by submodule handlers ----------
+
+    /// Borrow the authenticated username, or produce a tagged
+    /// `NO not authenticated` response. Replaces the seven-line
+    /// `match &self.state { ... }` boilerplate that every
+    /// authenticated-only handler used to start with.
+    pub(super) fn authenticated_username(&self, tag: &str) -> Result<&str, Vec<String>> {
+        match &self.state {
+            ImapState::Authenticated { username } | ImapState::Selected { username, .. } => {
+                Ok(username.as_str())
+            }
+            ImapState::NotAuthenticated => Err(vec![format_no(tag, "not authenticated")]),
+        }
+    }
+
+    /// Owned-string variant of [`Self::authenticated_username`] —
+    /// for handlers that need to move the username into state
+    /// (SELECT, EXAMINE) or pass it across an `.await` that
+    /// borrows `&mut self`.
+    pub(super) fn authenticated_username_owned(&self, tag: &str) -> Result<String, Vec<String>> {
+        self.authenticated_username(tag).map(str::to_string)
+    }
+
+    /// Borrow the currently-selected mailbox, or produce a tagged
+    /// `NO no mailbox selected` response. Replaces the
+    /// `match &self.state { Selected{mailbox,..} => mailbox, _ =>
+    /// return ... }` pattern at every Selected-only handler entry.
+    pub(super) fn selected_mailbox(&self, tag: &str) -> Result<&Mailbox, Vec<String>> {
+        match &self.state {
+            ImapState::Selected { mailbox, .. } => Ok(mailbox),
+            _ => Err(vec![format_no(tag, "no mailbox selected")]),
+        }
     }
 
     /// process a raw command line, return result

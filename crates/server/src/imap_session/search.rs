@@ -15,7 +15,7 @@ use mailrs_mailbox::{
     FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_RECENT, FLAG_SEEN,
 };
 
-use super::{ImapSession, ImapState};
+use super::ImapSession;
 
 /// One ordering criterion for the SORT command, including the
 /// REVERSE-prefixed variants from RFC 5256. Used by
@@ -148,9 +148,9 @@ pub(super) fn message_matches_criteria(
 
 impl ImapSession {
     pub(super) async fn handle_search(&self, tag: &str, criteria: &str) -> Vec<String> {
-        let mailbox = match &self.state {
-            ImapState::Selected { mailbox, .. } => mailbox,
-            _ => return vec![format_no(tag, "no mailbox selected")],
+        let mailbox = match self.selected_mailbox(tag) {
+            Ok(mb) => mb,
+            Err(resp) => return resp,
         };
 
         let (total, _) = self
@@ -192,9 +192,9 @@ impl ImapSession {
         search_criteria: &str,
         uid_mode: bool,
     ) -> Vec<String> {
-        let mailbox = match &self.state {
-            ImapState::Selected { mailbox, .. } => mailbox,
-            _ => return vec![format_no(tag, "no mailbox selected")],
+        let mailbox = match self.selected_mailbox(tag) {
+            Ok(mb) => mb,
+            Err(resp) => return resp,
         };
 
         let (total, _) = self

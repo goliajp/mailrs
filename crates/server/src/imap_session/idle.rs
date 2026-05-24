@@ -8,22 +8,18 @@
 //! socket. `idle_user` and `selected_mailbox_id` let the manager
 //! key event subscriptions to the right user / mailbox.
 
-use mailrs_imap_proto::{format_exists, format_no};
+use mailrs_imap_proto::format_exists;
 
 use super::{strs_to_bytes, HandleResult, ImapSession, ImapState};
 
 impl ImapSession {
     pub(super) fn handle_idle(&self, tag: &str) -> HandleResult {
-        match &self.state {
-            ImapState::Selected { .. } | ImapState::Authenticated { .. } => {
-                HandleResult::EnterIdle {
-                    continuation: b"+ idling\r\n".to_vec(),
-                    tag: tag.to_string(),
-                }
-            }
-            ImapState::NotAuthenticated => {
-                HandleResult::Responses(strs_to_bytes(vec![format_no(tag, "not authenticated")]))
-            }
+        if let Err(resp) = self.authenticated_username(tag) {
+            return HandleResult::Responses(strs_to_bytes(resp));
+        }
+        HandleResult::EnterIdle {
+            continuation: b"+ idling\r\n".to_vec(),
+            tag: tag.to_string(),
         }
     }
 

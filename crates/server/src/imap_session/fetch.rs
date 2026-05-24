@@ -26,9 +26,9 @@ impl ImapSession {
         attributes: &str,
         use_uid: bool,
     ) -> Vec<Vec<u8>> {
-        let mailbox = match &self.state {
-            ImapState::Selected { mailbox, .. } => mailbox,
-            _ => return strs_to_bytes(vec![format_no(tag, "no mailbox selected")]),
+        let mailbox = match self.selected_mailbox(tag) {
+            Ok(mb) => mb,
+            Err(resp) => return strs_to_bytes(resp),
         };
 
         let seq_set = match parse_sequence_set(sequence) {
