@@ -10,27 +10,21 @@ use mailrs_smtp_proto::session::{Session, State};
 use mailrs_smtp_proto::unstuff_data;
 
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
-use crate::domain_store::ResolvedRecipient;
 use crate::event_bus::SmtpEvent;
 use crate::inbound::pipeline::DeliveryDecision;
-use mailrs_sieve::{compile_sieve, evaluate_sieve_with_envelope, SieveAction};
 
-use super::super::address::is_local_domain;
 use super::super::headers::{extract_snippet, format_received_header};
 use super::super::post_delivery::post_delivery_process;
-use super::super::srs::srs_rewrite;
 use super::super::{ConnectionContext, SessionAction, DATA_TIMEOUT};
 
-#[tracing::instrument(
-    name = "smtp.data",
-    skip(framed, session, ctx),
-    fields(
-        conn_id,
-        from = %reverse_path,
-        n_rcpts = forward_paths.len(),
-        peer = %addr,
-    ),
-)]
+mod recipients;
+mod remote;
+mod sieve;
+
+use recipients::classify_recipients;
+use remote::{enqueue_remote_rcpts, RemoteEnqueueResult};
+use sieve::apply_sieve_actions;
+
 pub(super) async fn handle_need_data<S>(
     framed: &mut Framed<S, SmtpCodec>,
     session: &mut Session,
@@ -173,64 +167,8 @@ where
 
             let msg_size = full_message.len();
 
-            // split recipients into local and remote (pre-size by total
-            // recipients to avoid Vec growth allocations during the loop —
-            // typical mail has 1-3 recipients but bulk can spike to 100+)
-            // remote_rcpts: (address, is_forwarded)
-            let mut initial_local: Vec<String> = Vec::with_capacity(forward_paths.len());
-            let mut remote_rcpts: Vec<(String, bool)> = Vec::with_capacity(forward_paths.len());
-            for rcpt in &forward_paths {
-                if rcpt
-                    .split_once('@')
-                    .map(|(_, domain)| is_local_domain(domain, &ctx.local_domains))
-                    .unwrap_or(true)
-                {
-                    initial_local.push(rcpt.clone());
-                } else {
-                    remote_rcpts.push((rcpt.clone(), false));
-                }
-            }
-
-            // resolve aliases for local recipients (pre-sized: typically
-            // 1:1 with initial_local; alias expansion may add more but
-            // the initial size is a good lower bound)
-            let mut local_rcpts: Vec<String> = Vec::with_capacity(initial_local.len());
-            for rcpt in &initial_local {
-                if let Some(ref ds) = ctx.domain_store {
-                    match ds.resolve_recipient(rcpt).await {
-                        ResolvedRecipient::Account(addr) => {
-                            local_rcpts.push(addr);
-                        }
-                        ResolvedRecipient::Group(members) => {
-                            for m in members {
-                                local_rcpts.push(m);
-                            }
-                        }
-                        ResolvedRecipient::Forward(addrs) => {
-                            for a in addrs {
-                                if a.split_once('@')
-                                    .map(|(_, d)| is_local_domain(d, &ctx.local_domains))
-                                    .unwrap_or(true)
-                                {
-                                    local_rcpts.push(a);
-                                } else {
-                                    remote_rcpts.push((a, true));
-                                }
-                            }
-                        }
-                        ResolvedRecipient::Reject => {
-                            // no alias/account match — deliver to original address
-                            local_rcpts.push(rcpt.to_string());
-                        }
-                    }
-                } else {
-                    local_rcpts.push(rcpt.to_string());
-                }
-            }
-
-            // deduplicate local recipients (e.g. user both in a group and directly CC'd)
-            local_rcpts.sort_unstable();
-            local_rcpts.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+            let (local_rcpts, remote_rcpts) =
+                classify_recipients(&forward_paths, ctx).await;
 
             let mut ok = true;
 
@@ -242,121 +180,8 @@ where
 
             // deliver to local recipients via maildir
             for rcpt in &local_rcpts {
-                // apply sieve script if available
-                let mut rcpt_folder = target_folder.to_string();
-                let mut skip_delivery = false;
-
-                if let Some(ref ds) = ctx.domain_store
-                    && let Ok(Some(script)) = ds.get_sieve_script(rcpt).await {
-                        match compile_sieve(&script) {
-                            Ok(compiled) => {
-                                let actions = evaluate_sieve_with_envelope(
-                                    &compiled,
-                                    &full_message,
-                                    Some(&reverse_path),
-                                    Some(rcpt),
-                                );
-                                for action in &actions {
-                                    match action {
-                                        SieveAction::Keep => {}
-                                        SieveAction::FileInto(folder) => {
-                                            rcpt_folder = folder.clone();
-                                        }
-                                        SieveAction::Discard => {
-                                            tracing::info!(
-                                                event = "sieve_discard",
-                                                user = rcpt,
-                                                "sieve discarded message"
-                                            );
-                                            skip_delivery = true;
-                                        }
-                                        SieveAction::Redirect(addr) => {
-                                            if let Some(ref pool) = ctx.outbound_queue {
-                                                let now = chrono::Utc::now().timestamp();
-                                                let domain = addr
-                                                    .split_once('@')
-                                                    .map(|(_, d)| d)
-                                                    .unwrap_or("unknown");
-                                                let _ =
-                                                    mailrs_outbound_queue::queue::enqueue(
-                                                        pool,
-                                                        &reverse_path,
-                                                        addr,
-                                                        domain,
-                                                        &full_message,
-                                                        None,
-                                                        now,
-                                                    )
-                                                    .await;
-                                                if let Some(ref vk) = ctx.valkey {
-                                                    mailrs_outbound_queue::queue::notify(
-                                                        &mut vk.clone(),
-                                                    )
-                                                    .await;
-                                                }
-                                            }
-                                            tracing::info!(
-                                                event = "sieve_redirect",
-                                                user = rcpt,
-                                                target = addr.as_str(),
-                                                "sieve redirected message"
-                                            );
-                                        }
-                                        SieveAction::Vacation(addr, reply_body) => {
-                                            if let Some(ref pool) = ctx.outbound_queue {
-                                                let now = chrono::Utc::now().timestamp();
-                                                let domain = addr
-                                                    .split_once('@')
-                                                    .map(|(_, d)| d)
-                                                    .unwrap_or("unknown");
-                                                let _ =
-                                                    mailrs_outbound_queue::queue::enqueue(
-                                                        pool,
-                                                        rcpt,
-                                                        addr,
-                                                        domain,
-                                                        reply_body,
-                                                        None,
-                                                        now,
-                                                    )
-                                                    .await;
-                                                if let Some(ref vk) = ctx.valkey {
-                                                    mailrs_outbound_queue::queue::notify(
-                                                        &mut vk.clone(),
-                                                    )
-                                                    .await;
-                                                }
-                                            }
-                                            tracing::info!(
-                                                event = "sieve_vacation",
-                                                user = rcpt,
-                                                target = addr.as_str(),
-                                                "sieve vacation auto-reply sent"
-                                            );
-                                        }
-                                        SieveAction::Reject(reason) => {
-                                            tracing::info!(
-                                                event = "sieve_reject",
-                                                user = rcpt,
-                                                reason = reason.as_str(),
-                                                "sieve rejected message"
-                                            );
-                                            skip_delivery = true;
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                tracing::warn!(
-                                    event = "sieve_compile_error",
-                                    user = rcpt,
-                                    error = e.as_str(),
-                                    "failed to compile sieve script"
-                                );
-                            }
-                        }
-                    }
-
+                let (rcpt_folder, skip_delivery) =
+                    apply_sieve_actions(rcpt, target_folder, &reverse_path, &full_message, ctx).await;
                 if skip_delivery {
                     continue;
                 }
@@ -629,77 +454,36 @@ where
                     }
                 }
 
-            // enqueue remote recipients
             if !remote_rcpts.is_empty() {
-                // non-forwarded remote requires authentication (relay protection)
-                let has_user_remote = remote_rcpts.iter().any(|(_, fwd)| !fwd);
-                if has_user_remote && !is_authenticated {
-                    let resp = Response::new(
-                        550,
-                        Some(mailrs_smtp_proto::EnhancedCode {
-                            class: 5,
-                            subject: 7,
-                            detail: 1,
-                        }),
-                        "Relay access denied",
-                    );
-                    if framed.send(resp.format()).await.is_err() {
-                        return SessionAction::Close;
+                match enqueue_remote_rcpts(
+                    &remote_rcpts,
+                    &reverse_path,
+                    &full_message,
+                    is_authenticated,
+                    conn_id,
+                    ctx,
+                )
+                .await
+                {
+                    RemoteEnqueueResult::Ok => {}
+                    RemoteEnqueueResult::PartialFailure => {
+                        ok = false;
                     }
-                    return SessionAction::Continue;
-                }
-
-                if let Some(ref pool) = ctx.outbound_queue {
-                    let now = chrono::Utc::now().timestamp();
-                    let mut enqueue_ok = false;
-                    for (rcpt, is_fwd) in &remote_rcpts {
-                        let domain =
-                            rcpt.split_once('@').map(|(_, d)| d).unwrap_or("unknown");
-                        // apply SRS rewriting for forwarded messages
-                        let envelope_sender = if *is_fwd && !reverse_path.is_empty() {
-                            if let Some(ref secret) = ctx.srs_secret {
-                                srs_rewrite(&reverse_path, &ctx.hostname, secret)
-                            } else {
-                                reverse_path.clone()
-                            }
-                        } else {
-                            reverse_path.clone()
-                        };
-                        match mailrs_outbound_queue::queue::enqueue_ex(
-                            pool,
-                            &envelope_sender,
-                            rcpt,
-                            domain,
-                            &full_message,
-                            None,
-                            now,
-                            *is_fwd,
-                        )
-                        .await
-                        {
-                            Ok(_) => enqueue_ok = true,
-                            Err(e) => {
-                                tracing::error!(event = "enqueue_failed", rcpt = rcpt, error = %e, "failed to enqueue remote recipient");
-                                ok = false;
-                            }
+                    RemoteEnqueueResult::RelayDenied => {
+                        let resp = Response::new(
+                            550,
+                            Some(mailrs_smtp_proto::EnhancedCode {
+                                class: 5,
+                                subject: 7,
+                                detail: 1,
+                            }),
+                            "Relay access denied",
+                        );
+                        if framed.send(resp.format()).await.is_err() {
+                            return SessionAction::Close;
                         }
+                        return SessionAction::Continue;
                     }
-                    if enqueue_ok {
-                        if let Some(ref vk) = ctx.valkey {
-                            mailrs_outbound_queue::queue::notify(&mut vk.clone()).await;
-                        }
-                        ctx.event_bus.emit(SmtpEvent::MessageQueued {
-                            id: conn_id,
-                            from: reverse_path.clone(),
-                            to: remote_rcpts.iter().map(|(a, _)| a.clone()).collect(),
-                        });
-                    }
-                } else if !remote_rcpts.is_empty() {
-                    tracing::error!(
-                        event = "no_outbound_queue",
-                        "outbound queue unavailable, cannot relay"
-                    );
-                    ok = false;
                 }
             }
 
