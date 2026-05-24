@@ -43,6 +43,7 @@ members = [
     "crates/imap-format",
     "crates/attachment-extract",
     "crates/sieve",
+    "crates/delivery-executor",
     "crates/server",
 ]
 

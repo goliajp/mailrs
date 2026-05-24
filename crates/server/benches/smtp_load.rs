@@ -78,7 +78,7 @@ use std::time::{Duration, Instant};
 
 use bytes::{Buf, BytesMut};
 use futures_util::{SinkExt, StreamExt};
-use mailrs_maildir::Maildir;
+use mailrs_delivery_executor::DeliveryExecutor;
 use mailrs_smtp_proto::response::{format_ehlo_response, Response};
 use mailrs_smtp_proto::session::{Event, Session, SessionConfig};
 use mailrs_smtp_proto::{parse_command, unstuff_data};
@@ -142,7 +142,12 @@ impl Encoder<String> for Codec {
     }
 }
 
-async fn handle_connection(stream: TcpStream, maildir_root: Arc<String>, no_deliver: bool) {
+async fn handle_connection(
+    stream: TcpStream,
+    maildir_root: Arc<String>,
+    no_deliver: bool,
+    executor: Arc<DeliveryExecutor>,
+) {
     let hostname = "mx.bench.local";
     let config = SessionConfig::default();
     let mut session = Session::new(hostname, config);
@@ -203,31 +208,28 @@ async fn handle_connection(stream: TcpStream, maildir_root: Arc<String>, no_deli
                                     // measure.
                                     std::hint::black_box(&body);
                                 } else {
-                                    // NOTE: prior experiment wrapped
-                                    // this in tokio::task::spawn_blocking.
-                                    // Measured (2026-05-24): +3.5%
-                                    // throughput median, but p99
-                                    // latency 3× worse and p999 4.5×
-                                    // worse. Disk is the serializer,
-                                    // not the tokio scheduler — more
-                                    // concurrent fsyncs just queue
-                                    // longer at the disk. The real
-                                    // fix is `Maildir::deliver_batch`
-                                    // (reduces TOTAL fsync count, not
-                                    // parallelizes the same N).
+                                    // Deliveries routed through
+                                    // mailrs-delivery-executor
+                                    // (group-commit on top of
+                                    // maildir 1.2 deliver_batch).
+                                    // At saturation (32 conns
+                                    // delivering to the same path)
+                                    // batches fill to max_batch=64
+                                    // and unlock the 15× microbench
+                                    // speedup.
+                                    let body_arc = std::sync::Arc::new(body);
                                     for rcpt in &forward_paths {
                                         if let Some((local, domain)) = rcpt.split_once('@') {
                                             let path = format!(
                                                 "{}/{domain}/{local}",
                                                 maildir_root.as_str()
                                             );
-                                            match Maildir::create_cached(&path) {
-                                                Ok(md) => {
-                                                    if md.deliver(&body).is_err() {
-                                                        ok = false;
-                                                    }
-                                                }
-                                                Err(_) => ok = false,
+                                            if executor
+                                                .deliver(path, body_arc.clone())
+                                                .await
+                                                .is_err()
+                                            {
+                                                ok = false;
                                             }
                                         }
                                     }
@@ -266,7 +268,11 @@ async fn handle_connection(stream: TcpStream, maildir_root: Arc<String>, no_deli
     }
 }
 
-async fn start_server(maildir_root: Arc<String>, no_deliver: bool) -> u16 {
+async fn start_server(
+    maildir_root: Arc<String>,
+    no_deliver: bool,
+    executor: Arc<DeliveryExecutor>,
+) -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {
@@ -274,7 +280,10 @@ async fn start_server(maildir_root: Arc<String>, no_deliver: bool) -> u16 {
             match listener.accept().await {
                 Ok((stream, _addr)) => {
                     let root = maildir_root.clone();
-                    tokio::spawn(async move { handle_connection(stream, root, no_deliver).await });
+                    let exec = executor.clone();
+                    tokio::spawn(async move {
+                        handle_connection(stream, root, no_deliver, exec).await
+                    });
                 }
                 Err(_) => return,
             }
@@ -452,7 +461,11 @@ async fn run_once(args: &Args) -> Result<(), String> {
         .to_string();
     let maildir_arc = Arc::new(maildir_root.clone());
 
-    let port = start_server(maildir_arc.clone(), args.no_deliver).await;
+    // Single delivery executor shared by all connections in this
+    // bench run. Default tuning (max_batch=64, max_wait=10ms).
+    let executor = Arc::new(DeliveryExecutor::spawn());
+
+    let port = start_server(maildir_arc.clone(), args.no_deliver, executor).await;
     let body = Arc::new(build_body());
 
     // Warmup — don't measure these, just let the runtime + page cache settle.

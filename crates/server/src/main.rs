@@ -5,6 +5,7 @@ mod config;
 
 mod content_worker;
 mod conversation_cache;
+
 mod dmarc_report;
 mod domain_store;
 pub(crate) mod permission;
@@ -547,6 +548,7 @@ async fn main() {
         srs_secret: cfg.srs_secret.clone(),
         ldap_config: ldap_config.clone(),
         inbound_pipeline,
+        delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
     });
 
     // port 25/2525: plain SMTP (STARTTLS optional)
