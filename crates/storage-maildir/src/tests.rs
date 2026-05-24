@@ -762,6 +762,62 @@ fn create_cached_repeated_calls_idempotent() {
 }
 
 #[test]
+fn deliver_batch_empty_no_syscalls() {
+    let dir = tmpdir();
+    let md = Maildir::create(dir.path()).unwrap();
+    let ids = md.deliver_batch(&[]).unwrap();
+    assert!(ids.is_empty());
+}
+
+#[test]
+fn deliver_batch_single_message_equivalent_to_deliver() {
+    let dir = tmpdir();
+    let md = Maildir::create(dir.path()).unwrap();
+    let msgs = [b"From: a@b\r\nSubject: t\r\n\r\nhello\r\n".as_slice()];
+    let ids = md.deliver_batch(&msgs).unwrap();
+    assert_eq!(ids.len(), 1);
+    let entries = md.scan_new().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].id.0, ids[0].0);
+}
+
+#[test]
+fn deliver_batch_multiple_messages_all_delivered_in_order() {
+    let dir = tmpdir();
+    let md = Maildir::create(dir.path()).unwrap();
+    let bodies: Vec<Vec<u8>> = (0..10)
+        .map(|i| format!("Subject: msg {i}\r\n\r\nbody {i}\r\n").into_bytes())
+        .collect();
+    let slices: Vec<&[u8]> = bodies.iter().map(|v| v.as_slice()).collect();
+    let ids = md.deliver_batch(&slices).unwrap();
+    assert_eq!(ids.len(), 10);
+    let mut seen = HashSet::new();
+    for id in &ids {
+        assert!(seen.insert(id.0.clone()), "duplicate id: {}", id.0);
+    }
+    let entries = md.scan_new().unwrap();
+    assert_eq!(entries.len(), 10);
+    let tmp_count = fs::read_dir(dir.path().join("tmp")).unwrap().count();
+    assert_eq!(tmp_count, 0);
+}
+
+#[test]
+fn deliver_batch_contents_match_input() {
+    let dir = tmpdir();
+    let md = Maildir::create(dir.path()).unwrap();
+    let bodies: Vec<Vec<u8>> = (0..5)
+        .map(|i| format!("body {i}\r\n").into_bytes())
+        .collect();
+    let slices: Vec<&[u8]> = bodies.iter().map(|v| v.as_slice()).collect();
+    let ids = md.deliver_batch(&slices).unwrap();
+    for (id, expected) in ids.iter().zip(bodies.iter()) {
+        let path = dir.path().join("new").join(&id.0);
+        let actual = fs::read(&path).unwrap();
+        assert_eq!(&actual, expected, "content mismatch for id {}", id.0);
+    }
+}
+
+#[test]
 fn create_cached_invalidate_then_recreate() {
     let dir = tmpdir();
     let path = dir.path().join("user-mailbox");

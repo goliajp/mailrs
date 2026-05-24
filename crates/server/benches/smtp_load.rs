@@ -203,6 +203,18 @@ async fn handle_connection(stream: TcpStream, maildir_root: Arc<String>, no_deli
                                     // measure.
                                     std::hint::black_box(&body);
                                 } else {
+                                    // NOTE: prior experiment wrapped
+                                    // this in tokio::task::spawn_blocking.
+                                    // Measured (2026-05-24): +3.5%
+                                    // throughput median, but p99
+                                    // latency 3× worse and p999 4.5×
+                                    // worse. Disk is the serializer,
+                                    // not the tokio scheduler — more
+                                    // concurrent fsyncs just queue
+                                    // longer at the disk. The real
+                                    // fix is `Maildir::deliver_batch`
+                                    // (reduces TOTAL fsync count, not
+                                    // parallelizes the same N).
                                     for rcpt in &forward_paths {
                                         if let Some((local, domain)) = rcpt.split_once('@') {
                                             let path = format!(

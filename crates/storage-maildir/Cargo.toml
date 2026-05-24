@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-maildir"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2024"
 description = "Maildir filesystem-format primitives: atomic delivery, directory scans, flag parsing — no IMAP/POP3 layer."
 license = "Apache-2.0 OR MIT"
@@ -30,4 +30,8 @@ criterion = { version = "0.8", default-features = false, features = ["cargo_benc
 
 [[bench]]
 name = "flags"
+harness = false
+
+[[bench]]
+name = "deliver"
 harness = false
