@@ -185,33 +185,5 @@ async fn insert_empty_sentinel(pool: &PgPool, message_id: i64) -> Result<(), Str
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn default_ocr_langs_includes_english() {
-        assert!(DEFAULT_OCR_LANGS.contains("eng"));
-    }
-
-    #[test]
-    fn default_ocr_langs_includes_chinese() {
-        assert!(DEFAULT_OCR_LANGS.contains("chi_sim"));
-    }
-
-    #[test]
-    fn default_ocr_langs_includes_japanese() {
-        assert!(DEFAULT_OCR_LANGS.contains("jpn"));
-    }
-
-    #[test]
-    #[allow(clippy::assertions_on_constants)]
-    fn batch_size_reasonable() {
-        assert!(BATCH_SIZE > 0 && BATCH_SIZE <= 100);
-    }
-
-    #[test]
-    fn poll_interval_reasonable() {
-        assert!(POLL_INTERVAL.as_secs() >= 10);
-        assert!(POLL_INTERVAL.as_secs() <= 300);
-    }
-}
+#[path = "content_worker_tests.rs"]
+mod tests;
