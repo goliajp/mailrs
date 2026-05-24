@@ -165,7 +165,7 @@ impl Stage for MailAuthStage {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::spf::spf_result_str;
 
     #[test]
     fn spf_result_str_covers_all_variants() {
