@@ -46,7 +46,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use mailrs_maildir::{Maildir, MessageId};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{Semaphore, mpsc, oneshot};
 
 /// Default batch size — N=64 matches the maildir-1.2 microbench
 /// crossover where batched fsync hits ~15× throughput vs
@@ -57,6 +57,15 @@ pub const DEFAULT_MAX_BATCH: usize = 64;
 /// and below most users' perception threshold for delivery
 /// confirmation latency.
 pub const DEFAULT_MAX_WAIT: Duration = Duration::from_millis(10);
+
+/// Default in-flight flush concurrency. With N=2 the executor can
+/// start collecting batch B while batch A's fsync is still in
+/// flight on a blocking thread, hiding the dir-fsync wait behind
+/// collection latency. Higher values don't help on SSD/APFS
+/// because the disk serializes durable writes per-mount; they
+/// just queue more fsyncs without parallelism. N=1 (no pipeline)
+/// is the conservative baseline and matches v1.0.0 behavior.
+pub const DEFAULT_MAX_CONCURRENT_FLUSHES: usize = 2;
 
 /// Handle held by SMTP sessions to submit deliveries.
 /// Clone-safe (internally `Arc<mpsc::Sender>`) — every session
@@ -74,20 +83,37 @@ struct Request {
 
 impl DeliveryExecutor {
     /// Spawn the executor task and return a handle for submitting
-    /// deliveries. Uses default `max_batch=64`, `max_wait=10ms`.
-    /// For custom tuning use [`Self::with_config`].
+    /// deliveries. Uses default `max_batch=64`, `max_wait=10ms`,
+    /// `max_concurrent_flushes=2`. For custom tuning use
+    /// [`Self::with_config`].
     pub fn spawn() -> Self {
         Self::with_config(DEFAULT_MAX_BATCH, DEFAULT_MAX_WAIT)
     }
 
     /// Spawn the executor task with explicit batch + wait
-    /// thresholds. See module docs for tuning guidance.
+    /// thresholds. `max_concurrent_flushes` is set to the default
+    /// (`DEFAULT_MAX_CONCURRENT_FLUSHES`). For full control use
+    /// [`Self::with_full_config`]. See module docs for tuning.
     pub fn with_config(max_batch: usize, max_wait: Duration) -> Self {
+        Self::with_full_config(max_batch, max_wait, DEFAULT_MAX_CONCURRENT_FLUSHES)
+    }
+
+    /// Spawn the executor task with full control over batch size,
+    /// wait timeout, and in-flight flush concurrency. See module
+    /// docs for tuning guidance — `max_concurrent_flushes=1`
+    /// reproduces v1.0.0 serial behavior; `=2` (default) hides
+    /// fsync wait behind batch collection.
+    pub fn with_full_config(
+        max_batch: usize,
+        max_wait: Duration,
+        max_concurrent_flushes: usize,
+    ) -> Self {
         // Channel capacity = max_batch × 16 so concurrent sessions
         // don't block on send() while the executor is processing
         // the previous batch.
         let (tx, rx) = mpsc::channel(max_batch * 16);
-        tokio::spawn(run_executor(rx, max_batch, max_wait));
+        let flush_semaphore = Arc::new(Semaphore::new(max_concurrent_flushes.max(1)));
+        tokio::spawn(run_executor(rx, max_batch, max_wait, flush_semaphore));
         Self { sender: tx }
     }
 
@@ -121,7 +147,12 @@ impl DeliveryExecutor {
     }
 }
 
-async fn run_executor(mut rx: mpsc::Receiver<Request>, max_batch: usize, max_wait: Duration) {
+async fn run_executor(
+    mut rx: mpsc::Receiver<Request>,
+    max_batch: usize,
+    max_wait: Duration,
+    flush_semaphore: Arc<Semaphore>,
+) {
     loop {
         // Block waiting for the first request — no work to do
         // otherwise. `recv` returning None means all senders are
@@ -146,11 +177,25 @@ async fn run_executor(mut rx: mpsc::Receiver<Request>, max_batch: usize, max_wai
             }
         }
 
-        // Flush the batch on a blocking thread so we don't tie up
-        // the tokio runtime during the fsync wait.
-        tokio::task::spawn_blocking(move || flush_batch(batch))
-            .await
-            .ok(); // task panic shouldn't kill the executor; just drop the batch
+        // Acquire a flush permit — bounds concurrent in-flight
+        // fsyncs to max_concurrent_flushes. With N=2 the next
+        // batch can start collecting while this one is flushing,
+        // hiding the disk wait behind the next collection.
+        let Ok(permit) = flush_semaphore.clone().acquire_owned().await else {
+            // Semaphore closed (only happens if dropped) — fall back to serial.
+            tokio::task::spawn_blocking(move || flush_batch(batch))
+                .await
+                .ok();
+            continue;
+        };
+
+        // Spawn-and-detach: this batch's fsync runs concurrently
+        // with the next batch's collection. The permit is held by
+        // the spawn_blocking closure and released on completion.
+        tokio::task::spawn_blocking(move || {
+            flush_batch(batch);
+            drop(permit);
+        });
     }
 }
 

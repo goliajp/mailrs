@@ -1265,7 +1265,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2849,7 +2849,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-delivery-executor"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile",
@@ -2858,9 +2858,9 @@ dependencies = [
 
 [[package]]
 name = "mailrs-delivery-executor"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36596905b4ab09ef62eb4303e4834d0c43a68426248f8d0feb753d0bcb2a97da"
+checksum = "0e8b551cf12fb8362e65e93cfdeea299d6f8fd02e7ace53b2e59bca394f6d224"
 dependencies = [
  "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio",
@@ -3361,7 +3361,7 @@ dependencies = [
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0",
- "mailrs-delivery-executor 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-delivery-executor 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dkim 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dmarc 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.2",
@@ -3832,7 +3832,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4869,7 +4869,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4928,7 +4928,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5353,7 +5353,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5730,10 +5730,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.2",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

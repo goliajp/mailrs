@@ -54,11 +54,21 @@ println!("delivered: {}", id.0);
 |---|---|---|
 | `max_batch` | 64 | matches maildir 1.2 microbench sweet spot. Higher: marginally more throughput, more memory per batch. Lower: less batching benefit. |
 | `max_wait` | 10 ms | upper bound on added per-message latency. Lower (1-2ms): latency-sensitive workloads (transactional mail where SMTP `250 OK` feeds an HTTP response). Higher: low-traffic but batch-amortizing. |
+| `max_concurrent_flushes` | 2 (1.1+) | how many batches can have fsync in flight simultaneously. `=1` is strictly serial (1.0.0 behavior). `=2` hides fsync wait behind next batch collection — empirically **+8% throughput, -41% p999 tail** on APFS, M-series Mac, 32-conn bench. `>2` typically doesn't help on SSD because the disk serializes durable writes per mount; it just queues more fsyncs. |
 
 ```rust,no_run
 use mailrs_delivery_executor::DeliveryExecutor;
 use std::time::Duration;
 let executor = DeliveryExecutor::with_config(/*max_batch=*/ 128, /*max_wait=*/ Duration::from_millis(5));
+
+// Full tuning (1.1+): pipeline 3 flushes for very-high-load
+// deployments where you've measured the disk handles parallel
+// fsyncs (NVMe, RAID, network FS with concurrent commit).
+let executor = DeliveryExecutor::with_full_config(
+    /*max_batch=*/ 64,
+    /*max_wait=*/ Duration::from_millis(10),
+    /*max_concurrent_flushes=*/ 3,
+);
 ```
 
 ## What it costs
