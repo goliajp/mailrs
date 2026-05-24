@@ -49,7 +49,7 @@
 在 step 3 被两个真实障碍阻塞（samply 在 macOS 上 symbol 不解析，且
 bench harness 不覆盖真实生产瓶颈）。结论：bench 这条链已到 disk-fsync
 ceiling，进一步 perf 优化必须先建 bench infra 或借 prod tracing。详见
-[docs/v0.1-perf-finding.md](./docs/v0.1-perf-finding.md)。
+[REFACTOR-V2-v0.1-finding.md](./REFACTOR-V2-v0.1-finding.md)。
 
 L4 trigger 通过 "negative-result 文档化" 分支满足，**v0.1 closed**。
 
@@ -118,7 +118,7 @@ Cement 二次审计。这次刚拆完所有大文件，module boundary 是历史
 
 | Checkpoint | 完成日 | Trigger 满足 | 关键产出 |
 |---|---|---|---|
-| v0.1 | 2026-05-25 | ✅ negative-result 文档化（trigger 替代分支）| [docs/v0.1-perf-finding.md](./docs/v0.1-perf-finding.md): bench 已到 disk-fsync ceiling，下一波 perf 必须先建 infra 或与 v0.3 metrics 合并 |
+| v0.1 | 2026-05-25 | ✅ negative-result 文档化（trigger 替代分支）| [REFACTOR-V2-v0.1-finding.md](./REFACTOR-V2-v0.1-finding.md): bench 已到 disk-fsync ceiling，下一波 perf 必须先建 infra 或与 v0.3 metrics 合并 |
 | v0.2 | — | — | — |
 | v0.3 | — | — | — |
 | v0.4 | — | — | — |
