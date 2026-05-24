@@ -1,3 +1,10 @@
+//! CARVE-OUT: this file intentionally exceeds the 500-LOC project
+//! limit. The `#[tool_router]` proc-macro from `rmcp` collects every
+//! `#[tool(...)]` method on `MailrsMcp` into a single dispatch table
+//! at expansion time, so splitting the impl block across modules
+//! would break the router. Keep all MCP tool methods in this file;
+//! per-tool param types live next door in `tools.rs`.
+
 pub(crate) mod auth;
 pub(crate) mod tools;
 

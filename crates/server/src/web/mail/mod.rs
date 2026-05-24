@@ -19,7 +19,7 @@
 
 pub(super) use super::{
     classify_email, clamp_limit, clamp_offset, default_limit, ApiResult, AuthUser, SendResult,
-    WebState, MAX_ADMIN_FIELD_LEN, MAX_EMAIL_BODY_LEN, MAX_PATH_LEN, MAX_RECIPIENTS,
+    WebState, MAX_ADMIN_FIELD_LEN, MAX_EMAIL_BODY_LEN, MAX_PATH_LEN,
 };
 
 pub mod attachments;
