@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use sqlx::PgPool;
 
-use crate::content_extract::{self, ExtractionResult, MAX_EXTRACT_SIZE};
+use mailrs_attachment_extract::{self, ExtractionResult, MAX_EXTRACT_SIZE};
 use crate::message_util;
 
 /// interval between worker polls
@@ -99,8 +99,8 @@ async fn process_message(
         let content_type = att.content_type.mime_type();
 
         // skip unsupported types early
-        let method = content_extract::extraction_method(&content_type);
-        if method == content_extract::ExtractionMethod::Unsupported {
+        let method = mailrs_attachment_extract::extraction_method(&content_type);
+        if method == mailrs_attachment_extract::ExtractionMethod::Unsupported {
             continue;
         }
 
@@ -113,7 +113,7 @@ async fn process_message(
         let data_owned = data.clone();
         let ct = content_type.clone();
         let result = tokio::task::spawn_blocking(move || {
-            content_extract::extract_content(&data_owned, &ct, DEFAULT_OCR_LANGS)
+            mailrs_attachment_extract::extract_content(&data_owned, &ct, DEFAULT_OCR_LANGS)
         })
         .await
         .map_err(|e| format!("spawn_blocking: {e}"))?;
