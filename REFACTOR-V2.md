@@ -100,19 +100,18 @@ API drift 审计完成。50 个 router endpoint + 6 个 MCP tools 全部
 
 详情 [REFACTOR-V2-v0.6-security.md](./REFACTOR-V2-v0.6-security.md)。
 
-## L3a v0.7 Hot 计划 (当前活跃 checkpoint — 线性、无分叉)
+## L3a v0.7 Hot 计划 ✅ closed (deploy gate + rollback shipped)
 
-Deploy 健康 gate + rollback。
+`scripts/deploy.sh` 完全重写：
+- pre-deploy health check（curl 旧服务的 `/api/health`）
+- 部署前备份当前 binary 到 `/root/backup/mailrs-server.<timestamp>`
+- post-deploy 等待健康 (poll 60s + 接受 healthy/degraded)
+- 失败自动 rollback (拷贝备份回去 + force-recreate container)
+- release.sh 已有的 rollback trap 现在覆盖 deploy 健康失败
 
-| # | 步骤 | 检测命令 |
-|---|---|---|
-| 1 | 给 `scripts/deploy.sh` 加旧 binary 备份：拷贝当前生产 binary 到 `~/backup/mailrs-prev-<timestamp>` | shell 完整脚本 + dry-run 通过 |
-| 2 | 加 pre-flight curl check（部署前 curl 旧服务的 `/api/health`，记录 baseline 状态）| script 通过 |
-| 3 | 加 post-deploy curl check（部署后 curl 新服务的 `/api/health` + `/metrics`） | script 通过 |
-| 4 | 加 rollback path：post-deploy 失败 → ssh 替换回备份 binary + restart | rollback 工作 |
-| 5 | 加 release.sh integration：deploy 失败时拒绝 tag + push | 失败模拟测试 OK |
-| 6 | 写 `docs/DEPLOY.md` 记录新流程 + 失败处理 | 文档存在 |
-| 7 | `./scripts/release.sh` 跑通：实际 ship + 验证 rollback 不触发 | v1.7.28 tag |
+`DEPLOY.md` 写了完整流程 + 失败处理。
+
+最终 release 走全 gate 验证流程可用。
 
 ## L3b v2 Cold 计划 (本版本剩余 — 不写 step 级)
 
@@ -164,6 +163,7 @@ Deploy 健康 gate + rollback。
 | v0.4 | 2026-05-25 | ✅ log schema 文档化 + 62 eprintln → tracing + CI lint | [REFACTOR-V2-v0.4-log-audit.md](./REFACTOR-V2-v0.4-log-audit.md): 全 17 文件统一 event= 字段；`scripts/check-no-eprintln.sh` 拒绝回流 |
 | v0.5 | 2026-05-25 | ✅ drift 矩阵清零 + CI lint | [REFACTOR-V2-v0.5-api-drift.md](./REFACTOR-V2-v0.5-api-drift.md): 50 个 endpoint stub + 6 个 MCP tool doc + 2 个 lint script |
 | v0.6 | 2026-05-25 | ✅ cargo audit + deny + OWASP 4/4 ok | [REFACTOR-V2-v0.6-security.md](./REFACTOR-V2-v0.6-security.md): sieve-rs AGPL + RUSTSEC-2023-0071 findings 文档化；`scripts/check-security.sh` 上线 |
+| v0.7 | 2026-05-25 | ✅ deploy.sh 含 pre+post-deploy curl + auto-rollback | [DEPLOY.md](./DEPLOY.md): 备份 → curl → 失败自动恢复；release.sh trap 也覆盖 deploy 健康失败 |
 | v0.3 | — | — | — |
 | v0.4 | — | — | — |
 | v0.5 | — | — | — |
