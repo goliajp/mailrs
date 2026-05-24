@@ -11,16 +11,17 @@ use mailrs_smtp_proto::unstuff_data;
 
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 use crate::event_bus::SmtpEvent;
-use crate::inbound::pipeline::DeliveryDecision;
 
 use super::super::headers::{extract_snippet, format_received_header};
 use super::super::post_delivery::post_delivery_process;
 use super::super::{ConnectionContext, SessionAction, DATA_TIMEOUT};
 
+mod antispam;
 mod recipients;
 mod remote;
 mod sieve;
 
+use antispam::{run_antispam, AntiSpamOutcome};
 use recipients::classify_recipients;
 use remote::{enqueue_remote_rcpts, RemoteEnqueueResult};
 use sieve::apply_sieve_actions;
@@ -69,101 +70,34 @@ where
             let mut full_message = received.into_bytes();
             full_message.extend_from_slice(&body);
 
-            // run anti-spam pipeline for non-authenticated connections
             let mut target_folder = "INBOX";
             if !is_authenticated && ctx.mail_authenticator.is_some() {
-                    let ehlo_domain = match &session.state {
-                        State::Greeted { domain } => domain.as_str(),
-                        State::Authenticated { domain, .. } => domain.as_str(),
-                        _ => "unknown",
-                    };
-                    let first_rcpt =
-                        forward_paths.first().map(|s| s.as_str()).unwrap_or("");
-                    let mut receive_ctx = mailrs_inbound::ReceiveContext::new(
-                        addr.ip(),
-                        ehlo_domain,
-                        &reverse_path,
-                        first_rcpt,
-                        full_message.clone(),
-                        &ctx.hostname,
-                    );
-                    let pipeline_started = std::time::Instant::now();
-                    let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;
-                    let pipeline_us = pipeline_started.elapsed().as_micros() as u64;
-                    tracing::debug!(
-                        phase = "inbound_pipeline",
-                        duration_us = pipeline_us,
-                        msg_size = full_message.len(),
-                        "stage complete"
-                    );
-
-                    use std::sync::atomic::Ordering;
-                    match decision {
-                        DeliveryDecision::Reject { code, message } => {
-                            ctx.web_state.inbound_reject_total.fetch_add(1, Ordering::Relaxed);
-                            let class = (code / 100) as u8;
-                            let resp = Response::new(
-                                code,
-                                Some(mailrs_smtp_proto::EnhancedCode {
-                                    class,
-                                    subject: 7,
-                                    detail: 1,
-                                }),
-                                &message,
-                            );
-                            ctx.event_bus.emit(SmtpEvent::SpamRejected {
-                                id: conn_id,
-                                reason: message,
-                            });
-                            if framed.send(resp.format()).await.is_err() {
-                                return SessionAction::Close;
-                            }
-                            return SessionAction::Continue;
+                match run_antispam(
+                    &session.state,
+                    addr,
+                    &reverse_path,
+                    &forward_paths,
+                    full_message,
+                    conn_id,
+                    ctx,
+                )
+                .await
+                {
+                    AntiSpamOutcome::Reject(resp) => {
+                        if framed.send(resp.format()).await.is_err() {
+                            return SessionAction::Close;
                         }
-                        DeliveryDecision::Greylist => {
-                            ctx.web_state.inbound_defer_total.fetch_add(1, Ordering::Relaxed);
-                            let resp = Response::new(
-                                451,
-                                Some(mailrs_smtp_proto::EnhancedCode {
-                                    class: 4,
-                                    subject: 7,
-                                    detail: 1,
-                                }),
-                                "Greylisting in effect, please retry later",
-                            );
-                            ctx.event_bus.emit(SmtpEvent::SpamRejected {
-                                id: conn_id,
-                                reason: "greylisted".into(),
-                            });
-                            if framed.send(resp.format()).await.is_err() {
-                                return SessionAction::Close;
-                            }
-                            return SessionAction::Continue;
-                        }
-                        DeliveryDecision::Junk {
-                            auth_header,
-                            reason,
-                        } => {
-                            ctx.web_state.inbound_junk_total.fetch_add(1, Ordering::Relaxed);
-                            tracing::info!(
-                                event = "junk",
-                                id = conn_id,
-                                reason = %reason,
-                                "delivering to Junk"
-                            );
-                            let mut new_msg = auth_header.into_bytes();
-                            new_msg.extend_from_slice(&full_message);
-                            full_message = new_msg;
-                            target_folder = "Junk";
-                        }
-                        DeliveryDecision::Accept { auth_header } => {
-                            ctx.web_state.inbound_accept_total.fetch_add(1, Ordering::Relaxed);
-                            let mut new_msg = auth_header.into_bytes();
-                            new_msg.extend_from_slice(&full_message);
-                            full_message = new_msg;
-                        }
+                        return SessionAction::Continue;
+                    }
+                    AntiSpamOutcome::Continue {
+                        full_message: new_msg,
+                        target_folder: tf,
+                    } => {
+                        full_message = new_msg;
+                        target_folder = tf;
                     }
                 }
+            }
 
             let msg_size = full_message.len();
 
