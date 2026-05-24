@@ -25,7 +25,7 @@ REMOTE_DIR="/apps/mailrs"
 TARGET="aarch64-unknown-linux-gnu"
 DEPLOY_DIR="deploy"
 BACKUP_DIR="/root/backup"
-HEALTH_URL="${HEALTH_URL:-http://localhost:3200/api/health}"
+HEALTH_URL="${HEALTH_URL:-http://localhost:3100/api/health}"
 HEALTH_TIMEOUT_SECS=60
 
 SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no"
