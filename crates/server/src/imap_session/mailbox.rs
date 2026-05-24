@@ -97,72 +97,43 @@ impl ImapSession {
     }
 
     pub(super) async fn handle_select(&mut self, tag: &str, mailbox_name: &str) -> Vec<String> {
-        let username = match self.authenticated_username_owned(tag) {
-            Ok(u) => u,
-            Err(resp) => return resp,
-        };
-
-        match self
-            .mailbox_store
-            .get_mailbox(&username, mailbox_name)
-            .await
-        {
-            Ok(Some(mb)) => {
-                let (total, unseen) = self
-                    .mailbox_store
-                    .mailbox_status(mb.id)
-                    .await
-                    .unwrap_or((0, 0));
-
-                let mut responses = vec![
-                    format_flags(&[
-                        "\\Seen",
-                        "\\Answered",
-                        "\\Flagged",
-                        "\\Deleted",
-                        "\\Draft",
-                        "\\Recent",
-                    ]),
-                    "* OK [PERMANENTFLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft \\*)] permanent flags\r\n".to_string(),
-                    format_exists(total),
-                    format_recent(0),
-                    format!(
-                        "* OK [UNSEEN {}] first unseen\r\n",
-                        if unseen > 0 { 1 } else { 0 }
-                    ),
-                    format!("* OK [UIDVALIDITY {}] UIDs valid\r\n", mb.uidvalidity),
-                    format!("* OK [UIDNEXT {}] predicted next UID\r\n", mb.uidnext),
-                    format!(
-                        "* OK [HIGHESTMODSEQ {}] highest modseq\r\n",
-                        mb.highest_modseq
-                    ),
-                ];
-
-                responses.push(format_ok(tag, "[READ-WRITE] SELECT completed"));
-
-                self.state = ImapState::Selected {
-                    username,
-                    mailbox: mb,
-                };
-                responses
-            }
-            Ok(None) => vec![format_no(tag, "mailbox not found")],
-            Err(_) => vec![format_no(tag, "SELECT failed")],
-        }
+        self.open_mailbox(tag, mailbox_name, /*read_only=*/ false).await
     }
 
     pub(super) async fn handle_examine(&mut self, tag: &str, mailbox_name: &str) -> Vec<String> {
-        // same as SELECT but read-only
+        self.open_mailbox(tag, mailbox_name, /*read_only=*/ true).await
+    }
+
+    /// Shared core for SELECT (read-write) and EXAMINE (read-only).
+    /// Differences: the PERMANENTFLAGS line and the
+    /// `[READ-WRITE]` vs `[READ-ONLY]` response code. State
+    /// transition to `Selected` is identical regardless of
+    /// `read_only` — EXAMINE is just a marker; the wire response
+    /// signals the client to treat the mailbox as immutable.
+    async fn open_mailbox(
+        &mut self,
+        tag: &str,
+        mailbox_name: &str,
+        read_only: bool,
+    ) -> Vec<String> {
         let username = match self.authenticated_username_owned(tag) {
             Ok(u) => u,
             Err(resp) => return resp,
         };
 
-        match self
-            .mailbox_store
-            .get_mailbox(&username, mailbox_name)
-            .await
-        {
+        let verb = if read_only { "EXAMINE" } else { "SELECT" };
+        let permanent_flags = if read_only {
+            "* OK [PERMANENTFLAGS ()] no permanent flags in read-only mode\r\n"
+        } else {
+            "* OK [PERMANENTFLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft \\*)] permanent flags\r\n"
+        };
+        let completion_status = if read_only {
+            "[READ-ONLY] EXAMINE completed"
+        } else {
+            "[READ-WRITE] SELECT completed"
+        };
+
+        match self.mailbox_store.get_mailbox(&username, mailbox_name).await {
             Ok(Some(mb)) => {
                 let (total, unseen) = self
                     .mailbox_store
@@ -179,7 +150,7 @@ impl ImapSession {
                         "\\Draft",
                         "\\Recent",
                     ]),
-                    "* OK [PERMANENTFLAGS ()] no permanent flags in read-only mode\r\n".to_string(),
+                    permanent_flags.to_string(),
                     format_exists(total),
                     format_recent(0),
                     format!(
@@ -194,7 +165,7 @@ impl ImapSession {
                     ),
                 ];
 
-                responses.push(format_ok(tag, "[READ-ONLY] EXAMINE completed"));
+                responses.push(format_ok(tag, completion_status));
 
                 self.state = ImapState::Selected {
                     username,
@@ -203,7 +174,7 @@ impl ImapSession {
                 responses
             }
             Ok(None) => vec![format_no(tag, "mailbox not found")],
-            Err(_) => vec![format_no(tag, "EXAMINE failed")],
+            Err(_) => vec![format_no(tag, &format!("{verb} failed"))],
         }
     }
 
