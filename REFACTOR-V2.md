@@ -58,22 +58,32 @@ L4 trigger 通过 "negative-result 文档化" 分支满足，**v0.1 closed**。
 `mailrs-arf` 1.0.0 published 到 crates.io，server 切换到新 stone，fbl.rs 删除。
 audit 文档 + finding 见 [REFACTOR-V2-v0.2-cement-audit.md](./REFACTOR-V2-v0.2-cement-audit.md)。
 
-## L3a v0.3 Hot 计划 (当前活跃 checkpoint — 线性、无分叉)
+## L3a v0.3 Hot 计划 ✅ closed (5/5 类指标 live)
 
-Prometheus `/metrics` endpoint。这同时铺垫 v0.1 finding 里说的
-"in-prod tracing 找下一波 perf bottleneck" 的基础设施。
+旧 `/metrics` handler 已存在（手写 prometheus 文本，13 个指标）。新增：
+- `metrics` + `metrics-exporter-prometheus` facade 依赖入 server
+- `metrics.rs`: PrometheusHandle 安装 + 注入 WebState
+- IMAP / POP3 connection handler 加 `metrics::counter!()`
+- MCP `setup_mcp` per-session closure 加 `metrics::counter!()`
+- `prometheus_metrics` handler 末尾 append `metrics_handle.render()`
+
+总计 5 类指标可 curl: SMTP / IMAP / POP3 / MCP / outbound-queue。
+详情 [REFACTOR-V2-v0.3-metrics.md](./REFACTOR-V2-v0.3-metrics.md)。
+
+## L3a v0.4 Hot 计划 (当前活跃 checkpoint — 线性、无分叉)
+
+日志格式统一 + 字段 schema + CI lint。
 
 | # | 步骤 | 检测命令 |
 |---|---|---|
-| 1 | 决定 metrics 库（`metrics-rs` + `metrics-exporter-prometheus` vs `axum-prometheus`）+ 加到 server Cargo.toml | `cargo build -p mailrs-server` 通过 |
-| 2 | 加 `metrics` recorder 初始化到 `bootstrap/runtime_tasks.rs` 或新 `metrics.rs` | 服务启动无 warn |
-| 3 | 暴露 `/metrics` HTTP endpoint 到现有 axum router | `curl localhost:3200/metrics` 返回 prometheus 格式 |
-| 4 | 加核心计数器（SMTP accept/reject/deliver、IMAP idle/select、POP3 retr、MCP tool call、outbound queue depth）— 替换现有 `AtomicU64` | grep 文件中找到 `counter!()` / `gauge!()` 调用 |
-| 5 | 加 per-stage timer histogram（SMTP DATA phase: anti-spam / classify / sieve / local-deliver / remote-enqueue）| histogram 调用就位 |
-| 6 | 写 README/docs 文档化 metric names + label schema | `docs/METRICS.md` 存在 |
-| 7 | `cargo test --workspace` 全绿 + clippy 通过 | 0 failed / 0 warn |
+| 1 | 全量审计：grep `eprintln!`/`println!`/`tracing::{error,warn,info,debug}!` 调用，输出统计表 | `REFACTOR-V2-v0.4-log-audit.md` 含 callsite 表 |
+| 2 | 定义字段 schema (`event=`, `conn_id=`, `user=`, `error=` 等)，写到 docs 里 | 同文档含 schema |
+| 3 | 转换所有 `eprintln!` → `tracing::error!`/`warn!` (按上下文) | grep `eprintln!` 在非 bench 代码中 == 0 |
+| 4 | 给现有 tracing 调用 normalize `event=` 字段（如 "smtp_data" / "imap_select"） | grep 抽样验证 |
+| 5 | 加 hot path `#[tracing::instrument]`（IMAP handle_line, POP3 handle_line, MCP per-tool） | 抽样 grep |
+| 6 | 加 CI lint script: `scripts/check-no-eprintln.sh` 跑 grep + exit 1 if 命中 | script 存在 + 在 pre-flight 通过 |
+| 7 | `cargo test --workspace` + `cargo clippy --workspace --all-targets -- -D warnings` | 0 failed / 0 warn |
 | 8 | `./scripts/release.sh` patch 发版 | tag 推到 origin |
-| 9 | 部署后 `curl https://prod/metrics` 验证至少 5 类指标可见 | 输出包含 SMTP / IMAP / POP3 / MCP / outbound 字样 |
 
 ## L3b v2 Cold 计划 (本版本剩余 — 不写 step 级)
 
@@ -121,6 +131,7 @@ Prometheus `/metrics` endpoint。这同时铺垫 v0.1 finding 里说的
 |---|---|---|---|
 | v0.1 | 2026-05-25 | ✅ negative-result 文档化（trigger 替代分支）| [REFACTOR-V2-v0.1-finding.md](./REFACTOR-V2-v0.1-finding.md): bench 已到 disk-fsync ceiling，下一波 perf 必须先建 infra 或与 v0.3 metrics 合并 |
 | v0.2 | 2026-05-25 | ✅ 新 stone published (`mailrs-arf` 1.0.0) | [REFACTOR-V2-v0.2-cement-audit.md](./REFACTOR-V2-v0.2-cement-audit.md): 40 cement 文件审计 → 1 stone 抽出。`mailrs-arf` 1.16 µs/report, 18 测试, 首个 Rust ARF parser。Server `fbl.rs` (37 LOC) 删除 → 用 stone |
+| v0.3 | 2026-05-25 | ✅ /metrics live + 5/5 类指标 (SMTP/IMAP/POP3/MCP/queue) | [REFACTOR-V2-v0.3-metrics.md](./REFACTOR-V2-v0.3-metrics.md): metrics-rs facade 装入 + IMAP/POP3/MCP 新 counters + 旧手写层并存 |
 | v0.3 | — | — | — |
 | v0.4 | — | — | — |
 | v0.5 | — | — | — |

@@ -37,6 +37,7 @@ pub async fn handle_connection(
 ) {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
+    metrics::counter!("mailrs_pop3_connections_total").increment(1);
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
 

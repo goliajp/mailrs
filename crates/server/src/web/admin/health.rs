@@ -155,6 +155,20 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
         let _ = writeln!(body, "mailrs_rbl_listed {rbl_listed}");
     }
 
+    // Append metrics-rs facade output (IMAP/POP3/MCP counters + any
+    // future migration from the hand-written gauges above). The
+    // facade renders only metrics that have been touched, so on a
+    // cold server with no IMAP/POP3/MCP traffic this section is
+    // empty — no leakage of unused-but-defined metric names.
+    if let Some(ref h) = state.metrics_handle {
+        let rendered = h.render();
+        if !rendered.is_empty() {
+            body.push('\n');
+            body.push_str("# --- metrics-rs facade (IMAP/POP3/MCP + new code) ---\n");
+            body.push_str(&rendered);
+        }
+    }
+
     (
         [(
             axum::http::header::CONTENT_TYPE,

@@ -2,6 +2,7 @@ mod acme;
 mod ai_analyzer;
 mod api_key_store;
 mod config;
+mod metrics;
 
 mod content_worker;
 mod conversation_cache;
@@ -73,6 +74,8 @@ async fn main() {
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("failed to install rustls crypto provider");
+
+    let metrics_handle = metrics::install_prometheus_recorder();
 
     let cfg = ServerConfig::from_env();
 
@@ -290,6 +293,7 @@ async fn main() {
         ldap_config: &ldap_config,
         meili_client: meili_client.as_ref(),
         system_config_store: system_config_store.clone(),
+        metrics_handle: metrics_handle.clone(),
     }));
 
     // spawn meilisearch indexer
