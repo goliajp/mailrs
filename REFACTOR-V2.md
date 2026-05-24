@@ -78,19 +78,27 @@ CI lint script 上线。Step 4 (现有 tracing normalize) + Step 5 (hot-path
 schema 文档化 + 所有 hot path 已有结构化日志），后续 instrument 加层
 属于增量优化，不阻塞 v0.5。
 
-## L3a v0.5 Hot 计划 (当前活跃 checkpoint — 线性、无分叉)
+## L3a v0.5 Hot 计划 ✅ closed (drift = 0)
 
-API drift 审计：REST + MCP + OpenAPI + llm-full.txt 四份"API 声明"
-是否同步。
+API drift 审计完成。50 个 router endpoint + 6 个 MCP tools 全部
+同步到 openapi.json / llm-full.txt。CI lint `scripts/check-api-drift.sh`
++ stub 生成器 `scripts/openapi-stub-missing.py` 上线。详情
+[REFACTOR-V2-v0.5-api-drift.md](./REFACTOR-V2-v0.5-api-drift.md)。
+
+## L3a v0.6 Hot 计划 (当前活跃 checkpoint — 线性、无分叉)
+
+安全 audit：cargo audit + cargo deny + OWASP top-10 走查。
 
 | # | 步骤 | 检测命令 |
 |---|---|---|
-| 1 | 提取四份声明的 endpoint 列表（REST router、MCP tools、openapi.json paths、llm-full.txt） | `REFACTOR-V2-v0.5-api-drift.md` 含 4 列表 |
-| 2 | 计算 4 维 diff：哪些路径 / tools 只在一份 / 两份 / 三份里 | 同文档含 drift 矩阵 |
-| 3 | 按 `rules/api-update-checklist.md` 修每个 drift（少哪同步哪） | drift 矩阵清零 |
-| 4 | 加 CI lint: `scripts/check-api-drift.sh` 比对 REST router vs openapi.json paths | script 存在 + 通过 |
-| 5 | `cargo test --workspace` + clippy 通过 | 0 failed / 0 warn |
-| 6 | `./scripts/release.sh` patch 发版 | tag 推到 origin |
+| 1 | `cargo install cargo-audit cargo-deny` (如未装) | binary 在 PATH |
+| 2 | `cargo audit` 跑全 workspace；记录已知 advisory | `REFACTOR-V2-v0.6-security.md` 含 audit 输出 |
+| 3 | 处理每个 advisory：升级依赖 / 忽略带文档化 reason | `cargo audit` clean (0 vulnerabilities) |
+| 4 | `cargo deny check` 跑 license + advisory + bans | 0 deny issues |
+| 5 | OWASP top-10 手动 walk (auth, injection, XSS, CSRF, SSRF, etc.) | 同文档含每项 status |
+| 6 | 加 pre-flight script: `scripts/check-security.sh` 跑 audit + deny | script 存在 + 通过 |
+| 7 | `cargo test --workspace` + clippy 通过 | 0 failed / 0 warn |
+| 8 | `./scripts/release.sh` patch 发版 | tag 推到 origin |
 
 ## L3b v2 Cold 计划 (本版本剩余 — 不写 step 级)
 
@@ -140,6 +148,7 @@ API drift 审计：REST + MCP + OpenAPI + llm-full.txt 四份"API 声明"
 | v0.2 | 2026-05-25 | ✅ 新 stone published (`mailrs-arf` 1.0.0) | [REFACTOR-V2-v0.2-cement-audit.md](./REFACTOR-V2-v0.2-cement-audit.md): 40 cement 文件审计 → 1 stone 抽出。`mailrs-arf` 1.16 µs/report, 18 测试, 首个 Rust ARF parser。Server `fbl.rs` (37 LOC) 删除 → 用 stone |
 | v0.3 | 2026-05-25 | ✅ /metrics live + 5/5 类指标 (SMTP/IMAP/POP3/MCP/queue) | [REFACTOR-V2-v0.3-metrics.md](./REFACTOR-V2-v0.3-metrics.md): metrics-rs facade 装入 + IMAP/POP3/MCP 新 counters + 旧手写层并存 |
 | v0.4 | 2026-05-25 | ✅ log schema 文档化 + 62 eprintln → tracing + CI lint | [REFACTOR-V2-v0.4-log-audit.md](./REFACTOR-V2-v0.4-log-audit.md): 全 17 文件统一 event= 字段；`scripts/check-no-eprintln.sh` 拒绝回流 |
+| v0.5 | 2026-05-25 | ✅ drift 矩阵清零 + CI lint | [REFACTOR-V2-v0.5-api-drift.md](./REFACTOR-V2-v0.5-api-drift.md): 50 个 endpoint stub + 6 个 MCP tool doc + 2 个 lint script |
 | v0.3 | — | — | — |
 | v0.4 | — | — | — |
 | v0.5 | — | — | — |
