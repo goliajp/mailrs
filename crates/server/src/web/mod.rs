@@ -654,6 +654,85 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         ));
 
     let mut app = axum::Router::new()
+        .merge(core_routes())
+        .merge(mail_routes())
+        .merge(conversations_routes())
+        .merge(auth_routes)
+        .merge(account_routes())
+        .merge(agent_routes())
+        .merge(admin_routes())
+        .merge(protocol_routes())
+        .merge(dav_routes())
+        .layer(axum::extract::DefaultBodyLimit::max(MAX_MULTIPART_BODY))
+        .layer(middleware::from_fn(request_id::request_id_middleware))
+        .layer(middleware::from_fn_with_state(
+            rate_limiter,
+            rate_limit::general_rate_limit,
+        ))
+        .layer(middleware::from_fn(security_headers))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(tower_http::cors::Any)
+                .allow_methods([
+                    axum::http::Method::GET,
+                    axum::http::Method::POST,
+                    axum::http::Method::PUT,
+                    axum::http::Method::PATCH,
+                    axum::http::Method::DELETE,
+                    axum::http::Method::OPTIONS,
+                ])
+                .allow_headers([
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::CONTENT_TYPE,
+                    axum::http::HeaderName::from_static("x-request-id"),
+                ])
+                .expose_headers([axum::http::HeaderName::from_static("x-request-id")])
+                .max_age(Duration::from_secs(3600)),
+        )
+        .with_state(state.clone());
+
+    // merge MCP router after with_state so it bypasses the general rate limiter
+    app = app.merge(mcp_router.with_state(state.clone()));
+
+    // BIMI logo lookup — bypasses rate limiter (cached DNS, read-only)
+    // Image proxy — fetches external email images through our server (requires auth)
+    let bimi_router = axum::Router::new()
+        .route("/api/bimi/{domain}", get(mail::get_bimi_logo))
+        .route("/api/proxy/image", get(mail::proxy_image))
+        .route("/api/proxy/link", get(mail::proxy_link))
+        .with_state(state);
+    app = app.merge(bimi_router);
+
+    // serve frontend static files with SPA fallback
+    if let Some(dir) = static_dir {
+        use tower_http::services::{ServeDir, ServeFile};
+        let index = format!("{dir}/index.html");
+        app = app.fallback_service(ServeDir::new(dir).fallback(ServeFile::new(index)));
+    }
+
+    // HTTP-request-level tracing span. Wraps EVERY route (including the
+    // post-with_state merges above) so all per-handler log lines + any
+    // future #[instrument] handlers nest under one `web.req` span per
+    // request. Span carries method + URI; status code + latency are added
+    // on response.
+    app = app.layer(
+        tower_http::trace::TraceLayer::new_for_http().make_span_with(
+            |req: &axum::http::Request<_>| {
+                tracing::info_span!(
+                    "web.req",
+                    method = %req.method(),
+                    uri = %req.uri(),
+                )
+            },
+        ),
+    );
+
+    app
+}
+
+
+fn core_routes() -> axum::Router<Arc<WebState>> {
+    axum::Router::new()
         // status + health
         .route("/api/status", get(admin::get_status))
         .route("/api/health", get(admin::get_health))
@@ -664,6 +743,9 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         // queue
         .route("/api/queue", get(admin::get_queue))
         .route("/api/queue/{id}/retry", post(admin::retry_queue_message))
+}
+fn mail_routes() -> axum::Router<Arc<WebState>> {
+    axum::Router::new()
         // mail API
         .route(
             "/api/calendar/conflicts",
@@ -770,6 +852,9 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/api/mail/ai/polish", post(ai_assist::ai_polish))
         .route("/api/mail/ai/reply-suggest", post(ai_assist::ai_reply_suggest))
         .route("/api/mail/ai/generate-subject", post(ai_assist::ai_generate_subject))
+}
+fn conversations_routes() -> axum::Router<Arc<WebState>> {
+    axum::Router::new()
         // conversations API
         .route("/api/conversations", get(conversations::get_conversations))
         .route(
@@ -850,8 +935,11 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             "/api/mail/feedback",
             post(conversations::record_feedback),
         )
-        // auth API (login handled separately with stricter rate limit)
-        .merge(auth_routes)
+}
+fn account_routes() -> axum::Router<Arc<WebState>> {
+    axum::Router::new()
+        // (auth login routes are merged separately in router() because
+        //  they carry their own per-IP rate limiter built from runtime state)
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::auth_me))
         // self-service password change
@@ -870,12 +958,18 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/api/auth/totp/enable", post(auth::totp_enable))
         .route("/api/auth/totp/disable", post(auth::totp_disable))
         .route("/api/auth/totp/status", get(auth::totp_status))
+}
+fn agent_routes() -> axum::Router<Arc<WebState>> {
+    axum::Router::new()
         // API key management
         .route("/api/agent/keys", post(api_key::create_api_key).get(api_key::list_api_keys))
         .route("/api/agent/keys/{id}", delete(api_key::revoke_api_key))
         // webhook subscriptions
         .route("/api/agent/webhooks", post(webhook::create_webhook).get(webhook::list_webhooks))
         .route("/api/agent/webhooks/{id}", delete(webhook::delete_webhook))
+}
+fn admin_routes() -> axum::Router<Arc<WebState>> {
+    axum::Router::new()
         // admin API
         .route(
             "/api/admin/domains",
@@ -992,6 +1086,9 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         // system config (runtime-editable)
         .route("/api/admin/system-config", get(system_config::list_config))
         .route("/api/admin/system-config/{key}", put(system_config::update_config).delete(system_config::reset_config))
+}
+fn protocol_routes() -> axum::Router<Arc<WebState>> {
+    axum::Router::new()
         // JMAP
         .route("/.well-known/jmap", get(jmap::jmap_session))
         .route("/jmap", post(jmap::jmap_api))
@@ -1027,6 +1124,9 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
             "/mail/config-v1.1.xml",
             get(autodiscover::autoconfig_mozilla),
         )
+}
+fn dav_routes() -> axum::Router<Arc<WebState>> {
+    axum::Router::new()
         // CalDAV / CardDAV (well-known redirects + DAV endpoints)
         .route("/.well-known/caldav", any(dav::well_known_caldav))
         .route("/.well-known/carddav", any(dav::well_known_carddav))
@@ -1037,72 +1137,8 @@ pub fn router(state: Arc<WebState>, static_dir: Option<&str>) -> axum::Router {
         .route("/dav/contacts/{user}/", any(dav::dav_contact_home))
         .route("/dav/contacts/{user}/{book}/", any(dav::dav_contact_collection))
         .route("/dav/contacts/{user}/{book}/{uid}", any(dav::dav_contact))
-        .layer(axum::extract::DefaultBodyLimit::max(MAX_MULTIPART_BODY))
-        .layer(middleware::from_fn(request_id::request_id_middleware))
-        .layer(middleware::from_fn_with_state(
-            rate_limiter,
-            rate_limit::general_rate_limit,
-        ))
-        .layer(middleware::from_fn(security_headers))
-        .layer(
-            CorsLayer::new()
-                .allow_origin(tower_http::cors::Any)
-                .allow_methods([
-                    axum::http::Method::GET,
-                    axum::http::Method::POST,
-                    axum::http::Method::PUT,
-                    axum::http::Method::PATCH,
-                    axum::http::Method::DELETE,
-                    axum::http::Method::OPTIONS,
-                ])
-                .allow_headers([
-                    axum::http::header::AUTHORIZATION,
-                    axum::http::header::CONTENT_TYPE,
-                    axum::http::HeaderName::from_static("x-request-id"),
-                ])
-                .expose_headers([axum::http::HeaderName::from_static("x-request-id")])
-                .max_age(Duration::from_secs(3600)),
-        )
-        .with_state(state.clone());
-
-    // merge MCP router after with_state so it bypasses the general rate limiter
-    app = app.merge(mcp_router.with_state(state.clone()));
-
-    // BIMI logo lookup — bypasses rate limiter (cached DNS, read-only)
-    // Image proxy — fetches external email images through our server (requires auth)
-    let bimi_router = axum::Router::new()
-        .route("/api/bimi/{domain}", get(mail::get_bimi_logo))
-        .route("/api/proxy/image", get(mail::proxy_image))
-        .route("/api/proxy/link", get(mail::proxy_link))
-        .with_state(state);
-    app = app.merge(bimi_router);
-
-    // serve frontend static files with SPA fallback
-    if let Some(dir) = static_dir {
-        use tower_http::services::{ServeDir, ServeFile};
-        let index = format!("{dir}/index.html");
-        app = app.fallback_service(ServeDir::new(dir).fallback(ServeFile::new(index)));
-    }
-
-    // HTTP-request-level tracing span. Wraps EVERY route (including the
-    // post-with_state merges above) so all per-handler log lines + any
-    // future #[instrument] handlers nest under one `web.req` span per
-    // request. Span carries method + URI; status code + latency are added
-    // on response.
-    app = app.layer(
-        tower_http::trace::TraceLayer::new_for_http().make_span_with(
-            |req: &axum::http::Request<_>| {
-                tracing::info_span!(
-                    "web.req",
-                    method = %req.method(),
-                    uri = %req.uri(),
-                )
-            },
-        ),
-    );
-
-    app
 }
+
 
 #[cfg(test)]
 mod tests {
