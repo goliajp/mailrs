@@ -209,7 +209,7 @@ async fn handle_connection(stream: TcpStream, maildir_root: Arc<String>, no_deli
                                                 "{}/{domain}/{local}",
                                                 maildir_root.as_str()
                                             );
-                                            match Maildir::create(&path) {
+                                            match Maildir::create_cached(&path) {
                                                 Ok(md) => {
                                                     if md.deliver(&body).is_err() {
                                                         ok = false;
