@@ -45,7 +45,7 @@ mod webhook;
 use std::sync::Arc;
 
 use hickory_resolver::TokioResolver;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 
 use crate::config::{ServerConfig, TlsMode};
 use crate::event_bus::{EventBus, SmtpEvent};
@@ -884,7 +884,7 @@ async fn spawn_smtp_listeners(
 /// Spawn IMAP plain (port 143/1143) and IMAPS implicit-TLS
 /// (port 993). Both are no-ops without a mailbox_store; IMAPS
 /// additionally requires `tls_state`. Each connection runs
-/// `handle_imap_connection` with the same shared state.
+/// `imap_session::handle_connection` with the same shared state.
 #[allow(clippy::too_many_arguments)]
 async fn spawn_imap_listeners(
     mailbox_store: &Option<Arc<PgMailboxStore>>,
@@ -919,7 +919,7 @@ async fn spawn_imap_listeners(
                 let eb = imap_event_bus.clone();
                 let ldap = imap_ldap.clone();
                 async move {
-                    handle_imap_connection(stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr).await;
+                    imap_session::handle_connection(stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr).await;
                 }
             },
         )
@@ -953,7 +953,7 @@ async fn spawn_imap_listeners(
                 async move {
                     match tls.acceptor().accept(stream).await {
                         Ok(tls_stream) => {
-                            handle_imap_connection(
+                            imap_session::handle_connection(
                                 tls_stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr,
                             )
                             .await;
@@ -1001,7 +1001,7 @@ async fn spawn_pop3_listener(
             let ds = pop3_domain_store.clone();
             let ldap = pop3_ldap.clone();
             async move {
-                handle_pop3_connection(stream, addr, mb, u, ag, ds, ldap, &mr).await;
+                pop3_session::handle_connection(stream, addr, mb, u, ag, ds, ldap, &mr).await;
             }
         },
     )
@@ -1032,7 +1032,7 @@ async fn spawn_managesieve_listener(
             let ds = sieve_domain_store.clone();
             let ldap = sieve_ldap.clone();
             async move {
-                handle_managesieve_connection(stream, addr, u, ag, ds, ldap).await;
+                managesieve_session::handle_connection(stream, addr, u, ag, ds, ldap).await;
             }
         },
     )
@@ -1295,244 +1295,4 @@ fn spawn_tlsrpt_flush_task(
             }
         }
     });
-}
-
-#[allow(clippy::too_many_arguments)]
-#[tracing::instrument(
-    name = "pop3.conn",
-    skip(stream, mailbox_store, users, auth_guard, domain_store, ldap_config, maildir_root),
-    fields(peer = %addr),
-)]
-async fn handle_pop3_connection(
-    stream: TcpStream,
-    addr: std::net::SocketAddr,
-    mailbox_store: Arc<PgMailboxStore>,
-    users: Arc<crate::users::UserStore>,
-    auth_guard: Arc<AuthGuard>,
-    domain_store: Option<Arc<domain_store::DomainStore>>,
-    ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
-    maildir_root: &str,
-) {
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-
-    let (reader, mut writer) = stream.into_split();
-    let mut reader = BufReader::new(reader);
-
-    let mut session = pop3_session::Pop3Session::new(mailbox_store, users)
-        .with_maildir_root(maildir_root)
-        .with_auth_guard(auth_guard, addr.ip());
-    if let Some(ds) = domain_store {
-        session = session.with_domain_store(ds);
-    }
-    if let Some(ldap) = ldap_config {
-        session = session.with_ldap_config(ldap);
-    }
-
-    // send greeting
-    let greeting = session.greeting();
-    if writer.write_all(greeting.as_bytes()).await.is_err() {
-        return;
-    }
-
-    let mut line = String::new();
-    loop {
-        line.clear();
-        match reader.read_line(&mut line).await {
-            Ok(0) | Err(_) => break, // eof or error
-            Ok(_) => {}
-        }
-
-        let responses = session.handle_line(&line).await;
-        let should_close = session.should_close(&responses);
-
-        for resp in &responses {
-            if writer.write_all(resp.as_bytes()).await.is_err() {
-                return;
-            }
-        }
-        if writer.flush().await.is_err() {
-            return;
-        }
-
-        if should_close {
-            break;
-        }
-    }
-}
-
-#[tracing::instrument(
-    name = "managesieve.conn",
-    skip(stream, users, auth_guard, domain_store, ldap_config),
-    fields(peer = %addr),
-)]
-async fn handle_managesieve_connection(
-    stream: TcpStream,
-    addr: std::net::SocketAddr,
-    users: Arc<crate::users::UserStore>,
-    auth_guard: Arc<AuthGuard>,
-    domain_store: Option<Arc<domain_store::DomainStore>>,
-    ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
-) {
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-
-    let (reader, mut writer) = stream.into_split();
-    let mut reader = BufReader::new(reader);
-
-    let mut session = managesieve_session::ManageSieveSession::new(users)
-        .with_auth_guard(auth_guard, addr.ip());
-    if let Some(ds) = domain_store {
-        session = session.with_domain_store(ds);
-    }
-    if let Some(ldap) = ldap_config {
-        session = session.with_ldap_config(ldap);
-    }
-
-    // send greeting
-    let greeting = session.greeting();
-    if writer.write_all(greeting.as_bytes()).await.is_err() {
-        return;
-    }
-
-    let mut line = String::new();
-    loop {
-        line.clear();
-        match reader.read_line(&mut line).await {
-            Ok(0) | Err(_) => break,
-            Ok(_) => {}
-        }
-
-        let responses = session.handle_line(&line).await;
-        let should_close = session.should_close(&responses);
-
-        for resp in &responses {
-            if writer.write_all(resp.as_bytes()).await.is_err() {
-                return;
-            }
-        }
-        if writer.flush().await.is_err() {
-            return;
-        }
-
-        if should_close {
-            break;
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-#[tracing::instrument(
-    name = "imap.conn",
-    skip(stream, mailbox_store, users, auth_guard, domain_store, ldap_config, event_bus, hostname, maildir_root),
-    fields(peer = %addr),
-)]
-async fn handle_imap_connection<S>(
-    stream: S,
-    addr: std::net::SocketAddr,
-    mailbox_store: Arc<PgMailboxStore>,
-    users: Arc<crate::users::UserStore>,
-    auth_guard: Arc<AuthGuard>,
-    domain_store: Option<Arc<domain_store::DomainStore>>,
-    ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
-    event_bus: EventBus,
-    hostname: &str,
-    maildir_root: &str,
-) where
-    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
-{
-    use futures_util::{SinkExt, StreamExt};
-    use tokio_util::codec::Framed;
-
-    let mut framed = Framed::new(stream, mailrs_imap_codec::ImapCodec::new());
-    let greeting = imap_session::imap_greeting(hostname);
-    if framed.send(greeting).await.is_err() {
-        return;
-    }
-
-    let mut session = imap_session::ImapSession::new(mailbox_store, users)
-        .with_maildir_root(maildir_root)
-        .with_auth_guard(auth_guard, addr.ip());
-    if let Some(ds) = domain_store {
-        session = session.with_domain_store(ds);
-    }
-    if let Some(ldap) = ldap_config {
-        session = session.with_ldap_config(ldap);
-    }
-
-    while let Some(result) = framed.next().await {
-        match result {
-            Ok(mailrs_imap_codec::ImapInput::Line(line)) => {
-                let result = session.handle_line(&line).await;
-                match result {
-                    imap_session::HandleResult::Responses(responses) => {
-                        let is_logout = responses.iter().any(|r| r.windows(3).any(|w| w == b"BYE"));
-                        for resp in responses {
-                            if framed.send(resp).await.is_err() {
-                                return;
-                            }
-                        }
-                        if is_logout {
-                            break;
-                        }
-                    }
-                    imap_session::HandleResult::NeedLiteral { continuation, size } => {
-                        if framed.send(continuation).await.is_err() {
-                            return;
-                        }
-                        framed.codec_mut().expect_literal(size);
-                    }
-                    imap_session::HandleResult::EnterIdle { continuation, tag } => {
-                        if framed.send(continuation).await.is_err() {
-                            return;
-                        }
-
-                        let idle_user = session.idle_user().map(|s| s.to_string());
-                        let mut rx = event_bus.subscribe();
-
-                        loop {
-                            tokio::select! {
-                                event = rx.recv() => {
-                                    match event {
-                                        Ok(event_bus::SmtpEvent::NewMessage { ref user, .. })
-                                            if idle_user.as_deref() == Some(user.as_str()) => {
-                                                let updates = session.idle_status_update().await;
-                                                for u in updates {
-                                                    if framed.send(u).await.is_err() {
-                                                        return;
-                                                    }
-                                                }
-                                            }
-                                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-                                        _ => {}
-                                    }
-                                }
-                                frame = framed.next() => {
-                                    if let Some(Ok(mailrs_imap_codec::ImapInput::Line(done_line))) = frame
-                                        && done_line.trim().eq_ignore_ascii_case("DONE") {
-                                            let resp = mailrs_imap_proto::format_ok(&tag, "IDLE terminated").into_bytes();
-                                            if framed.send(resp).await.is_err() {
-                                                return;
-                                            }
-                                        }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(mailrs_imap_codec::ImapInput::LiteralData(data)) => {
-                let responses = session.handle_literal_data(&data).await;
-                let is_logout = responses.iter().any(|r| r.windows(3).any(|w| w == b"BYE"));
-                for resp in responses {
-                    if framed.send(resp).await.is_err() {
-                        return;
-                    }
-                }
-                if is_logout {
-                    break;
-                }
-            }
-            Err(_) => break,
-        }
-    }
 }

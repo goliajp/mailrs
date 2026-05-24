@@ -310,3 +310,133 @@ impl ImapSession {
 pub fn imap_greeting(hostname: &str) -> Vec<u8> {
     format!("* OK [{hostname}] IMAP4rev1 server ready\r\n").into_bytes()
 }
+
+/// Drive a single IMAP connection from accept to close. Generic
+/// over the underlying stream (`AsyncRead + AsyncWrite`) so the
+/// same body serves both plain (`TcpStream`) and TLS-wrapped
+/// (`tokio_rustls::server::TlsStream<TcpStream>`) connections.
+///
+/// Wires the `mailrs-imap-codec` framing layer to the session
+/// state machine: each `ImapInput::Line` dispatches into
+/// `handle_line`; on `HandleResult::NeedLiteral` it tells the
+/// codec to expect a literal of the given size; on
+/// `HandleResult::EnterIdle` it nests a `tokio::select!` loop
+/// that forwards `SmtpEvent::NewMessage` updates as `*EXISTS`
+/// untagged responses until the client sends `DONE`.
+#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(
+    name = "imap.conn",
+    skip(stream, mailbox_store, users, auth_guard, domain_store, ldap_config, event_bus, hostname, maildir_root),
+    fields(peer = %addr),
+)]
+pub async fn handle_connection<S>(
+    stream: S,
+    addr: std::net::SocketAddr,
+    mailbox_store: Arc<mailrs_mailbox::PgMailboxStore>,
+    users: Arc<crate::users::UserStore>,
+    auth_guard: Arc<AuthGuard>,
+    domain_store: Option<Arc<DomainStore>>,
+    ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
+    event_bus: crate::event_bus::EventBus,
+    hostname: &str,
+    maildir_root: &str,
+) where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_util::codec::Framed;
+
+    let mut framed = Framed::new(stream, mailrs_imap_codec::ImapCodec::new());
+    let greeting = imap_greeting(hostname);
+    if framed.send(greeting).await.is_err() {
+        return;
+    }
+
+    let mut session = ImapSession::new(mailbox_store, users)
+        .with_maildir_root(maildir_root)
+        .with_auth_guard(auth_guard, addr.ip());
+    if let Some(ds) = domain_store {
+        session = session.with_domain_store(ds);
+    }
+    if let Some(ldap) = ldap_config {
+        session = session.with_ldap_config(ldap);
+    }
+
+    while let Some(result) = framed.next().await {
+        match result {
+            Ok(mailrs_imap_codec::ImapInput::Line(line)) => {
+                let result = session.handle_line(&line).await;
+                match result {
+                    HandleResult::Responses(responses) => {
+                        let is_logout = responses.iter().any(|r| r.windows(3).any(|w| w == b"BYE"));
+                        for resp in responses {
+                            if framed.send(resp).await.is_err() {
+                                return;
+                            }
+                        }
+                        if is_logout {
+                            break;
+                        }
+                    }
+                    HandleResult::NeedLiteral { continuation, size } => {
+                        if framed.send(continuation).await.is_err() {
+                            return;
+                        }
+                        framed.codec_mut().expect_literal(size);
+                    }
+                    HandleResult::EnterIdle { continuation, tag } => {
+                        if framed.send(continuation).await.is_err() {
+                            return;
+                        }
+
+                        let idle_user = session.idle_user().map(|s| s.to_string());
+                        let mut rx = event_bus.subscribe();
+
+                        loop {
+                            tokio::select! {
+                                event = rx.recv() => {
+                                    match event {
+                                        Ok(crate::event_bus::SmtpEvent::NewMessage { ref user, .. })
+                                            if idle_user.as_deref() == Some(user.as_str()) => {
+                                                let updates = session.idle_status_update().await;
+                                                for u in updates {
+                                                    if framed.send(u).await.is_err() {
+                                                        return;
+                                                    }
+                                                }
+                                            }
+                                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                                        _ => {}
+                                    }
+                                }
+                                frame = framed.next() => {
+                                    if let Some(Ok(mailrs_imap_codec::ImapInput::Line(done_line))) = frame
+                                        && done_line.trim().eq_ignore_ascii_case("DONE") {
+                                            let resp = mailrs_imap_proto::format_ok(&tag, "IDLE terminated").into_bytes();
+                                            if framed.send(resp).await.is_err() {
+                                                return;
+                                            }
+                                        }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(mailrs_imap_codec::ImapInput::LiteralData(data)) => {
+                let responses = session.handle_literal_data(&data).await;
+                let is_logout = responses.iter().any(|r| r.windows(3).any(|w| w == b"BYE"));
+                for resp in responses {
+                    if framed.send(resp).await.is_err() {
+                        return;
+                    }
+                }
+                if is_logout {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+}
