@@ -140,7 +140,6 @@ pub async fn upsert_from_parsed_invite(
 /// past, but if the RRULE produces an occurrence inside the query window
 /// we still emit a synthetic ConflictRow with the occurrence's dtstart /
 /// dtend so the UI shows the right conflict time. Limited to 50 results.
-
 pub async fn delete_by_uid(
     pool: &PgPool,
     calendar_id: i64,

@@ -90,7 +90,6 @@ pub(super) fn build_counter_ics(
 /// `invite_payload` JSON. Keeps UID and SEQUENCE byte-identical to the
 /// original (RFC 5546 §3.4 says REPLY MUST preserve both); flips PARTSTAT
 /// on the user's ATTENDEE row and drops the rest (REPLY carries only the
-
 pub(super) fn build_reply_ics(
     invite_payload: &serde_json::Value,
     user_email: &str,
@@ -181,7 +180,6 @@ pub(super) fn build_reply_ics(
 /// `caldatetime_to_ics_value`: convert the JSON {kind, iso, ...} representation
 /// produced by `mailrs::ical` derive(Serialize) back into the RFC 5545
 /// surface form (`19980714T170000Z` for UTC, `19980714T170000` for floating /
-
 fn extract_caldatetime_for_ics(v: &serde_json::Value) -> Option<String> {
     // chrono serde-Serialize for DateTime<Utc> emits an ISO-8601 string;
     // for NaiveDateTime / NaiveDate likewise. With the `Serialize` derive

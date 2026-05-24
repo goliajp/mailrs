@@ -105,7 +105,6 @@ pub async fn find_conflicts(
 /// occurrences that fall inside [range_start, range_end] in UTC. Failures
 /// (parse errors, unsupported rules) silently return an empty vec — the
 /// caller falls back to the static-row case which is still a valid result.
-
 fn expand_rrule_utc(
     rrule_str: &str,
     dtstart: DateTime<Utc>,
@@ -160,7 +159,6 @@ fn expand_rrule_utc(
 }
 
 /// Lookup a single event by (calendar_id, uid). Returns None when absent.
-
 pub async fn find_by_uid(
     pool: &PgPool,
     calendar_id: i64,

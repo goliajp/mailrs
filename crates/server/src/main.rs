@@ -10,7 +10,6 @@ mod dmarc_report;
 mod domain_store;
 pub(crate) mod permission;
 mod event_bus;
-mod fbl;
 mod health;
 mod calendar;
 
