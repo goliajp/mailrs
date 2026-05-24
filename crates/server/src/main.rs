@@ -491,39 +491,15 @@ async fn main() {
 
     let users = Arc::new(user_store);
 
-    // Shadow-mode SPF + DKIM: enable when resolver is up. The new
-    // mailrs-* crates run in parallel to mail-auth, results compared
-    // via tracing logs (info=match, warn=divergence). NO impact on
-    // production decisions. Once divergence logs stay clean for a
-    // sufficient period we cut over.
-    let shadow_spf_resolver = resolver.as_ref().map(|r| {
-        Arc::new(mailrs_spf::HickoryResolver::new((**r).clone()))
-    });
-    let shadow_dkim_resolver = resolver.as_ref().map(|r| {
-        Arc::new(mailrs_dkim::HickoryDkimResolver::new((**r).clone()))
-    });
-    // ARC reuses the DKIM resolver (ArcResolver = DkimResolver). One
-    // hickory bind, two stones.
-    let shadow_arc_resolver = shadow_dkim_resolver.clone();
-    // DMARC's shadow path needs raw TXT lookup against the hickory
-    // TokioResolver (mailrs-dmarc itself is a pure evaluator with no
-    // DNS). Same resolver mail-auth already uses.
-    let shadow_dmarc_resolver = resolver.clone();
-
-    let inbound_pipeline = crate::inbound::pipeline::build_inbound_pipeline(
-        greylist_db.clone(),
-        greylist_config.clone(),
-        resolver.clone(),
-        mail_authenticator.clone(),
-        dmarc_report_store.clone(),
-        shadow_spf_resolver,
-        shadow_dkim_resolver,
-        shadow_arc_resolver,
-        shadow_dmarc_resolver,
-        cfg.clamav_addr.clone(),
-        llm_provider.clone(),
-        valkey_conn.clone(),
-        cfg.spam_score_threshold,
+    let inbound_pipeline = build_inbound_pipeline_with_shadows(
+        &greylist_db,
+        &greylist_config,
+        &resolver,
+        &mail_authenticator,
+        &dmarc_report_store,
+        &cfg,
+        &llm_provider,
+        &valkey_conn,
     );
 
     let ctx = Arc::new(ConnectionContext {
@@ -551,46 +527,7 @@ async fn main() {
         delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
     });
 
-    // port 25/2525: plain SMTP (STARTTLS optional)
-    let ctx_smtp = ctx.clone();
-    listeners::spawn_plain(
-        format!("0.0.0.0:{}", cfg.smtp_port),
-        "smtp",
-        shutdown_rx.clone(),
-        move |stream, addr| {
-            let ctx = ctx_smtp.clone();
-            async move { smtp_session::handle_plain_connection(stream, addr, ctx).await }
-        },
-    )
-    .await;
-
-    // port 587/2587: submission (STARTTLS optional)
-    let ctx_sub = ctx.clone();
-    listeners::spawn_plain(
-        format!("0.0.0.0:{}", cfg.submission_port),
-        "submission",
-        shutdown_rx.clone(),
-        move |stream, addr| {
-            let ctx = ctx_sub.clone();
-            async move { smtp_session::handle_plain_connection(stream, addr, ctx).await }
-        },
-    )
-    .await;
-
-    // port 465/2465: implicit TLS (only if TLS configured)
-    if tls_state.is_some() {
-        let ctx_tls = ctx.clone();
-        listeners::spawn_plain(
-            format!("0.0.0.0:{}", cfg.smtps_port),
-            "smtps",
-            shutdown_rx.clone(),
-            move |stream, addr| {
-                let ctx = ctx_tls.clone();
-                async move { smtp_session::handle_tls_connection(stream, addr, ctx).await }
-            },
-        )
-        .await;
-    }
+    spawn_smtp_listeners(&ctx, &cfg, tls_state.is_some(), shutdown_rx.clone()).await;
 
     // web API + WebSocket
     let web_addr = format!("0.0.0.0:{}", cfg.web_port);
@@ -641,127 +578,39 @@ async fn main() {
         .ok();
     });
 
-    // IMAP listener (plain, port 143/1143)
-    if let Some(mb_store) = mailbox_store.as_ref().cloned() {
-        let imap_users = users.clone();
-        let imap_hostname = cfg.hostname.clone();
-        let imap_maildir_root = cfg.maildir_root.clone();
-        let imap_auth_guard = auth_guard.clone();
-        let imap_domain_store = domain_store.clone();
-        let imap_event_bus = event_bus.clone();
-        let imap_ldap = ldap_config.clone();
-        listeners::spawn_plain(
-            format!("0.0.0.0:{}", cfg.imap_port),
-            "imap",
-            shutdown_rx.clone(),
-            move |stream, addr| {
-                let mb = mb_store.clone();
-                let u = imap_users.clone();
-                let h = imap_hostname.clone();
-                let mr = imap_maildir_root.clone();
-                let ag = imap_auth_guard.clone();
-                let ds = imap_domain_store.clone();
-                let eb = imap_event_bus.clone();
-                let ldap = imap_ldap.clone();
-                async move {
-                    handle_imap_connection(stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr).await;
-                }
-            },
-        )
-        .await;
-    }
+    spawn_imap_listeners(
+        &mailbox_store,
+        &users,
+        &auth_guard,
+        &domain_store,
+        &event_bus,
+        &ldap_config,
+        &tls_state,
+        &cfg,
+        shutdown_rx.clone(),
+    )
+    .await;
 
-    // IMAPS listener (implicit TLS, port 993)
-    if let (Some(mb_store), Some(imaps_tls)) =
-        (mailbox_store.as_ref().cloned(), tls_state.clone())
-    {
-        let imaps_users = users.clone();
-        let imaps_hostname = cfg.hostname.clone();
-        let imaps_maildir_root = cfg.maildir_root.clone();
-        let imaps_auth_guard = auth_guard.clone();
-        let imaps_domain_store = domain_store.clone();
-        let imaps_event_bus = event_bus.clone();
-        let imaps_ldap = ldap_config.clone();
-        listeners::spawn_plain(
-            format!("0.0.0.0:{}", cfg.imaps_port),
-            "imaps",
-            shutdown_rx.clone(),
-            move |stream, addr| {
-                let tls = imaps_tls.clone();
-                let mb = mb_store.clone();
-                let u = imaps_users.clone();
-                let h = imaps_hostname.clone();
-                let mr = imaps_maildir_root.clone();
-                let ag = imaps_auth_guard.clone();
-                let ds = imaps_domain_store.clone();
-                let eb = imaps_event_bus.clone();
-                let ldap = imaps_ldap.clone();
-                async move {
-                    match tls.acceptor().accept(stream).await {
-                        Ok(tls_stream) => {
-                            handle_imap_connection(
-                                tls_stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr,
-                            )
-                            .await;
-                        }
-                        Err(e) => {
-                            tracing::error!(?addr, error = %e, "imaps tls handshake error");
-                        }
-                    }
-                }
-            },
-        )
-        .await;
-    }
+    spawn_pop3_listener(
+        &mailbox_store,
+        &users,
+        &auth_guard,
+        &domain_store,
+        &ldap_config,
+        &cfg,
+        shutdown_rx.clone(),
+    )
+    .await;
 
-    // POP3 listener
-    if let Some(mb_store) = mailbox_store.as_ref().cloned() {
-        let pop3_users = users.clone();
-        let pop3_maildir_root = cfg.maildir_root.clone();
-        let pop3_auth_guard = auth_guard.clone();
-        let pop3_domain_store = domain_store.clone();
-        let pop3_ldap = ldap_config.clone();
-        listeners::spawn_plain(
-            format!("0.0.0.0:{}", cfg.pop3_port),
-            "pop3",
-            shutdown_rx.clone(),
-            move |stream, addr| {
-                let mb = mb_store.clone();
-                let u = pop3_users.clone();
-                let mr = pop3_maildir_root.clone();
-                let ag = pop3_auth_guard.clone();
-                let ds = pop3_domain_store.clone();
-                let ldap = pop3_ldap.clone();
-                async move {
-                    handle_pop3_connection(stream, addr, mb, u, ag, ds, ldap, &mr).await;
-                }
-            },
-        )
-        .await;
-    }
-
-    // ManageSieve listener (RFC 5804)
-    {
-        let sieve_users = users.clone();
-        let sieve_auth_guard = auth_guard.clone();
-        let sieve_domain_store = domain_store.clone();
-        let sieve_ldap = ldap_config.clone();
-        listeners::spawn_plain(
-            format!("0.0.0.0:{}", cfg.managesieve_port),
-            "managesieve",
-            shutdown_rx.clone(),
-            move |stream, addr| {
-                let u = sieve_users.clone();
-                let ag = sieve_auth_guard.clone();
-                let ds = sieve_domain_store.clone();
-                let ldap = sieve_ldap.clone();
-                async move {
-                    handle_managesieve_connection(stream, addr, u, ag, ds, ldap).await;
-                }
-            },
-        )
-        .await;
-    }
+    spawn_managesieve_listener(
+        &users,
+        &auth_guard,
+        &domain_store,
+        &ldap_config,
+        &cfg,
+        shutdown_rx.clone(),
+    )
+    .await;
 
     spawn_outbound_delivery(
         outbound_queue.as_ref(),
@@ -829,6 +678,262 @@ async fn main() {
         .expect("failed to listen for ctrl+c");
     tracing::info!("shutting down");
     let _ = shutdown_tx.send(true);
+}
+
+/// Spawn the three SMTP-family listeners that all dispatch into
+/// the shared `ConnectionContext`:
+///   - port `smtp_port` (25/2525) — plain SMTP, STARTTLS optional
+///   - port `submission_port` (587/2587) — message submission
+///   - port `smtps_port` (465/2465) — implicit-TLS submission
+///     (skipped if no TLS configured)
+async fn spawn_smtp_listeners(
+    ctx: &Arc<ConnectionContext>,
+    cfg: &config::ServerConfig,
+    tls_configured: bool,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
+    let ctx_smtp = ctx.clone();
+    listeners::spawn_plain(
+        format!("0.0.0.0:{}", cfg.smtp_port),
+        "smtp",
+        shutdown_rx.clone(),
+        move |stream, addr| {
+            let ctx = ctx_smtp.clone();
+            async move { smtp_session::handle_plain_connection(stream, addr, ctx).await }
+        },
+    )
+    .await;
+
+    let ctx_sub = ctx.clone();
+    listeners::spawn_plain(
+        format!("0.0.0.0:{}", cfg.submission_port),
+        "submission",
+        shutdown_rx.clone(),
+        move |stream, addr| {
+            let ctx = ctx_sub.clone();
+            async move { smtp_session::handle_plain_connection(stream, addr, ctx).await }
+        },
+    )
+    .await;
+
+    if tls_configured {
+        let ctx_tls = ctx.clone();
+        listeners::spawn_plain(
+            format!("0.0.0.0:{}", cfg.smtps_port),
+            "smtps",
+            shutdown_rx,
+            move |stream, addr| {
+                let ctx = ctx_tls.clone();
+                async move { smtp_session::handle_tls_connection(stream, addr, ctx).await }
+            },
+        )
+        .await;
+    }
+}
+
+/// Spawn IMAP plain (port 143/1143) and IMAPS implicit-TLS
+/// (port 993). Both are no-ops without a mailbox_store; IMAPS
+/// additionally requires `tls_state`. Each connection runs
+/// `handle_imap_connection` with the same shared state.
+#[allow(clippy::too_many_arguments)]
+async fn spawn_imap_listeners(
+    mailbox_store: &Option<Arc<PgMailboxStore>>,
+    users: &Arc<crate::users::UserStore>,
+    auth_guard: &Arc<AuthGuard>,
+    domain_store: &Option<Arc<domain_store::DomainStore>>,
+    event_bus: &EventBus,
+    ldap_config: &Option<Arc<crate::ldap_auth::LdapConfig>>,
+    tls_state: &Option<tls::TlsState>,
+    cfg: &config::ServerConfig,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
+    if let Some(mb_store) = mailbox_store.as_ref().cloned() {
+        let imap_users = users.clone();
+        let imap_hostname = cfg.hostname.clone();
+        let imap_maildir_root = cfg.maildir_root.clone();
+        let imap_auth_guard = auth_guard.clone();
+        let imap_domain_store = domain_store.clone();
+        let imap_event_bus = event_bus.clone();
+        let imap_ldap = ldap_config.clone();
+        listeners::spawn_plain(
+            format!("0.0.0.0:{}", cfg.imap_port),
+            "imap",
+            shutdown_rx.clone(),
+            move |stream, addr| {
+                let mb = mb_store.clone();
+                let u = imap_users.clone();
+                let h = imap_hostname.clone();
+                let mr = imap_maildir_root.clone();
+                let ag = imap_auth_guard.clone();
+                let ds = imap_domain_store.clone();
+                let eb = imap_event_bus.clone();
+                let ldap = imap_ldap.clone();
+                async move {
+                    handle_imap_connection(stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr).await;
+                }
+            },
+        )
+        .await;
+    }
+
+    if let (Some(mb_store), Some(imaps_tls)) =
+        (mailbox_store.as_ref().cloned(), tls_state.clone())
+    {
+        let imaps_users = users.clone();
+        let imaps_hostname = cfg.hostname.clone();
+        let imaps_maildir_root = cfg.maildir_root.clone();
+        let imaps_auth_guard = auth_guard.clone();
+        let imaps_domain_store = domain_store.clone();
+        let imaps_event_bus = event_bus.clone();
+        let imaps_ldap = ldap_config.clone();
+        listeners::spawn_plain(
+            format!("0.0.0.0:{}", cfg.imaps_port),
+            "imaps",
+            shutdown_rx,
+            move |stream, addr| {
+                let tls = imaps_tls.clone();
+                let mb = mb_store.clone();
+                let u = imaps_users.clone();
+                let h = imaps_hostname.clone();
+                let mr = imaps_maildir_root.clone();
+                let ag = imaps_auth_guard.clone();
+                let ds = imaps_domain_store.clone();
+                let eb = imaps_event_bus.clone();
+                let ldap = imaps_ldap.clone();
+                async move {
+                    match tls.acceptor().accept(stream).await {
+                        Ok(tls_stream) => {
+                            handle_imap_connection(
+                                tls_stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr,
+                            )
+                            .await;
+                        }
+                        Err(e) => {
+                            tracing::error!(?addr, error = %e, "imaps tls handshake error");
+                        }
+                    }
+                }
+            },
+        )
+        .await;
+    }
+}
+
+/// Spawn the POP3 listener (port 110/1110 etc per config). No-op
+/// when mailbox_store is None (PG unavailable → POP3 has nothing
+/// to serve).
+async fn spawn_pop3_listener(
+    mailbox_store: &Option<Arc<PgMailboxStore>>,
+    users: &Arc<crate::users::UserStore>,
+    auth_guard: &Arc<AuthGuard>,
+    domain_store: &Option<Arc<domain_store::DomainStore>>,
+    ldap_config: &Option<Arc<crate::ldap_auth::LdapConfig>>,
+    cfg: &config::ServerConfig,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
+    let Some(mb_store) = mailbox_store.as_ref().cloned() else {
+        return;
+    };
+    let pop3_users = users.clone();
+    let pop3_maildir_root = cfg.maildir_root.clone();
+    let pop3_auth_guard = auth_guard.clone();
+    let pop3_domain_store = domain_store.clone();
+    let pop3_ldap = ldap_config.clone();
+    listeners::spawn_plain(
+        format!("0.0.0.0:{}", cfg.pop3_port),
+        "pop3",
+        shutdown_rx,
+        move |stream, addr| {
+            let mb = mb_store.clone();
+            let u = pop3_users.clone();
+            let mr = pop3_maildir_root.clone();
+            let ag = pop3_auth_guard.clone();
+            let ds = pop3_domain_store.clone();
+            let ldap = pop3_ldap.clone();
+            async move {
+                handle_pop3_connection(stream, addr, mb, u, ag, ds, ldap, &mr).await;
+            }
+        },
+    )
+    .await;
+}
+
+/// Spawn the ManageSieve listener (RFC 5804) — port 4190 etc per
+/// config. Always spawned; doesn't depend on PG.
+async fn spawn_managesieve_listener(
+    users: &Arc<crate::users::UserStore>,
+    auth_guard: &Arc<AuthGuard>,
+    domain_store: &Option<Arc<domain_store::DomainStore>>,
+    ldap_config: &Option<Arc<crate::ldap_auth::LdapConfig>>,
+    cfg: &config::ServerConfig,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
+    let sieve_users = users.clone();
+    let sieve_auth_guard = auth_guard.clone();
+    let sieve_domain_store = domain_store.clone();
+    let sieve_ldap = ldap_config.clone();
+    listeners::spawn_plain(
+        format!("0.0.0.0:{}", cfg.managesieve_port),
+        "managesieve",
+        shutdown_rx,
+        move |stream, addr| {
+            let u = sieve_users.clone();
+            let ag = sieve_auth_guard.clone();
+            let ds = sieve_domain_store.clone();
+            let ldap = sieve_ldap.clone();
+            async move {
+                handle_managesieve_connection(stream, addr, u, ag, ds, ldap).await;
+            }
+        },
+    )
+    .await;
+}
+
+/// Build the inbound pipeline + the four shadow-mode resolvers
+/// (SPF / DKIM / ARC / DMARC) used to validate our in-house
+/// `mailrs-*` crates against `mail-auth` on real prod traffic.
+/// Each shadow runs in parallel; comparison happens inside
+/// `MailAuthStage`. NO impact on production decisions.
+#[allow(clippy::too_many_arguments)]
+fn build_inbound_pipeline_with_shadows(
+    greylist_db: &Option<Arc<mailrs_shield::greylist::GreylistDb>>,
+    greylist_config: &mailrs_shield::greylist::GreylistConfig,
+    resolver: &Option<Arc<hickory_resolver::TokioResolver>>,
+    mail_authenticator: &Option<Arc<mail_auth::MessageAuthenticator>>,
+    dmarc_report_store: &Option<Arc<dmarc_report::DmarcReportStore>>,
+    cfg: &config::ServerConfig,
+    llm_provider: &Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
+    valkey_conn: &Option<redis::aio::ConnectionManager>,
+) -> mailrs_inbound::Pipeline {
+    let shadow_spf_resolver = resolver
+        .as_ref()
+        .map(|r| Arc::new(mailrs_spf::HickoryResolver::new((**r).clone())));
+    let shadow_dkim_resolver = resolver
+        .as_ref()
+        .map(|r| Arc::new(mailrs_dkim::HickoryDkimResolver::new((**r).clone())));
+    // ARC reuses the DKIM resolver (ArcResolver = DkimResolver).
+    // One hickory bind, two stones.
+    let shadow_arc_resolver = shadow_dkim_resolver.clone();
+    // DMARC's shadow path needs raw TXT lookup against the
+    // hickory TokioResolver (mailrs-dmarc itself is a pure
+    // evaluator with no DNS). Same resolver mail-auth uses.
+    let shadow_dmarc_resolver = resolver.clone();
+
+    crate::inbound::pipeline::build_inbound_pipeline(
+        greylist_db.clone(),
+        greylist_config.clone(),
+        resolver.clone(),
+        mail_authenticator.clone(),
+        dmarc_report_store.clone(),
+        shadow_spf_resolver,
+        shadow_dkim_resolver,
+        shadow_arc_resolver,
+        shadow_dmarc_resolver,
+        cfg.clamav_addr.clone(),
+        llm_provider.clone(),
+        valkey_conn.clone(),
+        cfg.spam_score_threshold,
+    )
 }
 
 /// Spawn the outbound `DeliveryWorker` and its 24h TLSRPT
