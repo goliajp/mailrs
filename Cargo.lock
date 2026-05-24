@@ -2850,19 +2850,19 @@ dependencies = [
 [[package]]
 name = "mailrs-delivery-executor"
 version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e8b551cf12fb8362e65e93cfdeea299d6f8fd02e7ace53b2e59bca394f6d224"
 dependencies = [
  "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tempfile",
  "tokio",
 ]
 
 [[package]]
 name = "mailrs-delivery-executor"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e8b551cf12fb8362e65e93cfdeea299d6f8fd02e7ace53b2e59bca394f6d224"
+version = "1.1.1"
 dependencies = [
  "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tempfile",
  "tokio",
 ]
 
@@ -3361,7 +3361,7 @@ dependencies = [
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0",
- "mailrs-delivery-executor 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-delivery-executor 1.1.0",
  "mailrs-dkim 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dmarc 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.2",
