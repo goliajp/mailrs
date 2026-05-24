@@ -1,0 +1,24 @@
+[package]
+name = "mailrs-delivery-executor"
+version = "1.0.0"
+edition = "2024"
+description = "Group-commit delivery executor on top of mailrs-maildir 1.2's deliver_batch. Accumulates per-path delivery requests from concurrent async tasks (SMTP / LMTP / IMAP APPEND sessions) and flushes each path's batch via a single fsync. Caller awaits a oneshot::Receiver for per-message confirmation. Default tuning: max_batch=64, max_wait=10ms — 15× throughput at saturation per the mailrs-maildir 1.2 microbench."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-delivery-executor"
+authors = ["GOLIA K.K."]
+keywords = ["maildir", "smtp", "delivery", "group-commit", "fsync"]
+categories = ["email", "filesystem", "asynchronous"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailrs-maildir = "1.2"
+tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+tempfile = "3"

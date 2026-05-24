@@ -52,6 +52,11 @@ pub struct ConnectionContext {
     pub srs_secret: Option<String>,
     pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
     pub inbound_pipeline: mailrs_inbound::Pipeline,
+    /// Group-commit delivery executor. Accumulates per-path
+    /// Maildir deliveries from concurrent SMTP sessions and flushes
+    /// them as a single `deliver_batch` call — see
+    /// [`crate::delivery_executor`] for tuning + rationale.
+    pub delivery_executor: mailrs_delivery_executor::DeliveryExecutor,
 }
 
 mod address;
