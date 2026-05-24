@@ -109,7 +109,7 @@ pub(super) async fn save_template(
         }),
         Err(e) => {
             // log full error server-side but avoid leaking schema details to clients
-            eprintln!("save_template db error: {e}");
+            tracing::error!(event = "template_save_failed", error = %e);
             Json(SaveTemplateResult {
                 success: false,
                 id: None,
@@ -140,7 +140,7 @@ pub(super) async fn list_templates(
     {
         Ok(rows) => rows,
         Err(e) => {
-            eprintln!("list_templates query failed for {user}: {e}");
+            tracing::error!(event = "template_list_failed", user = %user, error = %e);
             return Json(Vec::new());
         }
     };
@@ -190,7 +190,7 @@ pub(super) async fn delete_template(
             message: Some("template not found".into()),
         }),
         Err(e) => {
-            eprintln!("delete_template db error: {e}");
+            tracing::error!(event = "template_delete_failed", error = %e);
             Json(ApiResult {
                 success: false,
                 message: Some("failed to delete template".into()),

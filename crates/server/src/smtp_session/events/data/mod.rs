@@ -128,7 +128,13 @@ where
                             && quota > 0 {
                                 let usage = mb_store.user_storage_usage(rcpt).await;
                                 if usage + msg_size as u64 > quota as u64 {
-                                    eprintln!("smtp: quota exceeded for user={rcpt} (usage={usage} bytes, quota={quota} bytes)");
+                                    tracing::warn!(
+                                        event = "smtp_quota_exceeded",
+                                        user = %rcpt,
+                                        usage_bytes = usage,
+                                        quota_bytes = quota,
+                                        "delivery rejected: recipient over quota"
+                                    );
                                     ok = false;
                                     continue;
                                 }
@@ -367,7 +373,13 @@ where
                                 }
                             }
                             Err(e) => {
-                                eprintln!("smtp: maildir delivery failed for rcpt={rcpt} path={path}: {e}");
+                                tracing::error!(
+                                    event = "smtp_maildir_deliver_failed",
+                                    rcpt = %rcpt,
+                                    path = %path,
+                                    error = %e,
+                                    "maildir delivery returned error"
+                                );
                                 ok = false;
                             }
                     }
@@ -378,7 +390,12 @@ where
             if local_rcpts.iter().any(|r| r.starts_with("abuse@") || r.starts_with("postmaster@"))
                 && let Some(report) = mailrs_arf::parse(&full_message)
                 && let Some(reported_addr) = report.complainant() {
-                    eprintln!("FBL: received {} complaint for {reported_addr}", report.feedback_type);
+                    tracing::info!(
+                        event = "fbl_complaint_received",
+                        feedback_type = %report.feedback_type,
+                        rcpt = %reported_addr,
+                        "ARF feedback report parsed, adding to suppression list"
+                    );
                     if let Some(ref queue_pool) = ctx.outbound_queue {
                         let _ = mailrs_outbound_queue::queue::add_suppression(
                             queue_pool,

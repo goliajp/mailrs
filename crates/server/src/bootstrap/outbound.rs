@@ -33,8 +33,11 @@ pub(crate) fn spawn_outbound_delivery(
 ) {
     let Some(pool) = outbound_queue else { return };
     let Some(resolver) = resolver else {
-        eprintln!(
-            "warning: queue_db configured but no DNS resolver available, delivery worker disabled"
+        tracing::warn!(
+            event = "subsystem_disabled",
+            subsystem = "delivery_worker",
+            reason = "no DNS resolver",
+            "queue_db configured but no resolver — outbound delivery off"
         );
         return;
     };
@@ -91,12 +94,20 @@ pub(crate) fn build_delivery_worker(
                     domain: domain.clone(),
                     private_key_pem: pem,
                 });
-                eprintln!("DKIM signing enabled (selector={selector}, domain={domain})");
+                tracing::info!(
+                    event = "subsystem_started",
+                    subsystem = "dkim_signing",
+                    selector = %selector,
+                    domain = %domain
+                );
             }
             Err(e) => {
-                eprintln!(
-                    "warning: failed to read DKIM key {}: {e}",
-                    key_path.display()
+                tracing::warn!(
+                    event = "subsystem_disabled",
+                    subsystem = "dkim_signing",
+                    path = %key_path.display(),
+                    error = %e,
+                    "DKIM private key unreadable"
                 );
             }
         }

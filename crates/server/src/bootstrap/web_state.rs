@@ -99,7 +99,11 @@ pub(crate) fn build_web_state(i: WebStateInputs<'_>) -> WebState {
     if let Some(ref url) = i.cfg.chrome_cdp_url {
         let client = Arc::new(render_preview::RenderPreviewClient::new(url.clone(), 5));
         ws = ws.with_render_preview(client);
-        eprintln!("Email render preview enabled (Chrome CDP: {url})");
+        tracing::info!(
+            event = "subsystem_started",
+            subsystem = "render_preview",
+            chrome_cdp = %url
+        );
     }
     if let Some(meili) = i.meili_client {
         ws = ws.with_meili(meili.clone());

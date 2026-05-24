@@ -87,7 +87,11 @@ pub fn start(
             let ips: Vec<IpAddr> = match resolver.lookup_ip(&hostname).await {
                 Ok(lookup) => lookup.iter().collect(),
                 Err(e) => {
-                    eprintln!("RBL monitor: failed to resolve {hostname}: {e}");
+                    tracing::warn!(
+                        event = "rbl_resolve_failed",
+                        hostname = %hostname,
+                        error = %e
+                    );
                     continue;
                 }
             };
@@ -105,10 +109,12 @@ pub fn start(
 
                 if any_listed {
                     let listed: Vec<_> = report.results.iter().filter(|r| r.listed).collect();
-                    eprintln!(
-                        "RBL ALERT: {} is listed on: {}",
-                        ip,
-                        listed.iter().map(|r| r.name.as_str()).collect::<Vec<_>>().join(", ")
+                    let zones = listed.iter().map(|r| r.name.as_str()).collect::<Vec<_>>().join(", ");
+                    tracing::warn!(
+                        event = "rbl_alert",
+                        ip = %ip,
+                        zones = %zones,
+                        "outbound IP is RBL-listed"
                     );
                 }
 

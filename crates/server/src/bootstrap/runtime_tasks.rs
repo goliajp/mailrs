@@ -47,7 +47,7 @@ pub(crate) async fn spawn_web_server(
                 interval.tick().await;
                 let evicted = ds_cleanup.evict_expired();
                 if evicted > 0 {
-                    eprintln!("domain cache: evicted {evicted} expired entries");
+                    tracing::debug!(event = "domain_cache_evict", count = evicted);
                 }
             }
         });
@@ -96,7 +96,7 @@ pub(crate) fn spawn_webhook_subsystem(
         tokio::spawn(async move {
             webhook::global::run(&eb, store, rx).await;
         });
-        eprintln!("global webhook enabled");
+        tracing::info!(event = "subsystem_started", subsystem = "webhook_global");
     }
 
     if let Some(pool) = pg_pool {
@@ -112,7 +112,7 @@ pub(crate) fn spawn_webhook_subsystem(
         tokio::spawn(async move {
             worker.run(rx).await;
         });
-        eprintln!("mailrs webhook system started");
+        tracing::info!(event = "subsystem_started", subsystem = "webhook");
     }
 }
 
@@ -140,7 +140,7 @@ pub(crate) fn spawn_dmarc_aggregate_task(
         outbound_queue,
         shutdown_rx,
     );
-    eprintln!("DMARC report generation enabled");
+    tracing::info!(event = "subsystem_started", subsystem = "dmarc_report");
 }
 
 /// Spawn the RBL (DNS blocklist) self-monitor — periodically
@@ -154,5 +154,5 @@ pub(crate) fn spawn_rbl_monitor(
 ) {
     let Some(resolver) = resolver else { return };
     rbl_monitor::start(resolver.clone(), hostname.to_string(), valkey_conn.clone());
-    eprintln!("RBL blocklist monitor started");
+    tracing::info!(event = "subsystem_started", subsystem = "rbl_monitor");
 }

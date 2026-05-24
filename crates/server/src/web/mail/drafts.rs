@@ -96,7 +96,7 @@ pub(crate) async fn save_draft(
             message: None,
         }),
         Err(e) => {
-            eprintln!("save_draft db error: {e}");
+            tracing::error!(event = "draft_save_failed", error = %e);
             Json(SaveDraftResult {
                 success: false,
                 id: None,
@@ -171,7 +171,7 @@ pub(crate) async fn delete_draft(
             message: Some("draft not found".into()),
         }),
         Err(e) => {
-            eprintln!("delete_draft db error: {e}");
+            tracing::error!(event = "draft_delete_failed", error = %e);
             Json(ApiResult {
                 success: false,
                 message: Some("failed to delete draft".into()),

@@ -32,7 +32,11 @@ pub(crate) async fn render_preview(
         return Json(serde_json::json!({"error": "html too large (max 1MB)"})).into_response();
     }
 
-    eprintln!("render_preview handler: html_len={} presets={:?}", req.html.len(), req.presets);
+    tracing::debug!(
+        event = "render_preview_start",
+        html_len = req.html.len(),
+        presets = ?req.presets
+    );
     let results = client.render(&req.html, &req.presets).await;
 
     let mut previews = Vec::new();
@@ -41,12 +45,16 @@ pub(crate) async fn render_preview(
         match result {
             Ok(preview) => previews.push(preview),
             Err(e) => {
-                eprintln!("render_preview error: {e}");
+                tracing::warn!(event = "render_preview_partial_error", error = %e);
                 errors.push(e);
             }
         }
     }
-    eprintln!("render_preview handler: {} ok, {} errors", previews.len(), errors.len());
+    tracing::debug!(
+        event = "render_preview_done",
+        ok_count = previews.len(),
+        error_count = errors.len()
+    );
 
     Json(serde_json::json!({
         "previews": previews,

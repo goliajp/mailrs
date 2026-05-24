@@ -192,7 +192,7 @@ impl ImapSession {
                 _ => "?",
             };
             // hide passwords in LOGIN commands
-            let display = if line.to_uppercase().contains("LOGIN") {
+            let redacted = if line.to_uppercase().contains("LOGIN") {
                 let parts: Vec<&str> = line.splitn(4, ' ').collect();
                 if parts.len() >= 4 {
                     format!("{} {} {} ***", parts[0], parts[1], parts[2])
@@ -202,7 +202,7 @@ impl ImapSession {
             } else {
                 line.trim().to_string()
             };
-            eprintln!("IMAP [{username}] << {display}");
+            tracing::debug!(event = "imap_command_recv", user = %username, cmd = %redacted);
         }
         match parse_command(line) {
             Ok(cmd) => self.handle_command(&cmd).await,

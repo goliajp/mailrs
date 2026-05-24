@@ -217,7 +217,7 @@ pub fn spawn_indexer(
     tokio::spawn(async move {
         // configure index on startup
         if let Err(e) = client.configure_index().await {
-            eprintln!("Meilisearch index config failed: {e}");
+            tracing::error!(event = "meili_configure_failed", error = %e);
         }
 
         // track last indexed message id; on first run start from 0 and rely
@@ -240,7 +240,7 @@ pub fn spawn_indexer(
             {
                 Ok(r) => r,
                 Err(e) => {
-                    eprintln!("Meilisearch backfill query error: {e}");
+                    tracing::error!(event = "meili_backfill_query_failed", error = %e);
                     tokio::time::sleep(IDLE_INTERVAL).await;
                     continue;
                 }
@@ -277,11 +277,11 @@ pub fn spawn_indexer(
                 Ok(()) => {
                     last_id = max_id;
                     if count > 0 {
-                        eprintln!("Meilisearch indexed {count} messages (up to id={max_id})");
+                        tracing::info!(event = "meili_indexed_batch", count, max_id);
                     }
                 }
                 Err(e) => {
-                    eprintln!("Meilisearch index error: {e}");
+                    tracing::error!(event = "meili_index_failed", error = %e);
                 }
             }
 

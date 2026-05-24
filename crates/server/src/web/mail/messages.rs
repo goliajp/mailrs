@@ -269,7 +269,7 @@ pub(crate) async fn update_message_flags(
                 _ => mb_store.update_flags(mb.id, uid, update.flags).await,
             };
             if let Err(e) = &result {
-                eprintln!("update_flags error: {e}");
+                tracing::error!(event = "update_flags_failed", error = %e);
             }
             return Json(ApiResult {
                 success: result.is_ok(),
@@ -310,7 +310,7 @@ pub(crate) async fn delete_message(
                 .add_flags(mb.id, uid, mailrs_mailbox::FLAG_DELETED)
                 .await;
             if let Err(e) = &result {
-                eprintln!("delete_message error: {e}");
+                tracing::error!(event = "delete_message_failed", error = %e);
             }
             return Json(ApiResult {
                 success: result.is_ok(),

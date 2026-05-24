@@ -27,7 +27,7 @@ pub fn spawn_content_worker(
     tokio::spawn(async move {
         content_worker_loop(pool, maildir_root).await;
     });
-    eprintln!("mailrs content extraction worker started");
+    tracing::info!(event = "subsystem_started", subsystem = "content_worker");
 }
 
 async fn content_worker_loop(pool: PgPool, maildir_root: String) {
@@ -35,7 +35,7 @@ async fn content_worker_loop(pool: PgPool, maildir_root: String) {
     loop {
         interval.tick().await;
         if let Err(e) = process_batch(&pool, &maildir_root).await {
-            eprintln!("content worker error: {e}");
+            tracing::error!(event = "content_worker_batch_failed", error = %e);
         }
     }
 }
@@ -63,10 +63,18 @@ async fn process_batch(pool: &PgPool, maildir_root: &str) -> Result<(), String> 
         if let Err(e) =
             process_message(pool, maildir_root, message_id, &maildir_id, &user_address).await
         {
-            eprintln!("content worker: message {message_id}: {e}");
+            tracing::warn!(
+                event = "content_worker_process_failed",
+                message_id,
+                error = %e
+            );
             // insert a sentinel row so we don't retry forever
             if let Err(sentinel_err) = insert_empty_sentinel(pool, message_id).await {
-                eprintln!("content worker: sentinel insert failed for {message_id}: {sentinel_err}");
+                tracing::error!(
+                    event = "content_worker_sentinel_failed",
+                    message_id,
+                    error = %sentinel_err
+                );
             }
         }
     }
@@ -125,8 +133,11 @@ async fn process_message(
                 inserted += 1;
             }
             Err(e) => {
-                eprintln!(
-                    "content worker: message {message_id} att {index}: {e}"
+                tracing::warn!(
+                    event = "content_worker_extract_failed",
+                    message_id,
+                    attachment_index = index,
+                    error = %e
                 );
             }
         }
