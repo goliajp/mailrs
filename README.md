@@ -6,8 +6,8 @@ a modern conversational email interface.
 
 ## Architecture
 
-mailrs is organized as a Cargo workspace with **32 crates** — 1 server
-binary + **31 published libraries** ("stones") on [crates.io](https://crates.io/users/golia-jp).
+mailrs is organized as a Cargo workspace with **42 crates** — 1 server
+binary + **41 published libraries** ("stones") on [crates.io](https://crates.io/users/golia-jp).
 
 The stones cover the full email-protocol + auth stack and are individually
 reusable in any Rust project; the server binary is the "cement" that wires

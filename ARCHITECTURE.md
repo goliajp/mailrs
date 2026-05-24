@@ -89,7 +89,7 @@ backoff implementations (`outbound-queue::retry`, `auth-guard::
 lockout_duration`, `server::webhook::store::retry_delay_secs`) →
 single `mailrs-backoff` primitive with `Jitter` taxonomy.
 
-## Current stones (34 published as of 2026-05-23)
+## Current stones (41 published as of 2026-05-25)
 
 Each row: one-sentence identity → which RFC/concept defines the
 boundary → who calls it inside mailrs.
@@ -133,6 +133,7 @@ boundary → who calls it inside mailrs.
 | `mailrs-dns` | Thin hickory-resolver wrapper exposing only TXT / A / AAAA / MX / PTR | hickory + uniform shape | (future: spf/dkim/dnsbl migration target) |
 | `mailrs-mta-sts` | RFC 8461 STS record + policy parser, MX wildcard match, `enforce(&Policy, mx)` decision, Cache trait (no HTTP / DNS in-crate) | RFC 8461 | server (outbound-queue MTA-STS path) |
 | `mailrs-tls-rpt` | RFC 8460 SMTP TLS Reporting — `_smtp._tls.<domain>` TXT parser, full §4 JSON report data model (serde), `FailureType` enum (14 §4.3 values), `ReportBuilder` aggregating per-connection event facts. Since 1.1: `submit` module (gzip + §5.3 multipart/report email build). Since 1.2: `Store` trait + `InMemoryStore` for append/drain persistence. | RFC 8460 | server (outbound TLS observer + PG-backed store) |
+| `mailrs-arf` | RFC 5965 Abuse Reporting Format parser — extracts all 11 §3.2 fields from `multipart/report; report-type=feedback-report` messages. Flat header scan handles MIME envelope without a full parser. 1.16 µs / report; 27.6 ns early-exit. First Rust ARF parser on crates.io. | RFC 5965 | server (abuse@ / postmaster@ delivery hook) |
 
 ### Server building blocks (opinionated, but BYO-store)
 
@@ -191,7 +192,7 @@ the 10th, 20th stone is worth finding if it cleans up a boundary.
 
 ### Where the cycle stands (end of 2026-05-23)
 
-The aggressive stone-finding cycle from 7 → 31 published crates is
+The aggressive stone-finding cycle from 7 → 41 published crates is
 **complete for the obvious shapes**:
 
 - All email protocols (SMTP, IMAP, JMAP, CalDAV/CardDAV, ManageSieve
@@ -251,7 +252,7 @@ periodically — a piece of cement may have a stone hiding inside.**
 | `web/conversations.rs` | 1924 | Chat-like conversation view API |
 | `dmarc_report.rs` | ~200 | Bridge between mailrs-dmarc + PG report storage |
 
-Total cement ≈ 28k LOC. Total stones (published) ≈ 25 crates.
+Total cement ≈ 28k LOC. Total stones (published) = 41 crates.
 
 If you spot something here that satisfies the **all ✓** lens above,
 re-audit. If you find a *new* repetition of the same shape across
