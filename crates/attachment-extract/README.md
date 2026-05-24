@@ -28,13 +28,13 @@ text is < 50 chars (heuristic), it tries OCR as fallback.
 
 ## Quick start
 
-```rust
+```no_run
 use mailrs_attachment_extract::{extract_content, extraction_method, ExtractionMethod};
 
 let pdf_bytes: &[u8] = b"%PDF-1.0\n..."; // your PDF bytes
 
 // Single auto-dispatch entrypoint.
-let result = extract_content(pdf_bytes, "application/pdf", "eng")?;
+let result = extract_content(pdf_bytes, "application/pdf", "eng").unwrap();
 println!("text: {}", result.text);
 println!("confidence: {}", result.confidence);
 
@@ -42,7 +42,6 @@ println!("confidence: {}", result.confidence);
 if extraction_method("application/pdf") != ExtractionMethod::Unsupported {
     // …
 }
-# Ok::<(), String>(())
 ```
 
 ## What's in the box

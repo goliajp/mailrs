@@ -66,7 +66,7 @@ pub(crate) async fn set_sieve(
         });
     }
     // validate sieve script before saving
-    if let Err(e) = crate::sieve::compile_sieve(&req.script) {
+    if let Err(e) = mailrs_sieve::compile_sieve(&req.script) {
         return Json(ApiResult {
             success: false,
             message: Some(format!("invalid sieve script: {e}")),

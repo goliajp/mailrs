@@ -2,7 +2,7 @@ mod acme;
 mod ai_analyzer;
 mod api_key_store;
 mod config;
-mod content_extract;
+
 mod content_worker;
 mod conversation_cache;
 mod dmarc_report;
@@ -28,7 +28,7 @@ mod reputation;
 mod search_index;
 mod listeners;
 mod outbound_tls_rpt;
-mod sieve;
+
 mod smtp_session;
 pub(crate) mod system_config;
 mod tls;

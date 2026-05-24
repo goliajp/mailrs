@@ -12,7 +12,15 @@ use base64::Engine;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 
-use crate::content_extract::{MAX_INLINE_IMAGES, MAX_INLINE_IMAGE_SIZE};
+/// Maximum number of inline images per email (mailrs UI limit, not
+/// a Sieve/RFC concept). Moved here in 2026-05-24 when
+/// `content_extract` was extracted as the `mailrs-attachment-extract`
+/// stone — those constants weren't generic to attachment extraction,
+/// they're specific to mailrs's inline-image upload flow.
+const MAX_INLINE_IMAGES: usize = 20;
+
+/// Maximum single inline image size in bytes (10 MiB).
+const MAX_INLINE_IMAGE_SIZE: usize = 10 * 1024 * 1024;
 
 /// validate that an inline image ID is safe to use in filesystem paths.
 ///

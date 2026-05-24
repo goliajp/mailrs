@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::domain_store::DomainStore;
 use crate::inbound::auth_guard::{AuthCheck, AuthGuard};
-use crate::sieve::compile_sieve;
+use mailrs_sieve::compile_sieve;
 use crate::users::UserStore;
 
 /// ManageSieve session state (RFC 5804)

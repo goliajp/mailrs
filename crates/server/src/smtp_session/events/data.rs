@@ -14,7 +14,7 @@ use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 use crate::domain_store::ResolvedRecipient;
 use crate::event_bus::SmtpEvent;
 use crate::inbound::pipeline::DeliveryDecision;
-use crate::sieve::{compile_sieve, evaluate_sieve_with_envelope, SieveAction};
+use mailrs_sieve::{compile_sieve, evaluate_sieve_with_envelope, SieveAction};
 
 use super::super::address::is_local_domain;
 use super::super::headers::{extract_snippet, format_received_header};
