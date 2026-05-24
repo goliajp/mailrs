@@ -2,6 +2,9 @@
 name = "mailrs-server"
 version.workspace = true
 edition = "2024"
+license = "Apache-2.0 OR MIT"
+description = "mailrs server binary — wires SMTP / IMAP / POP3 / JMAP / ManageSieve / CalDAV / CardDAV / OIDC / web stack + 41 mailrs-* stones into a deployable mail server. Not published to crates.io (cement)."
+publish = false
 
 [lints]
 workspace = true

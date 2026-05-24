@@ -85,20 +85,34 @@ API drift 审计完成。50 个 router endpoint + 6 个 MCP tools 全部
 + stub 生成器 `scripts/openapi-stub-missing.py` 上线。详情
 [REFACTOR-V2-v0.5-api-drift.md](./REFACTOR-V2-v0.5-api-drift.md)。
 
-## L3a v0.6 Hot 计划 (当前活跃 checkpoint — 线性、无分叉)
+## L3a v0.6 Hot 计划 ✅ closed (4/4 categories ok)
 
-安全 audit：cargo audit + cargo deny + OWASP top-10 走查。
+`cargo audit` clean + `cargo deny check` 4 类全 ok + OWASP top-10 走查
+归档。揭出两个 finding 并文档化：
+- **sieve-rs AGPL** — 文档化 mitigation；升级"rewrite Sieve as stone"
+  到 cold backlog 高优先级
+- **RUSTSEC-2023-0071 (rsa Marvin Attack)** — 评估 mailrs DKIM 不暴露
+  per-op timing → 风险接受 + 文档化触发条件
+
+也加入 v0.6 cold backlog：
+- A04 plaintext IMAP/POP3 默认开 → 加 deprecation marker
+- A10 `/api/proxy/{image,link}` 加 outbound hostname allowlist (防 SSRF)
+
+详情 [REFACTOR-V2-v0.6-security.md](./REFACTOR-V2-v0.6-security.md)。
+
+## L3a v0.7 Hot 计划 (当前活跃 checkpoint — 线性、无分叉)
+
+Deploy 健康 gate + rollback。
 
 | # | 步骤 | 检测命令 |
 |---|---|---|
-| 1 | `cargo install cargo-audit cargo-deny` (如未装) | binary 在 PATH |
-| 2 | `cargo audit` 跑全 workspace；记录已知 advisory | `REFACTOR-V2-v0.6-security.md` 含 audit 输出 |
-| 3 | 处理每个 advisory：升级依赖 / 忽略带文档化 reason | `cargo audit` clean (0 vulnerabilities) |
-| 4 | `cargo deny check` 跑 license + advisory + bans | 0 deny issues |
-| 5 | OWASP top-10 手动 walk (auth, injection, XSS, CSRF, SSRF, etc.) | 同文档含每项 status |
-| 6 | 加 pre-flight script: `scripts/check-security.sh` 跑 audit + deny | script 存在 + 通过 |
-| 7 | `cargo test --workspace` + clippy 通过 | 0 failed / 0 warn |
-| 8 | `./scripts/release.sh` patch 发版 | tag 推到 origin |
+| 1 | 给 `scripts/deploy.sh` 加旧 binary 备份：拷贝当前生产 binary 到 `~/backup/mailrs-prev-<timestamp>` | shell 完整脚本 + dry-run 通过 |
+| 2 | 加 pre-flight curl check（部署前 curl 旧服务的 `/api/health`，记录 baseline 状态）| script 通过 |
+| 3 | 加 post-deploy curl check（部署后 curl 新服务的 `/api/health` + `/metrics`） | script 通过 |
+| 4 | 加 rollback path：post-deploy 失败 → ssh 替换回备份 binary + restart | rollback 工作 |
+| 5 | 加 release.sh integration：deploy 失败时拒绝 tag + push | 失败模拟测试 OK |
+| 6 | 写 `docs/DEPLOY.md` 记录新流程 + 失败处理 | 文档存在 |
+| 7 | `./scripts/release.sh` 跑通：实际 ship + 验证 rollback 不触发 | v1.7.28 tag |
 
 ## L3b v2 Cold 计划 (本版本剩余 — 不写 step 级)
 
@@ -149,6 +163,7 @@ API drift 审计完成。50 个 router endpoint + 6 个 MCP tools 全部
 | v0.3 | 2026-05-25 | ✅ /metrics live + 5/5 类指标 (SMTP/IMAP/POP3/MCP/queue) | [REFACTOR-V2-v0.3-metrics.md](./REFACTOR-V2-v0.3-metrics.md): metrics-rs facade 装入 + IMAP/POP3/MCP 新 counters + 旧手写层并存 |
 | v0.4 | 2026-05-25 | ✅ log schema 文档化 + 62 eprintln → tracing + CI lint | [REFACTOR-V2-v0.4-log-audit.md](./REFACTOR-V2-v0.4-log-audit.md): 全 17 文件统一 event= 字段；`scripts/check-no-eprintln.sh` 拒绝回流 |
 | v0.5 | 2026-05-25 | ✅ drift 矩阵清零 + CI lint | [REFACTOR-V2-v0.5-api-drift.md](./REFACTOR-V2-v0.5-api-drift.md): 50 个 endpoint stub + 6 个 MCP tool doc + 2 个 lint script |
+| v0.6 | 2026-05-25 | ✅ cargo audit + deny + OWASP 4/4 ok | [REFACTOR-V2-v0.6-security.md](./REFACTOR-V2-v0.6-security.md): sieve-rs AGPL + RUSTSEC-2023-0071 findings 文档化；`scripts/check-security.sh` 上线 |
 | v0.3 | — | — | — |
 | v0.4 | — | — | — |
 | v0.5 | — | — | — |
