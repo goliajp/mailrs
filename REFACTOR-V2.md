@@ -43,22 +43,36 @@
 | v0.6 → v0.7 | `cargo audit` clean **且** `cargo deny check` clean **且** OWASP top-10 走查报告归档 |
 | v0.7 → done | `release.sh` 含 pre-flight 健康检查 **且** 失败自动回滚 |
 
-## L3a v0.1 Hot 计划 (当前活跃 checkpoint — 线性、无分叉)
+## L3a v0.1 Hot 计划 ✅ closed (negative-result)
+
+原计划 10 步走 bench → profile → optimize → ship 流程。Step 1-2 完成后
+在 step 3 被两个真实障碍阻塞（samply 在 macOS 上 symbol 不解析，且
+bench harness 不覆盖真实生产瓶颈）。结论：bench 这条链已到 disk-fsync
+ceiling，进一步 perf 优化必须先建 bench infra 或借 prod tracing。详见
+[docs/v0.1-perf-finding.md](./docs/v0.1-perf-finding.md)。
+
+L4 trigger 通过 "negative-result 文档化" 分支满足，**v0.1 closed**。
+
+## L3a v0.2 Hot 计划 (当前活跃 checkpoint — 线性、无分叉)
+
+Cement 二次审计。这次刚拆完所有大文件，module boundary 是历史最清晰
+的时刻；趁热打铁，找漏网的 stone。
 
 每步带检测命令；失败 → 停，不绕过。
 
 | # | 步骤 | 检测命令 |
 |---|---|---|
-| 1 | 跑 smtp_load bench 拿 v1.7.25 的最新 baseline | `cargo build --profile release-debug -p mailrs-server --bench smtp_load && $CARGO_TARGET_DIR/release-debug/deps/smtp_load-* --duration 30 --conns 32 --warmup 5` → 记录 mean / P50 / P99 / P999 |
-| 2 | 用 `samply` 录 SMTP 接收流 30s，生成 profile | `samply record --duration 30 ...` → `profile.json` 文件存在 |
-| 3 | 分析 profile，识别 top 3 占比 hot path（不只看 fsync） | 写到 `docs/v0.1-bottlenecks.md` |
-| 4 | 选最高 ROI 优化目标 + 写 criterion micro-bench 测 pre 数字 | `cargo bench` 输出数字 |
-| 5 | 实施优化（一次 commit） | `cargo build -p mailrs-server` 零 warn |
-| 6 | `cargo test --workspace` 全绿 | 0 failed |
-| 7 | 重跑 micro-bench 拿 post 数字 | criterion 输出 |
-| 8 | 重跑 smtp_load 拿 end-to-end post 数字 | 与 step 1 同命令 |
-| 9 | 更新 `PERFORMANCE.md`，把 v0.1 新行追加 | grep 文件中找到新行 |
-| 10 | `./scripts/release.sh` patch 发版 | tag 推到 origin |
+| 1 | 把 ARCHITECTURE.md 当前 cement 表 (24 条) + 拆分后新 module 全部列出 | 文档 `docs/v0.2-cement-list.md` 存在 |
+| 2 | 对每个 cement / 新 module 跑"all ✓ lens"判断：non-mailrs 项目能用 / 单句 identity / 无项目特定 import / 有 hot path / ≤500 LOC | 同文档每行打分 |
+| 3 | 列出"可抽" stone 候选（all ✓ 都过的）+ 估算每个的 boundary 与 publish ROI | 同文档候选清单 + 排序 |
+| 4 | 选 top 1 候选（信息密度最高 / 边界最干净），写 candidate-extraction plan | 候选名 + 拆解 step |
+| 5 | 实施抽出（建 crates/X/, 改 server 依赖, 更新 workspace Cargo.toml） | `cargo build -p mailrs-server` 零 warn |
+| 6 | 加 README + CHANGELOG + missing_docs gate（按 ARCHITECTURE.md 标准） | `cargo doc --no-deps -p mailrs-X` 不报错 |
+| 7 | 加 criterion bench + perf_gate.rs 起码一条 | `cargo bench -p mailrs-X` 出数 |
+| 8 | `cargo test --workspace` 全绿 + `cargo clippy --workspace --all-targets -- -D warnings` 通过 | 0 failed / 0 warn |
+| 9 | 更新 ARCHITECTURE.md：stone 表新增 + cement 表移除该条 | grep 表中找到 |
+| 10 | 发布到 crates.io: `cd crates/X && cargo publish --dry-run`，dry-run 通过后真发 | crates.io 页面存在 |
+| 11 | `./scripts/release.sh` patch 发 server 版（用上新 stone） | tag 推到 origin |
 
 ## L3b v2 Cold 计划 (本版本剩余 — 不写 step 级)
 
@@ -104,7 +118,7 @@
 
 | Checkpoint | 完成日 | Trigger 满足 | 关键产出 |
 |---|---|---|---|
-| v0.1 | — | — | — |
+| v0.1 | 2026-05-25 | ✅ negative-result 文档化（trigger 替代分支）| [docs/v0.1-perf-finding.md](./docs/v0.1-perf-finding.md): bench 已到 disk-fsync ceiling，下一波 perf 必须先建 infra 或与 v0.3 metrics 合并 |
 | v0.2 | — | — | — |
 | v0.3 | — | — | — |
 | v0.4 | — | — | — |
