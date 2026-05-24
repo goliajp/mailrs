@@ -130,64 +130,7 @@ async fn main() {
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
-    // challenge tokens shared between ACME init and challenge server
-    let challenge_tokens: acme::ChallengeTokens = Default::default();
-
-    let tls_state = match cfg.tls_mode() {
-        TlsMode::Acme => {
-            let email = cfg.acme_email.as_ref()
-                .expect("MAILRS_ACME_EMAIL must be set when TLS mode is ACME");
-            let domains = &cfg.acme_domains;
-            if domains.is_empty() {
-                panic!("MAILRS_ACME_EMAIL is set but MAILRS_ACME_DOMAINS is empty");
-            }
-
-            use std::net::SocketAddr;
-            let challenge_addr: SocketAddr = ([0, 0, 0, 0], 80).into();
-            acme::spawn_challenge_server(
-                challenge_tokens.clone(),
-                challenge_addr,
-                shutdown_rx.clone(),
-            );
-
-            let (tls, account) = acme::init(
-                email,
-                domains,
-                &cfg.acme_dir,
-                cfg.acme_staging,
-                &challenge_tokens,
-            )
-            .await
-            .expect("failed to initialize ACME");
-
-            acme::spawn_renewal_task(
-                account,
-                challenge_tokens.clone(),
-                tls.clone(),
-                acme::RenewalConfig {
-                    domains: domains.clone(),
-                    acme_dir: cfg.acme_dir.clone(),
-                    ..Default::default()
-                },
-                shutdown_rx.clone(),
-            );
-
-            Some(tls)
-        }
-        TlsMode::Manual => {
-            let tls_config = tls::load_tls_config(
-                cfg.tls_cert.as_ref()
-                    .expect("MAILRS_TLS_CERT must be set when TLS mode is Manual"),
-                cfg.tls_key.as_ref()
-                    .expect("MAILRS_TLS_KEY must be set when TLS mode is Manual"),
-            )
-            .expect("failed to load TLS certificate and key files");
-            Some(tls::TlsState::new(
-                std::sync::Arc::try_unwrap(tls_config).unwrap_or_else(|arc| (*arc).clone()),
-            ))
-        }
-        TlsMode::None => None,
-    };
+    let tls_state = init_tls_state(&cfg, shutdown_rx.clone()).await;
 
     let user_store = match &cfg.users_file {
         Some(path) => UserStore::load(path).expect("failed to load users file"),
@@ -196,26 +139,7 @@ async fn main() {
 
     let event_bus = EventBus::new(1024);
 
-    // Cache-bust task: when a new mail arrives, drop the Valkey cache for
-    // that user's conversation list / categories / action-count, and the
-    // affected thread, so the next read goes back to PG and picks up the
-    // new message. Frontend RQ would refetch on its own (WS NewMessage →
-    // invalidateQueries) so this keeps server and client caches consistent.
-    if let Some(ref vk) = valkey_conn {
-        let vk = vk.clone();
-        let mut rx = event_bus.subscribe();
-        tokio::spawn(async move {
-            loop {
-                match rx.recv().await {
-                    Ok(event_bus::SmtpEvent::NewMessage { user, thread_id, .. }) => {
-                        conversation_cache::bust_thread(&vk, &user, &thread_id).await;
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-                    _ => {}
-                }
-            }
-        });
-    }
+    spawn_cache_bust_task(&valkey_conn, &event_bus);
 
     let rate_limiter = Arc::new(RateLimiter::new(TokenBucketConfig {
         capacity: cfg.rate_limit_capacity,
@@ -264,27 +188,7 @@ async fn main() {
         None
     };
 
-    // auth guard (brute force protection)
-    let auth_guard = Arc::new(AuthGuard::new(AuthGuardConfig {
-        max_failures_account: cfg.auth_max_failures_account,
-        account_window_secs: cfg.auth_account_window_secs,
-        base_lockout_secs: cfg.auth_base_lockout_secs,
-        max_failures_ip: cfg.auth_max_failures_ip,
-        ip_window_secs: cfg.auth_ip_window_secs,
-        ip_base_lockout_secs: cfg.auth_ip_base_lockout_secs,
-        backoff_multiplier: cfg.auth_backoff_multiplier,
-        max_lockout_secs: cfg.auth_max_lockout_secs,
-    }));
-
-    // spawn periodic cleanup
-    let auth_guard_cleanup = auth_guard.clone();
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
-        loop {
-            interval.tick().await;
-            auth_guard_cleanup.cleanup_stale(std::time::Instant::now());
-        }
-    });
+    let auth_guard = init_auth_guard(&cfg);
 
     // mailbox store for IMAP (PG-backed)
     let mailbox_store = pg_pool
@@ -590,6 +494,134 @@ async fn main() {
         .expect("failed to listen for ctrl+c");
     tracing::info!("shutting down");
     let _ = shutdown_tx.send(true);
+}
+
+/// Subscribe to `SmtpEvent::NewMessage` and drop the Valkey cache
+/// for the recipient's conversation list / categories /
+/// action-count + the affected thread. Server + frontend caches
+/// stay coherent: WS NewMessage triggers RQ invalidate on the
+/// client; this task does the equivalent for the server cache so
+/// the next read goes back to PG and picks up the new message.
+///
+/// No-op when Valkey isn't configured (no cache to bust).
+fn spawn_cache_bust_task(
+    valkey_conn: &Option<redis::aio::ConnectionManager>,
+    event_bus: &EventBus,
+) {
+    let Some(vk) = valkey_conn else { return };
+    let vk = vk.clone();
+    let mut rx = event_bus.subscribe();
+    tokio::spawn(async move {
+        loop {
+            match rx.recv().await {
+                Ok(event_bus::SmtpEvent::NewMessage {
+                    user, thread_id, ..
+                }) => {
+                    conversation_cache::bust_thread(&vk, &user, &thread_id).await;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                _ => {}
+            }
+        }
+    });
+}
+
+/// Construct the brute-force `AuthGuard` from per-account + per-IP
+/// thresholds in `cfg`, and spawn a 5-minute periodic cleanup task
+/// that evicts entries past their lockout window.
+fn init_auth_guard(cfg: &config::ServerConfig) -> Arc<AuthGuard> {
+    let auth_guard = Arc::new(AuthGuard::new(AuthGuardConfig {
+        max_failures_account: cfg.auth_max_failures_account,
+        account_window_secs: cfg.auth_account_window_secs,
+        base_lockout_secs: cfg.auth_base_lockout_secs,
+        max_failures_ip: cfg.auth_max_failures_ip,
+        ip_window_secs: cfg.auth_ip_window_secs,
+        ip_base_lockout_secs: cfg.auth_ip_base_lockout_secs,
+        backoff_multiplier: cfg.auth_backoff_multiplier,
+        max_lockout_secs: cfg.auth_max_lockout_secs,
+    }));
+    let auth_guard_cleanup = auth_guard.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            auth_guard_cleanup.cleanup_stale(std::time::Instant::now());
+        }
+    });
+    auth_guard
+}
+
+/// Initialize TLS state per config:
+///
+/// - ACME (Let's Encrypt): issues + renews certs, spawns the
+///   HTTP-01 challenge responder on `:80`.
+/// - Manual: loads the cert + key paths from disk.
+/// - None: TLS disabled (STARTTLS unavailable too).
+async fn init_tls_state(
+    cfg: &config::ServerConfig,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) -> Option<tls::TlsState> {
+    match cfg.tls_mode() {
+        TlsMode::Acme => {
+            let email = cfg
+                .acme_email
+                .as_ref()
+                .expect("MAILRS_ACME_EMAIL must be set when TLS mode is ACME");
+            let domains = &cfg.acme_domains;
+            if domains.is_empty() {
+                panic!("MAILRS_ACME_EMAIL is set but MAILRS_ACME_DOMAINS is empty");
+            }
+
+            // challenge tokens shared between ACME init and challenge server
+            let challenge_tokens: acme::ChallengeTokens = Default::default();
+            use std::net::SocketAddr;
+            let challenge_addr: SocketAddr = ([0, 0, 0, 0], 80).into();
+            acme::spawn_challenge_server(
+                challenge_tokens.clone(),
+                challenge_addr,
+                shutdown_rx.clone(),
+            );
+
+            let (tls, account) = acme::init(
+                email,
+                domains,
+                &cfg.acme_dir,
+                cfg.acme_staging,
+                &challenge_tokens,
+            )
+            .await
+            .expect("failed to initialize ACME");
+
+            acme::spawn_renewal_task(
+                account,
+                challenge_tokens,
+                tls.clone(),
+                acme::RenewalConfig {
+                    domains: domains.clone(),
+                    acme_dir: cfg.acme_dir.clone(),
+                    ..Default::default()
+                },
+                shutdown_rx,
+            );
+
+            Some(tls)
+        }
+        TlsMode::Manual => {
+            let tls_config = tls::load_tls_config(
+                cfg.tls_cert
+                    .as_ref()
+                    .expect("MAILRS_TLS_CERT must be set when TLS mode is Manual"),
+                cfg.tls_key
+                    .as_ref()
+                    .expect("MAILRS_TLS_KEY must be set when TLS mode is Manual"),
+            )
+            .expect("failed to load TLS certificate and key files");
+            Some(tls::TlsState::new(
+                std::sync::Arc::try_unwrap(tls_config).unwrap_or_else(|arc| (*arc).clone()),
+            ))
+        }
+        TlsMode::None => None,
+    }
 }
 
 /// Initialize the runtime-editable system config store, hydrate
