@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-52 tools auto-discovered via MCP, grouped by category:
+58 tools auto-discovered via MCP, grouped by category:
 
 ### Email Operations
 
@@ -135,6 +135,17 @@ Config for Claude Code or any MCP client:
 | Tool | Permission | Description |
 |------|-----------|-------------|
 | get_audit_log | admin.accounts | Retrieve recent audit log entries with optional limit |
+| audit_list_conversations | admin.accounts | List conversations for any account (admin read across user mailboxes) |
+| audit_read_thread | admin.accounts | Read messages of a specific thread for any account (admin override) |
+
+### System
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| get_info | any authenticated | Get mailrs version, hostname, configured ports, and feature flags |
+| get_system_config | admin.accounts | Read all system-config key/value pairs |
+| set_system_config | admin.accounts | Set a system-config key to a JSON value (typed; rejects invalid types) |
+| reset_system_config | admin.accounts | Reset a system-config key to its compile-time default |
 
 ### Scheduled Send
 
