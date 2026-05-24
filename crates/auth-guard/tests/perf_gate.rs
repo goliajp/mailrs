@@ -46,8 +46,12 @@ fn check_locked_out_under_budget() {
         let r = guard.check(ip, "bob");
         assert!(matches!(r, AuthCheck::LockedOut { .. }));
     });
-    // Budget: 2 µs (release ~30 ns). DashMap read + Instant::now arithmetic.
-    let budget = Duration::from_micros(2);
+    // Budget: 5 µs (release ~30 ns; dev ~1.5 µs single-run; can spike
+    // to ~2.1 µs when `cargo test --workspace` saturates all cores in
+    // parallel — observed on M-series with workspace tests of 41
+    // crates in flight). 5 µs is still ~150× the release single-run
+    // number, so order-of-magnitude regressions still trip.
+    let budget = Duration::from_micros(5);
     assert!(
         median < budget,
         "check_locked_out median {median:?} exceeded {budget:?}"
