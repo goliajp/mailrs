@@ -183,7 +183,7 @@ async fn main() {
         match mail_auth::MessageAuthenticator::new_system_conf() {
             Ok(a) => Some(Arc::new(a)),
             Err(e) => {
-                eprintln!("warning: mail authenticator init failed: {e}");
+                tracing::warn!(event = "subsystem_init_failed", subsystem = "mail_authenticator", error = %e);
                 None
             }
         }
@@ -228,7 +228,7 @@ async fn main() {
         let maildir = cfg.maildir_root.clone();
         let count = mb.backfill_threading(&maildir).await;
         if count > 0 {
-            eprintln!("backfilled threading data for {count} messages");
+            tracing::info!(event = "threading_backfill_complete", count);
         }
     }
 
@@ -299,14 +299,14 @@ async fn main() {
     // spawn meilisearch indexer
     if let (Some(meili), Some(pool)) = (&meili_client, &pg_pool) {
         search_index::spawn_indexer(meili.clone(), pool.clone());
-        eprintln!("Meilisearch indexer started");
+        tracing::info!(event = "subsystem_started", subsystem = "meili_indexer");
     }
 
     // MRS-10: spawn external ICS feed worker. Cheap when no feeds exist —
     // the DUE query returns empty and the loop sleeps.
     if let Some(ref pool) = pg_pool {
         calendar::feed_worker::spawn_feed_worker(pool.clone());
-        eprintln!("External ICS feed worker started");
+        tracing::info!(event = "subsystem_started", subsystem = "external_ics_feed");
     }
 
     let users = Arc::new(user_store);

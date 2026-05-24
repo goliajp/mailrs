@@ -22,13 +22,13 @@ pub(crate) async fn send_message(
     State(state): State<Arc<WebState>>,
     Json(req): Json<SendMessageRequest>,
 ) -> impl IntoResponse {
-    // debug: log forward params
-    eprintln!(
-        "send_message: user={user} forward_message_id={:?} forward_attachments_from={:?} subject={:?} body_len={}",
-        req.forward_message_id,
-        req.forward_attachments_from,
-        req.subject,
-        req.body.len(),
+    tracing::debug!(
+        event = "send_message",
+        user = %user,
+        forward_message_id = ?req.forward_message_id,
+        forward_attachments_from = ?req.forward_attachments_from,
+        subject = ?req.subject,
+        body_len = req.body.len()
     );
 
     if req.to.is_empty() {
@@ -226,16 +226,16 @@ async fn extract_full_forward_by_id(
     let meta = if let Some(mid) = message_id {
         match mb_store.find_message_by_message_id(user, mid).await {
             Ok(Some(m)) => {
-                eprintln!("forward: found by message_id={mid} user={user}");
+                tracing::debug!(event = "forward_found_by_msgid", message_id = %mid, user = %user);
                 m
             }
             _ => {
-                eprintln!("forward: message_id={mid} not found for user={user}, trying uid");
+                tracing::debug!(event = "forward_msgid_miss", message_id = %mid, user = %user);
                 if let Some(u) = uid {
                     match mb_store.find_message_by_uid(user, u).await {
                         Ok(Some(m)) => m,
                         _ => {
-                            eprintln!("forward: uid={u} also not found for user={user}");
+                            tracing::warn!(event = "forward_uid_miss", uid = u, user = %user);
                             return empty;
                         }
                     }
@@ -247,24 +247,28 @@ async fn extract_full_forward_by_id(
     } else if let Some(u) = uid {
         match mb_store.find_message_by_uid(user, u).await {
             Ok(Some(m)) => {
-                eprintln!("forward: found by uid={u} user={user}");
+                tracing::debug!(event = "forward_found_by_uid", uid = u, user = %user);
                 m
             }
             _ => {
-                eprintln!("forward: uid={u} not found for user={user}");
+                tracing::warn!(event = "forward_uid_miss", uid = u, user = %user);
                 return empty;
             }
         }
     } else {
-        eprintln!("forward: no message_id or uid provided");
+        tracing::warn!(event = "forward_no_identifier", user = %user);
         return empty;
     };
 
     let Some(raw) = message_util::read_message_raw(&state.maildir_root, user, &meta.maildir_id) else {
-        eprintln!("forward: raw message not found maildir_id={} user={user}", meta.maildir_id);
+        tracing::warn!(
+            event = "forward_raw_not_found",
+            maildir_id = %meta.maildir_id,
+            user = %user
+        );
         return empty;
     };
-    eprintln!("forward: raw message loaded, {} bytes", raw.len());
+    tracing::debug!(event = "forward_raw_loaded", bytes = raw.len());
 
     // use the existing parser that handles nested MIME well
     let (text_body, html_body, _) = message_util::parse_message(&raw);
@@ -306,11 +310,12 @@ async fn extract_full_forward_by_id(
         }
     }
 
-    eprintln!(
-        "forward: uid={uid:?} text={}bytes html={}bytes attachments={}",
-        text_body.as_ref().map(|s| s.len()).unwrap_or(0),
-        html_body.as_ref().map(|s| s.len()).unwrap_or(0),
-        attachments.len()
+    tracing::debug!(
+        event = "forward_extracted",
+        uid = ?uid,
+        text_bytes = text_body.as_ref().map(|s| s.len()).unwrap_or(0),
+        html_bytes = html_body.as_ref().map(|s| s.len()).unwrap_or(0),
+        attachment_count = attachments.len()
     );
 
     (text_body, html_body, attachments)

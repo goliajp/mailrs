@@ -33,7 +33,7 @@ pub fn spawn_analyzer(
         worker(provider, mailbox_store, maildir_root, rx).await;
     });
 
-    eprintln!("AI email analyzer started");
+    tracing::info!(event = "subsystem_started", subsystem = "ai_analyzer");
 }
 
 /// single serial worker
@@ -50,9 +50,9 @@ async fn worker(
 
     let total = store.count_unanalyzed_messages(&model_version).await.unwrap_or(0);
     if total > 0 {
-        eprintln!("AI backfill: {total} messages to analyze (version {model_version})");
+        tracing::info!(event = "ai_backfill_started", total, model_version = %model_version);
     } else {
-        eprintln!("AI backfill: all messages up to date (version {model_version})");
+        tracing::info!(event = "ai_backfill_uptodate", model_version = %model_version);
     }
 
     loop {
@@ -70,7 +70,7 @@ async fn worker(
         } else {
             // backfill done — wait for new email
             if done > 0 || failed > 0 {
-                eprintln!("AI backfill complete: {done} analyzed, {failed} failed");
+                tracing::info!(event = "ai_backfill_complete", done, failed);
                 done = 0;
                 failed = 0;
             }
@@ -107,14 +107,18 @@ async fn process_one(
         *done += 1;
         *consecutive_fails = 0;
         if (*done).is_multiple_of(20) {
-            eprintln!("AI backfill: {done}/{total} analyzed, {failed} failed");
+            tracing::info!(event = "ai_backfill_progress", done, total, failed);
         }
     } else {
         *failed += 1;
         *consecutive_fails += 1;
         // exponential backoff: 30s → 60s → 120s → ... → 3600s (1h) cap
         let wait = (30u64 << (*consecutive_fails).saturating_sub(1).min(6)).min(3600);
-        eprintln!("AI backfill: {consecutive_fails} consecutive failures, waiting {wait}s");
+        tracing::warn!(
+            event = "ai_backfill_backoff",
+            consecutive_fails = *consecutive_fails,
+            wait_secs = wait
+        );
         tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
     }
 }
@@ -155,14 +159,19 @@ async fn analyze_with_retry(
     for attempt in 0..2u32 {
         if attempt > 0 {
             let delay = if attempt == 1 { 15 } else { 30 };
-            eprintln!("AI retry msg={message_id} attempt={} backoff={delay}s", attempt + 1);
+            tracing::debug!(
+                event = "ai_retry",
+                message_id,
+                attempt = attempt + 1,
+                backoff_secs = delay
+            );
             tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
         }
         if do_analyze(provider, store, maildir_root, message_id, user, maildir_id, sender_raw, subject_raw, model_version).await {
             return true;
         }
     }
-    eprintln!("AI analyzer failed after 2 attempts: msg={message_id}");
+    tracing::warn!(event = "ai_analyze_gave_up", message_id, attempts = 2);
     false
 }
 
@@ -194,7 +203,7 @@ async fn do_analyze(
     let analysis = match analyze::analyze_email(provider, &sender, &subject, &body).await {
         Some(a) => a,
         None => {
-            eprintln!("AI analyze failed msg={message_id} (LLM returned no result)");
+            tracing::debug!(event = "ai_analyze_no_result", message_id);
             return false;
         }
     };
@@ -231,7 +240,7 @@ async fn do_analyze(
         action_deadline: deadline,
     };
     if let Err(e) = store.upsert_email_analysis(&input).await {
-        eprintln!("AI analyzer DB error msg={message_id}: {e}");
+        tracing::error!(event = "ai_analyze_db_error", message_id, error = %e);
         return false;
     }
 
@@ -239,10 +248,16 @@ async fn do_analyze(
         let _ = store.boost_importance_for_action(message_id).await;
     }
 
-    eprintln!(
-        "AI analyzed msg={message_id} cat={} risk={} action={} intent={intent} embed={} analysis={:.1}s embed={:.1}s",
-        analysis.category, analysis.risk_score, analysis.requires_action, embedding.is_some(),
-        t_analysis.as_secs_f64(), t_embed.as_secs_f64(),
+    tracing::info!(
+        event = "ai_analyzed",
+        message_id,
+        category = %analysis.category,
+        risk_score = analysis.risk_score,
+        requires_action = analysis.requires_action,
+        intent = %intent,
+        has_embedding = embedding.is_some(),
+        analysis_secs = t_analysis.as_secs_f64(),
+        embed_secs = t_embed.as_secs_f64()
     );
     true
 }

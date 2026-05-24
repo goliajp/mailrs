@@ -143,7 +143,7 @@ impl RenderPreviewClient {
             .map(|i| &ws_url[i..])
             .unwrap_or("/devtools/browser/unknown");
         let fixed = format!("ws://{host}{path}");
-        eprintln!("render_preview: resolved WS URL: {fixed}");
+        tracing::debug!(event = "render_preview_resolve", ws_url = %fixed);
         Ok(fixed)
     }
 
@@ -155,7 +155,7 @@ impl RenderPreviewClient {
 
         // resolve full WebSocket URL
         let ws_url = self.resolve_ws_url().await?;
-        eprintln!("render_preview: connecting to {ws_url}");
+        tracing::debug!(event = "render_preview_connect", ws_url = %ws_url);
 
         // connect to remote Chrome
         let (browser, mut handler) = Browser::connect(&ws_url)
@@ -169,7 +169,7 @@ impl RenderPreviewClient {
 
         let browser = Arc::new(browser);
         *guard = Some(browser.clone());
-        eprintln!("render_preview: connected to Chrome at {}", self.cdp_url);
+        tracing::info!(event = "render_preview_connected", cdp_url = %self.cdp_url);
         Ok(browser)
     }
 
