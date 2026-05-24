@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use tokio::net::TcpStream;
+
 use crate::domain_store::DomainStore;
 use crate::inbound::auth_guard::{AuthCheck, AuthGuard};
 use mailrs_sieve::compile_sieve;
@@ -372,6 +374,69 @@ fn base64_decode(input: &str) -> Option<Vec<u8>> {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD.decode(input).ok()
 }
+
+/// Drive a single ManageSieve (RFC 5804) connection from accept
+/// to close. Sieve scripts are uploaded/managed over a
+/// line-oriented protocol with optional STARTTLS; this handler
+/// owns the TCP stream and dispatches each line into the
+/// session state machine.
+#[tracing::instrument(
+    name = "managesieve.conn",
+    skip(stream, users, auth_guard, domain_store, ldap_config),
+    fields(peer = %addr),
+)]
+pub async fn handle_connection(
+    stream: TcpStream,
+    addr: std::net::SocketAddr,
+    users: Arc<UserStore>,
+    auth_guard: Arc<AuthGuard>,
+    domain_store: Option<Arc<DomainStore>>,
+    ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
+) {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+    let (reader, mut writer) = stream.into_split();
+    let mut reader = BufReader::new(reader);
+
+    let mut session = ManageSieveSession::new(users).with_auth_guard(auth_guard, addr.ip());
+    if let Some(ds) = domain_store {
+        session = session.with_domain_store(ds);
+    }
+    if let Some(ldap) = ldap_config {
+        session = session.with_ldap_config(ldap);
+    }
+
+    let greeting = session.greeting();
+    if writer.write_all(greeting.as_bytes()).await.is_err() {
+        return;
+    }
+
+    let mut line = String::new();
+    loop {
+        line.clear();
+        match reader.read_line(&mut line).await {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {}
+        }
+
+        let responses = session.handle_line(&line).await;
+        let should_close = session.should_close(&responses);
+
+        for resp in &responses {
+            if writer.write_all(resp.as_bytes()).await.is_err() {
+                return;
+            }
+        }
+        if writer.flush().await.is_err() {
+            return;
+        }
+
+        if should_close {
+            break;
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
