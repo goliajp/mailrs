@@ -16,7 +16,7 @@ Rationale: Immutable data prevents hidden side effects, makes debugging easier, 
 
 MANY SMALL FILES > FEW LARGE FILES:
 - High cohesion, low coupling
-- 200-400 lines typical, 800 max
+- See `file-size.md` for **hard limits**: 500 lines / file, 200 lines / function (any language)
 - Extract utilities from large modules
 - Organize by feature/domain, not by type
 
