@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 bytes = "1"
+memchr = "2"
 tokio-util = { version = "0.7", features = ["codec"] }
 
 [[bench]]
