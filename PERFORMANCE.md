@@ -500,11 +500,40 @@ Same caveat as rfc5322: the right comparison is "minimum cost to get the user-vi
 
 #### `mailrs-ical` vs `icalendar` 0.17 (RFC 5545 parse)
 
+3-run noise-controlled median:
+
 | Input | mailrs-ical | icalendar | Winner |
 |---|---:|---:|---|
-| simple VEVENT | 1.44 µs | 5.33 µs | **mailrs 3.7×** ✅ |
-| VEVENT + RRULE | 1.63 µs | 5.96 µs | **mailrs 3.7×** ✅ |
-| VTIMEZONE + VEVENT | 2.67 µs | 9.21 µs | **mailrs 3.4×** ✅ |
+| simple VEVENT | **1.37 µs** | 6.07 µs | **mailrs 4.4×** ✅ |
+| VEVENT + RRULE | **1.60 µs** | 6.63 µs | **mailrs 4.1×** ✅ |
+| VTIMEZONE + VEVENT | **2.73 µs** | 10.70 µs | **mailrs 3.9×** ✅ |
+
+**v4 round 21 (2026-05-26 — ical 2.0 CompactString)**: bumped
+`mailrs-ical` to **2.0.0**; three high-frequency String fields move
+to `compact_str::CompactString`:
+  * `RawComponent.name` — `VEVENT` / `VALARM` / `STANDARD` etc (6-10 B)
+  * `RawProperty.name` — `DTSTART` / `SUMMARY` / `ATTENDEE` etc (5-10 B)
+  * `VTimezone.tzid` — `America/New_York` / `Asia/Tokyo` etc (10-20 B)
+
+All real-world iCal component/property names fit the 24-byte inline
+buffer, saving one heap alloc per name. A VEVENT with 10 properties
+saves ~11 String allocs per parse.
+
+Measured (3-run quiet-CPU median):
+
+  Before (1.0.3): simple 1.67 µs | rrule 1.89 µs | timezone 3.09 µs
+  After  (2.0.0): simple 1.37 µs | rrule 1.60 µs | timezone 2.73 µs
+  Δ:             −18% simple   | −15% rrule   | −12% timezone
+
+Lead over icalendar 0.17:
+
+  Before: simple 3.6× | rrule 3.8× | timezone 3.5×
+  After:  simple 4.4× | rrule 4.1× | timezone 3.9×
+
+API break: pub field type change on RawComponent / RawProperty /
+VTimezone. Most consumer code compiles unchanged via Deref<Target=str>
++ PartialEq<&str>. RawProperty.value + ParsedInvite.summary stay
+String (variable-length, often >24 B).
 
 Clean sweep on parse. Note: `icalendar` has serializer / builder APIs we don't bench against because mailrs-ical's serializer surface is narrower.
 

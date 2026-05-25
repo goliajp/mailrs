@@ -415,7 +415,7 @@ fn unescape_text(s: &str) -> String {
 /// Capture VTIMEZONE with raw STANDARD / DAYLIGHT subcomponents preserved.
 fn parse_vtimezone(comp: &RawComponent) -> Result<VTimezone, IcalError> {
     let tzid = find_property(&comp.properties, "TZID")
-        .map(|p| p.value.clone())
+        .map(|p| compact_str::CompactString::new(&p.value))
         .ok_or_else(|| IcalError::InvalidSemantics("VTIMEZONE missing TZID".into()))?;
     let raw_subs = comp.children.clone();
     Ok(VTimezone { tzid, raw_subs })

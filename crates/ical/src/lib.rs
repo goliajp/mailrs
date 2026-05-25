@@ -58,6 +58,7 @@ pub mod vtimezone;
 mod tests;
 
 use chrono::{DateTime, Utc};
+use compact_str::CompactString;
 use serde::Serialize;
 
 /// iTIP method (RFC 5546 §1.4 + §3).
@@ -177,7 +178,10 @@ pub enum EventStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct VTimezone {
     /// TZID property — the timezone identifier this block defines.
-    pub tzid: String,
+    ///
+    /// **v2 change**: `CompactString` — IANA TZIDs ("America/New_York",
+    /// "Asia/Tokyo", "Europe/London") all fit inline.
+    pub tzid: CompactString,
     /// Raw STANDARD / DAYLIGHT subcomponents. Resolution to chrono-tz or
     /// custom offset happens lazily at evaluation time.
     pub raw_subs: Vec<RawComponent>,
@@ -187,7 +191,10 @@ pub struct VTimezone {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RawComponent {
     /// Component name (e.g. `VEVENT`, `VALARM`, `STANDARD`).
-    pub name: String,
+    ///
+    /// **v2 change**: `CompactString` — standard iCal component names
+    /// are 6-12 bytes, all inline (≤24 B) with zero heap alloc.
+    pub name: CompactString,
     /// Properties on this component.
     pub properties: Vec<RawProperty>,
     /// Nested subcomponents (e.g. `VALARM` inside `VEVENT`).
@@ -198,7 +205,9 @@ pub struct RawComponent {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RawProperty {
     /// Property name (e.g. `DTSTART`, `SUMMARY`, `ATTENDEE`).
-    pub name: String,
+    ///
+    /// **v2 change**: `CompactString` — all standard property names fit inline.
+    pub name: CompactString,
     /// Parameter list (e.g. `TZID=America/New_York`).
     pub params: Vec<(String, String)>,
     /// Property value string (un-unfolded).
