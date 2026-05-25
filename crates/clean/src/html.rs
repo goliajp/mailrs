@@ -232,8 +232,6 @@ pub(super) fn html_to_clean_text(html: &str) -> String {
     lines.join("\n")
 }
 
-/// detect if sender is a bulk/automated sender based on email headers
-
 fn remove_tag_block(html: &str, tag: &str) -> String {
     let lower = html.to_lowercase();
     let open = format!("<{tag}");

@@ -991,4 +991,253 @@ mod tests {
         let msg = b"Content-Type: text/plain\r\n\r\nHello";
         assert!(extract_mime_part(msg, "2").is_none());
     }
+
+    // ---- v4 polish: cover the cases lifted out of the bench-only tests ----
+
+    #[test]
+    fn parse_flags_recent_and_deleted() {
+        let bits = parse_imap_flags("(\\Recent \\Deleted \\Answered)");
+        assert_eq!(bits, FLAG_RECENT | FLAG_DELETED | FLAG_ANSWERED);
+    }
+
+    #[test]
+    fn parse_flags_unknown_skipped() {
+        let bits = parse_imap_flags("(\\Custom \\Seen)");
+        assert_eq!(bits, FLAG_SEEN);
+    }
+
+    #[test]
+    fn format_imap_address_with_empty_name_brackets() {
+        let result = format_imap_address("<a@b.c>");
+        assert!(result.contains("NIL NIL"));
+        assert!(result.contains("\"a\""));
+    }
+
+    #[test]
+    fn format_imap_address_no_at_sign() {
+        let result = format_imap_address("plain-token");
+        assert!(result.contains("\"plain-token\""));
+        assert!(result.contains("\"\""));
+    }
+
+    #[test]
+    fn extract_header_section_lf_only() {
+        let msg = b"From: a@b\nSubject: hi\n\nBody";
+        let header = extract_header_section(msg);
+        assert!(header.ends_with(b"\n\n"));
+        assert!(!header.windows(4).any(|w| w == b"Body"));
+    }
+
+    #[test]
+    fn extract_header_section_no_delimiter_returns_all() {
+        let msg = b"From: a@b\nSubject: hi";
+        let header = extract_header_section(msg);
+        assert_eq!(header, msg);
+    }
+
+    #[test]
+    fn extract_body_section_lf_only() {
+        let msg = b"From: a@b\n\nBody here";
+        assert_eq!(extract_body_section(msg), b"Body here");
+    }
+
+    #[test]
+    fn extract_body_section_no_delimiter_empty() {
+        assert!(extract_body_section(b"no body marker").is_empty());
+    }
+
+    #[test]
+    fn extract_header_fields_continuation_line() {
+        // RFC 5322 §3.2.2 folded line — the Subject value continues on the next
+        // line starting with a space. extract_header_fields must include both
+        // lines when the header is selected.
+        let msg = b"Subject: first line\r\n part two\r\nFrom: a@b\r\n\r\nbody";
+        let result = extract_header_fields(msg, &["SUBJECT".to_string()]);
+        let s = String::from_utf8_lossy(&result);
+        assert!(s.contains("Subject: first line"));
+        assert!(s.contains(" part two"));
+        assert!(!s.contains("From:"));
+    }
+
+    #[test]
+    fn parse_mime_headers_text_html() {
+        let info = parse_mime_headers("Content-Type: text/html; charset=UTF-8\r\n");
+        assert_eq!(info.media_type, "TEXT");
+        assert_eq!(info.subtype, "HTML");
+    }
+
+    #[test]
+    fn parse_mime_headers_alternative() {
+        let info = parse_mime_headers(
+            "Content-Type: multipart/alternative; boundary=\"alt-bound\"\r\n",
+        );
+        assert_eq!(info.subtype, "ALTERNATIVE");
+        assert_eq!(info.boundary, Some("alt-bound".to_string()));
+    }
+
+    #[test]
+    fn parse_mime_headers_related() {
+        let info = parse_mime_headers(
+            "Content-Type: multipart/related; boundary=rel-bound\r\n",
+        );
+        assert_eq!(info.subtype, "RELATED");
+    }
+
+    #[test]
+    fn parse_mime_headers_unknown_multipart_defaults_to_mixed() {
+        let info = parse_mime_headers(
+            "Content-Type: multipart/encrypted; boundary=enc\r\n",
+        );
+        assert_eq!(info.media_type, "MULTIPART");
+        assert_eq!(info.subtype, "MIXED");
+    }
+
+    #[test]
+    fn parse_mime_headers_image() {
+        let info =
+            parse_mime_headers("Content-Type: image/jpeg; name=\"photo.jpg\"\r\n");
+        assert_eq!(info.media_type, "IMAGE");
+        assert_eq!(info.subtype, "JPEG");
+        assert_eq!(info.name, Some("photo.jpg".to_string()));
+    }
+
+    #[test]
+    fn parse_mime_headers_inline_disposition() {
+        let info = parse_mime_headers(
+            "Content-Disposition: inline; filename=\"cid.png\"\r\n",
+        );
+        assert_eq!(info.disposition, Some("inline".to_string()));
+        assert_eq!(info.disposition_filename, Some("cid.png".to_string()));
+    }
+
+    #[test]
+    fn parse_mime_headers_content_id_strips_brackets() {
+        let info = parse_mime_headers("Content-Id: <abc@xyz>\r\n");
+        assert_eq!(info.content_id, Some("abc@xyz".to_string()));
+    }
+
+    #[test]
+    fn parse_mime_headers_transfer_encoding_variants() {
+        for (input, want) in [
+            ("Content-Transfer-Encoding: base64\r\n", "BASE64"),
+            ("Content-Transfer-Encoding: Quoted-Printable\r\n", "QUOTED-PRINTABLE"),
+            ("Content-Transfer-Encoding: 8bit\r\n", "8BIT"),
+            ("Content-Transfer-Encoding: 7BIT\r\n", "7BIT"),
+            ("Content-Transfer-Encoding: weirdo\r\n", "7BIT"),
+        ] {
+            assert_eq!(parse_mime_headers(input).encoding, want, "{input}");
+        }
+    }
+
+    #[test]
+    fn parse_mime_headers_folded_header() {
+        let header = "Content-Type: multipart/mixed;\r\n boundary=\"folded-bound\"\r\n";
+        let info = parse_mime_headers(header);
+        assert_eq!(info.media_type, "MULTIPART");
+        assert_eq!(info.subtype, "MIXED");
+        assert_eq!(info.boundary, Some("folded-bound".to_string()));
+    }
+
+    #[test]
+    fn split_mime_parts_two_parts() {
+        let body = b"--bound\r\nContent-Type: text/plain\r\n\r\npart1\r\n--bound\r\nContent-Type: text/html\r\n\r\npart2\r\n--bound--\r\n";
+        let parts = split_mime_parts(body, "bound");
+        assert_eq!(parts.len(), 2, "expected exactly 2 parts");
+        let p0 = String::from_utf8_lossy(parts[0]);
+        let p1 = String::from_utf8_lossy(parts[1]);
+        assert!(p0.contains("part1"));
+        assert!(p1.contains("part2"));
+    }
+
+    #[test]
+    fn split_mime_parts_missing_terminator() {
+        // No --bound-- closing delim — still returns the parts seen so far.
+        let body = b"--b\r\nfoo\r\n--b\r\nbar\r\n";
+        let parts = split_mime_parts(body, "b");
+        assert!(!parts.is_empty());
+    }
+
+    #[test]
+    fn find_line_offset_first_line() {
+        let body = b"line0\r\nline1\r\nline2\r\n";
+        assert_eq!(find_line_offset(body, 0), Some(0));
+        assert_eq!(find_line_offset(body, 1), Some(7));
+        assert_eq!(find_line_offset(body, 2), Some(14));
+    }
+
+    #[test]
+    fn find_line_offset_out_of_range() {
+        let body = b"a\r\nb\r\n";
+        assert_eq!(find_line_offset(body, 100), None);
+    }
+
+    #[test]
+    fn trim_part_trailing_newline_crlf() {
+        let s = b"hello\r\n";
+        assert_eq!(trim_part_trailing_newline(s), b"hello");
+    }
+
+    #[test]
+    fn trim_part_trailing_newline_lf_only() {
+        let s = b"hello\n";
+        assert_eq!(trim_part_trailing_newline(s), b"hello");
+    }
+
+    #[test]
+    fn trim_part_trailing_newline_no_newline() {
+        let s = b"hello";
+        assert_eq!(trim_part_trailing_newline(s), b"hello");
+    }
+
+    #[test]
+    fn escape_imap_str_basic() {
+        let s = escape_imap_str("hello \"world\" \\back");
+        assert!(s.contains("\\\""));
+        assert!(s.contains("\\\\"));
+    }
+
+    #[test]
+    fn build_bodystructure_multipart_alternative() {
+        let body = concat!(
+            "Content-Type: multipart/alternative; boundary=\"alt\"\r\n\r\n",
+            "--alt\r\n",
+            "Content-Type: text/plain; charset=UTF-8\r\n\r\n",
+            "plain text\r\n",
+            "--alt\r\n",
+            "Content-Type: text/html; charset=UTF-8\r\n\r\n",
+            "<p>html</p>\r\n",
+            "--alt--\r\n",
+        )
+        .as_bytes();
+        let bs = build_bodystructure(body);
+        assert!(bs.contains("\"alternative\""));
+        assert!(bs.contains("\"plain\""));
+        assert!(bs.contains("\"html\""));
+    }
+
+    #[test]
+    fn extract_mime_part_nested_multipart() {
+        let body = concat!(
+            "Content-Type: multipart/mixed; boundary=\"outer\"\r\n\r\n",
+            "--outer\r\n",
+            "Content-Type: text/plain\r\n\r\n",
+            "alpha\r\n",
+            "--outer\r\n",
+            "Content-Type: text/html\r\n\r\n",
+            "<p>beta</p>\r\n",
+            "--outer--\r\n",
+        )
+        .as_bytes();
+        let p1 = extract_mime_part(body, "1").expect("part 1 exists");
+        assert!(String::from_utf8_lossy(&p1).contains("alpha"));
+        let p2 = extract_mime_part(body, "2").expect("part 2 exists");
+        assert!(String::from_utf8_lossy(&p2).contains("beta"));
+    }
+
+    #[test]
+    fn format_addr_list_with_display_name() {
+        let result = format_addr_list("\"Alice\" <a@b.c>, \"Bob\" <b@c.d>");
+        assert!(result.contains("\"Alice\""));
+        assert!(result.contains("\"Bob\""));
+    }
 }
