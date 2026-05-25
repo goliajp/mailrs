@@ -32,6 +32,7 @@ tokio = { workspace = true }
 # Comparator for honest head-to-head benches. Same `mail-auth` version the
 # server crate already pulls in transitively, so no extra resolution cost.
 mail-auth = "0.9"
+dhat = "0.3"   # mem profile (examples/dhat_profile.rs)
 
 [[bench]]
 name = "spf"
@@ -40,3 +41,7 @@ harness = false
 [[bench]]
 name = "compare_mail_auth"
 harness = false
+
+[[example]]
+name = "dhat_profile"
+path = "examples/dhat_profile.rs"

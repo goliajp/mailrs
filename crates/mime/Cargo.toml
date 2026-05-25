@@ -26,7 +26,12 @@ memchr = "2"
 [dev-dependencies]
 criterion = { workspace = true }
 mail-parser = "0.11"  # comparison bench only
+dhat = "0.3"          # mem profile target (examples/dhat_profile.rs)
 
 [[bench]]
 name = "mime"
 harness = false
+
+[[example]]
+name = "dhat_profile"
+path = "examples/dhat_profile.rs"
