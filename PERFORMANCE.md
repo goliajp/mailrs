@@ -132,7 +132,7 @@ Before the perf-batch (commit `8eba06c` and later) we were 4.1× / 3.6× slower 
 | Input | mailrs-mime | mail-parser | Winner |
 |---|---:|---:|---|
 | simple `text/plain` body_text | **163 ns** | 195 ns | **mailrs +17%** ✅ |
-| find `text/calendar` part (apples-to-apples) | **825 ns** | 580 ns | mail-parser +42% (was +58%) ⚠ |
+| find `text/calendar` part (apples-to-apples) | **526 ns** | 559 ns | **mailrs +6%** ✅ (was +42% slower) |
 
 The find-calendar comparison is now true apples-to-apples — both sides
 parse the message and walk parts looking for the `text/calendar`
@@ -153,14 +153,14 @@ v4 round 3 closed the gap from +58% to +42% via:
 3. **`Vec::with_capacity(4)`** on the parts Vec — typical
    `multipart/alternative` and `multipart/mixed` have 2-4 parts.
 
-The remaining +42% is architectural: `mail-parser` returns body
-slices as `Cow<'msg, [u8]>` (borrowed from the input when no
-encoding transform is needed), so its multipart leaves cost zero
-heap allocation. mailrs-mime owns `Part::body: Vec<u8>`, which
-forces `body.to_vec()` per leaf for 7bit/8bit/binary parts (the
-common case). Closing the rest requires adding an `'a` lifetime
-parameter to `Part` and changing the body type to `Cow<'a, [u8]>` —
-breaking API change, tracked as v4.next.
+v4.next landed: `Part` is now lifetime-parameterized (`Part<'a>`)
+and `body` switched from `Vec<u8>` to `Cow<'a, [u8]>`.
+`TransferEncoding::decode` returns `Cow::Borrowed(input)` for the
+identity encodings (7bit/8bit/binary/Other — the common case),
+zero allocation for leaf bodies. **Breaking API change** for direct
+consumers: the field now needs `&*part.body` or `part.body.as_ref()`
+to coerce to `&[u8]`. mailrs-server + mailrs-arf updated; downstream
+consumers will need to add the same deref.
 
 #### `mailrs-rfc5322` vs `mail-parser` (header lookup, lazy)
 

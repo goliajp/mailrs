@@ -2,6 +2,8 @@
 //! structure with parsed Content-Type, Content-Transfer-Encoding,
 //! and decoded body bytes.
 
+use std::borrow::Cow;
+
 use mailrs_rfc5322::Message;
 
 use crate::content_type::{ContentType, Disposition};
@@ -9,8 +11,15 @@ use crate::decoder::TransferEncoding;
 
 /// One MIME part. A message is recursively a Part: the top-level
 /// message is the root part, multipart bodies have child parts.
+///
+/// **v4 API**: `Part` is now lifetime-parameterized so leaf bodies
+/// can borrow directly from the input slice for the identity transfer
+/// encodings (7bit / 8bit / binary). Only Base64 and Quoted-Printable
+/// allocate an owned `Vec<u8>`. The `body` field is a `Cow<'a, [u8]>`
+/// accordingly. Callers that need an owned copy can call
+/// `part.body.to_vec()` or `part.body.into_owned()`.
 #[derive(Debug, Clone)]
-pub struct Part {
+pub struct Part<'a> {
     /// Parsed Content-Type. Defaults to `text/plain; charset=us-ascii`
     /// when the header is missing (RFC 2045 §5.2).
     pub content_type: ContentType,
@@ -21,20 +30,21 @@ pub struct Part {
     pub content_id: Option<String>,
     /// Content-Transfer-Encoding. Defaults to `7bit` (RFC 2045 §6.1).
     pub transfer_encoding: TransferEncoding,
-    /// **Decoded** body bytes for leaf parts. For multipart parts,
-    /// this is the inter-boundary preamble (usually empty / "this
-    /// is a multipart message"-style text) and isn't typically
-    /// useful — use `children` instead.
-    pub body: Vec<u8>,
+    /// **Decoded** body bytes for leaf parts. `Cow::Borrowed` for the
+    /// identity encodings (7bit/8bit/binary — the common case) which
+    /// borrow directly from the input slice. `Cow::Owned` for
+    /// Base64 / Quoted-Printable. For multipart parts this is an
+    /// empty `Cow::Borrowed(&[])`; use `children` instead.
+    pub body: Cow<'a, [u8]>,
     /// Child parts for `multipart/*` types. Empty for leaf parts.
-    pub children: Vec<Part>,
+    pub children: Vec<Part<'a>>,
 }
 
-impl Part {
+impl<'a> Part<'a> {
     /// Find the first descendant part (depth-first) matching
     /// `<type>/<subtype>` (lowercased compare). Returns `None` if
     /// no part matches.
-    pub fn find_by_content_type(&self, mime_type: &str) -> Option<&Part> {
+    pub fn find_by_content_type(&self, mime_type: &str) -> Option<&Part<'a>> {
         // Split the target once into (type, subtype) and compare bytewise.
         // Recursive descent — no Vec allocation for the walk stack, which
         // [`Self::walk`] would otherwise do.
@@ -43,7 +53,7 @@ impl Part {
     }
 
     /// Depth-first iterator over self + all descendant parts.
-    pub fn walk(&self) -> Walker<'_> {
+    pub fn walk(&self) -> Walker<'_, 'a> {
         Walker { stack: vec![self] }
     }
 
@@ -68,7 +78,7 @@ impl Part {
     /// it has a `filename` parameter in either Content-Type or
     /// Content-Disposition. (Some mailers omit the disposition
     /// header but still set a filename.)
-    pub fn attachments(&self) -> impl Iterator<Item = &Part> {
+    pub fn attachments(&self) -> impl Iterator<Item = &Part<'a>> {
         self.walk().filter(|p| p.is_attachment())
     }
 
@@ -109,11 +119,11 @@ impl Part {
 
 /// Depth-first iterator over a part tree (yields self first, then
 /// children recursively).
-fn find_by_ct_recursive<'a>(
-    part: &'a Part,
+fn find_by_ct_recursive<'p, 'a>(
+    part: &'p Part<'a>,
     target_type: &str,
     target_subtype: &str,
-) -> Option<&'a Part> {
+) -> Option<&'p Part<'a>> {
     if part.content_type.type_.eq_ignore_ascii_case(target_type)
         && part
             .content_type
@@ -132,12 +142,15 @@ fn find_by_ct_recursive<'a>(
 
 /// Depth-first iterator over a [`Part`] tree. Constructed by
 /// [`Part::walk`]. Visits `self` first then each child in document order.
-pub struct Walker<'a> {
-    stack: Vec<&'a Part>,
+///
+/// `'p` is the lifetime of the borrow into the tree; `'a` is the
+/// lifetime of the input slice the part bodies may borrow.
+pub struct Walker<'p, 'a> {
+    stack: Vec<&'p Part<'a>>,
 }
 
-impl<'a> Iterator for Walker<'a> {
-    type Item = &'a Part;
+impl<'p, 'a> Iterator for Walker<'p, 'a> {
+    type Item = &'p Part<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let p = self.stack.pop()?;
@@ -171,17 +184,17 @@ impl<'a> Iterator for Walker<'a> {
 /// assert_eq!(root.children[0].content_type.mime_type(), "text/plain");
 /// assert_eq!(root.children[1].content_type.mime_type(), "text/html");
 /// ```
-pub fn parse(raw: &[u8]) -> Part {
+pub fn parse(raw: &[u8]) -> Part<'_> {
     let msg = Message::new(raw);
 
     // Headers parse from `&str`. Use `from_utf8_lossy` only as a
     // fallback for the (rare) non-ASCII case — header values per RFC
     // 5322 are restricted to printable ASCII, so the borrowed branch is
     // the hot path. Avoids 4 small allocations on every typical message.
-    let header_str = |name: &str| -> Option<std::borrow::Cow<'_, str>> {
+    let header_str = |name: &str| -> Option<Cow<'_, str>> {
         msg.header(name).map(|v| match std::str::from_utf8(v) {
-            Ok(s) => std::borrow::Cow::Borrowed(s),
-            Err(_) => std::borrow::Cow::Owned(String::from_utf8_lossy(v).into_owned()),
+            Ok(s) => Cow::Borrowed(s),
+            Err(_) => Cow::Owned(String::from_utf8_lossy(v).into_owned()),
         })
     };
 
@@ -196,7 +209,10 @@ pub fn parse(raw: &[u8]) -> Part {
         .map(|v| TransferEncoding::parse(&v))
         .unwrap_or(TransferEncoding::SevenBit);
 
-    let body = msg.body().unwrap_or(b"");
+    // `body` is a slice into `raw` (the input). Children also borrow
+    // from `raw` via `split_multipart`, so the whole tree's lifetime
+    // is tied to `'raw`.
+    let body: &[u8] = msg.body().unwrap_or(b"");
 
     if content_type.is_multipart() {
         let children = match content_type.boundary() {
@@ -204,7 +220,7 @@ pub fn parse(raw: &[u8]) -> Part {
             None => Vec::new(),
         };
         // Multipart preamble is "rarely interesting" per RFC 2046 §5.1.1;
-        // dropping it saves a body.to_vec() of the entire raw payload
+        // dropping it saves a body copy of the entire raw payload
         // (often 1KB+) per multipart node. Callers who need the preamble
         // can read it via the original raw bytes.
         Part {
@@ -212,10 +228,13 @@ pub fn parse(raw: &[u8]) -> Part {
             disposition,
             content_id,
             transfer_encoding,
-            body: Vec::new(),
+            body: Cow::Borrowed(&[]),
             children,
         }
     } else {
+        // `decode` returns Cow::Borrowed(body) for the identity
+        // encodings (7bit/8bit/binary/Other — the common case),
+        // zero-allocation. Only Base64/Quoted-Printable allocate.
         let decoded = transfer_encoding.decode(body);
         Part {
             content_type,
@@ -229,7 +248,7 @@ pub fn parse(raw: &[u8]) -> Part {
 }
 
 /// Split a multipart body by `--<boundary>` markers (RFC 2046 §5.1.1).
-fn split_multipart(body: &[u8], boundary: &str) -> Vec<Part> {
+fn split_multipart<'a>(body: &'a [u8], boundary: &str) -> Vec<Part<'a>> {
     let boundary_bytes = boundary.as_bytes();
     // Boundary token = `--<boundary>`. The close form appends `--` again.
     // No heap allocation for either — we work directly against byte
@@ -432,7 +451,7 @@ mod tests {
         let attachments: Vec<&Part> = p.attachments().collect();
         assert_eq!(attachments.len(), 1);
         assert_eq!(attachments[0].attachment_filename(), Some("report.pdf"));
-        assert_eq!(attachments[0].body, b"Hello world");
+        assert_eq!(&*attachments[0].body, b"Hello world");
     }
 
     #[test]
@@ -518,7 +537,7 @@ mod tests {
     fn empty_body_handled_gracefully() {
         let raw = b"Content-Type: text/plain\r\n\r\n";
         let p = parse(raw);
-        assert_eq!(p.body, b"");
+        assert_eq!(&*p.body, b"");
     }
 
     #[test]
