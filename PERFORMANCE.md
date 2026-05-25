@@ -29,16 +29,16 @@ or marketing material says.
 | Path | Median | Notes |
 |---|---:|---|
 | `decision::make_delivery_decision_greylist` | **2.4 ns** | trivial early return |
+| `auth_header::build_auth_header_no_reason` | **30 ns** | was 342 ns; v4 round 7 direct String builder bypasses the `Vec<AuthResult>` + `format!` chain; **−91%** / 11× ✅ |
+| `auth_header::build_auth_header_with_reason` | **34 ns** | was 429 ns; same change; **−92%** / 13× ✅ |
+| `decision::make_delivery_decision_accept` | **30 ns** | was 337 ns; cascades the auth_header win; **−91%** / 11× ✅ |
+| `decision::make_delivery_decision_dmarc_reject` | **46 ns** | was 408 ns; same auth_header cascade |
 | `context::receive_context_to_pipeline_input` | **65 ns** | per-message snapshot clone |
 | `pipeline_run/early_reject_short_circuit` | **201 ns** | first stage rejects → entire pipeline |
-| `auth_header::format_auth_results_header_quadruple` | **228 ns** | RFC 8601 4-method header |
-| `decision::make_delivery_decision_accept` | **337 ns** | Accept path + auth header build |
-| `auth_header::build_auth_header_no_reason` | **342 ns** | DMARC pass header (no reason) |
-| `decision::make_delivery_decision_dmarc_reject` | **408 ns** | Reject path + auth header build (header built even though not returned) |
-| `auth_header::build_auth_header_with_reason` | **429 ns** | DMARC fail header with `reason="policy=…"` |
+| `auth_header::format_auth_results_header_quadruple` | **197 ns** | RFC 8601 4-method header (generic Vec<AuthResult> path — still used by `Pipeline::run`; `build_auth_header` is the fast inbound-dispatch shortcut) |
+| `decision::make_delivery_decision_junk` | **368 ns** | was 671 ns; cascades auth_header win + the build_junk_reason squeeze from commit `b8ea44d` |
 | `pipeline_run/4_noop_stages` | **610 ns** | framework dispatch cost only |
 | `pipeline_run/realistic_mix_6_stages` | **648 ns** | dispatch + 6 cheap noop-style stages |
-| `decision::make_delivery_decision_junk` | **671 ns** | Junk path — was 735 ns; commit `b8ea44d` replaced `format!` + `matched_rules.join` with pre-sized `String` + `write!` for **−8.7%** measured |
 
 Run: `cargo bench -p mailrs-inbound --bench pipeline` (the bench file
 ships in `crates/inbound/benches/pipeline.rs`).
