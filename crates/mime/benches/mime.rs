@@ -112,6 +112,49 @@ fn bench_vs_mail_parser_invite(c: &mut Criterion) {
     group.finish();
 }
 
+// Base64 decode benchmark — exercises the WSP-fast-path the
+// v2.0.1 decoder added. `clean` is a single-line payload (no WSP);
+// `wrapped` is RFC 2045 76-col line-wrapped.
+fn bench_decode_base64(c: &mut Criterion) {
+    use base64::Engine as _;
+
+    let payload = vec![0x5Au8; 4096];
+    let encoded_clean = base64::engine::general_purpose::STANDARD.encode(&payload);
+    let mut encoded_wrapped = String::new();
+    for (i, ch) in encoded_clean.chars().enumerate() {
+        encoded_wrapped.push(ch);
+        if (i + 1) % 76 == 0 {
+            encoded_wrapped.push_str("\r\n");
+        }
+    }
+
+    // Build a full multipart message whose only body is base64 4 KiB.
+    let mk = |body_b64: &str| {
+        format!(
+            "Content-Type: application/octet-stream\r\n\
+             Content-Transfer-Encoding: base64\r\n\r\n{body_b64}"
+        )
+        .into_bytes()
+    };
+    let clean = mk(&encoded_clean);
+    let wrapped = mk(&encoded_wrapped);
+
+    let mut group = c.benchmark_group("decode_base64");
+    group.bench_function("clean_4k", |b| {
+        b.iter(|| {
+            let p = parse(black_box(&clean));
+            black_box(p.body.len())
+        });
+    });
+    group.bench_function("wrapped_4k", |b| {
+        b.iter(|| {
+            let p = parse(black_box(&wrapped));
+            black_box(p.body.len())
+        });
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_parse_simple,
@@ -119,5 +162,6 @@ criterion_group!(
     bench_find_text_calendar,
     bench_vs_mail_parser_simple,
     bench_vs_mail_parser_invite,
+    bench_decode_base64,
 );
 criterion_main!(benches);

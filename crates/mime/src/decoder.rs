@@ -62,20 +62,33 @@ impl TransferEncoding {
 
 /// Base64 decode, lenient: ignore whitespace, handle missing/optional
 /// padding, drop invalid chars.
+///
+/// Fast-path: when `body` contains no whitespace (signature payloads,
+/// short single-line attachments) we feed the original slice straight
+/// to base64 — skipping the intermediate strip Vec entirely. memchr
+/// is SIMD-vectorised so the WSP probe is faster than a per-byte
+/// filter loop even when WSP IS present.
 fn decode_base64(body: &[u8]) -> Vec<u8> {
-    // Strip whitespace ahead of decode — base64 in MIME bodies is
-    // line-wrapped (76-col per RFC 2045) so SP/LF/CR/TAB occur.
-    let cleaned: Vec<u8> = body
-        .iter()
-        .copied()
-        .filter(|b| !matches!(b, b' ' | b'\t' | b'\r' | b'\n'))
-        .collect();
+    // memchr is SIMD-vectorised. Probe the four MIME WSP bytes; either
+    // hit returns Some and we fall to the strip path.
+    let has_wsp = memchr::memchr2(b'\n', b'\r', body).is_some()
+        || memchr::memchr2(b' ', b'\t', body).is_some();
+    let input: std::borrow::Cow<'_, [u8]> = if has_wsp {
+        let mut cleaned = Vec::with_capacity(body.len());
+        cleaned.extend(
+            body.iter()
+                .copied()
+                .filter(|b| !matches!(b, b' ' | b'\t' | b'\r' | b'\n')),
+        );
+        std::borrow::Cow::Owned(cleaned)
+    } else {
+        std::borrow::Cow::Borrowed(body)
+    };
     base64::engine::general_purpose::STANDARD
-        .decode(&cleaned)
+        .decode(&*input)
         .unwrap_or_else(|_| {
-            // Try without strict padding
             base64::engine::general_purpose::STANDARD_NO_PAD
-                .decode(&cleaned)
+                .decode(&*input)
                 .unwrap_or_default()
         })
 }

@@ -477,6 +477,22 @@ Prior rounds (still load-bearing): memchr-based boundary scan in
 `split_multipart`, `Vec::with_capacity(4)` for parts, slice-only
 boundary comparison (no per-call delimiter Vec build).
 
+**v4 round 24 (2026-05-26 — mime 2.0.1 base64 fast-path)**: the
+old `decode_base64` always allocated an intermediate `cleaned: Vec<u8>`
+to strip WSP before feeding base64. For payloads with no whitespace
+(short single-line signatures, inline images packed without 76-col
+wrapping) this was pure waste — the entire encoded payload got
+copied byte-for-byte just to confirm there was nothing to remove.
+v2.0.1 probes WSP with memchr (SIMD-vectorised), and feeds the
+original slice straight to base64 when clean:
+
+  decode_base64/clean_4k:    1.43 µs  (no WSP — fast-path)
+  decode_base64/wrapped_4k:  5.95 µs  (RFC 2045 76-col WSP — strip path)
+
+Clean payloads now run **4.2× faster than wrapped**, which means
+the fast-path eliminates ~76% of the old per-decode cost on
+real-world signatures and short inline attachments.
+
 #### `mailrs-rfc5322` vs `mail-parser` (header lookup, lazy)
 
 mailrs-rfc5322 is pull-based: it scans for the requested header without parsing the body. mail-parser eagerly parses everything. Comparison is therefore by body size — the lazy crate's wall-clock cost is constant.
