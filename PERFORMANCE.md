@@ -100,6 +100,41 @@ find target/release -maxdepth 2 -name 'libmailrs_*.rlib' -not -path '*/deps/*' \
     || stat -c%s "$1")" $(basename "$1" .rlib)' _ {} | sort -rn
 ```
 
+### Memory profile — `dhat-rs` heap probes
+
+Two `examples/dhat_profile.rs` shims live in-tree (`mime` + `spf`) — they
+swap the global allocator for `dhat::Alloc` and exercise the hot path
+10k times so per-call averages fall out of the totals. Run with
+`cargo run --example dhat_profile -p mailrs-<crate> --release` to
+re-derive these numbers; `dhat-heap.json` is gitignored.
+
+| Probe | Total | Per-call avg | Peak in-flight | Leaks |
+|---|---:|---:|---:|---:|
+| `mime::parse(INVITE) + find_by_content_type` × 10 000 | 15.64 MB / 200 000 blocks | **1 564 B / 20 allocs** | 1 551 B / 17 blocks | 0 |
+| `spf::Record::parse({simple, complex_8, pathological_8})` × 10 000 ea | 20.81 MB / 190 000 blocks | **694 B / 6.3 allocs** (avg over 3 inputs) | 616 B / 9 blocks | 0 |
+
+The `mime` per-call cost (1 564 B / 20 allocs) is the expected weight of
+the parse tree: 3 `ContentType` structs × 2 lowercased Strings each + 2
+`HashMap` nodes per leaf with params. The peak of 1 551 B in 17 blocks
+is *the cost of one tree alive at a time* — Cow<'a, [u8]> on the body
+field means leaf bodies allocate zero (they borrow into the input
+slice), so the peak is dominated by the small `ContentType.params`
+HashMaps. Zero leaks across 200 000 allocations confirms the recursive
+Walker + Cow shape drops cleanly on tree teardown.
+
+The `spf` per-call cost (694 B / 6.3 allocs) is mostly the
+`Mechanism::*` Vec growth (4-slot pre-sized in `Vec::with_capacity(4)`)
+plus the boxed include-domain Strings. The peak (616 B / 9 blocks) is
+the largest single record (`pathological_8` with 8 include strings)
+alive at one moment — under 1 KB per record.
+
+These are the two most-exercised stones (`mime` runs on every
+inbound message, `spf` runs on every accepted MAIL FROM). Across the
+two there's room for further reduction (e.g. inlining small Strings via
+`SmolStr` for `ContentType.type_` / `subtype` — a 2.0 break that would
+drop a known 8 allocs/call on mime). Not done yet; documented here as
+a future axis.
+
 ### Test coverage — `cargo llvm-cov --workspace`
 
 Workspace total (line-coverage, `cargo llvm-cov --workspace --summary-only`):
