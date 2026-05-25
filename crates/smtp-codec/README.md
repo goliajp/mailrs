@@ -85,7 +85,7 @@ custom policies without committing to one of the three modes.
 |---|---|
 | **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-smtp-codec`) |
 | **test** | line cov: 98.2% (`cargo llvm-cov -p mailrs-smtp-codec --summary-only`) |
-| **bench** | ❌ none criterion + ❌ none `perf_gate.rs` |
+| **bench** | ✅ 1 file(s) criterion + ✅ 1 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 47 KB |
 | **fuzz** | ❌ none |
 | **mem**  | dhat profile pending (v3.4 backlog) |

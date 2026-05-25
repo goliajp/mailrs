@@ -100,7 +100,7 @@ timeout.
 |---|---|
 | **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-delivery-executor`) |
 | **test** | line cov: 96.1% (`cargo llvm-cov -p mailrs-delivery-executor --summary-only`) |
-| **bench** | ❌ none criterion + ❌ none `perf_gate.rs` |
+| **bench** | ✅ 1 file(s) criterion + ✅ 0 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 241 KB |
 | **fuzz** | ❌ none |
 | **mem**  | dhat profile pending (v3.4 backlog) |

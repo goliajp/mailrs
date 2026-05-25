@@ -17,3 +17,10 @@ workspace = true
 
 [dependencies]
 sieve-rs = "0.7"
+
+[[bench]]
+name = "sieve"
+harness = false
+
+[dev-dependencies]
+criterion = { workspace = true }

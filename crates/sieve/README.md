@@ -74,7 +74,7 @@ match &actions[0] {
 |---|---|
 | **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-sieve`) |
 | **test** | line cov: 96.4% (`cargo llvm-cov -p mailrs-sieve --summary-only`) |
-| **bench** | ❌ none criterion + ❌ none `perf_gate.rs` |
+| **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 113 KB |
 | **fuzz** | ❌ none |
 | **mem**  | dhat profile pending (v3.4 backlog) |

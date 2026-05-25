@@ -2804,6 +2804,7 @@ checksum = "a611a6c2231f6d297bc5e19059ce9618eebd9a368e21064a1dc7e2483c7e7b90"
 name = "mailrs-attachment-extract"
 version = "1.0.0"
 dependencies = [
+ "criterion",
  "image",
  "pdf-extract",
  "serde",
@@ -2930,6 +2931,7 @@ dependencies = [
 name = "mailrs-delivery-executor"
 version = "1.1.1"
 dependencies = [
+ "criterion",
  "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile",
  "tokio",
@@ -3052,6 +3054,7 @@ name = "mailrs-imap-codec"
 version = "1.0.0"
 dependencies = [
  "bytes",
+ "criterion",
  "tokio-util",
 ]
 
@@ -3070,6 +3073,7 @@ name = "mailrs-imap-format"
 version = "1.0.0"
 dependencies = [
  "chrono",
+ "criterion",
 ]
 
 [[package]]
@@ -3522,6 +3526,7 @@ dependencies = [
 name = "mailrs-sieve"
 version = "1.0.0"
 dependencies = [
+ "criterion",
  "sieve-rs",
 ]
 
@@ -3576,6 +3581,7 @@ name = "mailrs-smtp-codec"
 version = "1.0.1"
 dependencies = [
  "bytes",
+ "criterion",
  "tokio-util",
 ]
 

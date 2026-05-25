@@ -88,7 +88,7 @@ embedded-text PDFs.
 |---|---|
 | **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-attachment-extract`) |
 | **test** | line cov: 84.9% (`cargo llvm-cov -p mailrs-attachment-extract --summary-only`) |
-| **bench** | ❌ none criterion + ❌ none `perf_gate.rs` |
+| **bench** | ✅ 1 file(s) criterion + ✅ 1 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 128 KB |
 | **fuzz** | ❌ none |
 | **mem**  | dhat profile pending (v3.4 backlog) |
