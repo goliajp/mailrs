@@ -241,7 +241,9 @@ mod tests {
 
     #[test]
     fn parse_invalid_utf8_lossy_still_works() {
-        let bad: &[u8] = &[0xFF, 0xFE, b's', b't', b'r', b'e', b'a', b'm', b':', b' ', b'O', b'K'];
+        let bad: &[u8] = &[
+            0xFF, 0xFE, b's', b't', b'r', b'e', b'a', b'm', b':', b' ', b'O', b'K',
+        ];
         let r = parse_response(bad);
         // From-utf8-lossy replaces invalid bytes; "OK" still matches.
         assert_eq!(r, ClamavResult::Clean);

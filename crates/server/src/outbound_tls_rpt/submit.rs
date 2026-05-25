@@ -2,16 +2,13 @@
 //! `_smtp._tls.<domain>`, parse RUA endpoints, dispatch via
 //! mailto: (outbound queue) and https: (POST gzipped report).
 
-
 use sqlx::PgPool;
 
 use hickory_resolver::TokioResolver;
 use hickory_resolver::proto::rr::RData;
 use mailrs_tls_rpt::{
-    Report, RuaEndpoint, SubmissionEmailOpts, TlsRptRecord,
-    build_submission_email, gzip_report,
+    Report, RuaEndpoint, SubmissionEmailOpts, TlsRptRecord, build_submission_email, gzip_report,
 };
-
 
 pub async fn submit_report(
     report: &Report,

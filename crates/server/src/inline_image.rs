@@ -83,13 +83,9 @@ fn verify_magic_bytes(data: &[u8], content_type: &str) -> bool {
         "image/png" => data.starts_with(b"\x89PNG\r\n\x1a\n"),
         "image/jpeg" | "image/jpg" => data.starts_with(b"\xFF\xD8\xFF"),
         "image/gif" => data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a"),
-        "image/webp" => {
-            data.len() >= 12 && data.starts_with(b"RIFF") && &data[8..12] == b"WEBP"
-        }
+        "image/webp" => data.len() >= 12 && data.starts_with(b"RIFF") && &data[8..12] == b"WEBP",
         "image/bmp" => data.starts_with(b"BM"),
-        "image/tiff" => {
-            data.starts_with(b"II*\x00") || data.starts_with(b"MM\x00*")
-        }
+        "image/tiff" => data.starts_with(b"II*\x00") || data.starts_with(b"MM\x00*"),
         // svg is XML text — allow only if it starts with expected XML/SVG markers
         // but we explicitly block svg to prevent XSS via inline SVG scripts
         "image/svg+xml" => false,
@@ -98,10 +94,7 @@ fn verify_magic_bytes(data: &[u8], content_type: &str) -> bool {
 }
 
 /// validate an inline image upload
-pub(crate) fn validate_inline_upload(
-    data: &[u8],
-    content_type: &str,
-) -> Result<(), String> {
+pub(crate) fn validate_inline_upload(data: &[u8], content_type: &str) -> Result<(), String> {
     if data.len() > MAX_INLINE_IMAGE_SIZE {
         return Err(format!(
             "image too large ({} bytes, max {})",
@@ -178,10 +171,7 @@ pub(crate) fn build_inline_parts(images: &[InlineImage], boundary: &str) -> Stri
     let mut parts = String::new();
     for img in images {
         parts.push_str(&format!("--{boundary}\r\n"));
-        parts.push_str(&format!(
-            "Content-Type: {}\r\n",
-            img.content_type
-        ));
+        parts.push_str(&format!("Content-Type: {}\r\n", img.content_type));
         parts.push_str("Content-Transfer-Encoding: base64\r\n");
         parts.push_str(&format!("Content-ID: <{}>\r\n", img.cid));
         parts.push_str("Content-Disposition: inline\r\n\r\n");

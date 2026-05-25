@@ -50,11 +50,20 @@ fn bench_sequence_set(c: &mut Criterion) {
 fn bench_format_response(c: &mut Criterion) {
     let mut group = c.benchmark_group("format_response");
     group.bench_function("list_typical", |b| {
-        b.iter(|| format_list(black_box("\\HasNoChildren"), black_box("/"), black_box("INBOX")))
+        b.iter(|| {
+            format_list(
+                black_box("\\HasNoChildren"),
+                black_box("/"),
+                black_box("INBOX"),
+            )
+        })
     });
     let items = vec![
         ("FLAGS".to_string(), "(\\Seen \\Recent)".to_string()),
-        ("INTERNALDATE".to_string(), "\"20-May-2026 12:00:00 +0900\"".to_string()),
+        (
+            "INTERNALDATE".to_string(),
+            "\"20-May-2026 12:00:00 +0900\"".to_string(),
+        ),
         ("RFC822.SIZE".to_string(), "4096".to_string()),
         ("UID".to_string(), "42".to_string()),
     ];
@@ -64,5 +73,10 @@ fn bench_format_response(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_parse_command, bench_sequence_set, bench_format_response);
+criterion_group!(
+    benches,
+    bench_parse_command,
+    bench_sequence_set,
+    bench_format_response
+);
 criterion_main!(benches);

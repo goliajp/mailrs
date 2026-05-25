@@ -122,7 +122,11 @@ impl InMemoryStore {
     /// [`MailStore::parse_message`] returns the override when called with
     /// matching bytes, and `ParsedBody::default()` otherwise.
     pub fn with_parsed_body(self, raw: Vec<u8>, parsed: ParsedBody) -> Self {
-        self.inner.write().unwrap().parsed_bodies.insert(raw, parsed);
+        self.inner
+            .write()
+            .unwrap()
+            .parsed_bodies
+            .insert(raw, parsed);
         self
     }
 
@@ -302,12 +306,7 @@ impl MailStore for InMemoryStore {
             .collect())
     }
 
-    async fn update_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<(), StoreError> {
+    async fn update_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<(), StoreError> {
         let mut inner = self.inner.write().unwrap();
         if let Some(ref msg) = inner.update_flags_error {
             return Err(msg.clone().into());
@@ -338,7 +337,12 @@ impl MailStore for InMemoryStore {
     }
 
     async fn read_message_raw(&self, message: &Message) -> Option<Vec<u8>> {
-        self.inner.read().unwrap().raw_bytes.get(&message.id).cloned()
+        self.inner
+            .read()
+            .unwrap()
+            .raw_bytes
+            .get(&message.id)
+            .cloned()
     }
 
     fn parse_message(&self, raw: &[u8]) -> ParsedBody {

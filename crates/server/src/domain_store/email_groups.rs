@@ -25,9 +25,16 @@ impl DomainStore {
         };
         Ok(rows
             .into_iter()
-            .map(|(id, address, domain, name, description, created_at)| EmailGroup {
-                id, address, domain, name, description, created_at,
-            })
+            .map(
+                |(id, address, domain, name, description, created_at)| EmailGroup {
+                    id,
+                    address,
+                    domain,
+                    name,
+                    description,
+                    created_at,
+                },
+            )
             .collect())
     }
 
@@ -91,12 +98,10 @@ impl DomainStore {
         .execute(pool)
         .await?;
         // invalidate group address cache + member's permissions (send_as)
-        let addr = sqlx::query_as::<_, (String,)>(
-            "SELECT address FROM email_groups WHERE id = $1",
-        )
-        .bind(group_id)
-        .fetch_optional(pool)
-        .await?;
+        let addr = sqlx::query_as::<_, (String,)>("SELECT address FROM email_groups WHERE id = $1")
+            .bind(group_id)
+            .fetch_optional(pool)
+            .await?;
         if let Some((ref address,)) = addr {
             self.valkey_del(&format!("rcpt:{address}")).await;
         }
@@ -104,11 +109,7 @@ impl DomainStore {
         Ok(())
     }
 
-    pub async fn remove_email_group_member(
-        &self,
-        group_id: i64,
-        member: &str,
-    ) -> Result<bool> {
+    pub async fn remove_email_group_member(&self, group_id: i64, member: &str) -> Result<bool> {
         let pool = self.pg()?;
         let res = sqlx::query(
             "DELETE FROM email_group_members WHERE group_id = $1 AND member_address = $2",
@@ -118,12 +119,10 @@ impl DomainStore {
         .execute(pool)
         .await?;
         // invalidate caches
-        let addr = sqlx::query_as::<_, (String,)>(
-            "SELECT address FROM email_groups WHERE id = $1",
-        )
-        .bind(group_id)
-        .fetch_optional(pool)
-        .await?;
+        let addr = sqlx::query_as::<_, (String,)>("SELECT address FROM email_groups WHERE id = $1")
+            .bind(group_id)
+            .fetch_optional(pool)
+            .await?;
         if let Some((ref address,)) = addr {
             self.valkey_del(&format!("rcpt:{address}")).await;
         }

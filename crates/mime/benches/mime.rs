@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mail_parser::MimeHeaders;
 use mailrs_mime::parse;
 use std::hint::black_box;
@@ -81,7 +81,10 @@ fn bench_vs_mail_parser_invite(c: &mut Criterion) {
     group.bench_function("mailrs_mime", |b| {
         b.iter(|| {
             let p = parse(black_box(INVITE));
-            black_box(p.find_by_content_type("text/calendar").map(|x| x.body.len()))
+            black_box(
+                p.find_by_content_type("text/calendar")
+                    .map(|x| x.body.len()),
+            )
         });
     });
     group.bench_function("mail_parser", |b| {

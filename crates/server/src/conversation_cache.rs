@@ -117,10 +117,7 @@ fn domains_part(domains: Option<&[String]>) -> String {
 }
 
 /// Get a cached JSON response body. None on miss / connection error.
-pub async fn get_json(
-    valkey: &ConnectionManager,
-    key: &str,
-) -> Option<String> {
+pub async fn get_json(valkey: &ConnectionManager, key: &str) -> Option<String> {
     let mut conn = valkey.clone();
     conn.get(key).await.ok()
 }
@@ -128,12 +125,7 @@ pub async fn get_json(
 /// Store a JSON response body with TTL. Best-effort; errors are swallowed
 /// because the cache is purely accelerative — a write failure just means
 /// the next read goes to PG.
-pub async fn set_json(
-    valkey: &ConnectionManager,
-    key: &str,
-    body: &str,
-    ttl_secs: u64,
-) {
+pub async fn set_json(valkey: &ConnectionManager, key: &str, body: &str, ttl_secs: u64) {
     let mut conn = valkey.clone();
     let _: Result<(), _> = conn.set_ex::<_, _, ()>(key, body, ttl_secs).await;
 }
@@ -177,11 +169,7 @@ pub async fn bust_user(valkey: &ConnectionManager, user: &str) {
 /// Bust list-level caches + a specific thread. Use this after any
 /// per-thread mutation (read/unread/star/etc) so the list refreshes its
 /// aggregate counts and the thread refetches with the new flags.
-pub async fn bust_thread(
-    valkey: &ConnectionManager,
-    user: &str,
-    thread_id: &str,
-) {
+pub async fn bust_thread(valkey: &ConnectionManager, user: &str, thread_id: &str) {
     let mut conn = valkey.clone();
     let _: redis::RedisResult<()> = conn.del::<_, ()>(thread_key(user, thread_id)).await;
     bust_user(valkey, user).await;

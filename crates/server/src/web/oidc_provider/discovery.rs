@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 
 use super::super::WebState;
 use crate::oidc_jwt;
@@ -13,9 +13,7 @@ use crate::oidc_store;
 
 // --- Discovery ---
 
-pub(crate) async fn openid_configuration(
-    State(state): State<Arc<WebState>>,
-) -> impl IntoResponse {
+pub(crate) async fn openid_configuration(State(state): State<Arc<WebState>>) -> impl IntoResponse {
     let issuer = format!("https://{}", state.hostname);
     Json(serde_json::json!({
         "issuer": issuer,

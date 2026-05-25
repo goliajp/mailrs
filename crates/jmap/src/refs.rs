@@ -19,11 +19,7 @@ pub fn resolve_references(args: &mut Value, previous: &[(String, Value, String)]
         return;
     };
 
-    let ref_keys: Vec<String> = obj
-        .keys()
-        .filter(|k| k.starts_with('#'))
-        .cloned()
-        .collect();
+    let ref_keys: Vec<String> = obj.keys().filter(|k| k.starts_with('#')).cloned().collect();
 
     for ref_key in ref_keys {
         let Some(ref_val) = obj.remove(&ref_key) else {

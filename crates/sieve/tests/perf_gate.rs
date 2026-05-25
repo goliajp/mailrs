@@ -1,7 +1,7 @@
 //! Regression budgets for `mailrs-sieve`. See BUDGETS.md.
 
-use std::time::{Duration, Instant};
 use mailrs_sieve::{compile_sieve, evaluate_sieve};
+use std::time::{Duration, Instant};
 
 const ITERS: usize = 100;
 const SCRIPT: &str = "require \"fileinto\";\nkeep;";

@@ -51,4 +51,3 @@ pub(super) async fn check_dmarc(resolver: &TokioResolver, domain: &str) -> Check
         },
     }
 }
-

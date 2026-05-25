@@ -14,8 +14,16 @@ fn sample_results(n: usize) -> Vec<DmarcResultRecord> {
         .map(|i| DmarcResultRecord {
             source_ip: format!("192.0.2.{}", i % 255),
             from_domain: format!("sender{}.example.com", i % 10),
-            spf_result: if i % 3 == 0 { "fail".into() } else { "pass".into() },
-            dkim_result: if i % 4 == 0 { "fail".into() } else { "pass".into() },
+            spf_result: if i % 3 == 0 {
+                "fail".into()
+            } else {
+                "pass".into()
+            },
+            dkim_result: if i % 4 == 0 {
+                "fail".into()
+            } else {
+                "pass".into()
+            },
             dmarc_result: "pass".into(),
             disposition: "none".into(),
         })
@@ -78,5 +86,10 @@ fn bench_extract_rua(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_generate_xml, bench_format_email, bench_extract_rua);
+criterion_group!(
+    benches,
+    bench_generate_xml,
+    bench_format_email,
+    bench_extract_rua
+);
 criterion_main!(benches);

@@ -12,8 +12,12 @@ fn bench_parse_flags(c: &mut Criterion) {
     let mut group = c.benchmark_group("parse_flags");
     group.bench_function("empty", |b| b.iter(|| parse_flags(black_box(""))));
     group.bench_function("seen_only", |b| b.iter(|| parse_flags(black_box("S"))));
-    group.bench_function("all_standard", |b| b.iter(|| parse_flags(black_box("FRPST"))));
-    group.bench_function("with_garbage", |b| b.iter(|| parse_flags(black_box("FXSXTX"))));
+    group.bench_function("all_standard", |b| {
+        b.iter(|| parse_flags(black_box("FRPST")))
+    });
+    group.bench_function("with_garbage", |b| {
+        b.iter(|| parse_flags(black_box("FXSXTX")))
+    });
     group.finish();
 }
 
@@ -22,8 +26,16 @@ fn bench_serialize_flags(c: &mut Criterion) {
     let empty: Vec<Flag> = vec![];
     group.bench_function("empty", |b| b.iter(|| serialize_flags(black_box(&empty))));
 
-    let all = vec![Flag::Flagged, Flag::Replied, Flag::Passed, Flag::Seen, Flag::Trashed];
-    group.bench_function("all_standard", |b| b.iter(|| serialize_flags(black_box(&all))));
+    let all = vec![
+        Flag::Flagged,
+        Flag::Replied,
+        Flag::Passed,
+        Flag::Seen,
+        Flag::Trashed,
+    ];
+    group.bench_function("all_standard", |b| {
+        b.iter(|| serialize_flags(black_box(&all)))
+    });
     group.finish();
 }
 
@@ -33,5 +45,10 @@ fn bench_add_flag(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_parse_flags, bench_serialize_flags, bench_add_flag);
+criterion_group!(
+    benches,
+    bench_parse_flags,
+    bench_serialize_flags,
+    bench_add_flag
+);
 criterion_main!(benches);

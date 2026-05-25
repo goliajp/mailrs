@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mailrs_attachment_extract::extraction_method;
 use std::hint::black_box;
 

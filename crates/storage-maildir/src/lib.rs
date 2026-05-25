@@ -131,13 +131,8 @@ impl Flag {
 /// Returns a sorted, deduplicated `Vec<Flag>`.
 pub fn parse_flags(info: &str) -> Vec<Flag> {
     // format: ":2,FLAGS" where FLAGS is a sorted string of flag chars
-    let flags_str = info
-        .strip_prefix(":2,")
-        .unwrap_or("");
-    let mut flags: Vec<Flag> = flags_str
-        .chars()
-        .filter_map(Flag::from_char)
-        .collect();
+    let flags_str = info.strip_prefix(":2,").unwrap_or("");
+    let mut flags: Vec<Flag> = flags_str.chars().filter_map(Flag::from_char).collect();
     flags.sort();
     flags.dedup();
     flags
@@ -373,10 +368,7 @@ impl Maildir {
             if !path.is_file() {
                 continue;
             }
-            let filename = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("");
+            let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
             let (id_part, flags) = if let Some(colon_pos) = filename.find(':') {
                 let id = &filename[..colon_pos];
@@ -412,10 +404,11 @@ impl Maildir {
             }
             if let Ok(modified) = metadata.modified()
                 && let Ok(age) = now.duration_since(modified)
-                    && age > max_age {
-                        fs::remove_file(entry.path())?;
-                        cleaned += 1;
-                    }
+                && age > max_age
+            {
+                fs::remove_file(entry.path())?;
+                cleaned += 1;
+            }
         }
 
         Ok(cleaned)

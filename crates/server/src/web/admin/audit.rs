@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
 use super::*;
@@ -17,7 +17,9 @@ pub(crate) struct AuditLogQuery {
 
 pub(crate) async fn get_audit_log(
     Query(query): Query<AuditLogQuery>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if !permissions.has("admin.accounts") {
@@ -42,7 +44,9 @@ pub(crate) struct AuditAccountsQuery {
 /// list accounts available for audit (filtered by accessible domains)
 pub(crate) async fn audit_list_accounts(
     Query(q): Query<AuditAccountsQuery>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if !permissions.has("admin.impersonate") {
@@ -86,7 +90,11 @@ pub(crate) struct AuditConversationsQuery {
 /// list conversations for the target user (audit mode)
 pub(crate) async fn audit_list_conversations(
     Query(q): Query<AuditConversationsQuery>,
-    AuthUser { ref address, ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref address,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Err(e) = validate_audit_target(&q.target_user, permissions) {
@@ -115,7 +123,8 @@ pub(crate) async fn audit_list_conversations(
 
     // audit log
     if let Some(ref ds) = state.domain_store {
-        ds.log_audit(address, "audit.list_conversations", &q.target_user, "").await;
+        ds.log_audit(address, "audit.list_conversations", &q.target_user, "")
+            .await;
     }
 
     Json(conversations::convos_to_response(convos)).into_response()
@@ -125,7 +134,11 @@ pub(crate) async fn audit_list_conversations(
 pub(crate) async fn audit_get_thread_messages(
     Path(thread_id): Path<String>,
     Query(q): Query<AuditTargetQuery>,
-    AuthUser { ref address, ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref address,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Err(e) = validate_audit_target(&q.target_user, permissions) {
@@ -151,7 +164,8 @@ pub(crate) async fn audit_get_thread_messages(
         } else {
             &msg.user_address
         };
-        let raw = message_util::read_message_raw(&state.maildir_root, maildir_user, &msg.maildir_id);
+        let raw =
+            message_util::read_message_raw(&state.maildir_root, maildir_user, &msg.maildir_id);
         let parsed = raw
             .as_deref()
             .map(message_util::parse_message)
@@ -187,23 +201,48 @@ pub(crate) async fn audit_get_thread_messages(
 
         let ai = mb_store.get_email_analysis(msg.id).await.ok().flatten();
         let (
-            category, risk_score, risk_reason, summary, people, dates, amounts,
-            action_items, ai_analyzed, clean_text,
+            category,
+            risk_score,
+            risk_reason,
+            summary,
+            people,
+            dates,
+            amounts,
+            action_items,
+            ai_analyzed,
+            clean_text,
         ) = if let Some(ref a) = ai {
-            let ct = if a.clean_text.is_empty() { None } else { Some(a.clean_text.clone()) };
+            let ct = if a.clean_text.is_empty() {
+                None
+            } else {
+                Some(a.clean_text.clone())
+            };
             (
-                a.category.clone(), a.risk_score as u8, a.risk_reason.clone(),
-                a.summary.clone(), a.people.clone(), a.dates.clone(),
-                a.amounts.clone(), a.action_items.clone(), true, ct,
+                a.category.clone(),
+                a.risk_score as u8,
+                a.risk_reason.clone(),
+                a.summary.clone(),
+                a.people.clone(),
+                a.dates.clone(),
+                a.amounts.clone(),
+                a.action_items.clone(),
+                true,
+                ct,
             )
         } else {
             let (cat, score) =
                 classify_email(&sender, &subject, parsed.0.as_deref(), parsed.1.as_deref());
             (
-                cat, score, String::new(), String::new(),
-                serde_json::json!([]), serde_json::json!([]),
-                serde_json::json!([]), serde_json::json!([]),
-                false, None,
+                cat,
+                score,
+                String::new(),
+                String::new(),
+                serde_json::json!([]),
+                serde_json::json!([]),
+                serde_json::json!([]),
+                serde_json::json!([]),
+                false,
+                None,
             )
         };
 
@@ -240,7 +279,9 @@ pub(crate) async fn audit_get_thread_messages(
             is_bulk_sender: msg.is_bulk_sender,
             has_tracking_pixel: msg.has_tracking_pixel,
             requires_action: ai.as_ref().is_some_and(|a| a.requires_action),
-            sender_intent: ai.as_ref().map_or_else(|| "inform".into(), |a| a.sender_intent.clone()),
+            sender_intent: ai
+                .as_ref()
+                .map_or_else(|| "inform".into(), |a| a.sender_intent.clone()),
             action_deadline: ai.as_ref().and_then(|a| a.action_deadline.clone()),
             structured_data,
             invite_method: None,
@@ -249,7 +290,8 @@ pub(crate) async fn audit_get_thread_messages(
 
     // audit log
     if let Some(ref ds) = state.domain_store {
-        ds.log_audit(address, "audit.read_thread", &q.target_user, &thread_id).await;
+        ds.log_audit(address, "audit.read_thread", &q.target_user, &thread_id)
+            .await;
     }
 
     Json(result).into_response()
@@ -264,7 +306,11 @@ pub(crate) struct AuditTargetQuery {
 pub(crate) async fn audit_get_raw_message(
     Path(uid): Path<u32>,
     Query(q): Query<AuditTargetQuery>,
-    AuthUser { ref address, ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref address,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Err(e) = validate_audit_target(&q.target_user, permissions) {
@@ -286,20 +332,13 @@ pub(crate) async fn audit_get_raw_message(
     for mb in &mailboxes {
         if let Ok(Some(msg)) = mb_store.get_message(mb.id, uid).await {
             let maildir_user = &q.target_user;
-            if let Some(data) = message_util::read_message_raw(
-                &state.maildir_root,
-                maildir_user,
-                &msg.maildir_id,
-            ) {
+            if let Some(data) =
+                message_util::read_message_raw(&state.maildir_root, maildir_user, &msg.maildir_id)
+            {
                 // audit log
                 if let Some(ref ds) = state.domain_store {
-                    ds.log_audit(
-                        address,
-                        "audit.read_raw",
-                        &q.target_user,
-                        &uid.to_string(),
-                    )
-                    .await;
+                    ds.log_audit(address, "audit.read_raw", &q.target_user, &uid.to_string())
+                        .await;
                 }
                 return (
                     StatusCode::OK,
@@ -340,7 +379,9 @@ pub(crate) struct ExportQuery {
 }
 
 pub(crate) async fn export_messages(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Query(q): Query<ExportQuery>,
 ) -> impl IntoResponse {
@@ -357,15 +398,24 @@ pub(crate) async fn export_messages(
     let mut param_idx = 2u32;
 
     if q.from_date.is_some() {
-        conditions.push(format!("m.internal_date >= EXTRACT(EPOCH FROM ${}::TIMESTAMPTZ)", param_idx));
+        conditions.push(format!(
+            "m.internal_date >= EXTRACT(EPOCH FROM ${}::TIMESTAMPTZ)",
+            param_idx
+        ));
         param_idx += 1;
     }
     if q.to_date.is_some() {
-        conditions.push(format!("m.internal_date <= EXTRACT(EPOCH FROM ${}::TIMESTAMPTZ)", param_idx));
+        conditions.push(format!(
+            "m.internal_date <= EXTRACT(EPOCH FROM ${}::TIMESTAMPTZ)",
+            param_idx
+        ));
         param_idx += 1;
     }
     if q.query.is_some() {
-        conditions.push(format!("(m.subject ILIKE '%' || ${} || '%' OR m.text_body ILIKE '%' || ${} || '%')", param_idx, param_idx));
+        conditions.push(format!(
+            "(m.subject ILIKE '%' || ${} || '%' OR m.text_body ILIKE '%' || ${} || '%')",
+            param_idx, param_idx
+        ));
         param_idx += 1;
     }
 
@@ -378,11 +428,29 @@ pub(crate) async fn export_messages(
          ORDER BY m.internal_date DESC LIMIT ${param_idx}"
     );
 
-    let mut query = sqlx::query_as::<_, (String, String, String, Option<String>, i64, i32, Option<String>, String)>(&sql);
+    let mut query = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            String,
+            Option<String>,
+            i64,
+            i32,
+            Option<String>,
+            String,
+        ),
+    >(&sql);
     query = query.bind(&q.user);
-    if let Some(ref d) = q.from_date { query = query.bind(d); }
-    if let Some(ref d) = q.to_date { query = query.bind(d); }
-    if let Some(ref s) = q.query { query = query.bind(s); }
+    if let Some(ref d) = q.from_date {
+        query = query.bind(d);
+    }
+    if let Some(ref d) = q.to_date {
+        query = query.bind(d);
+    }
+    if let Some(ref s) = q.query {
+        query = query.bind(s);
+    }
     query = query.bind(q.limit);
 
     let rows = match query.fetch_all(pool).await {
@@ -411,8 +479,12 @@ pub(crate) async fn export_messages(
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, "application/jsonl".to_string()),
-            (header::CONTENT_DISPOSITION, format!("attachment; filename=\"export-{}.jsonl\"", q.user)),
+            (
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"export-{}.jsonl\"", q.user),
+            ),
         ],
         output,
-    ).into_response()
+    )
+        .into_response()
 }

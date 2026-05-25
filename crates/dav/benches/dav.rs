@@ -13,7 +13,9 @@ use mailrs_dav::principal::principal_propfind;
 use mailrs_dav::xml::{etag_of, multistatus, xml_escape};
 
 fn bench_xml(c: &mut Criterion) {
-    c.bench_function("etag_of", |b| b.iter(|| etag_of(black_box("BEGIN:VEVENT\nEND:VEVENT"))));
+    c.bench_function("etag_of", |b| {
+        b.iter(|| etag_of(black_box("BEGIN:VEVENT\nEND:VEVENT")))
+    });
     c.bench_function("xml_escape_plain", |b| {
         b.iter(|| xml_escape(black_box("plain text without special chars")))
     });
@@ -110,12 +112,8 @@ fn bench_etag_sizes(c: &mut Criterion) {
     });
 
     // 4 KB payload — realistic VEVENT with description / attendees / VTIMEZONE.
-    let med = "BEGIN:VEVENT\n".to_string()
-        + &"X-CUSTOM:".repeat(400)
-        + "\nEND:VEVENT";
-    c.bench_function("etag_of_med_4kb", |b| {
-        b.iter(|| etag_of(black_box(&med)))
-    });
+    let med = "BEGIN:VEVENT\n".to_string() + &"X-CUSTOM:".repeat(400) + "\nEND:VEVENT";
+    c.bench_function("etag_of_med_4kb", |b| b.iter(|| etag_of(black_box(&med))));
 }
 
 criterion_group!(

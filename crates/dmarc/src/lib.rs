@@ -70,7 +70,7 @@ pub mod eval;
 pub mod policy;
 
 pub use align::{check as align_check, organizational_domain};
-pub use eval::{evaluate, DkimSignatureResult, DmarcInput, DmarcOutcome, SpfResult};
+pub use eval::{DkimSignatureResult, DmarcInput, DmarcOutcome, SpfResult, evaluate};
 pub use policy::{Alignment, DmarcParseError, DmarcPolicy, PolicyAction};
 
 /// One verified DMARC result, recorded per inbound message.
@@ -153,10 +153,8 @@ pub trait DmarcStore: Send + Sync {
 
     /// Fetch all results recorded on `date` (YYYY-MM-DD). Called once
     /// per day by the report generator.
-    async fn get_results_for_date(
-        &self,
-        date: &str,
-    ) -> Result<Vec<DmarcResultRecord>, Self::Error>;
+    async fn get_results_for_date(&self, date: &str)
+    -> Result<Vec<DmarcResultRecord>, Self::Error>;
 
     /// Prune results older than `days`. Called periodically.
     async fn cleanup_old(&self, days: i64) -> Result<u64, Self::Error>;
@@ -291,7 +289,10 @@ pub fn generate_dmarc_report_xml(
     xml.push_str("<feedback>\n");
 
     xml.push_str("  <report_metadata>\n");
-    xml.push_str(&format!("    <org_name>{}</org_name>\n", escape_xml(org_name)));
+    xml.push_str(&format!(
+        "    <org_name>{}</org_name>\n",
+        escape_xml(org_name)
+    ));
     xml.push_str(&format!("    <email>{}</email>\n", escape_xml(email)));
     xml.push_str(&format!("    <report_id>{report_id}</report_id>\n"));
     xml.push_str("    <date_range>\n");
@@ -319,7 +320,10 @@ pub fn generate_dmarc_report_xml(
         xml.push_str(&format!("      <source_ip>{}</source_ip>\n", key.source_ip));
         xml.push_str(&format!("      <count>{count}</count>\n"));
         xml.push_str("      <policy_evaluated>\n");
-        xml.push_str(&format!("        <disposition>{}</disposition>\n", key.disposition));
+        xml.push_str(&format!(
+            "        <disposition>{}</disposition>\n",
+            key.disposition
+        ));
         xml.push_str(&format!("        <dkim>{}</dkim>\n", key.dkim_result));
         xml.push_str(&format!("        <spf>{}</spf>\n", key.spf_result));
         xml.push_str("      </policy_evaluated>\n");
@@ -718,7 +722,13 @@ mod tests {
             disposition: "quarantine".into(),
         }];
         let xml = generate_dmarc_report_xml(
-            "Single Org", "s@s.com", "rpt-single", "single.com", 0, 86400, &results,
+            "Single Org",
+            "s@s.com",
+            "rpt-single",
+            "single.com",
+            0,
+            86400,
+            &results,
         );
         assert!(xml.contains("<count>1</count>"));
         assert!(xml.contains("<source_ip>10.0.0.1</source_ip>"));
@@ -756,9 +766,7 @@ mod tests {
             disposition: "none".into(),
         };
         let results: Vec<_> = (0..5).map(|_| record.clone()).collect();
-        let xml = generate_dmarc_report_xml(
-            "Org", "e@e.com", "r", "agg.com", 0, 86400, &results,
-        );
+        let xml = generate_dmarc_report_xml("Org", "e@e.com", "r", "agg.com", 0, 86400, &results);
         assert!(xml.contains("<count>5</count>"));
         // only one <record> block since all aggregate to same key
         assert_eq!(xml.matches("<record>").count(), 1);
@@ -784,9 +792,7 @@ mod tests {
                 disposition: "none".into(),
             },
         ];
-        let xml = generate_dmarc_report_xml(
-            "Org", "e@e.com", "r", "test.com", 0, 86400, &results,
-        );
+        let xml = generate_dmarc_report_xml("Org", "e@e.com", "r", "test.com", 0, 86400, &results);
         assert_eq!(xml.matches("<record>").count(), 2);
         // records should be sorted by source_ip
         let pos1 = xml.find("<source_ip>1.1.1.1</source_ip>").unwrap();
@@ -814,18 +820,14 @@ mod tests {
                 disposition: "reject".into(),
             },
         ];
-        let xml = generate_dmarc_report_xml(
-            "Org", "e@e.com", "r", "test.com", 0, 86400, &results,
-        );
+        let xml = generate_dmarc_report_xml("Org", "e@e.com", "r", "test.com", 0, 86400, &results);
         // same ip but different disposition/results = different agg keys
         assert_eq!(xml.matches("<record>").count(), 2);
     }
 
     #[test]
     fn generate_report_xml_domain_in_policy_published() {
-        let xml = generate_dmarc_report_xml(
-            "Org", "e@e.com", "r", "mydomain.org", 0, 86400, &[],
-        );
+        let xml = generate_dmarc_report_xml("Org", "e@e.com", "r", "mydomain.org", 0, 86400, &[]);
         assert!(xml.contains("<domain>mydomain.org</domain>"));
     }
 
@@ -839,9 +841,7 @@ mod tests {
             dmarc_result: "fail".into(),
             disposition: "none".into(),
         }];
-        let xml = generate_dmarc_report_xml(
-            "Org", "e@e.com", "r", "auth.com", 0, 86400, &results,
-        );
+        let xml = generate_dmarc_report_xml("Org", "e@e.com", "r", "auth.com", 0, 86400, &results);
         assert!(xml.contains("<auth_results>"));
         assert!(xml.contains("<result>softfail</result>"));
         assert!(xml.contains("<result>temperror</result>"));
@@ -867,9 +867,7 @@ mod tests {
                 disposition: "reject".into(),
             },
         ];
-        let xml = generate_dmarc_report_xml(
-            "Org", "e@e.com", "r", "test.com", 0, 86400, &results,
-        );
+        let xml = generate_dmarc_report_xml("Org", "e@e.com", "r", "test.com", 0, 86400, &results);
         assert!(xml.contains("<header_from>a.com</header_from>"));
         assert!(xml.contains("<header_from>b.com</header_from>"));
     }
@@ -890,17 +888,29 @@ mod tests {
     fn format_report_email_filename_format() {
         let xml = "<feedback/>";
         let email = format_report_email(
-            "f@f.com", "rua@target.com", "example.com", "rpt-42", "2026-03-01", xml,
+            "f@f.com",
+            "rua@target.com",
+            "example.com",
+            "rpt-42",
+            "2026-03-01",
+            xml,
         );
         let email_str = String::from_utf8_lossy(&email);
-        assert!(email_str.contains("filename=\"example.com!rua@target.com!2026-03-01!rpt-42.xml.gz\""));
+        assert!(
+            email_str.contains("filename=\"example.com!rua@target.com!2026-03-01!rpt-42.xml.gz\"")
+        );
     }
 
     #[test]
     fn format_report_email_subject_contains_domain_and_report_id() {
         let xml = "<feedback/>";
         let email = format_report_email(
-            "dmarc@mx.com", "rua@dest.com", "sender.org", "RPT-99", "2026-02-28", xml,
+            "dmarc@mx.com",
+            "rua@dest.com",
+            "sender.org",
+            "RPT-99",
+            "2026-02-28",
+            xml,
         );
         let email_str = String::from_utf8_lossy(&email);
         assert!(email_str.contains("Report domain: sender.org"));
@@ -923,9 +933,8 @@ mod tests {
 
     #[test]
     fn format_report_email_text_body_mentions_domain_and_date() {
-        let email = format_report_email(
-            "f@f.com", "t@t.com", "mydom.com", "r", "2026-03-05", "<x/>",
-        );
+        let email =
+            format_report_email("f@f.com", "t@t.com", "mydom.com", "r", "2026-03-05", "<x/>");
         let email_str = String::from_utf8_lossy(&email);
         assert!(email_str.contains("DMARC aggregate report for mydom.com (2026-03-05)"));
     }
@@ -941,10 +950,7 @@ mod tests {
         let b64_marker = "Content-Transfer-Encoding: base64\r\n\r\n";
         let start = email_str.find(b64_marker).unwrap() + b64_marker.len();
         let end = email_str[start..].find("--dmarc-report-r--").unwrap() + start;
-        let b64_content: String = email_str[start..end]
-            .lines()
-            .collect::<Vec<_>>()
-            .join("");
+        let b64_content: String = email_str[start..end].lines().collect::<Vec<_>>().join("");
         // should be valid base64
         let decoded = base64::engine::general_purpose::STANDARD
             .decode(b64_content.trim())
@@ -970,7 +976,11 @@ mod tests {
         let end = email_str[start..].find("--dmarc-report-r--").unwrap() + start;
         for line in email_str[start..end].split("\r\n") {
             if !line.is_empty() && !line.starts_with("--") {
-                assert!(line.len() <= 76, "base64 line too long: {} chars", line.len());
+                assert!(
+                    line.len() <= 76,
+                    "base64 line too long: {} chars",
+                    line.len()
+                );
             }
         }
     }
@@ -1071,26 +1081,21 @@ mod tests {
             dmarc_result: "pass".into(),
             disposition: "none".into(),
         }];
-        let xml = generate_dmarc_report_xml(
-            "Org", "e@e.com", "r", "ipv6.com", 0, 86400, &results,
-        );
+        let xml = generate_dmarc_report_xml("Org", "e@e.com", "r", "ipv6.com", 0, 86400, &results);
         assert!(xml.contains("<source_ip>2001:db8::1</source_ip>"));
     }
 
     #[test]
     fn generate_report_xml_large_timestamps() {
-        let xml = generate_dmarc_report_xml(
-            "Org", "e@e.com", "r", "d.com", i64::MAX - 1, i64::MAX, &[],
-        );
+        let xml =
+            generate_dmarc_report_xml("Org", "e@e.com", "r", "d.com", i64::MAX - 1, i64::MAX, &[]);
         assert!(xml.contains(&format!("<begin>{}</begin>", i64::MAX - 1)));
         assert!(xml.contains(&format!("<end>{}</end>", i64::MAX)));
     }
 
     #[test]
     fn generate_report_xml_special_chars_in_domain() {
-        let xml = generate_dmarc_report_xml(
-            "Org", "e@e.com", "r", "test&<>.com", 0, 86400, &[],
-        );
+        let xml = generate_dmarc_report_xml("Org", "e@e.com", "r", "test&<>.com", 0, 86400, &[]);
         assert!(xml.contains("<domain>test&amp;&lt;&gt;.com</domain>"));
     }
 }

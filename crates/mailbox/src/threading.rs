@@ -40,10 +40,12 @@ fn extract_header_raw(data: &[u8], name: &str) -> String {
     let text = String::from_utf8_lossy(data);
     let prefix_len = name.len() + 1; // "name:"
     for line in text.lines() {
-        if line.len() > prefix_len && line.as_bytes()[name.len()] == b':'
-            && line[..name.len()].eq_ignore_ascii_case(name) {
-                let val = line[prefix_len..].trim();
-                return normalize_message_id(val).to_string();
+        if line.len() > prefix_len
+            && line.as_bytes()[name.len()] == b':'
+            && line[..name.len()].eq_ignore_ascii_case(name)
+        {
+            let val = line[prefix_len..].trim();
+            return normalize_message_id(val).to_string();
         }
         // empty line = end of headers
         if line.is_empty() {
@@ -225,7 +227,10 @@ mod tests {
             Some("should-not-be-used".to_string())
         });
         assert_eq!(tid, "own@host");
-        assert!(!called.get(), "lookup must not be invoked for empty in_reply_to");
+        assert!(
+            !called.get(),
+            "lookup must not be invoked for empty in_reply_to"
+        );
     }
 
     #[test]
@@ -243,7 +248,10 @@ mod tests {
         // The lookup miss path returns the in_reply_to *verbatim* — it is the
         // caller's responsibility to normalize before invoking.
         let tid = resolve_thread_id("own@host", "<not-normalized@host>", |_| None);
-        assert_eq!(tid, "<not-normalized@host>", "orphan path does not auto-strip");
+        assert_eq!(
+            tid, "<not-normalized@host>",
+            "orphan path does not auto-strip"
+        );
     }
 
     #[test]

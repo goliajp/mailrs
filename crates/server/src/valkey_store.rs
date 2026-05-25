@@ -1,5 +1,5 @@
-use redis::aio::ConnectionManager;
 use redis::Client;
+use redis::aio::ConnectionManager;
 
 pub async fn create_connection(url: &str) -> Result<ConnectionManager, redis::RedisError> {
     let client = Client::open(url)?;

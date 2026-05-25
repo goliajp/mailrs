@@ -7,7 +7,6 @@ use mailrs_dav::types::{Calendar, Event, PutResult};
 
 use super::{DavAdapter, to_store_err};
 
-
 #[async_trait]
 impl CalendarStore for DavAdapter {
     async fn list_calendars(&self, user: &str) -> Result<Vec<Calendar>, StoreError> {
@@ -73,11 +72,7 @@ impl CalendarStore for DavAdapter {
             .collect())
     }
 
-    async fn get_event(
-        &self,
-        calendar_id: i64,
-        uid: &str,
-    ) -> Result<Option<Event>, StoreError> {
+    async fn get_event(&self, calendar_id: i64, uid: &str) -> Result<Option<Event>, StoreError> {
         let row = sqlx::query_as::<_, (String, String)>(
             "SELECT etag, icalendar FROM calendar_events \
              WHERE calendar_id = $1 AND uid = $2",
@@ -97,11 +92,7 @@ impl CalendarStore for DavAdapter {
         }))
     }
 
-    async fn event_etag(
-        &self,
-        calendar_id: i64,
-        uid: &str,
-    ) -> Result<Option<String>, StoreError> {
+    async fn event_etag(&self, calendar_id: i64, uid: &str) -> Result<Option<String>, StoreError> {
         let etag: Option<String> = sqlx::query_scalar(
             "SELECT etag FROM calendar_events WHERE calendar_id = $1 AND uid = $2",
         )
@@ -179,11 +170,7 @@ impl CalendarStore for DavAdapter {
         })
     }
 
-    async fn delete_event(
-        &self,
-        calendar_id: i64,
-        uid: &str,
-    ) -> Result<bool, StoreError> {
+    async fn delete_event(&self, calendar_id: i64, uid: &str) -> Result<bool, StoreError> {
         let res = sqlx::query("DELETE FROM calendar_events WHERE calendar_id = $1 AND uid = $2")
             .bind(calendar_id)
             .bind(uid)

@@ -5,7 +5,8 @@ use std::hint::black_box;
 
 use mailrs_arc::{ArcAuthResults, ArcChain, ArcMessageSignature, ArcSeal};
 
-const AAR: &str = "i=1; spf=pass smtp.mailfrom=alice@example.com; dkim=pass header.d=example.com; dmarc=pass";
+const AAR: &str =
+    "i=1; spf=pass smtp.mailfrom=alice@example.com; dkim=pass header.d=example.com; dmarc=pass";
 const AMS: &str = "i=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com; s=mail; h=From:To:Subject:Date:Message-ID; bh=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=; b=signature1234567890abcdefghijklmnopqrstuvwxyz";
 const AS: &str = "i=1; a=rsa-sha256; cv=none; d=example.com; s=mail; t=1700000000; b=SEAL1234567890abcdefghijklmnopqrstuvwxyz";
 

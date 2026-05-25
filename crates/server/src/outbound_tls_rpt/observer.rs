@@ -4,9 +4,12 @@
 use std::sync::Arc;
 
 use mailrs_outbound_queue::TlsAttemptOutcome;
-use mailrs_tls_rpt::{EventFact, FailureEvent, FailureType, PolicyType, Report, ReportBuilder, Store, StoreError, SuccessEvent};
 #[cfg(test)]
 use mailrs_tls_rpt::InMemoryStore;
+use mailrs_tls_rpt::{
+    EventFact, FailureEvent, FailureType, PolicyType, Report, ReportBuilder, Store, StoreError,
+    SuccessEvent,
+};
 
 use super::convert::{policy_str_to_type, tls_outcome_to_failure_type, truncate};
 
@@ -180,15 +183,7 @@ mod tests {
         )
         .await;
         let r = o
-            .take_report(
-                0,
-                u64::MAX / 2,
-                "Org",
-                "mailto:t@e.com",
-                "rid",
-                "a",
-                "b",
-            )
+            .take_report(0, u64::MAX / 2, "Org", "mailto:t@e.com", "rid", "a", "b")
             .await
             .unwrap()
             .unwrap();

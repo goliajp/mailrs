@@ -170,10 +170,26 @@ mod tests {
     #[test]
     fn full_pipeline_quadruple() {
         let results = vec![
-            AuthResult { method: "spf".into(), result: "pass".into(), reason: None },
-            AuthResult { method: "dkim".into(), result: "pass".into(), reason: None },
-            AuthResult { method: "arc".into(), result: "none".into(), reason: None },
-            AuthResult { method: "dmarc".into(), result: "pass".into(), reason: None },
+            AuthResult {
+                method: "spf".into(),
+                result: "pass".into(),
+                reason: None,
+            },
+            AuthResult {
+                method: "dkim".into(),
+                result: "pass".into(),
+                reason: None,
+            },
+            AuthResult {
+                method: "arc".into(),
+                result: "none".into(),
+                reason: None,
+            },
+            AuthResult {
+                method: "dmarc".into(),
+                result: "pass".into(),
+                reason: None,
+            },
         ];
         let header = format_auth_results("mx.mail.com", &results);
         assert!(header.contains("spf=pass"));
@@ -185,8 +201,16 @@ mod tests {
     #[test]
     fn multiline_folding() {
         let results = vec![
-            AuthResult { method: "spf".into(), result: "pass".into(), reason: None },
-            AuthResult { method: "dmarc".into(), result: "pass".into(), reason: None },
+            AuthResult {
+                method: "spf".into(),
+                result: "pass".into(),
+                reason: None,
+            },
+            AuthResult {
+                method: "dmarc".into(),
+                result: "pass".into(),
+                reason: None,
+            },
         ];
         let header = format_auth_results("mx.example.com", &results);
         // RFC 8601 multi-result folding: ;\r\n\t before each subsequent result
@@ -219,7 +243,12 @@ mod tests {
     #[test]
     fn build_auth_header_threads_dmarc_reason() {
         let header = build_auth_header(
-            "mx.test.com", "pass", "fail", "none", "fail", Some("policy=reject"),
+            "mx.test.com",
+            "pass",
+            "fail",
+            "none",
+            "fail",
+            Some("policy=reject"),
         );
         assert!(header.contains("dmarc=fail"));
         assert!(header.contains("reason=\"policy=reject\""));
@@ -227,9 +256,7 @@ mod tests {
 
     #[test]
     fn build_auth_header_omits_dmarc_reason_when_none() {
-        let header = build_auth_header(
-            "mx.test.com", "pass", "pass", "none", "pass", None,
-        );
+        let header = build_auth_header("mx.test.com", "pass", "pass", "none", "pass", None);
         assert!(!header.contains("reason="));
     }
 }

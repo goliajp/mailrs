@@ -73,9 +73,9 @@ pub mod stage;
 
 // Public re-exports — the surface most consumers reach for.
 pub use auth_header::{
-    build_auth_header, format_auth_results, format_auth_results_header, AuthResult,
+    AuthResult, build_auth_header, format_auth_results, format_auth_results_header,
 };
 pub use context::{AuthResults, DmarcPolicy, ReceiveContext};
-pub use decision::{make_delivery_decision, DeliveryDecision, PipelineInput};
-pub use pipeline::{Pipeline, PipelineBuilder, DEFAULT_SPAM_THRESHOLD};
+pub use decision::{DeliveryDecision, PipelineInput, make_delivery_decision};
+pub use pipeline::{DEFAULT_SPAM_THRESHOLD, Pipeline, PipelineBuilder};
 pub use stage::{Stage, StageOutcome};

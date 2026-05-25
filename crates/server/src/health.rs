@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Instant;
 
 pub const PG_UP: u8 = 0x01;

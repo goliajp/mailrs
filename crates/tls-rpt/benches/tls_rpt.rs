@@ -7,8 +7,7 @@ use mailrs_tls_rpt::{
 use std::hint::black_box;
 
 const RECORD_SINGLE: &str = "v=TLSRPTv1; rua=mailto:tlsrpt@example.com";
-const RECORD_MULTI: &str =
-    "v=TLSRPTv1; rua=mailto:tlsrpt@example.com,https://reports.example.com/v1/tlsrpt,mailto:backup-tlsrpt@example.com";
+const RECORD_MULTI: &str = "v=TLSRPTv1; rua=mailto:tlsrpt@example.com,https://reports.example.com/v1/tlsrpt,mailto:backup-tlsrpt@example.com";
 
 fn bench_record_parse(c: &mut Criterion) {
     c.bench_function("parse/record_single", |b| {

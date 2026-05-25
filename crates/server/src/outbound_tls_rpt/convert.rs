@@ -12,9 +12,9 @@ pub(super) fn tls_outcome_to_failure_type(o: &TlsOutcome) -> FailureType {
         TlsOutcome::CertificateHostMismatch(_) => FailureType::CertificateHostMismatch,
         TlsOutcome::CertificateNotTrusted(_) => FailureType::CertificateNotTrusted,
         TlsOutcome::DaneValidationFailure(_) => FailureType::TlsaInvalid,
-        TlsOutcome::InvalidServerName(_)
-        | TlsOutcome::NetworkError(_)
-        | TlsOutcome::Other(_) => FailureType::ValidationFailure,
+        TlsOutcome::InvalidServerName(_) | TlsOutcome::NetworkError(_) | TlsOutcome::Other(_) => {
+            FailureType::ValidationFailure
+        }
     }
 }
 
@@ -87,7 +87,6 @@ pub(super) fn truncate(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,7 +137,10 @@ mod tests {
         // PolicyType::Tlsa (the canonical RFC 8460 name).
         assert_eq!(policy_str_to_type("dane"), PolicyType::Tlsa);
         assert_eq!(policy_str_to_type("sts"), PolicyType::Sts);
-        assert_eq!(policy_str_to_type("opportunistic"), PolicyType::NoPolicyFound);
+        assert_eq!(
+            policy_str_to_type("opportunistic"),
+            PolicyType::NoPolicyFound
+        );
     }
 
     #[test]

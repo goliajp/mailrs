@@ -4,12 +4,11 @@
 //! PRIORITY surface — every documented HTTP status, every precondition path,
 //! end-to-end PUT → GET round-trip.
 
-
+use mailrs_dav::caldav::{event_delete, event_get, event_put};
+use mailrs_dav::error::DavError;
 use mailrs_dav::fixtures::{
     InMemoryCalendarStore, body_as_str, header_value, make_calendar, make_event,
 };
-use mailrs_dav::caldav::{event_delete, event_get, event_put};
-use mailrs_dav::error::DavError;
 use mailrs_dav::xml::etag_of;
 
 const CAL_ID: i64 = 10;
@@ -18,7 +17,10 @@ const ICAL_V2: &str = "BEGIN:VEVENT\nUID:evt-1\nSUMMARY:updated\nEND:VEVENT";
 
 fn fixture_with_event(uid: &str, body: &str) -> InMemoryCalendarStore {
     InMemoryCalendarStore::new()
-        .with_calendar(mailrs_dav::fixtures::EXAMPLE_USER, make_calendar(CAL_ID, "Work"))
+        .with_calendar(
+            mailrs_dav::fixtures::EXAMPLE_USER,
+            make_calendar(CAL_ID, "Work"),
+        )
         .with_event(CAL_ID, make_event(uid, body))
 }
 
@@ -42,8 +44,10 @@ async fn event_get_returns_200_with_icalendar_body_and_quoted_etag() {
 
 #[tokio::test]
 async fn event_get_missing_uid_returns_not_found_error() {
-    let store = InMemoryCalendarStore::new()
-        .with_calendar(mailrs_dav::fixtures::EXAMPLE_USER, make_calendar(CAL_ID, "Work"));
+    let store = InMemoryCalendarStore::new().with_calendar(
+        mailrs_dav::fixtures::EXAMPLE_USER,
+        make_calendar(CAL_ID, "Work"),
+    );
 
     let err = event_get(&store, CAL_ID, "missing").await.unwrap_err();
 
@@ -67,8 +71,10 @@ async fn event_get_etag_header_matches_stored_etag() {
 
 #[tokio::test]
 async fn event_put_new_returns_201_with_etag() {
-    let store = InMemoryCalendarStore::new()
-        .with_calendar(mailrs_dav::fixtures::EXAMPLE_USER, make_calendar(CAL_ID, "Work"));
+    let store = InMemoryCalendarStore::new().with_calendar(
+        mailrs_dav::fixtures::EXAMPLE_USER,
+        make_calendar(CAL_ID, "Work"),
+    );
 
     let resp = event_put(&store, CAL_ID, "evt-1", None, None, ICAL_V1)
         .await
@@ -100,18 +106,23 @@ async fn event_put_existing_returns_204_with_etag() {
 
 #[tokio::test]
 async fn event_put_then_get_round_trips_body_unchanged() {
-    let store = InMemoryCalendarStore::new()
-        .with_calendar(mailrs_dav::fixtures::EXAMPLE_USER, make_calendar(CAL_ID, "Work"));
+    let store = InMemoryCalendarStore::new().with_calendar(
+        mailrs_dav::fixtures::EXAMPLE_USER,
+        make_calendar(CAL_ID, "Work"),
+    );
 
-    let body =
-        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-1\r\nSUMMARY:hello\r\nEND:VEVENT\r\nEND:VCALENDAR";
+    let body = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-1\r\nSUMMARY:hello\r\nEND:VEVENT\r\nEND:VCALENDAR";
 
     event_put(&store, CAL_ID, "evt-1", None, None, body)
         .await
         .unwrap();
     let resp = event_get(&store, CAL_ID, "evt-1").await.unwrap();
 
-    assert_eq!(body_as_str(resp.body), body, "PUT body round-trips through GET unchanged");
+    assert_eq!(
+        body_as_str(resp.body),
+        body,
+        "PUT body round-trips through GET unchanged"
+    );
 }
 
 #[tokio::test]
@@ -181,8 +192,10 @@ async fn event_put_if_match_strips_surrounding_quotes_before_comparison() {
 
 #[tokio::test]
 async fn event_put_if_match_on_missing_resource_returns_precondition_failed() {
-    let store = InMemoryCalendarStore::new()
-        .with_calendar(mailrs_dav::fixtures::EXAMPLE_USER, make_calendar(CAL_ID, "Work"));
+    let store = InMemoryCalendarStore::new().with_calendar(
+        mailrs_dav::fixtures::EXAMPLE_USER,
+        make_calendar(CAL_ID, "Work"),
+    );
 
     let err = event_put(
         &store,
@@ -215,8 +228,10 @@ async fn event_put_if_none_match_star_blocks_overwrite_of_existing() {
 
 #[tokio::test]
 async fn event_put_if_none_match_star_allows_create_when_resource_absent() {
-    let store = InMemoryCalendarStore::new()
-        .with_calendar(mailrs_dav::fixtures::EXAMPLE_USER, make_calendar(CAL_ID, "Work"));
+    let store = InMemoryCalendarStore::new().with_calendar(
+        mailrs_dav::fixtures::EXAMPLE_USER,
+        make_calendar(CAL_ID, "Work"),
+    );
 
     let resp = event_put(&store, CAL_ID, "evt-new", None, Some("*"), ICAL_V1)
         .await
@@ -240,8 +255,10 @@ async fn event_delete_existing_returns_204_and_removes_row() {
 
 #[tokio::test]
 async fn event_delete_missing_returns_not_found_error() {
-    let store = InMemoryCalendarStore::new()
-        .with_calendar(mailrs_dav::fixtures::EXAMPLE_USER, make_calendar(CAL_ID, "Work"));
+    let store = InMemoryCalendarStore::new().with_calendar(
+        mailrs_dav::fixtures::EXAMPLE_USER,
+        make_calendar(CAL_ID, "Work"),
+    );
 
     let err = event_delete(&store, CAL_ID, "missing").await.unwrap_err();
 

@@ -4,8 +4,8 @@ use tokio::net::TcpStream;
 
 use crate::domain_store::DomainStore;
 use crate::inbound::auth_guard::{AuthCheck, AuthGuard};
-use mailrs_sieve::compile_sieve;
 use crate::users::UserStore;
+use mailrs_sieve::compile_sieve;
 
 /// ManageSieve session state (RFC 5804)
 enum SieveState {
@@ -133,9 +133,10 @@ impl ManageSieveSession {
 
         // check auth guard
         if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr)
-            && let AuthCheck::LockedOut { .. } = guard.check(ip, &username) {
-                return vec!["NO \"too many failures, try later\"\r\n".into()];
-            }
+            && let AuthCheck::LockedOut { .. } = guard.check(ip, &username)
+        {
+            return vec!["NO \"too many failures, try later\"\r\n".into()];
+        }
 
         // authenticate: try domain store first, then users.toml, then LDAP
         let authenticated = if let Some(ref ds) = self.domain_store {
@@ -208,17 +209,11 @@ impl ManageSieveSession {
         };
 
         let Some(ref ds) = self.domain_store else {
-            return vec![
-                "\"default\"\r\n".into(),
-                "OK\r\n".into(),
-            ];
+            return vec!["\"default\"\r\n".into(), "OK\r\n".into()];
         };
 
         match ds.get_sieve_script(username).await {
-            Ok(Some(_)) => vec![
-                "\"default\" ACTIVE\r\n".into(),
-                "OK\r\n".into(),
-            ],
+            Ok(Some(_)) => vec!["\"default\" ACTIVE\r\n".into(), "OK\r\n".into()],
             Ok(None) => vec!["OK\r\n".into()],
             Err(e) => vec![format!("NO \"{e}\"\r\n")],
         }
@@ -285,7 +280,9 @@ impl ManageSieveSession {
             let brace_end = rest.find('}').unwrap_or(0);
             // content follows after \r\n or immediately
             let after_brace = &rest[brace_end + 1..];
-            let content = after_brace.trim_start_matches("\r\n").trim_start_matches('\n');
+            let content = after_brace
+                .trim_start_matches("\r\n")
+                .trim_start_matches('\n');
             content.to_string()
         } else {
             rest.to_string()
@@ -437,7 +434,6 @@ pub async fn handle_connection(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -474,7 +470,9 @@ mod tests {
     #[tokio::test]
     async fn authenticate_fails_bad_mechanism() {
         let mut session = make_session();
-        let resp = session.handle_line("AUTHENTICATE \"CRAM-MD5\" dGVzdA==").await;
+        let resp = session
+            .handle_line("AUTHENTICATE \"CRAM-MD5\" dGVzdA==")
+            .await;
         assert!(resp[0].starts_with("NO"));
         assert!(resp[0].contains("unsupported"));
     }
@@ -482,15 +480,18 @@ mod tests {
     #[tokio::test]
     async fn authenticate_fails_invalid_base64() {
         let mut session = make_session();
-        let resp = session.handle_line("AUTHENTICATE \"PLAIN\" !!!invalid!!!").await;
+        let resp = session
+            .handle_line("AUTHENTICATE \"PLAIN\" !!!invalid!!!")
+            .await;
         assert!(resp[0].starts_with("NO"));
     }
 
     #[tokio::test]
     async fn authenticate_fails_bad_credentials() {
-        let users = Arc::new(UserStore::from_plain_passwords(vec![
-            ("alice@example.com".into(), "secret".into()),
-        ]));
+        let users = Arc::new(UserStore::from_plain_passwords(vec![(
+            "alice@example.com".into(),
+            "secret".into(),
+        )]));
         let mut session = ManageSieveSession::new(users);
         // encode \0alice@example.com\0wrong
         let cred = base64_encode(b"\0alice@example.com\0wrong");
@@ -502,9 +503,10 @@ mod tests {
 
     #[tokio::test]
     async fn authenticate_succeeds() {
-        let users = Arc::new(UserStore::from_plain_passwords(vec![
-            ("alice@example.com".into(), "secret".into()),
-        ]));
+        let users = Arc::new(UserStore::from_plain_passwords(vec![(
+            "alice@example.com".into(),
+            "secret".into(),
+        )]));
         let mut session = ManageSieveSession::new(users);
         let cred = base64_encode(b"\0alice@example.com\0secret");
         let resp = session

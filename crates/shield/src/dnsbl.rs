@@ -10,6 +10,6 @@
 //! `mailrs_shield::dnsbl::*` continues to work.
 
 pub use mailrs_dnsbl::{
-    check_dnsbl, dnsbl_query, interpret_spamhaus, is_ipv6_dnsbl_supported, reverse_ipv4,
-    DnsblCache, DnsblResult,
+    DnsblCache, DnsblResult, check_dnsbl, dnsbl_query, interpret_spamhaus, is_ipv6_dnsbl_supported,
+    reverse_ipv4,
 };

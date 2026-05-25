@@ -94,9 +94,7 @@ pub(crate) async fn get_client(
 }
 
 /// list all active clients
-pub(crate) async fn list_clients(
-    pool: &PgPool,
-) -> Result<Vec<OAuthClient>, sqlx::Error> {
+pub(crate) async fn list_clients(pool: &PgPool) -> Result<Vec<OAuthClient>, sqlx::Error> {
     sqlx::query_as::<_, OAuthClient>(
         "SELECT client_id, secret_hash, name, redirect_uris, scopes, trusted, active, created_by, created_at
          FROM oauth_clients
@@ -108,10 +106,7 @@ pub(crate) async fn list_clients(
 }
 
 /// deactivate (soft-delete) a client
-pub(crate) async fn delete_client(
-    pool: &PgPool,
-    client_id: &str,
-) -> Result<bool, sqlx::Error> {
+pub(crate) async fn delete_client(pool: &PgPool, client_id: &str) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
         "UPDATE oauth_clients SET active = false WHERE client_id = $1 AND active = true",
     )
@@ -189,9 +184,10 @@ pub(crate) async fn consume_auth_code(
 
 /// delete expired auth codes
 pub(crate) async fn cleanup_expired_codes(pool: &PgPool) -> Result<u64, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM oauth_auth_codes WHERE expires_at < now() OR used = true")
-        .execute(pool)
-        .await?;
+    let result =
+        sqlx::query("DELETE FROM oauth_auth_codes WHERE expires_at < now() OR used = true")
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected())
 }
 
@@ -261,11 +257,10 @@ pub(crate) async fn list_active_public_keys(
 
 /// check if any active signing key exists
 pub(crate) async fn has_any_active_key(pool: &PgPool) -> Result<bool, sqlx::Error> {
-    let count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM oauth_signing_keys WHERE active = true",
-    )
-    .fetch_one(pool)
-    .await?;
+    let count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM oauth_signing_keys WHERE active = true")
+            .fetch_one(pool)
+            .await?;
     Ok(count > 0)
 }
 
@@ -337,11 +332,10 @@ pub(crate) async fn revoke_refresh_token(
 
 /// delete expired or revoked refresh tokens
 pub(crate) async fn cleanup_expired_refresh_tokens(pool: &PgPool) -> Result<u64, sqlx::Error> {
-    let result = sqlx::query(
-        "DELETE FROM oauth_refresh_tokens WHERE expires_at < now() OR revoked = true",
-    )
-    .execute(pool)
-    .await?;
+    let result =
+        sqlx::query("DELETE FROM oauth_refresh_tokens WHERE expires_at < now() OR revoked = true")
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected())
 }
 

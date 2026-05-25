@@ -48,7 +48,9 @@ pub(crate) async fn forgot_password(
             .flatten()
             .map(|(acct, _)| {
                 !acct.recovery_email.is_empty()
-                    && acct.recovery_email.eq_ignore_ascii_case(&req.recovery_email)
+                    && acct
+                        .recovery_email
+                        .eq_ignore_ascii_case(&req.recovery_email)
             })
             .unwrap_or(false)
     } else {
@@ -122,10 +124,7 @@ pub(crate) async fn forgot_password(
                 // send via outbound queue so it reaches the external recovery email
                 if let Some(ref oq) = state.outbound_queue {
                     let rcpt = &to[0];
-                    let domain = rcpt
-                        .rsplit_once('@')
-                        .map(|(_, d)| d)
-                        .unwrap_or("unknown");
+                    let domain = rcpt.rsplit_once('@').map(|(_, d)| d).unwrap_or("unknown");
                     let ts = now.timestamp();
                     let _ = mailrs_outbound_queue::queue::enqueue(
                         oq,
@@ -150,7 +149,9 @@ pub(crate) async fn forgot_password(
     // always return same response to prevent enumeration
     (
         StatusCode::OK,
-        Json(serde_json::json!({"success": true, "message": "If the account and recovery email match, a reset link has been sent."})),
+        Json(
+            serde_json::json!({"success": true, "message": "If the account and recovery email match, a reset link has been sent."}),
+        ),
     )
 }
 
@@ -260,10 +261,7 @@ pub(crate) async fn reset_password(
     ds.log_audit(&account_address, "password_reset", &account_address, "")
         .await;
 
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({"success": true})),
-    )
+    (StatusCode::OK, Json(serde_json::json!({"success": true})))
 }
 
 pub(crate) async fn change_password(
@@ -346,12 +344,10 @@ pub(crate) async fn change_password(
         );
     }
 
-    ds.log_audit(&address, "password_changed", &address, "").await;
+    ds.log_audit(&address, "password_changed", &address, "")
+        .await;
 
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({"success": true})),
-    )
+    (StatusCode::OK, Json(serde_json::json!({"success": true})))
 }
 
 pub(crate) async fn update_recovery_email(
@@ -381,13 +377,14 @@ pub(crate) async fn update_recovery_email(
         );
     };
 
-    match ds.update_recovery_email(&address, &req.recovery_email).await {
+    match ds
+        .update_recovery_email(&address, &req.recovery_email)
+        .await
+    {
         Ok(true) => {
-            ds.log_audit(&address, "recovery_email_updated", &address, "").await;
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({"success": true})),
-            )
+            ds.log_audit(&address, "recovery_email_updated", &address, "")
+                .await;
+            (StatusCode::OK, Json(serde_json::json!({"success": true})))
         }
         Ok(false) => (
             StatusCode::NOT_FOUND,

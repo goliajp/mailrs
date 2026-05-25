@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use super::{ApiResult, AuthUser, WebState};
@@ -125,8 +125,8 @@ pub(crate) async fn list_drafts(
 
     let drafts: Vec<DraftInfo> = rows
         .into_iter()
-        .map(|(id, to_addresses, cc_addresses, bcc_addresses, subject, body, reply_to_thread_id, created_at, updated_at)| {
-            DraftInfo {
+        .map(
+            |(
                 id,
                 to_addresses,
                 cc_addresses,
@@ -134,10 +134,22 @@ pub(crate) async fn list_drafts(
                 subject,
                 body,
                 reply_to_thread_id,
-                created_at: created_at.to_rfc3339(),
-                updated_at: updated_at.to_rfc3339(),
-            }
-        })
+                created_at,
+                updated_at,
+            )| {
+                DraftInfo {
+                    id,
+                    to_addresses,
+                    cc_addresses,
+                    bcc_addresses,
+                    subject,
+                    body,
+                    reply_to_thread_id,
+                    created_at: created_at.to_rfc3339(),
+                    updated_at: updated_at.to_rfc3339(),
+                }
+            },
+        )
         .collect();
 
     Json(drafts)

@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
 use super::{AuthUser, WebState};
@@ -25,7 +25,8 @@ pub(crate) async fn render_preview(
     let Some(ref client) = state.render_preview else {
         return Json(serde_json::json!({
             "error": "rendering engine not configured (MAILRS_CHROME_CDP_URL not set)"
-        })).into_response();
+        }))
+        .into_response();
     };
 
     if req.html.len() > 1_000_000 {
@@ -59,7 +60,8 @@ pub(crate) async fn render_preview(
     Json(serde_json::json!({
         "previews": previews,
         "errors": errors,
-    })).into_response()
+    }))
+    .into_response()
 }
 
 pub(crate) async fn serve_render_cache(
@@ -80,7 +82,8 @@ pub(crate) async fn serve_render_cache(
                 (header::CACHE_CONTROL, "public, max-age=3600".to_string()),
             ],
             data,
-        ).into_response(),
+        )
+            .into_response(),
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }

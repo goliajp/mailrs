@@ -182,10 +182,7 @@ fn extract_jsonld_blocks(html: &str) -> Vec<String> {
 }
 
 fn process_jsonld_item(item: &serde_json::Value, data: &mut StructuredData) {
-    let schema_type = item
-        .get("@type")
-        .and_then(|t| t.as_str())
-        .unwrap_or("");
+    let schema_type = item.get("@type").and_then(|t| t.as_str()).unwrap_or("");
 
     match schema_type {
         "FlightReservation" => {
@@ -201,10 +198,16 @@ fn process_jsonld_item(item: &serde_json::Value, data: &mut StructuredData) {
                 location: None,
                 provider: get_nested_str(item, &["provider", "name"])
                     .or_else(|| get_nested_str(item, &["reservationFor", "airline", "name"])),
-                departure_airport: get_nested_str(item, &["reservationFor", "departureAirport", "iataCode"])
-                    .or_else(|| get_nested_str(item, &["reservationFor", "departureAirport", "name"])),
-                arrival_airport: get_nested_str(item, &["reservationFor", "arrivalAirport", "iataCode"])
-                    .or_else(|| get_nested_str(item, &["reservationFor", "arrivalAirport", "name"])),
+                departure_airport: get_nested_str(
+                    item,
+                    &["reservationFor", "departureAirport", "iataCode"],
+                )
+                .or_else(|| get_nested_str(item, &["reservationFor", "departureAirport", "name"])),
+                arrival_airport: get_nested_str(
+                    item,
+                    &["reservationFor", "arrivalAirport", "iataCode"],
+                )
+                .or_else(|| get_nested_str(item, &["reservationFor", "arrivalAirport", "name"])),
                 flight_number: get_str(flight, "flightNumber"),
             });
         }
@@ -275,7 +278,10 @@ fn process_jsonld_item(item: &serde_json::Value, data: &mut StructuredData) {
                     }
                     Some(OrderItem {
                         name,
-                        quantity: oi.get("orderQuantity").and_then(|q| q.as_u64()).map(|q| q as u32),
+                        quantity: oi
+                            .get("orderQuantity")
+                            .and_then(|q| q.as_u64())
+                            .map(|q| q as u32),
                         price: get_str(Some(oi), "price"),
                     })
                 })
@@ -289,10 +295,15 @@ fn process_jsonld_item(item: &serde_json::Value, data: &mut StructuredData) {
                 status: get_str(Some(item), "orderStatus")
                     .map(|s| s.replace("http://schema.org/Order", "")),
                 items,
-                total: get_nested_str(item, &["totalPrice", "value"])
-                    .or_else(|| get_str(Some(item), "totalPrice").and_then(|v| {
-                        if v.parse::<f64>().is_ok() { Some(v) } else { None }
-                    })),
+                total: get_nested_str(item, &["totalPrice", "value"]).or_else(|| {
+                    get_str(Some(item), "totalPrice").and_then(|v| {
+                        if v.parse::<f64>().is_ok() {
+                            Some(v)
+                        } else {
+                            None
+                        }
+                    })
+                }),
                 currency: get_nested_str(item, &["totalPrice", "currency"])
                     .or_else(|| get_str(Some(item), "priceCurrency")),
             });
@@ -485,7 +496,10 @@ mod tests {
         assert_eq!(data.orders.len(), 1);
         assert_eq!(data.actions.len(), 1);
         assert_eq!(data.actions[0].kind, "track");
-        assert_eq!(data.actions[0].url.as_deref(), Some("https://track.example.com/123"));
+        assert_eq!(
+            data.actions[0].url.as_deref(),
+            Some("https://track.example.com/123")
+        );
     }
 
     #[test]
@@ -662,7 +676,10 @@ mod boundary_tests {
     fn url_http_preserved() {
         let html = r#"<script type="application/ld+json">{"@type":"Event","name":"E","startDate":"2026-01-01","url":"http://insecure.example.com"}</script>"#;
         let data = extract_structured_data(html);
-        assert_eq!(data.events[0].url.as_deref(), Some("http://insecure.example.com"));
+        assert_eq!(
+            data.events[0].url.as_deref(),
+            Some("http://insecure.example.com")
+        );
     }
 
     #[test]

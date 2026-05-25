@@ -1,5 +1,5 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use mailrs_dnsbl::{dnsbl_query, interpret_spamhaus, reverse_ipv4, DnsblCache, DnsblResult};
+use criterion::{Criterion, criterion_group, criterion_main};
+use mailrs_dnsbl::{DnsblCache, DnsblResult, dnsbl_query, interpret_spamhaus, reverse_ipv4};
 use std::hint::black_box;
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;

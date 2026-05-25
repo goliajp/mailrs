@@ -263,13 +263,20 @@ impl Session {
             (State::Connected, _) => Event::Reply(Response::bad_sequence()),
 
             // MAIL FROM: accepted at Greeted or Authenticated
-            (State::Greeted { .. } | State::Authenticated { .. }, Command::MailFrom { path, params }) => {
+            (
+                State::Greeted { .. } | State::Authenticated { .. },
+                Command::MailFrom { path, params },
+            ) => {
                 // check SIZE parameter
-                if let Some(size_str) = params.iter().find(|p| p.key.eq_ignore_ascii_case("SIZE")).map(|p| p.value)
+                if let Some(size_str) = params
+                    .iter()
+                    .find(|p| p.key.eq_ignore_ascii_case("SIZE"))
+                    .map(|p| p.value)
                     && let Ok(size) = size_str.parse::<u64>()
-                        && size > self.config.max_size {
-                            return Event::Reply(Response::too_large());
-                        }
+                    && size > self.config.max_size
+                {
+                    return Event::Reply(Response::too_large());
+                }
 
                 let reverse_path = match path {
                     crate::command::ReversePath::Null => String::new(),
@@ -307,9 +314,10 @@ impl Session {
 
             (State::RcptTo { .. }, Command::RcptTo { path, .. }) => {
                 if let State::RcptTo { forward_paths, .. } = &self.state
-                    && forward_paths.len() >= self.config.max_recipients {
-                        return Event::Reply(Response::too_many_recipients());
-                    }
+                    && forward_paths.len() >= self.config.max_recipients
+                {
+                    return Event::Reply(Response::too_many_recipients());
+                }
                 let forward = forward_path_to_string(path);
                 if let State::RcptTo { forward_paths, .. } = &mut self.state {
                     forward_paths.push(forward);
@@ -323,7 +331,12 @@ impl Session {
                 let domain = self.extract_domain();
                 let username = self.extract_username();
                 match username {
-                    Some(u) => self.state = State::Authenticated { domain, username: u },
+                    Some(u) => {
+                        self.state = State::Authenticated {
+                            domain,
+                            username: u,
+                        }
+                    }
                     None => self.state = State::Greeted { domain },
                 }
                 Event::NeedData {
@@ -345,7 +358,12 @@ impl Session {
                 let domain = self.extract_domain();
                 let username = self.extract_username();
                 match username {
-                    Some(u) => self.state = State::Authenticated { domain, username: u },
+                    Some(u) => {
+                        self.state = State::Authenticated {
+                            domain,
+                            username: u,
+                        }
+                    }
                     None => self.state = State::Greeted { domain },
                 }
                 Event::Reply(Response::ok())
@@ -406,11 +424,7 @@ impl Session {
     /// the same value carried by the prior `AuthChallenge`. Returns the
     /// next [`Event`] — typically another `AuthChallenge` for LOGIN's
     /// two-prompt flow, or a final `NeedAuth` with credentials to verify.
-    pub fn handle_auth_response(
-        &mut self,
-        data: &str,
-        step: &AuthStep,
-    ) -> Event {
+    pub fn handle_auth_response(&mut self, data: &str, step: &AuthStep) -> Event {
         match step {
             AuthStep::WaitPlainResponse => match decode_plain(data) {
                 Ok((username, password)) => Event::NeedAuth { username, password },
@@ -446,8 +460,14 @@ impl Session {
     fn extract_username(&self) -> Option<String> {
         match &self.state {
             State::Authenticated { username, .. }
-            | State::MailFrom { username: Some(username), .. }
-            | State::RcptTo { username: Some(username), .. } => Some(username.clone()),
+            | State::MailFrom {
+                username: Some(username),
+                ..
+            }
+            | State::RcptTo {
+                username: Some(username),
+                ..
+            } => Some(username.clone()),
             _ => None,
         }
     }
@@ -465,8 +485,9 @@ impl Session {
 
     fn extract_reverse_path(&self) -> String {
         match &self.state {
-            State::MailFrom { reverse_path, .. }
-            | State::RcptTo { reverse_path, .. } => reverse_path.clone(),
+            State::MailFrom { reverse_path, .. } | State::RcptTo { reverse_path, .. } => {
+                reverse_path.clone()
+            }
             _ => String::new(),
         }
     }

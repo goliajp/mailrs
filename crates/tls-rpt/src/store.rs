@@ -102,11 +102,7 @@ pub trait Store: Send + Sync {
     /// Persist one event fact, recorded at `recorded_at_unix_secs`.
     /// Backend impls should make this fast — it's called once per
     /// outbound TLS attempt.
-    async fn append(
-        &self,
-        event: EventFact,
-        recorded_at_unix_secs: u64,
-    ) -> Result<(), StoreError>;
+    async fn append(&self, event: EventFact, recorded_at_unix_secs: u64) -> Result<(), StoreError>;
 
     /// Atomically return + delete all facts whose
     /// `recorded_at_unix_secs` falls in `[start, end)`. Order is
@@ -155,11 +151,7 @@ impl Default for InMemoryStore {
 
 #[async_trait]
 impl Store for InMemoryStore {
-    async fn append(
-        &self,
-        event: EventFact,
-        recorded_at_unix_secs: u64,
-    ) -> Result<(), StoreError> {
+    async fn append(&self, event: EventFact, recorded_at_unix_secs: u64) -> Result<(), StoreError> {
         self.rows
             .lock()
             .unwrap()

@@ -18,13 +18,13 @@
 use std::time::{Duration, Instant};
 
 use mailrs_dmarc::{
-    eval::{evaluate, DkimSignatureResult, DmarcInput, SpfResult},
+    eval::{DkimSignatureResult, DmarcInput, SpfResult, evaluate},
     policy::DmarcPolicy,
 };
 use mailrs_maildir::Maildir;
 use mailrs_rfc5322::Message;
 use mailrs_smtp_proto::session::{Event, Session, SessionConfig};
-use mailrs_smtp_proto::{parse_command, Command};
+use mailrs_smtp_proto::{Command, parse_command};
 
 const HOSTNAME: &str = "mx.test.local";
 

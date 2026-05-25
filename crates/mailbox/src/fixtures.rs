@@ -29,8 +29,8 @@ use async_trait::async_trait;
 
 use crate::store::{MailboxStore, StoreError};
 use crate::types::{
-    FlagOp, InsertMessage, Inserted, Mailbox, MailboxStatus, Message, QueryFilter, FLAG_DELETED,
-    FLAG_SEEN,
+    FLAG_DELETED, FLAG_SEEN, FlagOp, InsertMessage, Inserted, Mailbox, MailboxStatus, Message,
+    QueryFilter,
 };
 
 /// Convenience example user used in doc tests and fixture seeds.
@@ -103,7 +103,9 @@ impl MailboxStore for InMemoryMailboxStore {
             .filter(|m| m.user == user && m.name == name)
             .map(|m| m.id)
             .collect();
-        inner.mailboxes.retain(|m| !(m.user == user && m.name == name));
+        inner
+            .mailboxes
+            .retain(|m| !(m.user == user && m.name == name));
         // cascade-delete messages
         inner.messages.retain(|m| !mbox_ids.contains(&m.mailbox_id));
         Ok(inner.mailboxes.len() < before)
@@ -305,30 +307,15 @@ impl MailboxStore for InMemoryMailboxStore {
 
     // ===== Flags =====
 
-    async fn set_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<u64, StoreError> {
+    async fn set_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<u64, StoreError> {
         apply_flag_op(self, mailbox_id, uid, FlagOp::Set, flags)
     }
 
-    async fn add_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<u64, StoreError> {
+    async fn add_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<u64, StoreError> {
         apply_flag_op(self, mailbox_id, uid, FlagOp::Add, flags)
     }
 
-    async fn remove_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<u64, StoreError> {
+    async fn remove_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<u64, StoreError> {
         apply_flag_op(self, mailbox_id, uid, FlagOp::Remove, flags)
     }
 
@@ -431,10 +418,7 @@ impl MailboxStore for InMemoryMailboxStore {
 
     // ===== Query =====
 
-    async fn query_messages(
-        &self,
-        filter: QueryFilter<'_>,
-    ) -> Result<Vec<Message>, StoreError> {
+    async fn query_messages(&self, filter: QueryFilter<'_>) -> Result<Vec<Message>, StoreError> {
         let inner = self.inner.read().unwrap();
         let user_filter = filter.user;
         let mut out: Vec<Message> = inner
@@ -542,7 +526,12 @@ mod tests {
     const ALICE: &str = "alice@example.com";
     const BOB: &str = "bob@example.com";
 
-    fn msg<'a>(user: &'a str, mailbox: &'a str, subject: &'a str, mid: &'a str) -> InsertMessage<'a> {
+    fn msg<'a>(
+        user: &'a str,
+        mailbox: &'a str,
+        subject: &'a str,
+        mid: &'a str,
+    ) -> InsertMessage<'a> {
         InsertMessage {
             user,
             mailbox_name: mailbox,
@@ -582,7 +571,10 @@ mod tests {
         let s = InMemoryMailboxStore::new();
         let a = s.create_mailbox(ALICE, "INBOX").await.unwrap();
         let b = s.create_mailbox(BOB, "INBOX").await.unwrap();
-        assert_ne!(a.id, b.id, "same name across users must produce distinct mailboxes");
+        assert_ne!(
+            a.id, b.id,
+            "same name across users must produce distinct mailboxes"
+        );
     }
 
     #[tokio::test]
@@ -623,9 +615,18 @@ mod tests {
     async fn modseq_strictly_increases_across_inserts() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "id-1")).await.unwrap();
-        let m2 = s.insert_message(msg(ALICE, "INBOX", "b", "id-2")).await.unwrap();
-        let m3 = s.insert_message(msg(ALICE, "INBOX", "c", "id-3")).await.unwrap();
+        let m1 = s
+            .insert_message(msg(ALICE, "INBOX", "a", "id-1"))
+            .await
+            .unwrap();
+        let m2 = s
+            .insert_message(msg(ALICE, "INBOX", "b", "id-2"))
+            .await
+            .unwrap();
+        let m3 = s
+            .insert_message(msg(ALICE, "INBOX", "c", "id-3"))
+            .await
+            .unwrap();
         assert!(m1.modseq < m2.modseq && m2.modseq < m3.modseq);
         let after = s.get_mailbox_by_id(mb.id).await.unwrap().unwrap();
         assert_eq!(after.highest_modseq, m3.modseq);
@@ -635,7 +636,10 @@ mod tests {
     async fn modseq_bumps_on_flag_change() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "id-x")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "id-x"))
+            .await
+            .unwrap();
         let after_insert = m.modseq;
         let after_flag = s.add_flags(mb.id, m.uid, FLAG_SEEN).await.unwrap();
         assert!(after_flag > after_insert);
@@ -645,7 +649,10 @@ mod tests {
     async fn modseq_bumps_on_each_flag_op_independently() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "id-x")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "id-x"))
+            .await
+            .unwrap();
         let a = s.add_flags(mb.id, m.uid, FLAG_SEEN).await.unwrap();
         let b = s.add_flags(mb.id, m.uid, FLAG_FLAGGED).await.unwrap();
         let c = s.remove_flags(mb.id, m.uid, FLAG_SEEN).await.unwrap();
@@ -657,9 +664,18 @@ mod tests {
         let s = InMemoryMailboxStore::new();
         let a = s.create_mailbox(ALICE, "INBOX").await.unwrap();
         let b = s.create_mailbox(ALICE, "Archive").await.unwrap();
-        let a1 = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
-        let b1 = s.insert_message(msg(ALICE, "Archive", "y", "i2")).await.unwrap();
-        let a2 = s.insert_message(msg(ALICE, "INBOX", "z", "i3")).await.unwrap();
+        let a1 = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
+        let b1 = s
+            .insert_message(msg(ALICE, "Archive", "y", "i2"))
+            .await
+            .unwrap();
+        let a2 = s
+            .insert_message(msg(ALICE, "INBOX", "z", "i3"))
+            .await
+            .unwrap();
         assert_eq!(a1.uid, 1, "first INBOX uid = 1");
         assert_eq!(a2.uid, 2, "next INBOX uid = 2 (not 3)");
         assert_eq!(b1.uid, 1, "Archive uid is independent");
@@ -670,8 +686,14 @@ mod tests {
     async fn mailbox_status_counts_unread_correctly() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
-        let _m2 = s.insert_message(msg(ALICE, "INBOX", "b", "i2")).await.unwrap();
+        let m1 = s
+            .insert_message(msg(ALICE, "INBOX", "a", "i1"))
+            .await
+            .unwrap();
+        let _m2 = s
+            .insert_message(msg(ALICE, "INBOX", "b", "i2"))
+            .await
+            .unwrap();
         s.add_flags(mb.id, m1.uid, FLAG_SEEN).await.unwrap();
         let status = s.mailbox_status(mb.id).await.unwrap();
         assert_eq!(status.total, 2);
@@ -684,7 +706,10 @@ mod tests {
     async fn add_flags_is_bitwise_or() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "a", "i1"))
+            .await
+            .unwrap();
         s.set_flags(mb.id, m.uid, FLAG_SEEN).await.unwrap();
         s.add_flags(mb.id, m.uid, FLAG_FLAGGED).await.unwrap();
         let fetched = s.get_message(m.id).await.unwrap().unwrap();
@@ -696,8 +721,13 @@ mod tests {
     async fn remove_flags_clears_only_named_bits() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
-        s.set_flags(mb.id, m.uid, FLAG_SEEN | FLAG_FLAGGED | FLAG_ANSWERED).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "a", "i1"))
+            .await
+            .unwrap();
+        s.set_flags(mb.id, m.uid, FLAG_SEEN | FLAG_FLAGGED | FLAG_ANSWERED)
+            .await
+            .unwrap();
         s.remove_flags(mb.id, m.uid, FLAG_FLAGGED).await.unwrap();
         let fetched = s.get_message(m.id).await.unwrap().unwrap();
         assert_eq!(fetched.flags & FLAG_FLAGGED, 0);
@@ -709,8 +739,13 @@ mod tests {
     async fn set_flags_replaces_entire_bitmask() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
-        s.set_flags(mb.id, m.uid, FLAG_SEEN | FLAG_FLAGGED).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "a", "i1"))
+            .await
+            .unwrap();
+        s.set_flags(mb.id, m.uid, FLAG_SEEN | FLAG_FLAGGED)
+            .await
+            .unwrap();
         s.set_flags(mb.id, m.uid, FLAG_RECENT).await.unwrap();
         let fetched = s.get_message(m.id).await.unwrap().unwrap();
         assert_eq!(fetched.flags, FLAG_RECENT, "set replaces, not merges");
@@ -722,9 +757,18 @@ mod tests {
     async fn expunge_removes_only_flagged_deleted() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
-        let m2 = s.insert_message(msg(ALICE, "INBOX", "b", "i2")).await.unwrap();
-        let m3 = s.insert_message(msg(ALICE, "INBOX", "c", "i3")).await.unwrap();
+        let m1 = s
+            .insert_message(msg(ALICE, "INBOX", "a", "i1"))
+            .await
+            .unwrap();
+        let m2 = s
+            .insert_message(msg(ALICE, "INBOX", "b", "i2"))
+            .await
+            .unwrap();
+        let m3 = s
+            .insert_message(msg(ALICE, "INBOX", "c", "i3"))
+            .await
+            .unwrap();
         s.add_flags(mb.id, m2.uid, FLAG_DELETED).await.unwrap();
         let removed = s.expunge(mb.id).await.unwrap();
         assert_eq!(removed, vec![m2.uid]);
@@ -738,7 +782,9 @@ mod tests {
     async fn expunge_returns_empty_when_nothing_deleted() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "a", "i1"))
+            .await
+            .unwrap();
         let removed = s.expunge(mb.id).await.unwrap();
         assert!(removed.is_empty());
     }
@@ -750,8 +796,12 @@ mod tests {
         let s = InMemoryMailboxStore::new();
         s.create_mailbox(ALICE, "INBOX").await.unwrap();
         s.create_mailbox(BOB, "INBOX").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "shared", "shared-id")).await.unwrap();
-        s.insert_message(msg(BOB, "INBOX", "shared", "shared-id")).await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "shared", "shared-id"))
+            .await
+            .unwrap();
+        s.insert_message(msg(BOB, "INBOX", "shared", "shared-id"))
+            .await
+            .unwrap();
         let alice_hit = s.find_by_message_id(ALICE, "shared-id").await.unwrap();
         let bob_hit = s.find_by_message_id(BOB, "shared-id").await.unwrap();
         assert!(alice_hit.is_some());
@@ -780,8 +830,14 @@ mod tests {
     async fn query_messages_filters_by_has_keyword() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
-        let _m2 = s.insert_message(msg(ALICE, "INBOX", "b", "i2")).await.unwrap();
+        let m1 = s
+            .insert_message(msg(ALICE, "INBOX", "a", "i1"))
+            .await
+            .unwrap();
+        let _m2 = s
+            .insert_message(msg(ALICE, "INBOX", "b", "i2"))
+            .await
+            .unwrap();
         s.add_flags(mb.id, m1.uid, FLAG_FLAGGED).await.unwrap();
         let filter = QueryFilter {
             mailbox_id: Some(mb.id),
@@ -799,8 +855,14 @@ mod tests {
     async fn query_messages_filters_by_not_keyword() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
-        let m2 = s.insert_message(msg(ALICE, "INBOX", "b", "i2")).await.unwrap();
+        let m1 = s
+            .insert_message(msg(ALICE, "INBOX", "a", "i1"))
+            .await
+            .unwrap();
+        let m2 = s
+            .insert_message(msg(ALICE, "INBOX", "b", "i2"))
+            .await
+            .unwrap();
         s.add_flags(mb.id, m1.uid, FLAG_SEEN).await.unwrap();
         let filter = QueryFilter {
             mailbox_id: Some(mb.id),
@@ -818,8 +880,12 @@ mod tests {
     async fn query_messages_filters_by_text_case_insensitive() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "Important Notice", "i1")).await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "Daily digest", "i2")).await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "Important Notice", "i1"))
+            .await
+            .unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "Daily digest", "i2"))
+            .await
+            .unwrap();
         let filter = QueryFilter {
             mailbox_id: Some(mb.id),
             user: Some(ALICE),
@@ -837,7 +903,9 @@ mod tests {
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
         for i in 0..10 {
             let id = format!("id-{i}");
-            s.insert_message(msg(ALICE, "INBOX", "x", &id)).await.unwrap();
+            s.insert_message(msg(ALICE, "INBOX", "x", &id))
+                .await
+                .unwrap();
         }
         let filter = QueryFilter {
             mailbox_id: Some(mb.id),
@@ -854,7 +922,9 @@ mod tests {
     async fn query_messages_returns_empty_for_unknown_user() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let filter = QueryFilter {
             mailbox_id: Some(mb.id),
             user: Some("ghost@example.com"),
@@ -872,7 +942,10 @@ mod tests {
         let s = InMemoryMailboxStore::new();
         let a = s.create_mailbox(ALICE, "INBOX").await.unwrap();
         let b = s.create_mailbox(ALICE, "Archive").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let new_uid = s.copy_message(a.id, m.uid, b.id).await.unwrap();
         assert_eq!(new_uid, 1, "destination uidnext starts at 1");
         let original = s.get_message_by_uid(a.id, m.uid).await.unwrap();
@@ -884,7 +957,10 @@ mod tests {
         let s = InMemoryMailboxStore::new();
         let a = s.create_mailbox(ALICE, "INBOX").await.unwrap();
         let b = s.create_mailbox(ALICE, "Archive").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         s.move_message(a.id, m.uid, b.id).await.unwrap();
         let in_inbox = s.get_message_by_uid(a.id, m.uid).await.unwrap();
         assert!(in_inbox.is_none());
@@ -903,8 +979,14 @@ mod tests {
     async fn messages_changed_since_returns_only_newer() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m1 = s.insert_message(msg(ALICE, "INBOX", "a", "i1")).await.unwrap();
-        let m2 = s.insert_message(msg(ALICE, "INBOX", "b", "i2")).await.unwrap();
+        let m1 = s
+            .insert_message(msg(ALICE, "INBOX", "a", "i1"))
+            .await
+            .unwrap();
+        let m2 = s
+            .insert_message(msg(ALICE, "INBOX", "b", "i2"))
+            .await
+            .unwrap();
         let changed = s.messages_changed_since(mb.id, m1.modseq).await.unwrap();
         assert_eq!(changed.len(), 1);
         assert_eq!(changed[0].id, m2.id);
@@ -939,7 +1021,12 @@ mod tests {
         // UID near u32::MAX is in-range but never allocated in a fresh store.
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        assert!(s.get_message_by_uid(mb.id, u32::MAX).await.unwrap().is_none());
+        assert!(
+            s.get_message_by_uid(mb.id, u32::MAX)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -948,7 +1035,10 @@ mod tests {
         let s = InMemoryMailboxStore::new();
         let a = s.create_mailbox(ALICE, "INBOX").await.unwrap();
         let b = s.create_mailbox(ALICE, "Sent").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         assert!(s.get_message_by_uid(a.id, m.uid).await.unwrap().is_some());
         assert!(s.get_message_by_uid(b.id, m.uid).await.unwrap().is_none());
     }
@@ -978,8 +1068,15 @@ mod tests {
     async fn find_by_message_id_returns_none_for_unknown_id() {
         let s = InMemoryMailboxStore::new();
         s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "x", "real-id")).await.unwrap();
-        assert!(s.find_by_message_id(ALICE, "ghost-id").await.unwrap().is_none());
+        s.insert_message(msg(ALICE, "INBOX", "x", "real-id"))
+            .await
+            .unwrap();
+        assert!(
+            s.find_by_message_id(ALICE, "ghost-id")
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -987,12 +1084,31 @@ mod tests {
         // The store stores message_id verbatim. So "<a@b>" and "a@b" are distinct keys.
         let s = InMemoryMailboxStore::new();
         s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "x", "<bracketed@host>")).await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "y", "bare@host")).await.unwrap();
-        assert!(s.find_by_message_id(ALICE, "<bracketed@host>").await.unwrap().is_some());
-        assert!(s.find_by_message_id(ALICE, "bare@host").await.unwrap().is_some());
+        s.insert_message(msg(ALICE, "INBOX", "x", "<bracketed@host>"))
+            .await
+            .unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "y", "bare@host"))
+            .await
+            .unwrap();
+        assert!(
+            s.find_by_message_id(ALICE, "<bracketed@host>")
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            s.find_by_message_id(ALICE, "bare@host")
+                .await
+                .unwrap()
+                .is_some()
+        );
         // mismatched bracket form misses
-        assert!(s.find_by_message_id(ALICE, "bracketed@host").await.unwrap().is_none());
+        assert!(
+            s.find_by_message_id(ALICE, "bracketed@host")
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     // ===== Insert error paths =====
@@ -1011,10 +1127,16 @@ mod tests {
         // After deleting and recreating a mailbox, uidnext resets to 1.
         let s = InMemoryMailboxStore::new();
         s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let _ = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let _ = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         s.delete_mailbox(ALICE, "INBOX").await.unwrap();
         let mb2 = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m2 = s.insert_message(msg(ALICE, "INBOX", "y", "i2")).await.unwrap();
+        let m2 = s
+            .insert_message(msg(ALICE, "INBOX", "y", "i2"))
+            .await
+            .unwrap();
         assert_eq!(m2.uid, 1, "recreated mailbox starts uidnext at 1");
         assert_eq!(mb2.uidnext, 1, "fresh mailbox before insert");
     }
@@ -1027,14 +1149,20 @@ mod tests {
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
         for i in 1..=6 {
             let id = format!("id-{i}");
-            s.insert_message(msg(ALICE, "INBOX", "x", &id)).await.unwrap();
+            s.insert_message(msg(ALICE, "INBOX", "x", &id))
+                .await
+                .unwrap();
         }
         // mark some-not-all
         s.add_flags(mb.id, 5, FLAG_DELETED).await.unwrap();
         s.add_flags(mb.id, 2, FLAG_DELETED).await.unwrap();
         s.add_flags(mb.id, 4, FLAG_DELETED).await.unwrap();
         let removed = s.expunge(mb.id).await.unwrap();
-        assert_eq!(removed, vec![2, 4, 5], "ascending order regardless of marking order");
+        assert_eq!(
+            removed,
+            vec![2, 4, 5],
+            "ascending order regardless of marking order"
+        );
         // surviving messages still present
         for uid in [1u32, 3, 6] {
             assert!(s.get_message_by_uid(mb.id, uid).await.unwrap().is_some());
@@ -1053,7 +1181,12 @@ mod tests {
         let removed_a = s.expunge(a.id).await.unwrap();
         assert_eq!(removed_a, vec![ma.uid]);
         // mailbox B still has its message until its own expunge
-        assert!(s.get_message_by_uid(b.id, mb_msg.uid).await.unwrap().is_some());
+        assert!(
+            s.get_message_by_uid(b.id, mb_msg.uid)
+                .await
+                .unwrap()
+                .is_some()
+        );
     }
 
     // ===== CONDSTORE compare-and-swap edges =====
@@ -1063,9 +1196,18 @@ mod tests {
         // unchangedsince==current_modseq should still succeed (boundary case).
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
-        let r = s.store_flags_if_unchanged(mb.id, m.uid, FlagOp::Set, FLAG_SEEN, m.modseq).await.unwrap();
-        assert!(r.is_some(), "modseq == unchangedsince is treated as success");
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
+        let r = s
+            .store_flags_if_unchanged(mb.id, m.uid, FlagOp::Set, FLAG_SEEN, m.modseq)
+            .await
+            .unwrap();
+        assert!(
+            r.is_some(),
+            "modseq == unchangedsince is treated as success"
+        );
     }
 
     #[tokio::test]
@@ -1073,7 +1215,10 @@ mod tests {
         // u64::MAX as unchangedsince should not falsely fail.
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let r = s
             .store_flags_if_unchanged(mb.id, m.uid, FlagOp::Set, FLAG_SEEN, u64::MAX)
             .await
@@ -1096,10 +1241,18 @@ mod tests {
         // Set semantics: replace flags entirely.
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
-        s.add_flags(mb.id, m.uid, FLAG_SEEN | FLAG_FLAGGED).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
+        s.add_flags(mb.id, m.uid, FLAG_SEEN | FLAG_FLAGGED)
+            .await
+            .unwrap();
         let pre = s.get_message_by_uid(mb.id, m.uid).await.unwrap().unwrap();
-        let _ = s.store_flags_if_unchanged(mb.id, m.uid, FlagOp::Set, FLAG_ANSWERED, pre.modseq).await.unwrap();
+        let _ = s
+            .store_flags_if_unchanged(mb.id, m.uid, FlagOp::Set, FLAG_ANSWERED, pre.modseq)
+            .await
+            .unwrap();
         let post = s.get_message_by_uid(mb.id, m.uid).await.unwrap().unwrap();
         assert_eq!(post.flags, FLAG_ANSWERED, "Set replaces entirely");
     }
@@ -1133,12 +1286,18 @@ mod tests {
         // (matches CONDSTORE behavior — STORE bumps even if "no change").
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let before = s.get_message_by_uid(mb.id, m.uid).await.unwrap().unwrap();
         let new_modseq = s.add_flags(mb.id, m.uid, 0).await.unwrap();
         let after = s.get_message_by_uid(mb.id, m.uid).await.unwrap().unwrap();
         assert_eq!(before.flags, after.flags);
-        assert!(new_modseq > before.modseq, "modseq bumps even on no-op flag change");
+        assert!(
+            new_modseq > before.modseq,
+            "modseq bumps even on no-op flag change"
+        );
     }
 
     // ===== copy / move semantics =====
@@ -1147,7 +1306,10 @@ mod tests {
     async fn copy_to_missing_destination_errors() {
         let s = InMemoryMailboxStore::new();
         let src = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         assert!(s.copy_message(src.id, m.uid, 99_999).await.is_err());
     }
 
@@ -1155,7 +1317,10 @@ mod tests {
     async fn move_to_missing_destination_errors() {
         let s = InMemoryMailboxStore::new();
         let src = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         assert!(s.move_message(src.id, m.uid, 99_999).await.is_err());
         // source message must still exist (rollback semantic)
         assert!(s.get_message_by_uid(src.id, m.uid).await.unwrap().is_some());
@@ -1173,7 +1338,11 @@ mod tests {
         input.size = 12345;
         let inserted = s.insert_message(input).await.unwrap();
         let new_uid = s.copy_message(src.id, inserted.uid, dst.id).await.unwrap();
-        let copied = s.get_message_by_uid(dst.id, new_uid).await.unwrap().unwrap();
+        let copied = s
+            .get_message_by_uid(dst.id, new_uid)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(copied.subject, "Original Subject");
         assert_eq!(copied.sender, "from@source");
         assert_eq!(copied.recipients, "to@dest");
@@ -1189,11 +1358,19 @@ mod tests {
         // remove the original (per the impl).
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let new_uid = s.move_message(mb.id, m.uid, mb.id).await.unwrap();
         assert_ne!(new_uid, m.uid, "self-move allocates a new UID");
         assert!(s.get_message_by_uid(mb.id, m.uid).await.unwrap().is_none());
-        assert!(s.get_message_by_uid(mb.id, new_uid).await.unwrap().is_some());
+        assert!(
+            s.get_message_by_uid(mb.id, new_uid)
+                .await
+                .unwrap()
+                .is_some()
+        );
     }
 
     #[tokio::test]
@@ -1201,7 +1378,10 @@ mod tests {
         let s = InMemoryMailboxStore::new();
         let src = s.create_mailbox(ALICE, "INBOX").await.unwrap();
         let dst = s.create_mailbox(ALICE, "Archive").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let dst_before = s.get_mailbox_by_id(dst.id).await.unwrap().unwrap();
         s.copy_message(src.id, m.uid, dst.id).await.unwrap();
         let dst_after = s.get_mailbox_by_id(dst.id).await.unwrap().unwrap();
@@ -1216,7 +1396,9 @@ mod tests {
         s.create_mailbox(ALICE, "INBOX").await.unwrap();
         for i in 1..=3 {
             let id = format!("i-{i}");
-            s.insert_message(msg(ALICE, "INBOX", "x", &id)).await.unwrap();
+            s.insert_message(msg(ALICE, "INBOX", "x", &id))
+                .await
+                .unwrap();
         }
         let f = QueryFilter {
             user: Some(ALICE),
@@ -1231,7 +1413,9 @@ mod tests {
     async fn query_messages_position_beyond_total_returns_empty() {
         let s = InMemoryMailboxStore::new();
         s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let f = QueryFilter {
             user: Some(ALICE),
             position: 100,
@@ -1288,7 +1472,9 @@ mod tests {
     async fn query_messages_text_no_match_returns_empty() {
         let s = InMemoryMailboxStore::new();
         s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let f = QueryFilter {
             user: Some(ALICE),
             text: Some("does-not-appear"),
@@ -1340,7 +1526,9 @@ mod tests {
     async fn thread_id_for_message_returns_none_for_unknown_id() {
         let s = InMemoryMailboxStore::new();
         s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let r = s.thread_id_for_message(ALICE, "unknown-id").await.unwrap();
         assert!(r.is_none());
     }
@@ -1366,7 +1554,9 @@ mod tests {
     async fn thread_message_ids_returns_empty_for_unknown_thread() {
         let s = InMemoryMailboxStore::new();
         s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let ids = s.thread_message_ids(ALICE, "ghost-thread").await.unwrap();
         assert!(ids.is_empty());
     }
@@ -1426,7 +1616,9 @@ mod tests {
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
         for i in 1..=3 {
             let id = format!("i-{i}");
-            s.insert_message(msg(ALICE, "INBOX", "x", &id)).await.unwrap();
+            s.insert_message(msg(ALICE, "INBOX", "x", &id))
+                .await
+                .unwrap();
         }
         let out = s.messages_changed_since(mb.id, 0).await.unwrap();
         assert_eq!(out.len(), 3);
@@ -1436,7 +1628,9 @@ mod tests {
     async fn messages_changed_since_high_modseq_returns_empty() {
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let out = s.messages_changed_since(mb.id, u64::MAX).await.unwrap();
         assert!(out.is_empty());
     }
@@ -1446,8 +1640,12 @@ mod tests {
         let s = InMemoryMailboxStore::new();
         let a = s.create_mailbox(ALICE, "INBOX").await.unwrap();
         let b = s.create_mailbox(ALICE, "Archive").await.unwrap();
-        s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
-        s.insert_message(msg(ALICE, "Archive", "x", "i2")).await.unwrap();
+        s.insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
+        s.insert_message(msg(ALICE, "Archive", "x", "i2"))
+            .await
+            .unwrap();
         let out_a = s.messages_changed_since(a.id, 0).await.unwrap();
         let out_b = s.messages_changed_since(b.id, 0).await.unwrap();
         assert_eq!(out_a.len(), 1);
@@ -1462,7 +1660,10 @@ mod tests {
         // After rename, the mailbox id stays the same, messages remain accessible
         let s = InMemoryMailboxStore::new();
         let mb = s.create_mailbox(ALICE, "Drafts").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "Drafts", "x", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "Drafts", "x", "i1"))
+            .await
+            .unwrap();
         s.rename_mailbox(ALICE, "Drafts", "Outbox").await.unwrap();
         // mailbox id unchanged
         let after = s.get_mailbox_by_id(mb.id).await.unwrap().unwrap();
@@ -1490,7 +1691,9 @@ mod tests {
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
         for i in 0..500 {
             let id = format!("id-{i:04}");
-            s.insert_message(msg(ALICE, "INBOX", "x", &id)).await.unwrap();
+            s.insert_message(msg(ALICE, "INBOX", "x", &id))
+                .await
+                .unwrap();
         }
         let status = s.mailbox_status(mb.id).await.unwrap();
         assert_eq!(status.total, 500);
@@ -1508,8 +1711,16 @@ mod tests {
         let s1 = s.clone();
         let s2 = s.clone();
         let (r1, r2) = tokio::join!(
-            async move { s1.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap() },
-            async move { s2.insert_message(msg(ALICE, "INBOX", "y", "i2")).await.unwrap() },
+            async move {
+                s1.insert_message(msg(ALICE, "INBOX", "x", "i1"))
+                    .await
+                    .unwrap()
+            },
+            async move {
+                s2.insert_message(msg(ALICE, "INBOX", "y", "i2"))
+                    .await
+                    .unwrap()
+            },
         );
         assert_ne!(r1.uid, r2.uid);
         // and they're 1 and 2 in some order
@@ -1523,7 +1734,10 @@ mod tests {
         // Two flag operations on the same UID must both apply, modseq strictly increasing.
         let s = std::sync::Arc::new(InMemoryMailboxStore::new());
         let mb = s.create_mailbox(ALICE, "INBOX").await.unwrap();
-        let m = s.insert_message(msg(ALICE, "INBOX", "x", "i1")).await.unwrap();
+        let m = s
+            .insert_message(msg(ALICE, "INBOX", "x", "i1"))
+            .await
+            .unwrap();
         let s1 = s.clone();
         let s2 = s.clone();
         let (a, b) = tokio::join!(
@@ -1566,7 +1780,9 @@ mod tests {
         input.size = 500;
         let inserted = s.insert_message(input).await.unwrap();
         assert_eq!(s.user_storage_bytes(ALICE).await.unwrap(), 500);
-        s.add_flags(mb.id, inserted.uid, FLAG_DELETED).await.unwrap();
+        s.add_flags(mb.id, inserted.uid, FLAG_DELETED)
+            .await
+            .unwrap();
         s.expunge(mb.id).await.unwrap();
         assert_eq!(s.user_storage_bytes(ALICE).await.unwrap(), 0);
     }

@@ -1,9 +1,7 @@
 //! `write_to_own_calendar` — upsert accepted/tentative invites
 //! into the user's default calendar.
 
-
 use chrono::{DateTime, Utc};
-
 
 pub(super) async fn write_to_own_calendar(
     pool: &sqlx::PgPool,
@@ -124,4 +122,3 @@ pub(super) fn extract_caldatetime_to_utc(v: Option<&serde_json::Value>) -> Optio
         _ => None,
     }
 }
-

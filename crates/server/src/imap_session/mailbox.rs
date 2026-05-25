@@ -6,7 +6,9 @@
 //! SELECT/EXAMINE additionally transition state to Selected;
 //! CLOSE/UNSELECT transition back to Authenticated.
 
-use mailrs_imap_proto::{format_exists, format_flags, format_list, format_no, format_ok, format_recent};
+use mailrs_imap_proto::{
+    format_exists, format_flags, format_list, format_no, format_ok, format_recent,
+};
 
 use super::{ImapSession, ImapState};
 
@@ -85,11 +87,7 @@ impl ImapSession {
             return vec![format_no(tag, "cannot rename INBOX")];
         }
 
-        match self
-            .mailbox_store
-            .rename_mailbox(username, from, to)
-            .await
-        {
+        match self.mailbox_store.rename_mailbox(username, from, to).await {
             Ok(true) => vec![format_ok(tag, "RENAME completed")],
             Ok(false) => vec![format_no(tag, "mailbox not found")],
             Err(e) => vec![format_no(tag, &format!("RENAME failed: {e}"))],
@@ -97,11 +95,13 @@ impl ImapSession {
     }
 
     pub(super) async fn handle_select(&mut self, tag: &str, mailbox_name: &str) -> Vec<String> {
-        self.open_mailbox(tag, mailbox_name, /*read_only=*/ false).await
+        self.open_mailbox(tag, mailbox_name, /*read_only=*/ false)
+            .await
     }
 
     pub(super) async fn handle_examine(&mut self, tag: &str, mailbox_name: &str) -> Vec<String> {
-        self.open_mailbox(tag, mailbox_name, /*read_only=*/ true).await
+        self.open_mailbox(tag, mailbox_name, /*read_only=*/ true)
+            .await
     }
 
     /// Shared core for SELECT (read-write) and EXAMINE (read-only).
@@ -133,7 +133,11 @@ impl ImapSession {
             "[READ-WRITE] SELECT completed"
         };
 
-        match self.mailbox_store.get_mailbox(&username, mailbox_name).await {
+        match self
+            .mailbox_store
+            .get_mailbox(&username, mailbox_name)
+            .await
+        {
             Ok(Some(mb)) => {
                 let (total, unseen) = self
                     .mailbox_store
@@ -201,12 +205,7 @@ impl ImapSession {
         }
     }
 
-    pub(super) async fn handle_status(
-        &self,
-        tag: &str,
-        mailbox: &str,
-        items: &str,
-    ) -> Vec<String> {
+    pub(super) async fn handle_status(&self, tag: &str, mailbox: &str, items: &str) -> Vec<String> {
         let username = match self.authenticated_username(tag) {
             Ok(u) => u,
             Err(resp) => return resp,

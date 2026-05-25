@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::api_key_store;
 
-use super::auth::{AuthMethod, AuthUser};
 use super::WebState;
+use super::auth::{AuthMethod, AuthUser};
 
 #[derive(Deserialize)]
 pub(super) struct CreateApiKeyRequest {
@@ -67,7 +67,7 @@ pub(super) async fn create_api_key(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"error": "database unavailable"})),
-            )
+            );
         }
     };
 
@@ -129,7 +129,7 @@ pub(super) async fn list_api_keys(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"error": "database unavailable"})),
-            )
+            );
         }
     };
 
@@ -168,7 +168,7 @@ pub(super) async fn revoke_api_key(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"error": "database unavailable"})),
-            )
+            );
         }
     };
 
@@ -178,10 +178,7 @@ pub(super) async fn revoke_api_key(
             if let Some(ref valkey) = state.valkey {
                 api_key_store::cache_delete(valkey, &prefix).await;
             }
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({"success": true})),
-            )
+            (StatusCode::OK, Json(serde_json::json!({"success": true})))
         }
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -221,7 +218,10 @@ mod tests {
     fn test_key_hash_is_sha256() {
         let (full_key, _prefix, key_hash) = api_key_store::generate_api_key();
         let computed = api_key_store::sha256_hex(full_key.as_bytes());
-        assert_eq!(key_hash, computed, "stored hash should match sha256 of full key");
+        assert_eq!(
+            key_hash, computed,
+            "stored hash should match sha256 of full key"
+        );
     }
 
     // --- auth logic tests ---
@@ -247,9 +247,10 @@ mod tests {
 
         // check expiration
         if let Some(expires_at) = cached.expires_at
-            && expires_at < Utc::now() {
-                return Err((StatusCode::UNAUTHORIZED, "api key expired"));
-            }
+            && expires_at < Utc::now()
+        {
+            return Err((StatusCode::UNAUTHORIZED, "api key expired"));
+        }
 
         // permissions are loaded from domain_store at runtime, not from cache
         let perms = crate::permission::compute_effective_permissions(&[], &[], &[]);

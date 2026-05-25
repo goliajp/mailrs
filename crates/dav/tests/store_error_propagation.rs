@@ -5,11 +5,6 @@
 //! relevant handler, and assert the error surfaces as `DavError::ServerError`
 //! carrying the description verbatim.
 
-
-use mailrs_dav::fixtures::{
-    InMemoryAddressBookStore, InMemoryCalendarStore, EXAMPLE_USER, make_book, make_calendar,
-    make_contact, make_event,
-};
 use mailrs_dav::caldav::{
     calendar_home_propfind, calendar_propfind, calendar_report, event_delete, event_get, event_put,
 };
@@ -18,6 +13,10 @@ use mailrs_dav::carddav::{
     contact_get, contact_put,
 };
 use mailrs_dav::error::DavError;
+use mailrs_dav::fixtures::{
+    EXAMPLE_USER, InMemoryAddressBookStore, InMemoryCalendarStore, make_book, make_calendar,
+    make_contact, make_event,
+};
 
 fn expect_server_error(err: DavError, expected_msg: &str) {
     match err {
@@ -37,7 +36,9 @@ fn expect_server_error(err: DavError, expected_msg: &str) {
 async fn calendar_home_propfind_ensure_default_error_surfaces_as_server_error() {
     let store = InMemoryCalendarStore::new().ensure_default_fails("default-bootstrap boom");
 
-    let err = calendar_home_propfind(&store, EXAMPLE_USER, 0).await.unwrap_err();
+    let err = calendar_home_propfind(&store, EXAMPLE_USER, 0)
+        .await
+        .unwrap_err();
 
     expect_server_error(err, "default-bootstrap boom");
 }
@@ -48,7 +49,9 @@ async fn calendar_home_propfind_list_error_surfaces_as_server_error() {
         .with_calendar(EXAMPLE_USER, make_calendar(1, "Work"))
         .list_calendars_fails("calendars unavailable");
 
-    let err = calendar_home_propfind(&store, EXAMPLE_USER, 1).await.unwrap_err();
+    let err = calendar_home_propfind(&store, EXAMPLE_USER, 1)
+        .await
+        .unwrap_err();
 
     expect_server_error(err, "calendars unavailable");
 }
@@ -142,7 +145,9 @@ async fn event_delete_store_error_surfaces_as_server_error() {
 async fn addressbook_home_propfind_ensure_default_error_surfaces_as_server_error() {
     let store = InMemoryAddressBookStore::new().ensure_default_fails("ab-bootstrap boom");
 
-    let err = addressbook_home_propfind(&store, EXAMPLE_USER, 0).await.unwrap_err();
+    let err = addressbook_home_propfind(&store, EXAMPLE_USER, 0)
+        .await
+        .unwrap_err();
 
     expect_server_error(err, "ab-bootstrap boom");
 }
@@ -153,7 +158,9 @@ async fn addressbook_home_propfind_list_error_surfaces_as_server_error() {
         .with_book(EXAMPLE_USER, make_book(20, "Friends"))
         .list_books_fails("books unavailable");
 
-    let err = addressbook_home_propfind(&store, EXAMPLE_USER, 1).await.unwrap_err();
+    let err = addressbook_home_propfind(&store, EXAMPLE_USER, 1)
+        .await
+        .unwrap_err();
 
     expect_server_error(err, "books unavailable");
 }

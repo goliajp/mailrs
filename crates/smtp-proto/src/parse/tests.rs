@@ -152,10 +152,7 @@ fn help_bare() {
 
 #[test]
 fn help_with_arg() {
-    assert_eq!(
-        parse_command("HELP MAIL"),
-        Ok(Command::Help(Some("MAIL")))
-    );
+    assert_eq!(parse_command("HELP MAIL"), Ok(Command::Help(Some("MAIL"))));
 }
 
 // --- case insensitivity ---
@@ -502,11 +499,7 @@ fn rcpt_to_postmaster_uppercase() {
 #[test]
 fn pipelining_commands_parsed_individually() {
     // pipelining means multiple commands sent at once; each is parsed separately
-    let cmds = [
-        "MAIL FROM:<a@b.com>",
-        "RCPT TO:<c@d.com>",
-        "DATA",
-    ];
+    let cmds = ["MAIL FROM:<a@b.com>", "RCPT TO:<c@d.com>", "DATA"];
     let results: Vec<_> = cmds.iter().map(|c| parse_command(c)).collect();
     assert!(matches!(results[0], Ok(Command::MailFrom { .. })));
     assert!(matches!(results[1], Ok(Command::RcptTo { .. })));
@@ -522,9 +515,18 @@ fn mail_from_three_params() {
         Ok(Command::MailFrom {
             path: ReversePath::Path("a@b"),
             params: vec![
-                Param { key: "SIZE", value: "1024" },
-                Param { key: "BODY", value: "8BITMIME" },
-                Param { key: "SMTPUTF8", value: "" },
+                Param {
+                    key: "SIZE",
+                    value: "1024"
+                },
+                Param {
+                    key: "BODY",
+                    value: "8BITMIME"
+                },
+                Param {
+                    key: "SMTPUTF8",
+                    value: ""
+                },
             ],
         })
     );
@@ -538,9 +540,10 @@ fn rcpt_to_with_params() {
         parse_command("RCPT TO:<user@example.com> ORCPT=rfc822;user@example.com"),
         Ok(Command::RcptTo {
             path: ForwardPath::Path("user@example.com"),
-            params: vec![
-                Param { key: "ORCPT", value: "rfc822;user@example.com" },
-            ],
+            params: vec![Param {
+                key: "ORCPT",
+                value: "rfc822;user@example.com"
+            },],
         })
     );
 }
@@ -718,7 +721,10 @@ fn mail_from_null_with_size_param() {
         parse_command("MAIL FROM:<> SIZE=0"),
         Ok(Command::MailFrom {
             path: ReversePath::Null,
-            params: vec![Param { key: "SIZE", value: "0" }],
+            params: vec![Param {
+                key: "SIZE",
+                value: "0"
+            }],
         })
     );
 }

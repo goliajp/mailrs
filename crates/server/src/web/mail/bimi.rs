@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 
 use super::WebState;
 
@@ -16,7 +16,10 @@ pub(crate) async fn get_bimi_logo(
 ) -> impl IntoResponse {
     // validate domain
     if domain.len() > 253 || domain.contains('/') || !domain.contains('.') {
-        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "invalid domain"})));
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid domain"})),
+        );
     }
 
     // check valkey cache
@@ -26,16 +29,22 @@ pub(crate) async fn get_bimi_logo(
             .arg(&cache_key)
             .query_async::<Option<String>>(&mut conn)
             .await
-        {
-            if cached.is_empty() {
-                return (StatusCode::OK, Json(serde_json::json!({"logo_url": null})));
-            }
-            return (StatusCode::OK, Json(serde_json::json!({"logo_url": cached})));
+    {
+        if cached.is_empty() {
+            return (StatusCode::OK, Json(serde_json::json!({"logo_url": null})));
         }
+        return (
+            StatusCode::OK,
+            Json(serde_json::json!({"logo_url": cached})),
+        );
+    }
 
     // dns lookup
     let Some(ref resolver) = state.resolver else {
-        return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DNS resolver not available"})));
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error": "DNS resolver not available"})),
+        );
     };
     let logo_url = mailrs_postmaster::lookup_bimi_logo(resolver, &domain).await;
 

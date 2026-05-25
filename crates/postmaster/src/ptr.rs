@@ -1,8 +1,8 @@
 //! Per-check submodule (see lib.rs for the dispatcher).
 
 use hickory_resolver::TokioResolver;
-use std::net::IpAddr;
 use hickory_resolver::proto::rr::RData;
+use std::net::IpAddr;
 
 use super::{CheckResult, Status};
 
@@ -63,4 +63,3 @@ pub(super) async fn check_ptr(resolver: &TokioResolver, hostname: &str) -> Check
         },
     }
 }
-

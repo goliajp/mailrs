@@ -14,9 +14,9 @@ use crate::health::HealthState;
 //   pg() / valkey accessor helpers used by every handler.
 
 mod accounts;
+mod aliases;
 mod apps;
 mod audit;
-mod aliases;
 mod domains;
 mod email_groups;
 mod encryption;
@@ -153,15 +153,6 @@ impl DomainStore {
 
     // --- TOTP 2FA ---
 
-
-
-
-
-
-
-
-
-
     // --- Valkey cache helpers ---
 
     async fn valkey_get<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
@@ -176,15 +167,16 @@ impl DomainStore {
 
     async fn valkey_set(&self, key: &str, val: &impl serde::Serialize, ttl_secs: u64) {
         if let Some(mut conn) = self.valkey.clone()
-            && let Ok(json) = serde_json::to_string(val) {
-                let _: std::result::Result<(), _> = redis::cmd("SET")
-                    .arg(key)
-                    .arg(&json)
-                    .arg("EX")
-                    .arg(ttl_secs)
-                    .query_async(&mut conn)
-                    .await;
-            }
+            && let Ok(json) = serde_json::to_string(val)
+        {
+            let _: std::result::Result<(), _> = redis::cmd("SET")
+                .arg(key)
+                .arg(&json)
+                .arg("EX")
+                .arg(ttl_secs)
+                .query_async(&mut conn)
+                .await;
+        }
     }
 
     async fn valkey_del(&self, key: &str) {
@@ -196,68 +188,19 @@ impl DomainStore {
 
     // --- domains ---
 
-
-
-
     // --- accounts ---
-
-
-
-
-
-
-
-
 
     // --- sieve scripts ---
 
-
-
-
     // --- aliases ---
-
-
-
-
-
 
     // --- RBAC: groups & permissions ---
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     // --- apps ---
-
-
-
-
-
-
 
     // --- email groups ---
 
-
-
-
-
-
-
     // --- encryption keys (PGP / S/MIME) ---
-
-
-
-
 }
 
 // --- EmailGroup struct ---
@@ -507,9 +450,10 @@ mod tests {
     #[test]
     fn store_evict_expired_none_expired() {
         let store = make_store();
-        store
-            .account_cache
-            .insert("fresh@example.com".into(), make_cached("fresh@example.com", "h"));
+        store.account_cache.insert(
+            "fresh@example.com".into(),
+            make_cached("fresh@example.com", "h"),
+        );
         let evicted = store.evict_expired();
         assert_eq!(evicted, 0);
         assert_eq!(store.cache_size(), 1);

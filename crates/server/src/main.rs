@@ -7,40 +7,40 @@ mod metrics;
 mod content_worker;
 mod conversation_cache;
 
+mod calendar;
 mod dmarc_report;
 mod domain_store;
-pub(crate) mod permission;
 mod event_bus;
 mod health;
-mod calendar;
+pub(crate) mod permission;
 
 mod ldap_auth;
 
 mod imap_session;
 pub mod inbound;
 mod inline_image;
-mod message_util;
-mod pg;
+mod listeners;
 mod managesieve_session;
+mod message_util;
+mod outbound_tls_rpt;
+mod pg;
 mod pop3_session;
 mod rbl_monitor;
 mod render_preview;
 mod reputation;
 mod search_index;
-mod listeners;
-mod outbound_tls_rpt;
 
+mod bootstrap;
+mod mcp;
+mod oidc_jwt;
+mod oidc_store;
 mod smtp_session;
 pub(crate) mod system_config;
 mod tls;
 mod totp;
 mod users;
 mod valkey_store;
-mod mcp;
-mod oidc_jwt;
-mod oidc_store;
 mod web;
-mod bootstrap;
 
 use bootstrap::*;
 
@@ -52,11 +52,11 @@ use hickory_resolver::TokioResolver;
 
 use crate::config::ServerConfig;
 use crate::event_bus::EventBus;
-use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
 use crate::inbound::rate_limit::{RateLimiter, TokenBucketConfig};
 use crate::smtp_session::ConnectionContext;
 use crate::users::UserStore;
 use mailrs_mailbox::PgMailboxStore;
+use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
 
 #[tokio::main]
 async fn main() {
@@ -83,7 +83,11 @@ async fn main() {
         tracing::warn!(warning, "config warning");
     }
 
-    let domains_str = if cfg.local_domains.is_empty() { "(none)".into() } else { cfg.local_domains.join(", ") };
+    let domains_str = if cfg.local_domains.is_empty() {
+        "(none)".into()
+    } else {
+        cfg.local_domains.join(", ")
+    };
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
         hostname = cfg.hostname.as_str(),
@@ -214,9 +218,10 @@ async fn main() {
 
     // OIDC provider: ensure signing key exists
     if let Some(ref pool) = pg_pool
-        && let Err(e) = oidc_jwt::ensure_signing_key(pool).await {
-            tracing::warn!(error = %e, "failed to ensure oidc signing key");
-        }
+        && let Err(e) = oidc_jwt::ensure_signing_key(pool).await
+    {
+        tracing::warn!(error = %e, "failed to ensure oidc signing key");
+    }
 
     // DMARC report store (PG-backed)
     let dmarc_report_store = pg_pool
@@ -240,11 +245,13 @@ async fn main() {
                 "qwen3.5-9b/{}",
                 mailrs_intelligence::analyze::PROMPT_VERSION
             );
-            Some(Arc::new(mailrs_intelligence::OpenAiCompatibleProvider::new(
-                cfg.llm_url.clone(),
-                cfg.llm_api_key.clone(),
-                model_id,
-            )))
+            Some(Arc::new(
+                mailrs_intelligence::OpenAiCompatibleProvider::new(
+                    cfg.llm_url.clone(),
+                    cfg.llm_api_key.clone(),
+                    model_id,
+                ),
+            ))
         } else {
             None
         };
@@ -417,11 +424,3 @@ async fn main() {
     tracing::info!("shutting down");
     let _ = shutdown_tx.send(true);
 }
-
-
-
-
-
-
-
-

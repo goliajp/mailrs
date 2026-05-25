@@ -10,7 +10,7 @@
 
 use mailrs_imap_proto::format_exists;
 
-use super::{strs_to_bytes, HandleResult, ImapSession, ImapState};
+use super::{HandleResult, ImapSession, ImapState, strs_to_bytes};
 
 impl ImapSession {
     pub(super) fn handle_idle(&self, tag: &str) -> HandleResult {

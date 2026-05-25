@@ -2,17 +2,21 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 
 use crate::conversation_cache;
 
-use super::super::super::{validate_domains, AuthUser, DomainsQuery, WebState};
+use super::super::super::{AuthUser, DomainsQuery, WebState, validate_domains};
 use super::super::*;
 
 pub(crate) async fn get_conversation_categories(
-    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
+    AuthUser {
+        address: ref user,
+        ref permissions,
+        ..
+    }: AuthUser,
     Query(dq): Query<DomainsQuery>,
     State(state): State<Arc<WebState>>,
 ) -> Response {
@@ -23,9 +27,10 @@ pub(crate) async fn get_conversation_categories(
     let domains = validate_domains(dq.domains.as_deref(), permissions);
     let cache_key = conversation_cache::categories_key(user, domains.as_deref());
     if let Some(ref valkey) = state.valkey
-        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
-            return cached_json_response(cached);
-        }
+        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await
+    {
+        return cached_json_response(cached);
+    }
 
     let cats = mb_store
         .list_conversation_categories(user, domains.as_deref())
@@ -38,15 +43,20 @@ pub(crate) async fn get_conversation_categories(
         .collect();
 
     if let Some(ref valkey) = state.valkey
-        && let Ok(json) = serde_json::to_string(&result) {
-            conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_CATS_SECS).await;
-        }
+        && let Ok(json) = serde_json::to_string(&result)
+    {
+        conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_CATS_SECS)
+            .await;
+    }
     Json(result).into_response()
 }
 
-
 pub(crate) async fn get_action_count(
-    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
+    AuthUser {
+        address: ref user,
+        ref permissions,
+        ..
+    }: AuthUser,
     Query(dq): Query<DomainsQuery>,
     State(state): State<Arc<WebState>>,
 ) -> Response {
@@ -57,9 +67,10 @@ pub(crate) async fn get_action_count(
     let domains = validate_domains(dq.domains.as_deref(), permissions);
     let cache_key = conversation_cache::action_count_key(user, domains.as_deref());
     if let Some(ref valkey) = state.valkey
-        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
-            return cached_json_response(cached);
-        }
+        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await
+    {
+        return cached_json_response(cached);
+    }
 
     let count = mb_store
         .count_action_threads(user, domains.as_deref())
@@ -68,12 +79,18 @@ pub(crate) async fn get_action_count(
 
     let body = serde_json::json!({"count": count});
     if let Some(ref valkey) = state.valkey
-        && let Ok(json) = serde_json::to_string(&body) {
-            conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_ACTION_SECS).await;
-        }
+        && let Ok(json) = serde_json::to_string(&body)
+    {
+        conversation_cache::set_json(
+            valkey,
+            &cache_key,
+            &json,
+            conversation_cache::TTL_ACTION_SECS,
+        )
+        .await;
+    }
     Json(body).into_response()
 }
-
 
 pub(crate) async fn get_contacts(
     AuthUser { address: user, .. }: AuthUser,
@@ -98,9 +115,12 @@ pub(crate) async fn get_contacts(
     Json(contacts)
 }
 
-
 pub(crate) async fn get_mail_stats(
-    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
+    AuthUser {
+        address: ref user,
+        ref permissions,
+        ..
+    }: AuthUser,
     Query(dq): Query<DomainsQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -126,9 +146,10 @@ pub(crate) async fn get_mail_stats(
     if let (Some(key), Some(valkey)) = (&cache_key, &state.valkey) {
         use redis::AsyncCommands;
         if let Ok(json) = valkey.clone().get::<_, String>(key.as_str()).await
-            && let Ok(parsed) = serde_json::from_str::<MailStats>(&json) {
-                return Json(parsed);
-            }
+            && let Ok(parsed) = serde_json::from_str::<MailStats>(&json)
+        {
+            return Json(parsed);
+        }
     }
 
     let total = mb_store.count_messages(user).await;
@@ -152,14 +173,14 @@ pub(crate) async fn get_mail_stats(
     };
 
     if let (Some(key), Some(valkey)) = (&cache_key, &state.valkey)
-        && let Ok(json) = serde_json::to_string(&stats) {
-            use redis::AsyncCommands;
-            let _: redis::RedisResult<()> = valkey
-                .clone()
-                .set_ex(key.as_str(), json, MAIL_STATS_TTL_SECS)
-                .await;
-        }
+        && let Ok(json) = serde_json::to_string(&stats)
+    {
+        use redis::AsyncCommands;
+        let _: redis::RedisResult<()> = valkey
+            .clone()
+            .set_ex(key.as_str(), json, MAIL_STATS_TTL_SECS)
+            .await;
+    }
 
     Json(stats)
 }
-

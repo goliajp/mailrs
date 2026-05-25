@@ -2,9 +2,8 @@
 //! back-references (RFC 8620 §3.7), unknown-method handling, and the wrapping
 //! `JmapResponse` shape.
 
-
-use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message, make_request};
 use mailrs_jmap::dispatch::{JmapRequest, dispatch_request};
+use mailrs_jmap::fixtures::{EXAMPLE_USER, InMemoryStore, make_message, make_request};
 use serde_json::json;
 
 #[tokio::test]

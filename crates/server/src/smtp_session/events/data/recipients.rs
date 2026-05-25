@@ -3,8 +3,8 @@
 
 use crate::domain_store::ResolvedRecipient;
 
-use super::super::super::address::is_local_domain;
 use super::super::super::ConnectionContext;
+use super::super::super::address::is_local_domain;
 
 /// Split `forward_paths` into local (after alias resolution) and
 /// remote (with `is_forwarded` flag) recipients, deduping locals

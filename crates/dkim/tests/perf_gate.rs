@@ -63,7 +63,10 @@ fn canonicalize_body_relaxed_under_budget() {
     });
     // Budget: 5 µs (release ~140 ns).
     let budget = Duration::from_micros(5);
-    assert!(median < budget, "canon_body/relaxed {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "canon_body/relaxed {median:?} > {budget:?}"
+    );
 }
 
 #[test]
@@ -73,5 +76,8 @@ fn canonicalize_header_relaxed_under_budget() {
     });
     // Budget: 5 µs (release ~85 ns).
     let budget = Duration::from_micros(5);
-    assert!(median < budget, "canon_header/relaxed {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "canon_header/relaxed {median:?} > {budget:?}"
+    );
 }

@@ -1,5 +1,5 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use mailrs_srs::{reverse, rewrite, DEFAULT_TIMESTAMP_WINDOW_DAYS};
+use criterion::{Criterion, criterion_group, criterion_main};
+use mailrs_srs::{DEFAULT_TIMESTAMP_WINDOW_DAYS, reverse, rewrite};
 use std::hint::black_box;
 
 fn bench_rewrite(c: &mut Criterion) {

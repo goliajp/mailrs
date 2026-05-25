@@ -6,7 +6,6 @@
 //! every field of `ctx.auth_results` and, on DMARC policy=reject,
 //! short-circuits with a 550 reject.
 
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -40,7 +39,6 @@ pub struct MailAuthStage {
     shadow_arc_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
     shadow_dmarc_resolver: Option<Arc<hickory_resolver::TokioResolver>>,
 }
-
 
 impl MailAuthStage {
     /// Construct a `MailAuthStage`. The optional `DmarcReportStore` records
@@ -178,4 +176,3 @@ mod tests {
         assert_eq!(spf_result_str(mail_auth::SpfResult::PermError), "permerror");
     }
 }
-

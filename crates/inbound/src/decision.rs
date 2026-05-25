@@ -353,7 +353,10 @@ mod tests {
             DeliveryDecision::Reject { code, message } => {
                 assert_eq!(code, 550);
                 assert!(message.contains("virus"));
-                assert!(!message.contains("DMARC"), "virus message should not mention DMARC");
+                assert!(
+                    !message.contains("DMARC"),
+                    "virus message should not mention DMARC"
+                );
             }
             other => panic!("expected virus Reject, got {other:?}"),
         }

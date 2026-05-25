@@ -268,7 +268,10 @@ mod tests {
     fn importance_level_from_score_boundaries() {
         assert_eq!(ImportanceLevel::from_score(1.0), ImportanceLevel::Critical);
         assert_eq!(ImportanceLevel::from_score(0.8), ImportanceLevel::Critical);
-        assert_eq!(ImportanceLevel::from_score(0.79), ImportanceLevel::Important);
+        assert_eq!(
+            ImportanceLevel::from_score(0.79),
+            ImportanceLevel::Important
+        );
         assert_eq!(ImportanceLevel::from_score(0.5), ImportanceLevel::Important);
         assert_eq!(ImportanceLevel::from_score(0.49), ImportanceLevel::Normal);
         assert_eq!(ImportanceLevel::from_score(0.2), ImportanceLevel::Normal);
@@ -316,20 +319,29 @@ mod tests {
         // anything strictly below 0.0 → Noise, even very negative numbers.
         assert_eq!(ImportanceLevel::from_score(-0.5), ImportanceLevel::Noise);
         assert_eq!(ImportanceLevel::from_score(-100.0), ImportanceLevel::Noise);
-        assert_eq!(ImportanceLevel::from_score(f32::NEG_INFINITY), ImportanceLevel::Noise);
+        assert_eq!(
+            ImportanceLevel::from_score(f32::NEG_INFINITY),
+            ImportanceLevel::Noise
+        );
     }
 
     #[test]
     fn from_score_above_one_still_critical() {
         // even out-of-range high values map to Critical.
         assert_eq!(ImportanceLevel::from_score(2.0), ImportanceLevel::Critical);
-        assert_eq!(ImportanceLevel::from_score(f32::INFINITY), ImportanceLevel::Critical);
+        assert_eq!(
+            ImportanceLevel::from_score(f32::INFINITY),
+            ImportanceLevel::Critical
+        );
     }
 
     #[test]
     fn from_score_nan_behavior_is_noise() {
         // NaN comparisons are always false → falls through to Noise.
-        assert_eq!(ImportanceLevel::from_score(f32::NAN), ImportanceLevel::Noise);
+        assert_eq!(
+            ImportanceLevel::from_score(f32::NAN),
+            ImportanceLevel::Noise
+        );
     }
 
     #[test]
@@ -414,7 +426,10 @@ mod tests {
         // For any signals, the returned level must be exactly from_score(returned_score).
         let cases = [
             ImportanceSignals::default(),
-            ImportanceSignals { is_vip_sender: true, ..Default::default() },
+            ImportanceSignals {
+                is_vip_sender: true,
+                ..Default::default()
+            },
             ImportanceSignals {
                 is_bulk_sender: true,
                 contact_importance_bias: -0.1,

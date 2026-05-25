@@ -375,7 +375,10 @@ impl ServerConfig {
 
     /// Spam / ClamAV / LLM / AI-analysis + SRS secret.
     fn load_anti_abuse(&mut self) {
-        set_parsed("MAILRS_SPAM_SCORE_THRESHOLD", &mut self.spam_score_threshold);
+        set_parsed(
+            "MAILRS_SPAM_SCORE_THRESHOLD",
+            &mut self.spam_score_threshold,
+        );
         set_opt_string("MAILRS_CLAMAV_ADDR", &mut self.clamav_addr);
         set_string("MAILRS_LLM_URL", &mut self.llm_url);
         set_opt_string_nonempty("MAILRS_LLM_API_KEY", &mut self.llm_api_key);
@@ -390,14 +393,32 @@ impl ServerConfig {
 
     /// Brute-force auth guard thresholds (per-account + per-IP).
     fn load_auth_guard(&mut self) {
-        set_parsed("MAILRS_AUTH_MAX_FAILURES", &mut self.auth_max_failures_account);
-        set_parsed("MAILRS_AUTH_ACCOUNT_WINDOW_SECS", &mut self.auth_account_window_secs);
+        set_parsed(
+            "MAILRS_AUTH_MAX_FAILURES",
+            &mut self.auth_max_failures_account,
+        );
+        set_parsed(
+            "MAILRS_AUTH_ACCOUNT_WINDOW_SECS",
+            &mut self.auth_account_window_secs,
+        );
         set_parsed("MAILRS_AUTH_LOCKOUT_SECS", &mut self.auth_base_lockout_secs);
-        set_parsed("MAILRS_AUTH_MAX_FAILURES_IP", &mut self.auth_max_failures_ip);
+        set_parsed(
+            "MAILRS_AUTH_MAX_FAILURES_IP",
+            &mut self.auth_max_failures_ip,
+        );
         set_parsed("MAILRS_AUTH_IP_WINDOW_SECS", &mut self.auth_ip_window_secs);
-        set_parsed("MAILRS_AUTH_IP_LOCKOUT_SECS", &mut self.auth_ip_base_lockout_secs);
-        set_parsed("MAILRS_AUTH_BACKOFF_MULTIPLIER", &mut self.auth_backoff_multiplier);
-        set_parsed("MAILRS_AUTH_MAX_LOCKOUT_SECS", &mut self.auth_max_lockout_secs);
+        set_parsed(
+            "MAILRS_AUTH_IP_LOCKOUT_SECS",
+            &mut self.auth_ip_base_lockout_secs,
+        );
+        set_parsed(
+            "MAILRS_AUTH_BACKOFF_MULTIPLIER",
+            &mut self.auth_backoff_multiplier,
+        );
+        set_parsed(
+            "MAILRS_AUTH_MAX_LOCKOUT_SECS",
+            &mut self.auth_max_lockout_secs,
+        );
     }
 
     /// Chrome CDP for HTML preview + Meilisearch full-text index.
@@ -427,7 +448,8 @@ impl ServerConfig {
         let mut warnings = Vec::new();
 
         if self.hostname == "localhost" || self.hostname.is_empty() {
-            warnings.push("MAILRS_HOSTNAME not set or is 'localhost' — mail delivery will fail".into());
+            warnings
+                .push("MAILRS_HOSTNAME not set or is 'localhost' — mail delivery will fail".into());
         }
 
         if self.local_domains.is_empty() {
@@ -439,7 +461,8 @@ impl ServerConfig {
         }
 
         if self.dkim_selector.is_some() && self.dkim_private_key_path.is_none() {
-            warnings.push("DKIM selector set but no private key path — DKIM signing will fail".into());
+            warnings
+                .push("DKIM selector set but no private key path — DKIM signing will fail".into());
         }
 
         if self.mta_sts_mode.is_some() && self.mta_sts_mx.is_empty() {
@@ -447,9 +470,10 @@ impl ServerConfig {
         }
 
         if let Some(ref url) = self.valkey_url
-            && let Err(e) = crate::valkey_store::validate_url(url) {
-                warnings.push(format!("MAILRS_VALKEY_URL is invalid: {e}"));
-            }
+            && let Err(e) = crate::valkey_store::validate_url(url)
+        {
+            warnings.push(format!("MAILRS_VALKEY_URL is invalid: {e}"));
+        }
 
         if self.ldap_url.is_some()
             && (self.ldap_bind_dn.is_none()
@@ -1224,7 +1248,10 @@ mod tests {
         clear_mailrs_env();
         unsafe { std::env::set_var("MAILRS_USERS_FILE", "/etc/mailrs/users.toml") };
         let cfg = ServerConfig::from_env();
-        assert_eq!(cfg.users_file, Some(PathBuf::from("/etc/mailrs/users.toml")));
+        assert_eq!(
+            cfg.users_file,
+            Some(PathBuf::from("/etc/mailrs/users.toml"))
+        );
         clear_mailrs_env();
     }
 
@@ -1246,9 +1273,17 @@ mod tests {
     fn from_env_local_domains_multiple() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_LOCAL_DOMAINS", "example.com, EXAMPLE.ORG , test.net") };
+        unsafe {
+            std::env::set_var(
+                "MAILRS_LOCAL_DOMAINS",
+                "example.com, EXAMPLE.ORG , test.net",
+            )
+        };
         let cfg = ServerConfig::from_env();
-        assert_eq!(cfg.local_domains, vec!["example.com", "example.org", "test.net"]);
+        assert_eq!(
+            cfg.local_domains,
+            vec!["example.com", "example.org", "test.net"]
+        );
         clear_mailrs_env();
     }
 
@@ -1534,7 +1569,10 @@ mod tests {
         clear_mailrs_env();
         unsafe { std::env::set_var("MAILRS_DKIM_PRIVATE_KEY", "/etc/dkim/key.pem") };
         let cfg = ServerConfig::from_env();
-        assert_eq!(cfg.dkim_private_key_path, Some(PathBuf::from("/etc/dkim/key.pem")));
+        assert_eq!(
+            cfg.dkim_private_key_path,
+            Some(PathBuf::from("/etc/dkim/key.pem"))
+        );
         clear_mailrs_env();
     }
 
@@ -1788,7 +1826,10 @@ mod tests {
         clear_mailrs_env();
         unsafe { std::env::set_var("MAILRS_PG_URL", "postgres://user:pass@localhost/mailrs") };
         let cfg = ServerConfig::from_env();
-        assert_eq!(cfg.pg_url, Some("postgres://user:pass@localhost/mailrs".into()));
+        assert_eq!(
+            cfg.pg_url,
+            Some("postgres://user:pass@localhost/mailrs".into())
+        );
         clear_mailrs_env();
     }
 
@@ -1880,7 +1921,10 @@ mod tests {
         assert_eq!(cfg.smuggle_protection, SmuggleProtection::Strict);
         assert_eq!(cfg.dkim_selector, Some("mail".into()));
         assert_eq!(cfg.dkim_domain, Some("prod.com".into()));
-        assert_eq!(cfg.dkim_private_key_path, Some(PathBuf::from("/dkim/key.pem")));
+        assert_eq!(
+            cfg.dkim_private_key_path,
+            Some(PathBuf::from("/dkim/key.pem"))
+        );
         assert_eq!(cfg.pg_url, Some("postgres://localhost/mail".into()));
         assert_eq!(cfg.valkey_url, Some("redis://localhost:6379".into()));
 

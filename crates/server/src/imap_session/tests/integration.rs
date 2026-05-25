@@ -5,9 +5,11 @@
 
 use std::sync::Arc;
 
-use mailrs_imap_format::{format_addr_list, format_imap_address, format_imap_flags, parse_imap_flags};
+use mailrs_imap_format::{
+    format_addr_list, format_imap_address, format_imap_flags, parse_imap_flags,
+};
 use mailrs_mailbox::{
-    PgMailboxStore, FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_RECENT, FLAG_SEEN,
+    FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_RECENT, FLAG_SEEN, PgMailboxStore,
 };
 
 use crate::imap_session::{HandleResult, ImapSession};
@@ -15,8 +17,7 @@ use crate::users::UserStore;
 
 /// requires MAILRS_PG_URL env var pointing to a test database
 async fn test_session() -> ImapSession {
-    let url =
-        std::env::var("MAILRS_PG_URL").expect("MAILRS_PG_URL required for integration tests");
+    let url = std::env::var("MAILRS_PG_URL").expect("MAILRS_PG_URL required for integration tests");
     let pool = sqlx::PgPool::connect(&url).await.unwrap();
     let store = Arc::new(PgMailboxStore::new(pool));
     let users = Arc::new(UserStore::from_plain_passwords(vec![(
@@ -209,8 +210,7 @@ async fn logout() {
 
 #[test]
 fn format_imap_flags_all() {
-    let flags =
-        FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
+    let flags = FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
     let s = format_imap_flags(flags);
     assert!(s.contains("\\Seen"));
     assert!(s.contains("\\Answered"));
@@ -407,4 +407,3 @@ async fn idle_selected() {
     assert_eq!(session.idle_user(), Some("alice@example.com"));
     assert!(session.selected_mailbox_id().is_some());
 }
-

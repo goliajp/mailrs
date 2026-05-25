@@ -1,7 +1,7 @@
 //! Parser + enforce-fn microbenchmarks for mailrs-mta-sts.
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use mailrs_mta_sts::{enforce, mx_matches, Policy, PolicyMode, StsRecord};
+use mailrs_mta_sts::{Policy, PolicyMode, StsRecord, enforce, mx_matches};
 use std::hint::black_box;
 
 const TXT: &str = "v=STSv1; id=20200101T000000Z";

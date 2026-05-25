@@ -6,9 +6,7 @@ use std::net::Ipv4Addr;
 use criterion::{Criterion, criterion_group, criterion_main};
 
 use mailrs_shield::dnsbl::{interpret_spamhaus, reverse_ipv4};
-use mailrs_shield::greylist::{
-    GreylistConfig, GreylistDecision, evaluate_triplet, triplet_key,
-};
+use mailrs_shield::greylist::{GreylistConfig, GreylistDecision, evaluate_triplet, triplet_key};
 use mailrs_shield::ptr::ptr_score_from_names;
 
 fn bench_dnsbl(c: &mut Criterion) {
@@ -32,9 +30,7 @@ fn bench_greylist(c: &mut Criterion) {
         })
     });
     group.bench_function("evaluate_retry", |b| {
-        b.iter(|| {
-            evaluate_triplet(black_box(Some(1000)), black_box(2000), black_box(&cfg))
-        })
+        b.iter(|| evaluate_triplet(black_box(Some(1000)), black_box(2000), black_box(&cfg)))
     });
     group.bench_function("triplet_key", |b| {
         b.iter(|| {

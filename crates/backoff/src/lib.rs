@@ -247,7 +247,11 @@ mod tests {
         let base = b.base_delay(2);
         for seed in 0..100u64 {
             let d = b.delay(2, seed);
-            assert!(d >= base / 2, "seed {seed}: d={d:?} >= base/2 {:?}", base / 2);
+            assert!(
+                d >= base / 2,
+                "seed {seed}: d={d:?} >= base/2 {:?}",
+                base / 2
+            );
             assert!(d <= base, "seed {seed}: d={d:?} <= base {base:?}");
         }
     }
@@ -380,7 +384,11 @@ mod tests {
         for attempt in 0..30u32 {
             for seed in [0u64, 1, 42, 100, 12345, u64::MAX] {
                 let d = b.delay(attempt, seed);
-                assert!(d <= b.max, "attempt={attempt} seed={seed} d={d:?} > max={:?}", b.max);
+                assert!(
+                    d <= b.max,
+                    "attempt={attempt} seed={seed} d={d:?} > max={:?}",
+                    b.max
+                );
             }
         }
     }

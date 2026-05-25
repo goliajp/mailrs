@@ -21,7 +21,6 @@ impl MailAuthStage {
         spf_output
     }
 
-
     /// shadow resolver is configured.
     pub(super) async fn shadow_check_spf(&self, ctx: &ReceiveContext) {
         let Some(ref shadow) = self.shadow_spf_resolver else {
@@ -53,7 +52,6 @@ impl MailAuthStage {
             );
         }
     }
-
 }
 
 pub(super) fn spf_result_str(result: mail_auth::SpfResult) -> String {
@@ -68,4 +66,3 @@ pub(super) fn spf_result_str(result: mail_auth::SpfResult) -> String {
     }
     .to_string()
 }
-

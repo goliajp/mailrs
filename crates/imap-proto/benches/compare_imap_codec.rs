@@ -17,7 +17,9 @@ const NOOP: &[u8] = b"A004 NOOP\r\n";
 fn bench_select(c: &mut Criterion) {
     let mut group = c.benchmark_group("parse/select");
     group.bench_function("mailrs_imap_proto", |b| {
-        let s = std::str::from_utf8(SELECT).unwrap().trim_end_matches("\r\n");
+        let s = std::str::from_utf8(SELECT)
+            .unwrap()
+            .trim_end_matches("\r\n");
         b.iter(|| black_box(parse_command(black_box(s)).unwrap()));
     });
     let codec = CommandCodec::default();

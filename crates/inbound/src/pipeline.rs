@@ -7,7 +7,7 @@
 //! [`make_delivery_decision`] over the accumulated signals.
 
 use crate::context::ReceiveContext;
-use crate::decision::{make_delivery_decision, DeliveryDecision};
+use crate::decision::{DeliveryDecision, make_delivery_decision};
 use crate::stage::{Stage, StageOutcome};
 
 /// Default spam-score threshold above which the message goes to Junk.
@@ -114,8 +114,8 @@ impl PipelineBuilder {
 #[cfg(test)]
 mod tests {
     use std::net::{IpAddr, Ipv4Addr};
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use async_trait::async_trait;
 
@@ -325,7 +325,11 @@ mod tests {
             DeliveryDecision::Reject { code, .. } => assert_eq!(code, 550),
             other => panic!("expected Reject, got {other:?}"),
         }
-        assert_eq!(counter.load(Ordering::SeqCst), 3, "only 3 stages ran (a,b,c-decides)");
+        assert_eq!(
+            counter.load(Ordering::SeqCst),
+            3,
+            "only 3 stages ran (a,b,c-decides)"
+        );
     }
 
     #[tokio::test]
@@ -333,10 +337,26 @@ mod tests {
         // Verify stage_names preserves insertion order (Vec semantics).
         let counter = Arc::new(AtomicUsize::new(0));
         let p = Pipeline::builder()
-            .add(RecordingStage { name: "rate-limit", counter: counter.clone(), outcome: StageOutcome::Continue })
-            .add(RecordingStage { name: "ptr", counter: counter.clone(), outcome: StageOutcome::Continue })
-            .add(RecordingStage { name: "spf", counter: counter.clone(), outcome: StageOutcome::Continue })
-            .add(RecordingStage { name: "dkim", counter, outcome: StageOutcome::Continue })
+            .add(RecordingStage {
+                name: "rate-limit",
+                counter: counter.clone(),
+                outcome: StageOutcome::Continue,
+            })
+            .add(RecordingStage {
+                name: "ptr",
+                counter: counter.clone(),
+                outcome: StageOutcome::Continue,
+            })
+            .add(RecordingStage {
+                name: "spf",
+                counter: counter.clone(),
+                outcome: StageOutcome::Continue,
+            })
+            .add(RecordingStage {
+                name: "dkim",
+                counter,
+                outcome: StageOutcome::Continue,
+            })
             .build();
         let names: Vec<&str> = p.stage_names().collect();
         assert_eq!(names, vec!["rate-limit", "ptr", "spf", "dkim"]);

@@ -36,7 +36,10 @@ fn reverse_ip(ip: &IpAddr) -> Option<String> {
     match ip {
         IpAddr::V4(v4) => {
             let octets = v4.octets();
-            Some(format!("{}.{}.{}.{}", octets[3], octets[2], octets[1], octets[0]))
+            Some(format!(
+                "{}.{}.{}.{}",
+                octets[3], octets[2], octets[1], octets[0]
+            ))
         }
         IpAddr::V6(_) => None, // most RBLs only support IPv4
     }
@@ -109,7 +112,11 @@ pub fn start(
 
                 if any_listed {
                     let listed: Vec<_> = report.results.iter().filter(|r| r.listed).collect();
-                    let zones = listed.iter().map(|r| r.name.as_str()).collect::<Vec<_>>().join(", ");
+                    let zones = listed
+                        .iter()
+                        .map(|r| r.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     tracing::warn!(
                         event = "rbl_alert",
                         ip = %ip,
@@ -120,16 +127,17 @@ pub fn start(
 
                 // store result in valkey
                 if let Some(ref valkey) = valkey
-                    && let Ok(json) = serde_json::to_string(&report) {
-                        let key = format!("rbl:status:{ip}");
-                        let _ = redis::cmd("SET")
-                            .arg(&key)
-                            .arg(&json)
-                            .arg("EX")
-                            .arg(7200i64) // 2 hour TTL
-                            .query_async::<()>(&mut valkey.clone())
-                            .await;
-                    }
+                    && let Ok(json) = serde_json::to_string(&report)
+                {
+                    let key = format!("rbl:status:{ip}");
+                    let _ = redis::cmd("SET")
+                        .arg(&key)
+                        .arg(&json)
+                        .arg("EX")
+                        .arg(7200i64) // 2 hour TTL
+                        .query_async::<()>(&mut valkey.clone())
+                        .await;
+                }
             }
         }
     });

@@ -249,9 +249,7 @@ pub fn parse_command(line: &str) -> Result<TaggedCommand, ParseError> {
         "NOOP" => ImapCommand::Noop,
         "CLOSE" => ImapCommand::Close,
         "IDLE" => ImapCommand::Idle,
-        "APPEND" => {
-            parse_append_args(args)?
-        }
+        "APPEND" => parse_append_args(args)?,
         "COPY" => {
             let (seq, mb) = args
                 .split_once(' ')
@@ -315,7 +313,9 @@ pub fn parse_command(line: &str) -> Result<TaggedCommand, ParseError> {
             if !args.starts_with('(') {
                 return Err(ParseError::MissingArgument("sort criteria".into()));
             }
-            let close = args.find(')').ok_or(ParseError::MissingArgument("sort criteria closing paren".into()))?;
+            let close = args.find(')').ok_or(ParseError::MissingArgument(
+                "sort criteria closing paren".into(),
+            ))?;
             let criteria = args[1..close].to_string();
             let rest = args[close + 1..].trim();
             let (charset, search) = rest.split_once(' ').unwrap_or((rest, "ALL"));
@@ -402,15 +402,18 @@ fn parse_append_args(args: &str) -> Result<ImapCommand, ParseError> {
     let args = args.trim();
 
     // find the literal size at the end: {N}
-    let literal_start = args.rfind('{')
+    let literal_start = args
+        .rfind('{')
         .ok_or(ParseError::MissingArgument("literal size".into()))?;
-    let literal_end = args.rfind('}')
+    let literal_end = args
+        .rfind('}')
         .ok_or(ParseError::MissingArgument("literal size".into()))?;
     if literal_end <= literal_start {
         return Err(ParseError::MissingArgument("literal size".into()));
     }
     let size_str = &args[literal_start + 1..literal_end];
-    let literal_size: u32 = size_str.parse()
+    let literal_size: u32 = size_str
+        .parse()
         .map_err(|_| ParseError::MissingArgument(format!("invalid literal size: {size_str}")))?;
 
     let before_literal = args[..literal_start].trim();
@@ -418,7 +421,8 @@ fn parse_append_args(args: &str) -> Result<ImapCommand, ParseError> {
     // first token is the mailbox name
     let (mailbox, rest) = if let Some(stripped) = before_literal.strip_prefix('"') {
         // quoted mailbox
-        let end = stripped.find('"')
+        let end = stripped
+            .find('"')
             .ok_or(ParseError::MissingArgument("mailbox".into()))?;
         let mb = stripped[..end].to_string();
         let rest = stripped[end + 1..].trim();
@@ -436,7 +440,11 @@ fn parse_append_args(args: &str) -> Result<ImapCommand, ParseError> {
         Some(rest.to_string())
     };
 
-    Ok(ImapCommand::Append { mailbox, flags, literal_size })
+    Ok(ImapCommand::Append {
+        mailbox,
+        flags,
+        literal_size,
+    })
 }
 
 /// Parsed IMAP SEARCH key.
@@ -515,57 +523,48 @@ pub fn parse_search_criteria(criteria: &str) -> Vec<SearchKey> {
             "DRAFT" => keys.push(SearchKey::Draft),
             "UNDRAFT" => keys.push(SearchKey::Undraft),
             "RECENT" => keys.push(SearchKey::Recent),
-            "FROM"
-                if i + 1 < tokens.len() => {
-                    i += 1;
-                    keys.push(SearchKey::From(unquote(&tokens[i])));
+            "FROM" if i + 1 < tokens.len() => {
+                i += 1;
+                keys.push(SearchKey::From(unquote(&tokens[i])));
+            }
+            "TO" if i + 1 < tokens.len() => {
+                i += 1;
+                keys.push(SearchKey::To(unquote(&tokens[i])));
+            }
+            "SUBJECT" if i + 1 < tokens.len() => {
+                i += 1;
+                keys.push(SearchKey::Subject(unquote(&tokens[i])));
+            }
+            "TEXT" if i + 1 < tokens.len() => {
+                i += 1;
+                keys.push(SearchKey::Text(unquote(&tokens[i])));
+            }
+            "BODY" if i + 1 < tokens.len() => {
+                i += 1;
+                keys.push(SearchKey::Body(unquote(&tokens[i])));
+            }
+            "SINCE" if i + 1 < tokens.len() => {
+                i += 1;
+                if let Some(ts) = parse_imap_date(&tokens[i]) {
+                    keys.push(SearchKey::Since(ts));
                 }
-            "TO"
-                if i + 1 < tokens.len() => {
-                    i += 1;
-                    keys.push(SearchKey::To(unquote(&tokens[i])));
+            }
+            "BEFORE" if i + 1 < tokens.len() => {
+                i += 1;
+                if let Some(ts) = parse_imap_date(&tokens[i]) {
+                    keys.push(SearchKey::Before(ts));
                 }
-            "SUBJECT"
-                if i + 1 < tokens.len() => {
-                    i += 1;
-                    keys.push(SearchKey::Subject(unquote(&tokens[i])));
+            }
+            "ON" if i + 1 < tokens.len() => {
+                i += 1;
+                if let Some(ts) = parse_imap_date(&tokens[i]) {
+                    keys.push(SearchKey::On(ts));
                 }
-            "TEXT"
-                if i + 1 < tokens.len() => {
-                    i += 1;
-                    keys.push(SearchKey::Text(unquote(&tokens[i])));
-                }
-            "BODY"
-                if i + 1 < tokens.len() => {
-                    i += 1;
-                    keys.push(SearchKey::Body(unquote(&tokens[i])));
-                }
-            "SINCE"
-                if i + 1 < tokens.len() => {
-                    i += 1;
-                    if let Some(ts) = parse_imap_date(&tokens[i]) {
-                        keys.push(SearchKey::Since(ts));
-                    }
-                }
-            "BEFORE"
-                if i + 1 < tokens.len() => {
-                    i += 1;
-                    if let Some(ts) = parse_imap_date(&tokens[i]) {
-                        keys.push(SearchKey::Before(ts));
-                    }
-                }
-            "ON"
-                if i + 1 < tokens.len() => {
-                    i += 1;
-                    if let Some(ts) = parse_imap_date(&tokens[i]) {
-                        keys.push(SearchKey::On(ts));
-                    }
-                }
-            "UID"
-                if i + 1 < tokens.len() => {
-                    i += 1;
-                    keys.push(SearchKey::Uid(tokens[i].clone()));
-                }
+            }
+            "UID" if i + 1 < tokens.len() => {
+                i += 1;
+                keys.push(SearchKey::Uid(tokens[i].clone()));
+            }
             // skip unknown tokens (e.g. "CHARSET", "UTF-8")
             _ => {}
         }
@@ -647,8 +646,20 @@ fn parse_imap_date(s: &str) -> Option<i64> {
         days += if is_leap_year(y) { 366 } else { 365 };
     }
     // months in current year
-    let days_in_months = [31, 28 + if is_leap_year(year) { 1 } else { 0 },
-        31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let days_in_months = [
+        31,
+        28 + if is_leap_year(year) { 1 } else { 0 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
     for d in days_in_months.iter().take((month - 1) as usize) {
         days += *d as i64;
     }
@@ -814,7 +825,12 @@ mod tests {
     #[test]
     fn parse_append() {
         let cmd = parse_command("a001 APPEND INBOX {310}").unwrap();
-        if let ImapCommand::Append { mailbox, flags, literal_size } = &cmd.command {
+        if let ImapCommand::Append {
+            mailbox,
+            flags,
+            literal_size,
+        } = &cmd.command
+        {
             assert_eq!(mailbox, "INBOX");
             assert!(flags.is_none());
             assert_eq!(*literal_size, 310);
@@ -826,7 +842,12 @@ mod tests {
     #[test]
     fn parse_append_with_flags() {
         let cmd = parse_command("a001 APPEND \"Drafts\" (\\Seen \\Draft) {100}").unwrap();
-        if let ImapCommand::Append { mailbox, flags, literal_size } = &cmd.command {
+        if let ImapCommand::Append {
+            mailbox,
+            flags,
+            literal_size,
+        } = &cmd.command
+        {
             assert_eq!(mailbox, "Drafts");
             assert_eq!(flags.as_deref(), Some("(\\Seen \\Draft)"));
             assert_eq!(*literal_size, 100);
@@ -1134,7 +1155,11 @@ mod tests {
     #[test]
     fn parse_fetch_body_section() {
         let cmd = parse_command("a001 FETCH 1 BODY[]").unwrap();
-        if let ImapCommand::Fetch { sequence, attributes } = &cmd.command {
+        if let ImapCommand::Fetch {
+            sequence,
+            attributes,
+        } = &cmd.command
+        {
             assert_eq!(sequence, "1");
             assert_eq!(attributes, "BODY[]");
         } else {
@@ -1155,7 +1180,12 @@ mod tests {
     #[test]
     fn parse_append_no_flags() {
         let cmd = parse_command("a001 APPEND Drafts {512}").unwrap();
-        if let ImapCommand::Append { mailbox, flags, literal_size } = &cmd.command {
+        if let ImapCommand::Append {
+            mailbox,
+            flags,
+            literal_size,
+        } = &cmd.command
+        {
             assert_eq!(mailbox, "Drafts");
             assert!(flags.is_none());
             assert_eq!(*literal_size, 512);
@@ -1332,7 +1362,10 @@ mod tests {
             let criteria = format!("SINCE 1-{month}-2024");
             let keys = parse_search_criteria(&criteria);
             assert_eq!(keys.len(), 1, "failed for month {month}");
-            assert!(matches!(keys[0], SearchKey::Since(_)), "failed for month {month}");
+            assert!(
+                matches!(keys[0], SearchKey::Since(_)),
+                "failed for month {month}"
+            );
         }
     }
 
@@ -1594,7 +1627,12 @@ mod tests {
     #[test]
     fn parse_store_minus_flags() {
         let cmd = parse_command("a001 STORE 1:3 -FLAGS (\\Seen)").unwrap();
-        if let ImapCommand::Store { sequence, action, flags } = &cmd.command {
+        if let ImapCommand::Store {
+            sequence,
+            action,
+            flags,
+        } = &cmd.command
+        {
             assert_eq!(sequence, "1:3");
             assert_eq!(action, "-FLAGS");
             assert_eq!(flags, "(\\Seen)");
@@ -1606,7 +1644,12 @@ mod tests {
     #[test]
     fn parse_store_flags_replace() {
         let cmd = parse_command("a001 STORE 5 FLAGS (\\Answered \\Seen)").unwrap();
-        if let ImapCommand::Store { sequence, action, flags } = &cmd.command {
+        if let ImapCommand::Store {
+            sequence,
+            action,
+            flags,
+        } = &cmd.command
+        {
             assert_eq!(sequence, "5");
             assert_eq!(action, "FLAGS");
             assert_eq!(flags, "(\\Answered \\Seen)");
@@ -1685,7 +1728,11 @@ mod tests {
     #[test]
     fn parse_fetch_multiple_attrs() {
         let cmd = parse_command("a001 FETCH 1:5 (FLAGS UID ENVELOPE BODY.PEEK[HEADER])").unwrap();
-        if let ImapCommand::Fetch { sequence, attributes } = &cmd.command {
+        if let ImapCommand::Fetch {
+            sequence,
+            attributes,
+        } = &cmd.command
+        {
             assert_eq!(sequence, "1:5");
             assert_eq!(attributes, "(FLAGS UID ENVELOPE BODY.PEEK[HEADER])");
         } else {

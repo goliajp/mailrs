@@ -10,8 +10,8 @@ use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig};
 use crate::web::WebState;
 use crate::{
     acme, conversation_cache, dmarc_report, event_bus, health, listeners, oidc_jwt,
-    outbound_tls_rpt, rbl_monitor, render_preview, search_index, smtp_session,
-    system_config, tls, web, webhook,
+    outbound_tls_rpt, rbl_monitor, render_preview, search_index, smtp_session, system_config, tls,
+    web, webhook,
 };
 use mailrs_mailbox::PgMailboxStore;
 
@@ -115,7 +115,6 @@ pub(crate) fn build_web_state(i: WebStateInputs<'_>) -> WebState {
     ws
 }
 
-
 /// Read `MAILRS_OIDC_*` env vars and build the external-IdP
 /// "Sign in with X" config. Returns None unless the three
 /// required vars (CLIENT_ID, CLIENT_SECRET, ISSUER) are all set;
@@ -130,8 +129,8 @@ pub(crate) fn oidc_client_from_env(hostname: &str) -> Option<crate::web::OidcCon
         .unwrap_or_else(|_| format!("{issuer}/authorize"));
     let token_url =
         std::env::var("MAILRS_OIDC_TOKEN_URL").unwrap_or_else(|_| format!("{issuer}/token"));
-    let userinfo_url = std::env::var("MAILRS_OIDC_USERINFO_URL")
-        .unwrap_or_else(|_| format!("{issuer}/userinfo"));
+    let userinfo_url =
+        std::env::var("MAILRS_OIDC_USERINFO_URL").unwrap_or_else(|_| format!("{issuer}/userinfo"));
     Some(crate::web::OidcConfig {
         client_id,
         client_secret,

@@ -7,12 +7,12 @@ use tokio_util::codec::Framed;
 use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::{AuthStep, Event, Session};
 
-use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 use crate::event_bus::SmtpEvent;
 use crate::inbound::auth_guard::AuthCheck;
+use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
 use super::credentials::verify_credentials;
-use super::{ConnectionContext, SessionAction, CONNECTION_TIMEOUT};
+use super::{CONNECTION_TIMEOUT, ConnectionContext, SessionAction};
 
 pub(super) async fn handle_need_auth<S>(
     framed: &mut Framed<S, SmtpCodec>,
@@ -26,9 +26,7 @@ pub(super) async fn handle_need_auth<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    if let AuthCheck::LockedOut { remaining_secs } =
-        ctx.auth_guard.check(addr.ip(), &username)
-    {
+    if let AuthCheck::LockedOut { remaining_secs } = ctx.auth_guard.check(addr.ip(), &username) {
         let resp = Response::new(
             421,
             Some(mailrs_smtp_proto::EnhancedCode {

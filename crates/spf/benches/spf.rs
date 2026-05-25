@@ -1,9 +1,9 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use mailrs_spf::{Record, SpfResolver, SpfError, VerifyInput};
+use async_trait::async_trait;
+use criterion::{Criterion, criterion_group, criterion_main};
+use mailrs_spf::{Record, SpfError, SpfResolver, VerifyInput};
+use std::collections::HashMap;
 use std::hint::black_box;
 use std::net::IpAddr;
-use std::collections::HashMap;
-use async_trait::async_trait;
 
 fn bench_parse_simple(c: &mut Criterion) {
     c.bench_function("parse/v=spf1_ip4_minus_all", |b| {
@@ -35,9 +35,15 @@ impl SpfResolver for StaticResolver {
             _ => vec![],
         })
     }
-    async fn lookup_a(&self, _: &str) -> Result<Vec<IpAddr>, SpfError> { Ok(vec![]) }
-    async fn lookup_aaaa(&self, _: &str) -> Result<Vec<IpAddr>, SpfError> { Ok(vec![]) }
-    async fn lookup_mx(&self, _: &str) -> Result<Vec<(u16, String)>, SpfError> { Ok(vec![]) }
+    async fn lookup_a(&self, _: &str) -> Result<Vec<IpAddr>, SpfError> {
+        Ok(vec![])
+    }
+    async fn lookup_aaaa(&self, _: &str) -> Result<Vec<IpAddr>, SpfError> {
+        Ok(vec![])
+    }
+    async fn lookup_mx(&self, _: &str) -> Result<Vec<(u16, String)>, SpfError> {
+        Ok(vec![])
+    }
 }
 
 fn bench_verify_pass(c: &mut Criterion) {
@@ -61,5 +67,10 @@ fn _suppress_unused() {
     let _ = HashMap::<String, String>::new();
 }
 
-criterion_group!(benches, bench_parse_simple, bench_parse_complex, bench_verify_pass);
+criterion_group!(
+    benches,
+    bench_parse_simple,
+    bench_parse_complex,
+    bench_verify_pass
+);
 criterion_main!(benches);

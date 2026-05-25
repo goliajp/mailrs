@@ -9,7 +9,7 @@
 
 use std::borrow::Cow;
 
-use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 
 /// Encode a UTF-8 string as an RFC 2047 encoded-word **if and only if**
 /// it contains non-ASCII bytes. Pure-ASCII inputs are returned as

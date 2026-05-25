@@ -22,12 +22,11 @@ async fn pg_container_starts_and_schema_applies() {
     let (_container, pool) = setup_pg().await;
 
     // pgvector extension present + at least one of the schema tables.
-    let extension: (bool,) = sqlx::query_as(
-        "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let extension: (bool,) =
+        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert!(extension.0, "pgvector extension installed");
 
     let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM messages")
@@ -70,12 +69,11 @@ async fn seed_mailbox_inserts_row_visible_via_query() {
 
     // Round-trip via raw SQL since list_mailboxes lives behind MailboxOps
     // we're not exercising here.
-    let row: (String,) =
-        sqlx::query_as("SELECT name FROM mailboxes WHERE id = $1")
-            .bind(mb_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let row: (String,) = sqlx::query_as("SELECT name FROM mailboxes WHERE id = $1")
+        .bind(mb_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(row.0, "INBOX");
 }
 

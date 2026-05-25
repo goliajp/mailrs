@@ -129,9 +129,9 @@ fn to_store_err(e: sqlx::Error) -> StoreError {
 
 // ── submodules with the trait impls + axum handlers ───────────────────
 
+mod handlers;
 mod store_cal;
 mod store_card;
-mod handlers;
 
 pub(crate) use handlers::{
     dav_calendar_collection, dav_calendar_home, dav_contact, dav_contact_collection,

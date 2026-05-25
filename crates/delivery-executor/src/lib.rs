@@ -328,10 +328,7 @@ mod tests {
         // The behaviour that matters is "doesn't hang forever".
         let exec = DeliveryExecutor::with_config(64, Duration::from_millis(50));
         let start = Instant::now();
-        let _ = exec
-            .deliver(path, Arc::new(b"hi".to_vec()))
-            .await
-            .unwrap();
+        let _ = exec.deliver(path, Arc::new(b"hi".to_vec())).await.unwrap();
         let elapsed = start.elapsed();
         assert!(
             elapsed < Duration::from_secs(2),
@@ -352,7 +349,12 @@ mod tests {
             .await
             .unwrap();
         assert!(!id.0.is_empty());
-        assert!(std::path::PathBuf::from(&path).join("new").join(&id.0).exists());
+        assert!(
+            std::path::PathBuf::from(&path)
+                .join("new")
+                .join(&id.0)
+                .exists()
+        );
     }
 
     /// When the executor's last sender clone is dropped while
@@ -395,9 +397,7 @@ mod tests {
         let path_str = path.to_string_lossy().to_string();
 
         let exec = DeliveryExecutor::with_config(8, Duration::from_millis(5));
-        let res = exec
-            .deliver(path_str, Arc::new(b"body".to_vec()))
-            .await;
+        let res = exec.deliver(path_str, Arc::new(b"body".to_vec())).await;
         let err = res.expect_err("delivery to a file (not dir) must fail");
         // Must contain the wrapped batch-delivery context — proves
         // the error went through flush_batch's Err branch, not

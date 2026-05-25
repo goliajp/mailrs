@@ -48,8 +48,12 @@ fn bench_serialize(c: &mut Criterion) {
     let complex_invite = parse_invite(COMPLEX).unwrap();
 
     let mut group = c.benchmark_group("serialize");
-    group.bench_function("minimal", |b| b.iter(|| serialize(black_box(&minimal_invite))));
-    group.bench_function("complex", |b| b.iter(|| serialize(black_box(&complex_invite))));
+    group.bench_function("minimal", |b| {
+        b.iter(|| serialize(black_box(&minimal_invite)))
+    });
+    group.bench_function("complex", |b| {
+        b.iter(|| serialize(black_box(&complex_invite)))
+    });
     group.finish();
 }
 

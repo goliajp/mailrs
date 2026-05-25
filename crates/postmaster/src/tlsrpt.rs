@@ -43,7 +43,6 @@ pub(super) async fn check_tlsrpt(resolver: &TokioResolver, domain: &str) -> Chec
     }
 }
 
-
 /// Quick syntactic validation: returns true iff the record contains
 /// `v=TLSRPTv1` and at least one `rua=` clause. Tolerant of whitespace;
 /// does not validate the URI inside `rua=`.
@@ -70,4 +69,3 @@ pub fn extract_tlsrpt_rua(record: &str) -> Vec<String> {
         })
         .unwrap_or_default()
 }
-

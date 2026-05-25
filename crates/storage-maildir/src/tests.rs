@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::time::{Duration, SystemTime};
 
-use crate::{add_flag, parse_flags, serialize_flags, Flag, Maildir, MessageId};
+use crate::{Flag, Maildir, MessageId, add_flag, parse_flags, serialize_flags};
 
 fn tmpdir() -> tempfile::TempDir {
     tempfile::tempdir().unwrap()
@@ -50,9 +50,7 @@ fn deliver_to_new() {
     let data = b"Subject: test\r\n\r\nHello\r\n";
     let _id = md.deliver(data).unwrap();
 
-    let entries: Vec<_> = fs::read_dir(tmp.path().join("mail/new"))
-        .unwrap()
-        .collect();
+    let entries: Vec<_> = fs::read_dir(tmp.path().join("mail/new")).unwrap().collect();
     assert_eq!(entries.len(), 1);
 
     let content = fs::read(entries[0].as_ref().unwrap().path()).unwrap();
@@ -95,9 +93,7 @@ fn deliver_atomic() {
     let md = Maildir::create(tmp.path().join("mail")).unwrap();
     md.deliver(b"data").unwrap();
 
-    let tmp_entries: Vec<_> = fs::read_dir(tmp.path().join("mail/tmp"))
-        .unwrap()
-        .collect();
+    let tmp_entries: Vec<_> = fs::read_dir(tmp.path().join("mail/tmp")).unwrap().collect();
     assert_eq!(tmp_entries.len(), 0, "tmp/ should be empty after deliver");
 }
 
@@ -474,11 +470,7 @@ fn cleanup_old_tmp() {
     let old_file = tmp_dir.join("old_file");
     fs::write(&old_file, b"old").unwrap();
     let old_time = SystemTime::now() - Duration::from_secs(48 * 3600);
-    filetime::set_file_mtime(
-        &old_file,
-        filetime::FileTime::from_system_time(old_time),
-    )
-    .unwrap();
+    filetime::set_file_mtime(&old_file, filetime::FileTime::from_system_time(old_time)).unwrap();
 
     // create a "new" file
     let new_file = tmp_dir.join("new_file");
@@ -586,7 +578,14 @@ fn serialize_flags_single_flag_each() {
 #[test]
 fn serialize_flags_reverse_order_normalized() {
     // flags given in reverse order should still serialize in ASCII order
-    let s = serialize_flags(&[Flag::Trashed, Flag::Seen, Flag::Replied, Flag::Passed, Flag::Flagged, Flag::Draft]);
+    let s = serialize_flags(&[
+        Flag::Trashed,
+        Flag::Seen,
+        Flag::Replied,
+        Flag::Passed,
+        Flag::Flagged,
+        Flag::Draft,
+    ]);
     assert_eq!(s, ":2,DFPRST");
 }
 
@@ -608,7 +607,14 @@ fn add_flag_builds_correct_order() {
 #[test]
 fn add_flag_all_flags_incrementally() {
     let mut info = String::from(":2,");
-    for flag in [Flag::Seen, Flag::Draft, Flag::Flagged, Flag::Passed, Flag::Replied, Flag::Trashed] {
+    for flag in [
+        Flag::Seen,
+        Flag::Draft,
+        Flag::Flagged,
+        Flag::Passed,
+        Flag::Replied,
+        Flag::Trashed,
+    ] {
         info = add_flag(&info, flag);
     }
     assert_eq!(info, ":2,DFPRST");

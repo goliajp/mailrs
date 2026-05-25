@@ -61,8 +61,8 @@ fn principal_propfind_under_budget() {
 
 #[tokio::test]
 async fn calendar_propfind_depth_1_50_events_under_budget() {
-    let mut store = InMemoryCalendarStore::new()
-        .with_calendar(EXAMPLE_USER, make_calendar(10, "Work"));
+    let mut store =
+        InMemoryCalendarStore::new().with_calendar(EXAMPLE_USER, make_calendar(10, "Work"));
     for i in 0..50 {
         store = store.with_event(
             10,
@@ -88,8 +88,8 @@ async fn calendar_propfind_depth_1_50_events_under_budget() {
 
 #[tokio::test]
 async fn calendar_report_multiget_50_under_budget() {
-    let mut store = InMemoryCalendarStore::new()
-        .with_calendar(EXAMPLE_USER, make_calendar(10, "Work"));
+    let mut store =
+        InMemoryCalendarStore::new().with_calendar(EXAMPLE_USER, make_calendar(10, "Work"));
     for i in 0..50 {
         store = store.with_event(
             10,

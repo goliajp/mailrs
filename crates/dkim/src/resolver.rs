@@ -25,8 +25,8 @@ pub trait DkimResolver: Send + Sync {
 #[cfg(feature = "hickory")]
 pub mod hickory {
     use super::*;
-    use hickory_resolver::proto::rr::RData;
     use hickory_resolver::TokioResolver;
+    use hickory_resolver::proto::rr::RData;
 
     /// Wrap a `TokioResolver` for use as a [`DkimResolver`].
     pub struct HickoryDkimResolver {

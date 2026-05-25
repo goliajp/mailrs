@@ -35,7 +35,10 @@ fn extract_structured_long_under_budget() {
     });
     // Budget: 5 ms. Observed P95: ~200 µs (JSON-LD parse over two nested blocks).
     let budget = Duration::from_millis(5);
-    assert!(median < budget, "extract_structured_data median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "extract_structured_data median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -60,5 +63,8 @@ fn calculate_importance_under_budget() {
     });
     // Budget: 50 µs. Observed P95: ~500 ns (pure arithmetic).
     let budget = Duration::from_micros(50);
-    assert!(median < budget, "calculate_importance median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "calculate_importance median {median:?} exceeded {budget:?}"
+    );
 }

@@ -54,12 +54,7 @@ impl OpenAiCompatibleProvider {
 
 #[async_trait]
 impl LlmProvider for OpenAiCompatibleProvider {
-    async fn complete(
-        &self,
-        system: &str,
-        user_message: &str,
-        temperature: f32,
-    ) -> Option<String> {
+    async fn complete(&self, system: &str, user_message: &str, temperature: f32) -> Option<String> {
         let body = serde_json::json!({
             "system": system,
             "messages": [{"role": "user", "content": user_message}],
@@ -69,36 +64,33 @@ impl LlmProvider for OpenAiCompatibleProvider {
         // no `format` param — uses stream mode on server side (no timeout as long as tokens flow)
         // 900s safety timeout covers entire send+read cycle
         for attempt in 0..3u32 {
-            let result = tokio::time::timeout(
-                std::time::Duration::from_secs(900),
-                async {
-                    let mut req = self.client.post(&self.url).json(&body);
-                    if let Some(ref key) = self.api_key {
-                        req = req
-                            .header("Authorization", format!("Bearer {key}"))
-                            .header("x-caller", "mailrs");
-                    }
-                    let response = req.send().await?;
+            let result = tokio::time::timeout(std::time::Duration::from_secs(900), async {
+                let mut req = self.client.post(&self.url).json(&body);
+                if let Some(ref key) = self.api_key {
+                    req = req
+                        .header("Authorization", format!("Bearer {key}"))
+                        .header("x-caller", "mailrs");
+                }
+                let response = req.send().await?;
 
-                    if response.status().as_u16() == 429 {
-                        return Ok::<Option<String>, reqwest::Error>(Some("__429__".into()));
-                    }
+                if response.status().as_u16() == 429 {
+                    return Ok::<Option<String>, reqwest::Error>(Some("__429__".into()));
+                }
 
-                    if !response.status().is_success() {
-                        let status = response.status();
-                        let text = response.text().await.unwrap_or_default();
-                        tracing::warn!(
-                            event = "llm_http_error",
-                            status = %status,
-                            body = %&text[..text.len().min(200)]
-                        );
-                        return Ok(None);
-                    }
+                if !response.status().is_success() {
+                    let status = response.status();
+                    let text = response.text().await.unwrap_or_default();
+                    tracing::warn!(
+                        event = "llm_http_error",
+                        status = %status,
+                        body = %&text[..text.len().min(200)]
+                    );
+                    return Ok(None);
+                }
 
-                    let json: serde_json::Value = response.json().await?;
-                    Ok(json["content"].as_str().map(|s| s.to_string()))
-                },
-            )
+                let json: serde_json::Value = response.json().await?;
+                Ok(json["content"].as_str().map(|s| s.to_string()))
+            })
             .await;
 
             match result {
@@ -139,22 +131,18 @@ impl LlmProvider for OpenAiCompatibleProvider {
                     .header("Authorization", format!("Bearer {key}"))
                     .header("x-caller", "mailrs");
             }
-            let response = match tokio::time::timeout(
-                std::time::Duration::from_secs(10),
-                req.send(),
-            )
-            .await
-            {
-                Ok(Ok(resp)) => resp,
-                Ok(Err(e)) => {
-                    tracing::warn!(event = "embedding_request_error", error = %e);
-                    return None;
-                }
-                Err(_) => {
-                    tracing::warn!(event = "embedding_request_timeout", timeout_s = 10);
-                    return None;
-                }
-            };
+            let response =
+                match tokio::time::timeout(std::time::Duration::from_secs(10), req.send()).await {
+                    Ok(Ok(resp)) => resp,
+                    Ok(Err(e)) => {
+                        tracing::warn!(event = "embedding_request_error", error = %e);
+                        return None;
+                    }
+                    Err(_) => {
+                        tracing::warn!(event = "embedding_request_timeout", timeout_s = 10);
+                        return None;
+                    }
+                };
 
             if response.status().as_u16() == 429 {
                 let wait = if attempt < 2 { 15 } else { 30 };

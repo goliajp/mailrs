@@ -3,28 +3,25 @@
 //! The PRIORITY surface for outbound flow: create-only semantics, every error
 //! path, and the success-shape carrying the synthetic `sub-{id}` identifier.
 
-
-use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message};
 use mailrs_jmap::dispatch::dispatch_method;
+use mailrs_jmap::fixtures::{EXAMPLE_USER, InMemoryStore, make_message};
 use serde_json::json;
 
 #[tokio::test]
 async fn submission_set_no_create_returns_empty_state_zero() {
     let store = InMemoryStore::new();
 
-    let (name, resp) = dispatch_method(
-        "EmailSubmission/set",
-        &json!({}),
-        EXAMPLE_USER,
-        &store,
-    )
-    .await
-    .unwrap();
+    let (name, resp) = dispatch_method("EmailSubmission/set", &json!({}), EXAMPLE_USER, &store)
+        .await
+        .unwrap();
 
     assert_eq!(name, "EmailSubmission/set");
     assert_eq!(resp["accountId"], EXAMPLE_USER);
     assert_eq!(resp["oldState"], "0");
-    assert_eq!(resp["newState"], "0", "newState stays at 0 when nothing happened");
+    assert_eq!(
+        resp["newState"], "0",
+        "newState stays at 0 when nothing happened"
+    );
     assert_eq!(resp["created"], json!({}));
     assert_eq!(resp["notCreated"], json!({}));
 }
@@ -88,7 +85,10 @@ async fn submission_set_missing_email_id_lands_in_invalid_properties() {
 
     assert_eq!(resp["created"], json!({}));
     assert_eq!(resp["notCreated"]["k1"]["type"], "invalidProperties");
-    assert_eq!(resp["notCreated"]["k1"]["description"], "emailId is required");
+    assert_eq!(
+        resp["notCreated"]["k1"]["description"],
+        "emailId is required"
+    );
 }
 
 #[tokio::test]

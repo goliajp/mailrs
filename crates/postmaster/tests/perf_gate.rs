@@ -27,7 +27,10 @@ fn extract_bimi_logo_url_under_budget() {
     });
     // Budget: 20 µs. Observed P95: ~200 ns.
     let budget = Duration::from_micros(20);
-    assert!(median < budget, "extract_bimi_logo_url median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "extract_bimi_logo_url median {median:?} exceeded {budget:?}"
+    );
 }
 
 // ===== MTA-STS policy body parser =====

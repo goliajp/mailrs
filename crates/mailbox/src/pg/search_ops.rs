@@ -1,5 +1,5 @@
-use crate::pg::helpers::build_user_filter;
 use crate::pg::PgMailboxStore;
+use crate::pg::helpers::build_user_filter;
 use crate::types::ConversationSummary;
 
 impl PgMailboxStore {
@@ -115,10 +115,33 @@ impl PgMailboxStore {
         );
 
         // for ILIKE, wrap query with %
-        let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let escaped = query
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
         let pattern = format!("%{escaped}%");
 
-        let mut q = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String, i64)>(&sql);
+        let mut q = sqlx::query_as::<
+            _,
+            (
+                String,
+                Option<String>,
+                Option<String>,
+                i64,
+                i64,
+                i64,
+                String,
+                bool,
+                String,
+                bool,
+                bool,
+                String,
+                f32,
+                bool,
+                String,
+                i64,
+            ),
+        >(&sql);
 
         for b in &user_binds {
             q = q.bind(b);
@@ -216,7 +239,10 @@ impl PgMailboxStore {
         query: &str,
         limit: u32,
     ) -> Result<Vec<String>, sqlx::Error> {
-        let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let escaped = query
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
         let pattern = format!("%{escaped}%");
         let rows = sqlx::query_as::<_, (String,)>(
             "SELECT sender FROM messages m
@@ -264,8 +290,7 @@ impl PgMailboxStore {
              LIMIT ${limit_idx}"
         );
 
-        let mut query = sqlx::query_as::<_, (i64, String, f64)>(&sql)
-            .bind(&embedding_str);
+        let mut query = sqlx::query_as::<_, (i64, String, f64)>(&sql).bind(&embedding_str);
         for b in &binds {
             query = query.bind(b);
         }

@@ -298,9 +298,15 @@ mod integration_tests {
             canned: r#"{"score": 2.0, "reason": "legit"}"#.into(),
             calls: Mutex::new(0),
         };
-        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        let cache = MemCache {
+            inner: Mutex::new(Default::default()),
+        };
         let _ = classify(&provider, Some(&cache), "a", "b", "c").await;
-        assert_eq!(cache.inner.lock().unwrap().len(), 1, "cache must hold one entry");
+        assert_eq!(
+            cache.inner.lock().unwrap().len(),
+            1,
+            "cache must hold one entry"
+        );
     }
 
     #[tokio::test]
@@ -309,10 +315,16 @@ mod integration_tests {
             canned: r#"{"score": 5.0, "reason": "borderline"}"#.into(),
             calls: Mutex::new(0),
         };
-        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        let cache = MemCache {
+            inner: Mutex::new(Default::default()),
+        };
 
-        let r1 = classify(&provider, Some(&cache), "a", "b", "c").await.unwrap();
-        let r2 = classify(&provider, Some(&cache), "a", "b", "c").await.unwrap();
+        let r1 = classify(&provider, Some(&cache), "a", "b", "c")
+            .await
+            .unwrap();
+        let r2 = classify(&provider, Some(&cache), "a", "b", "c")
+            .await
+            .unwrap();
 
         assert!((r1.score - 5.0).abs() < 0.01);
         assert!((r2.score - 5.0).abs() < 0.01);
@@ -329,7 +341,9 @@ mod integration_tests {
             canned: r#"{"score": 3.0, "reason": "ok"}"#.into(),
             calls: Mutex::new(0),
         };
-        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        let cache = MemCache {
+            inner: Mutex::new(Default::default()),
+        };
 
         classify(&provider, Some(&cache), "a", "subject1", "body").await;
         classify(&provider, Some(&cache), "a", "subject2", "body").await;
@@ -344,9 +358,15 @@ mod integration_tests {
             canned: r#"{"score": 0.1, "reason": "totally legit"}"#.into(),
             calls: Mutex::new(0),
         };
-        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        let cache = MemCache {
+            inner: Mutex::new(Default::default()),
+        };
         classify(&provider, Some(&cache), "a", "b", "c").await;
-        assert_eq!(cache.inner.lock().unwrap().len(), 1, "low-score result still cached");
+        assert_eq!(
+            cache.inner.lock().unwrap().len(),
+            1,
+            "low-score result still cached"
+        );
     }
 
     // ===== Additional integration tests =====
@@ -359,7 +379,9 @@ mod integration_tests {
             canned: r#"{"score": 0.0, "reason": "empty"}"#.into(),
             calls: Mutex::new(0),
         };
-        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        let cache = MemCache {
+            inner: Mutex::new(Default::default()),
+        };
         let r = classify(&provider, Some(&cache), "", "", "").await.unwrap();
         assert!((r.score - 0.0).abs() < 0.01);
         assert_eq!(cache.inner.lock().unwrap().len(), 1);
@@ -373,11 +395,19 @@ mod integration_tests {
             canned: r#"{"score": 4.0, "reason": "fresh"}"#.into(),
             calls: Mutex::new(0),
         };
-        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        let cache = MemCache {
+            inner: Mutex::new(Default::default()),
+        };
         // pre-seed cache with garbage that has the correct key
         let key = make_cache_key("a", "b", "c");
-        cache.inner.lock().unwrap().insert(key.clone(), "not-json".to_string());
-        let r = classify(&provider, Some(&cache), "a", "b", "c").await.unwrap();
+        cache
+            .inner
+            .lock()
+            .unwrap()
+            .insert(key.clone(), "not-json".to_string());
+        let r = classify(&provider, Some(&cache), "a", "b", "c")
+            .await
+            .unwrap();
         assert!((r.score - 4.0).abs() < 0.01, "fell through to provider");
         // and the cache was overwritten with a valid entry
         let cached = cache.inner.lock().unwrap().get(&key).cloned().unwrap();
@@ -390,7 +420,9 @@ mod integration_tests {
             canned: r#"{"score": 1.0, "reason": "ok"}"#.into(),
             calls: Mutex::new(0),
         };
-        let cache = MemCache { inner: Mutex::new(Default::default()) };
+        let cache = MemCache {
+            inner: Mutex::new(Default::default()),
+        };
         classify(&provider, Some(&cache), "a", "subj1", "body").await;
         classify(&provider, Some(&cache), "a", "subj2", "body").await;
         // Subject change must produce a distinct cache key -> provider called twice

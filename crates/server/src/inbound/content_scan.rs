@@ -1,6 +1,8 @@
 // ClamAV INSTREAM client lives in mailrs-clamav 1.0.0; we re-export
 // for back-compat with the previous internal API names.
-pub use mailrs_clamav::{parse_response as parse_clamav_response, scan as scan_clamav, ClamavResult};
+pub use mailrs_clamav::{
+    ClamavResult, parse_response as parse_clamav_response, scan as scan_clamav,
+};
 
 /// content scanning result
 #[derive(Debug, Clone, PartialEq)]
@@ -215,7 +217,9 @@ mod tests {
 
     #[test]
     fn url_boundary_10_no_trigger() {
-        let mut data = String::from("From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\n\r\n");
+        let mut data = String::from(
+            "From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\n\r\n",
+        );
         for i in 0..10 {
             data.push_str(&format!("https://example{i}.com "));
         }
@@ -225,7 +229,9 @@ mod tests {
 
     #[test]
     fn url_boundary_11_triggers() {
-        let mut data = String::from("From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\n\r\n");
+        let mut data = String::from(
+            "From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\n\r\n",
+        );
         for i in 0..11 {
             data.push_str(&format!("https://example{i}.com "));
         }
@@ -264,7 +270,9 @@ mod tests {
     #[test]
     fn all_rules_triggered_total_score() {
         // missing_from(2) + empty_subject(1) + html_only(1.5) + excessive_urls(2) + suspicious_attachment(3) + missing_date(1) + missing_message_id(1.5) = 12.0
-        let mut data = String::from("Content-Type: text/html\r\nContent-Disposition: attachment; filename=\"malware.exe\"\r\n\r\n");
+        let mut data = String::from(
+            "Content-Type: text/html\r\nContent-Disposition: attachment; filename=\"malware.exe\"\r\n\r\n",
+        );
         for i in 0..15 {
             data.push_str(&format!("https://spam{i}.example.com "));
         }
@@ -420,13 +428,15 @@ mod tests {
 
     #[test]
     fn suspicious_bat_extension() {
-        let data = b"From: a@b.com\r\nContent-Type: application/octet-stream; name=\"run.bat\"\r\n\r\n";
+        let data =
+            b"From: a@b.com\r\nContent-Type: application/octet-stream; name=\"run.bat\"\r\n\r\n";
         assert!(has_suspicious_attachment(data));
     }
 
     #[test]
     fn suspicious_vbs_extension() {
-        let data = b"From: a@b.com\r\nContent-Disposition: attachment; filename=\"script.vbs\"\r\n\r\n";
+        let data =
+            b"From: a@b.com\r\nContent-Disposition: attachment; filename=\"script.vbs\"\r\n\r\n";
         assert!(has_suspicious_attachment(data));
     }
 
@@ -438,7 +448,8 @@ mod tests {
 
     #[test]
     fn suspicious_pif_extension() {
-        let data = b"From: a@b.com\r\nContent-Disposition: attachment; filename=\"info.pif\"\r\n\r\n";
+        let data =
+            b"From: a@b.com\r\nContent-Disposition: attachment; filename=\"info.pif\"\r\n\r\n";
         assert!(has_suspicious_attachment(data));
     }
 
@@ -450,7 +461,8 @@ mod tests {
 
     #[test]
     fn safe_pdf_not_suspicious() {
-        let data = b"From: a@b.com\r\nContent-Disposition: attachment; filename=\"report.pdf\"\r\n\r\n";
+        let data =
+            b"From: a@b.com\r\nContent-Disposition: attachment; filename=\"report.pdf\"\r\n\r\n";
         assert!(!has_suspicious_attachment(data));
     }
 
@@ -525,7 +537,8 @@ mod tests {
     #[test]
     fn score_two_rules_combined() {
         // missing_from(2) + missing_date(1) = 3.0
-        let data = b"Subject: test\r\nMessage-ID: <1@b.com>\r\nContent-Type: text/plain\r\n\r\nbody";
+        let data =
+            b"Subject: test\r\nMessage-ID: <1@b.com>\r\nContent-Type: text/plain\r\n\r\nbody";
         let (score, rules) = evaluate_rules(data);
         assert_eq!(score, 3.0);
         assert_eq!(rules.len(), 2);
@@ -578,7 +591,9 @@ mod tests {
         );
         // 20 urls -> triggers excessive_urls + html_only
         for i in 0..20 {
-            data.push_str(&format!("<a href=\"https://link{i}.example.com\">Link</a>\r\n"));
+            data.push_str(&format!(
+                "<a href=\"https://link{i}.example.com\">Link</a>\r\n"
+            ));
         }
         let (score, rules) = evaluate_rules(data.as_bytes());
         assert_eq!(score, 3.5); // html_only(1.5) + excessive_urls(2.0)
@@ -627,7 +642,9 @@ mod tests {
 
     #[test]
     fn very_large_message_url_count() {
-        let mut data = String::from("From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\n\r\n");
+        let mut data = String::from(
+            "From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\n\r\n",
+        );
         for i in 0..100 {
             data.push_str(&format!("https://url{i}.example.com "));
         }

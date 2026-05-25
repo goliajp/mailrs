@@ -51,8 +51,8 @@ pub async fn arc_seal_message(
     authenticator: &MessageAuthenticator,
     message: &[u8],
 ) -> Result<Vec<u8>, String> {
-    let auth_msg = AuthenticatedMessage::parse(message)
-        .ok_or("failed to parse message for ARC sealing")?;
+    let auth_msg =
+        AuthenticatedMessage::parse(message).ok_or("failed to parse message for ARC sealing")?;
 
     // verify existing DKIM signatures (for auth results)
     let dkim_results = authenticator.verify_dkim(&auth_msg).await;
@@ -77,7 +77,14 @@ pub async fn arc_seal_message(
     let arc_set = ArcSealer::from_key(key)
         .domain(&dkim_config.domain)
         .selector(&dkim_config.selector)
-        .headers(["From", "To", "Subject", "Date", "Message-ID", "DKIM-Signature"])
+        .headers([
+            "From",
+            "To",
+            "Subject",
+            "Date",
+            "Message-ID",
+            "DKIM-Signature",
+        ])
         .seal(&auth_msg, &auth_results, &arc_output)
         .map_err(|e| format!("ARC sealing failed: {e}"))?;
 
@@ -197,7 +204,10 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
         let result = cfg.sign(b"From: test@example.com\r\n\r\nbody");
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.contains("failed to parse DKIM PEM"), "unexpected error: {err}");
+        assert!(
+            err.contains("failed to parse DKIM PEM"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
@@ -257,7 +267,10 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
         assert!(dkim_header.contains("s=test"), "missing s= tag");
         assert!(dkim_header.contains("b="), "missing b= (signature) tag");
         assert!(dkim_header.contains("bh="), "missing bh= (body hash) tag");
-        assert!(dkim_header.contains("h="), "missing h= (signed headers) tag");
+        assert!(
+            dkim_header.contains("h="),
+            "missing h= (signed headers) tag"
+        );
     }
 
     #[test]
@@ -271,10 +284,7 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
         let h_start = signed_str.find("h=").expect("h= tag missing");
         let after_h = &signed_str[h_start..];
         // h= value ends at the next ';' or end of header
-        let h_value = after_h
-            .split_once(';')
-            .map(|(v, _)| v)
-            .unwrap_or(after_h);
+        let h_value = after_h.split_once(';').map(|(v, _)| v).unwrap_or(after_h);
 
         let h_lower = h_value.to_lowercase();
         for expected in ["from", "to", "subject", "date", "message-id"] {
@@ -415,7 +425,10 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
                      \r\n\
                      body\r\n";
         let result = cfg.sign(msg);
-        assert!(result.is_ok(), "signing with MIME-encoded UTF-8 subject must succeed");
+        assert!(
+            result.is_ok(),
+            "signing with MIME-encoded UTF-8 subject must succeed"
+        );
     }
 
     #[test]
@@ -429,7 +442,10 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
                      \r\n\
                      body\r\n";
         let result = cfg.sign(msg);
-        assert!(result.is_ok(), "signing with special chars in subject must succeed");
+        assert!(
+            result.is_ok(),
+            "signing with special chars in subject must succeed"
+        );
     }
 
     #[test]
@@ -460,7 +476,10 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
                      \r\n\
                      body\r\n";
         let result = cfg.sign(msg);
-        assert!(result.is_ok(), "signing with multiple To recipients must succeed");
+        assert!(
+            result.is_ok(),
+            "signing with multiple To recipients must succeed"
+        );
     }
 
     // --- different domain/selector ---
@@ -520,7 +539,10 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
                      <html><body><p>HTML body</p></body></html>\r\n\
                      --boundary42--\r\n";
         let result = cfg.sign(msg);
-        assert!(result.is_ok(), "signing a multipart MIME message must succeed");
+        assert!(
+            result.is_ok(),
+            "signing a multipart MIME message must succeed"
+        );
         let signed = result.unwrap();
         assert!(signed.ends_with(msg.as_slice()));
     }

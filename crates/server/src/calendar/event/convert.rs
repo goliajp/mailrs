@@ -20,25 +20,21 @@ pub(crate) fn caldatetime_to_utc(
         CalDateTime::Zoned { tz_name, local } => {
             let resolved = resolve(tz_name, vtimezones)?;
             let off = local_to_utc_offset_seconds(&resolved, *local)?;
-            let utc = local
-                .checked_sub_signed(chrono::Duration::seconds(off as i64))?;
+            let utc = local.checked_sub_signed(chrono::Duration::seconds(off as i64))?;
             Some(utc.and_utc())
         }
         CalDateTime::Date(d) => Some(naive_date_to_utc_midnight(*d)),
     }
 }
 
-
 pub(super) fn naive_date_to_utc_midnight(d: NaiveDate) -> DateTime<Utc> {
     let zero = NaiveTime::from_hms_opt(0, 0, 0).expect("00:00:00 always valid");
     NaiveDateTime::new(d, zero).and_utc()
 }
 
-
 pub(super) fn person_to_string(p: &Person) -> String {
     p.email.clone()
 }
-
 
 pub(super) fn attendee_to_json(a: &IcalAttendee) -> serde_json::Value {
     json!({
@@ -49,7 +45,6 @@ pub(super) fn attendee_to_json(a: &IcalAttendee) -> serde_json::Value {
         "rsvp": a.rsvp,
     })
 }
-
 
 pub(super) fn partstat_str(p: PartStat) -> &'static str {
     match p {
@@ -63,7 +58,6 @@ pub(super) fn partstat_str(p: PartStat) -> &'static str {
     }
 }
 
-
 pub(super) fn role_str(r: IcalRole) -> &'static str {
     match r {
         IcalRole::Chair => "CHAIR",
@@ -73,7 +67,6 @@ pub(super) fn role_str(r: IcalRole) -> &'static str {
     }
 }
 
-
 pub(super) fn event_status_str(s: EventStatus) -> &'static str {
     match s {
         EventStatus::Confirmed => "CONFIRMED",
@@ -81,7 +74,6 @@ pub(super) fn event_status_str(s: EventStatus) -> &'static str {
         EventStatus::Cancelled => "CANCELLED",
     }
 }
-
 
 pub(super) fn method_str(m: mailrs_ical::Method) -> &'static str {
     use mailrs_ical::Method::*;
@@ -101,8 +93,8 @@ pub(super) fn method_str(m: mailrs_ical::Method) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mailrs_ical::{Method, ParsedInvite, VTimezone};
     use chrono::TimeZone;
+    use mailrs_ical::{Method, ParsedInvite, VTimezone};
 
     fn make_parsed(uid: &str, dtstart: CalDateTime) -> ParsedInvite {
         ParsedInvite {
@@ -184,4 +176,3 @@ mod tests {
         assert!(caldatetime_to_utc(&p.dtstart, &p.vtimezones).is_none());
     }
 }
-

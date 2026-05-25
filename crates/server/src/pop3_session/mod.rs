@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-
 use mailrs_mailbox::PgMailboxStore;
 
 use crate::domain_store::DomainStore;
 use crate::inbound::auth_guard::AuthGuard;
 use crate::users::UserStore;
-
 
 mod auth;
 mod connection;
@@ -142,8 +140,18 @@ mod tests {
     #[tokio::test]
     async fn stat_in_transaction() {
         let session = make_transaction_session(vec![
-            MessageEntry { uid: 1, maildir_id: "a".into(), size: 100, deleted: false },
-            MessageEntry { uid: 2, maildir_id: "b".into(), size: 200, deleted: true },
+            MessageEntry {
+                uid: 1,
+                maildir_id: "a".into(),
+                size: 100,
+                deleted: false,
+            },
+            MessageEntry {
+                uid: 2,
+                maildir_id: "b".into(),
+                size: 200,
+                deleted: true,
+            },
         ]);
         let resp = session.handle_stat();
         assert_eq!(resp[0], "+OK 1 100\r\n");
@@ -152,8 +160,18 @@ mod tests {
     #[tokio::test]
     async fn list_all() {
         let session = make_transaction_session(vec![
-            MessageEntry { uid: 1, maildir_id: "a".into(), size: 100, deleted: false },
-            MessageEntry { uid: 2, maildir_id: "b".into(), size: 200, deleted: false },
+            MessageEntry {
+                uid: 1,
+                maildir_id: "a".into(),
+                size: 100,
+                deleted: false,
+            },
+            MessageEntry {
+                uid: 2,
+                maildir_id: "b".into(),
+                size: 200,
+                deleted: false,
+            },
         ]);
         let resp = session.handle_list("");
         assert!(resp[0].starts_with("+OK 2 messages"));
@@ -164,18 +182,24 @@ mod tests {
 
     #[tokio::test]
     async fn list_single() {
-        let session = make_transaction_session(vec![
-            MessageEntry { uid: 1, maildir_id: "a".into(), size: 100, deleted: false },
-        ]);
+        let session = make_transaction_session(vec![MessageEntry {
+            uid: 1,
+            maildir_id: "a".into(),
+            size: 100,
+            deleted: false,
+        }]);
         let resp = session.handle_list("1");
         assert_eq!(resp[0], "+OK 1 100\r\n");
     }
 
     #[tokio::test]
     async fn list_deleted_message() {
-        let session = make_transaction_session(vec![
-            MessageEntry { uid: 1, maildir_id: "a".into(), size: 100, deleted: true },
-        ]);
+        let session = make_transaction_session(vec![MessageEntry {
+            uid: 1,
+            maildir_id: "a".into(),
+            size: 100,
+            deleted: true,
+        }]);
         let resp = session.handle_list("1");
         assert!(resp[0].starts_with("-ERR"));
     }
@@ -189,9 +213,12 @@ mod tests {
 
     #[tokio::test]
     async fn dele_and_rset() {
-        let mut session = make_transaction_session(vec![
-            MessageEntry { uid: 1, maildir_id: "a".into(), size: 100, deleted: false },
-        ]);
+        let mut session = make_transaction_session(vec![MessageEntry {
+            uid: 1,
+            maildir_id: "a".into(),
+            size: 100,
+            deleted: false,
+        }]);
         let resp = session.handle_dele("1");
         assert!(resp[0].starts_with("+OK"));
         let (count, _) = session.stat_values();
@@ -205,18 +232,24 @@ mod tests {
 
     #[tokio::test]
     async fn dele_already_deleted() {
-        let mut session = make_transaction_session(vec![
-            MessageEntry { uid: 1, maildir_id: "a".into(), size: 100, deleted: true },
-        ]);
+        let mut session = make_transaction_session(vec![MessageEntry {
+            uid: 1,
+            maildir_id: "a".into(),
+            size: 100,
+            deleted: true,
+        }]);
         let resp = session.handle_dele("1");
         assert!(resp[0].starts_with("-ERR"));
     }
 
     #[tokio::test]
     async fn uidl_all() {
-        let session = make_transaction_session(vec![
-            MessageEntry { uid: 42, maildir_id: "a".into(), size: 100, deleted: false },
-        ]);
+        let session = make_transaction_session(vec![MessageEntry {
+            uid: 42,
+            maildir_id: "a".into(),
+            size: 100,
+            deleted: false,
+        }]);
         let resp = session.handle_uidl("");
         assert_eq!(resp[0], "+OK\r\n");
         assert_eq!(resp[1], "1 42\r\n");
@@ -225,9 +258,12 @@ mod tests {
 
     #[tokio::test]
     async fn uidl_single() {
-        let session = make_transaction_session(vec![
-            MessageEntry { uid: 42, maildir_id: "a".into(), size: 100, deleted: false },
-        ]);
+        let session = make_transaction_session(vec![MessageEntry {
+            uid: 42,
+            maildir_id: "a".into(),
+            size: 100,
+            deleted: false,
+        }]);
         let resp = session.handle_uidl("1");
         assert_eq!(resp[0], "+OK 1 42\r\n");
     }
@@ -243,4 +279,3 @@ mod tests {
         assert!(joined.ends_with(".\r\n"));
     }
 }
-

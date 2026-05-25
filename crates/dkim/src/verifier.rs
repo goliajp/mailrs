@@ -35,7 +35,10 @@ pub struct SignatureOutput {
 impl SignatureOutput {
     /// Convenience: return `d=` if the header parsed, else empty.
     pub fn domain(&self) -> &str {
-        self.header.as_ref().map(|h| h.domain.as_str()).unwrap_or("")
+        self.header
+            .as_ref()
+            .map(|h| h.domain.as_str())
+            .unwrap_or("")
     }
 
     /// Convenience: `true` when this signature verified successfully.
@@ -60,7 +63,15 @@ pub async fn verify<R: DkimResolver + ?Sized>(resolver: &R, raw_message: &[u8]) 
         Ok(v) => v,
         Err(e) => return e.to_result(),
     };
-    match verify_one(resolver, raw_message, &header_value, headers_raw, body_offset).await {
+    match verify_one(
+        resolver,
+        raw_message,
+        &header_value,
+        headers_raw,
+        body_offset,
+    )
+    .await
+    {
         Ok(r) => r,
         Err(e) => e.to_result(),
     }
@@ -181,11 +192,8 @@ async fn verify_one<R: DkimResolver + ?Sized>(
     }
     // Append the DKIM-Signature header itself with `b=` value cleared.
     let dkim_sig_b_cleared = clear_b_value(header_value);
-    let canon_dkim = canonicalize_header(
-        "DKIM-Signature",
-        &dkim_sig_b_cleared,
-        header.canon_header,
-    );
+    let canon_dkim =
+        canonicalize_header("DKIM-Signature", &dkim_sig_b_cleared, header.canon_header);
     // Per RFC 6376 §3.7: the trailing CRLF of the DKIM-Signature is
     // NOT included in the hash input. Strip it.
     let canon_dkim_trimmed = if canon_dkim.ends_with(b"\r\n") {

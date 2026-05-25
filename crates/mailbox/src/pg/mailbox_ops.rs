@@ -138,14 +138,13 @@ impl PgMailboxStore {
         old_name: &str,
         new_name: &str,
     ) -> Result<bool, sqlx::Error> {
-        let result = sqlx::query(
-            "UPDATE mailboxes SET name = $3 WHERE user_address = $1 AND name = $2",
-        )
-        .bind(user)
-        .bind(old_name)
-        .bind(new_name)
-        .execute(&self.pool)
-        .await?;
+        let result =
+            sqlx::query("UPDATE mailboxes SET name = $3 WHERE user_address = $1 AND name = $2")
+                .bind(user)
+                .bind(old_name)
+                .bind(new_name)
+                .execute(&self.pool)
+                .await?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -161,11 +160,10 @@ impl PgMailboxStore {
     /// count (total, unseen) messages in a mailbox
     /// unseen excludes spam/scam to stay consistent with conversation view
     pub async fn mailbox_status(&self, mailbox_id: i64) -> Result<(u32, u32), sqlx::Error> {
-        let total: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM messages WHERE mailbox_id = $1")
-                .bind(mailbox_id)
-                .fetch_one(&self.pool)
-                .await?;
+        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM messages WHERE mailbox_id = $1")
+            .bind(mailbox_id)
+            .fetch_one(&self.pool)
+            .await?;
         let unseen: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM messages WHERE mailbox_id = $1 AND (flags & 1) = 0 \
              AND NOT EXISTS (SELECT 1 FROM email_analysis ea WHERE ea.message_id = messages.id AND ea.category IN ('spam', 'scam'))",

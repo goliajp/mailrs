@@ -4,7 +4,10 @@ use super::{Pop3Session, Pop3State};
 
 impl Pop3Session {
     pub(super) fn handle_dele(&mut self, arg: &str) -> Vec<String> {
-        let Pop3State::Transaction { ref mut messages, .. } = self.state else {
+        let Pop3State::Transaction {
+            ref mut messages, ..
+        } = self.state
+        else {
             return vec!["-ERR not authenticated\r\n".into()];
         };
 
@@ -22,9 +25,11 @@ impl Pop3Session {
         vec![format!("+OK message {num} deleted\r\n")]
     }
 
-
     pub(super) fn handle_rset(&mut self) -> Vec<String> {
-        if let Pop3State::Transaction { ref mut messages, .. } = self.state {
+        if let Pop3State::Transaction {
+            ref mut messages, ..
+        } = self.state
+        {
             for m in messages.iter_mut() {
                 m.deleted = false;
             }
@@ -34,7 +39,6 @@ impl Pop3Session {
             vec!["-ERR not authenticated\r\n".into()]
         }
     }
-
 
     pub(super) async fn handle_quit(&mut self) -> Vec<String> {
         // if in transaction state, actually delete marked messages

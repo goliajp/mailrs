@@ -12,14 +12,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use axum::Json;
 use axum::extract::{Query, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
-use mailrs_jmap::dispatch::{
-    JmapRequest, JMAP_CORE_CAP, JMAP_MAIL_CAP, JMAP_SUBMISSION_CAP,
-};
+use mailrs_jmap::dispatch::{JMAP_CORE_CAP, JMAP_MAIL_CAP, JMAP_SUBMISSION_CAP, JmapRequest};
 use mailrs_jmap::store::{MailStore, StoreError};
 use mailrs_jmap::types::{
     Attachment as JmapAttachment, Mailbox as JmapMailbox, MailboxCounts, Message as JmapMessage,
@@ -41,9 +39,10 @@ impl JmapAdapter {
     }
 
     fn mailbox_store(&self) -> Result<&Arc<mailrs_mailbox::PgMailboxStore>, StoreError> {
-        self.state.mailbox_store.as_ref().ok_or_else(|| -> StoreError {
-            "mailbox store not available".into()
-        })
+        self.state
+            .mailbox_store
+            .as_ref()
+            .ok_or_else(|| -> StoreError { "mailbox store not available".into() })
     }
 }
 
@@ -136,12 +135,7 @@ impl MailStore for JmapAdapter {
         Ok(rows.into_iter().map(bridge_message).collect())
     }
 
-    async fn update_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<(), StoreError> {
+    async fn update_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<(), StoreError> {
         let store = self.mailbox_store()?;
         store
             .update_flags(mailbox_id, uid, flags)
@@ -150,12 +144,7 @@ impl MailStore for JmapAdapter {
             .map_err(|e| Box::new(e) as StoreError)
     }
 
-    async fn add_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<(), StoreError> {
+    async fn add_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<(), StoreError> {
         let store = self.mailbox_store()?;
         store
             .add_flags(mailbox_id, uid, flags)
@@ -301,7 +290,9 @@ pub(super) async fn jmap_eventsource(
     AuthUser { address, .. }: AuthUser,
     Query(params): Query<EventSourceParams>,
     State(state): State<Arc<WebState>>,
-) -> axum::response::sse::Sse<impl futures_util::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>> {
+) -> axum::response::sse::Sse<
+    impl futures_util::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>,
+> {
     use axum::response::sse::{Event, KeepAlive, Sse};
 
     let ping_secs = params.ping.unwrap_or(30).clamp(5, 300) as u64;

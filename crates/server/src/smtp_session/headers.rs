@@ -67,8 +67,7 @@ fn format_from_field(value: &[u8]) -> String {
             if name.is_empty() {
                 String::from_utf8_lossy(addr).into_owned()
             } else {
-                let mut out =
-                    String::with_capacity(name.len() + addr.len() + 3);
+                let mut out = String::with_capacity(name.len() + addr.len() + 3);
                 out.push_str(name);
                 out.push_str(" <");
                 out.push_str(&String::from_utf8_lossy(addr));
@@ -128,7 +127,10 @@ mod tests {
     #[test]
     fn extract_display_name_with_angle() {
         assert_eq!(extract_display_name("Alice <alice@example.com>"), "Alice");
-        assert_eq!(extract_display_name("\"Bob Smith\" <bob@example.com>"), "Bob Smith");
+        assert_eq!(
+            extract_display_name("\"Bob Smith\" <bob@example.com>"),
+            "Bob Smith"
+        );
     }
 
     #[test]
@@ -178,7 +180,9 @@ mod tests {
         );
         // body
         for _ in 0..(body_size / 80) {
-            msg.extend_from_slice(b"This is a typical inbound message body line, ASCII text only.\r\n");
+            msg.extend_from_slice(
+                b"This is a typical inbound message body line, ASCII text only.\r\n",
+            );
         }
         msg
     }

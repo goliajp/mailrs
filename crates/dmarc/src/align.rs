@@ -47,8 +47,14 @@ pub fn check(auth_domain: &str, from_domain: &str, mode: Alignment) -> Alignment
     if auth_domain.is_empty() || from_domain.is_empty() {
         return AlignmentOutcome::InvalidDomain;
     }
-    let a = auth_domain.trim().trim_end_matches('.').to_ascii_lowercase();
-    let f = from_domain.trim().trim_end_matches('.').to_ascii_lowercase();
+    let a = auth_domain
+        .trim()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    let f = from_domain
+        .trim()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
 
     match mode {
         Alignment::Strict => {

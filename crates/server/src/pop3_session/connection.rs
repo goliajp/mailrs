@@ -13,7 +13,6 @@ use crate::users::UserStore;
 
 use super::Pop3Session;
 
-
 /// Drive a single POP3 connection from accept to close. Wires
 /// the session state machine (auth → transaction → quit) to the
 /// raw TCP stream: greeting → read-line → handle → write
@@ -81,4 +80,3 @@ pub async fn handle_connection(
         }
     }
 }
-

@@ -21,7 +21,11 @@ pub fn format_dsn(
         reporting_mta
     );
 
-    write!(buf, "From: Mail Delivery System <mailer-daemon@{reporting_mta}>\r\n").unwrap();
+    write!(
+        buf,
+        "From: Mail Delivery System <mailer-daemon@{reporting_mta}>\r\n"
+    )
+    .unwrap();
     write!(buf, "To: <{sender}>\r\n").unwrap();
     write!(buf, "Date: {date}\r\n").unwrap();
     write!(buf, "Message-ID: <{dsn_id}>\r\n").unwrap();
@@ -141,7 +145,10 @@ mod tests {
         // no bare \n (every \n should be preceded by \r)
         for (i, &b) in dsn.as_bytes().iter().enumerate() {
             if b == b'\n' {
-                assert!(i > 0 && dsn.as_bytes()[i - 1] == b'\r', "bare \\n at byte {i}");
+                assert!(
+                    i > 0 && dsn.as_bytes()[i - 1] == b'\r',
+                    "bare \\n at byte {i}"
+                );
             }
         }
     }
@@ -438,7 +445,9 @@ mod tests {
         let mtas = ["mx1.example.com", "relay.internal.corp", "mail.golia.jp"];
         for mta in &mtas {
             let dsn = format_dsn(mta, "sender@test.com", "rcpt@test.com", "err", None);
-            assert!(dsn.contains(&format!("From: Mail Delivery System <mailer-daemon@{mta}>\r\n")));
+            assert!(dsn.contains(&format!(
+                "From: Mail Delivery System <mailer-daemon@{mta}>\r\n"
+            )));
             assert!(dsn.contains(&format!("Reporting-MTA: dns; {mta}\r\n")));
             assert!(dsn.contains(&format!("@{mta}>\r\n")));
         }

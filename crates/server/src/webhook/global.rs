@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::Serialize;
-use tokio::sync::{watch, Semaphore};
+use tokio::sync::{Semaphore, watch};
 
 use crate::event_bus::{EventBus, SmtpEvent};
 use crate::system_config::SystemConfigStore;

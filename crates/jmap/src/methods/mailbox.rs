@@ -99,7 +99,10 @@ pub async fn handle_mailbox_query(
         .await
         .map_err(|e| JmapMethodError::ServerFail(e.to_string()))?;
 
-    let ids: Vec<String> = mailboxes.iter().map(|mb| format_mailbox_id(mb.id)).collect();
+    let ids: Vec<String> = mailboxes
+        .iter()
+        .map(|mb| format_mailbox_id(mb.id))
+        .collect();
 
     Ok((
         "Mailbox/query".to_string(),

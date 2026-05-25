@@ -123,13 +123,11 @@ mod redis_impl {
             match decision {
                 GreylistDecision::Defer => {
                     // first time — set with TTL = pass_ttl
-                    let _: Result<(), _> =
-                        conn.set_ex(&vk_key, now, config.pass_ttl_secs).await;
+                    let _: Result<(), _> = conn.set_ex(&vk_key, now, config.pass_ttl_secs).await;
                 }
                 GreylistDecision::TooEarly | GreylistDecision::Accept => {
                     // update TTL to keep entry alive
-                    let _: Result<(), _> =
-                        conn.expire(&vk_key, config.pass_ttl_secs as i64).await;
+                    let _: Result<(), _> = conn.expire(&vk_key, config.pass_ttl_secs as i64).await;
                 }
             }
 
@@ -192,7 +190,10 @@ mod tests {
             evaluate_triplet(Some(0), 59, &cfg),
             GreylistDecision::TooEarly
         );
-        assert_eq!(evaluate_triplet(Some(0), 60, &cfg), GreylistDecision::Accept);
+        assert_eq!(
+            evaluate_triplet(Some(0), 60, &cfg),
+            GreylistDecision::Accept
+        );
     }
 
     #[test]

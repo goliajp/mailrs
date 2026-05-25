@@ -83,11 +83,11 @@ project use.
 
 | Axis | Status |
 |---|---|
-| **doc** | ❌ 4 errors, 0 warnings (`cargo doc --no-deps -p mailrs-imap-format`) |
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-imap-format`) |
 | **test** | line cov: 64.5% (`cargo llvm-cov -p mailrs-imap-format --summary-only`) |
 | **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 243 KB |
-| **fuzz** | ❌ none |
+| **fuzz** | ✅ 1 target(s) |
 | **mem**  | dhat profile pending (v3.4 backlog) |
 
 ### Competitor comparisons

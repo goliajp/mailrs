@@ -16,7 +16,7 @@ pub mod invite_extract;
 pub mod reconcile;
 
 pub use event::{
-    delete_by_uid, find_by_uid, find_conflicts, upsert_from_parsed_invite, CalendarEventRow,
+    CalendarEventRow, delete_by_uid, find_by_uid, find_conflicts, upsert_from_parsed_invite,
 };
 
 /// Vendor consumer matrix: walks every `.eml` under
@@ -28,7 +28,7 @@ pub use event::{
 #[cfg(test)]
 mod itip_corpus_tests {
     use crate::calendar::invite_extract::extract_invite_part;
-    use mailrs_ical::{parse_invite, CalDateTime, Method};
+    use mailrs_ical::{CalDateTime, Method, parse_invite};
     use std::path::PathBuf;
 
     fn fixtures_root() -> PathBuf {
@@ -75,8 +75,9 @@ mod itip_corpus_tests {
     #[test]
     fn every_fixture_extracts_calendar_part() {
         for (vendor, stem, bytes) in walk_corpus() {
-            extract_invite_part(&bytes)
-                .unwrap_or_else(|| panic!("{vendor}/{stem}.eml: extract_invite_part returned None"));
+            extract_invite_part(&bytes).unwrap_or_else(|| {
+                panic!("{vendor}/{stem}.eml: extract_invite_part returned None")
+            });
         }
     }
 

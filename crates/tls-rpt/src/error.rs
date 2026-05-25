@@ -29,10 +29,7 @@ impl std::fmt::Display for TlsRptError {
             }
             Self::MissingField(name) => write!(f, "report missing required field: {name}"),
             Self::InvalidEndpoint(url) => {
-                write!(
-                    f,
-                    "invalid rua endpoint: {url} (must be mailto: or https:)"
-                )
+                write!(f, "invalid rua endpoint: {url} (must be mailto: or https:)")
             }
         }
     }

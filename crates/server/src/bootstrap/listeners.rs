@@ -6,18 +6,18 @@ use std::sync::Arc;
 use crate::config;
 use crate::domain_store;
 use crate::event_bus::{EventBus, SmtpEvent};
-use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig};
-use crate::web::WebState;
-use crate::{
-    acme, conversation_cache, dmarc_report, event_bus, health, listeners, oidc_jwt,
-    outbound_tls_rpt, rbl_monitor, render_preview, search_index, smtp_session,
-    system_config, tls, web, webhook,
-};
-use mailrs_mailbox::PgMailboxStore;
 use crate::imap_session;
+use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig};
 use crate::managesieve_session;
 use crate::pop3_session;
 use crate::smtp_session::ConnectionContext;
+use crate::web::WebState;
+use crate::{
+    acme, conversation_cache, dmarc_report, event_bus, health, listeners, oidc_jwt,
+    outbound_tls_rpt, rbl_monitor, render_preview, search_index, smtp_session, system_config, tls,
+    web, webhook,
+};
+use mailrs_mailbox::PgMailboxStore;
 
 /// Spawn the three SMTP-family listeners that all dispatch into
 /// the shared `ConnectionContext`:
@@ -120,15 +120,15 @@ pub(crate) async fn spawn_imap_listeners(
                 let eb = imap_event_bus.clone();
                 let ldap = imap_ldap.clone();
                 async move {
-                    imap_session::handle_connection(stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr).await;
+                    imap_session::handle_connection(stream, addr, mb, u, ag, ds, ldap, eb, &h, &mr)
+                        .await;
                 }
             },
         )
         .await;
     }
 
-    if let (Some(mb_store), Some(imaps_tls)) =
-        (mailbox_store.as_ref().cloned(), tls_state.clone())
+    if let (Some(mb_store), Some(imaps_tls)) = (mailbox_store.as_ref().cloned(), tls_state.clone())
     {
         let imaps_users = users.clone();
         let imaps_hostname = cfg.hostname.clone();

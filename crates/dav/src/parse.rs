@@ -80,14 +80,17 @@ pub fn extract_vcard_field(vcard: &str, field: &str) -> String {
 pub fn extract_multiget_uids(body: &str, suffix: &str) -> Vec<String> {
     let mut uids = Vec::new();
     for tag in ["<D:href>", "<href>"] {
-        let close = if tag == "<D:href>" { "</D:href>" } else { "</href>" };
+        let close = if tag == "<D:href>" {
+            "</D:href>"
+        } else {
+            "</href>"
+        };
         let open_len = tag.len();
         for href_start in body.match_indices(tag).map(|(i, _)| i) {
             let rest = &body[href_start + open_len..];
             if let Some(end) = rest.find(close) {
                 let href = rest[..end].trim();
-                if let Some(uid) = href.strip_suffix(suffix).and_then(|s| s.rsplit('/').next())
-                {
+                if let Some(uid) = href.strip_suffix(suffix).and_then(|s| s.rsplit('/').next()) {
                     uids.push(uid.to_string());
                 }
             }

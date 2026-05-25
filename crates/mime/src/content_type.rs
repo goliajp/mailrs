@@ -155,10 +155,7 @@ fn parse_params(input: &str) -> HashMap<String, String> {
             .unwrap_or_else(|| value.trim().to_string());
         // Trim quotes if the value came back quoted but decode didn't
         // strip them (fallback path).
-        let value_clean = value_decoded
-            .trim()
-            .trim_matches('"')
-            .to_string();
+        let value_clean = value_decoded.trim().trim_matches('"').to_string();
         out.insert(name, value_clean);
     }
     out
@@ -210,9 +207,7 @@ mod tests {
 
     #[test]
     fn parse_rfc2231_filename_decoded() {
-        let ct = ContentType::parse(
-            "application/pdf; name*=UTF-8''%E6%97%A5%E6%9C%AC.pdf",
-        );
+        let ct = ContentType::parse("application/pdf; name*=UTF-8''%E6%97%A5%E6%9C%AC.pdf");
         assert_eq!(ct.name(), Some("日本.pdf"));
     }
 
@@ -259,9 +254,7 @@ mod tests {
 
     #[test]
     fn parse_handles_multiple_params() {
-        let ct = ContentType::parse(
-            "text/plain; charset=utf-8; format=flowed; delsp=yes",
-        );
+        let ct = ContentType::parse("text/plain; charset=utf-8; format=flowed; delsp=yes");
         assert_eq!(ct.charset(), "utf-8");
         assert_eq!(ct.params.get("format").map(String::as_str), Some("flowed"));
         assert_eq!(ct.params.get("delsp").map(String::as_str), Some("yes"));

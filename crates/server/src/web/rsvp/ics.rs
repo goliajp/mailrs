@@ -205,10 +205,7 @@ fn extract_caldatetime_for_ics(v: &serde_json::Value) -> Option<String> {
             let tz_name = zoned.get("tz_name")?.as_str()?;
             let local_iso = zoned.get("local")?.as_str()?;
             let n: chrono::NaiveDateTime = local_iso.parse().ok()?;
-            Some(format!(
-                ";TZID={tz_name}:{}",
-                n.format("%Y%m%dT%H%M%S")
-            ))
+            Some(format!(";TZID={tz_name}:{}", n.format("%Y%m%dT%H%M%S")))
             // NB: in build_reply_ics we splice this into the line as if it
             // were a value; if a tzid is present the ;TZID= prefix is
             // tolerated because callers wrap with `DTSTART:` directly.

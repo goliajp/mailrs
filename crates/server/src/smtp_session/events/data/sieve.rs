@@ -1,6 +1,6 @@
 //! Sieve script evaluation + side-effect handling per recipient.
 
-use mailrs_sieve::{compile_sieve, evaluate_sieve_with_envelope, SieveAction};
+use mailrs_sieve::{SieveAction, compile_sieve, evaluate_sieve_with_envelope};
 
 use super::super::super::ConnectionContext;
 
@@ -36,12 +36,8 @@ pub(super) async fn apply_sieve_actions(
             return (rcpt_folder, skip_delivery);
         }
     };
-    let actions = evaluate_sieve_with_envelope(
-        &compiled,
-        full_message,
-        Some(reverse_path),
-        Some(rcpt),
-    );
+    let actions =
+        evaluate_sieve_with_envelope(&compiled, full_message, Some(reverse_path), Some(rcpt));
     for action in &actions {
         match action {
             SieveAction::Keep => {}
@@ -49,7 +45,11 @@ pub(super) async fn apply_sieve_actions(
                 rcpt_folder = folder.clone();
             }
             SieveAction::Discard => {
-                tracing::info!(event = "sieve_discard", user = rcpt, "sieve discarded message");
+                tracing::info!(
+                    event = "sieve_discard",
+                    user = rcpt,
+                    "sieve discarded message"
+                );
                 skip_delivery = true;
             }
             SieveAction::Redirect(addr) => {

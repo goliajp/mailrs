@@ -27,7 +27,10 @@ fn dnsbl_reverse_ipv4_under_budget() {
     });
     // Budget: 10 µs. Observed P95: ~100 ns.
     let budget = Duration::from_micros(10);
-    assert!(median < budget, "reverse_ipv4 median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "reverse_ipv4 median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -37,7 +40,10 @@ fn dnsbl_interpret_spamhaus_under_budget() {
     });
     // Budget: 10 µs. Observed P95: ~50 ns.
     let budget = Duration::from_micros(10);
-    assert!(median < budget, "interpret_spamhaus median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "interpret_spamhaus median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -48,7 +54,10 @@ fn greylist_evaluate_retry_under_budget() {
     });
     // Budget: 10 µs. Observed P95: ~50 ns.
     let budget = Duration::from_micros(10);
-    assert!(median < budget, "evaluate_triplet median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "evaluate_triplet median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -58,7 +67,10 @@ fn greylist_triplet_key_under_budget() {
     });
     // Budget: 50 µs. Observed P95: ~500 ns (sha + alloc).
     let budget = Duration::from_micros(50);
-    assert!(median < budget, "triplet_key median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "triplet_key median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -73,5 +85,8 @@ fn ptr_score_match_under_budget() {
     });
     // Budget: 20 µs. Observed P95: ~200 ns.
     let budget = Duration::from_micros(20);
-    assert!(median < budget, "ptr_score_from_names median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "ptr_score_from_names median {median:?} exceeded {budget:?}"
+    );
 }

@@ -1,5 +1,5 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use mailrs_clamav::{parse_response, ClamavResult};
+use criterion::{Criterion, criterion_group, criterion_main};
+use mailrs_clamav::{ClamavResult, parse_response};
 use std::hint::black_box;
 
 fn bench_parse_clean(c: &mut Criterion) {

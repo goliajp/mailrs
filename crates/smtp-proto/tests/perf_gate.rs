@@ -26,7 +26,10 @@ fn parse_command_mail_from_under_budget() {
     });
     // Budget: 20 µs. Observed P95: ~200 ns.
     let budget = Duration::from_micros(20);
-    assert!(median < budget, "parse_command(MAIL FROM) median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "parse_command(MAIL FROM) median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -36,7 +39,10 @@ fn parse_command_auth_plain_under_budget() {
     });
     // Budget: 20 µs. Observed P95: ~200 ns.
     let budget = Duration::from_micros(20);
-    assert!(median < budget, "parse_command(AUTH PLAIN) median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "parse_command(AUTH PLAIN) median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -46,7 +52,10 @@ fn address_is_valid_under_budget() {
     });
     // Budget: 10 µs. Observed P95: ~100 ns.
     let budget = Duration::from_micros(10);
-    assert!(median < budget, "is_valid median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "is_valid median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -56,16 +65,29 @@ fn address_split_under_budget() {
     });
     // Budget: 10 µs. Observed P95: ~100 ns.
     let budget = Duration::from_micros(10);
-    assert!(median < budget, "split_address median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "split_address median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
 fn format_ehlo_response_under_budget() {
-    let caps = ["SIZE 36700160", "STARTTLS", "8BITMIME", "PIPELINING", "AUTH PLAIN LOGIN", "DSN"];
+    let caps = [
+        "SIZE 36700160",
+        "STARTTLS",
+        "8BITMIME",
+        "PIPELINING",
+        "AUTH PLAIN LOGIN",
+        "DSN",
+    ];
     let median = time_median(|| {
         let _ = format_ehlo_response("mail.example.com", &caps);
     });
     // Budget: 50 µs. Observed P95: ~500 ns.
     let budget = Duration::from_micros(50);
-    assert!(median < budget, "format_ehlo_response median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "format_ehlo_response median {median:?} exceeded {budget:?}"
+    );
 }

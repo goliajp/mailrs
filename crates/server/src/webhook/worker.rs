@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use tokio::sync::watch;
 use tracing;
 
-use super::{signer, store, OutboxEntry};
+use super::{OutboxEntry, signer, store};
 
 /// background worker that polls the webhook outbox and delivers payloads
 pub struct WebhookWorker {
@@ -97,14 +97,26 @@ async fn deliver_one(client: &reqwest::Client, pool: &PgPool, entry: OutboxEntry
         Ok(Some(s)) => s,
         Ok(None) => {
             let _ = store::mark_failed(
-                pool, entry.id, "subscription not found", attempt, entry.max_attempts, now,
-            ).await;
+                pool,
+                entry.id,
+                "subscription not found",
+                attempt,
+                entry.max_attempts,
+                now,
+            )
+            .await;
             return;
         }
         Err(e) => {
             let _ = store::mark_failed(
-                pool, entry.id, &format!("db error: {e}"), attempt, entry.max_attempts, now,
-            ).await;
+                pool,
+                entry.id,
+                &format!("db error: {e}"),
+                attempt,
+                entry.max_attempts,
+                now,
+            )
+            .await;
             return;
         }
     };
@@ -117,7 +129,8 @@ async fn deliver_one(client: &reqwest::Client, pool: &PgPool, entry: OutboxEntry
     let sig_header = signer::format_signature_header(&signature);
 
     // extract event type from payload
-    let event_type = entry.payload
+    let event_type = entry
+        .payload
         .get("event")
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
@@ -144,13 +157,17 @@ async fn deliver_one(client: &reqwest::Client, pool: &PgPool, entry: OutboxEntry
         }
         Ok(resp) => {
             let error = format!("HTTP {}", resp.status().as_u16());
-            if let Err(e) = store::mark_failed(pool, entry.id, &error, attempt, entry.max_attempts, now).await {
+            if let Err(e) =
+                store::mark_failed(pool, entry.id, &error, attempt, entry.max_attempts, now).await
+            {
                 tracing::error!("webhook: failed to mark failed {}: {e}", entry.id);
             }
         }
         Err(e) => {
             let error = e.to_string();
-            if let Err(e) = store::mark_failed(pool, entry.id, &error, attempt, entry.max_attempts, now).await {
+            if let Err(e) =
+                store::mark_failed(pool, entry.id, &error, attempt, entry.max_attempts, now).await
+            {
                 tracing::error!("webhook: failed to mark failed {}: {e}", entry.id);
             }
         }
@@ -204,7 +221,10 @@ mod tests {
     #[test]
     fn build_headers_signature_has_sha256_prefix() {
         let headers = build_headers("secret", b"payload", "new_message", 1);
-        let sig = headers.iter().find(|(k, _)| k == "X-Mailrs-Signature").unwrap();
+        let sig = headers
+            .iter()
+            .find(|(k, _)| k == "X-Mailrs-Signature")
+            .unwrap();
         assert!(sig.1.starts_with("sha256="));
     }
 
@@ -218,7 +238,10 @@ mod tests {
     #[test]
     fn build_headers_delivery_id_matches() {
         let headers = build_headers("s", b"p", "new_message", 999);
-        let del = headers.iter().find(|(k, _)| k == "X-Mailrs-Delivery").unwrap();
+        let del = headers
+            .iter()
+            .find(|(k, _)| k == "X-Mailrs-Delivery")
+            .unwrap();
         assert_eq!(del.1, "999");
     }
 
@@ -226,8 +249,16 @@ mod tests {
     fn build_headers_signature_is_deterministic() {
         let h1 = build_headers("secret", b"payload", "new_message", 1);
         let h2 = build_headers("secret", b"payload", "new_message", 1);
-        let sig1 = &h1.iter().find(|(k, _)| k == "X-Mailrs-Signature").unwrap().1;
-        let sig2 = &h2.iter().find(|(k, _)| k == "X-Mailrs-Signature").unwrap().1;
+        let sig1 = &h1
+            .iter()
+            .find(|(k, _)| k == "X-Mailrs-Signature")
+            .unwrap()
+            .1;
+        let sig2 = &h2
+            .iter()
+            .find(|(k, _)| k == "X-Mailrs-Signature")
+            .unwrap()
+            .1;
         assert_eq!(sig1, sig2);
     }
 
@@ -235,8 +266,16 @@ mod tests {
     fn build_headers_different_secrets_produce_different_signatures() {
         let h1 = build_headers("secret1", b"payload", "new_message", 1);
         let h2 = build_headers("secret2", b"payload", "new_message", 1);
-        let sig1 = &h1.iter().find(|(k, _)| k == "X-Mailrs-Signature").unwrap().1;
-        let sig2 = &h2.iter().find(|(k, _)| k == "X-Mailrs-Signature").unwrap().1;
+        let sig1 = &h1
+            .iter()
+            .find(|(k, _)| k == "X-Mailrs-Signature")
+            .unwrap()
+            .1;
+        let sig2 = &h2
+            .iter()
+            .find(|(k, _)| k == "X-Mailrs-Signature")
+            .unwrap()
+            .1;
         assert_ne!(sig1, sig2);
     }
 }

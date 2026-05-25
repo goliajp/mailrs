@@ -21,10 +21,10 @@ async fn start_server() -> u16 {
 async fn handle_test_connection(stream: TcpStream) {
     use bytes::{Buf, BytesMut};
     use futures_util::{SinkExt, StreamExt};
-    use mailrs_smtp_proto::response::{format_ehlo_response, Response};
+    use mailrs_maildir::Maildir;
+    use mailrs_smtp_proto::response::{Response, format_ehlo_response};
     use mailrs_smtp_proto::session::{Event, Session, SessionConfig};
     use mailrs_smtp_proto::{parse_command, unstuff_data};
-    use mailrs_maildir::Maildir;
     use tokio_util::codec::{Decoder, Encoder, Framed};
 
     // inline codec that supports data mode
@@ -228,10 +228,10 @@ async fn start_auth_server() -> u16 {
 async fn handle_auth_test_connection(stream: TcpStream) {
     use bytes::{Buf, BytesMut};
     use futures_util::{SinkExt, StreamExt};
-    use mailrs_smtp_proto::response::{format_ehlo_response, Response};
-    use mailrs_smtp_proto::session::{AuthStep, Event, Session, SessionConfig};
-    use mailrs_smtp_proto::{parse_command, unstuff_data, Command};
     use mailrs_maildir::Maildir;
+    use mailrs_smtp_proto::response::{Response, format_ehlo_response};
+    use mailrs_smtp_proto::session::{AuthStep, Event, Session, SessionConfig};
+    use mailrs_smtp_proto::{Command, parse_command, unstuff_data};
     use tokio_util::codec::{Decoder, Encoder, Framed};
 
     struct Codec {
@@ -319,18 +319,15 @@ async fn handle_auth_test_connection(stream: TcpStream) {
                         Event::NeedAuth { username, password } => {
                             if username == valid_user && password == valid_pass {
                                 session.set_authenticated(username);
-                                framed
-                                    .send(Response::auth_ok().format())
-                                    .await
-                                    .ok();
+                                framed.send(Response::auth_ok().format()).await.ok();
                             } else {
-                                framed
-                                    .send(Response::auth_failed().format())
-                                    .await
-                                    .ok();
+                                framed.send(Response::auth_failed().format()).await.ok();
                             }
                         }
-                        Event::AuthChallenge { response, step: next_step } => {
+                        Event::AuthChallenge {
+                            response,
+                            step: next_step,
+                        } => {
                             framed.send(response.format()).await.ok();
                             pending_auth_step = Some(next_step);
                         }
@@ -346,10 +343,7 @@ async fn handle_auth_test_connection(stream: TcpStream) {
 
                 match parse_command(&line) {
                     Ok(cmd) => {
-                        if matches!(
-                            cmd,
-                            Command::Ehlo(_) | Command::Helo(_)
-                        ) {
+                        if matches!(cmd, Command::Ehlo(_) | Command::Helo(_)) {
                             let event = session.handle_command(&cmd);
                             if matches!(event, Event::Reply(ref r) if r.code == 250) {
                                 let caps = session.capabilities();
@@ -367,15 +361,9 @@ async fn handle_auth_test_connection(stream: TcpStream) {
                             Event::NeedAuth { username, password } => {
                                 if username == valid_user && password == valid_pass {
                                     session.set_authenticated(username);
-                                    framed
-                                        .send(Response::auth_ok().format())
-                                        .await
-                                        .ok();
+                                    framed.send(Response::auth_ok().format()).await.ok();
                                 } else {
-                                    framed
-                                        .send(Response::auth_failed().format())
-                                        .await
-                                        .ok();
+                                    framed.send(Response::auth_failed().format()).await.ok();
                                 }
                             }
                             Event::AuthChallenge { response, step } => {
@@ -394,8 +382,7 @@ async fn handle_auth_test_connection(stream: TcpStream) {
                                     let mut ok = true;
                                     for rcpt in &forward_paths {
                                         if let Some((local, domain)) = rcpt.split_once('@') {
-                                            let path =
-                                                format!("{maildir_root}/{domain}/{local}");
+                                            let path = format!("{maildir_root}/{domain}/{local}");
                                             match Maildir::create(&path) {
                                                 Ok(md) => {
                                                     if md.deliver(&body).is_err() {
@@ -454,9 +441,7 @@ async fn start_imap_server() -> u16 {
 
 /// minimal IMAP session handler for testing greeting and basic commands
 async fn handle_imap_test_connection(stream: TcpStream) {
-    use mailrs_imap_proto::{
-        format_bad, format_bye, format_capability, format_ok, ImapCommand,
-    };
+    use mailrs_imap_proto::{ImapCommand, format_bad, format_bye, format_capability, format_ok};
 
     let hostname = "imap.test.local";
     let (read, mut write) = stream.into_split();
@@ -496,8 +481,7 @@ async fn handle_imap_test_connection(stream: TcpStream) {
                             let ok = format_ok(tag, "LOGIN completed");
                             write.write_all(ok.as_bytes()).await.ok();
                         } else {
-                            let no =
-                                mailrs_imap_proto::format_no(tag, "LOGIN failed");
+                            let no = mailrs_imap_proto::format_no(tag, "LOGIN failed");
                             write.write_all(no.as_bytes()).await.ok();
                         }
                     }
@@ -514,17 +498,12 @@ async fn handle_imap_test_connection(stream: TcpStream) {
                     }
                     ImapCommand::List { .. } => {
                         if !authenticated {
-                            let no = mailrs_imap_proto::format_no(
-                                tag,
-                                "LIST requires authentication",
-                            );
+                            let no =
+                                mailrs_imap_proto::format_no(tag, "LIST requires authentication");
                             write.write_all(no.as_bytes()).await.ok();
                         } else {
-                            let list_line = mailrs_imap_proto::format_list(
-                                "\\HasNoChildren",
-                                "/",
-                                "INBOX",
-                            );
+                            let list_line =
+                                mailrs_imap_proto::format_list("\\HasNoChildren", "/", "INBOX");
                             write.write_all(list_line.as_bytes()).await.ok();
                             let ok = format_ok(tag, "LIST completed");
                             write.write_all(ok.as_bytes()).await.ok();
@@ -546,10 +525,7 @@ async fn handle_imap_test_connection(stream: TcpStream) {
             }
             Err(_) => {
                 // cannot parse tag, send untagged BAD
-                write
-                    .write_all(b"* BAD invalid command\r\n")
-                    .await
-                    .ok();
+                write.write_all(b"* BAD invalid command\r\n").await.ok();
             }
         }
     }
@@ -700,10 +676,7 @@ async fn e2e_helo_basic() {
 
     send(&mut writer, "HELO old.client").await;
     let resp = read_multiline(&mut reader).await;
-    assert!(
-        resp.contains("250"),
-        "HELO should return 250: {resp}"
-    );
+    assert!(resp.contains("250"), "HELO should return 250: {resp}");
 
     // should still be able to send mail after HELO
     send(&mut writer, "MAIL FROM:<sender@example.com>").await;
@@ -780,15 +753,24 @@ async fn e2e_multiple_rcpt_to() {
     // multiple recipients
     send(&mut writer, "RCPT TO:<alice@test.local>").await;
     let resp = read_line(&mut reader).await;
-    assert!(resp.starts_with("250 "), "first RCPT TO should succeed: {resp}");
+    assert!(
+        resp.starts_with("250 "),
+        "first RCPT TO should succeed: {resp}"
+    );
 
     send(&mut writer, "RCPT TO:<bob@test.local>").await;
     let resp = read_line(&mut reader).await;
-    assert!(resp.starts_with("250 "), "second RCPT TO should succeed: {resp}");
+    assert!(
+        resp.starts_with("250 "),
+        "second RCPT TO should succeed: {resp}"
+    );
 
     send(&mut writer, "RCPT TO:<carol@test.local>").await;
     let resp = read_line(&mut reader).await;
-    assert!(resp.starts_with("250 "), "third RCPT TO should succeed: {resp}");
+    assert!(
+        resp.starts_with("250 "),
+        "third RCPT TO should succeed: {resp}"
+    );
 
     send(&mut writer, "DATA").await;
     let resp = read_line(&mut reader).await;
@@ -799,7 +781,10 @@ async fn e2e_multiple_rcpt_to() {
         .await
         .unwrap();
     let resp = read_line(&mut reader).await;
-    assert!(resp.starts_with("250 "), "DATA should succeed with multiple rcpts: {resp}");
+    assert!(
+        resp.starts_with("250 "),
+        "DATA should succeed with multiple rcpts: {resp}"
+    );
 
     send(&mut writer, "QUIT").await;
     read_line(&mut reader).await;
@@ -824,7 +809,10 @@ async fn e2e_null_reverse_path() {
 
     send(&mut writer, "RCPT TO:<postmaster>").await;
     let resp = read_line(&mut reader).await;
-    assert!(resp.starts_with("250 "), "RCPT TO postmaster should work: {resp}");
+    assert!(
+        resp.starts_with("250 "),
+        "RCPT TO postmaster should work: {resp}"
+    );
 
     send(&mut writer, "QUIT").await;
     read_line(&mut reader).await;
@@ -851,7 +839,10 @@ async fn e2e_two_transactions_one_connection() {
         .await
         .unwrap();
     let resp = read_line(&mut reader).await;
-    assert!(resp.starts_with("250 "), "first transaction should succeed: {resp}");
+    assert!(
+        resp.starts_with("250 "),
+        "first transaction should succeed: {resp}"
+    );
 
     // second transaction without re-EHLO
     send(&mut writer, "MAIL FROM:<second@example.com>").await;
@@ -872,7 +863,10 @@ async fn e2e_two_transactions_one_connection() {
         .await
         .unwrap();
     let resp = read_line(&mut reader).await;
-    assert!(resp.starts_with("250 "), "second transaction should succeed: {resp}");
+    assert!(
+        resp.starts_with("250 "),
+        "second transaction should succeed: {resp}"
+    );
 
     send(&mut writer, "QUIT").await;
     read_line(&mut reader).await;
@@ -919,10 +913,7 @@ async fn e2e_vrfy_returns_252() {
 
     send(&mut writer, "VRFY user@example.com").await;
     let resp = read_line(&mut reader).await;
-    assert!(
-        resp.starts_with("252 "),
-        "VRFY should return 252: {resp}"
-    );
+    assert!(resp.starts_with("252 "), "VRFY should return 252: {resp}");
 
     send(&mut writer, "QUIT").await;
     read_line(&mut reader).await;
@@ -936,10 +927,7 @@ async fn e2e_help_returns_214() {
 
     send(&mut writer, "HELP").await;
     let resp = read_line(&mut reader).await;
-    assert!(
-        resp.starts_with("214 "),
-        "HELP should return 214: {resp}"
-    );
+    assert!(resp.starts_with("214 "), "HELP should return 214: {resp}");
 
     send(&mut writer, "QUIT").await;
     read_line(&mut reader).await;
@@ -977,8 +965,7 @@ async fn e2e_auth_plain_inline_success() {
     assert!(ehlo.contains("AUTH PLAIN LOGIN"));
 
     // AUTH PLAIN with inline credentials: base64(\0testuser\0testpass)
-    let creds = base64::engine::general_purpose::STANDARD
-        .encode(b"\x00testuser\x00testpass");
+    let creds = base64::engine::general_purpose::STANDARD.encode(b"\x00testuser\x00testpass");
     send(&mut writer, &format!("AUTH PLAIN {creds}")).await;
     let resp = read_line(&mut reader).await;
     assert!(
@@ -1002,8 +989,7 @@ async fn e2e_auth_plain_inline_failure() {
     read_multiline(&mut reader).await;
 
     // AUTH PLAIN with wrong password
-    let creds = base64::engine::general_purpose::STANDARD
-        .encode(b"\x00testuser\x00wrongpass");
+    let creds = base64::engine::general_purpose::STANDARD.encode(b"\x00testuser\x00wrongpass");
     send(&mut writer, &format!("AUTH PLAIN {creds}")).await;
     let resp = read_line(&mut reader).await;
     assert!(
@@ -1035,8 +1021,7 @@ async fn e2e_auth_plain_two_step() {
     );
 
     // send credentials in response
-    let creds = base64::engine::general_purpose::STANDARD
-        .encode(b"\x00testuser\x00testpass");
+    let creds = base64::engine::general_purpose::STANDARD.encode(b"\x00testuser\x00testpass");
     send(&mut writer, &creds).await;
     let resp = read_line(&mut reader).await;
     assert!(
@@ -1161,8 +1146,7 @@ async fn e2e_authenticated_mail_flow() {
     read_multiline(&mut reader).await;
 
     // authenticate first
-    let creds = base64::engine::general_purpose::STANDARD
-        .encode(b"\x00testuser\x00testpass");
+    let creds = base64::engine::general_purpose::STANDARD.encode(b"\x00testuser\x00testpass");
     send(&mut writer, &format!("AUTH PLAIN {creds}")).await;
     let resp = read_line(&mut reader).await;
     assert!(resp.starts_with("235 "));
@@ -1304,10 +1288,7 @@ async fn e2e_imap_logout() {
 
     send(&mut writer, "a001 LOGOUT").await;
     let bye = read_line(&mut reader).await;
-    assert!(
-        bye.starts_with("* BYE"),
-        "LOGOUT should produce BYE: {bye}"
-    );
+    assert!(bye.starts_with("* BYE"), "LOGOUT should produce BYE: {bye}");
     let ok = read_line(&mut reader).await;
     assert!(
         ok.starts_with("a001 OK"),
@@ -1323,10 +1304,7 @@ async fn e2e_imap_noop() {
 
     send(&mut writer, "a001 NOOP").await;
     let resp = read_line(&mut reader).await;
-    assert!(
-        resp.starts_with("a001 OK"),
-        "NOOP should return OK: {resp}"
-    );
+    assert!(resp.starts_with("a001 OK"), "NOOP should return OK: {resp}");
 
     send(&mut writer, "a002 LOGOUT").await;
     read_line(&mut reader).await;

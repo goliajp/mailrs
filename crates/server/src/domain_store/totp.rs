@@ -4,10 +4,7 @@ use super::{DomainStore, Result};
 
 impl DomainStore {
     /// get TOTP secret, enabled status, and recovery codes for an account
-    pub async fn get_totp_secret(
-        &self,
-        address: &str,
-    ) -> Result<Option<(String, bool, String)>> {
+    pub async fn get_totp_secret(&self, address: &str) -> Result<Option<(String, bool, String)>> {
         let pool = self.pg()?;
         let row = sqlx::query_as::<_, (String, bool, String)>(
             "SELECT secret, enabled, recovery_codes FROM totp_secrets \
@@ -44,24 +41,21 @@ impl DomainStore {
     /// enable TOTP for an account (returns true if a row was updated)
     pub async fn enable_totp(&self, address: &str) -> Result<bool> {
         let pool = self.pg()?;
-        let result = sqlx::query(
-            "UPDATE totp_secrets SET enabled = true WHERE account_address = $1",
-        )
-        .bind(address)
-        .execute(pool)
-        .await?;
+        let result =
+            sqlx::query("UPDATE totp_secrets SET enabled = true WHERE account_address = $1")
+                .bind(address)
+                .execute(pool)
+                .await?;
         Ok(result.rows_affected() > 0)
     }
 
     /// disable and delete TOTP for an account (returns true if a row was deleted)
     pub async fn disable_totp(&self, address: &str) -> Result<bool> {
         let pool = self.pg()?;
-        let result = sqlx::query(
-            "DELETE FROM totp_secrets WHERE account_address = $1",
-        )
-        .bind(address)
-        .execute(pool)
-        .await?;
+        let result = sqlx::query("DELETE FROM totp_secrets WHERE account_address = $1")
+            .bind(address)
+            .execute(pool)
+            .await?;
         Ok(result.rows_affected() > 0)
     }
 
@@ -88,13 +82,11 @@ impl DomainStore {
         let remaining: Vec<&str> = codes.into_iter().filter(|c| *c != code).collect();
         let new_codes = remaining.join(",");
 
-        sqlx::query(
-            "UPDATE totp_secrets SET recovery_codes = $1 WHERE account_address = $2",
-        )
-        .bind(&new_codes)
-        .bind(address)
-        .execute(pool)
-        .await?;
+        sqlx::query("UPDATE totp_secrets SET recovery_codes = $1 WHERE account_address = $2")
+            .bind(&new_codes)
+            .bind(address)
+            .execute(pool)
+            .await?;
 
         Ok(true)
     }

@@ -59,7 +59,11 @@ pub struct PolicyReport {
     /// Aggregate success / failure session counts for the window.
     pub summary: SummaryBlock,
     /// Per-failure detail rows. Empty when `summary.total_failure_session_count == 0`.
-    #[serde(rename = "failure-details", default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        rename = "failure-details",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub failure_details: Vec<FailureDetail>,
 }
 
@@ -72,7 +76,11 @@ pub struct PolicyBlock {
     /// Verbatim policy text (e.g. the STS policy body) when applicable.
     /// Per RFC 8460 §4.2 receivers send back the raw policy bytes so
     /// the owner can correlate against what they published.
-    #[serde(rename = "policy-string", default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        rename = "policy-string",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub policy_string: Vec<String>,
     /// The receiving domain the policy applied to.
     #[serde(rename = "policy-domain")]
@@ -334,16 +342,16 @@ impl ReportBuilder {
         let contact_info = self
             .contact_info
             .ok_or(TlsRptError::MissingField("contact_info"))?;
-        let report_id = self.report_id.ok_or(TlsRptError::MissingField("report_id"))?;
+        let report_id = self
+            .report_id
+            .ok_or(TlsRptError::MissingField("report_id"))?;
         let date_range = self
             .date_range
             .ok_or(TlsRptError::MissingField("date_range"))?;
 
         // Stable bucket ordering for deterministic output.
         let mut keys: Vec<_> = self.buckets.keys().cloned().collect();
-        keys.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| {
-            (a.1 as u8).cmp(&(b.1 as u8))
-        }));
+        keys.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| (a.1 as u8).cmp(&(b.1 as u8))));
 
         let mut policies = Vec::with_capacity(keys.len());
         let mut buckets = self.buckets;
@@ -437,7 +445,10 @@ mod tests {
             .report_id("r")
             .date_range("a", "b")
             .build();
-        assert!(matches!(r, Err(TlsRptError::MissingField("organization_name"))));
+        assert!(matches!(
+            r,
+            Err(TlsRptError::MissingField("organization_name"))
+        ));
     }
 
     #[test]
@@ -559,8 +570,7 @@ mod tests {
             "mx: mail.example.com".to_string(),
             "max_age: 604800".to_string(),
         ];
-        let mut b =
-            fixture().policy_string("example.com", PolicyType::Sts, lines.clone());
+        let mut b = fixture().policy_string("example.com", PolicyType::Sts, lines.clone());
         b.record_success(SuccessEvent {
             policy_domain: "example.com".into(),
             policy_type: PolicyType::Sts,

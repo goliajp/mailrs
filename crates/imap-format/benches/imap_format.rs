@@ -1,5 +1,5 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use mailrs_imap_format::{format_imap_flags, parse_imap_flags, format_internal_date};
+use criterion::{Criterion, criterion_group, criterion_main};
+use mailrs_imap_format::{format_imap_flags, format_internal_date, parse_imap_flags};
 use std::hint::black_box;
 
 fn bench_format(c: &mut Criterion) {

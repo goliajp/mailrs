@@ -42,10 +42,14 @@ pub fn parse_sequence_set(input: &str) -> Result<SequenceSet, String> {
             if start == "*" {
                 return Ok(SequenceSet::All);
             }
-            let start: u32 = start.parse().map_err(|_| format!("invalid number: {start}"))?;
+            let start: u32 = start
+                .parse()
+                .map_err(|_| format!("invalid number: {start}"))?;
             return Ok(SequenceSet::RangeFrom(start));
         }
-        let start: u32 = start.parse().map_err(|_| format!("invalid number: {start}"))?;
+        let start: u32 = start
+            .parse()
+            .map_err(|_| format!("invalid number: {start}"))?;
         let end: u32 = end.parse().map_err(|_| format!("invalid number: {end}"))?;
         return Ok(SequenceSet::Range(start, end));
     }
@@ -54,7 +58,9 @@ pub fn parse_sequence_set(input: &str) -> Result<SequenceSet, String> {
     if input == "*" {
         return Ok(SequenceSet::All);
     }
-    let n: u32 = input.parse().map_err(|_| format!("invalid number: {input}"))?;
+    let n: u32 = input
+        .parse()
+        .map_err(|_| format!("invalid number: {input}"))?;
     Ok(SequenceSet::Single(n))
 }
 
@@ -73,19 +79,11 @@ pub fn sequence_set_to_uids(set: &SequenceSet, max: u32) -> Vec<u32> {
         SequenceSet::Range(start, end) => {
             let s = (*start).max(1);
             let e = (*end).min(max);
-            if s > e {
-                vec![]
-            } else {
-                (s..=e).collect()
-            }
+            if s > e { vec![] } else { (s..=e).collect() }
         }
         SequenceSet::RangeFrom(start) => {
             let s = (*start).max(1);
-            if s > max {
-                vec![]
-            } else {
-                (s..=max).collect()
-            }
+            if s > max { vec![] } else { (s..=max).collect() }
         }
         SequenceSet::All => {
             if max >= 1 {
@@ -117,10 +115,7 @@ mod tests {
 
     #[test]
     fn parse_range() {
-        assert_eq!(
-            parse_sequence_set("1:5").unwrap(),
-            SequenceSet::Range(1, 5)
-        );
+        assert_eq!(parse_sequence_set("1:5").unwrap(), SequenceSet::Range(1, 5));
     }
 
     #[test]
@@ -282,10 +277,7 @@ mod tests {
     #[test]
     fn sequence_set_to_uids_list_overlapping_ranges() {
         // "1:3,2:5" should yield [1, 2, 3, 4, 5] without duplicates
-        let set = SequenceSet::List(vec![
-            SequenceSet::Range(1, 3),
-            SequenceSet::Range(2, 5),
-        ]);
+        let set = SequenceSet::List(vec![SequenceSet::Range(1, 3), SequenceSet::Range(2, 5)]);
         let uids = sequence_set_to_uids(&set, 10);
         assert_eq!(uids, vec![1, 2, 3, 4, 5]);
     }
@@ -313,10 +305,7 @@ mod tests {
 
     #[test]
     fn parse_range_equal_start_end() {
-        assert_eq!(
-            parse_sequence_set("5:5").unwrap(),
-            SequenceSet::Range(5, 5)
-        );
+        assert_eq!(parse_sequence_set("5:5").unwrap(), SequenceSet::Range(5, 5));
     }
 
     #[test]
@@ -399,10 +388,7 @@ mod tests {
     #[test]
     fn sequence_set_to_uids_list_empty_subsets() {
         // all elements out of range → empty result
-        let set = SequenceSet::List(vec![
-            SequenceSet::Single(100),
-            SequenceSet::Single(200),
-        ]);
+        let set = SequenceSet::List(vec![SequenceSet::Single(100), SequenceSet::Single(200)]);
         let uids = sequence_set_to_uids(&set, 10);
         assert!(uids.is_empty());
     }
@@ -424,10 +410,7 @@ mod tests {
     #[test]
     fn sequence_set_to_uids_list_with_all() {
         // list containing All + singles → full range deduplicated
-        let set = SequenceSet::List(vec![
-            SequenceSet::Single(2),
-            SequenceSet::All,
-        ]);
+        let set = SequenceSet::List(vec![SequenceSet::Single(2), SequenceSet::All]);
         let uids = sequence_set_to_uids(&set, 4);
         assert_eq!(uids, vec![1, 2, 3, 4]);
     }

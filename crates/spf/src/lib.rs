@@ -14,7 +14,7 @@ pub mod record;
 pub mod resolver;
 
 pub use error::{SpfError, SpfResult};
-pub use evaluator::{verify, VerifyInput};
+pub use evaluator::{VerifyInput, verify};
 pub use record::{Mechanism, Qualifier, Record};
 pub use resolver::SpfResolver;
 

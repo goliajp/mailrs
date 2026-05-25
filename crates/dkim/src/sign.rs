@@ -109,7 +109,10 @@ impl SignOpts {
     }
 
     /// Replace the `h=` list with the provided one.
-    pub fn signed_headers<I: IntoIterator<Item = S>, S: Into<String>>(mut self, headers: I) -> Self {
+    pub fn signed_headers<I: IntoIterator<Item = S>, S: Into<String>>(
+        mut self,
+        headers: I,
+    ) -> Self {
         self.signed_headers = headers.into_iter().map(Into::into).collect();
         self
     }

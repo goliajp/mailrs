@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::webhook::store;
 
-use super::auth::AuthUser;
 use super::WebState;
+use super::auth::AuthUser;
 
 /// maximum url length for webhook endpoints
 const MAX_URL_LEN: usize = 2048;
@@ -77,7 +77,9 @@ pub(super) async fn create_webhook(
     if !is_valid_webhook_url(&req.url) {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "url must start with https:// (or http:// for localhost)"})),
+            Json(
+                serde_json::json!({"error": "url must start with https:// (or http:// for localhost)"}),
+            ),
         );
     }
 
@@ -95,7 +97,7 @@ pub(super) async fn create_webhook(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"error": "database unavailable"})),
-            )
+            );
         }
     };
 
@@ -143,7 +145,7 @@ pub(super) async fn list_webhooks(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"error": "database unavailable"})),
-            )
+            );
         }
     };
 
@@ -182,15 +184,12 @@ pub(super) async fn delete_webhook(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"error": "database unavailable"})),
-            )
+            );
         }
     };
 
     match store::delete_subscription(pool, id, &auth_user.address).await {
-        Ok(true) => (
-            StatusCode::OK,
-            Json(serde_json::json!({"success": true})),
-        ),
+        Ok(true) => (StatusCode::OK, Json(serde_json::json!({"success": true}))),
         Ok(false) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"error": "webhook not found or already deleted"})),

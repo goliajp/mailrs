@@ -7,11 +7,9 @@ use std::sync::Arc;
 use axum::routing::{any, delete, get, post, put};
 
 use super::super::{
-    admin, ai_assist, api_key, auth, autodiscover, calendar_api, conversations, dav, jmap, mail,
-    oidc_provider, rsvp, system_config, templates, webhook, ws, WebState,
+    WebState, admin, ai_assist, api_key, auth, autodiscover, calendar_api, conversations, dav,
+    jmap, mail, oidc_provider, rsvp, system_config, templates, webhook, ws,
 };
-
-
 
 pub(super) fn core_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
@@ -29,10 +27,7 @@ pub(super) fn core_routes() -> axum::Router<Arc<WebState>> {
 pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
         // mail API
-        .route(
-            "/api/calendar/conflicts",
-            get(calendar_api::get_conflicts),
-        )
+        .route("/api/calendar/conflicts", get(calendar_api::get_conflicts))
         .route(
             "/api/calendar/feeds",
             get(calendar_api::list_feeds).post(calendar_api::create_feed),
@@ -41,10 +36,7 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             "/api/calendar/feeds/{feed_id}",
             axum::routing::delete(calendar_api::delete_feed),
         )
-        .route(
-            "/api/invites/{message_id}/rsvp",
-            post(rsvp::submit_rsvp),
-        )
+        .route("/api/invites/{message_id}/rsvp", post(rsvp::submit_rsvp))
         .route(
             "/api/invites/{message_id}/counter",
             post(rsvp::submit_counter),
@@ -62,11 +54,20 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
         .route("/api/mail/messages/{uid}", delete(mail::delete_message))
         .route("/api/mail/export", get(mail::export_mbox))
         .route("/api/mail/send", post(mail::send_message))
-        .route("/api/mail/check-deliverability", post(mail::check_deliverability))
+        .route(
+            "/api/mail/check-deliverability",
+            post(mail::check_deliverability),
+        )
         .route("/api/mail/spam-feedback", post(mail::submit_spam_feedback))
         .route("/api/mail/render-preview", post(mail::render_preview))
-        .route("/api/mail/render-preview/cache/{id}", get(mail::serve_render_cache))
-        .route("/api/admin/spam-feedback-stats", get(mail::get_spam_feedback_stats))
+        .route(
+            "/api/mail/render-preview/cache/{id}",
+            get(mail::serve_render_cache),
+        )
+        .route(
+            "/api/admin/spam-feedback-stats",
+            get(mail::get_spam_feedback_stats),
+        )
         .route(
             "/api/mail/send-multipart",
             post(mail::send_message_multipart),
@@ -75,10 +76,7 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             "/api/mail/pending/{message_id}",
             delete(mail::cancel_pending_send),
         )
-        .route(
-            "/api/mail/messages/{uid}/raw",
-            get(mail::get_message_raw),
-        )
+        .route("/api/mail/messages/{uid}/raw", get(mail::get_message_raw))
         .route(
             "/api/mail/messages/{uid}/attachments/{index}",
             get(mail::get_attachment),
@@ -89,14 +87,8 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             get(mail::get_attachment_content),
         )
         // inline image upload/serve
-        .route(
-            "/api/mail/inline-upload",
-            post(mail::upload_inline_image),
-        )
-        .route(
-            "/api/mail/inline/{id}",
-            get(mail::serve_inline_image),
-        )
+        .route("/api/mail/inline-upload", post(mail::upload_inline_image))
+        .route("/api/mail/inline/{id}", get(mail::serve_inline_image))
         // drafts API
         .route(
             "/api/mail/drafts",
@@ -108,15 +100,14 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             "/api/mail/signatures",
             post(mail::save_signature).get(mail::list_signatures),
         )
-        .route(
-            "/api/mail/signatures/{id}",
-            delete(mail::delete_signature),
-        )
+        .route("/api/mail/signatures/{id}", delete(mail::delete_signature))
         // encryption keys API
         .route("/api/mail/keys", get(mail::list_keys))
         .route(
             "/api/mail/keys/{key_type}",
-            get(mail::get_key).put(mail::set_key).delete(mail::delete_key),
+            get(mail::get_key)
+                .put(mail::set_key)
+                .delete(mail::delete_key),
         )
         // public key lookup (no auth required, rate-limited by general_rate_limit layer)
         .route("/api/keys/{address}/pgp", get(mail::get_public_pgp_key))
@@ -132,8 +123,14 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
         )
         // AI assist
         .route("/api/mail/ai/polish", post(ai_assist::ai_polish))
-        .route("/api/mail/ai/reply-suggest", post(ai_assist::ai_reply_suggest))
-        .route("/api/mail/ai/generate-subject", post(ai_assist::ai_generate_subject))
+        .route(
+            "/api/mail/ai/reply-suggest",
+            post(ai_assist::ai_reply_suggest),
+        )
+        .route(
+            "/api/mail/ai/generate-subject",
+            post(ai_assist::ai_generate_subject),
+        )
 }
 pub(super) fn conversations_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
@@ -213,10 +210,7 @@ pub(super) fn conversations_routes() -> axum::Router<Arc<WebState>> {
         )
         .route("/api/contacts", get(conversations::get_contacts))
         .route("/api/mail/stats", get(conversations::get_mail_stats))
-        .route(
-            "/api/mail/feedback",
-            post(conversations::record_feedback),
-        )
+        .route("/api/mail/feedback", post(conversations::record_feedback))
 }
 pub(super) fn account_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
@@ -227,7 +221,10 @@ pub(super) fn account_routes() -> axum::Router<Arc<WebState>> {
         // self-service password change
         .route("/api/auth/change-password", post(auth::change_password))
         // recovery email
-        .route("/api/auth/recovery-email", get(auth::get_recovery_email).post(auth::update_recovery_email))
+        .route(
+            "/api/auth/recovery-email",
+            get(auth::get_recovery_email).post(auth::update_recovery_email),
+        )
         // identity verification (for external IdPs)
         .route("/api/auth/verify", post(auth::verify_credentials))
         .route("/api/auth/verify-totp", post(auth::verify_totp))
@@ -244,10 +241,16 @@ pub(super) fn account_routes() -> axum::Router<Arc<WebState>> {
 pub(super) fn agent_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
         // API key management
-        .route("/api/agent/keys", post(api_key::create_api_key).get(api_key::list_api_keys))
+        .route(
+            "/api/agent/keys",
+            post(api_key::create_api_key).get(api_key::list_api_keys),
+        )
         .route("/api/agent/keys/{id}", delete(api_key::revoke_api_key))
         // webhook subscriptions
-        .route("/api/agent/webhooks", post(webhook::create_webhook).get(webhook::list_webhooks))
+        .route(
+            "/api/agent/webhooks",
+            post(webhook::create_webhook).get(webhook::list_webhooks),
+        )
         .route("/api/agent/webhooks/{id}", delete(webhook::delete_webhook))
 }
 pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
@@ -354,7 +357,10 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
         .route("/api/admin/audit-log", get(admin::get_audit_log))
         // mail audit (admin impersonate)
         .route("/api/admin/audit/accounts", get(admin::audit_list_accounts))
-        .route("/api/admin/audit/conversations", get(admin::audit_list_conversations))
+        .route(
+            "/api/admin/audit/conversations",
+            get(admin::audit_list_conversations),
+        )
         .route(
             "/api/admin/audit/conversations/{thread_id}/messages",
             get(admin::audit_get_thread_messages),
@@ -367,7 +373,10 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
         .route("/api/admin/config/smtp", get(admin::get_smtp_config))
         // system config (runtime-editable)
         .route("/api/admin/system-config", get(system_config::list_config))
-        .route("/api/admin/system-config/{key}", put(system_config::update_config).delete(system_config::reset_config))
+        .route(
+            "/api/admin/system-config/{key}",
+            put(system_config::update_config).delete(system_config::reset_config),
+        )
 }
 pub(super) fn protocol_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
@@ -376,7 +385,10 @@ pub(super) fn protocol_routes() -> axum::Router<Arc<WebState>> {
         .route("/jmap", post(jmap::jmap_api))
         .route("/jmap/eventsource/", get(jmap::jmap_eventsource))
         // OIDC provider
-        .route("/.well-known/openid-configuration", get(oidc_provider::openid_configuration))
+        .route(
+            "/.well-known/openid-configuration",
+            get(oidc_provider::openid_configuration),
+        )
         .route("/.well-known/jwks.json", get(oidc_provider::jwks))
         .route("/oauth/authorize", get(oidc_provider::authorize))
         .route("/oauth/token", post(oidc_provider::token))
@@ -386,7 +398,10 @@ pub(super) fn protocol_routes() -> axum::Router<Arc<WebState>> {
             "/api/admin/oauth-clients",
             post(admin::create_oauth_client).get(admin::list_oauth_clients),
         )
-        .route("/api/admin/oauth-clients/{client_id}", delete(admin::delete_oauth_client))
+        .route(
+            "/api/admin/oauth-clients/{client_id}",
+            delete(admin::delete_oauth_client),
+        )
         // MTA-STS policy
         .route("/.well-known/mta-sts.txt", get(admin::mta_sts_policy))
         // mail client autodiscover
@@ -414,10 +429,18 @@ pub(super) fn dav_routes() -> axum::Router<Arc<WebState>> {
         .route("/.well-known/carddav", any(dav::well_known_carddav))
         .route("/dav/", any(dav::dav_principal))
         .route("/dav/calendars/{user}/", any(dav::dav_calendar_home))
-        .route("/dav/calendars/{user}/{calendar}/", any(dav::dav_calendar_collection))
-        .route("/dav/calendars/{user}/{calendar}/{uid}", any(dav::dav_event))
+        .route(
+            "/dav/calendars/{user}/{calendar}/",
+            any(dav::dav_calendar_collection),
+        )
+        .route(
+            "/dav/calendars/{user}/{calendar}/{uid}",
+            any(dav::dav_event),
+        )
         .route("/dav/contacts/{user}/", any(dav::dav_contact_home))
-        .route("/dav/contacts/{user}/{book}/", any(dav::dav_contact_collection))
+        .route(
+            "/dav/contacts/{user}/{book}/",
+            any(dav::dav_contact_collection),
+        )
         .route("/dav/contacts/{user}/{book}/{uid}", any(dav::dav_contact))
 }
-

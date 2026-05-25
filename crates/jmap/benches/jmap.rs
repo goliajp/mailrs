@@ -14,9 +14,7 @@ use mailrs_jmap::build::{
 use mailrs_jmap::flags::{flags_to_keywords, keywords_to_flags};
 use mailrs_jmap::ids::{parse_email_db_id, parse_mailbox_db_id};
 use mailrs_jmap::refs::resolve_references;
-use mailrs_jmap::types::{
-    Attachment, FLAG_ANSWERED, FLAG_FLAGGED, FLAG_SEEN, Message, ParsedBody,
-};
+use mailrs_jmap::types::{Attachment, FLAG_ANSWERED, FLAG_FLAGGED, FLAG_SEEN, Message, ParsedBody};
 
 fn bench_flags(c: &mut Criterion) {
     c.bench_function("flags_to_keywords", |b| {

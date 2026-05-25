@@ -6,11 +6,11 @@ use std::task::{Context, Poll};
 use rustls::ClientConfig;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufStream, ReadBuf};
 use tokio::net::TcpStream;
-use tokio_rustls::client::TlsStream;
 use tokio_rustls::TlsConnector;
+use tokio_rustls::client::TlsStream;
 
 use crate::mx::{format_mail_from, format_rcpt_to};
-use crate::response::{parse_response, SmtpResponse};
+use crate::response::{SmtpResponse, parse_response};
 use crate::tls_outcome::{StarttlsResult, TlsOutcome};
 
 /// Connection timeout configuration.
@@ -164,10 +164,7 @@ impl SmtpConnection {
             Ok(r) => r,
             Err(e) => {
                 let outcome = crate::tls_outcome::classify_io_error(&e, false);
-                return StarttlsResult::HandshakeFailed {
-                    outcome,
-                    source: e,
-                };
+                return StarttlsResult::HandshakeFailed { outcome, source: e };
             }
         };
         if !resp.is_positive() {
@@ -240,10 +237,7 @@ impl SmtpConnection {
             Ok(r) => r,
             Err(e) => {
                 let outcome = crate::tls_outcome::classify_io_error(&e, true);
-                return StarttlsResult::HandshakeFailed {
-                    outcome,
-                    source: e,
-                };
+                return StarttlsResult::HandshakeFailed { outcome, source: e };
             }
         };
         if !resp.is_positive() {
@@ -471,10 +465,7 @@ mod tests {
 
     #[test]
     fn dot_stuff_consecutive_dot_lines() {
-        assert_eq!(
-            dot_stuff(b".\r\n.\r\n.\r\n"),
-            b"..\r\n..\r\n..\r\n"
-        );
+        assert_eq!(dot_stuff(b".\r\n.\r\n.\r\n"), b"..\r\n..\r\n..\r\n");
     }
 
     #[test]

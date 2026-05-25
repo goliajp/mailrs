@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
 use super::*;
@@ -25,7 +25,9 @@ pub(crate) struct UpdateAccountRequest {
 }
 
 pub(crate) async fn list_accounts(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if !permissions.has("admin.accounts") {
@@ -38,7 +40,11 @@ pub(crate) async fn list_accounts(
 }
 
 pub(crate) async fn add_account(
-    AuthUser { ref address, ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref address,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddAccountRequest>,
 ) -> impl IntoResponse {
@@ -97,7 +103,12 @@ pub(crate) async fn add_account(
         }
         match crate::users::UserStore::hash_password(&req.password) {
             Ok(hash) => hash,
-            Err(_) => return Json(ApiResult { success: false, message: Some("failed to hash password".into()) }),
+            Err(_) => {
+                return Json(ApiResult {
+                    success: false,
+                    message: Some("failed to hash password".into()),
+                });
+            }
         }
     };
 
@@ -115,9 +126,17 @@ pub(crate) async fn add_account(
         Ok(()) => {
             // update recovery_email if provided
             if !req.recovery_email.is_empty() {
-                let _ = ds.update_recovery_email(&req.address, &req.recovery_email).await;
+                let _ = ds
+                    .update_recovery_email(&req.address, &req.recovery_email)
+                    .await;
             }
-            ds.log_audit(address, "account_created", &req.address, &format!("domain={}", req.domain)).await;
+            ds.log_audit(
+                address,
+                "account_created",
+                &req.address,
+                &format!("domain={}", req.domain),
+            )
+            .await;
             Json(ApiResult {
                 success: true,
                 message: None,
@@ -145,13 +164,17 @@ pub(crate) async fn add_account(
                 success: false,
                 message: Some(msg),
             })
-        },
+        }
     }
 }
 
 pub(crate) async fn remove_account(
     Path(target_address): Path<String>,
-    AuthUser { ref address, ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref address,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Some(err) = require_permission(permissions, "admin.accounts") {
@@ -172,7 +195,8 @@ pub(crate) async fn remove_account(
     };
     match ds.remove_account(&target_address).await {
         Ok(true) => {
-            ds.log_audit(address, "account_removed", &target_address, "").await;
+            ds.log_audit(address, "account_removed", &target_address, "")
+                .await;
             Json(ApiResult {
                 success: true,
                 message: None,
@@ -187,14 +211,18 @@ pub(crate) async fn remove_account(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }
 
 pub(crate) async fn update_account(
     Path(target_address): Path<String>,
-    AuthUser { ref address, ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref address,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<UpdateAccountRequest>,
 ) -> impl IntoResponse {
@@ -213,9 +241,18 @@ pub(crate) async fn update_account(
             message: Some("domain store not configured".into()),
         });
     };
-    match ds.update_account_display_name(&target_address, &req.display_name).await {
+    match ds
+        .update_account_display_name(&target_address, &req.display_name)
+        .await
+    {
         Ok(true) => {
-            ds.log_audit(address, "account_updated", &target_address, &format!("display_name={}", req.display_name)).await;
+            ds.log_audit(
+                address,
+                "account_updated",
+                &target_address,
+                &format!("display_name={}", req.display_name),
+            )
+            .await;
             Json(ApiResult {
                 success: true,
                 message: None,

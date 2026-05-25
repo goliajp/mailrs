@@ -98,8 +98,7 @@ pub fn verify_any(secrets: &[&[u8]], payload: &[u8], signature: &str) -> bool {
         return false;
     };
     for secret in secrets {
-        let mut mac =
-            HmacSha256::new_from_slice(secret).expect("hmac accepts any key length");
+        let mut mac = HmacSha256::new_from_slice(secret).expect("hmac accepts any key length");
         mac.update(payload);
         if mac.verify_slice(&sig_bytes).is_ok() {
             return true;
@@ -176,7 +175,7 @@ mod tests {
     fn verify_with_invalid_hex_returns_false_no_panic() {
         assert!(!verify(b"secret", b"payload", "not-valid-hex-zzzz"));
         assert!(!verify(b"secret", b"payload", ""));
-        assert!(!verify(b"secret", b"payload", "0"));  // odd length
+        assert!(!verify(b"secret", b"payload", "0")); // odd length
     }
 
     #[test]

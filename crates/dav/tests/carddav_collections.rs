@@ -2,18 +2,16 @@
 //! address-book home, PROPFIND on a single address book, and REPORT
 //! (addressbook-multiget / addressbook-query).
 
-
-use mailrs_dav::fixtures::{
-    InMemoryAddressBookStore, EXAMPLE_USER, body_as_str, header_value, make_book, make_contact,
-};
 use mailrs_dav::carddav::{addressbook_home_propfind, addressbook_propfind, addressbook_report};
+use mailrs_dav::fixtures::{
+    EXAMPLE_USER, InMemoryAddressBookStore, body_as_str, header_value, make_book, make_contact,
+};
 
 // ---------- addressbook_home_propfind ----------
 
 #[tokio::test]
 async fn addressbook_home_propfind_depth_zero_returns_only_home_collection() {
-    let store = InMemoryAddressBookStore::new()
-        .with_book(EXAMPLE_USER, make_book(1, "Friends"));
+    let store = InMemoryAddressBookStore::new().with_book(EXAMPLE_USER, make_book(1, "Friends"));
 
     let resp = addressbook_home_propfind(&store, EXAMPLE_USER, 0)
         .await
@@ -95,7 +93,10 @@ async fn addressbook_propfind_depth_zero_returns_collection_only() {
 async fn addressbook_propfind_depth_one_lists_contact_etags_without_vcard() {
     let store = InMemoryAddressBookStore::new()
         .with_book(EXAMPLE_USER, make_book(20, "Friends"))
-        .with_contact(20, make_contact("ct-1", "BEGIN:VCARD\nUID:ct-1\nFN:Alice\nEND:VCARD"));
+        .with_contact(
+            20,
+            make_contact("ct-1", "BEGIN:VCARD\nUID:ct-1\nFN:Alice\nEND:VCARD"),
+        );
 
     let resp = addressbook_propfind(&store, EXAMPLE_USER, "Friends", 20, 1)
         .await
@@ -174,10 +175,7 @@ async fn addressbook_report_escapes_vcard_body_for_xml_safety() {
         .with_book(EXAMPLE_USER, make_book(20, "Friends"))
         .with_contact(
             20,
-            make_contact(
-                "a",
-                "BEGIN:VCARD\nUID:a\nFN:<oops> & more\nEND:VCARD",
-            ),
+            make_contact("a", "BEGIN:VCARD\nUID:a\nFN:<oops> & more\nEND:VCARD"),
         );
 
     let body = format!(
@@ -197,8 +195,7 @@ async fn addressbook_report_escapes_vcard_body_for_xml_safety() {
 
 #[tokio::test]
 async fn carddav_collection_uses_multistatus_envelope_with_dav_headers() {
-    let store = InMemoryAddressBookStore::new()
-        .with_book(EXAMPLE_USER, make_book(20, "Friends"));
+    let store = InMemoryAddressBookStore::new().with_book(EXAMPLE_USER, make_book(20, "Friends"));
 
     let resp = addressbook_propfind(&store, EXAMPLE_USER, "Friends", 20, 0)
         .await

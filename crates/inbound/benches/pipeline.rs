@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use criterion::{Criterion, criterion_group, criterion_main};
 
 use mailrs_inbound::{
-    AuthResult, AuthResults, DmarcPolicy, DeliveryDecision, Pipeline, PipelineInput,
+    AuthResult, AuthResults, DeliveryDecision, DmarcPolicy, Pipeline, PipelineInput,
     ReceiveContext, Stage, StageOutcome, build_auth_header, format_auth_results_header,
     make_delivery_decision,
 };
@@ -116,10 +116,26 @@ fn bench_auth_header(c: &mut Criterion) {
     });
 
     let results = vec![
-        AuthResult { method: "spf".into(), result: "pass".into(), reason: None },
-        AuthResult { method: "dkim".into(), result: "pass".into(), reason: None },
-        AuthResult { method: "arc".into(), result: "none".into(), reason: None },
-        AuthResult { method: "dmarc".into(), result: "pass".into(), reason: None },
+        AuthResult {
+            method: "spf".into(),
+            result: "pass".into(),
+            reason: None,
+        },
+        AuthResult {
+            method: "dkim".into(),
+            result: "pass".into(),
+            reason: None,
+        },
+        AuthResult {
+            method: "arc".into(),
+            result: "none".into(),
+            reason: None,
+        },
+        AuthResult {
+            method: "dmarc".into(),
+            result: "pass".into(),
+            reason: None,
+        },
     ];
     group.bench_function("format_auth_results_header_quadruple", |b| {
         b.iter(|| format_auth_results_header(black_box("mx.example.com"), black_box(&results)))

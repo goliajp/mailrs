@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect};
-use axum::Json;
 use chrono::{Duration, Utc};
 use serde::Deserialize;
 
@@ -154,7 +154,6 @@ pub(crate) async fn authorize(
 
 // --- Token ---
 
-
 fn try_extract_session(
     state: &Arc<WebState>,
     headers: &axum::http::HeaderMap,
@@ -172,7 +171,9 @@ fn try_extract_session(
         .and_then(|v| v.to_str().ok())
         .and_then(|cookies| {
             cookies.split(';').find_map(|c| {
-                c.trim().strip_prefix("mailrs_session=").map(|v| v.to_string())
+                c.trim()
+                    .strip_prefix("mailrs_session=")
+                    .map(|v| v.to_string())
             })
         });
 
@@ -195,7 +196,6 @@ fn try_extract_session(
 fn generate_auth_code() -> String {
     oidc_store::generate_random_hex(32)
 }
-
 
 /// build the full authorize URL from params (for return_to)
 fn build_authorize_url(hostname: &str, params: &AuthorizeQuery) -> String {
@@ -256,7 +256,6 @@ fn error_redirect_or_json(
             .into_response()
     }
 }
-
 
 #[cfg(test)]
 mod tests {

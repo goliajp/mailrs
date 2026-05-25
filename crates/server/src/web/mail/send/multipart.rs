@@ -5,20 +5,24 @@ use std::sync::Arc;
 
 use crate::message_util;
 
+use axum::Json;
 use axum::extract::{Multipart, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use rand_core::RngCore;
 
 use super::super::common::{
-    build_rfc5322_with_attachments, deliver_message, resolve_thread_reply,
-    verify_sender, AttachmentData,
+    AttachmentData, build_rfc5322_with_attachments, deliver_message, resolve_thread_reply,
+    verify_sender,
 };
 use super::super::{AuthUser, SendResult, WebState};
 use super::resolve_inline_images;
 
 pub(crate) async fn send_message_multipart(
-    AuthUser { address: user, permissions, .. }: AuthUser,
+    AuthUser {
+        address: user,
+        permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
@@ -103,7 +107,10 @@ pub(crate) async fn send_message_multipart(
     if total_recipients > crate::web::MAX_RECIPIENTS {
         return Json(SendResult {
             success: false,
-            message: Some(format!("too many recipients (max {})", crate::web::MAX_RECIPIENTS)),
+            message: Some(format!(
+                "too many recipients (max {})",
+                crate::web::MAX_RECIPIENTS
+            )),
             message_id: None,
         });
     }

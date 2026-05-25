@@ -179,20 +179,18 @@ impl DmarcPolicy {
                     explicit_subdomain_policy = true;
                 }
                 "adkim" => {
-                    policy.adkim = parse_alignment(value).ok_or_else(|| {
-                        DmarcParseError::MalformedTag {
+                    policy.adkim =
+                        parse_alignment(value).ok_or_else(|| DmarcParseError::MalformedTag {
                             name: "adkim".into(),
                             value: value.into(),
-                        }
-                    })?;
+                        })?;
                 }
                 "aspf" => {
-                    policy.aspf = parse_alignment(value).ok_or_else(|| {
-                        DmarcParseError::MalformedTag {
+                    policy.aspf =
+                        parse_alignment(value).ok_or_else(|| DmarcParseError::MalformedTag {
                             name: "aspf".into(),
                             value: value.into(),
-                        }
-                    })?;
+                        })?;
                 }
                 "pct" => {
                     let n: u32 = value.parse().map_err(|_| DmarcParseError::MalformedTag {

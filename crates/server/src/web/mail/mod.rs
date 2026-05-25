@@ -18,8 +18,8 @@
 //! `pub(crate)` and `mod.rs` re-exports `common::*` for the same callers.
 
 pub(super) use super::{
-    classify_email, clamp_limit, clamp_offset, default_limit, ApiResult, AuthUser, SendResult,
-    WebState, MAX_ADMIN_FIELD_LEN, MAX_EMAIL_BODY_LEN, MAX_PATH_LEN,
+    ApiResult, AuthUser, MAX_ADMIN_FIELD_LEN, MAX_EMAIL_BODY_LEN, MAX_PATH_LEN, SendResult,
+    WebState, clamp_limit, clamp_offset, classify_email, default_limit,
 };
 
 pub mod attachments;

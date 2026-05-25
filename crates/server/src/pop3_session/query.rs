@@ -33,7 +33,6 @@ impl Pop3Session {
             .collect()
     }
 
-
     pub(super) fn stat_values(&self) -> (usize, u64) {
         if let Pop3State::Transaction { ref messages, .. } = self.state {
             let active: Vec<&MessageEntry> = messages.iter().filter(|m| !m.deleted).collect();
@@ -44,7 +43,6 @@ impl Pop3Session {
         }
     }
 
-
     pub(super) fn handle_stat(&self) -> Vec<String> {
         if !matches!(self.state, Pop3State::Transaction { .. }) {
             return vec!["-ERR not authenticated\r\n".into()];
@@ -52,7 +50,6 @@ impl Pop3Session {
         let (count, size) = self.stat_values();
         vec![format!("+OK {count} {size}\r\n")]
     }
-
 
     pub(super) fn handle_list(&self, arg: &str) -> Vec<String> {
         let Pop3State::Transaction { ref messages, .. } = self.state else {
@@ -86,7 +83,6 @@ impl Pop3Session {
         }
     }
 
-
     pub(super) fn handle_uidl(&self, arg: &str) -> Vec<String> {
         let Pop3State::Transaction { ref messages, .. } = self.state else {
             return vec!["-ERR not authenticated\r\n".into()];
@@ -115,5 +111,4 @@ impl Pop3Session {
             vec![format!("+OK {} {}\r\n", num, m.uid)]
         }
     }
-
 }

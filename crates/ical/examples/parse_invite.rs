@@ -3,7 +3,7 @@
 //!
 //! Run with: `cargo run -p mailrs-ical --example parse_invite`
 
-use mailrs_ical::{parse_invite, serialize, CalDateTime, Method};
+use mailrs_ical::{CalDateTime, Method, parse_invite, serialize};
 
 fn main() {
     let ics = b"BEGIN:VCALENDAR\r\n\
@@ -40,7 +40,13 @@ END:VCALENDAR\r\n";
     println!("  organizer: {:?}", invite.organizer);
     println!("  attendees:");
     for a in &invite.attendees {
-        println!("    - {} <{}>  role={:?} partstat={:?}", a.cn.as_deref().unwrap_or("?"), a.email, a.role, a.partstat);
+        println!(
+            "    - {} <{}>  role={:?} partstat={:?}",
+            a.cn.as_deref().unwrap_or("?"),
+            a.email,
+            a.role,
+            a.partstat
+        );
     }
     println!("  summary:   {}", invite.summary);
     println!("  location:  {:?}", invite.location);

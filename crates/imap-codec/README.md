@@ -79,7 +79,7 @@ match codec.decode(&mut buf).unwrap() {
 | **test** | line cov: 92.9% (`cargo llvm-cov -p mailrs-imap-codec --summary-only`) |
 | **bench** | ✅ 1 file(s) criterion + ✅ 1 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 27 KB |
-| **fuzz** | ❌ none |
+| **fuzz** | ✅ 1 target(s) |
 | **mem**  | dhat profile pending (v3.4 backlog) |
 
 ### Competitor comparisons

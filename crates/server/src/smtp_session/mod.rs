@@ -9,8 +9,8 @@ use tokio::net::TcpStream;
 use tokio_util::codec::Framed;
 
 use mailrs_smtp_proto::parse_command;
-use mailrs_smtp_proto::response::{format_ehlo_response, Response};
-use mailrs_smtp_proto::session::{Event, Session, SessionConfig, MAX_MESSAGE_SIZE, MAX_RECIPIENTS};
+use mailrs_smtp_proto::response::{Response, format_ehlo_response};
+use mailrs_smtp_proto::session::{Event, MAX_MESSAGE_SIZE, MAX_RECIPIENTS, Session, SessionConfig};
 
 /// connection idle timeout: close if no command received within this duration
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(300);
@@ -18,11 +18,11 @@ const CONNECTION_TIMEOUT: Duration = Duration::from_secs(300);
 /// timeout waiting for DATA content after 354 response
 const DATA_TIMEOUT: Duration = Duration::from_secs(600);
 
-use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 use crate::config::SmuggleProtection;
 use crate::domain_store::DomainStore;
-use crate::event_bus::{next_connection_id, EventBus, SmtpEvent};
+use crate::event_bus::{EventBus, SmtpEvent, next_connection_id};
 use mail_auth::MessageAuthenticator;
+use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
 use crate::inbound::auth_guard::AuthGuard;
 use crate::inbound::rate_limit::{RateLimitStore, RateLimiter};
@@ -88,7 +88,9 @@ pub async fn handle_plain_connection(
     if !ctx.rate_limiter.check(&addr.ip().to_string()).await {
         let mut framed = Framed::new(
             stream,
-            SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection).with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
+            SmtpCodec::new()
+                .with_smuggle_protection(ctx.smuggle_protection)
+                .with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
         );
         let _ = framed.send(Response::rate_limited().format()).await;
         ctx.event_bus.emit(SmtpEvent::SpamRejected {
@@ -102,29 +104,32 @@ pub async fn handle_plain_connection(
     }
 
     // DNSBL check
-    if ctx.dnsbl_enabled && !ctx.dnsbl_zones.is_empty()
+    if ctx.dnsbl_enabled
+        && !ctx.dnsbl_zones.is_empty()
         && let Some(ref resolver) = ctx.resolver
-            && let Some((zone, result)) =
-                mailrs_shield::dnsbl::check_dnsbl(resolver, addr.ip(), &ctx.dnsbl_zones).await
-            {
-                let mut framed = Framed::new(
-                    stream,
-                    SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection).with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
-                );
-                let msg = format!(
-                    "554 5.7.1 Service unavailable; client [{0}] blocked using {zone} ({result:?})",
-                    addr.ip()
-                );
-                let _ = framed.send(msg).await;
-                ctx.event_bus.emit(SmtpEvent::SpamRejected {
-                    id: conn_id,
-                    reason: format!("DNSBL: {zone} ({result:?})"),
-                });
-                ctx.web_state.on_disconnect();
-                ctx.event_bus
-                    .emit(SmtpEvent::ConnectionClosed { id: conn_id });
-                return;
-            }
+        && let Some((zone, result)) =
+            mailrs_shield::dnsbl::check_dnsbl(resolver, addr.ip(), &ctx.dnsbl_zones).await
+    {
+        let mut framed = Framed::new(
+            stream,
+            SmtpCodec::new()
+                .with_smuggle_protection(ctx.smuggle_protection)
+                .with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
+        );
+        let msg = format!(
+            "554 5.7.1 Service unavailable; client [{0}] blocked using {zone} ({result:?})",
+            addr.ip()
+        );
+        let _ = framed.send(msg).await;
+        ctx.event_bus.emit(SmtpEvent::SpamRejected {
+            id: conn_id,
+            reason: format!("DNSBL: {zone} ({result:?})"),
+        });
+        ctx.web_state.on_disconnect();
+        ctx.event_bus
+            .emit(SmtpEvent::ConnectionClosed { id: conn_id });
+        return;
+    }
 
     let tls_available = ctx.tls_state.is_some();
     let config = SessionConfig {
@@ -137,7 +142,9 @@ pub async fn handle_plain_connection(
     let mut session = Session::new(&ctx.hostname, config);
     let mut framed = Framed::new(
         stream,
-        SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection).with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
+        SmtpCodec::new()
+            .with_smuggle_protection(ctx.smuggle_protection)
+            .with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
     );
 
     let greeting = Response::greeting(&ctx.hostname).format_greeting();
@@ -190,7 +197,9 @@ pub async fn handle_plain_connection(
                 ctx.event_bus.emit(SmtpEvent::TlsUpgraded { id: conn_id });
                 let mut tls_framed = Framed::new(
                     tls_stream,
-                    SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection).with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
+                    SmtpCodec::new()
+                        .with_smuggle_protection(ctx.smuggle_protection)
+                        .with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
                 );
 
                 loop {
@@ -260,7 +269,9 @@ pub async fn handle_tls_connection(
     let mut session = Session::new(&ctx.hostname, config);
     let mut framed = Framed::new(
         tls_stream,
-        SmtpCodec::new().with_smuggle_protection(ctx.smuggle_protection).with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
+        SmtpCodec::new()
+            .with_smuggle_protection(ctx.smuggle_protection)
+            .with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
     );
 
     let greeting = Response::greeting(&ctx.hostname).format_greeting();
@@ -362,4 +373,3 @@ where
         SmtpInput::Data(_) | SmtpInput::DataRejected => SessionAction::Close,
     }
 }
-

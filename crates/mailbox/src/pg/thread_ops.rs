@@ -1,7 +1,7 @@
-use crate::pg::helpers::{read_raw_from_maildir, row_to_message_meta_from_row};
 use crate::pg::PgMailboxStore;
+use crate::pg::helpers::{read_raw_from_maildir, row_to_message_meta_from_row};
 use crate::threading;
-use crate::types::{ConversationSummary, MessageMeta, FLAG_FLAGGED, FLAG_SEEN};
+use crate::types::{ConversationSummary, FLAG_FLAGGED, FLAG_SEEN, MessageMeta};
 
 impl PgMailboxStore {
     /// look up the thread_id of a message by its message_id (across all user's mailboxes)
@@ -62,9 +62,16 @@ impl PgMailboxStore {
                 param_idx += 1;
                 format!("mb.user_address = ${}", param_idx - 1)
             } else {
-                let placeholders: Vec<String> = doms.iter().enumerate().map(|(i, _)| format!("${}", param_idx + i as u32)).collect();
+                let placeholders: Vec<String> = doms
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| format!("${}", param_idx + i as u32))
+                    .collect();
                 param_idx += doms.len() as u32;
-                format!("mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))", placeholders.join(","))
+                format!(
+                    "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
+                    placeholders.join(",")
+                )
             }
         } else {
             param_idx += 1;
@@ -98,8 +105,7 @@ impl PgMailboxStore {
             conditions.push(format!("ea.category = ${param_idx}"));
         } else {
             // exclude spam/scam from default view — users must select the category explicitly
-            conditions
-                .push("COALESCE(ea.category, 'general') NOT IN ('spam', 'scam')".to_string());
+            conditions.push("COALESCE(ea.category, 'general') NOT IN ('spam', 'scam')".to_string());
         }
 
         let where_clause = conditions.join(" AND ");
@@ -171,7 +177,27 @@ impl PgMailboxStore {
         );
 
         // bind parameters in order
-        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String, i64)>(&sql);
+        let mut query = sqlx::query_as::<
+            _,
+            (
+                String,
+                Option<String>,
+                Option<String>,
+                i64,
+                i64,
+                i64,
+                String,
+                bool,
+                String,
+                bool,
+                bool,
+                String,
+                f32,
+                bool,
+                String,
+                i64,
+            ),
+        >(&sql);
 
         if let Some(doms) = domains {
             if doms.is_empty() {
@@ -243,9 +269,16 @@ impl PgMailboxStore {
                 param_idx += 1;
                 format!("mb.user_address = ${}", param_idx - 1)
             } else {
-                let placeholders: Vec<String> = doms.iter().enumerate().map(|(i, _)| format!("${}", param_idx + i as u32)).collect();
+                let placeholders: Vec<String> = doms
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| format!("${}", param_idx + i as u32))
+                    .collect();
                 param_idx += doms.len() as u32;
-                format!("mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))", placeholders.join(","))
+                format!(
+                    "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
+                    placeholders.join(",")
+                )
             }
         } else {
             param_idx += 1;
@@ -253,7 +286,11 @@ impl PgMailboxStore {
         };
 
         // build thread_id IN clause
-        let tid_placeholders: Vec<String> = thread_ids.iter().enumerate().map(|(i, _)| format!("${}", param_idx + i as u32)).collect();
+        let tid_placeholders: Vec<String> = thread_ids
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("${}", param_idx + i as u32))
+            .collect();
         let tid_filter = format!("m.thread_id IN ({})", tid_placeholders.join(","));
 
         let sql = format!(
@@ -285,7 +322,27 @@ impl PgMailboxStore {
              GROUP BY m.thread_id"
         );
 
-        let mut query = sqlx::query_as::<_, (String, Option<String>, Option<String>, i64, i64, i64, String, bool, String, bool, bool, String, f32, bool, String, i64)>(&sql);
+        let mut query = sqlx::query_as::<
+            _,
+            (
+                String,
+                Option<String>,
+                Option<String>,
+                i64,
+                i64,
+                i64,
+                String,
+                bool,
+                String,
+                bool,
+                bool,
+                String,
+                f32,
+                bool,
+                String,
+                i64,
+            ),
+        >(&sql);
 
         if let Some(doms) = domains {
             if doms.is_empty() {
@@ -349,15 +406,31 @@ impl PgMailboxStore {
         // deduplicate: same email may exist in both INBOX and Sent
         let (user_filter, user_filter_inner) = if let Some(doms) = domains {
             if !doms.is_empty() {
-                let placeholders: Vec<String> = doms.iter().enumerate().map(|(i, _)| format!("${}", i + 3)).collect();
-                let f = format!("mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))", placeholders.join(","));
-                let f2 = format!("mb2.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))", placeholders.join(","));
+                let placeholders: Vec<String> = doms
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| format!("${}", i + 3))
+                    .collect();
+                let f = format!(
+                    "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
+                    placeholders.join(",")
+                );
+                let f2 = format!(
+                    "mb2.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
+                    placeholders.join(",")
+                );
                 (f, f2)
             } else {
-                ("mb.user_address = $1".to_string(), "mb2.user_address = $1".to_string())
+                (
+                    "mb.user_address = $1".to_string(),
+                    "mb2.user_address = $1".to_string(),
+                )
             }
         } else {
-            ("mb.user_address = $1".to_string(), "mb2.user_address = $1".to_string())
+            (
+                "mb.user_address = $1".to_string(),
+                "mb2.user_address = $1".to_string(),
+            )
         };
 
         let sql = format!(
@@ -379,16 +452,15 @@ impl PgMailboxStore {
              ORDER BY m.internal_date ASC"
         );
 
-        let mut query = sqlx::query(&sql)
-            .bind(user)
-            .bind(thread_id);
+        let mut query = sqlx::query(&sql).bind(user).bind(thread_id);
 
         if let Some(doms) = domains
-            && !doms.is_empty() {
-                for d in doms {
-                    query = query.bind(d);
-                }
+            && !doms.is_empty()
+        {
+            for d in doms {
+                query = query.bind(d);
             }
+        }
 
         let rows = query.fetch_all(&self.pool).await?;
 
@@ -489,23 +561,22 @@ impl PgMailboxStore {
         domains: Option<&[String]>,
     ) -> Result<u32, sqlx::Error> {
         // determine user filter and param count
-        let (user_filter, extra_params) =
-            if let Some(doms) = domains.filter(|d| !d.is_empty()) {
-                let placeholders: Vec<String> = doms
-                    .iter()
-                    .enumerate()
-                    .map(|(i, _)| format!("${}", i + 3))
-                    .collect();
-                (
-                    format!(
-                        "user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
-                        placeholders.join(",")
-                    ),
-                    doms.len(),
-                )
-            } else {
-                ("user_address = $3".to_string(), 1usize)
-            };
+        let (user_filter, extra_params) = if let Some(doms) = domains.filter(|d| !d.is_empty()) {
+            let placeholders: Vec<String> = doms
+                .iter()
+                .enumerate()
+                .map(|(i, _)| format!("${}", i + 3))
+                .collect();
+            (
+                format!(
+                    "user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
+                    placeholders.join(",")
+                ),
+                doms.len(),
+            )
+        } else {
+            ("user_address = $3".to_string(), 1usize)
+        };
         let modseq_idx = 3 + extra_params;
 
         // bump highest_modseq for all affected mailboxes
@@ -722,11 +793,7 @@ impl PgMailboxStore {
     }
 
     /// unsnooze a conversation
-    pub async fn unsnooze_thread(
-        &self,
-        user: &str,
-        thread_id: &str,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn unsnooze_thread(&self, user: &str, thread_id: &str) -> Result<(), sqlx::Error> {
         sqlx::query(
             "DELETE FROM snoozed_conversations WHERE thread_id = $1 AND account_address = $2",
         )
@@ -837,7 +904,11 @@ impl PgMailboxStore {
     }
 
     /// dismiss action for all messages in a thread: clear requires_action and reverse importance boost
-    pub async fn dismiss_thread_action(&self, user: &str, thread_id: &str) -> Result<u32, sqlx::Error> {
+    pub async fn dismiss_thread_action(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> Result<u32, sqlx::Error> {
         let result = sqlx::query(
             "UPDATE email_analysis SET requires_action = false
              WHERE message_id IN (

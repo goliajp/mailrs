@@ -2,16 +2,19 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Query, State};
 use axum::response::IntoResponse;
-use axum::Json;
 
-
-use super::super::{validate_domains, AuthUser, WebState};
+use super::super::{AuthUser, WebState, validate_domains};
 use super::*;
 
 pub(crate) async fn search_conversations(
-    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
+    AuthUser {
+        address: ref user,
+        ref permissions,
+        ..
+    }: AuthUser,
     Query(q): Query<SearchQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -29,16 +32,20 @@ pub(crate) async fn search_conversations(
     // try meilisearch first for fast, typo-tolerant search
     let mut convos = if let Some(ref meili) = state.meili {
         match meili.search(&q.q, user, limit * 3).await {
-            Ok(thread_ids) if !thread_ids.is_empty() => {
-                mb_store
-                    .get_conversations_by_thread_ids(user, &thread_ids, domains.as_deref())
-                    .await
-                    .unwrap_or_default()
-            }
+            Ok(thread_ids) if !thread_ids.is_empty() => mb_store
+                .get_conversations_by_thread_ids(user, &thread_ids, domains.as_deref())
+                .await
+                .unwrap_or_default(),
             _ => {
                 // fall back to PG search
                 mb_store
-                    .search_conversations(user, &q.q, limit, q.category.as_deref(), domains.as_deref())
+                    .search_conversations(
+                        user,
+                        &q.q,
+                        limit,
+                        q.category.as_deref(),
+                        domains.as_deref(),
+                    )
                     .await
                     .unwrap_or_default()
             }
@@ -61,21 +68,25 @@ pub(crate) async fn search_conversations(
             domains.as_deref(),
         )
         .await
-        {
-            let existing: std::collections::HashSet<String> =
-                convos.iter().map(|c| c.thread_id.clone()).collect();
-            for c in extra {
-                if !existing.contains(&c.thread_id) {
-                    convos.push(c);
-                }
+    {
+        let existing: std::collections::HashSet<String> =
+            convos.iter().map(|c| c.thread_id.clone()).collect();
+        for c in extra {
+            if !existing.contains(&c.thread_id) {
+                convos.push(c);
             }
         }
+    }
 
     Json(convos_to_response(convos))
 }
 
 pub(crate) async fn semantic_search(
-    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
+    AuthUser {
+        address: ref user,
+        ref permissions,
+        ..
+    }: AuthUser,
     Query(q): Query<SearchQuery>,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -159,9 +170,10 @@ async fn semantic_search_threads(
             .unwrap_or_else(|| "general".to_string());
 
         if let Some(filter) = category
-            && cat != filter {
-                continue;
-            }
+            && cat != filter
+        {
+            continue;
+        }
 
         let participants: Vec<String> = msgs
             .iter()
@@ -182,8 +194,19 @@ async fn semantic_search_threads(
             snippet: String::new(),
             pinned: false,
             archived: false,
-            importance_level: msgs.iter().max_by(|a, b| a.importance_score.partial_cmp(&b.importance_score).unwrap_or(std::cmp::Ordering::Equal)).map(|m| m.importance_level.clone()).unwrap_or_else(|| "normal".into()),
-            importance_score: msgs.iter().map(|m| m.importance_score).fold(0.0f32, f32::max),
+            importance_level: msgs
+                .iter()
+                .max_by(|a, b| {
+                    a.importance_score
+                        .partial_cmp(&b.importance_score)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|m| m.importance_level.clone())
+                .unwrap_or_else(|| "normal".into()),
+            importance_score: msgs
+                .iter()
+                .map(|m| m.importance_score)
+                .fold(0.0f32, f32::max),
             requires_action: false,
             last_sender: last.sender.clone(),
             sent_count: 0,

@@ -27,7 +27,9 @@ const LONG_EHLO: &str = "\
 
 fn bench_parse_response(c: &mut Criterion) {
     let mut group = c.benchmark_group("parse_response");
-    group.bench_function("short", |b| b.iter(|| parse_response(black_box(SHORT_EHLO))));
+    group.bench_function("short", |b| {
+        b.iter(|| parse_response(black_box(SHORT_EHLO)))
+    });
     group.bench_function("long_ehlo_10_lines", |b| {
         b.iter(|| parse_response(black_box(LONG_EHLO)))
     });
@@ -84,5 +86,11 @@ fn bench_mx_cache(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_parse_response, bench_dot_stuff, bench_mx_sort, bench_mx_cache);
+criterion_group!(
+    benches,
+    bench_parse_response,
+    bench_dot_stuff,
+    bench_mx_sort,
+    bench_mx_cache
+);
 criterion_main!(benches);

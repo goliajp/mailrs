@@ -40,11 +40,23 @@ fn bench_address(c: &mut Criterion) {
 }
 
 fn bench_format_ehlo(c: &mut Criterion) {
-    let caps = ["SIZE 36700160", "STARTTLS", "8BITMIME", "PIPELINING", "AUTH PLAIN LOGIN", "DSN"];
+    let caps = [
+        "SIZE 36700160",
+        "STARTTLS",
+        "8BITMIME",
+        "PIPELINING",
+        "AUTH PLAIN LOGIN",
+        "DSN",
+    ];
     c.bench_function("format_ehlo_response", |b| {
         b.iter(|| format_ehlo_response(black_box("mail.example.com"), black_box(&caps)))
     });
 }
 
-criterion_group!(benches, bench_parse_command, bench_address, bench_format_ehlo);
+criterion_group!(
+    benches,
+    bench_parse_command,
+    bench_address,
+    bench_format_ehlo
+);
 criterion_main!(benches);

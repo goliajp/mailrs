@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use mailrs_inbound::{
-    build_auth_header, format_auth_results_header, make_delivery_decision, AuthResult, AuthResults,
-    DmarcPolicy, Pipeline, PipelineInput, ReceiveContext, Stage, StageOutcome,
+    AuthResult, AuthResults, DmarcPolicy, Pipeline, PipelineInput, ReceiveContext, Stage,
+    StageOutcome, build_auth_header, format_auth_results_header, make_delivery_decision,
 };
 
 const ITERS: usize = 100;

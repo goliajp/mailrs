@@ -2,9 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use mailrs_dmarc::{
-    DmarcResultRecord, extract_rua_from_dmarc_record, generate_dmarc_report_xml,
-};
+use mailrs_dmarc::{DmarcResultRecord, extract_rua_from_dmarc_record, generate_dmarc_report_xml};
 
 const ITERS: usize = 100;
 
@@ -38,13 +36,14 @@ fn sample_results(n: usize) -> Vec<DmarcResultRecord> {
 fn generate_dmarc_report_xml_n500_under_budget() {
     let results = sample_results(500);
     let median = time_median(|| {
-        let _ = generate_dmarc_report_xml(
-            "Org", "a@x", "r", "example.com", 0, 86400, &results,
-        );
+        let _ = generate_dmarc_report_xml("Org", "a@x", "r", "example.com", 0, 86400, &results);
     });
     // Budget: 30 ms. Observed P95: ~1.5 ms.
     let budget = Duration::from_millis(30);
-    assert!(median < budget, "generate_dmarc_report_xml(500) median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "generate_dmarc_report_xml(500) median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -55,5 +54,8 @@ fn extract_rua_under_budget() {
     });
     // Budget: 50 µs. Observed P95: ~1 µs.
     let budget = Duration::from_micros(50);
-    assert!(median < budget, "extract_rua median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "extract_rua median {median:?} exceeded {budget:?}"
+    );
 }

@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -55,7 +55,9 @@ pub(crate) async fn get_quota(
 
 pub(crate) async fn set_quota(
     Path(address): Path<String>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetQuotaRequest>,
 ) -> impl IntoResponse {
@@ -82,7 +84,7 @@ pub(crate) async fn set_quota(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }

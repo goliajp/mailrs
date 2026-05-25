@@ -446,10 +446,7 @@ mod tests {
             r.reported_uri.as_deref(),
             Some("https://evil.example/landing")
         );
-        assert_eq!(
-            r.authentication_results.as_deref(),
-            Some("y.com; spf=fail")
-        );
+        assert_eq!(r.authentication_results.as_deref(), Some("y.com; spf=fail"));
         assert_eq!(r.incidents.as_deref(), Some("5"));
     }
 }

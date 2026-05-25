@@ -1,5 +1,5 @@
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use rsa::pkcs1::EncodeRsaPublicKey;
 use rsa::pkcs8::EncodePrivateKey;
 use rsa::traits::PublicKeyParts;
@@ -74,10 +74,7 @@ pub(crate) fn sign_jwt(
 }
 
 /// convert an RSA public key PEM to a JWK JSON object
-pub(crate) fn pem_to_jwk(
-    public_key_pem: &str,
-    kid: &str,
-) -> Result<serde_json::Value, BoxError> {
+pub(crate) fn pem_to_jwk(public_key_pem: &str, kid: &str) -> Result<serde_json::Value, BoxError> {
     use rsa::pkcs1::DecodeRsaPublicKey;
 
     let pub_key = RsaPublicKey::from_pkcs1_pem(public_key_pem)
@@ -100,10 +97,7 @@ pub(crate) fn pem_to_jwk(
 }
 
 /// decode and verify a JWT against the given public key PEM, returning the claims
-pub(crate) fn verify_jwt(
-    token: &str,
-    public_key_pem: &str,
-) -> Result<serde_json::Value, BoxError> {
+pub(crate) fn verify_jwt(token: &str, public_key_pem: &str) -> Result<serde_json::Value, BoxError> {
     let key = jsonwebtoken::DecodingKey::from_rsa_pem(public_key_pem.as_bytes())
         .map_err(|e| -> BoxError { format!("invalid rsa pem for verification: {e}").into() })?;
 

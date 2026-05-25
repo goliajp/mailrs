@@ -29,7 +29,6 @@
 //! # }
 //! ```
 
-
 use hickory_resolver::TokioResolver;
 use serde::Serialize;
 
@@ -557,9 +556,8 @@ max_age: 604800\n";
 
     #[test]
     fn extract_tlsrpt_rua_multiple() {
-        let uris = extract_tlsrpt_rua(
-            "v=TLSRPTv1; rua=mailto:a@example.com,https://example.com/report",
-        );
+        let uris =
+            extract_tlsrpt_rua("v=TLSRPTv1; rua=mailto:a@example.com,https://example.com/report");
         assert_eq!(
             uris,
             vec!["mailto:a@example.com", "https://example.com/report"]
@@ -855,4 +853,3 @@ max_age: 86400\n";
         assert!(!record.contains("v=BIMI1"));
     }
 }
-

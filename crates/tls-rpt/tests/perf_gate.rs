@@ -34,7 +34,10 @@ fn parse_record_single_under_budget() {
         let _ = std::hint::black_box(TlsRptRecord::parse(std::hint::black_box(r)).unwrap());
     });
     let b = budget(2, 10);
-    assert!(per < b, "TlsRptRecord::parse single rua {per:?} (budget {b:?})");
+    assert!(
+        per < b,
+        "TlsRptRecord::parse single rua {per:?} (budget {b:?})"
+    );
 }
 
 #[test]
@@ -65,7 +68,10 @@ fn build_100_success_under_budget() {
         let _ = std::hint::black_box(builder.build().unwrap());
     });
     let b = budget(30, 150);
-    assert!(per < b, "ReportBuilder::build 100-success {per:?} (budget {b:?})");
+    assert!(
+        per < b,
+        "ReportBuilder::build 100-success {per:?} (budget {b:?})"
+    );
 }
 
 #[test]
@@ -87,5 +93,8 @@ fn serialize_100_success_under_budget() {
         let _ = std::hint::black_box(serde_json::to_vec(std::hint::black_box(&report)).unwrap());
     });
     let b = budget(8, 40);
-    assert!(per < b, "serde_json::to_vec 100-success {per:?} (budget {b:?})");
+    assert!(
+        per < b,
+        "serde_json::to_vec 100-success {per:?} (budget {b:?})"
+    );
 }

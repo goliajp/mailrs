@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use mailrs_inbound::{ReceiveContext, Stage, StageOutcome};
 
-use crate::inbound::content_scan::{scan_clamav, ClamavResult};
+use crate::inbound::content_scan::{ClamavResult, scan_clamav};
 
 /// Stage that streams the message body to a ClamAV `clamd` socket and
 /// writes `ctx.virus_found = Some(name)` on detection. Always continues —

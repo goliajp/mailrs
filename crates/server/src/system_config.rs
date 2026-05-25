@@ -82,14 +82,62 @@ pub struct ConfigKeyInfo {
 }
 
 pub const CONFIG_KEYS: &[ConfigKeyInfo] = &[
-    ConfigKeyInfo { key: "webhook_url", value_type: "string", group: "webhook", description: "Global webhook URL for new mail notifications", sensitive: false },
-    ConfigKeyInfo { key: "webhook_api_key", value_type: "string", group: "webhook", description: "Bearer token sent with webhook requests", sensitive: true },
-    ConfigKeyInfo { key: "ai_analysis_enabled", value_type: "bool", group: "ai", description: "Enable AI email analysis", sensitive: false },
-    ConfigKeyInfo { key: "llm_url", value_type: "string", group: "ai", description: "LLM API endpoint URL", sensitive: false },
-    ConfigKeyInfo { key: "llm_api_key", value_type: "string", group: "ai", description: "LLM API authentication key", sensitive: true },
-    ConfigKeyInfo { key: "antispam_enabled", value_type: "bool", group: "antispam", description: "Enable SPF/DKIM/DMARC checks", sensitive: false },
-    ConfigKeyInfo { key: "spam_score_threshold", value_type: "f64", group: "antispam", description: "Spam score threshold for rejection", sensitive: false },
-    ConfigKeyInfo { key: "smuggle_protection", value_type: "enum:strict,permissive,off", group: "security", description: "SMTP smuggling protection level", sensitive: false },
+    ConfigKeyInfo {
+        key: "webhook_url",
+        value_type: "string",
+        group: "webhook",
+        description: "Global webhook URL for new mail notifications",
+        sensitive: false,
+    },
+    ConfigKeyInfo {
+        key: "webhook_api_key",
+        value_type: "string",
+        group: "webhook",
+        description: "Bearer token sent with webhook requests",
+        sensitive: true,
+    },
+    ConfigKeyInfo {
+        key: "ai_analysis_enabled",
+        value_type: "bool",
+        group: "ai",
+        description: "Enable AI email analysis",
+        sensitive: false,
+    },
+    ConfigKeyInfo {
+        key: "llm_url",
+        value_type: "string",
+        group: "ai",
+        description: "LLM API endpoint URL",
+        sensitive: false,
+    },
+    ConfigKeyInfo {
+        key: "llm_api_key",
+        value_type: "string",
+        group: "ai",
+        description: "LLM API authentication key",
+        sensitive: true,
+    },
+    ConfigKeyInfo {
+        key: "antispam_enabled",
+        value_type: "bool",
+        group: "antispam",
+        description: "Enable SPF/DKIM/DMARC checks",
+        sensitive: false,
+    },
+    ConfigKeyInfo {
+        key: "spam_score_threshold",
+        value_type: "f64",
+        group: "antispam",
+        description: "Spam score threshold for rejection",
+        sensitive: false,
+    },
+    ConfigKeyInfo {
+        key: "smuggle_protection",
+        value_type: "enum:strict,permissive,off",
+        group: "security",
+        description: "SMTP smuggling protection level",
+        sensitive: false,
+    },
 ];
 
 pub fn find_key(key: &str) -> Option<&'static ConfigKeyInfo> {
@@ -98,12 +146,13 @@ pub fn find_key(key: &str) -> Option<&'static ConfigKeyInfo> {
 
 fn validate_value(info: &ConfigKeyInfo, value: &str) -> Result<(), String> {
     match info.value_type {
-        "bool"
-            if value != "true" && value != "false" => {
-                return Err(format!("expected 'true' or 'false', got '{value}'"));
-            }
+        "bool" if value != "true" && value != "false" => {
+            return Err(format!("expected 'true' or 'false', got '{value}'"));
+        }
         "f64" => {
-            value.parse::<f64>().map_err(|_| format!("expected number, got '{value}'"))?;
+            value
+                .parse::<f64>()
+                .map_err(|_| format!("expected number, got '{value}'"))?;
         }
         vt if vt.starts_with("enum:") => {
             let variants: Vec<&str> = vt[5..].split(',').collect();
@@ -217,12 +266,7 @@ impl SystemConfigStore {
     }
 
     /// set a config value: validate, write PG, invalidate cache, reload
-    pub async fn set(
-        &self,
-        key: &str,
-        value: &str,
-        actor: &str,
-    ) -> Result<(), String> {
+    pub async fn set(&self, key: &str, value: &str, actor: &str) -> Result<(), String> {
         let info = find_key(key).ok_or_else(|| format!("unknown config key: {key}"))?;
         validate_value(info, value)?;
 
@@ -242,7 +286,9 @@ impl SystemConfigStore {
         .map_err(|e| format!("database error: {e}"))?;
 
         self.valkey_del(VALKEY_KEY).await;
-        self.load_from_db().await.map_err(|e| format!("reload error: {e}"))?;
+        self.load_from_db()
+            .await
+            .map_err(|e| format!("reload error: {e}"))?;
 
         Ok(())
     }
@@ -260,7 +306,9 @@ impl SystemConfigStore {
             .map_err(|e| format!("database error: {e}"))?;
 
         self.valkey_del(VALKEY_KEY).await;
-        self.load_from_db().await.map_err(|e| format!("reload error: {e}"))?;
+        self.load_from_db()
+            .await
+            .map_err(|e| format!("reload error: {e}"))?;
 
         Ok(())
     }
@@ -277,20 +325,19 @@ impl SystemConfigStore {
                 let default_value = get_value(&RuntimeConfig::default(), info.key);
                 let env_value = get_value(&self.env_defaults, info.key);
 
-                let (source, updated_at, updated_by) =
-                    if let Some(ref db) = db_keys {
-                        if let Some((at, by)) = db.get(info.key) {
-                            ("database".into(), Some(at.clone()), Some(by.clone()))
-                        } else if env_value != default_value {
-                            ("env".into(), None, None)
-                        } else {
-                            ("default".into(), None, None)
-                        }
+                let (source, updated_at, updated_by) = if let Some(ref db) = db_keys {
+                    if let Some((at, by)) = db.get(info.key) {
+                        ("database".into(), Some(at.clone()), Some(by.clone()))
                     } else if env_value != default_value {
                         ("env".into(), None, None)
                     } else {
                         ("default".into(), None, None)
-                    };
+                    }
+                } else if env_value != default_value {
+                    ("env".into(), None, None)
+                } else {
+                    ("default".into(), None, None)
+                };
 
                 // mask sensitive values
                 let display_value = if info.sensitive {
@@ -324,10 +371,7 @@ impl SystemConfigStore {
 }
 
 /// background reload task
-pub async fn reload_task(
-    store: Arc<SystemConfigStore>,
-    mut shutdown: watch::Receiver<bool>,
-) {
+pub async fn reload_task(store: Arc<SystemConfigStore>, mut shutdown: watch::Receiver<bool>) {
     let mut interval = tokio::time::interval(RELOAD_INTERVAL);
     loop {
         tokio::select! {
@@ -349,11 +393,29 @@ pub async fn reload_task(
 
 fn apply_value(cfg: &mut RuntimeConfig, key: &str, value: &str) {
     match key {
-        "webhook_url" => cfg.webhook_url = if value.is_empty() { None } else { Some(value.into()) },
-        "webhook_api_key" => cfg.webhook_api_key = if value.is_empty() { None } else { Some(value.into()) },
+        "webhook_url" => {
+            cfg.webhook_url = if value.is_empty() {
+                None
+            } else {
+                Some(value.into())
+            }
+        }
+        "webhook_api_key" => {
+            cfg.webhook_api_key = if value.is_empty() {
+                None
+            } else {
+                Some(value.into())
+            }
+        }
         "ai_analysis_enabled" => cfg.ai_analysis_enabled = value == "true",
         "llm_url" => cfg.llm_url = value.into(),
-        "llm_api_key" => cfg.llm_api_key = if value.is_empty() { None } else { Some(value.into()) },
+        "llm_api_key" => {
+            cfg.llm_api_key = if value.is_empty() {
+                None
+            } else {
+                Some(value.into())
+            }
+        }
         "antispam_enabled" => cfg.antispam_enabled = value == "true",
         "spam_score_threshold" => {
             if let Ok(v) = value.parse() {

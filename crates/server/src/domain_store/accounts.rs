@@ -2,7 +2,7 @@
 
 use std::time::Instant;
 
-use super::{Account, CachedAccount, DomainStore, Result, CACHE_TTL_SECS};
+use super::{Account, CACHE_TTL_SECS, CachedAccount, DomainStore, Result};
 
 impl DomainStore {
     /// preload all accounts into process cache for L3 degradation
@@ -17,8 +17,16 @@ impl DomainStore {
         .await;
 
         if let Ok(rows) = rows {
-            for (address, domain, display_name, active, created_at, quota_bytes, password_hash, recovery_email) in
-                rows
+            for (
+                address,
+                domain,
+                display_name,
+                active,
+                created_at,
+                quota_bytes,
+                password_hash,
+                recovery_email,
+            ) in rows
             {
                 let account = Account {
                     address: address.clone(),
@@ -54,7 +62,15 @@ impl DomainStore {
         Ok(rows
             .into_iter()
             .map(
-                |(address, domain, display_name, active, created_at, quota_bytes, recovery_email)| Account {
+                |(
+                    address,
+                    domain,
+                    display_name,
+                    active,
+                    created_at,
+                    quota_bytes,
+                    recovery_email,
+                )| Account {
                     address,
                     domain,
                     display_name,
@@ -76,20 +92,21 @@ impl DomainStore {
         _now: i64,
     ) -> Result<()> {
         let pool = self.pg()?;
-        let (active, created_epoch, quota_bytes, recovery_email): (bool, i64, i64, String) = sqlx::query_as(
-            "INSERT INTO accounts (address, domain, display_name, password_hash) \
+        let (active, created_epoch, quota_bytes, recovery_email): (bool, i64, i64, String) =
+            sqlx::query_as(
+                "INSERT INTO accounts (address, domain, display_name, password_hash) \
              VALUES ($1, $2, $3, $4) \
              ON CONFLICT (address) DO UPDATE SET \
              domain = EXCLUDED.domain, display_name = EXCLUDED.display_name, \
              password_hash = EXCLUDED.password_hash \
              RETURNING active, EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, recovery_email",
-        )
-        .bind(address)
-        .bind(domain)
-        .bind(display_name)
-        .bind(password_hash)
-        .fetch_one(pool)
-        .await?;
+            )
+            .bind(address)
+            .bind(domain)
+            .bind(display_name)
+            .bind(password_hash)
+            .fetch_one(pool)
+            .await?;
 
         // update caches with actual PG state
         let account = Account {
@@ -115,16 +132,18 @@ impl DomainStore {
         Ok(())
     }
 
-    pub async fn update_account_display_name(&self, address: &str, display_name: &str) -> Result<bool> {
+    pub async fn update_account_display_name(
+        &self,
+        address: &str,
+        display_name: &str,
+    ) -> Result<bool> {
         let pool = self.pg()?;
-        let rows = sqlx::query(
-            "UPDATE accounts SET display_name = $2 WHERE address = $1",
-        )
-        .bind(address)
-        .bind(display_name)
-        .execute(pool)
-        .await?
-        .rows_affected();
+        let rows = sqlx::query("UPDATE accounts SET display_name = $2 WHERE address = $1")
+            .bind(address)
+            .bind(display_name)
+            .execute(pool)
+            .await?
+            .rows_affected();
         if rows > 0 {
             // invalidate caches
             self.account_cache.remove(address);
@@ -151,7 +170,16 @@ impl DomainStore {
             .fetch_optional(pool)
             .await?;
 
-            if let Some((addr, domain, display_name, active, created_at, quota_bytes, hash, recovery_email)) = row
+            if let Some((
+                addr,
+                domain,
+                display_name,
+                active,
+                created_at,
+                quota_bytes,
+                hash,
+                recovery_email,
+            )) = row
             {
                 let account = Account {
                     address: addr,

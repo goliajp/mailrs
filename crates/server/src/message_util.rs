@@ -156,13 +156,19 @@ mod tests {
     #[test]
     fn extract_header_folded() {
         let raw = b"Subject: This is a very long\r\n subject line\r\n\r\nbody";
-        assert_eq!(extract_header_from_raw(raw, "Subject"), "This is a very long subject line");
+        assert_eq!(
+            extract_header_from_raw(raw, "Subject"),
+            "This is a very long subject line"
+        );
     }
 
     #[test]
     fn extract_header_folded_tab() {
         let raw = b"To: alice@example.com,\r\n\tbob@example.com\r\n\r\n";
-        assert_eq!(extract_header_from_raw(raw, "To"), "alice@example.com, bob@example.com");
+        assert_eq!(
+            extract_header_from_raw(raw, "To"),
+            "alice@example.com, bob@example.com"
+        );
     }
 
     #[test]

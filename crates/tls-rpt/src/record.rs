@@ -112,10 +112,7 @@ mod tests {
     fn parse_minimal_mailto() {
         let r = TlsRptRecord::parse("v=TLSRPTv1; rua=mailto:tlsrpt@example.com").unwrap();
         assert_eq!(r.rua.len(), 1);
-        assert_eq!(
-            r.rua[0],
-            RuaEndpoint::Mailto("tlsrpt@example.com".into())
-        );
+        assert_eq!(r.rua[0], RuaEndpoint::Mailto("tlsrpt@example.com".into()));
     }
 
     #[test]
@@ -136,10 +133,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(r.rua.len(), 2);
-        assert_eq!(
-            r.rua[0],
-            RuaEndpoint::Mailto("tlsrpt@example.com".into())
-        );
+        assert_eq!(r.rua[0], RuaEndpoint::Mailto("tlsrpt@example.com".into()));
         assert_eq!(
             r.rua[1],
             RuaEndpoint::Https("https://reports.example.com/tlsrpt".into())
@@ -160,10 +154,8 @@ mod tests {
 
     #[test]
     fn parse_ignores_unknown_tags() {
-        let r = TlsRptRecord::parse(
-            "v=TLSRPTv1; rua=mailto:t@e.com; future=whatever; other=42",
-        )
-        .unwrap();
+        let r = TlsRptRecord::parse("v=TLSRPTv1; rua=mailto:t@e.com; future=whatever; other=42")
+            .unwrap();
         assert_eq!(r.rua.len(), 1);
     }
 

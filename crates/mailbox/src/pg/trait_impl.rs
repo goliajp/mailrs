@@ -26,12 +26,10 @@ async fn resolve_mailbox_user_and_dst(
     src_mailbox: i64,
     dst_mailbox: i64,
 ) -> Result<(String, String), StoreError> {
-    let src: (String,) = sqlx::query_as(
-        "SELECT user_address FROM mailboxes WHERE id = $1",
-    )
-    .bind(src_mailbox)
-    .fetch_one(store.pool())
-    .await?;
+    let src: (String,) = sqlx::query_as("SELECT user_address FROM mailboxes WHERE id = $1")
+        .bind(src_mailbox)
+        .fetch_one(store.pool())
+        .await?;
     let dst: (String,) = sqlx::query_as("SELECT name FROM mailboxes WHERE id = $1")
         .bind(dst_mailbox)
         .fetch_one(store.pool())
@@ -65,11 +63,15 @@ fn meta_to_message(m: MessageMeta) -> Message {
 #[async_trait]
 impl MailboxStore for PgMailboxStore {
     async fn create_mailbox(&self, user: &str, name: &str) -> Result<Mailbox, StoreError> {
-        Self::create_mailbox(self, user, name).await.map_err(Into::into)
+        Self::create_mailbox(self, user, name)
+            .await
+            .map_err(Into::into)
     }
 
     async fn delete_mailbox(&self, user: &str, name: &str) -> Result<bool, StoreError> {
-        Self::delete_mailbox(self, user, name).await.map_err(Into::into)
+        Self::delete_mailbox(self, user, name)
+            .await
+            .map_err(Into::into)
     }
 
     async fn rename_mailbox(&self, user: &str, from: &str, to: &str) -> Result<(), StoreError> {
@@ -82,7 +84,9 @@ impl MailboxStore for PgMailboxStore {
     }
 
     async fn get_mailbox(&self, user: &str, name: &str) -> Result<Option<Mailbox>, StoreError> {
-        Self::get_mailbox(self, user, name).await.map_err(Into::into)
+        Self::get_mailbox(self, user, name)
+            .await
+            .map_err(Into::into)
     }
 
     async fn get_mailbox_by_id(&self, id: i64) -> Result<Option<Mailbox>, StoreError> {
@@ -92,7 +96,11 @@ impl MailboxStore for PgMailboxStore {
     async fn mailbox_status(&self, mailbox_id: i64) -> Result<MailboxStatus, StoreError> {
         let (total, unread) = Self::mailbox_status(self, mailbox_id).await?;
         // PG impl doesn't track \Recent per session; surface 0.
-        Ok(MailboxStatus { total, unread, recent: 0 })
+        Ok(MailboxStatus {
+            total,
+            unread,
+            recent: 0,
+        })
     }
 
     async fn insert_message(&self, input: InsertMessage<'_>) -> Result<Inserted, StoreError> {
@@ -221,34 +229,19 @@ impl MailboxStore for PgMailboxStore {
         Self::expunge(self, mailbox_id).await.map_err(Into::into)
     }
 
-    async fn set_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<u64, StoreError> {
+    async fn set_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<u64, StoreError> {
         Self::update_flags(self, mailbox_id, uid, flags)
             .await
             .map_err(Into::into)
     }
 
-    async fn add_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<u64, StoreError> {
+    async fn add_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<u64, StoreError> {
         Self::add_flags(self, mailbox_id, uid, flags)
             .await
             .map_err(Into::into)
     }
 
-    async fn remove_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<u64, StoreError> {
+    async fn remove_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<u64, StoreError> {
         Self::remove_flags(self, mailbox_id, uid, flags)
             .await
             .map_err(Into::into)
@@ -326,10 +319,7 @@ impl MailboxStore for PgMailboxStore {
         Ok(metas.into_iter().map(meta_to_message).collect())
     }
 
-    async fn query_messages(
-        &self,
-        filter: QueryFilter<'_>,
-    ) -> Result<Vec<Message>, StoreError> {
+    async fn query_messages(&self, filter: QueryFilter<'_>) -> Result<Vec<Message>, StoreError> {
         let user = filter.user.unwrap_or("");
         let (ids, _total) = Self::query_messages(
             self,

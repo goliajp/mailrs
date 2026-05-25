@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::message_util;
@@ -139,16 +139,14 @@ pub(crate) async fn export_mbox(
                 break;
             }
             for msg in &messages {
-                if let Some(raw) = message_util::read_message_raw(
-                    &state.maildir_root,
-                    &user,
-                    &msg.maildir_id,
-                ) {
+                if let Some(raw) =
+                    message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id)
+                {
                     // mbox "From " line: use sender and date_epoch
                     let sender = msg.sender.trim();
                     let sender_addr = super::common::extract_address(sender);
-                    let datetime = chrono::DateTime::from_timestamp(msg.date, 0)
-                        .unwrap_or_default();
+                    let datetime =
+                        chrono::DateTime::from_timestamp(msg.date, 0).unwrap_or_default();
                     let from_line = format!(
                         "From {} {}\n",
                         sender_addr,

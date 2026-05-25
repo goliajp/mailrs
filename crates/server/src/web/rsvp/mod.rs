@@ -14,21 +14,20 @@
 use std::sync::Arc;
 
 use axum::{
+    Json,
     extract::{Path, State},
     response::IntoResponse,
-    Json,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::{AuthUser, WebState};
 
-
 mod calendar;
 mod ics;
 
-use calendar::write_to_own_calendar;
 use calendar::extract_caldatetime_to_utc;
+use calendar::write_to_own_calendar;
 use ics::{build_counter_ics, build_reply_ics};
 
 #[derive(Deserialize)]
@@ -51,7 +50,6 @@ pub(super) struct RsvpResult {
     pub success: bool,
     pub message: Option<String>,
 }
-
 
 pub(super) async fn submit_rsvp(
     Path(uid): Path<u32>,
@@ -151,9 +149,7 @@ pub(super) async fn submit_rsvp(
         _ => "responded to",
     };
 
-    let body_text = format!(
-        "{user} has {action_phrase} the invitation to: {summary}\r\n",
-    );
+    let body_text = format!("{user} has {action_phrase} the invitation to: {summary}\r\n",);
 
     let raw_email = format!(
         "From: {user}\r\n\
@@ -206,20 +202,18 @@ pub(super) async fn submit_rsvp(
             effective_recurrence_id,
         )
         .await
-        {
-            tracing::warn!("rsvp write_to_own_calendar failed: {e}");
-        }
+    {
+        tracing::warn!("rsvp write_to_own_calendar failed: {e}");
+    }
 
     // MRS-19: persist the partstat on the message row so the invite-card
     // can render an "already replied" state on subsequent page loads.
-    if let Err(e) = sqlx::query(
-        "UPDATE messages SET rsvp_status = $1, rsvp_at = $2 WHERE id = $3",
-    )
-    .bind(&partstat)
-    .bind(now_utc)
-    .bind(message_id)
-    .execute(pool)
-    .await
+    if let Err(e) = sqlx::query("UPDATE messages SET rsvp_status = $1, rsvp_at = $2 WHERE id = $3")
+        .bind(&partstat)
+        .bind(now_utc)
+        .bind(message_id)
+        .execute(pool)
+        .await
     {
         tracing::warn!("rsvp status persist failed for {message_id}: {e}");
     }
@@ -230,7 +224,6 @@ pub(super) async fn submit_rsvp(
         message: Some(format!("REPLY sent to {organizer_email}")),
     })
 }
-
 
 #[derive(Deserialize)]
 pub(super) struct CounterRequest {

@@ -1,7 +1,7 @@
 //! Regression budgets for `mailrs-smtp-codec`. See BUDGETS.md.
 
-use std::time::{Duration, Instant};
 use mailrs_smtp_codec::has_smuggle_sequence;
+use std::time::{Duration, Instant};
 
 const ITERS: usize = 200;
 

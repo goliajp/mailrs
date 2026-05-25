@@ -93,7 +93,8 @@ async fn one_hop_chain_rsa_sha256_roundtrip_passes() {
 
     // 4. Compute the AMS signed block exactly as the verifier would.
     let body_offset = find_body_offset(&headers_for_signing).unwrap();
-    let headers_region = &headers_for_signing[..body_offset_minus_blank(body_offset, &headers_for_signing)];
+    let headers_region =
+        &headers_for_signing[..body_offset_minus_blank(body_offset, &headers_for_signing)];
 
     let mut signed_block = Vec::new();
     for h_name in ["from", "to", "subject"] {
@@ -121,9 +122,8 @@ async fn one_hop_chain_rsa_sha256_roundtrip_passes() {
 
     // 6. Build the AS signed block (relaxed canon of AAR + AMS + AS-with-b=empty).
     // AS value extracted from a placeholder AS header.
-    let as_no_sig = format!(
-        "ARC-Seal: i=1; a=rsa-sha256; cv=none; d={DOMAIN}; s={SELECTOR}; b=\r\n"
-    );
+    let as_no_sig =
+        format!("ARC-Seal: i=1; a=rsa-sha256; cv=none; d={DOMAIN}; s={SELECTOR}; b=\r\n");
     // For canonicalizing AAR / AMS we want their values without the `Name:` prefix.
     let aar_value = aar.trim_start_matches("ARC-Authentication-Results:");
     let aar_value = aar_value.trim_start_matches(' ').trim_end_matches("\r\n");
@@ -237,14 +237,18 @@ async fn tampered_body_makes_body_hash_mismatch_fail() {
     );
 
     // AS (minimal — uses similar logic but we only care about AMS path here)
-    let as_no_sig = format!("ARC-Seal: i=1; a=rsa-sha256; cv=none; d={DOMAIN}; s={SELECTOR}; b=\r\n");
-    let aar_v = aar.trim_start_matches("ARC-Authentication-Results:")
+    let as_no_sig =
+        format!("ARC-Seal: i=1; a=rsa-sha256; cv=none; d={DOMAIN}; s={SELECTOR}; b=\r\n");
+    let aar_v = aar
+        .trim_start_matches("ARC-Authentication-Results:")
         .trim_start_matches(' ')
         .trim_end_matches("\r\n");
-    let ams_v = ams_signed.trim_start_matches("ARC-Message-Signature:")
+    let ams_v = ams_signed
+        .trim_start_matches("ARC-Message-Signature:")
         .trim_start_matches(' ')
         .trim_end_matches("\r\n");
-    let as_v = as_no_sig.trim_start_matches("ARC-Seal:")
+    let as_v = as_no_sig
+        .trim_start_matches("ARC-Seal:")
         .trim_start_matches(' ')
         .trim_end_matches("\r\n");
     let as_cleared = clear_b_value(as_v);

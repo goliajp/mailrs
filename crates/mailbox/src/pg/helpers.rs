@@ -3,19 +3,29 @@ use sqlx::Row;
 
 /// build a user_address filter clause and collect bind values
 /// returns (sql_fragment, bind_values) where bind values start at `start_idx`
-pub(crate) fn build_user_filter(user: &str, domains: Option<&[String]>, start_idx: u32) -> (String, Vec<String>) {
+pub(crate) fn build_user_filter(
+    user: &str,
+    domains: Option<&[String]>,
+    start_idx: u32,
+) -> (String, Vec<String>) {
     if let Some(doms) = domains
-        && !doms.is_empty() {
-            let placeholders: Vec<String> = doms.iter().enumerate()
-                .map(|(i, _)| format!("${}", start_idx + i as u32))
-                .collect();
-            let sql = format!(
-                "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
-                placeholders.join(",")
-            );
-            return (sql, doms.to_vec());
-        }
-    (format!("mb.user_address = ${start_idx}"), vec![user.to_string()])
+        && !doms.is_empty()
+    {
+        let placeholders: Vec<String> = doms
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("${}", start_idx + i as u32))
+            .collect();
+        let sql = format!(
+            "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
+            placeholders.join(",")
+        );
+        return (sql, doms.to_vec());
+    }
+    (
+        format!("mb.user_address = ${start_idx}"),
+        vec![user.to_string()],
+    )
 }
 
 /// convert a tuple row to MessageMeta
@@ -24,7 +34,23 @@ pub(crate) fn build_user_filter(user: &str, domains: Option<&[String]>, start_id
 // MessageMeta type for no clarity gain.
 #[allow(clippy::type_complexity)]
 pub(crate) fn row_to_message_meta(
-    r: (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64),
+    r: (
+        i64,
+        i64,
+        i32,
+        String,
+        String,
+        String,
+        String,
+        i64,
+        i32,
+        i32,
+        i64,
+        String,
+        String,
+        String,
+        i64,
+    ),
 ) -> MessageMeta {
     MessageMeta {
         id: r.0,
@@ -94,7 +120,11 @@ pub(crate) fn extract_header_value(data: &[u8], name: &str) -> String {
 }
 
 /// read raw message bytes from maildir
-pub(crate) fn read_raw_from_maildir(maildir_root: &str, user: &str, maildir_id: &str) -> Option<Vec<u8>> {
+pub(crate) fn read_raw_from_maildir(
+    maildir_root: &str,
+    user: &str,
+    maildir_id: &str,
+) -> Option<Vec<u8>> {
     let (local, domain) = user.split_once('@')?;
     let path = format!("{maildir_root}/{domain}/{local}");
     let md = mailrs_maildir::Maildir::open(&path);
@@ -113,7 +143,7 @@ pub(crate) fn read_raw_from_maildir(maildir_root: &str, user: &str, maildir_id: 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{ConversationSummary, FlagAction, Mailbox, MessageMeta, FLAG_SEEN};
+    use crate::types::{ConversationSummary, FLAG_SEEN, FlagAction, Mailbox, MessageMeta};
 
     #[test]
     fn extract_header_value_basic() {
@@ -180,7 +210,11 @@ mod tests {
 
     #[test]
     fn build_user_filter_multiple_domains() {
-        let domains = vec!["a.com".to_string(), "b.com".to_string(), "c.com".to_string()];
+        let domains = vec![
+            "a.com".to_string(),
+            "b.com".to_string(),
+            "c.com".to_string(),
+        ];
         let (sql, binds) = build_user_filter("user@a.com", Some(&domains), 1);
         assert_eq!(
             sql,
@@ -209,12 +243,17 @@ mod tests {
     #[test]
     fn row_to_message_meta_converts_correctly() {
         let row = (
-            42i64, 7i64, 100i32,
+            42i64,
+            7i64,
+            100i32,
             "maildir-abc".to_string(),
             "sender@test.com".to_string(),
             "rcpt@test.com".to_string(),
             "Test Subject".to_string(),
-            1700000000i64, 2048i32, 1i32, 1700000001i64,
+            1700000000i64,
+            2048i32,
+            1i32,
+            1700000001i64,
             "<msg-001@test.com>".to_string(),
             "<parent@test.com>".to_string(),
             "thread-xyz".to_string(),
@@ -243,10 +282,21 @@ mod tests {
     fn row_to_message_meta_defaults() {
         // row_to_message_meta sets default importance fields
         let row = (
-            1i64, 2i64, 3i32,
-            "mid".to_string(), "s".to_string(), "r".to_string(), "sub".to_string(),
-            0i64, 0i32, 0i32, 0i64,
-            "".to_string(), "".to_string(), "".to_string(), 0i64,
+            1i64,
+            2i64,
+            3i32,
+            "mid".to_string(),
+            "s".to_string(),
+            "r".to_string(),
+            "sub".to_string(),
+            0i64,
+            0i32,
+            0i32,
+            0i64,
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            0i64,
         );
         let meta = row_to_message_meta(row);
         assert_eq!(meta.user_address, "");
@@ -262,14 +312,27 @@ mod tests {
     #[test]
     fn message_meta_clone() {
         let meta = MessageMeta {
-            id: 1, mailbox_id: 2, uid: 3, maildir_id: "abc".into(),
-            sender: "s@t.com".into(), recipients: "r@t.com".into(),
-            subject: "sub".into(), date: 100, size: 50, flags: FLAG_SEEN,
-            internal_date: 101, message_id: "mid".into(),
-            in_reply_to: "irt".into(), thread_id: "tid".into(),
-            modseq: 42, user_address: "u@t.com".into(),
-            importance_level: "normal".into(), importance_score: 0.0,
-            is_bulk_sender: false, has_tracking_pixel: false, new_content: None,
+            id: 1,
+            mailbox_id: 2,
+            uid: 3,
+            maildir_id: "abc".into(),
+            sender: "s@t.com".into(),
+            recipients: "r@t.com".into(),
+            subject: "sub".into(),
+            date: 100,
+            size: 50,
+            flags: FLAG_SEEN,
+            internal_date: 101,
+            message_id: "mid".into(),
+            in_reply_to: "irt".into(),
+            thread_id: "tid".into(),
+            modseq: 42,
+            user_address: "u@t.com".into(),
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            is_bulk_sender: false,
+            has_tracking_pixel: false,
+            new_content: None,
         };
         let cloned = meta.clone();
         assert_eq!(cloned.id, meta.id);
@@ -281,13 +344,27 @@ mod tests {
     #[test]
     fn message_meta_debug() {
         let meta = MessageMeta {
-            id: 1, mailbox_id: 2, uid: 3, maildir_id: "abc".into(),
-            sender: "s".into(), recipients: "r".into(), subject: "sub".into(),
-            date: 0, size: 0, flags: 0, internal_date: 0,
-            message_id: "".into(), in_reply_to: "".into(), thread_id: "".into(),
-            modseq: 0, user_address: "".into(),
-            importance_level: "normal".into(), importance_score: 0.0,
-            is_bulk_sender: false, has_tracking_pixel: false, new_content: None,
+            id: 1,
+            mailbox_id: 2,
+            uid: 3,
+            maildir_id: "abc".into(),
+            sender: "s".into(),
+            recipients: "r".into(),
+            subject: "sub".into(),
+            date: 0,
+            size: 0,
+            flags: 0,
+            internal_date: 0,
+            message_id: "".into(),
+            in_reply_to: "".into(),
+            thread_id: "".into(),
+            modseq: 0,
+            user_address: "".into(),
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            is_bulk_sender: false,
+            has_tracking_pixel: false,
+            new_content: None,
         };
         let debug = format!("{:?}", meta);
         assert!(debug.contains("MessageMeta"));
@@ -299,12 +376,20 @@ mod tests {
     #[test]
     fn conversation_summary_clone() {
         let cs = ConversationSummary {
-            thread_id: "t1".into(), subject: "Hello".into(),
-            participants: "alice,bob".into(), message_count: 5,
-            unread_count: 2, last_date: 1700000000, category: "general".into(),
-            flagged: true, snippet: "preview text".into(),
-            pinned: false, archived: false,
-            importance_level: "normal".into(), importance_score: 0.0, requires_action: false,
+            thread_id: "t1".into(),
+            subject: "Hello".into(),
+            participants: "alice,bob".into(),
+            message_count: 5,
+            unread_count: 2,
+            last_date: 1700000000,
+            category: "general".into(),
+            flagged: true,
+            snippet: "preview text".into(),
+            pinned: false,
+            archived: false,
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            requires_action: false,
             last_sender: "alice".into(),
             sent_count: 0,
         };
@@ -321,12 +406,20 @@ mod tests {
     #[test]
     fn conversation_summary_debug() {
         let cs = ConversationSummary {
-            thread_id: "t1".into(), subject: "Hi".into(),
-            participants: "a".into(), message_count: 1,
-            unread_count: 0, last_date: 0, category: "promo".into(),
-            flagged: false, snippet: "".into(),
-            pinned: true, archived: true,
-            importance_level: "normal".into(), importance_score: 0.0, requires_action: false,
+            thread_id: "t1".into(),
+            subject: "Hi".into(),
+            participants: "a".into(),
+            message_count: 1,
+            unread_count: 0,
+            last_date: 0,
+            category: "promo".into(),
+            flagged: false,
+            snippet: "".into(),
+            pinned: true,
+            archived: true,
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            requires_action: false,
             last_sender: "a".into(),
             sent_count: 0,
         };
@@ -340,8 +433,12 @@ mod tests {
     #[test]
     fn mailbox_clone_and_debug() {
         let mb = Mailbox {
-            id: 10, user: "bob@test.com".into(), name: "INBOX".into(),
-            uidvalidity: 12345, uidnext: 99, highest_modseq: 50,
+            id: 10,
+            user: "bob@test.com".into(),
+            name: "INBOX".into(),
+            uidvalidity: 12345,
+            uidnext: 99,
+            highest_modseq: 50,
         };
         let cloned = mb.clone();
         assert_eq!(cloned.id, 10);
@@ -367,7 +464,10 @@ mod tests {
     #[test]
     fn extract_header_value_multiple_colons() {
         let msg = b"Subject: Re: Re: Important: urgent\r\n\r\n";
-        assert_eq!(extract_header_value(msg, "Subject"), "Re: Re: Important: urgent");
+        assert_eq!(
+            extract_header_value(msg, "Subject"),
+            "Re: Re: Important: urgent"
+        );
     }
 
     #[test]
@@ -450,7 +550,12 @@ mod tests {
     #[test]
     fn build_user_filter_placeholder_indexing_is_dense() {
         // Domain placeholders are consecutive: $start, $start+1, $start+2, ...
-        let doms = vec!["a".to_string(), "b".to_string(), "c".to_string(), "d".to_string()];
+        let doms = vec![
+            "a".to_string(),
+            "b".to_string(),
+            "c".to_string(),
+            "d".to_string(),
+        ];
         let (sql, _) = build_user_filter("u@a", Some(&doms), 7);
         assert!(sql.contains("$7,$8,$9,$10"));
     }
@@ -527,9 +632,21 @@ mod tests {
     fn row_to_message_meta_negative_uid_wraps_to_u32() {
         // The function casts i32 → u32; negative becomes very large.
         let row = (
-            1i64, 2i64, -1i32, "m".to_string(), "s".to_string(), "r".to_string(),
-            "sub".to_string(), 0i64, 0i32, 0i32, 0i64,
-            "".to_string(), "".to_string(), "".to_string(), 0i64,
+            1i64,
+            2i64,
+            -1i32,
+            "m".to_string(),
+            "s".to_string(),
+            "r".to_string(),
+            "sub".to_string(),
+            0i64,
+            0i32,
+            0i32,
+            0i64,
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            0i64,
         );
         let meta = row_to_message_meta(row);
         assert_eq!(meta.uid, u32::MAX, "i32::-1 casts to u32::MAX");
@@ -538,9 +655,21 @@ mod tests {
     #[test]
     fn row_to_message_meta_negative_modseq_wraps_to_u64() {
         let row = (
-            1i64, 2i64, 0i32, "m".to_string(), "s".to_string(), "r".to_string(),
-            "sub".to_string(), 0i64, 0i32, 0i32, 0i64,
-            "".to_string(), "".to_string(), "".to_string(), -1i64,
+            1i64,
+            2i64,
+            0i32,
+            "m".to_string(),
+            "s".to_string(),
+            "r".to_string(),
+            "sub".to_string(),
+            0i64,
+            0i32,
+            0i32,
+            0i64,
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            -1i64,
         );
         let meta = row_to_message_meta(row);
         assert_eq!(meta.modseq, u64::MAX);
@@ -549,10 +678,21 @@ mod tests {
     #[test]
     fn row_to_message_meta_max_values_preserved() {
         let row = (
-            i64::MAX, i64::MAX, i32::MAX,
-            "m".to_string(), "s".to_string(), "r".to_string(), "sub".to_string(),
-            i64::MAX, i32::MAX, i32::MAX, i64::MAX,
-            "mid".to_string(), "irt".to_string(), "tid".to_string(), i64::MAX,
+            i64::MAX,
+            i64::MAX,
+            i32::MAX,
+            "m".to_string(),
+            "s".to_string(),
+            "r".to_string(),
+            "sub".to_string(),
+            i64::MAX,
+            i32::MAX,
+            i32::MAX,
+            i64::MAX,
+            "mid".to_string(),
+            "irt".to_string(),
+            "tid".to_string(),
+            i64::MAX,
         );
         let meta = row_to_message_meta(row);
         assert_eq!(meta.id, i64::MAX);

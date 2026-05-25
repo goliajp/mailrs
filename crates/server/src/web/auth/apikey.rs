@@ -39,14 +39,19 @@ pub(super) async fn verify_api_key(
         Some(c) => c,
         None => {
             // cache miss — query PG
-            let pool = state
-                .pg_pool
-                .as_ref()
-                .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "auth backend unavailable"))?;
+            let pool = state.pg_pool.as_ref().ok_or((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "auth backend unavailable",
+            ))?;
 
             let record = api_key_store::get_api_key_by_prefix(pool, prefix)
                 .await
-                .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "auth backend unavailable"))?
+                .map_err(|_| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "auth backend unavailable",
+                    )
+                })?
                 .ok_or((StatusCode::UNAUTHORIZED, "invalid api key"))?;
 
             let entry = api_key_store::CachedApiKey {
@@ -74,9 +79,10 @@ pub(super) async fn verify_api_key(
 
     // check expiration
     if let Some(expires_at) = cached.expires_at
-        && expires_at < Utc::now() {
-            return Err((StatusCode::UNAUTHORIZED, "api key expired"));
-        }
+        && expires_at < Utc::now()
+    {
+        return Err((StatusCode::UNAUTHORIZED, "api key expired"));
+    }
 
     // fire-and-forget last_used_at update
     if let Some(ref pool) = state.pg_pool {
@@ -119,7 +125,10 @@ pub(super) async fn verify_api_key(
                 }
             }
         } else {
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, "auth backend unavailable"));
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "auth backend unavailable",
+            ));
         }
     } else {
         // user key: permissions come from account groups

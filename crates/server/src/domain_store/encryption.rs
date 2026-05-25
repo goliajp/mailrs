@@ -47,19 +47,14 @@ impl DomainStore {
     }
 
     /// delete an encryption key; returns true if a row was deleted
-    pub async fn delete_encryption_key(
-        &self,
-        address: &str,
-        key_type: &str,
-    ) -> Result<bool> {
+    pub async fn delete_encryption_key(&self, address: &str, key_type: &str) -> Result<bool> {
         let pool = self.pg()?;
-        let res = sqlx::query(
-            "DELETE FROM encryption_keys WHERE account_address = $1 AND key_type = $2",
-        )
-        .bind(address)
-        .bind(key_type)
-        .execute(pool)
-        .await?;
+        let res =
+            sqlx::query("DELETE FROM encryption_keys WHERE account_address = $1 AND key_type = $2")
+                .bind(address)
+                .bind(key_type)
+                .execute(pool)
+                .await?;
         Ok(res.rows_affected() > 0)
     }
 

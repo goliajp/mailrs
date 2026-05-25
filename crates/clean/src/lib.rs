@@ -23,30 +23,58 @@
 
 /// known tracking pixel domains
 pub(crate) const TRACKING_DOMAINS: &[&str] = &[
-    "mailchimp.com", "sendgrid.net", "hubspot.com", "mailgun.org",
-    "constantcontact.com", "campaign-archive.com", "list-manage.com",
-    "exacttarget.com", "sailthru.com", "marketo.com", "pardot.com",
-    "braze.com", "iterable.com", "customer.io", "intercom-mail.com",
-    "mandrillapp.com", "amazonses.com", "postmarkapp.com",
+    "mailchimp.com",
+    "sendgrid.net",
+    "hubspot.com",
+    "mailgun.org",
+    "constantcontact.com",
+    "campaign-archive.com",
+    "list-manage.com",
+    "exacttarget.com",
+    "sailthru.com",
+    "marketo.com",
+    "pardot.com",
+    "braze.com",
+    "iterable.com",
+    "customer.io",
+    "intercom-mail.com",
+    "mandrillapp.com",
+    "amazonses.com",
+    "postmarkapp.com",
 ];
 
 /// tracking pixel url path keywords
 pub(crate) const TRACKING_PATHS: &[&str] = &[
-    "/track", "/pixel", "/beacon", "/open", "/wf/open", "/o/", "/t/",
-    "/imp", "/ci/", "/e/o/", "tracking", "1x1",
+    "/track", "/pixel", "/beacon", "/open", "/wf/open", "/o/", "/t/", "/imp", "/ci/", "/e/o/",
+    "tracking", "1x1",
 ];
 
 /// footer keywords (multi-language)
 pub(crate) const FOOTER_KEYWORDS: &[&str] = &[
-    "unsubscribe", "opt-out", "opt out", "manage preferences",
-    "email preferences", "update preferences", "subscription",
-    "配信停止", "退订", "取消订阅", "メール配信", "購読解除",
-    "view in browser", "view this email", "ブラウザで表示",
-    "privacy policy", "terms of service", "all rights reserved",
-    "©", "you are receiving this",
-
-    "this email was sent to", "no longer wish to receive",
-    "if you no longer", "to stop receiving",
+    "unsubscribe",
+    "opt-out",
+    "opt out",
+    "manage preferences",
+    "email preferences",
+    "update preferences",
+    "subscription",
+    "配信停止",
+    "退订",
+    "取消订阅",
+    "メール配信",
+    "購読解除",
+    "view in browser",
+    "view this email",
+    "ブラウザで表示",
+    "privacy policy",
+    "terms of service",
+    "all rights reserved",
+    "©",
+    "you are receiving this",
+    "this email was sent to",
+    "no longer wish to receive",
+    "if you no longer",
+    "to stop receiving",
 ];
 
 /// Result of [`clean_email_html`].
@@ -71,7 +99,6 @@ pub struct CleanResult {
     #[allow(dead_code)]
     pub text_to_html_ratio: f32,
 }
-
 
 /// clean html email content through multi-stage pipeline
 pub fn clean_email_html(html: &str) -> CleanResult {
@@ -98,7 +125,8 @@ pub fn clean_email_html(html: &str) -> CleanResult {
     };
 
     // template-heavy: low text ratio + many images or footer removed
-    let is_template_heavy = text_to_html_ratio < 0.05 || (footer_removed && text_to_html_ratio < 0.15);
+    let is_template_heavy =
+        text_to_html_ratio < 0.05 || (footer_removed && text_to_html_ratio < 0.15);
 
     CleanResult {
         clean_text,
@@ -111,14 +139,13 @@ pub fn clean_email_html(html: &str) -> CleanResult {
 }
 
 /// detect tracking pixels in raw html
-
 mod html;
 mod quote;
 mod sender;
 
-use html::{count_pattern, 
-    detect_tracking_pixels, html_to_clean_text,
-    remove_template_chrome, remove_tracking_and_hidden, remove_unsafe_elements,
+use html::{
+    count_pattern, detect_tracking_pixels, html_to_clean_text, remove_template_chrome,
+    remove_tracking_and_hidden, remove_unsafe_elements,
 };
 pub use quote::split_quoted_content;
 pub use sender::{detect_bulk_sender, is_automated_sender};
@@ -326,7 +353,7 @@ mod tests {
         assert!(is_automated_sender("auto@x.com"));
         // Negative cases
         assert!(!is_automated_sender("alice@x.com"));
-        assert!(!is_automated_sender("not-noreply@x.com"));  // doesn't match exact pattern
+        assert!(!is_automated_sender("not-noreply@x.com")); // doesn't match exact pattern
     }
 
     #[test]
@@ -358,9 +385,11 @@ mod tests {
         // (otherwise we'd nuke most of the message).
         let html = "<div>unsubscribe</div><div>actual content here that constitutes most of the email body text</div>";
         let (result, removed) = remove_template_chrome(html);
-        assert!(!removed, "removal suppressed when it would consume too much content");
+        assert!(
+            !removed,
+            "removal suppressed when it would consume too much content"
+        );
         // unsubscribe word kept since not at the end
         assert!(result.contains("unsubscribe"));
     }
 }
-

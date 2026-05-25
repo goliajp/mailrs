@@ -230,7 +230,10 @@ pub async fn event_put(
     }
 
     let etag = etag_of(body);
-    let PutResult { created, etag: stored_etag } = store
+    let PutResult {
+        created,
+        etag: stored_etag,
+    } = store
         .put_event(calendar_id, uid, body, &etag)
         .await
         .map_err(|e| DavError::ServerError(e.to_string()))?;
@@ -321,7 +324,10 @@ mod tests {
 
     #[async_trait]
     impl CalendarStore for MemStore {
-        async fn list_calendars(&self, user: &str) -> Result<Vec<Calendar>, crate::store::StoreError> {
+        async fn list_calendars(
+            &self,
+            user: &str,
+        ) -> Result<Vec<Calendar>, crate::store::StoreError> {
             Ok(self
                 .calendars
                 .lock()
@@ -344,7 +350,10 @@ mod tests {
                 .find(|(o, c)| o == user && c.name == name)
                 .map(|(_, c)| c.clone()))
         }
-        async fn list_events(&self, calendar_id: i64) -> Result<Vec<Event>, crate::store::StoreError> {
+        async fn list_events(
+            &self,
+            calendar_id: i64,
+        ) -> Result<Vec<Event>, crate::store::StoreError> {
             Ok(self
                 .events
                 .lock()
@@ -388,7 +397,9 @@ mod tests {
             etag: &str,
         ) -> Result<PutResult, crate::store::StoreError> {
             let mut events = self.events.lock().unwrap();
-            let pos = events.iter().position(|(c, e)| *c == calendar_id && e.uid == uid);
+            let pos = events
+                .iter()
+                .position(|(c, e)| *c == calendar_id && e.uid == uid);
             let created = pos.is_none();
             if let Some(p) = pos {
                 events[p].1.icalendar = icalendar.into();
@@ -421,8 +432,16 @@ mod tests {
             events.retain(|(c, e)| !(*c == calendar_id && e.uid == uid));
             Ok(events.len() < before)
         }
-        async fn ensure_default_calendar(&self, user: &str) -> Result<(), crate::store::StoreError> {
-            let has_any = self.calendars.lock().unwrap().iter().any(|(o, _)| o == user);
+        async fn ensure_default_calendar(
+            &self,
+            user: &str,
+        ) -> Result<(), crate::store::StoreError> {
+            let has_any = self
+                .calendars
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(o, _)| o == user);
             if !has_any {
                 let _ = self.add_calendar(user, "Default");
             }
@@ -499,9 +518,16 @@ mod tests {
         event_put(&store, cid, "abc", None, None, "BEGIN:VEVENT\nEND:VEVENT")
             .await
             .unwrap();
-        let err = event_put(&store, cid, "abc", None, Some("*"), "BEGIN:VEVENT\nEND:VEVENT")
-            .await
-            .unwrap_err();
+        let err = event_put(
+            &store,
+            cid,
+            "abc",
+            None,
+            Some("*"),
+            "BEGIN:VEVENT\nEND:VEVENT",
+        )
+        .await
+        .unwrap_err();
         assert!(matches!(err, DavError::PreconditionFailed));
     }
 
@@ -537,7 +563,9 @@ mod tests {
         store.add_event(cid, "b", "BEGIN:VEVENT\nUID:b\nEND:VEVENT");
         let body = "<C:calendar-multiget xmlns:C=\"urn:ietf:params:xml:ns:caldav\">\
                     <D:href>/dav/calendars/u/Work/a.ics</D:href></C:calendar-multiget>";
-        let resp = calendar_report(&store, "u", "Work", cid, body).await.unwrap();
+        let resp = calendar_report(&store, "u", "Work", cid, body)
+            .await
+            .unwrap();
         let text = String::from_utf8(resp.body).unwrap();
         assert!(text.contains("/dav/calendars/u/Work/a.ics"));
         assert!(!text.contains("/dav/calendars/u/Work/b.ics"));
@@ -550,7 +578,9 @@ mod tests {
         store.add_event(cid, "a", "BEGIN:VEVENT\nUID:a\nEND:VEVENT");
         store.add_event(cid, "b", "BEGIN:VEVENT\nUID:b\nEND:VEVENT");
         let body = "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\"/>";
-        let resp = calendar_report(&store, "u", "Work", cid, body).await.unwrap();
+        let resp = calendar_report(&store, "u", "Work", cid, body)
+            .await
+            .unwrap();
         let text = String::from_utf8(resp.body).unwrap();
         assert!(text.contains("a.ics"));
         assert!(text.contains("b.ics"));
@@ -568,7 +598,9 @@ mod tests {
     async fn event_put_create_returns_201() {
         let store = MemStore::default();
         let cid = store.add_calendar("u", "Work");
-        let resp = event_put(&store, cid, "new", None, None, "ICS").await.unwrap();
+        let resp = event_put(&store, cid, "new", None, None, "ICS")
+            .await
+            .unwrap();
         assert_eq!(resp.status, 201);
     }
 
@@ -638,7 +670,9 @@ mod tests {
         let store = MemStore::default();
         let cid = store.add_calendar("u", "Work");
         store.add_event(cid, "a", "BEGIN:VEVENT\nUID:a\nEND:VEVENT");
-        let resp = calendar_propfind(&store, "u", "Work", cid, 0).await.unwrap();
+        let resp = calendar_propfind(&store, "u", "Work", cid, 0)
+            .await
+            .unwrap();
         let text = String::from_utf8(resp.body).unwrap();
         assert!(text.contains("/dav/calendars/u/Work/"));
         assert!(!text.contains("a.ics"));
@@ -650,7 +684,9 @@ mod tests {
         let cid = store.add_calendar("u", "Work");
         store.add_event(cid, "a", "BEGIN:VEVENT\nUID:a\nEND:VEVENT");
         store.add_event(cid, "b", "BEGIN:VEVENT\nUID:b\nEND:VEVENT");
-        let resp = calendar_propfind(&store, "u", "Work", cid, 1).await.unwrap();
+        let resp = calendar_propfind(&store, "u", "Work", cid, 1)
+            .await
+            .unwrap();
         let text = String::from_utf8(resp.body).unwrap();
         assert!(text.contains("a.ics"));
         assert!(text.contains("b.ics"));
@@ -663,7 +699,9 @@ mod tests {
         store.add_event(cid, "a", "BEGIN:VEVENT\nUID:a\nEND:VEVENT");
         // multiget marker but zero <D:href>
         let body = "<C:calendar-multiget xmlns:C=\"urn:ietf:params:xml:ns:caldav\"/>";
-        let resp = calendar_report(&store, "u", "Work", cid, body).await.unwrap();
+        let resp = calendar_report(&store, "u", "Work", cid, body)
+            .await
+            .unwrap();
         let text = String::from_utf8(resp.body).unwrap();
         assert!(!text.contains("a.ics"));
     }
@@ -675,7 +713,9 @@ mod tests {
         store.add_event(cid, "a", "BEGIN:VEVENT\nUID:a\nEND:VEVENT");
         let body = "<C:calendar-multiget xmlns:C=\"urn:ietf:params:xml:ns:caldav\">\
             <D:href>/dav/calendars/u/Work/ghost.ics</D:href></C:calendar-multiget>";
-        let resp = calendar_report(&store, "u", "Work", cid, body).await.unwrap();
+        let resp = calendar_report(&store, "u", "Work", cid, body)
+            .await
+            .unwrap();
         let text = String::from_utf8(resp.body).unwrap();
         assert!(!text.contains("ghost.ics"));
         assert!(!text.contains("a.ics"));

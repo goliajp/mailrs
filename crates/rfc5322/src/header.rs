@@ -129,7 +129,9 @@ fn parse_header_line(bytes: &[u8], start: usize, line_end: usize) -> Option<Head
     let name = std::str::from_utf8(&line[..colon]).ok()?;
     // Skip the colon + at most one optional WSP after it.
     let mut value_start_local = colon + 1;
-    if value_start_local < line.len() && (line[value_start_local] == b' ' || line[value_start_local] == b'\t') {
+    if value_start_local < line.len()
+        && (line[value_start_local] == b' ' || line[value_start_local] == b'\t')
+    {
         value_start_local += 1;
     }
     Some(Header {

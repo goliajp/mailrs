@@ -93,7 +93,7 @@ use std::time::{Duration, Instant};
 use bytes::{Buf, BytesMut};
 use futures_util::{SinkExt, StreamExt};
 use mailrs_delivery_executor::DeliveryExecutor;
-use mailrs_smtp_proto::response::{format_ehlo_response, Response};
+use mailrs_smtp_proto::response::{Response, format_ehlo_response};
 use mailrs_smtp_proto::session::{Event, Session, SessionConfig};
 use mailrs_smtp_proto::{parse_command, unstuff_data};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -202,11 +202,7 @@ async fn handle_connection(
                             }
                         }
                         Event::NeedData { forward_paths, .. } => {
-                            if framed
-                                .send(Response::data_start().format())
-                                .await
-                                .is_err()
-                            {
+                            if framed.send(Response::data_start().format()).await.is_err() {
                                 return;
                             }
                             framed.codec_mut().data_mode = true;
@@ -265,14 +261,22 @@ async fn handle_connection(
                             return;
                         }
                         _ => {
-                            if framed.send(Response::bad_sequence().format()).await.is_err() {
+                            if framed
+                                .send(Response::bad_sequence().format())
+                                .await
+                                .is_err()
+                            {
                                 return;
                             }
                         }
                     }
                 }
                 Err(_) => {
-                    if framed.send(Response::syntax_error().format()).await.is_err() {
+                    if framed
+                        .send(Response::syntax_error().format())
+                        .await
+                        .is_err()
+                    {
                         return;
                     }
                 }
@@ -295,9 +299,9 @@ async fn start_server(
                 Ok((stream, _addr)) => {
                     let root = maildir_root.clone();
                     let exec = executor.clone();
-                    tokio::spawn(async move {
-                        handle_connection(stream, root, no_deliver, exec).await
-                    });
+                    tokio::spawn(
+                        async move { handle_connection(stream, root, no_deliver, exec).await },
+                    );
                 }
                 Err(_) => return,
             }
@@ -491,7 +495,8 @@ async fn run_once(args: &Args) -> Result<(), String> {
             let stop = stop.clone();
             warmup_tasks.push(tokio::spawn(async move {
                 loop {
-                    if (tokio::time::timeout(Duration::from_millis(0), stop.notified()).await).is_ok()
+                    if (tokio::time::timeout(Duration::from_millis(0), stop.notified()).await)
+                        .is_ok()
                     {
                         return;
                     }
@@ -548,7 +553,11 @@ async fn run_once(args: &Args) -> Result<(), String> {
         } else {
             args.label.as_str()
         },
-        if args.no_deliver { "no-deliver" } else { "deliver" },
+        if args.no_deliver {
+            "no-deliver"
+        } else {
+            "deliver"
+        },
         args.duration_s,
         args.conns,
         total_msgs,

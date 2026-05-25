@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -46,7 +46,9 @@ pub(crate) async fn get_sieve(
 
 pub(crate) async fn set_sieve(
     Path(address): Path<String>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetSieveRequest>,
 ) -> impl IntoResponse {
@@ -83,8 +85,8 @@ pub(crate) async fn set_sieve(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }
 
@@ -113,7 +115,7 @@ pub(crate) async fn delete_sieve(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }

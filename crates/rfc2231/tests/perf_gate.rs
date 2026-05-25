@@ -24,7 +24,10 @@ fn encode_ascii_under_budget() {
     });
     // Budget: 5 µs (release ~25 ns).
     let budget = Duration::from_micros(5);
-    assert!(median < budget, "encode_ascii median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "encode_ascii median {median:?} > {budget:?}"
+    );
 }
 
 #[test]
@@ -34,7 +37,10 @@ fn encode_japanese_under_budget() {
     });
     // Budget: 10 µs (release ~140 ns).
     let budget = Duration::from_micros(10);
-    assert!(median < budget, "encode_japanese median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "encode_japanese median {median:?} > {budget:?}"
+    );
 }
 
 #[test]
@@ -44,7 +50,10 @@ fn decode_quoted_under_budget() {
     });
     // Budget: 5 µs (release ~15 ns).
     let budget = Duration::from_micros(5);
-    assert!(median < budget, "decode_quoted median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "decode_quoted median {median:?} > {budget:?}"
+    );
 }
 
 #[test]
@@ -54,5 +63,8 @@ fn decode_extended_utf8_under_budget() {
     });
     // Budget: 10 µs (release ~95 ns).
     let budget = Duration::from_micros(10);
-    assert!(median < budget, "decode_extended median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "decode_extended median {median:?} > {budget:?}"
+    );
 }

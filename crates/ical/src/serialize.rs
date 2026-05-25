@@ -52,7 +52,10 @@ pub fn serialize(invite: &ParsedInvite) -> Result<String, IcalError> {
         push_line(&mut out, &format!("DURATION:{}", format_duration(d)));
     }
     if !invite.summary.is_empty() {
-        push_line(&mut out, &format!("SUMMARY:{}", escape_text(&invite.summary)));
+        push_line(
+            &mut out,
+            &format!("SUMMARY:{}", escape_text(&invite.summary)),
+        );
     }
     if let Some(loc) = &invite.location {
         push_line(&mut out, &format!("LOCATION:{}", escape_text(loc)));
@@ -177,10 +180,7 @@ fn write_caldatetime(out: &mut String, prop_name: &str, dt: &CalDateTime) {
             );
         }
         CalDateTime::Date(d) => {
-            push_line(
-                out,
-                &format!("{prop_name};VALUE=DATE:{}", format_date(d)),
-            );
+            push_line(out, &format!("{prop_name};VALUE=DATE:{}", format_date(d)));
         }
     }
 }
@@ -362,10 +362,7 @@ mod serialize_tests {
 
     #[test]
     fn format_duration_round_numbers() {
-        assert_eq!(
-            format_duration(&chrono::Duration::seconds(3600)),
-            "PT1H"
-        );
+        assert_eq!(format_duration(&chrono::Duration::seconds(3600)), "PT1H");
         assert_eq!(
             format_duration(&chrono::Duration::seconds(7 * 86400)),
             "P1W"

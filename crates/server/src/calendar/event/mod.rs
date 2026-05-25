@@ -82,7 +82,6 @@ struct EventRowFull {
     rrule: Option<String>,
 }
 
-
 impl From<EventRowSqlx> for CalendarEventRow {
     fn from(r: EventRowSqlx) -> Self {
         CalendarEventRow {
@@ -117,6 +116,6 @@ mod convert;
 mod queries;
 mod upsert;
 
+pub(crate) use convert::caldatetime_to_utc;
 pub use queries::{find_by_uid, find_conflicts};
 pub use upsert::{delete_by_uid, upsert_from_parsed_invite};
-pub(crate) use convert::caldatetime_to_utc;

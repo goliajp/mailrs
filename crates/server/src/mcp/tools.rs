@@ -630,7 +630,8 @@ mod tests {
 
     #[test]
     fn add_alias_params_default_type() {
-        let json = r#"{"source_address": "a@b.com", "target_address": "c@b.com", "domain": "b.com"}"#;
+        let json =
+            r#"{"source_address": "a@b.com", "target_address": "c@b.com", "domain": "b.com"}"#;
         let params: AddAliasParams = serde_json::from_str(json).unwrap();
         assert_eq!(params.alias_type, "alias");
     }

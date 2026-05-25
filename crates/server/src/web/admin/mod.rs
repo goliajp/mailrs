@@ -9,16 +9,16 @@
 //! etc. — the `pub(super) use {domains::*, accounts::*, ...}` block below makes
 //! every handler visible at the `admin::` path with no call-site changes.
 
-use axum::http::StatusCode;
 use axum::Json;
+use axum::http::StatusCode;
 
 pub(super) use super::{
-    classify_email, clamp_limit, conversations, default_limit, ApiResult, AuthUser, WebState,
-    MAX_ADMIN_FIELD_LEN, MAX_PATH_LEN, MAX_SIEVE_SCRIPT_LEN,
+    ApiResult, AuthUser, MAX_ADMIN_FIELD_LEN, MAX_PATH_LEN, MAX_SIEVE_SCRIPT_LEN, WebState,
+    clamp_limit, classify_email, conversations, default_limit,
 };
 
-pub mod accounts;
 pub mod account_groups;
+pub mod accounts;
 pub mod aliases;
 pub mod apps;
 pub mod audit;
@@ -33,8 +33,8 @@ pub mod queue;
 pub mod quota;
 pub mod sieve;
 
-pub(super) use accounts::*;
 pub(super) use account_groups::*;
+pub(super) use accounts::*;
 pub(super) use aliases::*;
 pub(super) use apps::*;
 pub(super) use audit::*;
@@ -86,27 +86,33 @@ pub(super) fn validate_audit_target(
     permissions: &crate::permission::EffectivePermissions,
 ) -> Result<(), (StatusCode, Json<ApiResult>)> {
     if !permissions.has("admin.impersonate") {
-        return Err((StatusCode::FORBIDDEN, Json(ApiResult {
-            success: false,
-            message: Some("insufficient permissions".into()),
-        })));
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ApiResult {
+                success: false,
+                message: Some("insufficient permissions".into()),
+            }),
+        ));
     }
-    let domain = target_user
-        .split_once('@')
-        .map(|(_, d)| d)
-        .unwrap_or("");
+    let domain = target_user.split_once('@').map(|(_, d)| d).unwrap_or("");
     if domain.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, Json(ApiResult {
-            success: false,
-            message: Some("invalid target user address".into()),
-        })));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiResult {
+                success: false,
+                message: Some("invalid target user address".into()),
+            }),
+        ));
     }
     let accessible = permissions.accessible_domains();
     if !permissions.is_super() && !accessible.iter().any(|d| d == domain) {
-        return Err((StatusCode::FORBIDDEN, Json(ApiResult {
-            success: false,
-            message: Some("target user not in accessible domains".into()),
-        })));
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ApiResult {
+                success: false,
+                message: Some("target user not in accessible domains".into()),
+            }),
+        ));
     }
     Ok(())
 }

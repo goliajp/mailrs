@@ -21,7 +21,9 @@ pub fn split_quoted_content(text: &str) -> (String, Vec<String>) {
         }
 
         // japanese: "2025年1月1日 10:00 Alice <alice@x.com>:"
-        if trimmed.contains("年") && trimmed.contains("月") && trimmed.contains("日")
+        if trimmed.contains("年")
+            && trimmed.contains("月")
+            && trimmed.contains("日")
             && trimmed.ends_with(':')
             && trimmed.contains('@')
         {
@@ -32,7 +34,8 @@ pub fn split_quoted_content(text: &str) -> (String, Vec<String>) {
         // outlook style: "From: Alice" followed by "Sent:" or "Date:"
         if trimmed.starts_with("From:") && i + 1 < lines.len() {
             let next = lines[i + 1].trim();
-            if next.starts_with("Sent:") || next.starts_with("Date:") || next.starts_with("日時:") {
+            if next.starts_with("Sent:") || next.starts_with("Date:") || next.starts_with("日時:")
+            {
                 split_point = i;
                 break;
             }
@@ -56,14 +59,19 @@ pub fn split_quoted_content(text: &str) -> (String, Vec<String>) {
         }
 
         // separator line: "----" or "____" or "====" (at least 4 chars)
-        if (trimmed.starts_with("----") || trimmed.starts_with("____") || trimmed.starts_with("===="))
+        if (trimmed.starts_with("----")
+            || trimmed.starts_with("____")
+            || trimmed.starts_with("===="))
             && trimmed.len() >= 4
             && i > 0
         {
             // check if next line looks like quoted header
             if i + 1 < lines.len() {
                 let next = lines[i + 1].trim();
-                if next.starts_with("From:") || next.starts_with("Subject:") || next.starts_with("Date:") {
+                if next.starts_with("From:")
+                    || next.starts_with("Subject:")
+                    || next.starts_with("Date:")
+                {
                     split_point = i;
                     break;
                 }
@@ -82,4 +90,3 @@ pub fn split_quoted_content(text: &str) -> (String, Vec<String>) {
 }
 
 // ---- helper functions ----
-

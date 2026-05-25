@@ -46,8 +46,8 @@ pub fn build_server_config(
     use rustls_pki_types::pem::PemObject;
     use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
-    let certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(cert_pem.as_bytes())
-        .collect::<Result<Vec<_>, _>>()?;
+    let certs: Vec<CertificateDer<'static>> =
+        CertificateDer::pem_slice_iter(cert_pem.as_bytes()).collect::<Result<Vec<_>, _>>()?;
     let key = PrivateKeyDer::from_pem_slice(key_pem.as_bytes())?;
 
     let config = ServerConfig::builder()
@@ -132,8 +132,7 @@ pub async fn provision_cert(
     domains: &[String],
     tokens: &ChallengeTokens,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
-    let identifiers: Vec<Identifier> =
-        domains.iter().map(|d| Identifier::Dns(d.clone())).collect();
+    let identifiers: Vec<Identifier> = domains.iter().map(|d| Identifier::Dns(d.clone())).collect();
 
     let mut order = account.new_order(&NewOrder::new(&identifiers)).await?;
 
@@ -470,11 +469,15 @@ mod tests {
 
     #[test]
     fn save_cert_overwrites_existing() {
-        let dir = std::env::temp_dir().join(format!("mailrs-acme-overwrite-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("mailrs-acme-overwrite-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         save_cert(&dir, "old", "old-key").unwrap();
         save_cert(&dir, "new", "new-key").unwrap();
-        assert_eq!(std::fs::read_to_string(dir.join("cert.pem")).unwrap(), "new");
+        assert_eq!(
+            std::fs::read_to_string(dir.join("cert.pem")).unwrap(),
+            "new"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

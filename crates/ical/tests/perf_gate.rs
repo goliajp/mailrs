@@ -42,7 +42,10 @@ fn parse_invite_complex_under_budget() {
     });
     // Budget: 1 ms. Observed P95: ~50 µs.
     let budget = Duration::from_millis(1);
-    assert!(median < budget, "parse_invite(complex) median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "parse_invite(complex) median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -53,5 +56,8 @@ fn round_trip_complex_under_budget() {
     });
     // Budget: 2 ms. Observed P95: ~100 µs.
     let budget = Duration::from_millis(2);
-    assert!(median < budget, "round_trip(complex) median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "round_trip(complex) median {median:?} exceeded {budget:?}"
+    );
 }

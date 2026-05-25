@@ -166,7 +166,9 @@ pub async fn verify_as<R: ArcResolver + ?Sized>(
     instance: u32,
     resolver: &R,
 ) -> Result<(), ArcError> {
-    let idx = (instance as usize).checked_sub(1).ok_or(ArcError::MalformedMessage)?;
+    let idx = (instance as usize)
+        .checked_sub(1)
+        .ok_or(ArcError::MalformedMessage)?;
     let current = chain.sets.get(idx).ok_or(ArcError::MalformedMessage)?;
     let canon = DkimCanon::Relaxed;
 
@@ -183,11 +185,7 @@ pub async fn verify_as<R: ArcResolver + ?Sized>(
             &prior.raw_ams,
             canon,
         ));
-        signed_block.extend_from_slice(&canonicalize_header(
-            "ARC-Seal",
-            &prior.raw_seal,
-            canon,
-        ));
+        signed_block.extend_from_slice(&canonicalize_header("ARC-Seal", &prior.raw_seal, canon));
     }
     // Current set: AAR + AMS contribute full values, AS has b= cleared.
     signed_block.extend_from_slice(&canonicalize_header(
@@ -240,7 +238,10 @@ mod tests {
 
     #[test]
     fn map_algorithm_roundtrip() {
-        assert_eq!(map_algorithm(Algorithm::RsaSha256), DkimAlgorithm::RsaSha256);
+        assert_eq!(
+            map_algorithm(Algorithm::RsaSha256),
+            DkimAlgorithm::RsaSha256
+        );
         assert_eq!(
             map_algorithm(Algorithm::Ed25519Sha256),
             DkimAlgorithm::Ed25519Sha256

@@ -7,8 +7,8 @@
 //! slow", which would point at a regression in the runtime setup
 //! code rather than the hot path.
 
-use std::time::{Duration, Instant};
 use mailrs_delivery_executor::DeliveryExecutor;
+use std::time::{Duration, Instant};
 
 #[tokio::test]
 async fn spawn_under_budget() {

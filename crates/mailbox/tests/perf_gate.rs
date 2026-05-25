@@ -5,7 +5,6 @@
 
 use std::time::{Duration, Instant};
 
-use mailrs_maildir::Flag;
 use mailrs_mailbox::fixtures::{EXAMPLE_USER, InMemoryMailboxStore};
 use mailrs_mailbox::threading::{
     extract_in_reply_to, extract_message_id, normalize_message_id, resolve_thread_id,
@@ -14,6 +13,7 @@ use mailrs_mailbox::{
     FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_SEEN, InsertMessage, MailboxStore,
     QueryFilter, bitmask_to_maildir_flags, maildir_flags_to_bitmask,
 };
+use mailrs_maildir::Flag;
 
 const ITERS: usize = 100;
 
@@ -52,7 +52,10 @@ fn extract_message_id_long_headers_under_budget() {
     });
     // Budget: 100 µs. Observed P95: ~3 µs.
     let budget = Duration::from_micros(100);
-    assert!(median < budget, "extract_message_id median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "extract_message_id median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -62,7 +65,10 @@ fn extract_in_reply_to_long_headers_under_budget() {
     });
     // Budget: 100 µs. Observed P95: ~3 µs.
     let budget = Duration::from_micros(100);
-    assert!(median < budget, "extract_in_reply_to median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "extract_in_reply_to median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -72,7 +78,10 @@ fn normalize_message_id_under_budget() {
     });
     // Budget: 20 µs. Observed P95: ~200 ns.
     let budget = Duration::from_micros(20);
-    assert!(median < budget, "normalize_message_id median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "normalize_message_id median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -84,7 +93,10 @@ fn resolve_thread_id_known_parent_under_budget() {
     });
     // Budget: 50 µs. Observed P95: ~500 ns.
     let budget = Duration::from_micros(50);
-    assert!(median < budget, "resolve_thread_id median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "resolve_thread_id median {median:?} exceeded {budget:?}"
+    );
 }
 
 // ===== Flag bitmask conversion gates =====
@@ -195,10 +207,7 @@ fn insert_message_clone_batch_under_budget() {
 #[tokio::test]
 async fn query_filter_200_messages_under_budget() {
     let store = InMemoryMailboxStore::new();
-    let mbox = store
-        .create_mailbox(EXAMPLE_USER, "INBOX")
-        .await
-        .unwrap();
+    let mbox = store.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
 
     // Seed: 200 messages with varied subjects; half have FLAG_SEEN, half don't.
     let _mbox_id = mbox.id;
