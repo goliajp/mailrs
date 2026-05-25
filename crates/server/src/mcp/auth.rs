@@ -11,6 +11,19 @@ use crate::web::{AuthMethod, AuthUser, WebState};
 /// middleware that validates Bearer token for MCP routes
 /// on success, inserts AuthUser into request extensions
 /// on failure, returns 401 Unauthorized
+///
+/// The `mcp.request` span here is the only MCP-level tracing
+/// instrumentation. Per-tool spans would require wiring
+/// `#[tracing::instrument]` to each `#[tool(...)]` method on
+/// `MailMcpService`, but the `rmcp::tool_router` macro currently
+/// rejects stacked attributes — so per-tool observability is
+/// approximated via the `tool` request field on the JSON-RPC
+/// envelope (visible in span fields after auth resolves).
+#[tracing::instrument(
+    name = "mcp.request",
+    skip(state, request, next),
+    fields(user = tracing::field::Empty, prefix = tracing::field::Empty)
+)]
 pub(crate) async fn mcp_auth_middleware(
     State(state): State<Arc<WebState>>,
     mut request: Request,
@@ -146,6 +159,8 @@ pub(crate) async fn mcp_auth_middleware(
         permissions: std::sync::Arc::new(permissions),
         auth_method,
     };
+    tracing::Span::current().record("user", auth_user.address.as_str());
+    tracing::Span::current().record("prefix", prefix);
 
     request.extensions_mut().insert(auth_user.clone());
     // set task-local so the StreamableHttpService factory can read it
