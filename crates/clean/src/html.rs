@@ -4,13 +4,23 @@
 use super::{FOOTER_KEYWORDS, TRACKING_DOMAINS, TRACKING_PATHS};
 
 pub(super) fn detect_tracking_pixels(html: &str) -> bool {
-    let lower = html.to_lowercase();
+    // ASCII fold is enough — every shape we match (tag names, attr
+    // names, CSS keywords) is pure ASCII. Full Unicode `to_lowercase`
+    // does Turkish-I + greek-sigma folding we don't need.
+    let lower = html.to_ascii_lowercase();
+    let bytes = lower.as_bytes();
 
-    // check for 1x1 or 0x0 images
-    for img_start in find_all_positions(&lower, "<img") {
-        let img_end = match lower[img_start..].find('>') {
+    // memchr-based `<img` scan: probe `<` positions, confirm `img` follows.
+    let mut pos = 0;
+    while let Some(rel) = memchr::memchr(b'<', &bytes[pos..]) {
+        let img_start = pos + rel;
+        if img_start + 4 > bytes.len() || &bytes[img_start + 1..img_start + 4] != b"img" {
+            pos = img_start + 1;
+            continue;
+        }
+        let img_end = match memchr::memchr(b'>', &bytes[img_start..]) {
             Some(p) => img_start + p + 1,
-            None => continue,
+            None => break,
         };
         let tag = &lower[img_start..img_end];
 
@@ -53,6 +63,8 @@ pub(super) fn detect_tracking_pixels(html: &str) -> bool {
                 }
             }
         }
+
+        pos = img_end;
     }
 
     false
@@ -392,15 +404,6 @@ pub(super) fn html_to_clean_text(html: &str) -> String {
 // caller needs single-tag stripping; otherwise rely on the bulk
 // scanner. Removed to avoid dead-code accumulation.
 
-fn find_all_positions(haystack: &str, needle: &str) -> Vec<usize> {
-    let mut positions = Vec::new();
-    let mut start = 0;
-    while let Some(pos) = haystack[start..].find(needle) {
-        positions.push(start + pos);
-        start = start + pos + needle.len();
-    }
-    positions
-}
 
 fn extract_attr<'a>(tag: &'a str, attr: &str) -> Option<&'a str> {
     let search = format!("{attr}=\"");
