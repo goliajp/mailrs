@@ -30,7 +30,7 @@ pub fn parse_calendar(input: &str) -> Result<RawComponent, IcalError> {
         if prop.name.eq_ignore_ascii_case("BEGIN") {
             // Start a new component named after the value (e.g. VEVENT).
             stack.push(RawComponent {
-                name: prop.value,
+                name: compact_str::CompactString::new(&prop.value),
                 properties: Vec::new(),
                 children: Vec::new(),
             });
@@ -159,10 +159,10 @@ fn parse_property_line(line: &str) -> Result<RawProperty, IcalError> {
     // Split header on unquoted ';'.
     let header_parts = split_unquoted_semicolons(header);
     let mut iter = header_parts.into_iter();
-    let name = iter
-        .next()
-        .ok_or_else(|| IcalError::InvalidSyntax(format!("empty property header: {line}")))?
-        .to_string();
+    let name = compact_str::CompactString::new(
+        iter.next()
+            .ok_or_else(|| IcalError::InvalidSyntax(format!("empty property header: {line}")))?,
+    );
     if name.is_empty() {
         return Err(IcalError::InvalidSyntax(format!(
             "empty property name in: {line}"

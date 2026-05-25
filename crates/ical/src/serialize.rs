@@ -206,7 +206,8 @@ fn write_raw_component(out: &mut String, c: &RawComponent) {
 }
 
 fn format_raw_property(p: &RawProperty) -> String {
-    let mut s = p.name.clone();
+    let mut s = String::with_capacity(p.name.len() + p.value.len() + 8);
+    s.push_str(&p.name);
     for (n, v) in &p.params {
         s.push_str(&format!(";{n}={}", quote_param_if_needed(v)));
     }

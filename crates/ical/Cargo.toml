@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-ical"
-version = "1.0.3"
+version = "2.0.0"
 edition = "2024"
 description = "RFC 5545 (iCalendar) parser, serializer, and iTIP semantics — zero I/O, hand-rolled, with VTIMEZONE + RRULE support."
 license = "Apache-2.0 OR MIT"
@@ -20,6 +20,10 @@ chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 rrule = "0.14"
 serde = { version = "1", features = ["derive"] }
+# Inline-short-string for RawComponent.name / RawProperty.name / tzid.
+# Standard iCal names ("VEVENT", "DTSTART", "America/New_York" etc) all
+# fit in the 24-byte inline buffer.
+compact_str = { version = "0.9", features = ["serde"] }
 
 [dev-dependencies]
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
