@@ -114,8 +114,9 @@ async fn process_message(
             continue;
         }
 
-        // run extraction in blocking thread (tesseract is CPU-bound)
-        let data_owned = data.clone();
+        // run extraction in blocking thread (tesseract is CPU-bound).
+        // spawn_blocking requires 'static, so own the bytes here.
+        let data_owned: Vec<u8> = data.to_vec();
         let ct = content_type.clone();
         let result = tokio::task::spawn_blocking(move || {
             mailrs_attachment_extract::extract_content(&data_owned, &ct, DEFAULT_OCR_LANGS)

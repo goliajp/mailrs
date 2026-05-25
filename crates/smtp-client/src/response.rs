@@ -1,13 +1,22 @@
 //! Parsed SMTP reply from the wire — see [`parse_response`].
 
+use compact_str::CompactString;
+
 /// A parsed SMTP reply. `code` is the three-digit status (RFC 5321 §4.2.1);
 /// `lines` is the human-readable text from each line, in order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SmtpResponse {
     /// the three-digit status code (e.g. 220, 250, 354, 550)
     pub code: u16,
-    /// reply text lines in order (one entry per wire line, without the code prefix)
-    pub lines: Vec<String>,
+    /// Reply text lines in order (one entry per wire line, without the
+    /// code prefix).
+    ///
+    /// **v2 change**: `Vec<CompactString>` — EHLO extension lines
+    /// (`PIPELINING`, `SIZE 52428800`, `STARTTLS`, `8BITMIME`,
+    /// `AUTH PLAIN LOGIN`) and typical reply text all fit the 24-byte
+    /// inline buffer, so the multi-line parse avoids one heap String
+    /// alloc per line.
+    pub lines: Vec<CompactString>,
 }
 
 impl SmtpResponse {
@@ -50,7 +59,7 @@ pub fn parse_response(input: &str) -> Option<SmtpResponse> {
     // Pre-size to ~8 — typical EHLO responses are 4-12 lines
     // (server greeting + capability advertisements). Eliminates the
     // 4 → 8 growth tick we used to pay during 10-line EHLO parses.
-    let mut lines = Vec::with_capacity(8);
+    let mut lines: Vec<CompactString> = Vec::with_capacity(8);
     let mut code: Option<u16> = None;
     // Byte-level 3-digit decimal parse for the SMTP code. Skips
     // `<u16 as FromStr>`'s generic loop induction; each digit is
@@ -85,7 +94,7 @@ pub fn parse_response(input: &str) -> Option<SmtpResponse> {
 
         let separator = bytes.get(3).copied();
         let text = if bytes.len() > 4 { &line[4..] } else { "" };
-        lines.push(text.to_owned());
+        lines.push(CompactString::new(text));
 
         // ' ' = last line, '-' = continuation
         match separator {

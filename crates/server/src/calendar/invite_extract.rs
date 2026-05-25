@@ -41,7 +41,7 @@ pub fn extract_invite_part(data: &[u8]) -> Option<ExtractedInvite> {
         .unwrap_or_default()
         .to_ascii_uppercase();
     Some(ExtractedInvite {
-        ics_bytes: part.body.clone(),
+        ics_bytes: part.body.to_vec(),
         content_type_method,
     })
 }
