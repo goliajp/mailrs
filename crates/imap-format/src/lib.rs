@@ -1068,34 +1068,28 @@ mod tests {
 
     #[test]
     fn parse_mime_headers_alternative() {
-        let info = parse_mime_headers(
-            "Content-Type: multipart/alternative; boundary=\"alt-bound\"\r\n",
-        );
+        let info =
+            parse_mime_headers("Content-Type: multipart/alternative; boundary=\"alt-bound\"\r\n");
         assert_eq!(info.subtype, "ALTERNATIVE");
         assert_eq!(info.boundary, Some("alt-bound".to_string()));
     }
 
     #[test]
     fn parse_mime_headers_related() {
-        let info = parse_mime_headers(
-            "Content-Type: multipart/related; boundary=rel-bound\r\n",
-        );
+        let info = parse_mime_headers("Content-Type: multipart/related; boundary=rel-bound\r\n");
         assert_eq!(info.subtype, "RELATED");
     }
 
     #[test]
     fn parse_mime_headers_unknown_multipart_defaults_to_mixed() {
-        let info = parse_mime_headers(
-            "Content-Type: multipart/encrypted; boundary=enc\r\n",
-        );
+        let info = parse_mime_headers("Content-Type: multipart/encrypted; boundary=enc\r\n");
         assert_eq!(info.media_type, "MULTIPART");
         assert_eq!(info.subtype, "MIXED");
     }
 
     #[test]
     fn parse_mime_headers_image() {
-        let info =
-            parse_mime_headers("Content-Type: image/jpeg; name=\"photo.jpg\"\r\n");
+        let info = parse_mime_headers("Content-Type: image/jpeg; name=\"photo.jpg\"\r\n");
         assert_eq!(info.media_type, "IMAGE");
         assert_eq!(info.subtype, "JPEG");
         assert_eq!(info.name, Some("photo.jpg".to_string()));
@@ -1103,9 +1097,7 @@ mod tests {
 
     #[test]
     fn parse_mime_headers_inline_disposition() {
-        let info = parse_mime_headers(
-            "Content-Disposition: inline; filename=\"cid.png\"\r\n",
-        );
+        let info = parse_mime_headers("Content-Disposition: inline; filename=\"cid.png\"\r\n");
         assert_eq!(info.disposition, Some("inline".to_string()));
         assert_eq!(info.disposition_filename, Some("cid.png".to_string()));
     }
@@ -1120,7 +1112,10 @@ mod tests {
     fn parse_mime_headers_transfer_encoding_variants() {
         for (input, want) in [
             ("Content-Transfer-Encoding: base64\r\n", "BASE64"),
-            ("Content-Transfer-Encoding: Quoted-Printable\r\n", "QUOTED-PRINTABLE"),
+            (
+                "Content-Transfer-Encoding: Quoted-Printable\r\n",
+                "QUOTED-PRINTABLE",
+            ),
             ("Content-Transfer-Encoding: 8bit\r\n", "8BIT"),
             ("Content-Transfer-Encoding: 7BIT\r\n", "7BIT"),
             ("Content-Transfer-Encoding: weirdo\r\n", "7BIT"),
