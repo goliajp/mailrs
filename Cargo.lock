@@ -3495,7 +3495,7 @@ dependencies = [
  "mailrs-smtp-client 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-codec 1.0.0",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-spf 1.0.2",
+ "mailrs-spf",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-rpt 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3641,19 +3641,10 @@ dependencies = [
 
 [[package]]
 name = "mailrs-spf"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7328fb1727ccee79df1cec24b9b37cb966f49444c7aa961369b337e95dd299b"
+version = "2.0.0"
 dependencies = [
  "async-trait",
- "hickory-resolver",
-]
-
-[[package]]
-name = "mailrs-spf"
-version = "1.0.4"
-dependencies = [
- "async-trait",
+ "compact_str",
  "criterion",
  "dhat",
  "hickory-resolver",

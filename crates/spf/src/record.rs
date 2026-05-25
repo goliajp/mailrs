@@ -3,8 +3,11 @@
 //! Turns the raw TXT string (`"v=spf1 ip4:1.2.3.4 include:example.com -all"`)
 //! into a typed [`Record`] with [`Mechanism`]s + [`Qualifier`]s.
 
-use crate::error::SpfError;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+use compact_str::CompactString;
+
+use crate::error::SpfError;
 
 /// SPF qualifier (RFC 7208 §4.6.2). Default is `Pass` (`+`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,7 +69,10 @@ pub enum Mechanism {
         /// Qualifier applied on match.
         qualifier: Qualifier,
         /// Domain to look up (default = current domain in scope).
-        domain: Option<String>,
+        ///
+        /// **v2 change**: `CompactString` (inlined ≤24 bytes); real SPF
+        /// domains nearly always fit.
+        domain: Option<CompactString>,
         /// IPv4 prefix length (default 32).
         ip4_prefix: u8,
         /// IPv6 prefix length (default 128).
@@ -76,8 +82,8 @@ pub enum Mechanism {
     Mx {
         /// Qualifier applied on match.
         qualifier: Qualifier,
-        /// Domain whose MX records to look up.
-        domain: Option<String>,
+        /// Domain whose MX records to look up. `CompactString` per `A.domain`.
+        domain: Option<CompactString>,
         /// IPv4 prefix length (default 32).
         ip4_prefix: u8,
         /// IPv6 prefix length (default 128).
@@ -87,16 +93,16 @@ pub enum Mechanism {
     Include {
         /// Qualifier applied on match.
         qualifier: Qualifier,
-        /// Included domain to resolve recursively.
-        domain: String,
+        /// Included domain. `CompactString` per `A.domain`.
+        domain: CompactString,
     },
     /// `exists:%{ir}.example.com` — match if the lookup returns ANY A.
     Exists {
         /// Qualifier applied on match.
         qualifier: Qualifier,
-        /// Domain template to look up. Macro expansion is out of v1.0
-        /// scope; the literal template is used as-is.
-        domain: String,
+        /// Domain template to look up. Macro expansion is out of v1 scope;
+        /// the literal template is used as-is. `CompactString` per `A.domain`.
+        domain: CompactString,
     },
 }
 
@@ -298,7 +304,7 @@ fn parse_mechanism(token: &str) -> Result<Mechanism, SpfError> {
                 value.ok_or_else(|| SpfError::InvalidRecord("include: missing domain".into()))?;
             Ok(Mechanism::Include {
                 qualifier,
-                domain: v.to_string(),
+                domain: CompactString::new(v),
             })
         }
         b"exists" => {
@@ -306,7 +312,7 @@ fn parse_mechanism(token: &str) -> Result<Mechanism, SpfError> {
                 value.ok_or_else(|| SpfError::InvalidRecord("exists: missing domain".into()))?;
             Ok(Mechanism::Exists {
                 qualifier,
-                domain: v.to_string(),
+                domain: CompactString::new(v),
             })
         }
         b"ptr" => {
@@ -428,16 +434,19 @@ fn parse_addr_and_prefix(value: &str, default: u8) -> Result<(&str, u8), SpfErro
 }
 
 /// Parse the optional `:domain/prefix4//prefix6` suffix on `a` and `mx`.
-fn parse_a_mx_value(value: Option<&str>) -> Result<(Option<String>, u8, u8), SpfError> {
+fn parse_a_mx_value(
+    value: Option<&str>,
+) -> Result<(Option<CompactString>, u8, u8), SpfError> {
     let Some(v) = value else {
         return Ok((None, 32, 128));
     };
-    // Form: [domain][/ip4_prefix][//ip6_prefix]
     let (domain_part, prefix_part) = match v.find('/') {
         Some(idx) => (Some(&v[..idx]), &v[idx..]),
         None => (Some(v), ""),
     };
-    let domain = domain_part.filter(|s| !s.is_empty()).map(|s| s.to_string());
+    let domain = domain_part
+        .filter(|s| !s.is_empty())
+        .map(CompactString::new);
 
     let (ip4_prefix, ip6_prefix) = if prefix_part.is_empty() {
         (32u8, 128u8)

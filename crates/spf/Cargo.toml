@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-spf"
-version = "1.0.4"
+version = "2.0.0"
 edition = "2024"
 description = "RFC 7208 Sender Policy Framework verifier. Pure-Rust evaluator with a pluggable DNS resolver trait; ships an optional hickory-resolver-backed implementation. Bounded DNS-lookup limits + loop detection per spec."
 license = "Apache-2.0 OR MIT"
@@ -25,6 +25,8 @@ hickory = ["dep:hickory-resolver"]
 memchr = "2"
 async-trait = "0.1"
 hickory-resolver = { version = "0.26", optional = true }
+# Inline-short-string for Mechanism::{A,Mx,Include,Exists}.domain — see mailrs-dkim 2.0.
+compact_str = "0.9"
 
 [dev-dependencies]
 criterion = { workspace = true }
