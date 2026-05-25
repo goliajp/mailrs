@@ -87,7 +87,7 @@ Run with `cargo bench -p mailrs-clean`. See [`tests/perf_gate.rs`](tests/perf_ga
 | **test** | line cov: 91.6% (`cargo llvm-cov -p mailrs-clean --summary-only`) |
 | **bench** | ✅ 1 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 1.3 MB |
-| **fuzz** | ❌ none |
+| **fuzz** | ✅ 1 target(s) |
 | **mem**  | dhat profile pending (v3.4 backlog) |
 
 ### Competitor comparisons

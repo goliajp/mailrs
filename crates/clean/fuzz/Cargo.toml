@@ -1,0 +1,26 @@
+[package]
+name = "mailrs-clean-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.mailrs-clean]
+path = ".."
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "clean"
+path = "fuzz_targets/clean.rs"
+test = false
+doc = false
+bench = false
