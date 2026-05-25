@@ -1,0 +1,26 @@
+[package]
+name = "mailrs-attachment-extract-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.mailrs-attachment-extract]
+path = ".."
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "extract"
+path = "fuzz_targets/extract.rs"
+test = false
+doc = false
+bench = false
