@@ -4,7 +4,10 @@ use super::{DomainStore, Result};
 
 impl DomainStore {
     /// list all groups, optionally filtered by domain
-    pub async fn list_groups(&self, domain: Option<&str>) -> Result<Vec<crate::permission::GroupInfo>> {
+    pub async fn list_groups(
+        &self,
+        domain: Option<&str>,
+    ) -> Result<Vec<crate::permission::GroupInfo>> {
         let pool = self.pg()?;
         let rows = if let Some(d) = domain {
             sqlx::query_as::<_, (i64, String, Option<String>, String, bool, i64)>(
@@ -75,12 +78,11 @@ impl DomainStore {
     pub async fn remove_group(&self, id: i64) -> Result<bool> {
         let pool = self.pg()?;
         // protect builtin groups
-        let is_builtin = sqlx::query_as::<_, (bool,)>(
-            "SELECT is_builtin FROM groups WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let is_builtin =
+            sqlx::query_as::<_, (bool,)>("SELECT is_builtin FROM groups WHERE id = $1")
+                .bind(id)
+                .fetch_optional(pool)
+                .await?;
         if is_builtin == Some((true,)) {
             return Ok(false);
         }
@@ -93,11 +95,7 @@ impl DomainStore {
     }
 
     /// set permissions for a group (replace all)
-    pub async fn set_group_permissions(
-        &self,
-        group_id: i64,
-        permissions: &[String],
-    ) -> Result<()> {
+    pub async fn set_group_permissions(&self, group_id: i64, permissions: &[String]) -> Result<()> {
         let pool = self.pg()?;
         sqlx::query("DELETE FROM group_permissions WHERE group_id = $1")
             .bind(group_id)
@@ -147,13 +145,12 @@ impl DomainStore {
     /// remove an account from a group
     pub async fn remove_account_from_group(&self, address: &str, group_id: i64) -> Result<bool> {
         let pool = self.pg()?;
-        let res = sqlx::query(
-            "DELETE FROM account_groups WHERE account_address = $1 AND group_id = $2",
-        )
-        .bind(address)
-        .bind(group_id)
-        .execute(pool)
-        .await?;
+        let res =
+            sqlx::query("DELETE FROM account_groups WHERE account_address = $1 AND group_id = $2")
+                .bind(address)
+                .bind(group_id)
+                .execute(pool)
+                .await?;
         self.invalidate_permissions(address).await;
         Ok(res.rows_affected() > 0)
     }

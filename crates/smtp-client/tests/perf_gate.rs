@@ -38,7 +38,10 @@ fn parse_response_long_ehlo_under_budget() {
     });
     // Budget: 50 µs. Observed P95: ~1 µs (parsing 10 lines).
     let budget = Duration::from_micros(50);
-    assert!(median < budget, "parse_response(LONG_EHLO) median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "parse_response(LONG_EHLO) median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -52,7 +55,10 @@ fn dot_stuff_body_with_dots_under_budget() {
     });
     // Budget: 500 µs. Observed P95: ~20 µs (4 KB body w/ dots every other line).
     let budget = Duration::from_micros(500);
-    assert!(median < budget, "dot_stuff(with dots) median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "dot_stuff(with dots) median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -68,5 +74,8 @@ fn sort_mx_records_n20_under_budget() {
     });
     // Budget: 20 µs. Observed P95: ~500 ns.
     let budget = Duration::from_micros(20);
-    assert!(median < budget, "sort_mx_records(n=20) median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "sort_mx_records(n=20) median {median:?} exceeded {budget:?}"
+    );
 }

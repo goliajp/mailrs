@@ -1,7 +1,7 @@
 //! [`Message`] — the top-level type. Holds a `&[u8]` slice of the raw
 //! message and provides lazy header / body access.
 
-use crate::header::{find_unfolded_line_end, Header, HeaderIter};
+use crate::header::{Header, HeaderIter, find_unfolded_line_end};
 
 /// A parsed-on-demand RFC 5322 message backed by the caller's bytes.
 ///
@@ -66,7 +66,9 @@ impl<'a> Message<'a> {
         while cursor < bytes.len() {
             // Empty line → end of header block
             if bytes[cursor] == b'\n'
-                || (bytes[cursor] == b'\r' && cursor + 1 < bytes.len() && bytes[cursor + 1] == b'\n')
+                || (bytes[cursor] == b'\r'
+                    && cursor + 1 < bytes.len()
+                    && bytes[cursor + 1] == b'\n')
             {
                 return None;
             }
@@ -81,8 +83,7 @@ impl<'a> Message<'a> {
                     .all(|(a, b)| a.eq_ignore_ascii_case(b));
 
             // Find end-of-logical-line (handles folding)
-            let (line_end, after_crlf) =
-                crate::header::find_unfolded_line_end(bytes, cursor)?;
+            let (line_end, after_crlf) = crate::header::find_unfolded_line_end(bytes, cursor)?;
 
             if has_match {
                 // Extract value: skip colon + optional single WSP
@@ -127,9 +128,8 @@ impl<'a> Message<'a> {
     /// `header()`.
     pub fn header_all(&self, wanted: &'a str) -> impl Iterator<Item = Header<'a>> + 'a {
         let wanted_bytes = wanted.as_bytes();
-        self.headers().filter(move |h| {
-            eq_ignore_ascii_case(h.name.as_bytes(), wanted_bytes)
-        })
+        self.headers()
+            .filter(move |h| eq_ignore_ascii_case(h.name.as_bytes(), wanted_bytes))
     }
 
     /// Locate the offset of the empty-line terminator separating
@@ -374,7 +374,11 @@ body";
         // Value should start with "from mta…", NOT some sub-split
         assert!(received.starts_with(b"from mta.example.com"));
         // And the colons inside should be preserved
-        assert!(std::str::from_utf8(received).unwrap().contains("203.0.113.42:25"));
+        assert!(
+            std::str::from_utf8(received)
+                .unwrap()
+                .contains("203.0.113.42:25")
+        );
     }
 
     #[test]

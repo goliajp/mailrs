@@ -67,4 +67,6 @@ pub use command::{AuthMechanism, Command, ForwardPath, Param, ReversePath};
 pub use data::{unstuff_data, unstuff_line};
 pub use parse::{ParseError, parse_command};
 pub use response::{EnhancedCode, Response, format_ehlo_response};
-pub use session::{AuthStep, Event, MAX_MESSAGE_SIZE, MAX_RECIPIENTS, Session, SessionConfig, State};
+pub use session::{
+    AuthStep, Event, MAX_MESSAGE_SIZE, MAX_RECIPIENTS, Session, SessionConfig, State,
+};

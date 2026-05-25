@@ -4,15 +4,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use mailrs_tls_rpt::{
-    EventFact, FailureEvent, Store, StoreError, SuccessEvent,
-};
+use mailrs_tls_rpt::{EventFact, FailureEvent, Store, StoreError, SuccessEvent};
 use sqlx::PgPool;
 
-
 use super::convert::{
-    canonical_policy_str_to_type, failure_type_str, policy_type_str,
-    str_to_failure_type,
+    canonical_policy_str_to_type, failure_type_str, policy_type_str, str_to_failure_type,
 };
 
 pub struct PgTlsRptStore {
@@ -34,43 +30,43 @@ impl PgTlsRptStore {
 
 #[async_trait]
 impl Store for PgTlsRptStore {
-    async fn append(
-        &self,
-        event: EventFact,
-        recorded_at_unix_secs: u64,
-    ) -> Result<(), StoreError> {
+    async fn append(&self, event: EventFact, recorded_at_unix_secs: u64) -> Result<(), StoreError> {
         let ts = recorded_at_unix_secs as i64;
         let r = match event {
-            EventFact::Success(e) => sqlx::query(
-                "INSERT INTO tls_rpt_events
+            EventFact::Success(e) => {
+                sqlx::query(
+                    "INSERT INTO tls_rpt_events
                     (recorded_at_unix, kind, policy_domain, policy_type, mx_host)
                  VALUES ($1, 'success', $2, $3, $4)",
-            )
-            .bind(ts)
-            .bind(e.policy_domain)
-            .bind(policy_type_str(e.policy_type))
-            .bind(e.mx_host)
-            .execute(&self.pool)
-            .await,
-            EventFact::Failure(e) => sqlx::query(
-                "INSERT INTO tls_rpt_events
+                )
+                .bind(ts)
+                .bind(e.policy_domain)
+                .bind(policy_type_str(e.policy_type))
+                .bind(e.mx_host)
+                .execute(&self.pool)
+                .await
+            }
+            EventFact::Failure(e) => {
+                sqlx::query(
+                    "INSERT INTO tls_rpt_events
                     (recorded_at_unix, kind, policy_domain, policy_type, mx_host,
                      result_type, sending_mta_ip, receiving_ip, receiving_mx_helo,
                      additional_information, failure_reason_code)
                  VALUES ($1, 'failure', $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-            )
-            .bind(ts)
-            .bind(e.policy_domain)
-            .bind(policy_type_str(e.policy_type))
-            .bind(e.mx_host)
-            .bind(failure_type_str(e.result_type))
-            .bind(e.sending_mta_ip.map(|ip| ip.to_string()))
-            .bind(e.receiving_ip.map(|ip| ip.to_string()))
-            .bind(e.receiving_mx_helo)
-            .bind(e.additional_information)
-            .bind(e.failure_reason_code)
-            .execute(&self.pool)
-            .await,
+                )
+                .bind(ts)
+                .bind(e.policy_domain)
+                .bind(policy_type_str(e.policy_type))
+                .bind(e.mx_host)
+                .bind(failure_type_str(e.result_type))
+                .bind(e.sending_mta_ip.map(|ip| ip.to_string()))
+                .bind(e.receiving_ip.map(|ip| ip.to_string()))
+                .bind(e.receiving_mx_helo)
+                .bind(e.additional_information)
+                .bind(e.failure_reason_code)
+                .execute(&self.pool)
+                .await
+            }
         };
         r.map(|_| ()).map_err(|e| StoreError::Backend(Box::new(e)))
     }

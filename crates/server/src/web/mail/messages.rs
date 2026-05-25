@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::message_util;
@@ -76,14 +76,13 @@ async fn try_lazy_backfill_invite(
     let payload_json = serde_json::to_value(&parsed).ok()?;
     let method_str = format!("{:?}", parsed.method).to_uppercase();
 
-    if let Err(e) = sqlx::query(
-        "UPDATE messages SET invite_payload = $1, invite_method = $2 WHERE id = $3",
-    )
-    .bind(&payload_json)
-    .bind(&method_str)
-    .bind(message_id)
-    .execute(pool)
-    .await
+    if let Err(e) =
+        sqlx::query("UPDATE messages SET invite_payload = $1, invite_method = $2 WHERE id = $3")
+            .bind(&payload_json)
+            .bind(&method_str)
+            .bind(message_id)
+            .execute(pool)
+            .await
     {
         tracing::warn!("lazy invite backfill UPDATE failed for {message_id}: {e}");
         return None;
@@ -344,27 +343,35 @@ pub(crate) async fn get_message_raw(
     let mailboxes = mb_store.list_mailboxes(&user).await.unwrap_or_default();
     for mb in &mailboxes {
         if let Ok(Some(msg)) = mb_store.get_message(mb.id, uid).await
-            && let Some(data) = message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id) {
-                let subject = message_util::decode_header(&msg.subject);
-                let safe_name = subject
-                    .chars()
-                    .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' { c } else { '_' })
-                    .collect::<String>();
-                let filename = if safe_name.trim().is_empty() {
-                    format!("message-{uid}.eml")
-                } else {
-                    format!("{}.eml", safe_name.trim())
-                };
-                let disposition = format!("attachment; filename=\"{filename}\"");
-                return (
-                    StatusCode::OK,
-                    [
-                        ("content-type", "message/rfc822".to_string()),
-                        ("content-disposition", disposition),
-                    ],
-                    data,
-                );
-            }
+            && let Some(data) =
+                message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id)
+        {
+            let subject = message_util::decode_header(&msg.subject);
+            let safe_name = subject
+                .chars()
+                .map(|c| {
+                    if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
+                .collect::<String>();
+            let filename = if safe_name.trim().is_empty() {
+                format!("message-{uid}.eml")
+            } else {
+                format!("{}.eml", safe_name.trim())
+            };
+            let disposition = format!("attachment; filename=\"{filename}\"");
+            return (
+                StatusCode::OK,
+                [
+                    ("content-type", "message/rfc822".to_string()),
+                    ("content-disposition", disposition),
+                ],
+                data,
+            );
+        }
     }
 
     (

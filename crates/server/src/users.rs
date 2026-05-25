@@ -96,11 +96,19 @@ impl UserStore {
 
 /// validate email address format
 pub fn validate_email(email: &str) -> Result<(), &'static str> {
-    if email.len() > 255 { return Err("email too long"); }
+    if email.len() > 255 {
+        return Err("email too long");
+    }
     let parts: Vec<&str> = email.split('@').collect();
-    if parts.len() != 2 { return Err("email must contain exactly one @"); }
-    if parts[0].is_empty() { return Err("local part cannot be empty"); }
-    if parts[1].is_empty() || !parts[1].contains('.') { return Err("invalid domain"); }
+    if parts.len() != 2 {
+        return Err("email must contain exactly one @");
+    }
+    if parts[0].is_empty() {
+        return Err("local part cannot be empty");
+    }
+    if parts[1].is_empty() || !parts[1].contains('.') {
+        return Err("invalid domain");
+    }
     Ok(())
 }
 
@@ -124,8 +132,7 @@ fn verify_argon2(password: &str, hash: &str) -> bool {
 
 /// pre-computed dummy hash for constant-time rejection of non-existent users.
 /// prevents timing side-channel that reveals whether an account exists.
-const DUMMY_HASH: &str =
-    "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const DUMMY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 /// perform a dummy argon2 verification to prevent timing attacks.
 /// when a user does not exist, call this to spend roughly the same time
@@ -141,8 +148,7 @@ mod tests {
 
     /// helper: build a UserStore from a TOML string, mirroring UserStore::load logic
     fn store_from_toml(content: &str) -> Result<UserStore, String> {
-        let file: UsersFile =
-            toml::from_str(content).map_err(|e| e.to_string())?;
+        let file: UsersFile = toml::from_str(content).map_err(|e| e.to_string())?;
         let users = file
             .users
             .into_iter()
@@ -198,8 +204,7 @@ mod tests {
 
     #[test]
     fn from_plain_passwords_single_user() {
-        let store =
-            UserStore::from_plain_passwords(vec![("solo".into(), "pw".into())]);
+        let store = UserStore::from_plain_passwords(vec![("solo".into(), "pw".into())]);
         assert!(store.verify("solo", "pw"));
         assert!(!store.verify("solo", "wrong"));
         assert!(!store.verify("other", "pw"));
@@ -207,9 +212,7 @@ mod tests {
 
     #[test]
     fn from_plain_passwords_empty_username_and_password() {
-        let store = UserStore::from_plain_passwords(vec![
-            ("".into(), "".into()),
-        ]);
+        let store = UserStore::from_plain_passwords(vec![("".into(), "".into())]);
         assert!(store.verify("", ""));
         assert!(!store.verify("", "notempty"));
     }
@@ -282,7 +285,10 @@ mod tests {
     #[test]
     fn verify_argon2_wrong_algorithm_tag() {
         // a valid-looking structure but with nonsense algorithm
-        assert!(!verify_argon2("pw", "$bcrypt$v=19$m=19456,t=2,p=1$salt$hash"));
+        assert!(!verify_argon2(
+            "pw",
+            "$bcrypt$v=19$m=19456,t=2,p=1$salt$hash"
+        ));
     }
 
     // ── UserStore::verify with plain passwords ──
@@ -298,9 +304,7 @@ mod tests {
 
     #[test]
     fn verify_plain_case_sensitive() {
-        let store = UserStore::from_plain_passwords(vec![
-            ("alice".into(), "Secret".into()),
-        ]);
+        let store = UserStore::from_plain_passwords(vec![("alice".into(), "Secret".into())]);
         assert!(store.verify("alice", "Secret"));
         assert!(!store.verify("alice", "secret"));
         assert!(!store.verify("alice", "SECRET"));
@@ -308,9 +312,7 @@ mod tests {
 
     #[test]
     fn verify_username_case_sensitive() {
-        let store = UserStore::from_plain_passwords(vec![
-            ("Alice".into(), "pw".into()),
-        ]);
+        let store = UserStore::from_plain_passwords(vec![("Alice".into(), "pw".into())]);
         assert!(store.verify("Alice", "pw"));
         assert!(!store.verify("alice", "pw"));
         assert!(!store.verify("ALICE", "pw"));
@@ -634,9 +636,7 @@ password_hash = "{hash}"
 
     #[test]
     fn verify_does_not_mutate_store() {
-        let store = UserStore::from_plain_passwords(vec![
-            ("a".into(), "1".into()),
-        ]);
+        let store = UserStore::from_plain_passwords(vec![("a".into(), "1".into())]);
         // calling verify multiple times should be idempotent
         assert!(store.verify("a", "1"));
         assert!(store.verify("a", "1"));
@@ -646,9 +646,7 @@ password_hash = "{hash}"
 
     #[test]
     fn clone_store_is_independent() {
-        let store = UserStore::from_plain_passwords(vec![
-            ("user".into(), "pw".into()),
-        ]);
+        let store = UserStore::from_plain_passwords(vec![("user".into(), "pw".into())]);
         let cloned = store.clone();
         assert!(cloned.verify("user", "pw"));
         assert!(!cloned.verify("user", "wrong"));
@@ -701,9 +699,7 @@ password_hash = "$argon2id$v=19$m=19456,t=2,p=1$fakesalt$fakehash"
 
     #[test]
     fn password_with_leading_trailing_spaces() {
-        let store = UserStore::from_plain_passwords(vec![
-            ("user".into(), "  spaced  ".into()),
-        ]);
+        let store = UserStore::from_plain_passwords(vec![("user".into(), "  spaced  ".into())]);
         assert!(store.verify("user", "  spaced  "));
         assert!(!store.verify("user", "spaced"));
         assert!(!store.verify("user", "  spaced"));
@@ -711,18 +707,14 @@ password_hash = "$argon2id$v=19$m=19456,t=2,p=1$fakesalt$fakehash"
 
     #[test]
     fn password_with_newlines() {
-        let store = UserStore::from_plain_passwords(vec![
-            ("user".into(), "line1\nline2".into()),
-        ]);
+        let store = UserStore::from_plain_passwords(vec![("user".into(), "line1\nline2".into())]);
         assert!(store.verify("user", "line1\nline2"));
         assert!(!store.verify("user", "line1line2"));
     }
 
     #[test]
     fn password_with_null_byte() {
-        let store = UserStore::from_plain_passwords(vec![
-            ("user".into(), "before\0after".into()),
-        ]);
+        let store = UserStore::from_plain_passwords(vec![("user".into(), "before\0after".into())]);
         assert!(store.verify("user", "before\0after"));
         assert!(!store.verify("user", "before"));
     }

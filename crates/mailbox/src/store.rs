@@ -13,9 +13,7 @@
 
 use async_trait::async_trait;
 
-use crate::types::{
-    FlagOp, Inserted, InsertMessage, Mailbox, MailboxStatus, Message, QueryFilter,
-};
+use crate::types::{FlagOp, InsertMessage, Inserted, Mailbox, MailboxStatus, Message, QueryFilter};
 
 /// Opaque store error returned by every trait method. Implementations map
 /// their own error types (e.g. `sqlx::Error`) into a boxed `dyn Error` at the
@@ -156,11 +154,8 @@ pub trait MailboxStore: Send + Sync {
 
     /// Return every message id belonging to a thread, ordered by
     /// `internal_date` ascending (oldest first).
-    async fn thread_message_ids(
-        &self,
-        user: &str,
-        thread_id: &str,
-    ) -> Result<Vec<i64>, StoreError>;
+    async fn thread_message_ids(&self, user: &str, thread_id: &str)
+    -> Result<Vec<i64>, StoreError>;
 
     /// Walk the `In-Reply-To` / `References` chain backwards from a message,
     /// returning the chain of parent message db ids from immediate parent

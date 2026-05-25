@@ -62,7 +62,11 @@ pub(crate) async fn mcp_auth_middleware(
         None => {
             // cache miss — query PG
             let Some(ref pool) = state.pg_pool else {
-                return (StatusCode::INTERNAL_SERVER_ERROR, "auth backend unavailable").into_response();
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "auth backend unavailable",
+                )
+                    .into_response();
             };
 
             let record = match api_key_store::get_api_key_by_prefix(pool, prefix).await {
@@ -71,7 +75,11 @@ pub(crate) async fn mcp_auth_middleware(
                     return (StatusCode::UNAUTHORIZED, "invalid api key").into_response();
                 }
                 Err(_) => {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "auth backend unavailable").into_response();
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "auth backend unavailable",
+                    )
+                        .into_response();
                 }
             };
 
@@ -100,9 +108,10 @@ pub(crate) async fn mcp_auth_middleware(
 
     // check expiration
     if let Some(expires_at) = cached.expires_at
-        && expires_at < chrono::Utc::now() {
-            return (StatusCode::UNAUTHORIZED, "api key expired").into_response();
-        }
+        && expires_at < chrono::Utc::now()
+    {
+        return (StatusCode::UNAUTHORIZED, "api key expired").into_response();
+    }
 
     // fire-and-forget last_used_at update
     if let Some(ref pool) = state.pg_pool {
@@ -120,19 +129,36 @@ pub(crate) async fn mcp_auth_middleware(
             let app = ds.get_app_by_id(app_id).await.ok().flatten();
             match app {
                 Some(app) if app.active => {
-                    let scopes: Vec<String> = app.scopes.split(',')
+                    let scopes: Vec<String> = app
+                        .scopes
+                        .split(',')
                         .map(|s| s.trim().to_string())
                         .filter(|s| !s.is_empty())
                         .collect();
-                    let all_domains: Vec<String> = ds.list_domains().await
-                        .unwrap_or_default().into_iter().map(|d| d.name).collect();
+                    let all_domains: Vec<String> = ds
+                        .list_domains()
+                        .await
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|d| d.name)
+                        .collect();
                     let perms = crate::permission::from_scopes(&scopes, &all_domains);
-                    (app.name.clone(), perms, AuthMethod::AppKey(cached.id, app_id))
+                    (
+                        app.name.clone(),
+                        perms,
+                        AuthMethod::AppKey(cached.id, app_id),
+                    )
                 }
-                _ => return (StatusCode::UNAUTHORIZED, "app disabled or not found").into_response(),
+                _ => {
+                    return (StatusCode::UNAUTHORIZED, "app disabled or not found").into_response();
+                }
             }
         } else {
-            return (StatusCode::INTERNAL_SERVER_ERROR, "auth backend unavailable").into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "auth backend unavailable",
+            )
+                .into_response();
         }
     } else {
         // user key
@@ -141,8 +167,12 @@ pub(crate) async fn mcp_auth_middleware(
                 Ok(Some((account, _))) => account.display_name,
                 _ => cached.account_address.clone(),
             };
-            let perms = ds.load_account_permissions(&cached.account_address).await
-                .unwrap_or_else(|_| crate::permission::compute_effective_permissions(&[], &[], &[]));
+            let perms = ds
+                .load_account_permissions(&cached.account_address)
+                .await
+                .unwrap_or_else(|_| {
+                    crate::permission::compute_effective_permissions(&[], &[], &[])
+                });
             (dn, perms, AuthMethod::ApiKey(cached.id))
         } else {
             (
@@ -164,5 +194,7 @@ pub(crate) async fn mcp_auth_middleware(
 
     request.extensions_mut().insert(auth_user.clone());
     // set task-local so the StreamableHttpService factory can read it
-    super::MCP_AUTH_USER.scope(auth_user, next.run(request)).await
+    super::MCP_AUTH_USER
+        .scope(auth_user, next.run(request))
+        .await
 }

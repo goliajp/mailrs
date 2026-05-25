@@ -72,10 +72,7 @@ pub fn parse_response(input: &str) -> Option<SmtpResponse> {
         // ' ' = last line, '-' = continuation
         match separator {
             Some(b' ') | None => {
-                return Some(SmtpResponse {
-                    code: code?,
-                    lines,
-                });
+                return Some(SmtpResponse { code: code?, lines });
             }
             Some(b'-') => continue,
             _ => return None,
@@ -127,7 +124,10 @@ mod tests {
 
     #[test]
     fn has_extension_starttls() {
-        let r = parse_response("250-mx.example.com\r\n250-PIPELINING\r\n250-STARTTLS\r\n250 SIZE 10240000").unwrap();
+        let r = parse_response(
+            "250-mx.example.com\r\n250-PIPELINING\r\n250-STARTTLS\r\n250 SIZE 10240000",
+        )
+        .unwrap();
         assert!(r.has_extension("STARTTLS"));
         assert!(r.has_extension("starttls"));
         assert!(r.has_extension("PIPELINING"));
@@ -229,67 +229,100 @@ mod tests {
 
     #[test]
     fn is_positive_boundary_199() {
-        let r = SmtpResponse { code: 199, lines: vec![] };
+        let r = SmtpResponse {
+            code: 199,
+            lines: vec![],
+        };
         assert!(!r.is_positive());
     }
 
     #[test]
     fn is_positive_boundary_200() {
-        let r = SmtpResponse { code: 200, lines: vec![] };
+        let r = SmtpResponse {
+            code: 200,
+            lines: vec![],
+        };
         assert!(r.is_positive());
     }
 
     #[test]
     fn is_positive_boundary_399() {
-        let r = SmtpResponse { code: 399, lines: vec![] };
+        let r = SmtpResponse {
+            code: 399,
+            lines: vec![],
+        };
         assert!(r.is_positive());
     }
 
     #[test]
     fn is_positive_boundary_400() {
-        let r = SmtpResponse { code: 400, lines: vec![] };
+        let r = SmtpResponse {
+            code: 400,
+            lines: vec![],
+        };
         assert!(!r.is_positive());
     }
 
     #[test]
     fn is_transient_boundary_399() {
-        let r = SmtpResponse { code: 399, lines: vec![] };
+        let r = SmtpResponse {
+            code: 399,
+            lines: vec![],
+        };
         assert!(!r.is_transient_error());
     }
 
     #[test]
     fn is_transient_boundary_400() {
-        let r = SmtpResponse { code: 400, lines: vec![] };
+        let r = SmtpResponse {
+            code: 400,
+            lines: vec![],
+        };
         assert!(r.is_transient_error());
     }
 
     #[test]
     fn is_transient_boundary_499() {
-        let r = SmtpResponse { code: 499, lines: vec![] };
+        let r = SmtpResponse {
+            code: 499,
+            lines: vec![],
+        };
         assert!(r.is_transient_error());
     }
 
     #[test]
     fn is_transient_boundary_500() {
-        let r = SmtpResponse { code: 500, lines: vec![] };
+        let r = SmtpResponse {
+            code: 500,
+            lines: vec![],
+        };
         assert!(!r.is_transient_error());
     }
 
     #[test]
     fn is_permanent_boundary_499() {
-        let r = SmtpResponse { code: 499, lines: vec![] };
+        let r = SmtpResponse {
+            code: 499,
+            lines: vec![],
+        };
         assert!(!r.is_permanent_error());
     }
 
     #[test]
     fn is_permanent_boundary_500() {
-        let r = SmtpResponse { code: 500, lines: vec![] };
+        let r = SmtpResponse {
+            code: 500,
+            lines: vec![],
+        };
         assert!(r.is_permanent_error());
     }
 
     #[test]
     fn is_permanent_high_code() {
-        let r = SmtpResponse { code: 599, lines: vec![] };
+        let r = SmtpResponse {
+            code: 599,
+            lines: vec![],
+        };
         assert!(r.is_permanent_error());
     }
 
@@ -313,7 +346,10 @@ mod tests {
 
     #[test]
     fn message_empty() {
-        let r = SmtpResponse { code: 250, lines: vec![] };
+        let r = SmtpResponse {
+            code: 250,
+            lines: vec![],
+        };
         assert_eq!(r.message(), "");
     }
 
@@ -368,7 +404,10 @@ mod tests {
 
     #[test]
     fn smtp_response_debug() {
-        let r = SmtpResponse { code: 550, lines: vec!["no such user".into()] };
+        let r = SmtpResponse {
+            code: 550,
+            lines: vec!["no such user".into()],
+        };
         let debug = format!("{:?}", r);
         assert!(debug.contains("550"));
         assert!(debug.contains("no such user"));
@@ -436,10 +475,7 @@ mod tests {
     fn has_extension_auth_with_mechanisms() {
         let r = SmtpResponse {
             code: 250,
-            lines: vec![
-                "mx.example.com".into(),
-                "AUTH LOGIN PLAIN XOAUTH2".into(),
-            ],
+            lines: vec!["mx.example.com".into(), "AUTH LOGIN PLAIN XOAUTH2".into()],
         };
         assert!(r.has_extension("AUTH"));
         // "PLAIN" is a parameter, not a keyword
@@ -450,19 +486,28 @@ mod tests {
     #[test]
     fn categories_mutually_exclusive_for_standard_codes() {
         // a 2xx code is positive only
-        let r2 = SmtpResponse { code: 250, lines: vec![] };
+        let r2 = SmtpResponse {
+            code: 250,
+            lines: vec![],
+        };
         assert!(r2.is_positive());
         assert!(!r2.is_transient_error());
         assert!(!r2.is_permanent_error());
 
         // a 4xx code is transient only
-        let r4 = SmtpResponse { code: 450, lines: vec![] };
+        let r4 = SmtpResponse {
+            code: 450,
+            lines: vec![],
+        };
         assert!(!r4.is_positive());
         assert!(r4.is_transient_error());
         assert!(!r4.is_permanent_error());
 
         // a 5xx code is permanent only
-        let r5 = SmtpResponse { code: 550, lines: vec![] };
+        let r5 = SmtpResponse {
+            code: 550,
+            lines: vec![],
+        };
         assert!(!r5.is_positive());
         assert!(!r5.is_transient_error());
         assert!(r5.is_permanent_error());

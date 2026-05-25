@@ -104,9 +104,7 @@ pub async fn handle_email_submission_set(
 mod tests {
     use super::*;
     use crate::store::{MailStore, StoreError};
-    use crate::types::{
-        Mailbox, MailboxCounts, Message, ParsedBody, SubmissionResult,
-    };
+    use crate::types::{Mailbox, MailboxCounts, Message, ParsedBody, SubmissionResult};
     use async_trait::async_trait;
     use serde_json::json;
     use std::sync::Mutex;
@@ -158,12 +156,7 @@ mod tests {
         async fn mailbox_status(&self, _: i64) -> Result<MailboxCounts, StoreError> {
             Ok(MailboxCounts::default())
         }
-        async fn list_messages(
-            &self,
-            _: i64,
-            _: u32,
-            _: u32,
-        ) -> Result<Vec<Message>, StoreError> {
+        async fn list_messages(&self, _: i64, _: u32, _: u32) -> Result<Vec<Message>, StoreError> {
             Ok(vec![])
         }
         async fn get_message_by_db_id(
@@ -179,11 +172,7 @@ mod tests {
                 .find(|m| m.id == id)
                 .cloned())
         }
-        async fn list_thread_messages(
-            &self,
-            _: &str,
-            _: &str,
-        ) -> Result<Vec<Message>, StoreError> {
+        async fn list_thread_messages(&self, _: &str, _: &str) -> Result<Vec<Message>, StoreError> {
             Ok(vec![])
         }
         async fn update_flags(&self, _: i64, _: u32, _: u32) -> Result<(), StoreError> {
@@ -203,12 +192,7 @@ mod tests {
         fn parse_message(&self, _: &[u8]) -> ParsedBody {
             ParsedBody::default()
         }
-        async fn submit_message(
-            &self,
-            _: &str,
-            m: &Message,
-            _: &[u8],
-        ) -> SubmissionResult {
+        async fn submit_message(&self, _: &str, m: &Message, _: &[u8]) -> SubmissionResult {
             self.submit_outcome
                 .lock()
                 .unwrap()
@@ -268,7 +252,10 @@ mod tests {
         s.add(
             msg(7),
             None,
-            SubmissionResult { success: true, message: None },
+            SubmissionResult {
+                success: true,
+                message: None,
+            },
         );
         let args = json!({ "create": { "c1": { "emailId": "msg-7" } } });
         let (_, result) = handle_email_submission_set(&args, "u", &s).await.unwrap();
@@ -282,7 +269,10 @@ mod tests {
         s.add(
             msg(42),
             Some(b"From: x\r\n\r\nhi".to_vec()),
-            SubmissionResult { success: true, message: None },
+            SubmissionResult {
+                success: true,
+                message: None,
+            },
         );
         let args = json!({ "create": { "c1": { "emailId": "msg-42" } } });
         let (_, result) = handle_email_submission_set(&args, "u", &s).await.unwrap();
@@ -317,7 +307,10 @@ mod tests {
         s.add(
             msg(5),
             Some(b"raw".to_vec()),
-            SubmissionResult { success: false, message: None },
+            SubmissionResult {
+                success: false,
+                message: None,
+            },
         );
         let args = json!({ "create": { "c1": { "emailId": "msg-5" } } });
         let (_, result) = handle_email_submission_set(&args, "u", &s).await.unwrap();
@@ -330,12 +323,18 @@ mod tests {
         s.add(
             msg(1),
             Some(b"raw1".to_vec()),
-            SubmissionResult { success: true, message: None },
+            SubmissionResult {
+                success: true,
+                message: None,
+            },
         );
         s.add(
             msg(2),
             None,
-            SubmissionResult { success: true, message: None },
+            SubmissionResult {
+                success: true,
+                message: None,
+            },
         );
         let args = json!({
             "create": {

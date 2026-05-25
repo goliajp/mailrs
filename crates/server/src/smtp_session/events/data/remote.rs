@@ -3,8 +3,8 @@
 
 use crate::event_bus::SmtpEvent;
 
-use super::super::super::srs::srs_rewrite;
 use super::super::super::ConnectionContext;
+use super::super::super::srs::srs_rewrite;
 
 pub(super) enum RemoteEnqueueResult {
     Ok,

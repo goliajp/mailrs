@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
@@ -17,24 +17,24 @@ mod api_key;
 mod auth;
 mod autodiscover;
 mod calendar_api;
+mod classify;
 mod conversations;
 mod dav;
 mod jmap;
 pub(crate) mod mail;
 mod oidc_provider;
-mod templates;
-mod system_config;
-mod webhook;
 pub(crate) mod rate_limit;
 mod request_id;
-mod rsvp;
-mod ws;
-mod classify;
 mod router;
+mod rsvp;
+mod system_config;
+mod templates;
+mod webhook;
+mod ws;
 
-pub use router::router;
 pub(crate) use auth::{AuthMethod, AuthUser};
 pub(crate) use classify::classify_email;
+pub use router::router;
 
 /// session token TTL: 7 days
 const SESSION_TTL: Duration = Duration::from_secs(7 * 24 * 3600);
@@ -266,12 +266,18 @@ impl WebState {
         self
     }
 
-    pub fn with_render_preview(mut self, client: Arc<crate::render_preview::RenderPreviewClient>) -> Self {
+    pub fn with_render_preview(
+        mut self,
+        client: Arc<crate::render_preview::RenderPreviewClient>,
+    ) -> Self {
         self.render_preview = Some(client);
         self
     }
 
-    pub fn with_system_config(mut self, store: Arc<crate::system_config::SystemConfigStore>) -> Self {
+    pub fn with_system_config(
+        mut self,
+        store: Arc<crate::system_config::SystemConfigStore>,
+    ) -> Self {
         self.system_config = Some(store);
         self
     }
@@ -423,7 +429,7 @@ mod tests {
     // --- validate_domains ---
 
     fn make_perms(domains: &[&str]) -> crate::permission::EffectivePermissions {
-        use crate::permission::{compute_effective_permissions, AccountGroup, GroupInfo};
+        use crate::permission::{AccountGroup, GroupInfo, compute_effective_permissions};
         let groups: Vec<AccountGroup> = domains
             .iter()
             .map(|d| AccountGroup {
@@ -574,7 +580,9 @@ mod tests {
         let (cat, score) = classify_email(
             "security@phisher.example.com",
             "Your account has been suspended",
-            Some("Login immediately to verify your account. Confirm your identity. Your password needs updating."),
+            Some(
+                "Login immediately to verify your account. Confirm your identity. Your password needs updating.",
+            ),
             None,
         );
         assert_eq!(cat, "scam");
@@ -587,7 +595,9 @@ mod tests {
             "info@tracker.example.com",
             "Weekly Update",
             Some("Here is your update"),
-            Some("<html><body><img src='https://t.example.com/px' width=\"1\" height=\"1\" /></body></html>"),
+            Some(
+                "<html><body><img src='https://t.example.com/px' width=\"1\" height=\"1\" /></body></html>",
+            ),
         );
         assert_eq!(cat, "promotion");
     }
@@ -650,7 +660,10 @@ mod tests {
             Some("当選おめでとうございます。緊急のお知らせです。"),
             None,
         );
-        assert!(score >= 40, "japanese spam signals should raise score, got {score}");
+        assert!(
+            score >= 40,
+            "japanese spam signals should raise score, got {score}"
+        );
         assert!(cat == "spam" || cat == "scam");
     }
 
@@ -662,7 +675,10 @@ mod tests {
             Some("您的账号被锁定，请立即修改密码"),
             None,
         );
-        assert!(score >= 40, "chinese phish signals should raise score, got {score}");
+        assert!(
+            score >= 40,
+            "chinese phish signals should raise score, got {score}"
+        );
         assert!(cat == "spam" || cat == "scam");
     }
 
@@ -683,7 +699,9 @@ mod tests {
         let (_, score) = classify_email(
             "scammer@evil.example.com",
             "URGENT: winner! congratulations! lottery prize!",
-            Some("click here, act now, limited time, verify your account, suspended, locked, password, login immediately, confirm your identity, アカウントが制限, アカウントを確認, 账户异常, 账号被锁, 密码, パスワード, 当選, 至急, 緊急, 中奖, 恭喜, 紧急"),
+            Some(
+                "click here, act now, limited time, verify your account, suspended, locked, password, login immediately, confirm your identity, アカウントが制限, アカウントを確認, 账户异常, 账号被锁, 密码, パスワード, 当選, 至急, 緊急, 中奖, 恭喜, 紧急",
+            ),
             None,
         );
         assert!(score <= 100, "score should be clamped to 100, got {score}");

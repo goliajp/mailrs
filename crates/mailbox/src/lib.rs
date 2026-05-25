@@ -17,9 +17,9 @@ pub mod types;
 // Public re-exports for the trait surface and its types.
 pub use store::{MailboxStore, StoreError};
 pub use types::{
-    bitmask_to_maildir_flags, maildir_flags_to_bitmask, ConversationSummary, EmailAnalysisRow,
-    FlagAction, FlagOp, InsertMessage, Inserted, Mailbox, MailboxStatus, Message, MessageMeta,
-    QueryFilter, FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_RECENT, FLAG_SEEN,
+    ConversationSummary, EmailAnalysisRow, FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED,
+    FLAG_RECENT, FLAG_SEEN, FlagAction, FlagOp, InsertMessage, Inserted, Mailbox, MailboxStatus,
+    Message, MessageMeta, QueryFilter, bitmask_to_maildir_flags, maildir_flags_to_bitmask,
 };
 
 // Public re-exports for the PG reference implementation. Programs that

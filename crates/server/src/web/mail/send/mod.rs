@@ -3,11 +3,10 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
-
 
 use super::{ApiResult, AuthUser, WebState};
 
@@ -16,7 +15,6 @@ mod text;
 
 pub(crate) use multipart::send_message_multipart;
 pub(crate) use text::send_message;
-
 
 #[derive(Deserialize)]
 pub(crate) struct SendMessageRequest {
@@ -64,7 +62,6 @@ pub(crate) struct DeliverabilityCheckResult {
     pub issues: Vec<String>,
 }
 
-
 pub(crate) async fn cancel_pending_send(
     AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
@@ -84,7 +81,8 @@ pub(crate) async fn cancel_pending_send(
         });
     };
 
-    match mailrs_outbound_queue::queue::cancel_pending_by_message_id(pool, &message_id, &user).await {
+    match mailrs_outbound_queue::queue::cancel_pending_by_message_id(pool, &message_id, &user).await
+    {
         Ok(true) => Json(ApiResult {
             success: true,
             message: None,
@@ -99,7 +97,6 @@ pub(crate) async fn cancel_pending_send(
         }),
     }
 }
-
 
 pub(crate) async fn check_deliverability(
     _auth: AuthUser,
@@ -162,8 +159,7 @@ pub(super) async fn resolve_inline_images(
     for id in &ids {
         // try all known extensions
         for ext in &["png", "jpg", "webp", "gif", "tiff", "bmp", "svg", "bin"] {
-            let path =
-                crate::inline_image::inline_path(maildir_root, user_address, id, ext);
+            let path = crate::inline_image::inline_path(maildir_root, user_address, id, ext);
             if let Ok(data) = tokio::fs::read(&path).await {
                 let content_type = match *ext {
                     "png" => "image/png",
@@ -189,4 +185,3 @@ pub(super) async fn resolve_inline_images(
     let rewritten = crate::inline_image::replace_inline_urls_with_cid(html, &images);
     (rewritten, images)
 }
-

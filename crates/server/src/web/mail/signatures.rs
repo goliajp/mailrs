@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use super::{ApiResult, AuthUser, WebState};
@@ -56,14 +56,16 @@ pub(crate) async fn list_signatures(
 
     let sigs: Vec<SignatureInfo> = rows
         .into_iter()
-        .map(|(id, name, html, text_content, is_default, created_at)| SignatureInfo {
-            id,
-            name,
-            html,
-            text_content,
-            is_default,
-            created_at,
-        })
+        .map(
+            |(id, name, html, text_content, is_default, created_at)| SignatureInfo {
+                id,
+                name,
+                html,
+                text_content,
+                is_default,
+                created_at,
+            },
+        )
         .collect();
     Json(serde_json::to_value(sigs).unwrap_or_default())
 }
@@ -85,7 +87,9 @@ pub(crate) async fn save_signature(
             message: Some("signature name too long".into()),
         });
     }
-    if req.html.len() > super::MAX_EMAIL_BODY_LEN || req.text_content.len() > super::MAX_EMAIL_BODY_LEN {
+    if req.html.len() > super::MAX_EMAIL_BODY_LEN
+        || req.text_content.len() > super::MAX_EMAIL_BODY_LEN
+    {
         return Json(ApiResult {
             success: false,
             message: Some("signature content too long".into()),
@@ -94,12 +98,10 @@ pub(crate) async fn save_signature(
 
     // if setting as default, unset any existing default first
     if req.is_default {
-        let _ = sqlx::query(
-            "UPDATE signatures SET is_default = false WHERE account_address = $1",
-        )
-        .bind(address)
-        .execute(pool)
-        .await;
+        let _ = sqlx::query("UPDATE signatures SET is_default = false WHERE account_address = $1")
+            .bind(address)
+            .execute(pool)
+            .await;
     }
 
     let result = if let Some(id) = req.id {
@@ -154,13 +156,11 @@ pub(crate) async fn delete_signature(
             message: Some("database unavailable".into()),
         });
     };
-    let result = sqlx::query(
-        "DELETE FROM signatures WHERE id = $1 AND account_address = $2",
-    )
-    .bind(id)
-    .bind(address)
-    .execute(pool)
-    .await;
+    let result = sqlx::query("DELETE FROM signatures WHERE id = $1 AND account_address = $2")
+        .bind(id)
+        .bind(address)
+        .execute(pool)
+        .await;
     match result {
         Ok(r) if r.rows_affected() > 0 => Json(ApiResult {
             success: true,

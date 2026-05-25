@@ -1,8 +1,8 @@
 use std::net::IpAddr;
 use std::sync::Arc;
 
-use hickory_resolver::proto::rr::RData;
 use hickory_resolver::TokioResolver;
+use hickory_resolver::proto::rr::RData;
 
 /// score PTR names against the EHLO domain (pure function, no I/O)
 /// 0.0 = at least one name matches, 1.0 = no match
@@ -15,11 +15,7 @@ pub fn ptr_score_from_names(names: &[String], ehlo_domain: &str) -> f64 {
         let name_str = name.trim_end_matches('.').to_lowercase();
         name_str == ehlo_lower || name_str.ends_with(&format!(".{ehlo_lower}"))
     });
-    if matches {
-        0.0
-    } else {
-        1.0
-    }
+    if matches { 0.0 } else { 1.0 }
 }
 
 /// check client PTR record and return a spam score contribution
@@ -64,9 +60,7 @@ pub async fn check_ptr_record(resolver: &Arc<TokioResolver>, hostname: &str) {
                     .answers()
                     .iter()
                     .filter_map(|r| match &r.data {
-                        RData::PTR(name) => {
-                            Some(name.to_ascii().trim_end_matches('.').to_string())
-                        }
+                        RData::PTR(name) => Some(name.to_ascii().trim_end_matches('.').to_string()),
                         _ => None,
                     })
                     .collect();
@@ -152,10 +146,7 @@ mod tests {
 
     #[test]
     fn multiple_names_none_match() {
-        let names = vec![
-            "foo.bar.net".to_string(),
-            "baz.qux.org".to_string(),
-        ];
+        let names = vec!["foo.bar.net".to_string(), "baz.qux.org".to_string()];
         assert_eq!(ptr_score_from_names(&names, "mail.example.com"), 1.0);
     }
 

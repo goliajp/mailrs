@@ -43,8 +43,8 @@ use crate::Report;
 /// fail in practice). Both wrapped as `std::io::Error` for a
 /// single return type.
 pub fn gzip_report(report: &Report) -> std::io::Result<Vec<u8>> {
-    let json = serde_json::to_vec(report)
-        .map_err(|e| std::io::Error::other(format!("serialize: {e}")))?;
+    let json =
+        serde_json::to_vec(report).map_err(|e| std::io::Error::other(format!("serialize: {e}")))?;
     let mut encoder = GzEncoder::new(Vec::with_capacity(json.len() / 2), Compression::default());
     encoder.write_all(&json)?;
     encoder.finish()
@@ -168,7 +168,9 @@ pub fn build_submission_email(opts: &SubmissionEmailOpts) -> Vec<u8> {
     // Part 2: the report attachment
     out.extend_from_slice(format!("--{}\r\n", opts.boundary).as_bytes());
     out.extend_from_slice(b"Content-Type: application/tlsrpt+gzip\r\n");
-    out.extend_from_slice(format!("Content-Disposition: attachment; filename=\"{filename}\"\r\n").as_bytes());
+    out.extend_from_slice(
+        format!("Content-Disposition: attachment; filename=\"{filename}\"\r\n").as_bytes(),
+    );
     out.extend_from_slice(b"Content-Transfer-Encoding: base64\r\n");
     out.extend_from_slice(b"\r\n");
     // Wrap the base64 into 76-char lines per RFC 2045 §6.8.
@@ -286,9 +288,7 @@ mod tests {
         let s = String::from_utf8_lossy(&email);
         assert!(s.contains("Content-Type: application/tlsrpt+gzip\r\n"));
         assert!(s.contains("Content-Transfer-Encoding: base64\r\n"));
-        assert!(
-            s.contains("filename=\"submitter.example!receiver.example!test-1.json.gz\"")
-        );
+        assert!(s.contains("filename=\"submitter.example!receiver.example!test-1.json.gz\""));
         // The base64-encoded "\x1f\x8b\x08\xde\xad" is "H4sI3q0="
         assert!(s.contains("H4sI3q0="));
     }
@@ -335,7 +335,11 @@ mod tests {
             if line.starts_with("--") || line.is_empty() {
                 break; // hit the closing boundary
             }
-            assert!(line.len() <= 76, "base64 line too long ({} chars)", line.len());
+            assert!(
+                line.len() <= 76,
+                "base64 line too long ({} chars)",
+                line.len()
+            );
         }
     }
 }

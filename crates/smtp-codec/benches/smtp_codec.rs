@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mailrs_smtp_codec::{has_smuggle_sequence, normalize_line_endings};
 use std::hint::black_box;
 

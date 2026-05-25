@@ -5,7 +5,11 @@ use hickory_resolver::proto::rr::RData;
 
 use super::{CheckResult, Status};
 
-pub(super) async fn check_dkim(resolver: &TokioResolver, domain: &str, selector: Option<&str>) -> CheckResult {
+pub(super) async fn check_dkim(
+    resolver: &TokioResolver,
+    domain: &str,
+    selector: Option<&str>,
+) -> CheckResult {
     let Some(sel) = selector else {
         return CheckResult {
             name: "DKIM Record".into(),
@@ -51,4 +55,3 @@ pub(super) async fn check_dkim(resolver: &TokioResolver, domain: &str, selector:
         },
     }
 }
-

@@ -71,5 +71,8 @@ fn find_text_calendar_under_budget() {
     });
     // Budget: 20 µs (release ~1.4 µs).
     let budget = Duration::from_micros(20);
-    assert!(median < budget, "find_text_calendar {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "find_text_calendar {median:?} > {budget:?}"
+    );
 }

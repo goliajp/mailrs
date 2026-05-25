@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
 use super::*;
@@ -88,7 +88,9 @@ pub(crate) async fn retry_queue_message(
 // --- suppression list ---
 
 pub(crate) async fn list_suppressed(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Some(resp) = require_permission(permissions, "admin.queue") {
@@ -109,7 +111,9 @@ pub(crate) async fn list_suppressed(
 }
 
 pub(crate) async fn remove_suppressed(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(body): Json<SuppressionAction>,
 ) -> impl IntoResponse {
@@ -117,11 +121,27 @@ pub(crate) async fn remove_suppressed(
         return resp.into_response();
     }
     let Some(ref pool) = state.pg_pool else {
-        return Json(ApiResult { success: false, message: Some("pg not available".into()) }).into_response();
+        return Json(ApiResult {
+            success: false,
+            message: Some("pg not available".into()),
+        })
+        .into_response();
     };
     match mailrs_outbound_queue::queue::remove_suppression(pool, &body.email).await {
-        Ok(true) => Json(ApiResult { success: true, message: None }).into_response(),
-        Ok(false) => Json(ApiResult { success: false, message: Some("not found".into()) }).into_response(),
-        Err(e) => Json(ApiResult { success: false, message: Some(e.to_string()) }).into_response(),
+        Ok(true) => Json(ApiResult {
+            success: true,
+            message: None,
+        })
+        .into_response(),
+        Ok(false) => Json(ApiResult {
+            success: false,
+            message: Some("not found".into()),
+        })
+        .into_response(),
+        Err(e) => Json(ApiResult {
+            success: false,
+            message: Some(e.to_string()),
+        })
+        .into_response(),
     }
 }

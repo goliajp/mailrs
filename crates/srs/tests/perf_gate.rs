@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use mailrs_srs::{reverse, rewrite, DEFAULT_TIMESTAMP_WINDOW_DAYS};
+use mailrs_srs::{DEFAULT_TIMESTAMP_WINDOW_DAYS, reverse, rewrite};
 
 const ITERS: usize = 200;
 
@@ -67,7 +67,11 @@ fn reverse_wrong_secret_constant_time_under_budget() {
 #[test]
 fn reverse_malformed_under_budget() {
     let median = time_median(|| {
-        let r = reverse("not-an-srs-address@example", "secret", DEFAULT_TIMESTAMP_WINDOW_DAYS);
+        let r = reverse(
+            "not-an-srs-address@example",
+            "secret",
+            DEFAULT_TIMESTAMP_WINDOW_DAYS,
+        );
         assert!(r.is_none());
     });
     // Budget: 1 µs (release P95 < 100 ns). Malformed inputs short-circuit

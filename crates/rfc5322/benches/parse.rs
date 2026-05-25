@@ -2,7 +2,7 @@
 //! common "read a few headers + body" pattern an inbound SMTP server
 //! executes per message.
 
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
+use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use mailrs_rfc5322::Message;
 use std::hint::black_box;
 
@@ -29,9 +29,7 @@ fn build_sample(body_kb: usize) -> Vec<u8> {
           Content-Transfer-Encoding: 7bit\r\n\r\n",
     );
     for _ in 0..(body_kb * 1024 / 80) {
-        msg.extend_from_slice(
-            b"This is a typical inbound message body line, ASCII text only.\r\n",
-        );
+        msg.extend_from_slice(b"This is a typical inbound message body line, ASCII text only.\r\n");
     }
     msg
 }
@@ -65,7 +63,9 @@ fn bench_header_lookup(c: &mut Criterion) {
                     || msg.clone(),
                     |msg| {
                         let parsed = mail_parser::MessageParser::default().parse(&msg);
-                        let s = parsed.as_ref().and_then(|p| p.subject().map(|s| s.to_string()));
+                        let s = parsed
+                            .as_ref()
+                            .and_then(|p| p.subject().map(|s| s.to_string()));
                         let f = parsed.as_ref().and_then(|p| {
                             p.from()
                                 .and_then(|a| a.first())

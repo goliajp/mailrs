@@ -33,20 +33,12 @@ pub trait CalendarStore: Send + Sync {
     async fn list_events(&self, calendar_id: i64) -> Result<Vec<Event>, StoreError>;
 
     /// Look up a single event by `(calendar_id, uid)`.
-    async fn get_event(
-        &self,
-        calendar_id: i64,
-        uid: &str,
-    ) -> Result<Option<Event>, StoreError>;
+    async fn get_event(&self, calendar_id: i64, uid: &str) -> Result<Option<Event>, StoreError>;
 
     /// Fetch only the etag for `(calendar_id, uid)`. Used by handlers to
     /// perform `If-Match` / `If-None-Match: *` precondition checks without
     /// pulling the full icalendar body.
-    async fn event_etag(
-        &self,
-        calendar_id: i64,
-        uid: &str,
-    ) -> Result<Option<String>, StoreError>;
+    async fn event_etag(&self, calendar_id: i64, uid: &str) -> Result<Option<String>, StoreError>;
 
     /// Insert or update an event. `icalendar` is the raw RFC 5545 text; `etag`
     /// is a freshly-computed digest the handler wants the store to record.
@@ -63,11 +55,7 @@ pub trait CalendarStore: Send + Sync {
 
     /// Delete an event. Returns `true` when a row was actually removed,
     /// `false` for not-found (handler maps that to 404).
-    async fn delete_event(
-        &self,
-        calendar_id: i64,
-        uid: &str,
-    ) -> Result<bool, StoreError>;
+    async fn delete_event(&self, calendar_id: i64, uid: &str) -> Result<bool, StoreError>;
 
     /// Idempotent: create a "Default" calendar for `user` if they have none.
     /// Called from PROPFIND on the principal / calendar home so first-login
@@ -92,18 +80,10 @@ pub trait AddressBookStore: Send + Sync {
     async fn list_contacts(&self, book_id: i64) -> Result<Vec<Contact>, StoreError>;
 
     /// Look up a single contact by `(book_id, uid)`.
-    async fn get_contact(
-        &self,
-        book_id: i64,
-        uid: &str,
-    ) -> Result<Option<Contact>, StoreError>;
+    async fn get_contact(&self, book_id: i64, uid: &str) -> Result<Option<Contact>, StoreError>;
 
     /// Fetch only the etag for `(book_id, uid)`. Used for precondition checks.
-    async fn contact_etag(
-        &self,
-        book_id: i64,
-        uid: &str,
-    ) -> Result<Option<String>, StoreError>;
+    async fn contact_etag(&self, book_id: i64, uid: &str) -> Result<Option<String>, StoreError>;
 
     /// Insert or update a contact.
     async fn put_contact(

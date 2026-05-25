@@ -11,9 +11,7 @@ use std::hint::black_box;
 use async_trait::async_trait;
 use criterion::{Criterion, criterion_group, criterion_main};
 
-use mailrs_dav::caldav::{
-    calendar_home_propfind, calendar_propfind, calendar_report, event_put,
-};
+use mailrs_dav::caldav::{calendar_home_propfind, calendar_propfind, calendar_report, event_put};
 use mailrs_dav::carddav::{
     addressbook_home_propfind, addressbook_propfind, addressbook_report, contact_put,
 };
@@ -67,29 +65,21 @@ impl CalendarStore for BenchCalendarStore {
     async fn list_calendars(&self, _user: &str) -> Result<Vec<Calendar>, StoreError> {
         Ok(self.calendars.clone())
     }
-    async fn get_calendar(
-        &self,
-        _user: &str,
-        name: &str,
-    ) -> Result<Option<Calendar>, StoreError> {
+    async fn get_calendar(&self, _user: &str, name: &str) -> Result<Option<Calendar>, StoreError> {
         Ok(self.calendars.iter().find(|c| c.name == name).cloned())
     }
     async fn list_events(&self, _calendar_id: i64) -> Result<Vec<Event>, StoreError> {
         Ok(self.events.clone())
     }
-    async fn get_event(
-        &self,
-        _calendar_id: i64,
-        uid: &str,
-    ) -> Result<Option<Event>, StoreError> {
+    async fn get_event(&self, _calendar_id: i64, uid: &str) -> Result<Option<Event>, StoreError> {
         Ok(self.events.iter().find(|e| e.uid == uid).cloned())
     }
-    async fn event_etag(
-        &self,
-        _calendar_id: i64,
-        uid: &str,
-    ) -> Result<Option<String>, StoreError> {
-        Ok(self.events.iter().find(|e| e.uid == uid).map(|e| e.etag.clone()))
+    async fn event_etag(&self, _calendar_id: i64, uid: &str) -> Result<Option<String>, StoreError> {
+        Ok(self
+            .events
+            .iter()
+            .find(|e| e.uid == uid)
+            .map(|e| e.etag.clone()))
     }
     async fn put_event(
         &self,
@@ -161,19 +151,15 @@ impl AddressBookStore for BenchAddressBookStore {
     async fn list_contacts(&self, _book_id: i64) -> Result<Vec<Contact>, StoreError> {
         Ok(self.contacts.clone())
     }
-    async fn get_contact(
-        &self,
-        _book_id: i64,
-        uid: &str,
-    ) -> Result<Option<Contact>, StoreError> {
+    async fn get_contact(&self, _book_id: i64, uid: &str) -> Result<Option<Contact>, StoreError> {
         Ok(self.contacts.iter().find(|c| c.uid == uid).cloned())
     }
-    async fn contact_etag(
-        &self,
-        _book_id: i64,
-        uid: &str,
-    ) -> Result<Option<String>, StoreError> {
-        Ok(self.contacts.iter().find(|c| c.uid == uid).map(|c| c.etag.clone()))
+    async fn contact_etag(&self, _book_id: i64, uid: &str) -> Result<Option<String>, StoreError> {
+        Ok(self
+            .contacts
+            .iter()
+            .find(|c| c.uid == uid)
+            .map(|c| c.etag.clone()))
     }
     async fn put_contact(
         &self,
@@ -259,7 +245,8 @@ fn bench_caldav_handlers(c: &mut Criterion) {
     });
 
     // event PUT new — etag computation + store write + status mapping.
-    let event_body = "BEGIN:VEVENT\nUID:evt-new\nSUMMARY:meeting\nDTSTART:20240101T100000Z\nEND:VEVENT";
+    let event_body =
+        "BEGIN:VEVENT\nUID:evt-new\nSUMMARY:meeting\nDTSTART:20240101T100000Z\nEND:VEVENT";
     c.bench_function("event_put_new_no_preconditions", |b| {
         b.iter(|| {
             rt.block_on(async {
@@ -349,5 +336,9 @@ fn bench_carddav_handlers(c: &mut Criterion) {
     });
 }
 
-criterion_group!(handler_benches, bench_caldav_handlers, bench_carddav_handlers);
+criterion_group!(
+    handler_benches,
+    bench_caldav_handlers,
+    bench_carddav_handlers
+);
 criterion_main!(handler_benches);

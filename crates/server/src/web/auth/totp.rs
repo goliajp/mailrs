@@ -78,7 +78,9 @@ pub(crate) async fn totp_enable(
         _ => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": "TOTP not set up, call /api/auth/totp/setup first"})),
+                Json(
+                    serde_json::json!({"error": "TOTP not set up, call /api/auth/totp/setup first"}),
+                ),
             );
         }
     };
@@ -99,10 +101,7 @@ pub(crate) async fn totp_enable(
 
     ds.log_audit(&address, "totp_enabled", "", "").await;
 
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({"success": true})),
-    )
+    (StatusCode::OK, Json(serde_json::json!({"success": true})))
 }
 
 /// disable TOTP (requires a valid code to confirm)
@@ -145,10 +144,7 @@ pub(crate) async fn totp_disable(
 
     ds.log_audit(&address, "totp_disabled", "", "").await;
 
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({"success": true})),
-    )
+    (StatusCode::OK, Json(serde_json::json!({"success": true})))
 }
 
 /// check whether TOTP is enabled for the current user

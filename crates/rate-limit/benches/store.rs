@@ -48,7 +48,9 @@ fn bench_check_hot(c: &mut Criterion) {
     let _ = store.check_sync("hot-key");
 
     let mut group = c.benchmark_group("check_hot_key");
-    group.bench_function("sync", |b| b.iter(|| store.check_sync(black_box("hot-key"))));
+    group.bench_function("sync", |b| {
+        b.iter(|| store.check_sync(black_box("hot-key")))
+    });
 
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()

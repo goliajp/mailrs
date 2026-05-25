@@ -48,7 +48,10 @@ async fn worker(
     let mut failed = 0u64;
     let mut consecutive_fails = 0u32;
 
-    let total = store.count_unanalyzed_messages(&model_version).await.unwrap_or(0);
+    let total = store
+        .count_unanalyzed_messages(&model_version)
+        .await
+        .unwrap_or(0);
     if total > 0 {
         tracing::info!(event = "ai_backfill_started", total, model_version = %model_version);
     } else {
@@ -58,15 +61,38 @@ async fn worker(
     loop {
         // priority 1: drain all pending new emails
         while let Ok(job) = new_rx.try_recv() {
-            process_one(&*provider, &store, &maildir_root, job, &model_version,
-                &mut done, &mut failed, &mut consecutive_fails, total).await;
+            process_one(
+                &*provider,
+                &store,
+                &maildir_root,
+                job,
+                &model_version,
+                &mut done,
+                &mut failed,
+                &mut consecutive_fails,
+                total,
+            )
+            .await;
         }
 
         // priority 2: backfill — serial, one at a time
-        let batch = store.list_unanalyzed_message_ids(1, &model_version).await.unwrap_or_default();
+        let batch = store
+            .list_unanalyzed_message_ids(1, &model_version)
+            .await
+            .unwrap_or_default();
         if let Some(job) = batch.into_iter().next() {
-            process_one(&*provider, &store, &maildir_root, job, &model_version,
-                &mut done, &mut failed, &mut consecutive_fails, total).await;
+            process_one(
+                &*provider,
+                &store,
+                &maildir_root,
+                job,
+                &model_version,
+                &mut done,
+                &mut failed,
+                &mut consecutive_fails,
+                total,
+            )
+            .await;
         } else {
             // backfill done — wait for new email
             if done > 0 || failed > 0 {
@@ -76,8 +102,18 @@ async fn worker(
             }
             match new_rx.recv().await {
                 Some(job) => {
-                    process_one(&*provider, &store, &maildir_root, job, &model_version,
-                        &mut done, &mut failed, &mut consecutive_fails, total).await;
+                    process_one(
+                        &*provider,
+                        &store,
+                        &maildir_root,
+                        job,
+                        &model_version,
+                        &mut done,
+                        &mut failed,
+                        &mut consecutive_fails,
+                        total,
+                    )
+                    .await;
                 }
                 None => break,
             }
@@ -99,9 +135,17 @@ async fn process_one(
     total: i64,
 ) {
     let success = analyze_with_retry(
-        provider, store, maildir_root,
-        msg_id, &user, &maildir_id, &sender, &subject, model_version,
-    ).await;
+        provider,
+        store,
+        maildir_root,
+        msg_id,
+        &user,
+        &maildir_id,
+        &sender,
+        &subject,
+        model_version,
+    )
+    .await;
 
     if success {
         *done += 1;
@@ -152,9 +196,15 @@ async fn listen_new_messages(
 /// analyze with up to 2 retries
 #[allow(clippy::too_many_arguments)]
 async fn analyze_with_retry(
-    provider: &dyn LlmProvider, store: &PgMailboxStore, maildir_root: &str,
-    message_id: i64, user: &str, maildir_id: &str,
-    sender_raw: &str, subject_raw: &str, model_version: &str,
+    provider: &dyn LlmProvider,
+    store: &PgMailboxStore,
+    maildir_root: &str,
+    message_id: i64,
+    user: &str,
+    maildir_id: &str,
+    sender_raw: &str,
+    subject_raw: &str,
+    model_version: &str,
 ) -> bool {
     for attempt in 0..2u32 {
         if attempt > 0 {
@@ -167,7 +217,19 @@ async fn analyze_with_retry(
             );
             tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
         }
-        if do_analyze(provider, store, maildir_root, message_id, user, maildir_id, sender_raw, subject_raw, model_version).await {
+        if do_analyze(
+            provider,
+            store,
+            maildir_root,
+            message_id,
+            user,
+            maildir_id,
+            sender_raw,
+            subject_raw,
+            model_version,
+        )
+        .await
+        {
             return true;
         }
     }
@@ -177,9 +239,15 @@ async fn analyze_with_retry(
 
 #[allow(clippy::too_many_arguments)]
 async fn do_analyze(
-    provider: &dyn LlmProvider, store: &PgMailboxStore, maildir_root: &str,
-    message_id: i64, user: &str, maildir_id: &str,
-    sender_raw: &str, subject_raw: &str, model_version: &str,
+    provider: &dyn LlmProvider,
+    store: &PgMailboxStore,
+    maildir_root: &str,
+    message_id: i64,
+    user: &str,
+    maildir_id: &str,
+    sender_raw: &str,
+    subject_raw: &str,
+    model_version: &str,
 ) -> bool {
     let raw = match message_util::read_message_raw(maildir_root, user, maildir_id) {
         Some(r) => r,
@@ -191,7 +259,10 @@ async fn do_analyze(
     let subject = message_util::decode_header(subject_raw);
     let body_text = text_body.as_deref().or(html_body.as_deref()).unwrap_or("");
 
-    let attachment_text = store.get_attachment_texts(message_id).await.unwrap_or_default();
+    let attachment_text = store
+        .get_attachment_texts(message_id)
+        .await
+        .unwrap_or_default();
     let body = if attachment_text.is_empty() {
         body_text.to_string()
     } else {
@@ -214,7 +285,11 @@ async fn do_analyze(
     let embedding = provider.embed(&embedding_text).await;
     let t_embed = t1.elapsed();
 
-    let intent = if analysis.sender_intent.is_empty() { "inform" } else { &analysis.sender_intent };
+    let intent = if analysis.sender_intent.is_empty() {
+        "inform"
+    } else {
+        &analysis.sender_intent
+    };
 
     // validate action_deadline — LLM sometimes returns non-timestamp text like "30 分钟内"
     let deadline = analysis.action_deadline.as_deref().filter(|d| {

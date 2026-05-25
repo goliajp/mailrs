@@ -80,8 +80,8 @@ pub mod store;
 pub mod types;
 
 pub use dispatch::{
-    dispatch_method, dispatch_request, JmapRequest, JmapResponse, JMAP_CORE_CAP, JMAP_MAIL_CAP,
-    JMAP_SUBMISSION_CAP,
+    JMAP_CORE_CAP, JMAP_MAIL_CAP, JMAP_SUBMISSION_CAP, JmapRequest, JmapResponse, dispatch_method,
+    dispatch_request,
 };
 pub use error::JmapMethodError;
 pub use store::{MailStore, StoreError};

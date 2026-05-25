@@ -45,7 +45,10 @@ pub struct EmailAnalysisInput<'a> {
 
 impl PgMailboxStore {
     /// get analysis result for a message
-    pub async fn get_email_analysis(&self, message_id: i64) -> Result<Option<crate::types::EmailAnalysisRow>, sqlx::Error> {
+    pub async fn get_email_analysis(
+        &self,
+        message_id: i64,
+    ) -> Result<Option<crate::types::EmailAnalysisRow>, sqlx::Error> {
         let row = sqlx::query_as::<_, (i64, String, i16, String, String, serde_json::Value, serde_json::Value, serde_json::Value, serde_json::Value, String, String, bool, String, Option<String>)>(
             "SELECT message_id, category, risk_score, risk_reason, summary, people, dates, amounts, action_items, model_version,
                     COALESCE(clean_text, ''), COALESCE(requires_action, false), COALESCE(sender_intent, 'inform'),
@@ -128,7 +131,11 @@ impl PgMailboxStore {
     }
 
     /// list message IDs that haven't been analyzed yet or need reanalysis (outdated model_version)
-    pub async fn list_unanalyzed_message_ids(&self, limit: i64, current_version: &str) -> Result<Vec<(i64, String, String, String, String)>, sqlx::Error> {
+    pub async fn list_unanalyzed_message_ids(
+        &self,
+        limit: i64,
+        current_version: &str,
+    ) -> Result<Vec<(i64, String, String, String, String)>, sqlx::Error> {
         // returns (message_id, user_address, maildir_id, sender, subject)
         let rows = sqlx::query_as::<_, (i64, String, String, String, String)>(
             "SELECT m.id, mb.user_address, m.maildir_id, m.sender, m.subject
@@ -148,7 +155,10 @@ impl PgMailboxStore {
     }
 
     /// count total messages needing analysis (unanalyzed + outdated version)
-    pub async fn count_unanalyzed_messages(&self, current_version: &str) -> Result<i64, sqlx::Error> {
+    pub async fn count_unanalyzed_messages(
+        &self,
+        current_version: &str,
+    ) -> Result<i64, sqlx::Error> {
         let row = sqlx::query_as::<_, (i64,)>(
             "SELECT COUNT(*)
              FROM messages m

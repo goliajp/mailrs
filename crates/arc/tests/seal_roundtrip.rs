@@ -44,7 +44,9 @@ async fn seal_first_hop_and_verify_passes() {
     let pub_key = RsaPublicKey::from(&priv_key);
     let key = ArcSigningKey::Rsa(&priv_key);
 
-    let raw_msg = b"From: alice@origin.example\r\nTo: bob@forwarder.example\r\nSubject: t\r\n\r\nbody\r\n".to_vec();
+    let raw_msg =
+        b"From: alice@origin.example\r\nTo: bob@forwarder.example\r\nSubject: t\r\n\r\nbody\r\n"
+            .to_vec();
 
     let opts = SealOpts {
         domain: "forwarder.example".into(),

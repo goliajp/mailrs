@@ -4,7 +4,7 @@
 use std::net::IpAddr;
 
 use crate::error::{SpfError, SpfResult};
-use crate::record::{ip_in_subnet, Mechanism, Qualifier, Record};
+use crate::record::{Mechanism, Qualifier, Record, ip_in_subnet};
 use crate::resolver::SpfResolver;
 
 /// Inputs for an SPF verification (RFC 7208 §1.1.4).
@@ -101,10 +101,7 @@ impl EvalState {
 /// }
 /// # }
 /// ```
-pub async fn verify<R: SpfResolver + ?Sized>(
-    resolver: &R,
-    input: &VerifyInput,
-) -> SpfResult {
+pub async fn verify<R: SpfResolver + ?Sized>(resolver: &R, input: &VerifyInput) -> SpfResult {
     let mut state = EvalState::new();
     match verify_inner(resolver, input, input.target_domain(), &mut state).await {
         Ok(r) => r,
@@ -127,8 +124,7 @@ async fn verify_inner<R: SpfResolver + ?Sized>(
     let txts = resolver.lookup_txt(domain).await?;
 
     // Find the v=spf1 record. Must be exactly one (or zero = None).
-    let mut spf_records: Vec<&String> =
-        txts.iter().filter(|s| s.starts_with("v=spf1")).collect();
+    let mut spf_records: Vec<&String> = txts.iter().filter(|s| s.starts_with("v=spf1")).collect();
     if spf_records.is_empty() {
         return Ok(SpfResult::None);
     }
@@ -176,7 +172,13 @@ fn mech_matches<'a, R: SpfResolver + ?Sized>(
     current_domain: &'a str,
     state: &'a mut EvalState,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<bool, SpfError>> + Send + 'a>> {
-    Box::pin(mech_matches_impl(resolver, input, mech, current_domain, state))
+    Box::pin(mech_matches_impl(
+        resolver,
+        input,
+        mech,
+        current_domain,
+        state,
+    ))
 }
 
 async fn mech_matches_impl<R: SpfResolver + ?Sized>(
@@ -331,13 +333,18 @@ mod tests {
     #[tokio::test]
     async fn no_spf_record_yields_none() {
         let r = FakeResolver::default();
-        let res = verify(&r, &input("1.2.3.4", "mta.example.com", "alice@example.com")).await;
+        let res = verify(
+            &r,
+            &input("1.2.3.4", "mta.example.com", "alice@example.com"),
+        )
+        .await;
         assert_eq!(res, SpfResult::None);
     }
 
     #[tokio::test]
     async fn matching_ip4_yields_pass() {
-        let r = FakeResolver::default().with_txt("example.com", vec!["v=spf1 ip4:203.0.113.0/24 -all"]);
+        let r =
+            FakeResolver::default().with_txt("example.com", vec!["v=spf1 ip4:203.0.113.0/24 -all"]);
         let res = verify(
             &r,
             &input("203.0.113.42", "mta.example.com", "alice@example.com"),
@@ -348,7 +355,8 @@ mod tests {
 
     #[tokio::test]
     async fn non_matching_ip_with_minus_all_yields_fail() {
-        let r = FakeResolver::default().with_txt("example.com", vec!["v=spf1 ip4:203.0.113.0/24 -all"]);
+        let r =
+            FakeResolver::default().with_txt("example.com", vec!["v=spf1 ip4:203.0.113.0/24 -all"]);
         let res = verify(
             &r,
             &input("198.51.100.5", "mta.example.com", "alice@example.com"),
@@ -359,7 +367,8 @@ mod tests {
 
     #[tokio::test]
     async fn non_matching_ip_with_tilde_all_yields_softfail() {
-        let r = FakeResolver::default().with_txt("example.com", vec!["v=spf1 ip4:203.0.113.0/24 ~all"]);
+        let r =
+            FakeResolver::default().with_txt("example.com", vec!["v=spf1 ip4:203.0.113.0/24 ~all"]);
         let res = verify(
             &r,
             &input("198.51.100.5", "mta.example.com", "alice@example.com"),
@@ -407,14 +416,8 @@ mod tests {
     #[tokio::test]
     async fn include_recurses_and_pass_propagates_match() {
         let r = FakeResolver::default()
-            .with_txt(
-                "example.com",
-                vec!["v=spf1 include:_spf.partner.com -all"],
-            )
-            .with_txt(
-                "_spf.partner.com",
-                vec!["v=spf1 ip4:203.0.113.0/24 -all"],
-            );
+            .with_txt("example.com", vec!["v=spf1 include:_spf.partner.com -all"])
+            .with_txt("_spf.partner.com", vec!["v=spf1 ip4:203.0.113.0/24 -all"]);
         let res = verify(
             &r,
             &input("203.0.113.42", "mta.example.com", "alice@example.com"),
@@ -440,10 +443,7 @@ mod tests {
 
     #[tokio::test]
     async fn multiple_v_spf1_yields_permerror() {
-        let r = FakeResolver::default().with_txt(
-            "example.com",
-            vec!["v=spf1 -all", "v=spf1 +all"],
-        );
+        let r = FakeResolver::default().with_txt("example.com", vec!["v=spf1 -all", "v=spf1 +all"]);
         let res = verify(
             &r,
             &input("1.2.3.4", "mta.example.com", "alice@example.com"),
@@ -467,8 +467,7 @@ mod tests {
     #[tokio::test]
     async fn no_match_no_all_yields_neutral() {
         // Record with ip4 only and no `all` — no match → Neutral per §4.7
-        let r = FakeResolver::default()
-            .with_txt("example.com", vec!["v=spf1 ip4:203.0.113.0/24"]);
+        let r = FakeResolver::default().with_txt("example.com", vec!["v=spf1 ip4:203.0.113.0/24"]);
         let res = verify(
             &r,
             &input("198.51.100.5", "mta.example.com", "alice@example.com"),
@@ -479,8 +478,8 @@ mod tests {
 
     #[tokio::test]
     async fn ipv6_match_works() {
-        let r = FakeResolver::default()
-            .with_txt("example.com", vec!["v=spf1 ip6:2001:db8::/32 -all"]);
+        let r =
+            FakeResolver::default().with_txt("example.com", vec!["v=spf1 ip6:2001:db8::/32 -all"]);
         let res = verify(
             &r,
             &input("2001:db8::1", "mta.example.com", "alice@example.com"),

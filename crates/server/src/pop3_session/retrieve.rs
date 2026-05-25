@@ -42,7 +42,6 @@ impl Pop3Session {
         }
     }
 
-
     pub(super) async fn handle_top(&self, arg: &str) -> Vec<String> {
         let Pop3State::Transaction {
             ref username,
@@ -101,5 +100,4 @@ impl Pop3Session {
             None => vec!["-ERR message not found on disk\r\n".into()],
         }
     }
-
 }

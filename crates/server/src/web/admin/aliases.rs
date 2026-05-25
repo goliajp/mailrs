@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
 use super::*;
@@ -27,7 +27,9 @@ pub(crate) async fn list_aliases(
 }
 
 pub(crate) async fn add_alias(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddAliasRequest>,
 ) -> impl IntoResponse {
@@ -78,8 +80,8 @@ pub(crate) async fn add_alias(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }
 
@@ -108,7 +110,7 @@ pub(crate) async fn remove_alias(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }

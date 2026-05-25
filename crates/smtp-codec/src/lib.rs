@@ -380,8 +380,10 @@ mod tests {
                 // payload contains everything up to that point
                 // *with* the smuggle sequence preserved.
                 assert!(d.contains(&b'\n'), "should preserve bare LF");
-                assert!(d.windows(3).any(|w| w == b"\n.\r" || w == b"\n.\n"),
-                    "should preserve smuggle dot pattern");
+                assert!(
+                    d.windows(3).any(|w| w == b"\n.\r" || w == b"\n.\n"),
+                    "should preserve smuggle dot pattern"
+                );
             }
             other => panic!("expected Data, got {other:?}"),
         }
@@ -421,7 +423,9 @@ mod tests {
         // leading \r before the \n) is the canonical SMTP
         // smuggling vector.
         let data = b"prefix\n.\r\nsuffix";
-        assert!(has_smuggle_sequence(data).is_some(),
-            "should detect bare-LF + dot + CRLF");
+        assert!(
+            has_smuggle_sequence(data).is_some(),
+            "should detect bare-LF + dot + CRLF"
+        );
     }
 }

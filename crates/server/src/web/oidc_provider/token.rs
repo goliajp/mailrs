@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use chrono::{Duration, Utc};
 use serde::Deserialize;
 
@@ -95,7 +95,9 @@ async fn handle_authorization_code_grant(
     if !oidc_store::verify_client_secret(client_secret, &client.secret_hash) {
         return (
             StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"error": "invalid_client", "error_description": "invalid client credentials"})),
+            Json(
+                serde_json::json!({"error": "invalid_client", "error_description": "invalid client credentials"}),
+            ),
         );
     }
 
@@ -105,7 +107,9 @@ async fn handle_authorization_code_grant(
         Ok(None) => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": "invalid_grant", "error_description": "code is invalid, expired, or already used"})),
+                Json(
+                    serde_json::json!({"error": "invalid_grant", "error_description": "code is invalid, expired, or already used"}),
+                ),
             );
         }
         Err(e) => {
@@ -121,7 +125,9 @@ async fn handle_authorization_code_grant(
     if auth_code.redirect_uri != redirect_uri {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "invalid_grant", "error_description": "redirect_uri mismatch"})),
+            Json(
+                serde_json::json!({"error": "invalid_grant", "error_description": "redirect_uri mismatch"}),
+            ),
         );
     }
 
@@ -129,7 +135,9 @@ async fn handle_authorization_code_grant(
     if auth_code.client_id != client_id {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "invalid_grant", "error_description": "client_id mismatch"})),
+            Json(
+                serde_json::json!({"error": "invalid_grant", "error_description": "client_id mismatch"}),
+            ),
         );
     }
 
@@ -138,18 +146,19 @@ async fn handle_authorization_code_grant(
         let Some(ref verifier) = form.code_verifier else {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": "invalid_grant", "error_description": "code_verifier required"})),
+                Json(
+                    serde_json::json!({"error": "invalid_grant", "error_description": "code_verifier required"}),
+                ),
             );
         };
 
-        let method = auth_code
-            .code_challenge_method
-            .as_deref()
-            .unwrap_or("S256");
+        let method = auth_code.code_challenge_method.as_deref().unwrap_or("S256");
         if method != "S256" {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": "invalid_request", "error_description": "unsupported code_challenge_method"})),
+                Json(
+                    serde_json::json!({"error": "invalid_request", "error_description": "unsupported code_challenge_method"}),
+                ),
             );
         }
 
@@ -157,7 +166,9 @@ async fn handle_authorization_code_grant(
         if computed != *challenge {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": "invalid_grant", "error_description": "code_verifier does not match"})),
+                Json(
+                    serde_json::json!({"error": "invalid_grant", "error_description": "code_verifier does not match"}),
+                ),
             );
         }
     }
@@ -225,7 +236,9 @@ async fn handle_refresh_token_grant(
         Ok(None) => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": "invalid_grant", "error_description": "refresh token invalid or expired"})),
+                Json(
+                    serde_json::json!({"error": "invalid_grant", "error_description": "refresh token invalid or expired"}),
+                ),
             );
         }
         Err(e) => {
@@ -241,7 +254,9 @@ async fn handle_refresh_token_grant(
     if rt.client_id != client_id {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "invalid_grant", "error_description": "client_id mismatch"})),
+            Json(
+                serde_json::json!({"error": "invalid_grant", "error_description": "client_id mismatch"}),
+            ),
         );
     }
 
@@ -316,20 +331,17 @@ async fn issue_tokens(
         id_claims["nonce"] = serde_json::json!(nonce);
     }
 
-    let id_token = match oidc_jwt::sign_jwt(
-        &signing_key.private_key_pem,
-        &signing_key.kid,
-        &id_claims,
-    ) {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::warn!(error = %e, "failed to sign id_token");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "server_error"})),
-            );
-        }
-    };
+    let id_token =
+        match oidc_jwt::sign_jwt(&signing_key.private_key_pem, &signing_key.kid, &id_claims) {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to sign id_token");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "server_error"})),
+                );
+            }
+        };
 
     // access_token claims
     let access_claims = serde_json::json!({
@@ -389,10 +401,9 @@ async fn issue_tokens(
 
 // --- UserInfo ---
 
-
 fn pkce_s256(verifier: &str) -> String {
-    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use base64::Engine;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use sha2::{Digest, Sha256};
 
     let hash = Sha256::digest(verifier.as_bytes());

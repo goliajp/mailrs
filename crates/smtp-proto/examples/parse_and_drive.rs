@@ -12,7 +12,10 @@ fn main() {
     let mut session = Session::new("smtp.example.com", SessionConfig::default());
 
     // simulate an incoming connection: write the greeting first
-    print!(">>> {}", Response::greeting(&session.hostname).format_greeting());
+    print!(
+        ">>> {}",
+        Response::greeting(&session.hostname).format_greeting()
+    );
 
     let lines = [
         "EHLO client.example.org",
@@ -62,7 +65,9 @@ fn main() {
             }
             Event::StartTls(resp) => {
                 print!(">>> {}", resp.format());
-                println!("    [server would upgrade to TLS here, then call session.reset_after_tls()]");
+                println!(
+                    "    [server would upgrade to TLS here, then call session.reset_after_tls()]"
+                );
                 break;
             }
             Event::NeedAuth { username, .. } => {

@@ -54,7 +54,9 @@ fn bench_mail_from(c: &mut Criterion) {
 fn bench_rcpt_to(c: &mut Criterion) {
     let mut group = c.benchmark_group("parse/rcpt_to");
     group.bench_function("mailrs_smtp_proto", |b| {
-        let s = std::str::from_utf8(RCPT_TO).unwrap().trim_end_matches("\r\n");
+        let s = std::str::from_utf8(RCPT_TO)
+            .unwrap()
+            .trim_end_matches("\r\n");
         b.iter(|| {
             let r = parse_command(black_box(s));
             black_box(r.unwrap())

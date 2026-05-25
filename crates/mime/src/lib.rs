@@ -13,4 +13,4 @@ pub mod part;
 
 pub use content_type::{ContentType, Disposition};
 pub use decoder::TransferEncoding;
-pub use part::{parse, Part};
+pub use part::{Part, parse};

@@ -395,7 +395,10 @@ mod tests {
             spam_threshold: 5.0,
             ..default_input()
         };
-        assert!(matches!(make_delivery_decision(&input), DeliveryDecision::Accept { .. }));
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Accept { .. }
+        ));
     }
 
     #[test]
@@ -769,7 +772,9 @@ mod tests {
         assert_eq!(DeliveryDecision::Greylist, DeliveryDecision::Greylist);
         assert_ne!(
             DeliveryDecision::Greylist,
-            DeliveryDecision::Accept { auth_header: String::new() }
+            DeliveryDecision::Accept {
+                auth_header: String::new()
+            }
         );
     }
 
@@ -787,7 +792,14 @@ mod tests {
 
     #[test]
     fn build_auth_header_with_dmarc_reason() {
-        let header = build_auth_header("mx.test.com", "pass", "fail", "none", "fail", Some("policy=reject"));
+        let header = build_auth_header(
+            "mx.test.com",
+            "pass",
+            "fail",
+            "none",
+            "fail",
+            Some("policy=reject"),
+        );
         assert!(header.contains("dmarc=fail"));
         assert!(header.contains("reason=\"policy=reject\""));
     }
@@ -800,7 +812,14 @@ mod tests {
 
     #[test]
     fn build_auth_header_all_fail() {
-        let header = build_auth_header("mx.test.com", "fail", "fail", "fail", "fail", Some("policy=quarantine"));
+        let header = build_auth_header(
+            "mx.test.com",
+            "fail",
+            "fail",
+            "fail",
+            "fail",
+            Some("policy=quarantine"),
+        );
         assert!(header.contains("spf=fail"));
         assert!(header.contains("dkim=fail"));
         assert!(header.contains("arc=fail"));
@@ -845,7 +864,10 @@ mod tests {
         };
         match make_delivery_decision(&input) {
             DeliveryDecision::Reject { message, .. } => {
-                assert!(message.contains("virus"), "should be virus reject, not DMARC");
+                assert!(
+                    message.contains("virus"),
+                    "should be virus reject, not DMARC"
+                );
             }
             other => panic!("expected Reject, got {other:?}"),
         }

@@ -53,10 +53,11 @@ pub fn resolve(tzid: &str, inline_blocks: &[VTimezone]) -> Option<ResolvedTz> {
     if let Some(block) = inline_blocks
         .iter()
         .find(|b| b.tzid.eq_ignore_ascii_case(trimmed))
-        && let Some(transitions) = build_transitions(block) {
-            return Some(ResolvedTz::Custom(transitions));
-        }
-        // Inline block was found but unparseable — fall through to IANA.
+        && let Some(transitions) = build_transitions(block)
+    {
+        return Some(ResolvedTz::Custom(transitions));
+    }
+    // Inline block was found but unparseable — fall through to IANA.
 
     // Step 2 — IANA name.
     if let Ok(tz) = chrono_tz::Tz::from_str(trimmed) {
@@ -65,9 +66,10 @@ pub fn resolve(tzid: &str, inline_blocks: &[VTimezone]) -> Option<ResolvedTz> {
 
     // Step 3 — Microsoft / Outlook alias.
     if let Some(iana) = microsoft_to_iana(trimmed)
-        && let Ok(tz) = chrono_tz::Tz::from_str(iana) {
-            return Some(ResolvedTz::Iana(tz));
-        }
+        && let Ok(tz) = chrono_tz::Tz::from_str(iana)
+    {
+        return Some(ResolvedTz::Iana(tz));
+    }
 
     None
 }
@@ -191,11 +193,7 @@ fn expand_rrule(dtstart_value: &str, rrule_value: &str) -> Vec<NaiveDateTime> {
     };
     let result = set.after(after).before(before).all(10_000);
 
-    result
-        .dates
-        .into_iter()
-        .map(|d| d.naive_utc())
-        .collect()
+    result.dates.into_iter().map(|d| d.naive_utc()).collect()
 }
 
 /// Compatibility shim: `rrule::Tz` re-exports chrono-tz's `Tz`, but its
@@ -566,8 +564,7 @@ mod vtimezone_tests {
             utc_offset_seconds: 7200,
         };
         let rt = ResolvedTz::Custom(vec![t1, t2]);
-        let local =
-            NaiveDateTime::parse_from_str("19990101T000000", "%Y%m%dT%H%M%S").unwrap();
+        let local = NaiveDateTime::parse_from_str("19990101T000000", "%Y%m%dT%H%M%S").unwrap();
         assert_eq!(local_to_utc_offset_seconds(&rt, local), Some(3600));
         let local_later =
             NaiveDateTime::parse_from_str("20100101T000000", "%Y%m%dT%H%M%S").unwrap();
@@ -582,8 +579,7 @@ mod vtimezone_tests {
             utc_offset_seconds: 3600,
         };
         let rt = ResolvedTz::Custom(vec![t1]);
-        let local =
-            NaiveDateTime::parse_from_str("19990101T000000", "%Y%m%dT%H%M%S").unwrap();
+        let local = NaiveDateTime::parse_from_str("19990101T000000", "%Y%m%dT%H%M%S").unwrap();
         assert!(local_to_utc_offset_seconds(&rt, local).is_none());
     }
 

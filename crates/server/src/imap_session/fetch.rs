@@ -6,17 +6,17 @@
 //! INTERNALDATE, ENVELOPE, MODSEQ, BODY[…], BODYSTRUCTURE.
 //! `read_message_file` lives here because FETCH is its only caller.
 
-use mailrs_imap_proto::{
-    format_bad, format_no, format_ok, parse_sequence_set, sequence_set_to_uids,
-};
 use mailrs_imap_format::{
     build_bodystructure, extract_body_section, extract_header_fields, extract_header_section,
     extract_mime_part, format_addr_list, format_imap_flags, format_internal_date,
     parse_generic_body_sections, parse_header_fields_request, quote_or_nil,
 };
+use mailrs_imap_proto::{
+    format_bad, format_no, format_ok, parse_sequence_set, sequence_set_to_uids,
+};
 use mailrs_mailbox::FLAG_SEEN;
 
-use super::{strs_to_bytes, ImapSession, ImapState};
+use super::{ImapSession, ImapState, strs_to_bytes};
 
 impl ImapSession {
     pub(super) async fn handle_fetch(
@@ -34,7 +34,7 @@ impl ImapSession {
         let seq_set = match parse_sequence_set(sequence) {
             Ok(s) => s,
             Err(e) => {
-                return strs_to_bytes(vec![format_bad(tag, &format!("invalid sequence: {e}"))])
+                return strs_to_bytes(vec![format_bad(tag, &format!("invalid sequence: {e}"))]);
             }
         };
 
@@ -202,9 +202,8 @@ impl ImapSession {
                 && let Some(data) = self.read_message_file(msg)
             {
                 if want_bodystructure {
-                    items.push(
-                        format!("BODYSTRUCTURE {}", build_bodystructure(&data)).into_bytes(),
-                    );
+                    items
+                        .push(format!("BODYSTRUCTURE {}", build_bodystructure(&data)).into_bytes());
                 }
                 // binary-safe literal builder: prefix + raw bytes
                 if want_body_header {

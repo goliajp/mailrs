@@ -31,24 +31,28 @@ impl DomainStore {
         .await?;
         Ok(rows
             .into_iter()
-            .map(|(id, timestamp, actor, action, target, detail)| AuditEntry {
-                id,
-                timestamp,
-                actor,
-                action,
-                target,
-                detail,
-            })
+            .map(
+                |(id, timestamp, actor, action, target, detail)| AuditEntry {
+                    id,
+                    timestamp,
+                    actor,
+                    action,
+                    target,
+                    detail,
+                },
+            )
             .collect())
     }
 
     /// delete audit log entries older than the given number of days
     pub async fn cleanup_audit_log(&self, retention_days: i64) {
         if let Ok(pool) = self.pg() {
-            let _ = sqlx::query("DELETE FROM audit_log WHERE timestamp < now() - make_interval(days => $1)")
-                .bind(retention_days)
-                .execute(pool)
-                .await;
+            let _ = sqlx::query(
+                "DELETE FROM audit_log WHERE timestamp < now() - make_interval(days => $1)",
+            )
+            .bind(retention_days)
+            .execute(pool)
+            .await;
         }
     }
 }

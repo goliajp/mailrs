@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use super::{ApiResult, AuthUser, WebState};
@@ -127,23 +127,24 @@ pub(super) async fn list_templates(
         return Json(Vec::<TemplateInfo>::new());
     };
 
-    let rows = match sqlx::query_as::<_, (i64, String, String, String, String, String, bool, i64, i64)>(
-        "SELECT id, name, subject, html_body, text_body, category, is_default,
+    let rows =
+        match sqlx::query_as::<_, (i64, String, String, String, String, String, bool, i64, i64)>(
+            "SELECT id, name, subject, html_body, text_body, category, is_default,
                 EXTRACT(EPOCH FROM created_at)::bigint,
                 EXTRACT(EPOCH FROM updated_at)::bigint
          FROM email_templates WHERE user_address = $1
          ORDER BY is_default DESC, updated_at DESC",
-    )
-    .bind(&user)
-    .fetch_all(pool)
-    .await
-    {
-        Ok(rows) => rows,
-        Err(e) => {
-            tracing::error!(event = "template_list_failed", user = %user, error = %e);
-            return Json(Vec::new());
-        }
-    };
+        )
+        .bind(&user)
+        .fetch_all(pool)
+        .await
+        {
+            Ok(rows) => rows,
+            Err(e) => {
+                tracing::error!(event = "template_list_failed", user = %user, error = %e);
+                return Json(Vec::new());
+            }
+        };
 
     Json(
         rows.into_iter()

@@ -1,5 +1,5 @@
 use bytes::BytesMut;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mailrs_imap_codec::ImapCodec;
 use std::hint::black_box;
 use tokio_util::codec::Decoder;

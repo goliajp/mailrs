@@ -3,9 +3,8 @@
 //! The PRIORITY surface for this crate: update / destroy semantics across the
 //! full keyword-replace + patch dialects + every documented error path.
 
-
-use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message};
 use mailrs_jmap::dispatch::dispatch_method;
+use mailrs_jmap::fixtures::{EXAMPLE_USER, InMemoryStore, make_message};
 use mailrs_jmap::types::{FLAG_ANSWERED, FLAG_DELETED, FLAG_FLAGGED, FLAG_SEEN};
 use serde_json::json;
 
@@ -122,10 +121,7 @@ async fn email_set_update_patch_applies_multiple_keys_in_one_call() {
     .unwrap();
 
     assert_eq!(resp["updated"]["msg-1"], json!(null));
-    assert_eq!(
-        store.flags_for(10, 1),
-        Some(FLAG_SEEN | FLAG_ANSWERED)
-    );
+    assert_eq!(store.flags_for(10, 1), Some(FLAG_SEEN | FLAG_ANSWERED));
 }
 
 #[tokio::test]
@@ -229,10 +225,7 @@ async fn email_set_destroy_adds_deleted_flag_and_lists_id() {
 
     assert_eq!(resp["destroyed"], json!(["msg-1"]));
     assert_eq!(resp["notDestroyed"], json!({}));
-    assert_eq!(
-        store.flags_for(10, 1).unwrap() & FLAG_DELETED,
-        FLAG_DELETED
-    );
+    assert_eq!(store.flags_for(10, 1).unwrap() & FLAG_DELETED, FLAG_DELETED);
 }
 
 #[tokio::test]

@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
-use crate::pg::helpers::{extract_header_value, row_to_message_meta};
 use crate::pg::PgMailboxStore;
+use crate::pg::helpers::{extract_header_value, row_to_message_meta};
 use crate::threading;
 use crate::types::MessageMeta;
 
@@ -28,15 +28,14 @@ impl PgMailboxStore {
         let mut tx = self.pool.begin().await?;
 
         // lock mailbox row to prevent concurrent UID allocation
-        let (mailbox_id, uidnext, highest_modseq) =
-            sqlx::query_as::<_, (i64, i32, i64)>(
-                "SELECT id, uidnext, highest_modseq FROM mailboxes
+        let (mailbox_id, uidnext, highest_modseq) = sqlx::query_as::<_, (i64, i32, i64)>(
+            "SELECT id, uidnext, highest_modseq FROM mailboxes
                  WHERE user_address = $1 AND name = $2 FOR UPDATE",
-            )
-            .bind(user)
-            .bind(mailbox_name)
-            .fetch_one(&mut *tx)
-            .await?;
+        )
+        .bind(user)
+        .bind(mailbox_name)
+        .fetch_one(&mut *tx)
+        .await?;
 
         let uid = uidnext;
         let new_modseq = highest_modseq + 1;
@@ -80,10 +79,7 @@ impl PgMailboxStore {
     /// ThreadMessageResponse so the web client can mount invite-card based
     /// on a server-authoritative signal rather than re-detecting via
     /// attachments. Skips rows where `invite_method IS NULL`.
-    pub async fn get_invite_methods(
-        &self,
-        ids: &[i64],
-    ) -> Result<Vec<(i64, String)>, sqlx::Error> {
+    pub async fn get_invite_methods(&self, ids: &[i64]) -> Result<Vec<(i64, String)>, sqlx::Error> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -222,14 +218,20 @@ impl PgMailboxStore {
 
         let mut text_bind = None;
         if let Some(t) = text
-            && !t.is_empty() {
-                conditions.push(format!(
-                    "(m.search_vector @@ plainto_tsquery('simple', ${param_idx}) \
+            && !t.is_empty()
+        {
+            conditions.push(format!(
+                "(m.search_vector @@ plainto_tsquery('simple', ${param_idx}) \
                      OR m.subject ILIKE ${param_idx} OR m.sender ILIKE ${param_idx})"
-                ));
-                text_bind = Some(format!("%{}%", t.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")));
-                let _ = param_idx;
-            }
+            ));
+            text_bind = Some(format!(
+                "%{}%",
+                t.replace('\\', "\\\\")
+                    .replace('%', "\\%")
+                    .replace('_', "\\_")
+            ));
+            let _ = param_idx;
+        }
 
         if has_flags != 0 {
             conditions.push(format!("(m.flags & {has_flags}) = {has_flags}"));
@@ -266,7 +268,12 @@ impl PgMailboxStore {
         if let Some(ref t) = text_bind {
             ids_q = ids_q.bind(t);
         }
-        let ids: Vec<i64> = ids_q.fetch_all(&self.pool).await?.into_iter().map(|(id,)| id).collect();
+        let ids: Vec<i64> = ids_q
+            .fetch_all(&self.pool)
+            .await?
+            .into_iter()
+            .map(|(id,)| id)
+            .collect();
 
         Ok((ids, total))
     }
@@ -426,7 +433,26 @@ impl PgMailboxStore {
         user: &str,
         message_id: &str,
     ) -> Result<Option<MessageMeta>, sqlx::Error> {
-        let row = sqlx::query_as::<_, (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64)>(
+        let row = sqlx::query_as::<
+            _,
+            (
+                i64,
+                i64,
+                i32,
+                String,
+                String,
+                String,
+                String,
+                i64,
+                i32,
+                i32,
+                i64,
+                String,
+                String,
+                String,
+                i64,
+            ),
+        >(
             "SELECT m.id, m.mailbox_id, m.uid, m.maildir_id, m.sender, m.recipients,
                     m.subject, m.date_epoch, m.size, m.flags, m.internal_date, m.message_id,
                     m.in_reply_to, m.thread_id, m.modseq
@@ -449,7 +475,26 @@ impl PgMailboxStore {
         user: &str,
         uid: u32,
     ) -> Result<Option<MessageMeta>, sqlx::Error> {
-        let row = sqlx::query_as::<_, (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64)>(
+        let row = sqlx::query_as::<
+            _,
+            (
+                i64,
+                i64,
+                i32,
+                String,
+                String,
+                String,
+                String,
+                i64,
+                i32,
+                i32,
+                i64,
+                String,
+                String,
+                String,
+                i64,
+            ),
+        >(
             "SELECT m.id, m.mailbox_id, m.uid, m.maildir_id, m.sender, m.recipients,
                     m.subject, m.date_epoch, m.size, m.flags, m.internal_date, m.message_id,
                     m.in_reply_to, m.thread_id, m.modseq

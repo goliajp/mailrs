@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
 use super::*;
@@ -24,7 +24,11 @@ pub(crate) async fn list_domains(
 }
 
 pub(crate) async fn add_domain(
-    AuthUser { ref address, ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref address,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddDomainRequest>,
 ) -> impl IntoResponse {
@@ -57,14 +61,18 @@ pub(crate) async fn add_domain(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }
 
 pub(crate) async fn remove_domain(
     Path(name): Path<String>,
-    AuthUser { ref address, ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref address,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Some(err) = require_permission(permissions, "admin.domains") {
@@ -93,8 +101,8 @@ pub(crate) async fn remove_domain(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }
 
@@ -120,7 +128,9 @@ pub(crate) async fn check_domain_handler(
         Ok(v) => (StatusCode::OK, Json(v)),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": format!("failed to serialize domain check report: {e}")})),
+            Json(
+                serde_json::json!({"error": format!("failed to serialize domain check report: {e}")}),
+            ),
         ),
     }
 }
@@ -128,7 +138,9 @@ pub(crate) async fn check_domain_handler(
 // --- domain reputation ---
 
 pub(crate) async fn get_reputation(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Some(resp) = require_permission(permissions, "admin.domains") {
@@ -144,7 +156,9 @@ pub(crate) async fn get_reputation(
 // --- RBL blocklist status ---
 
 pub(crate) async fn get_rbl_status(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Some(resp) = require_permission(permissions, "admin.domains") {
@@ -168,9 +182,10 @@ pub(crate) async fn get_rbl_status(
             .arg(key)
             .query_async::<String>(&mut valkey.clone())
             .await
-            && let Ok(report) = serde_json::from_str::<serde_json::Value>(&json) {
-                reports.push(report);
-            }
+            && let Ok(report) = serde_json::from_str::<serde_json::Value>(&json)
+        {
+            reports.push(report);
+        }
     }
 
     Json(serde_json::json!({ "reports": reports })).into_response()

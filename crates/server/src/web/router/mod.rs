@@ -10,7 +10,7 @@ use axum::middleware;
 use axum::routing::{get, post};
 use tower_http::cors::CorsLayer;
 
-use super::{auth, mail, rate_limit, request_id, WebState, MAX_MULTIPART_BODY};
+use super::{MAX_MULTIPART_BODY, WebState, auth, mail, rate_limit, request_id};
 
 /// middleware that adds security headers to all responses
 async fn security_headers(
@@ -23,14 +23,8 @@ async fn security_headers(
         axum::http::header::X_CONTENT_TYPE_OPTIONS,
         "nosniff".parse().unwrap(),
     );
-    headers.insert(
-        axum::http::header::X_FRAME_OPTIONS,
-        "DENY".parse().unwrap(),
-    );
-    headers.insert(
-        axum::http::header::X_XSS_PROTECTION,
-        "0".parse().unwrap(),
-    );
+    headers.insert(axum::http::header::X_FRAME_OPTIONS, "DENY".parse().unwrap());
+    headers.insert(axum::http::header::X_XSS_PROTECTION, "0".parse().unwrap());
     headers.insert(
         axum::http::header::REFERRER_POLICY,
         "strict-origin-when-cross-origin".parse().unwrap(),
@@ -55,8 +49,8 @@ async fn security_headers(
             "base-uri 'self'; ",
             "form-action 'self'",
         )
-            .parse()
-            .unwrap(),
+        .parse()
+        .unwrap(),
     );
     response
 }

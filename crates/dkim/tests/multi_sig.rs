@@ -38,7 +38,12 @@ struct MapResolver {
 #[async_trait::async_trait]
 impl DkimResolver for MapResolver {
     async fn lookup_txt(&self, q: &str) -> Result<Vec<String>, mailrs_dkim::DkimError> {
-        Ok(self.map.get(q).cloned().map(|v| vec![v]).unwrap_or_default())
+        Ok(self
+            .map
+            .get(q)
+            .cloned()
+            .map(|v| vec![v])
+            .unwrap_or_default())
     }
 }
 
@@ -106,7 +111,8 @@ async fn verify_all_two_signatures_both_pass() {
 
     // The "rest of the message" the DKIM signing helper appends after
     // the unsigned DKIM-Signature row: From, To, Subject, body.
-    let pre_signing = b"From: alice@a.com\r\nTo: bob@example.com\r\nSubject: hi\r\n\r\nMulti-sig test.\r\n";
+    let pre_signing =
+        b"From: alice@a.com\r\nTo: bob@example.com\r\nSubject: hi\r\n\r\nMulti-sig test.\r\n";
 
     let sig_a = sign_dkim(&body_hash, "a.com", "selA", pre_signing, &sign_a);
     let sig_b = sign_dkim(&body_hash, "b.com", "selB", pre_signing, &sign_b);
@@ -123,7 +129,11 @@ async fn verify_all_two_signatures_both_pass() {
     let resolver = MapResolver { map };
 
     let outputs = verify_all(&resolver, &msg).await;
-    assert_eq!(outputs.len(), 2, "should find 2 signatures, got {outputs:?}");
+    assert_eq!(
+        outputs.len(),
+        2,
+        "should find 2 signatures, got {outputs:?}"
+    );
     for (i, out) in outputs.iter().enumerate() {
         assert!(
             matches!(out.result, DkimResult::Pass),

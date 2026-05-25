@@ -10,9 +10,7 @@ use base64::Engine as _;
 use rsa::pkcs8::EncodePublicKey;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 
-use mailrs_dkim::{
-    Canon, DkimResolver, DkimResult, DkimSigningKey, SignOpts, sign, verify_all,
-};
+use mailrs_dkim::{Canon, DkimResolver, DkimResult, DkimSigningKey, SignOpts, sign, verify_all};
 
 fn b64(b: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(b)
@@ -59,9 +57,7 @@ async fn sign_and_verify_rsa_sha256_roundtrip() {
         v
     };
 
-    let opts = SignOpts::new("example.com", "s1").signed_headers([
-        "From", "To", "Subject", "Date",
-    ]);
+    let opts = SignOpts::new("example.com", "s1").signed_headers(["From", "To", "Subject", "Date"]);
     let header_line = sign(&msg, &key, &opts).unwrap();
     assert!(header_line.starts_with("DKIM-Signature: "));
     assert!(header_line.ends_with("\r\n"));

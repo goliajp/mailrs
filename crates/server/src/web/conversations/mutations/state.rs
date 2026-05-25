@@ -2,19 +2,23 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
-use axum::Json;
 
 use crate::conversation_cache;
 
-use super::super::super::{validate_domains, ApiResult, AuthUser, DomainsQuery, WebState};
+use super::super::super::{ApiResult, AuthUser, DomainsQuery, WebState, validate_domains};
 use super::super::*;
 
 pub(crate) async fn mark_thread_read(
     Path(thread_id): Path<String>,
     Query(dq): Query<DomainsQuery>,
-    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
+    AuthUser {
+        address: ref user,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > crate::web::MAX_PATH_LEN {
@@ -37,9 +41,10 @@ pub(crate) async fn mark_thread_read(
         .mark_thread_read(user, &thread_id, domains.as_deref())
         .await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey {
-            conversation_cache::bust_thread(valkey, user, &thread_id).await;
-        }
+        && let Some(ref valkey) = state.valkey
+    {
+        conversation_cache::bust_thread(valkey, user, &thread_id).await;
+    }
     match result {
         Ok(count) => Json(ApiResult {
             success: true,
@@ -51,7 +56,6 @@ pub(crate) async fn mark_thread_read(
         }),
     }
 }
-
 
 pub(crate) async fn mark_thread_unread(
     Path(thread_id): Path<String>,
@@ -74,9 +78,10 @@ pub(crate) async fn mark_thread_unread(
 
     let result = mb_store.mark_thread_unread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey {
-            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
-        }
+        && let Some(ref valkey) = state.valkey
+    {
+        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+    }
     match result {
         Ok(_) => Json(ApiResult {
             success: true,
@@ -88,7 +93,6 @@ pub(crate) async fn mark_thread_unread(
         }),
     }
 }
-
 
 pub(crate) async fn delete_thread(
     Path(thread_id): Path<String>,
@@ -144,14 +148,16 @@ pub(crate) async fn delete_thread(
     })
 }
 
-
 pub(crate) async fn archive_thread(
     Path(thread_id): Path<String>,
     AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > crate::web::MAX_PATH_LEN {
-        return Json(ApiResult { success: false, message: Some("thread id too long".into()) });
+        return Json(ApiResult {
+            success: false,
+            message: Some("thread id too long".into()),
+        });
     }
     let Some(ref mb_store) = state.mailbox_store else {
         return Json(ApiResult {
@@ -162,9 +168,10 @@ pub(crate) async fn archive_thread(
 
     let result = mb_store.archive_thread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey {
-            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
-        }
+        && let Some(ref valkey) = state.valkey
+    {
+        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+    }
     match result {
         Ok(_) => Json(ApiResult {
             success: true,
@@ -177,14 +184,16 @@ pub(crate) async fn archive_thread(
     }
 }
 
-
 pub(crate) async fn unarchive_thread(
     Path(thread_id): Path<String>,
     AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > crate::web::MAX_PATH_LEN {
-        return Json(ApiResult { success: false, message: Some("thread id too long".into()) });
+        return Json(ApiResult {
+            success: false,
+            message: Some("thread id too long".into()),
+        });
     }
     let Some(ref mb_store) = state.mailbox_store else {
         return Json(ApiResult {
@@ -195,9 +204,10 @@ pub(crate) async fn unarchive_thread(
 
     let result = mb_store.unarchive_thread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey {
-            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
-        }
+        && let Some(ref valkey) = state.valkey
+    {
+        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+    }
     match result {
         Ok(_) => Json(ApiResult {
             success: true,
@@ -210,7 +220,6 @@ pub(crate) async fn unarchive_thread(
     }
 }
 
-
 pub(crate) async fn snooze_thread(
     Path(thread_id): Path<String>,
     AuthUser { address: user, .. }: AuthUser,
@@ -218,7 +227,10 @@ pub(crate) async fn snooze_thread(
     Json(req): Json<SnoozeRequest>,
 ) -> impl IntoResponse {
     if thread_id.len() > crate::web::MAX_PATH_LEN {
-        return Json(ApiResult { success: false, message: Some("thread id too long".into()) });
+        return Json(ApiResult {
+            success: false,
+            message: Some("thread id too long".into()),
+        });
     }
     let Some(ref mb_store) = state.mailbox_store else {
         return Json(ApiResult {
@@ -239,9 +251,10 @@ pub(crate) async fn snooze_thread(
 
     let result = mb_store.snooze_thread(&user, &thread_id, until).await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey {
-            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
-        }
+        && let Some(ref valkey) = state.valkey
+    {
+        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+    }
     match result {
         Ok(()) => Json(ApiResult {
             success: true,
@@ -254,14 +267,16 @@ pub(crate) async fn snooze_thread(
     }
 }
 
-
 pub(crate) async fn unsnooze_thread(
     Path(thread_id): Path<String>,
     AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > crate::web::MAX_PATH_LEN {
-        return Json(ApiResult { success: false, message: Some("thread id too long".into()) });
+        return Json(ApiResult {
+            success: false,
+            message: Some("thread id too long".into()),
+        });
     }
     let Some(ref mb_store) = state.mailbox_store else {
         return Json(ApiResult {
@@ -272,9 +287,10 @@ pub(crate) async fn unsnooze_thread(
 
     let result = mb_store.unsnooze_thread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey {
-            conversation_cache::bust_thread(valkey, &user, &thread_id).await;
-        }
+        && let Some(ref valkey) = state.valkey
+    {
+        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+    }
     match result {
         Ok(()) => Json(ApiResult {
             success: true,
@@ -286,4 +302,3 @@ pub(crate) async fn unsnooze_thread(
         }),
     }
 }
-

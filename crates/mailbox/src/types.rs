@@ -450,7 +450,8 @@ mod tests {
 
     #[test]
     fn flag_constants_no_overlap() {
-        let all = FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
+        let all =
+            FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
         assert_eq!(all.count_ones(), 6);
     }
 
@@ -466,12 +467,17 @@ mod tests {
     #[test]
     fn bitmask_to_maildir_flags_preserves_canonical_order() {
         // The output order is Seen, Replied, Flagged, Trashed, Draft — fixed.
-        let all =
-            FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT;
+        let all = FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT;
         let flags = bitmask_to_maildir_flags(all);
         assert_eq!(
             flags,
-            vec![Flag::Seen, Flag::Replied, Flag::Flagged, Flag::Trashed, Flag::Draft]
+            vec![
+                Flag::Seen,
+                Flag::Replied,
+                Flag::Flagged,
+                Flag::Trashed,
+                Flag::Draft
+            ]
         );
     }
 
@@ -504,8 +510,14 @@ mod tests {
     #[test]
     fn flag_constants_have_distinct_bit_positions() {
         // Defensive: ensure no two flag constants share a bit.
-        let all =
-            [FLAG_SEEN, FLAG_ANSWERED, FLAG_FLAGGED, FLAG_DELETED, FLAG_DRAFT, FLAG_RECENT];
+        let all = [
+            FLAG_SEEN,
+            FLAG_ANSWERED,
+            FLAG_FLAGGED,
+            FLAG_DELETED,
+            FLAG_DRAFT,
+            FLAG_RECENT,
+        ];
         for (i, a) in all.iter().enumerate() {
             for b in &all[(i + 1)..] {
                 assert_eq!(a & b, 0, "0x{a:x} and 0x{b:x} share bits");
@@ -518,7 +530,8 @@ mod tests {
         // Future-proofing: if a new flag is added, it must NOT clobber the
         // low byte that downstream callers may already mask with 0xff.
         // For now, all defined flags fit in 0x3f (6 bits).
-        let all = FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
+        let all =
+            FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
         assert_eq!(all, 0x3f);
         assert!(all <= 0xff);
     }

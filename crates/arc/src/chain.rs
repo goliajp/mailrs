@@ -91,7 +91,9 @@ impl ArcChain {
                         // Reached the end naturally.
                         break;
                     }
-                    return Err(ArcError::NonContiguousChain { missing: expected_i });
+                    return Err(ArcError::NonContiguousChain {
+                        missing: expected_i,
+                    });
                 }
             }
         }
@@ -117,16 +119,27 @@ struct PartialSet {
 
 impl PartialSet {
     fn complete(self, i: u32) -> Result<ArcSet, ArcError> {
-        let (aar, raw_aar) = self
-            .aar
-            .ok_or(ArcError::IncompleteSet { instance: i, missing: "aar" })?;
-        let (ams, raw_ams) = self
-            .ams
-            .ok_or(ArcError::IncompleteSet { instance: i, missing: "ams" })?;
-        let (seal, raw_seal) = self
-            .seal
-            .ok_or(ArcError::IncompleteSet { instance: i, missing: "seal" })?;
-        Ok(ArcSet { i, aar, ams, seal, raw_aar, raw_ams, raw_seal })
+        let (aar, raw_aar) = self.aar.ok_or(ArcError::IncompleteSet {
+            instance: i,
+            missing: "aar",
+        })?;
+        let (ams, raw_ams) = self.ams.ok_or(ArcError::IncompleteSet {
+            instance: i,
+            missing: "ams",
+        })?;
+        let (seal, raw_seal) = self.seal.ok_or(ArcError::IncompleteSet {
+            instance: i,
+            missing: "seal",
+        })?;
+        Ok(ArcSet {
+            i,
+            aar,
+            ams,
+            seal,
+            raw_aar,
+            raw_ams,
+            raw_seal,
+        })
     }
 }
 
@@ -199,7 +212,11 @@ fn unfold_headers(block: &[u8]) -> Vec<(String, String)> {
         let mut value: Vec<u8> = line[colon + 1..].to_vec();
         // Trim leading WSP after the colon — RFC 5322 says exactly one
         // SP is canonical but in the wild it's "any amount".
-        while value.first().map(|b| matches!(b, b' ' | b'\t')).unwrap_or(false) {
+        while value
+            .first()
+            .map(|b| matches!(b, b' ' | b'\t'))
+            .unwrap_or(false)
+        {
             value.remove(0);
         }
         // Pull in continuation lines.
@@ -229,13 +246,15 @@ fn unfold_headers(block: &[u8]) -> Vec<(String, String)> {
 mod tests {
     use super::*;
 
-    const AAR1: &str = "ARC-Authentication-Results: i=1; spf=pass smtp.mailfrom=alice@example.com\r\n";
+    const AAR1: &str =
+        "ARC-Authentication-Results: i=1; spf=pass smtp.mailfrom=alice@example.com\r\n";
     const AMS1: &str = "ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com; s=mail; h=From:To:Subject; bh=BH1; b=SIG1\r\n";
     const AS1: &str = "ARC-Seal: i=1; a=rsa-sha256; cv=none; d=example.com; s=mail; b=SEAL1\r\n";
 
     const AAR2: &str = "ARC-Authentication-Results: i=2; dkim=pass header.d=forwarder.example\r\n";
     const AMS2: &str = "ARC-Message-Signature: i=2; a=rsa-sha256; c=relaxed/relaxed; d=forwarder.example; s=mail; h=From:To:Subject; bh=BH2; b=SIG2\r\n";
-    const AS2: &str = "ARC-Seal: i=2; a=rsa-sha256; cv=pass; d=forwarder.example; s=mail; b=SEAL2\r\n";
+    const AS2: &str =
+        "ARC-Seal: i=2; a=rsa-sha256; cv=pass; d=forwarder.example; s=mail; b=SEAL2\r\n";
 
     fn message_with(headers: &[&str]) -> Vec<u8> {
         let mut out = Vec::new();
@@ -290,7 +309,10 @@ mod tests {
         let r = ArcChain::extract(&msg);
         assert!(matches!(
             r,
-            Err(ArcError::IncompleteSet { instance: 1, missing: "seal" })
+            Err(ArcError::IncompleteSet {
+                instance: 1,
+                missing: "seal"
+            })
         ));
     }
 
@@ -302,13 +324,15 @@ mod tests {
         const AS3: &str = "ARC-Seal: i=3; a=rsa-sha256; cv=pass; d=x.example; s=mail; b=SEAL3\r\n";
         let msg = message_with(&[AAR1, AMS1, AS1, AAR3, AMS3, AS3]);
         let r = ArcChain::extract(&msg);
-        assert!(matches!(r, Err(ArcError::NonContiguousChain { missing: 2 })));
+        assert!(matches!(
+            r,
+            Err(ArcError::NonContiguousChain { missing: 2 })
+        ));
     }
 
     #[test]
     fn extract_handles_folded_headers() {
-        let folded =
-            "ARC-Message-Signature: i=1; a=rsa-sha256;\r\n c=relaxed/relaxed;\r\n d=example.com;\r\n s=mail; h=From:To:Subject; bh=BH1; b=SIG1\r\n";
+        let folded = "ARC-Message-Signature: i=1; a=rsa-sha256;\r\n c=relaxed/relaxed;\r\n d=example.com;\r\n s=mail; h=From:To:Subject; bh=BH1; b=SIG1\r\n";
         let msg = {
             let mut v = Vec::new();
             v.extend_from_slice(AAR1.as_bytes());

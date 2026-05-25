@@ -253,7 +253,8 @@ mod tests {
 
     #[test]
     fn find_all_header_values_in_raw_multi_match() {
-        let headers = b"DKIM-Signature: v=1; d=a.com\r\nFrom: a\r\nDKIM-Signature: v=1; d=b.com\r\n";
+        let headers =
+            b"DKIM-Signature: v=1; d=a.com\r\nFrom: a\r\nDKIM-Signature: v=1; d=b.com\r\n";
         let v = find_all_header_values_in_raw(headers, b"DKIM-Signature");
         assert_eq!(v.len(), 2);
         assert_eq!(v[0], " v=1; d=a.com\r");

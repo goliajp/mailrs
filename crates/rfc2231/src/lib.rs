@@ -204,7 +204,10 @@ mod tests {
 
     #[test]
     fn encode_ascii_legacy_quoted_form() {
-        assert_eq!(encode_param("filename", "test.pdf"), "filename=\"test.pdf\"");
+        assert_eq!(
+            encode_param("filename", "test.pdf"),
+            "filename=\"test.pdf\""
+        );
     }
 
     #[test]

@@ -76,21 +76,22 @@ fn bench_normalize(c: &mut Criterion) {
 fn bench_resolve_thread(c: &mut Criterion) {
     let mut group = c.benchmark_group("resolve_thread_id");
     group.bench_function("new_root", |b| {
-        b.iter(|| {
-            resolve_thread_id(black_box("<msg1@x>"), black_box(""), |_: &str| None)
-        })
+        b.iter(|| resolve_thread_id(black_box("<msg1@x>"), black_box(""), |_: &str| None))
     });
     group.bench_function("known_parent", |b| {
         b.iter(|| {
-            resolve_thread_id(
-                black_box("<msg2@x>"),
-                black_box("<msg1@x>"),
-                |_: &str| Some("thread-abc".to_string()),
-            )
+            resolve_thread_id(black_box("<msg2@x>"), black_box("<msg1@x>"), |_: &str| {
+                Some("thread-abc".to_string())
+            })
         })
     });
     group.finish();
 }
 
-criterion_group!(benches, bench_extract_headers, bench_normalize, bench_resolve_thread);
+criterion_group!(
+    benches,
+    bench_extract_headers,
+    bench_normalize,
+    bench_resolve_thread
+);
 criterion_main!(benches);

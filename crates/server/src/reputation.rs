@@ -44,7 +44,7 @@ pub async fn compute_reputation(pool: &sqlx::PgPool) -> Vec<DomainReputation> {
            AND SPLIT_PART(sender, '@', 2) != '' \
          GROUP BY SPLIT_PART(sender, '@', 2) \
          ORDER BY total DESC \
-         LIMIT 50"
+         LIMIT 50",
     )
     .fetch_all(pool)
     .await
@@ -54,21 +54,28 @@ pub async fn compute_reputation(pool: &sqlx::PgPool) -> Vec<DomainReputation> {
     let suppressed_rows: Vec<(String, i64)> = sqlx::query_as(
         "SELECT SPLIT_PART(email, '@', 2) as domain, COUNT(*) \
          FROM suppression_list \
-         GROUP BY SPLIT_PART(email, '@', 2)"
+         GROUP BY SPLIT_PART(email, '@', 2)",
     )
     .fetch_all(pool)
     .await
     .unwrap_or_default();
 
-    let suppressed_map: std::collections::HashMap<String, i64> = suppressed_rows
-        .into_iter()
-        .collect();
+    let suppressed_map: std::collections::HashMap<String, i64> =
+        suppressed_rows.into_iter().collect();
 
     rows.into_iter()
         .map(|(domain, total, delivered, bounced)| {
             let suppressed = suppressed_map.get(&domain).copied().unwrap_or(0);
-            let delivery_rate = if total > 0 { delivered as f64 / total as f64 } else { 1.0 };
-            let bounce_rate = if total > 0 { bounced as f64 / total as f64 } else { 0.0 };
+            let delivery_rate = if total > 0 {
+                delivered as f64 / total as f64
+            } else {
+                1.0
+            };
+            let bounce_rate = if total > 0 {
+                bounced as f64 / total as f64
+            } else {
+                0.0
+            };
             DomainReputation {
                 domain,
                 total_sent: total,

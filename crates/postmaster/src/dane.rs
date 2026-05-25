@@ -65,4 +65,3 @@ pub(super) async fn check_dane(resolver: &TokioResolver, domain: &str) -> CheckR
         },
     }
 }
-

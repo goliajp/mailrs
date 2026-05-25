@@ -79,11 +79,7 @@ impl PgMailboxStore {
     }
 
     /// mark contact as mutual (when user replies to a sender)
-    pub async fn mark_contact_mutual(
-        &self,
-        user: &str,
-        email: &str,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn mark_contact_mutual(&self, user: &str, email: &str) -> Result<(), sqlx::Error> {
         let email = normalize_email(email);
         sqlx::query(
             "UPDATE contacts SET is_mutual = true, reply_count = reply_count + 1
@@ -224,14 +220,20 @@ mod tests {
 
     #[test]
     fn normalize_email_with_display_name() {
-        assert_eq!(normalize_email("Alice <alice@example.com>"), "alice@example.com");
+        assert_eq!(
+            normalize_email("Alice <alice@example.com>"),
+            "alice@example.com"
+        );
         assert_eq!(normalize_email("\"Bob\" <BOB@Test.COM>"), "bob@test.com");
     }
 
     #[test]
     fn normalize_email_removes_plus_tag() {
         assert_eq!(normalize_email("user+tag@example.com"), "user@example.com");
-        assert_eq!(normalize_email("alice+newsletter@test.com"), "alice@test.com");
+        assert_eq!(
+            normalize_email("alice+newsletter@test.com"),
+            "alice@test.com"
+        );
     }
 
     #[test]
@@ -241,7 +243,10 @@ mod tests {
 
     #[test]
     fn normalize_email_trims_whitespace() {
-        assert_eq!(normalize_email("  alice@example.com  "), "alice@example.com");
+        assert_eq!(
+            normalize_email("  alice@example.com  "),
+            "alice@example.com"
+        );
     }
 
     #[test]

@@ -89,20 +89,21 @@ pub async fn list_for_account(
     pool: &PgPool,
     account: &str,
 ) -> Result<Vec<ExternalFeed>, sqlx::Error> {
-    sqlx::query_as("SELECT * FROM external_calendar_feeds WHERE account_address = $1 ORDER BY id ASC")
-        .bind(account)
-        .fetch_all(pool)
-        .await
+    sqlx::query_as(
+        "SELECT * FROM external_calendar_feeds WHERE account_address = $1 ORDER BY id ASC",
+    )
+    .bind(account)
+    .fetch_all(pool)
+    .await
 }
 
 pub async fn delete(pool: &PgPool, account: &str, feed_id: i64) -> Result<bool, sqlx::Error> {
-    let res = sqlx::query(
-        "DELETE FROM external_calendar_feeds WHERE id = $1 AND account_address = $2",
-    )
-    .bind(feed_id)
-    .bind(account)
-    .execute(pool)
-    .await?;
+    let res =
+        sqlx::query("DELETE FROM external_calendar_feeds WHERE id = $1 AND account_address = $2")
+            .bind(feed_id)
+            .bind(account)
+            .execute(pool)
+            .await?;
     Ok(res.rows_affected() > 0)
 }
 
@@ -166,8 +167,9 @@ pub async fn record_error(
 
 fn url_host_or_url(url: &str) -> String {
     if let Ok(parsed) = reqwest::Url::parse(url)
-        && let Some(host) = parsed.host_str() {
-            return host.to_string();
-        }
+        && let Some(host) = parsed.host_str()
+    {
+        return host.to_string();
+    }
     url.to_string()
 }

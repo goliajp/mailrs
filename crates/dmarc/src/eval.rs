@@ -84,8 +84,16 @@ pub struct DmarcOutcome {
 /// From: domain matches the organizational domain (`p=`) or is a
 /// subdomain of it (`sp=`).
 fn pick_disposition(input: &DmarcInput, policy: &DmarcPolicy) -> PolicyAction {
-    let from = input.from_domain.trim().trim_end_matches('.').to_ascii_lowercase();
-    let pol = input.policy_domain.trim().trim_end_matches('.').to_ascii_lowercase();
+    let from = input
+        .from_domain
+        .trim()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    let pol = input
+        .policy_domain
+        .trim()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
     if from == pol {
         policy.policy
     } else {
@@ -118,7 +126,9 @@ fn pick_disposition(input: &DmarcInput, policy: &DmarcPolicy) -> PolicyAction {
 pub fn evaluate(policy: &DmarcPolicy, input: &DmarcInput) -> DmarcOutcome {
     // Aligned SPF: pass AND aligned under `aspf` mode.
     let aligned_spf_pass = match input.spf.as_ref() {
-        Some(spf) if spf.pass => align_check(&spf.domain, &input.from_domain, policy.aspf).is_aligned(),
+        Some(spf) if spf.pass => {
+            align_check(&spf.domain, &input.from_domain, policy.aspf).is_aligned()
+        }
         _ => false,
     };
 

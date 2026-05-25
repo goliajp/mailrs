@@ -46,10 +46,7 @@ fn make_input<'a>(
 }
 
 async fn seed(store: &InMemoryMailboxStore, n: usize) {
-    store
-        .create_mailbox(EXAMPLE_USER, "INBOX")
-        .await
-        .unwrap();
+    store.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
     for i in 0..n {
         let subject = format!("Message {i}");
         let mid = format!("msg-{i}@example.com");

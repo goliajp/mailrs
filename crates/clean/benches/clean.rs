@@ -4,7 +4,9 @@ use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 
-use mailrs_clean::{clean_email_html, detect_bulk_sender, is_automated_sender, split_quoted_content};
+use mailrs_clean::{
+    clean_email_html, detect_bulk_sender, is_automated_sender, split_quoted_content,
+};
 
 const SHORT_HTML: &str = "<html><body><p>Hello,</p><p>This is a quick note.</p></body></html>";
 
@@ -104,5 +106,10 @@ fn bench_split_quoted(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_clean_html, bench_sender_heuristics, bench_split_quoted);
+criterion_group!(
+    benches,
+    bench_clean_html,
+    bench_sender_heuristics,
+    bench_split_quoted
+);
 criterion_main!(benches);

@@ -1,12 +1,16 @@
 //! Per-check submodule (see lib.rs for the dispatcher).
 
 use hickory_resolver::TokioResolver;
-use std::net::IpAddr;
 use hickory_resolver::proto::rr::RData;
+use std::net::IpAddr;
 
 use super::{CheckResult, Status};
 
-pub(super) async fn check_spf(resolver: &TokioResolver, domain: &str, hostname: &str) -> CheckResult {
+pub(super) async fn check_spf(
+    resolver: &TokioResolver,
+    domain: &str,
+    hostname: &str,
+) -> CheckResult {
     // resolve our hostname to IPs for SPF inclusion check
     let our_ips: Vec<IpAddr> = resolver
         .lookup_ip(hostname)
@@ -87,4 +91,3 @@ pub(super) async fn check_spf(resolver: &TokioResolver, domain: &str, hostname: 
         },
     }
 }
-

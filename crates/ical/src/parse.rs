@@ -36,10 +36,7 @@ pub fn parse_calendar(input: &str) -> Result<RawComponent, IcalError> {
             });
         } else if prop.name.eq_ignore_ascii_case("END") {
             let finished = stack.pop().ok_or_else(|| {
-                IcalError::InvalidSyntax(format!(
-                    "END:{} without matching BEGIN",
-                    prop.value
-                ))
+                IcalError::InvalidSyntax(format!("END:{} without matching BEGIN", prop.value))
             })?;
             if !finished.name.eq_ignore_ascii_case(&prop.value) {
                 return Err(IcalError::InvalidSyntax(format!(
@@ -78,7 +75,9 @@ pub fn parse_calendar(input: &str) -> Result<RawComponent, IcalError> {
             stack.last().expect("non-empty").name
         )));
     }
-    Err(IcalError::InvalidSyntax("no VCALENDAR component found".into()))
+    Err(IcalError::InvalidSyntax(
+        "no VCALENDAR component found".into(),
+    ))
 }
 
 /// RFC 5545 §3.1 line unfolding: a CRLF (or LF for tolerance) followed by
@@ -94,7 +93,10 @@ fn unfold(input: &str) -> Vec<String> {
     // scrapes strip CR). RFC 5545 §3.1 mandates CRLF; we accept LF for
     // compatibility with hand-written test fixtures + lenient producers.
     for raw_line in split_lines(input) {
-        if let Some(rest) = raw_line.strip_prefix(' ').or_else(|| raw_line.strip_prefix('\t')) {
+        if let Some(rest) = raw_line
+            .strip_prefix(' ')
+            .or_else(|| raw_line.strip_prefix('\t'))
+        {
             // Continuation line: append (without the leading WSP) to current.
             current.push_str(rest);
         } else {
@@ -116,7 +118,9 @@ fn unfold(input: &str) -> Vec<String> {
 /// Split text on CRLF / LF without allocating per line.
 fn split_lines(input: &str) -> impl Iterator<Item = &str> {
     // `split_terminator("\n")` then trim a trailing '\r'.
-    input.split_terminator('\n').map(|line| line.strip_suffix('\r').unwrap_or(line))
+    input
+        .split_terminator('\n')
+        .map(|line| line.strip_suffix('\r').unwrap_or(line))
 }
 
 /// Parse a single (already-unfolded) property line.
@@ -230,9 +234,8 @@ mod parse_tests {
 
     #[test]
     fn parses_property_with_params() {
-        let p =
-            parse_property_line("ATTENDEE;CN=John Doe;PARTSTAT=ACCEPTED:mailto:j@example.com")
-                .unwrap();
+        let p = parse_property_line("ATTENDEE;CN=John Doe;PARTSTAT=ACCEPTED:mailto:j@example.com")
+            .unwrap();
         assert_eq!(p.name, "ATTENDEE");
         assert_eq!(p.value, "mailto:j@example.com");
         assert_eq!(p.params.len(), 2);
@@ -322,7 +325,9 @@ mod parse_tests {
 
     #[test]
     fn parse_calendar_mismatched_end_errors() {
-        let r = parse_calendar("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x\r\nEND:VTODO\r\nEND:VCALENDAR\r\n");
+        let r = parse_calendar(
+            "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
+        );
         assert!(matches!(r, Err(IcalError::InvalidSyntax(_))));
     }
 

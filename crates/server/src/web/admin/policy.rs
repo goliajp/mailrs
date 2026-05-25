@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 
 use super::*;
 
@@ -36,7 +36,10 @@ pub(crate) async fn get_smtp_config(
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     match &state.smtp_config {
-        Some(cfg) => (StatusCode::OK, Json(serde_json::to_value(cfg).unwrap_or_default()))
+        Some(cfg) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(cfg).unwrap_or_default()),
+        )
             .into_response(),
         None => (
             StatusCode::SERVICE_UNAVAILABLE,

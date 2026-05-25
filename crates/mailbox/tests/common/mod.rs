@@ -35,10 +35,7 @@ pub async fn setup_pg() -> (ContainerAsync<GenericImage>, PgPool) {
         .await
         .expect("failed to start pgvector container");
 
-    let host = container
-        .get_host()
-        .await
-        .expect("container host");
+    let host = container.get_host().await.expect("container host");
     let port = container
         .get_host_port_ipv4(5432)
         .await
@@ -85,14 +82,12 @@ pub async fn seed_domain_account(pool: &PgPool, user: &str) {
         .await
         .expect("seed domain");
 
-    sqlx::query(
-        "INSERT INTO accounts (address, domain) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-    )
-    .bind(user)
-    .bind(domain)
-    .execute(pool)
-    .await
-    .expect("seed account");
+    sqlx::query("INSERT INTO accounts (address, domain) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+        .bind(user)
+        .bind(domain)
+        .execute(pool)
+        .await
+        .expect("seed account");
 }
 
 /// Insert a mailbox row for `user` and return its id.

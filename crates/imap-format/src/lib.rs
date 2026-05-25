@@ -456,16 +456,18 @@ pub fn split_mime_parts<'a>(body: &'a [u8], boundary: &str) -> Vec<&'a [u8]> {
             {
                 if in_parts
                     && let Some(pos) = find_line_offset(body, i)
-                        && pos > part_start {
-                            parts.push(&body[part_start..pos]);
-                        }
+                    && pos > part_start
+                {
+                    parts.push(&body[part_start..pos]);
+                }
                 break;
             }
             if in_parts
                 && let Some(pos) = find_line_offset(body, i)
-                    && pos > part_start {
-                        parts.push(&body[part_start..pos]);
-                    }
+                && pos > part_start
+            {
+                parts.push(&body[part_start..pos]);
+            }
             if let Some(pos) = find_line_offset(body, i) {
                 let after = pos + line.len();
                 part_start =
@@ -620,18 +622,19 @@ pub fn build_bodystructure(data: &[u8]) -> String {
     let info = parse_mime_headers(&header);
 
     if info.media_type == "MULTIPART"
-        && let Some(ref boundary) = info.boundary {
-            let parts = split_mime_parts(&body, boundary);
-            if !parts.is_empty() {
-                let parts_str: String = parts.iter().map(|p| build_part_bodystructure(p)).collect();
-                return format!(
-                    "({} \"{}\" (\"boundary\" \"{}\") NIL NIL)",
-                    parts_str,
-                    info.subtype.to_lowercase(),
-                    boundary,
-                );
-            }
+        && let Some(ref boundary) = info.boundary
+    {
+        let parts = split_mime_parts(&body, boundary);
+        if !parts.is_empty() {
+            let parts_str: String = parts.iter().map(|p| build_part_bodystructure(p)).collect();
+            return format!(
+                "({} \"{}\" (\"boundary\" \"{}\") NIL NIL)",
+                parts_str,
+                info.subtype.to_lowercase(),
+                boundary,
+            );
         }
+    }
 
     let params = {
         let mut pairs = Vec::new();
@@ -804,7 +807,8 @@ mod tests {
 
     #[test]
     fn format_flags_all() {
-        let flags = FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
+        let flags =
+            FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
         let s = format_imap_flags(flags);
         assert!(s.contains("\\Seen"));
         assert!(s.contains("\\Answered"));
@@ -951,7 +955,8 @@ mod tests {
 
     #[test]
     fn parse_header_fields_request_basic() {
-        let (fields, _) = parse_header_fields_request("BODY[HEADER.FIELDS (FROM TO SUBJECT)]").unwrap();
+        let (fields, _) =
+            parse_header_fields_request("BODY[HEADER.FIELDS (FROM TO SUBJECT)]").unwrap();
         assert_eq!(fields, vec!["FROM", "TO", "SUBJECT"]);
     }
 

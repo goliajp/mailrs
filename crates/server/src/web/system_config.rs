@@ -1,16 +1,18 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
 use super::{ApiResult, AuthUser, WebState};
 
 /// GET /api/admin/system-config
 pub(super) async fn list_config(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if !permissions.has("admin.system_config") {
@@ -39,7 +41,11 @@ pub(super) struct UpdateConfigRequest {
 
 /// PUT /api/admin/system-config/:key
 pub(super) async fn update_config(
-    AuthUser { ref address, ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref address,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Path(key): Path<String>,
     Json(req): Json<UpdateConfigRequest>,
@@ -89,7 +95,11 @@ pub(super) async fn update_config(
 
 /// DELETE /api/admin/system-config/:key
 pub(super) async fn reset_config(
-    AuthUser { ref address, ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref address,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Path(key): Path<String>,
 ) -> impl IntoResponse {
@@ -125,8 +135,7 @@ pub(super) async fn reset_config(
 
     // audit log
     if let Some(ref ds) = state.domain_store {
-        ds.log_audit(address, "system_config_reset", &key, "")
-            .await;
+        ds.log_audit(address, "system_config_reset", &key, "").await;
     }
 
     Json(ApiResult {

@@ -27,9 +27,7 @@ fn sample_message(body_kb: usize) -> Vec<u8> {
           Message-ID: <abc-123@example.com>\r\n\r\n",
     );
     for _ in 0..(body_kb * 1024 / 80) {
-        m.extend_from_slice(
-            b"This is a typical inbound message body line, ASCII text only.\r\n",
-        );
+        m.extend_from_slice(b"This is a typical inbound message body line, ASCII text only.\r\n");
     }
     m
 }

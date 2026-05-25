@@ -153,12 +153,9 @@ fn optional_string(props: &[RawProperty], name: &str) -> Option<String> {
 fn optional_int(props: &[RawProperty], name: &str) -> Result<Option<i32>, IcalError> {
     match find_property(props, name) {
         None => Ok(None),
-        Some(p) => p
-            .value
-            .trim()
-            .parse::<i32>()
-            .map(Some)
-            .map_err(|_| IcalError::InvalidSemantics(format!("{name} is not an integer: {}", p.value))),
+        Some(p) => p.value.trim().parse::<i32>().map(Some).map_err(|_| {
+            IcalError::InvalidSemantics(format!("{name} is not an integer: {}", p.value))
+        }),
     }
 }
 
@@ -182,7 +179,9 @@ fn parse_method(s: &str) -> Result<Method, IcalError> {
         // Exchange use METHOD=REQUEST + a higher SEQUENCE for updates. But
         // some servers do emit METHOD=UPDATE; accept it for robustness.
         "UPDATE" => Ok(Method::Update),
-        other => Err(IcalError::InvalidSemantics(format!("unknown METHOD: {other}"))),
+        other => Err(IcalError::InvalidSemantics(format!(
+            "unknown METHOD: {other}"
+        ))),
     }
 }
 
@@ -380,7 +379,7 @@ fn parse_duration(s: &str) -> Result<chrono::Duration, IcalError> {
             _ => {
                 return Err(IcalError::InvalidSemantics(format!(
                     "DURATION unexpected token '{ch}' in {s}"
-                )))
+                )));
             }
         }
     }

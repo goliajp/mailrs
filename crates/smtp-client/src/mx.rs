@@ -15,15 +15,9 @@ pub struct MxRecord {
 }
 
 /// resolve MX records for a domain, falling back to A/AAAA if none found
-pub async fn resolve_mx(
-    resolver: &TokioResolver,
-    domain: &str,
-) -> io::Result<Vec<MxRecord>> {
+pub async fn resolve_mx(resolver: &TokioResolver, domain: &str) -> io::Result<Vec<MxRecord>> {
     if domain.is_empty() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "empty domain",
-        ));
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "empty domain"));
     }
 
     use hickory_resolver::proto::rr::RData;
@@ -114,9 +108,10 @@ impl MxCache {
         {
             let cache = self.cache.lock().unwrap();
             if let Some((records, inserted_at)) = cache.get(domain)
-                && inserted_at.elapsed() < self.ttl {
-                    return Ok(records.clone());
-                }
+                && inserted_at.elapsed() < self.ttl
+            {
+                return Ok(records.clone());
+            }
         }
 
         // cache miss or expired — resolve
@@ -270,10 +265,7 @@ mod tests {
         // manually insert into cache
         {
             let mut c = cache.cache.lock().unwrap();
-            c.insert(
-                "example.com".into(),
-                (records.clone(), Instant::now()),
-            );
+            c.insert("example.com".into(), (records.clone(), Instant::now()));
         }
 
         assert_eq!(cache.len(), 1);
@@ -373,8 +365,14 @@ mod tests {
     #[test]
     fn sort_mx_records_already_sorted() {
         let mut records = vec![
-            MxRecord { priority: 10, exchange: "a.example.com".into() },
-            MxRecord { priority: 20, exchange: "b.example.com".into() },
+            MxRecord {
+                priority: 10,
+                exchange: "a.example.com".into(),
+            },
+            MxRecord {
+                priority: 20,
+                exchange: "b.example.com".into(),
+            },
         ];
         sort_mx_records(&mut records);
         assert_eq!(records[0].exchange, "a.example.com");
@@ -384,9 +382,18 @@ mod tests {
     #[test]
     fn sort_mx_records_reverse_order() {
         let mut records = vec![
-            MxRecord { priority: 50, exchange: "z.example.com".into() },
-            MxRecord { priority: 30, exchange: "m.example.com".into() },
-            MxRecord { priority: 10, exchange: "a.example.com".into() },
+            MxRecord {
+                priority: 50,
+                exchange: "z.example.com".into(),
+            },
+            MxRecord {
+                priority: 30,
+                exchange: "m.example.com".into(),
+            },
+            MxRecord {
+                priority: 10,
+                exchange: "a.example.com".into(),
+            },
         ];
         sort_mx_records(&mut records);
         assert_eq!(records[0].priority, 10);
@@ -397,9 +404,18 @@ mod tests {
     #[test]
     fn sort_mx_records_same_priority_multiple() {
         let mut records = vec![
-            MxRecord { priority: 10, exchange: "c.example.com".into() },
-            MxRecord { priority: 10, exchange: "a.example.com".into() },
-            MxRecord { priority: 10, exchange: "b.example.com".into() },
+            MxRecord {
+                priority: 10,
+                exchange: "c.example.com".into(),
+            },
+            MxRecord {
+                priority: 10,
+                exchange: "a.example.com".into(),
+            },
+            MxRecord {
+                priority: 10,
+                exchange: "b.example.com".into(),
+            },
         ];
         sort_mx_records(&mut records);
         assert_eq!(records[0].exchange, "a.example.com");
@@ -421,12 +437,21 @@ mod tests {
             let mut c = cache.cache.lock().unwrap();
             c.insert(
                 "fresh.com".into(),
-                (vec![MxRecord { priority: 10, exchange: "mx.fresh.com".into() }], Instant::now()),
+                (
+                    vec![MxRecord {
+                        priority: 10,
+                        exchange: "mx.fresh.com".into(),
+                    }],
+                    Instant::now(),
+                ),
             );
             c.insert(
                 "stale.com".into(),
                 (
-                    vec![MxRecord { priority: 10, exchange: "mx.stale.com".into() }],
+                    vec![MxRecord {
+                        priority: 10,
+                        exchange: "mx.stale.com".into(),
+                    }],
                     Instant::now() - Duration::from_secs(600),
                 ),
             );
@@ -459,16 +484,28 @@ mod tests {
 
     #[test]
     fn mx_record_equality() {
-        let a = MxRecord { priority: 10, exchange: "mx.example.com".into() };
-        let b = MxRecord { priority: 10, exchange: "mx.example.com".into() };
-        let c = MxRecord { priority: 20, exchange: "mx.example.com".into() };
+        let a = MxRecord {
+            priority: 10,
+            exchange: "mx.example.com".into(),
+        };
+        let b = MxRecord {
+            priority: 10,
+            exchange: "mx.example.com".into(),
+        };
+        let c = MxRecord {
+            priority: 20,
+            exchange: "mx.example.com".into(),
+        };
         assert_eq!(a, b);
         assert_ne!(a, c);
     }
 
     #[test]
     fn mx_record_debug() {
-        let r = MxRecord { priority: 10, exchange: "mx.test.com".into() };
+        let r = MxRecord {
+            priority: 10,
+            exchange: "mx.test.com".into(),
+        };
         let debug = format!("{:?}", r);
         assert!(debug.contains("10"));
         assert!(debug.contains("mx.test.com"));
@@ -526,23 +563,65 @@ mod tests {
     #[test]
     fn sort_mx_records_mixed_priorities_and_names() {
         let mut records = vec![
-            MxRecord { priority: 20, exchange: "b.example.com".into() },
-            MxRecord { priority: 10, exchange: "z.example.com".into() },
-            MxRecord { priority: 20, exchange: "a.example.com".into() },
-            MxRecord { priority: 10, exchange: "a.example.com".into() },
+            MxRecord {
+                priority: 20,
+                exchange: "b.example.com".into(),
+            },
+            MxRecord {
+                priority: 10,
+                exchange: "z.example.com".into(),
+            },
+            MxRecord {
+                priority: 20,
+                exchange: "a.example.com".into(),
+            },
+            MxRecord {
+                priority: 10,
+                exchange: "a.example.com".into(),
+            },
         ];
         sort_mx_records(&mut records);
-        assert_eq!(records[0], MxRecord { priority: 10, exchange: "a.example.com".into() });
-        assert_eq!(records[1], MxRecord { priority: 10, exchange: "z.example.com".into() });
-        assert_eq!(records[2], MxRecord { priority: 20, exchange: "a.example.com".into() });
-        assert_eq!(records[3], MxRecord { priority: 20, exchange: "b.example.com".into() });
+        assert_eq!(
+            records[0],
+            MxRecord {
+                priority: 10,
+                exchange: "a.example.com".into()
+            }
+        );
+        assert_eq!(
+            records[1],
+            MxRecord {
+                priority: 10,
+                exchange: "z.example.com".into()
+            }
+        );
+        assert_eq!(
+            records[2],
+            MxRecord {
+                priority: 20,
+                exchange: "a.example.com".into()
+            }
+        );
+        assert_eq!(
+            records[3],
+            MxRecord {
+                priority: 20,
+                exchange: "b.example.com".into()
+            }
+        );
     }
 
     #[test]
     fn sort_mx_records_priority_zero() {
         let mut records = vec![
-            MxRecord { priority: 10, exchange: "mx1.example.com".into() },
-            MxRecord { priority: 0, exchange: "mx0.example.com".into() },
+            MxRecord {
+                priority: 10,
+                exchange: "mx1.example.com".into(),
+            },
+            MxRecord {
+                priority: 0,
+                exchange: "mx0.example.com".into(),
+            },
         ];
         sort_mx_records(&mut records);
         assert_eq!(records[0].priority, 0);
@@ -552,8 +631,14 @@ mod tests {
     #[test]
     fn sort_mx_records_max_priority() {
         let mut records = vec![
-            MxRecord { priority: u16::MAX, exchange: "low.example.com".into() },
-            MxRecord { priority: 0, exchange: "high.example.com".into() },
+            MxRecord {
+                priority: u16::MAX,
+                exchange: "low.example.com".into(),
+            },
+            MxRecord {
+                priority: 0,
+                exchange: "high.example.com".into(),
+            },
         ];
         sort_mx_records(&mut records);
         assert_eq!(records[0].priority, 0);
@@ -581,17 +666,32 @@ mod tests {
             let mut c = cache.cache.lock().unwrap();
             c.insert(
                 "example.com".into(),
-                (vec![MxRecord { priority: 10, exchange: "old.example.com".into() }], Instant::now()),
+                (
+                    vec![MxRecord {
+                        priority: 10,
+                        exchange: "old.example.com".into(),
+                    }],
+                    Instant::now(),
+                ),
             );
             // overwrite with new records
             c.insert(
                 "example.com".into(),
-                (vec![MxRecord { priority: 10, exchange: "new.example.com".into() }], Instant::now()),
+                (
+                    vec![MxRecord {
+                        priority: 10,
+                        exchange: "new.example.com".into(),
+                    }],
+                    Instant::now(),
+                ),
             );
         }
         assert_eq!(cache.len(), 1);
         let c = cache.cache.lock().unwrap();
-        assert_eq!(c.get("example.com").unwrap().0[0].exchange, "new.example.com");
+        assert_eq!(
+            c.get("example.com").unwrap().0[0].exchange,
+            "new.example.com"
+        );
     }
 
     #[test]
@@ -618,7 +718,10 @@ mod tests {
 
     #[test]
     fn mx_record_clone() {
-        let original = MxRecord { priority: 10, exchange: "mx.example.com".into() };
+        let original = MxRecord {
+            priority: 10,
+            exchange: "mx.example.com".into(),
+        };
         let cloned = original.clone();
         assert_eq!(original, cloned);
         // ensure clone is independent

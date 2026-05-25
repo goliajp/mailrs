@@ -55,7 +55,14 @@ pub fn rewrite(sender: &str, local_domain: &str, secret: &str) -> String {
     // Pre-sized buffer: "SRS0=" + hash (8) + "=" + tt (3) + "=" +
     // original_domain + "=" + local_part + "@" + local_domain
     let mut out = String::with_capacity(
-        5 + HASH_HEX_LEN + 1 + 3 + 1 + original_domain.len() + 1 + local_part.len() + 1
+        5 + HASH_HEX_LEN
+            + 1
+            + 3
+            + 1
+            + original_domain.len()
+            + 1
+            + local_part.len()
+            + 1
             + local_domain.len(),
     );
     out.push_str("SRS0=");
@@ -236,13 +243,21 @@ mod tests {
 
     #[test]
     fn reverse_rejects_missing_at() {
-        let r = reverse("SRS0=abcd1234=001=domain=local", "key", DEFAULT_TIMESTAMP_WINDOW_DAYS);
+        let r = reverse(
+            "SRS0=abcd1234=001=domain=local",
+            "key",
+            DEFAULT_TIMESTAMP_WINDOW_DAYS,
+        );
         assert!(r.is_none());
     }
 
     #[test]
     fn reverse_rejects_short_hash() {
-        let r = reverse("SRS0=abc=001=domain=local@mx", "key", DEFAULT_TIMESTAMP_WINDOW_DAYS);
+        let r = reverse(
+            "SRS0=abc=001=domain=local@mx",
+            "key",
+            DEFAULT_TIMESTAMP_WINDOW_DAYS,
+        );
         assert!(r.is_none());
     }
 

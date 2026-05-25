@@ -114,9 +114,8 @@ sender_intent: request|inform|confirm|social|alert|marketing
 
 {"category":"","risk_score":0,"risk_reason":"中文","summary":"中文","clean_text":"中文","requires_action":false,"sender_intent":"inform","action_deadline":null,"people":[],"dates":[],"amounts":[],"action_items":["中文"]}"#;
 
-    let user_message = format!(
-        "Analyze this email:\n\nFrom: {sender}\nSubject: {subject}\nBody:\n{body_text}"
-    );
+    let user_message =
+        format!("Analyze this email:\n\nFrom: {sender}\nSubject: {subject}\nBody:\n{body_text}");
 
     let text = provider.complete(system, &user_message, 0.1).await?;
     parse_analysis_response(&text)
@@ -350,7 +349,11 @@ mod integration_tests {
 
     #[tokio::test]
     async fn analyze_email_returns_none_on_provider_failure() {
-        assert!(analyze_email(&DeadProvider, "a@x", "s", "b").await.is_none());
+        assert!(
+            analyze_email(&DeadProvider, "a@x", "s", "b")
+                .await
+                .is_none()
+        );
     }
 
     #[tokio::test]

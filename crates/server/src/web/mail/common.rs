@@ -12,7 +12,6 @@ use axum::Json;
 use base64::Engine;
 use rand_core::RngCore;
 
-
 use super::{SendResult, WebState};
 
 /// Attachment payload used by the send pipeline (multipart upload + forwarded
@@ -46,11 +45,10 @@ pub(crate) fn verify_sender(
     let accessible = permissions.accessible_domains();
     if !accessible.is_empty()
         && let Some(domain) = from.rsplit_once('@').map(|(_, d)| d)
-            && (permissions.is_super()
-                || accessible.iter().any(|sd| sd.eq_ignore_ascii_case(domain)))
-            {
-                return Ok(());
-            }
+        && (permissions.is_super() || accessible.iter().any(|sd| sd.eq_ignore_ascii_case(domain)))
+    {
+        return Ok(());
+    }
     Err("sender must match authenticated user")
 }
 
@@ -64,27 +62,29 @@ pub(crate) async fn resolve_thread_reply(
 ) -> (Option<String>, Vec<String>) {
     // explicit in_reply_to takes precedence
     if let Some(reply_to) = in_reply_to
-        && !reply_to.is_empty() {
-            let refs = match mb_store {
-                Some(store) => store
-                    .get_thread_references(user, reply_to)
-                    .await
-                    .unwrap_or_default(),
-                None => vec![],
-            };
-            return (Some(reply_to.to_string()), refs);
-        }
+        && !reply_to.is_empty()
+    {
+        let refs = match mb_store {
+            Some(store) => store
+                .get_thread_references(user, reply_to)
+                .await
+                .unwrap_or_default(),
+            None => vec![],
+        };
+        return (Some(reply_to.to_string()), refs);
+    }
 
     // resolve thread_id to last message's message-id
     if let (Some(thread_id), Some(store)) = (reply_to_thread_id, mb_store)
         && !thread_id.is_empty()
-            && let Ok(Some(last_msg_id)) = store.get_last_message_id_in_thread(user, thread_id).await {
-                let refs = store
-                    .get_thread_message_ids(user, thread_id)
-                    .await
-                    .unwrap_or_default();
-                return (Some(last_msg_id), refs);
-            }
+        && let Ok(Some(last_msg_id)) = store.get_last_message_id_in_thread(user, thread_id).await
+    {
+        let refs = store
+            .get_thread_message_ids(user, thread_id)
+            .await
+            .unwrap_or_default();
+        return (Some(last_msg_id), refs);
+    }
 
     (None, vec![])
 }
@@ -179,12 +179,25 @@ pub(crate) async fn deliver_message_ex(
         } else if let Some(ref pool) = state.outbound_queue {
             let enqueue_result = if let Some(sched) = scheduled_at {
                 mailrs_outbound_queue::queue::enqueue_scheduled(
-                    pool, from, rcpt, domain, raw, Some(message_id), ts, sched,
+                    pool,
+                    from,
+                    rcpt,
+                    domain,
+                    raw,
+                    Some(message_id),
+                    ts,
+                    sched,
                 )
                 .await
             } else {
                 mailrs_outbound_queue::queue::enqueue(
-                    pool, from, rcpt, domain, raw, Some(message_id), ts,
+                    pool,
+                    from,
+                    rcpt,
+                    domain,
+                    raw,
+                    Some(message_id),
+                    ts,
                 )
                 .await
             };
@@ -243,9 +256,10 @@ pub(crate) async fn deliver_message_ex(
 // extract bare email from "Display Name <addr>" or return as-is
 pub(super) fn extract_address(s: &str) -> String {
     if let Some(start) = s.rfind('<')
-        && let Some(end) = s[start..].find('>') {
-            return s[start + 1..start + end].trim().to_string();
-        }
+        && let Some(end) = s[start..].find('>')
+    {
+        return s[start + 1..start + end].trim().to_string();
+    }
     s.trim().to_string()
 }
 
@@ -483,7 +497,9 @@ mod tests {
     // --- verify_sender tests ---
 
     fn make_super_perms(domains: &[&str]) -> crate::permission::EffectivePermissions {
-        use crate::permission::{compute_effective_permissions, AccountGroup, GroupInfo, ALL_PERMISSIONS};
+        use crate::permission::{
+            ALL_PERMISSIONS, AccountGroup, GroupInfo, compute_effective_permissions,
+        };
         let groups = vec![AccountGroup {
             group: GroupInfo {
                 id: 1,
@@ -518,7 +534,7 @@ mod tests {
     fn verify_sender_superadmin_non_matching_domain_rejected() {
         // super user with only golia.jp domain — but super has all domains, so it should allow
         // let's test with a domain-scoped group instead
-        use crate::permission::{compute_effective_permissions, AccountGroup, GroupInfo};
+        use crate::permission::{AccountGroup, GroupInfo, compute_effective_permissions};
         let groups = vec![AccountGroup {
             group: GroupInfo {
                 id: 1,
@@ -558,12 +574,8 @@ mod tests {
     async fn resolve_thread_reply_thread_id_resolves_when_no_in_reply_to() {
         // when no mailbox store and no in_reply_to, thread_id cannot resolve (no DB)
         // but it should not panic
-        let (reply, refs) = resolve_thread_reply(
-            Some("thread-abc"),
-            None,
-            "user@test.com",
-            None,
-        ).await;
+        let (reply, refs) =
+            resolve_thread_reply(Some("thread-abc"), None, "user@test.com", None).await;
         // without a store, cannot resolve thread_id
         assert!(reply.is_none());
         assert!(refs.is_empty());
@@ -577,7 +589,8 @@ mod tests {
             Some("explicit-msg-id@test.com"),
             "user@test.com",
             None,
-        ).await;
+        )
+        .await;
         assert_eq!(reply.as_deref(), Some("explicit-msg-id@test.com"));
     }
 }

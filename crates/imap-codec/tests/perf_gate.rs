@@ -1,8 +1,8 @@
 //! Regression budgets for `mailrs-imap-codec`. See BUDGETS.md.
 
-use std::time::{Duration, Instant};
 use bytes::BytesMut;
 use mailrs_imap_codec::ImapCodec;
+use std::time::{Duration, Instant};
 use tokio_util::codec::Decoder;
 
 const ITERS: usize = 200;

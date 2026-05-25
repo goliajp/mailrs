@@ -6,7 +6,9 @@
 //! responses on success. Both require Selected state and accept
 //! sequence-set or UID input (the `use_uid` flag selects which).
 
-use mailrs_imap_proto::{format_bad, format_no, format_ok, parse_sequence_set, sequence_set_to_uids};
+use mailrs_imap_proto::{
+    format_bad, format_no, format_ok, parse_sequence_set, sequence_set_to_uids,
+};
 
 use super::{ImapSession, ImapState};
 

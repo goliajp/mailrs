@@ -57,11 +57,7 @@ impl EffectivePermissions {
     /// check if the user has any admin permission
     #[cfg(test)]
     pub fn has_any_admin(&self) -> bool {
-        self.is_super
-            || self
-                .permissions
-                .iter()
-                .any(|p| p.starts_with("admin."))
+        self.is_super || self.permissions.iter().any(|p| p.starts_with("admin."))
     }
 
     /// whether this user is a super user (global group with all perms)
@@ -148,10 +144,7 @@ pub fn compute_effective_permissions(
 
         if revoked.is_empty() {
             return EffectivePermissions {
-                permissions: ALL_PERMISSIONS
-                    .iter()
-                    .map(|s| (*s).to_string())
-                    .collect(),
+                permissions: ALL_PERMISSIONS.iter().map(|s| (*s).to_string()).collect(),
                 is_super: true,
                 accessible_domains: all_domains.to_vec(),
                 send_as: Vec::new(),
@@ -248,7 +241,11 @@ mod tests {
 
     #[test]
     fn domain_user_group_basic_perms() {
-        let groups = vec![make_group("user", Some("golia.jp"), &["mail.send", "mail.read"])];
+        let groups = vec![make_group(
+            "user",
+            Some("golia.jp"),
+            &["mail.send", "mail.read"],
+        )];
         let perms = compute_effective_permissions(&groups, &[], &all_domains());
 
         assert!(!perms.is_super());
@@ -260,7 +257,11 @@ mod tests {
 
     #[test]
     fn override_grants_extra_permission() {
-        let groups = vec![make_group("user", Some("golia.jp"), &["mail.send", "mail.read"])];
+        let groups = vec![make_group(
+            "user",
+            Some("golia.jp"),
+            &["mail.send", "mail.read"],
+        )];
         let overrides = vec![("admin.aliases".to_string(), true)];
         let perms = compute_effective_permissions(&groups, &overrides, &all_domains());
 
@@ -270,7 +271,11 @@ mod tests {
 
     #[test]
     fn override_revokes_group_permission() {
-        let groups = vec![make_group("user", Some("golia.jp"), &["mail.send", "mail.read"])];
+        let groups = vec![make_group(
+            "user",
+            Some("golia.jp"),
+            &["mail.send", "mail.read"],
+        )];
         let overrides = vec![("mail.send".to_string(), false)];
         let perms = compute_effective_permissions(&groups, &overrides, &all_domains());
 
@@ -293,7 +298,11 @@ mod tests {
     fn multiple_groups_union_permissions() {
         let groups = vec![
             make_group("user", Some("golia.jp"), &["mail.send", "mail.read"]),
-            make_group("admin", Some("golia.ai"), &["admin.domains", "admin.accounts"]),
+            make_group(
+                "admin",
+                Some("golia.ai"),
+                &["admin.domains", "admin.accounts"],
+            ),
         ];
         let perms = compute_effective_permissions(&groups, &[], &all_domains());
 
@@ -315,7 +324,11 @@ mod tests {
 
     #[test]
     fn permission_list_sorted() {
-        let groups = vec![make_group("user", Some("golia.jp"), &["mail.read", "mail.send"])];
+        let groups = vec![make_group(
+            "user",
+            Some("golia.jp"),
+            &["mail.read", "mail.send"],
+        )];
         let perms = compute_effective_permissions(&groups, &[], &all_domains());
         let list = perms.permission_list();
         assert_eq!(list, vec!["mail.read", "mail.send"]);
@@ -338,7 +351,11 @@ mod tests {
 
     #[test]
     fn has_any_admin_false_for_mail_only() {
-        let groups = vec![make_group("user", Some("golia.jp"), &["mail.send", "mail.read"])];
+        let groups = vec![make_group(
+            "user",
+            Some("golia.jp"),
+            &["mail.send", "mail.read"],
+        )];
         let perms = compute_effective_permissions(&groups, &[], &all_domains());
         assert!(!perms.has_any_admin());
     }

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
 use super::*;
@@ -26,7 +26,9 @@ pub(crate) struct AddMemberRequest {
 }
 
 pub(crate) async fn list_groups(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if !permissions.has("admin.groups") {
@@ -40,7 +42,9 @@ pub(crate) async fn list_groups(
 }
 
 pub(crate) async fn create_group(
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<CreateGroupRequest>,
 ) -> impl IntoResponse {
@@ -72,14 +76,16 @@ pub(crate) async fn create_group(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }
 
 pub(crate) async fn delete_group(
     Path(id): Path<i64>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Some(err) = require_permission(permissions, "admin.groups") {
@@ -105,14 +111,16 @@ pub(crate) async fn delete_group(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }
 
 pub(crate) async fn get_group_permissions(
     Path(id): Path<i64>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if !permissions.has("admin.groups") {
@@ -127,7 +135,9 @@ pub(crate) async fn get_group_permissions(
 
 pub(crate) async fn set_group_permissions(
     Path(id): Path<i64>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetGroupPermissionsRequest>,
 ) -> impl IntoResponse {
@@ -159,14 +169,16 @@ pub(crate) async fn set_group_permissions(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }
 
 pub(crate) async fn list_group_members(
     Path(id): Path<i64>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if !permissions.has("admin.groups") {
@@ -181,7 +193,9 @@ pub(crate) async fn list_group_members(
 
 pub(crate) async fn add_group_member(
     Path(id): Path<i64>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddMemberRequest>,
 ) -> impl IntoResponse {
@@ -204,14 +218,16 @@ pub(crate) async fn add_group_member(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }
 
 pub(crate) async fn remove_group_member(
     Path((id, address)): Path<(i64, String)>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if let Some(err) = require_permission(permissions, "admin.groups") {
@@ -237,7 +253,7 @@ pub(crate) async fn remove_group_member(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }

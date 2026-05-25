@@ -140,7 +140,10 @@ mod tests {
     #[test]
     fn parse_case_insensitive() {
         assert_eq!(TransferEncoding::parse("BASE64"), TransferEncoding::Base64);
-        assert_eq!(TransferEncoding::parse("Quoted-Printable"), TransferEncoding::QuotedPrintable);
+        assert_eq!(
+            TransferEncoding::parse("Quoted-Printable"),
+            TransferEncoding::QuotedPrintable
+        );
     }
 
     #[test]

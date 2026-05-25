@@ -1,8 +1,9 @@
 //! Protocol-level integration tests for `Email/get` (RFC 8621 §4.2).
 
-
-use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message, parsed_with_attachment, parsed_with_text};
 use mailrs_jmap::dispatch::dispatch_method;
+use mailrs_jmap::fixtures::{
+    EXAMPLE_USER, InMemoryStore, make_message, parsed_with_attachment, parsed_with_text,
+};
 use mailrs_jmap::types::FLAG_SEEN;
 use serde_json::json;
 
@@ -143,7 +144,10 @@ async fn email_get_emits_attachment_metadata_when_requested() {
         .with_mailbox(1, "INBOX")
         .with_message(make_message(1, 1, EXAMPLE_USER))
         .with_message_raw(1, raw.clone())
-        .with_parsed_body(raw, parsed_with_attachment("report.pdf", "application/pdf", 1024));
+        .with_parsed_body(
+            raw,
+            parsed_with_attachment("report.pdf", "application/pdf", 1024),
+        );
 
     let (_, resp) = dispatch_method(
         "Email/get",

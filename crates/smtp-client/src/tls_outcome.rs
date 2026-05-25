@@ -263,7 +263,9 @@ pub(crate) fn classify_rustls_error(e: &rustls::Error, is_dane: bool) -> TlsOutc
             // from the peer.
             use rustls::AlertDescription as A;
             match alert {
-                A::CertificateExpired => TlsOutcome::CertificateExpired(format!("alert: {alert:?}")),
+                A::CertificateExpired => {
+                    TlsOutcome::CertificateExpired(format!("alert: {alert:?}"))
+                }
                 A::BadCertificate
                 | A::UnsupportedCertificate
                 | A::CertificateRevoked
@@ -311,7 +313,10 @@ mod tests {
             TlsOutcome::InvalidServerName("x".into()).as_str(),
             "invalid-server-name"
         );
-        assert_eq!(TlsOutcome::NetworkError("x".into()).as_str(), "network-error");
+        assert_eq!(
+            TlsOutcome::NetworkError("x".into()).as_str(),
+            "network-error"
+        );
         assert_eq!(TlsOutcome::Other("x".into()).as_str(), "other");
     }
 

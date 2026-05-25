@@ -124,9 +124,7 @@ impl DkimHeader {
                 i += 1;
             }
             if i >= n || bytes[i] != b'=' {
-                return Err(DkimError::InvalidTag(format!(
-                    "no `=` after tag {name:?}"
-                )));
+                return Err(DkimError::InvalidTag(format!("no `=` after tag {name:?}")));
             }
             i += 1;
 
@@ -152,9 +150,7 @@ impl DkimHeader {
                         .parse()
                         .map_err(|_| DkimError::InvalidTag(format!("v={trimmed}")))?;
                     if parsed != 1 {
-                        return Err(DkimError::InvalidTag(format!(
-                            "v={parsed}, expected 1"
-                        )));
+                        return Err(DkimError::InvalidTag(format!("v={parsed}, expected 1")));
                     }
                     version = Some(parsed);
                 }
@@ -306,27 +302,24 @@ impl DkimHeader {
                             }
                             b"l" => {
                                 let trimmed = raw_val.trim();
-                                body_length = Some(
-                                    trimmed
-                                        .parse()
-                                        .map_err(|_| DkimError::InvalidTag(format!("l={trimmed}")))?,
-                                );
+                                body_length =
+                                    Some(trimmed.parse().map_err(|_| {
+                                        DkimError::InvalidTag(format!("l={trimmed}"))
+                                    })?);
                             }
                             b"t" => {
                                 let trimmed = raw_val.trim();
-                                timestamp = Some(
-                                    trimmed
-                                        .parse()
-                                        .map_err(|_| DkimError::InvalidTag(format!("t={trimmed}")))?,
-                                );
+                                timestamp =
+                                    Some(trimmed.parse().map_err(|_| {
+                                        DkimError::InvalidTag(format!("t={trimmed}"))
+                                    })?);
                             }
                             b"x" => {
                                 let trimmed = raw_val.trim();
-                                expiration = Some(
-                                    trimmed
-                                        .parse()
-                                        .map_err(|_| DkimError::InvalidTag(format!("x={trimmed}")))?,
-                                );
+                                expiration =
+                                    Some(trimmed.parse().map_err(|_| {
+                                        DkimError::InvalidTag(format!("x={trimmed}"))
+                                    })?);
                             }
                             b"i" => identity = Some(raw_val.trim().to_string()),
                             b"q" => query_method = Some(raw_val.trim().to_string()),
@@ -347,9 +340,7 @@ impl DkimHeader {
         let signed_headers = signed_headers.ok_or_else(|| DkimError::MissingTag("h".into()))?;
         let query_method = query_method.unwrap_or_else(|| "dns/txt".to_string());
         if !query_method.eq_ignore_ascii_case("dns/txt") {
-            return Err(DkimError::UnsupportedAlgorithm(format!(
-                "q={query_method}"
-            )));
+            return Err(DkimError::UnsupportedAlgorithm(format!("q={query_method}")));
         }
 
         Ok(DkimHeader {
@@ -430,7 +421,10 @@ mod tests {
             h.signed_headers,
             vec!["from", "to", "subject", "date", "message-id"]
         );
-        assert_eq!(h.body_hash_b64, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
+        assert_eq!(
+            h.body_hash_b64,
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        );
         assert_eq!(h.signature_b64, "SignatureValueGoesHere");
         assert!(h.body_length.is_none());
         assert_eq!(h.query_method, "dns/txt");
@@ -438,10 +432,8 @@ mod tests {
 
     #[test]
     fn parse_simple_canon_default() {
-        let r = DkimHeader::parse(
-            "v=1; a=rsa-sha256; d=e.com; s=s; h=From; bh=AAAA; b=BBBB",
-        )
-        .unwrap();
+        let r =
+            DkimHeader::parse("v=1; a=rsa-sha256; d=e.com; s=s; h=From; bh=AAAA; b=BBBB").unwrap();
         assert_eq!(r.canon_header, Canon::Simple);
         assert_eq!(r.canon_body, Canon::Simple);
     }
@@ -459,20 +451,16 @@ mod tests {
     #[test]
     fn parse_canon_header_only_defaults_body() {
         // "c=relaxed" without /body part → body defaults to simple
-        let r = DkimHeader::parse(
-            "v=1; a=rsa-sha256; c=relaxed; d=e.com; s=s; h=From; bh=A; b=B",
-        )
-        .unwrap();
+        let r = DkimHeader::parse("v=1; a=rsa-sha256; c=relaxed; d=e.com; s=s; h=From; bh=A; b=B")
+            .unwrap();
         assert_eq!(r.canon_header, Canon::Relaxed);
         assert_eq!(r.canon_body, Canon::Simple);
     }
 
     #[test]
     fn parse_signed_headers_lowercased() {
-        let r = DkimHeader::parse(
-            "v=1; a=rsa-sha256; d=e.com; s=s; h=From:TO:SuBjEcT; bh=A; b=B",
-        )
-        .unwrap();
+        let r = DkimHeader::parse("v=1; a=rsa-sha256; d=e.com; s=s; h=From:TO:SuBjEcT; bh=A; b=B")
+            .unwrap();
         assert_eq!(r.signed_headers, vec!["from", "to", "subject"]);
     }
 
@@ -496,70 +484,54 @@ mod tests {
 
     #[test]
     fn parse_rejects_wrong_version() {
-        let r = DkimHeader::parse(
-            "v=2; a=rsa-sha256; d=e.com; s=s; h=From; bh=A; b=B",
-        );
+        let r = DkimHeader::parse("v=2; a=rsa-sha256; d=e.com; s=s; h=From; bh=A; b=B");
         assert!(matches!(r, Err(DkimError::InvalidTag(_))));
     }
 
     #[test]
     fn parse_rejects_unsupported_algo() {
-        let r = DkimHeader::parse(
-            "v=1; a=rsa-sha1; d=e.com; s=s; h=From; bh=A; b=B",
-        );
+        let r = DkimHeader::parse("v=1; a=rsa-sha1; d=e.com; s=s; h=From; bh=A; b=B");
         assert!(matches!(r, Err(DkimError::UnsupportedAlgorithm(_))));
     }
 
     #[test]
     fn parse_ed25519_sha256_algorithm() {
         // RFC 8463 ed25519-sha256 is accepted in 1.1+
-        let r = DkimHeader::parse(
-            "v=1; a=ed25519-sha256; d=e.com; s=s; h=From; bh=A; b=B",
-        )
-        .unwrap();
+        let r =
+            DkimHeader::parse("v=1; a=ed25519-sha256; d=e.com; s=s; h=From; bh=A; b=B").unwrap();
         assert_eq!(r.algorithm, Algorithm::Ed25519Sha256);
     }
 
     #[test]
     fn parse_rejects_empty_h() {
-        let r = DkimHeader::parse(
-            "v=1; a=rsa-sha256; d=e.com; s=s; h=; bh=A; b=B",
-        );
+        let r = DkimHeader::parse("v=1; a=rsa-sha256; d=e.com; s=s; h=; bh=A; b=B");
         assert!(matches!(r, Err(DkimError::InvalidTag(_))));
     }
 
     #[test]
     fn parse_b_strips_wsp() {
-        let r = DkimHeader::parse(
-            "v=1; a=rsa-sha256; d=e.com; s=s; h=From; bh=A; b=A B\tC\r\n D",
-        )
-        .unwrap();
+        let r = DkimHeader::parse("v=1; a=rsa-sha256; d=e.com; s=s; h=From; bh=A; b=A B\tC\r\n D")
+            .unwrap();
         assert_eq!(r.signature_b64, "ABCD");
     }
 
     #[test]
     fn parse_default_query_dns_txt() {
-        let r = DkimHeader::parse(
-            "v=1; a=rsa-sha256; d=e.com; s=s; h=From; bh=A; b=B",
-        )
-        .unwrap();
+        let r = DkimHeader::parse("v=1; a=rsa-sha256; d=e.com; s=s; h=From; bh=A; b=B").unwrap();
         assert_eq!(r.query_method, "dns/txt");
     }
 
     #[test]
     fn parse_rejects_non_dns_query() {
-        let r = DkimHeader::parse(
-            "v=1; a=rsa-sha256; q=https; d=e.com; s=s; h=From; bh=A; b=B",
-        );
+        let r = DkimHeader::parse("v=1; a=rsa-sha256; q=https; d=e.com; s=s; h=From; bh=A; b=B");
         assert!(matches!(r, Err(DkimError::UnsupportedAlgorithm(_))));
     }
 
     #[test]
     fn parse_with_i_identity() {
-        let r = DkimHeader::parse(
-            "v=1; a=rsa-sha256; d=e.com; s=s; h=From; bh=A; b=B; i=user@e.com",
-        )
-        .unwrap();
+        let r =
+            DkimHeader::parse("v=1; a=rsa-sha256; d=e.com; s=s; h=From; bh=A; b=B; i=user@e.com")
+                .unwrap();
         assert_eq!(r.identity.as_deref(), Some("user@e.com"));
     }
 }

@@ -3,22 +3,26 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::Json;
 use rand_core::RngCore;
 
 use crate::message_util;
 
 use super::super::common::{
-    build_rfc5322_with_attachments, deliver_message_ex,
-    resolve_thread_reply, verify_sender, AttachmentData,
+    AttachmentData, build_rfc5322_with_attachments, deliver_message_ex, resolve_thread_reply,
+    verify_sender,
 };
 use super::super::{AuthUser, SendResult, WebState};
-use super::{resolve_inline_images, SendMessageRequest};
+use super::{SendMessageRequest, resolve_inline_images};
 
 pub(crate) async fn send_message(
-    AuthUser { address: user, permissions, .. }: AuthUser,
+    AuthUser {
+        address: user,
+        permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SendMessageRequest>,
 ) -> impl IntoResponse {
@@ -43,7 +47,10 @@ pub(crate) async fn send_message(
     if total_recipients > crate::web::MAX_RECIPIENTS {
         return Json(SendResult {
             success: false,
-            message: Some(format!("too many recipients (max {})", crate::web::MAX_RECIPIENTS)),
+            message: Some(format!(
+                "too many recipients (max {})",
+                crate::web::MAX_RECIPIENTS
+            )),
             message_id: None,
         });
     }
@@ -133,14 +140,16 @@ pub(crate) async fn send_message(
 
     // when forwarding, build email from original raw message (full body + all attachments)
     // prefer forward_message_id (globally unique), fall back to uid
-    let forward_requested = req.forward_message_id.is_some() || req.forward_attachments_from.is_some();
+    let forward_requested =
+        req.forward_message_id.is_some() || req.forward_attachments_from.is_some();
     let (final_body, final_html, forwarded_attachments) = if forward_requested {
         let (orig_text, orig_html, atts) = extract_full_forward_by_id(
             &state,
-            &user,  // always use authenticated user, not from
+            &user, // always use authenticated user, not from
             req.forward_message_id.as_deref(),
             req.forward_attachments_from,
-        ).await;
+        )
+        .await;
         // prepend user's message before the forwarded content
         let user_text = req.body.clone();
         let fwd_text = if let Some(ref text) = orig_text {
@@ -151,10 +160,18 @@ pub(crate) async fn send_message(
         let user_html_fallback = format!("<p>{}</p>", user_text.replace('\n', "<br>"));
         let user_html_str = req.html_body.as_deref().unwrap_or(&user_html_fallback);
         let fwd_html = if let Some(ref html) = orig_html {
-            Some(format!("{user_html_str}<hr style=\"border:none;border-top:1px solid #ccc;margin:16px 0\"><div style=\"color:#555\">{html}</div>"))
+            Some(format!(
+                "{user_html_str}<hr style=\"border:none;border-top:1px solid #ccc;margin:16px 0\"><div style=\"color:#555\">{html}</div>"
+            ))
         } else if let Some(ref text) = orig_text {
-            let escaped = text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('\n', "<br>");
-            Some(format!("{user_html_str}<hr style=\"border:none;border-top:1px solid #ccc;margin:16px 0\"><pre style=\"font-family:sans-serif;white-space:pre-wrap\">{escaped}</pre>"))
+            let escaped = text
+                .replace('&', "&amp;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;")
+                .replace('\n', "<br>");
+            Some(format!(
+                "{user_html_str}<hr style=\"border:none;border-top:1px solid #ccc;margin:16px 0\"><pre style=\"font-family:sans-serif;white-space:pre-wrap\">{escaped}</pre>"
+            ))
         } else {
             req.html_body.clone()
         };
@@ -220,7 +237,9 @@ async fn extract_full_forward_by_id(
     uid: Option<u32>,
 ) -> (Option<String>, Option<String>, Vec<AttachmentData>) {
     let empty = (None, None, vec![]);
-    let Some(ref mb_store) = state.mailbox_store else { return empty; };
+    let Some(ref mb_store) = state.mailbox_store else {
+        return empty;
+    };
 
     // find message: try message_id first, then uid
     let meta = if let Some(mid) = message_id {
@@ -260,7 +279,8 @@ async fn extract_full_forward_by_id(
         return empty;
     };
 
-    let Some(raw) = message_util::read_message_raw(&state.maildir_root, user, &meta.maildir_id) else {
+    let Some(raw) = message_util::read_message_raw(&state.maildir_root, user, &meta.maildir_id)
+    else {
         tracing::warn!(
             event = "forward_raw_not_found",
             maildir_id = %meta.maildir_id,
@@ -294,7 +314,10 @@ async fn extract_full_forward_by_id(
             continue;
         }
 
-        let filename = part.attachment_filename().unwrap_or("attachment").to_string();
+        let filename = part
+            .attachment_filename()
+            .unwrap_or("attachment")
+            .to_string();
         let content_type = if mt.is_empty() || mt == "/" {
             "application/octet-stream".to_string()
         } else {

@@ -232,7 +232,10 @@ mod tests {
         let mut prev = 0;
         for attempt in 0..6u32 {
             let d = retry_delay_secs(attempt);
-            assert!(d >= 30, "attempt {attempt}: {d} < 30 (Equal jitter low bound)");
+            assert!(
+                d >= 30,
+                "attempt {attempt}: {d} < 30 (Equal jitter low bound)"
+            );
             // Strict monotonic isn't guaranteed under jitter, but the band
             // floor for attempt n+1 is half of attempt n+1's base
             // (= attempt n's base for mult=2), which always >= prev floor.

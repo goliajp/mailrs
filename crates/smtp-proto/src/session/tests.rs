@@ -1,5 +1,5 @@
 use crate::command::{AuthMechanism, Command, ForwardPath, Param, ReversePath};
-use crate::session::{Event, Session, SessionConfig, State, MAX_MESSAGE_SIZE, MAX_RECIPIENTS};
+use crate::session::{Event, MAX_MESSAGE_SIZE, MAX_RECIPIENTS, Session, SessionConfig, State};
 
 fn config() -> SessionConfig {
     SessionConfig {
@@ -317,10 +317,13 @@ fn capabilities_tls_active() {
 #[test]
 fn capabilities_auth_advertised() {
     // when require_tls_for_auth is false, AUTH advertised even without TLS
-    let s = Session::new("mx.test.local", SessionConfig {
-        require_tls_for_auth: false,
-        ..config_no_tls()
-    });
+    let s = Session::new(
+        "mx.test.local",
+        SessionConfig {
+            require_tls_for_auth: false,
+            ..config_no_tls()
+        },
+    );
     let caps = s.capabilities();
     assert!(caps.iter().any(|c| c.starts_with("AUTH")));
 }
@@ -451,41 +454,56 @@ fn mail_from_after_auth() {
 
 #[test]
 fn size_param_check_rejects_oversized() {
-    let mut s = Session::new("mx.test.local", SessionConfig {
-        max_size: 1000,
-        require_tls_for_auth: false,
-        ..config_no_tls()
-    });
+    let mut s = Session::new(
+        "mx.test.local",
+        SessionConfig {
+            max_size: 1000,
+            require_tls_for_auth: false,
+            ..config_no_tls()
+        },
+    );
     greeted(&mut s);
     let ev = s.handle_command(&Command::MailFrom {
         path: ReversePath::Path("sender@test.com"),
-        params: vec![Param { key: "SIZE", value: "2000" }],
+        params: vec![Param {
+            key: "SIZE",
+            value: "2000",
+        }],
     });
     assert!(matches!(ev, Event::Reply(r) if r.code == 552));
 }
 
 #[test]
 fn size_param_within_limit_accepted() {
-    let mut s = Session::new("mx.test.local", SessionConfig {
-        max_size: 5000,
-        require_tls_for_auth: false,
-        ..config_no_tls()
-    });
+    let mut s = Session::new(
+        "mx.test.local",
+        SessionConfig {
+            max_size: 5000,
+            require_tls_for_auth: false,
+            ..config_no_tls()
+        },
+    );
     greeted(&mut s);
     let ev = s.handle_command(&Command::MailFrom {
         path: ReversePath::Path("sender@test.com"),
-        params: vec![Param { key: "SIZE", value: "3000" }],
+        params: vec![Param {
+            key: "SIZE",
+            value: "3000",
+        }],
     });
     assert!(matches!(ev, Event::Reply(r) if r.code == 250));
 }
 
 #[test]
 fn capabilities_include_configured_size() {
-    let s = Session::new("mx.test.local", SessionConfig {
-        max_size: 10485760,
-        require_tls_for_auth: false,
-        ..config_no_tls()
-    });
+    let s = Session::new(
+        "mx.test.local",
+        SessionConfig {
+            max_size: 10485760,
+            require_tls_for_auth: false,
+            ..config_no_tls()
+        },
+    );
     let caps = s.capabilities();
     assert!(caps.iter().any(|c| c == "SIZE 10485760"));
 }
@@ -647,7 +665,10 @@ fn auth_response_plain_valid() {
 fn auth_response_plain_invalid_base64() {
     let mut s = session_tls();
     greeted(&mut s);
-    let ev = s.handle_auth_response("!!!invalid!!!", &crate::session::AuthStep::WaitPlainResponse);
+    let ev = s.handle_auth_response(
+        "!!!invalid!!!",
+        &crate::session::AuthStep::WaitPlainResponse,
+    );
     assert!(matches!(ev, Event::Reply(r) if r.code == 535));
 }
 
@@ -660,9 +681,11 @@ fn auth_response_login_username() {
     // "alice" base64 encoded
     let ev = s.handle_auth_response("YWxpY2U=", &crate::session::AuthStep::WaitUsername);
     // should request password next
-    assert!(matches!(ev, Event::AuthChallenge { step: crate::session::AuthStep::WaitPassword { ref username }, .. }
-        if username == "alice"
-    ));
+    assert!(
+        matches!(ev, Event::AuthChallenge { step: crate::session::AuthStep::WaitPassword { ref username }, .. }
+            if username == "alice"
+        )
+    );
 }
 
 #[test]
@@ -682,7 +705,9 @@ fn auth_response_login_password() {
     // "secret" base64 encoded = "c2VjcmV0"
     let ev = s.handle_auth_response(
         "c2VjcmV0",
-        &crate::session::AuthStep::WaitPassword { username: "alice".into() },
+        &crate::session::AuthStep::WaitPassword {
+            username: "alice".into(),
+        },
     );
     assert!(matches!(ev, Event::NeedAuth { ref username, ref password }
         if username == "alice" && password == "secret"
@@ -695,7 +720,9 @@ fn auth_response_login_password_invalid_base64() {
     greeted(&mut s);
     let ev = s.handle_auth_response(
         "!!!bad!!!",
-        &crate::session::AuthStep::WaitPassword { username: "alice".into() },
+        &crate::session::AuthStep::WaitPassword {
+            username: "alice".into(),
+        },
     );
     assert!(matches!(ev, Event::Reply(r) if r.code == 535));
 }
@@ -747,15 +774,21 @@ fn auth_during_rcpt_to_err() {
 #[test]
 fn size_param_non_numeric_ignored() {
     // non-numeric SIZE value should not reject
-    let mut s = Session::new("mx.test.local", SessionConfig {
-        max_size: 1000,
-        require_tls_for_auth: false,
-        ..config_no_tls()
-    });
+    let mut s = Session::new(
+        "mx.test.local",
+        SessionConfig {
+            max_size: 1000,
+            require_tls_for_auth: false,
+            ..config_no_tls()
+        },
+    );
     greeted(&mut s);
     let ev = s.handle_command(&Command::MailFrom {
         path: ReversePath::Path("sender@test.com"),
-        params: vec![Param { key: "SIZE", value: "abc" }],
+        params: vec![Param {
+            key: "SIZE",
+            value: "abc",
+        }],
     });
     // non-parseable size is ignored, message accepted
     assert!(matches!(ev, Event::Reply(r) if r.code == 250));
@@ -763,15 +796,21 @@ fn size_param_non_numeric_ignored() {
 
 #[test]
 fn size_param_case_insensitive() {
-    let mut s = Session::new("mx.test.local", SessionConfig {
-        max_size: 100,
-        require_tls_for_auth: false,
-        ..config_no_tls()
-    });
+    let mut s = Session::new(
+        "mx.test.local",
+        SessionConfig {
+            max_size: 100,
+            require_tls_for_auth: false,
+            ..config_no_tls()
+        },
+    );
     greeted(&mut s);
     let ev = s.handle_command(&Command::MailFrom {
         path: ReversePath::Path("sender@test.com"),
-        params: vec![Param { key: "size", value: "200" }],
+        params: vec![Param {
+            key: "size",
+            value: "200",
+        }],
     });
     assert!(matches!(ev, Event::Reply(r) if r.code == 552));
 }
@@ -823,10 +862,8 @@ fn auth_plain_bad_initial_response() {
     let mut s = session_tls();
     greeted(&mut s);
     // valid base64 but no null separators
-    let encoded = base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        "notanullbyte",
-    );
+    let encoded =
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, "notanullbyte");
     let ev = s.handle_command(&Command::Auth {
         mechanism: AuthMechanism::Plain,
         initial_response: Some(encoded.as_str()),
@@ -849,7 +886,11 @@ fn data_provides_correct_envelope() {
         params: vec![],
     });
     let ev = s.handle_command(&Command::Data);
-    if let Event::NeedData { reverse_path, forward_paths } = ev {
+    if let Event::NeedData {
+        reverse_path,
+        forward_paths,
+    } = ev
+    {
         assert_eq!(reverse_path, "from@example.com");
         assert_eq!(forward_paths, vec!["to@example.com"]);
     } else {
@@ -882,11 +923,14 @@ fn data_with_null_reverse_path() {
 
 #[test]
 fn rcpt_within_limit_accepted() {
-    let mut s = Session::new("mx.test.local", SessionConfig {
-        max_recipients: 3,
-        require_tls_for_auth: false,
-        ..config_no_tls()
-    });
+    let mut s = Session::new(
+        "mx.test.local",
+        SessionConfig {
+            max_recipients: 3,
+            require_tls_for_auth: false,
+            ..config_no_tls()
+        },
+    );
     mail_from(&mut s);
     for addr in &["a@test.com", "b@test.com", "c@test.com"] {
         let ev = s.handle_command(&Command::RcptTo {
@@ -899,11 +943,14 @@ fn rcpt_within_limit_accepted() {
 
 #[test]
 fn rcpt_over_limit_rejected() {
-    let mut s = Session::new("mx.test.local", SessionConfig {
-        max_recipients: 2,
-        require_tls_for_auth: false,
-        ..config_no_tls()
-    });
+    let mut s = Session::new(
+        "mx.test.local",
+        SessionConfig {
+            max_recipients: 2,
+            require_tls_for_auth: false,
+            ..config_no_tls()
+        },
+    );
     mail_from(&mut s);
     s.handle_command(&Command::RcptTo {
         path: ForwardPath::Path("a@test.com"),
@@ -1036,7 +1083,9 @@ fn full_authenticated_mail_flow() {
         params: vec![],
     });
     assert!(matches!(ev, Event::Reply(ref r) if r.code == 250));
-    assert!(matches!(s.state, State::MailFrom { ref username, .. } if *username == Some("alice".into())));
+    assert!(
+        matches!(s.state, State::MailFrom { ref username, .. } if *username == Some("alice".into()))
+    );
 
     let ev = s.handle_command(&Command::RcptTo {
         path: ForwardPath::Path("bob@test.com"),
@@ -1045,7 +1094,11 @@ fn full_authenticated_mail_flow() {
     assert!(matches!(ev, Event::Reply(ref r) if r.code == 250));
 
     let ev = s.handle_command(&Command::Data);
-    if let Event::NeedData { reverse_path, forward_paths } = ev {
+    if let Event::NeedData {
+        reverse_path,
+        forward_paths,
+    } = ev
+    {
         assert_eq!(reverse_path, "alice@test.com");
         assert_eq!(forward_paths, vec!["bob@test.com"]);
     } else {
@@ -1086,7 +1139,11 @@ fn multiple_transactions_same_session() {
         params: vec![],
     });
     let ev = s.handle_command(&Command::Data);
-    if let Event::NeedData { reverse_path, forward_paths } = ev {
+    if let Event::NeedData {
+        reverse_path,
+        forward_paths,
+    } = ev
+    {
         assert_eq!(reverse_path, "c@test.com");
         assert_eq!(forward_paths, vec!["d@test.com"]);
     } else {
@@ -1161,12 +1218,15 @@ fn capabilities_always_include_base_extensions() {
 
 #[test]
 fn capabilities_no_auth_when_tls_required_but_inactive() {
-    let s = Session::new("mx.test.local", SessionConfig {
-        tls_available: true,
-        tls_active: false,
-        require_tls_for_auth: true,
-        ..SessionConfig::default()
-    });
+    let s = Session::new(
+        "mx.test.local",
+        SessionConfig {
+            tls_available: true,
+            tls_active: false,
+            require_tls_for_auth: true,
+            ..SessionConfig::default()
+        },
+    );
     let caps = s.capabilities();
     assert!(!caps.iter().any(|c| c.starts_with("AUTH")));
     assert!(caps.iter().any(|c| c == "STARTTLS"));
@@ -1204,7 +1264,9 @@ fn auth_login_full_flow() {
         Event::AuthChallenge { step, .. } => step,
         _ => panic!("expected AuthChallenge for password"),
     };
-    assert!(matches!(step2, crate::session::AuthStep::WaitPassword { ref username } if username == "testuser"));
+    assert!(
+        matches!(step2, crate::session::AuthStep::WaitPassword { ref username } if username == "testuser")
+    );
 
     // step 3: send password (base64 "mypass" = "bXlwYXNz")
     let ev = s.handle_auth_response("bXlwYXNz", &step2);

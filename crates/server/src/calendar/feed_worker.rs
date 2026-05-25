@@ -16,7 +16,7 @@ use std::time::Duration;
 use chrono::Utc;
 use sqlx::PgPool;
 
-use super::feed::{record_error, record_success, ExternalFeed};
+use super::feed::{ExternalFeed, record_error, record_success};
 
 /// Tick cadence. Individual feeds choose their own refresh_interval
 /// (default 15min); the worker just wakes up frequently enough to
@@ -51,13 +51,28 @@ async fn run_one_tick(pool: &PgPool) -> Result<(), sqlx::Error> {
         let outcome = sync_one(&client, pool, &feed).await;
         let now = Utc::now();
         match outcome {
-            Ok(SyncOutcome::Updated { etag, last_modified }) => {
-                let _ = record_success(pool, feed.id, now, etag.as_deref(), last_modified.as_deref())
-                    .await;
+            Ok(SyncOutcome::Updated {
+                etag,
+                last_modified,
+            }) => {
+                let _ = record_success(
+                    pool,
+                    feed.id,
+                    now,
+                    etag.as_deref(),
+                    last_modified.as_deref(),
+                )
+                .await;
             }
             Ok(SyncOutcome::NotModified) => {
-                let _ = record_success(pool, feed.id, now, feed.etag.as_deref(), feed.last_modified.as_deref())
-                    .await;
+                let _ = record_success(
+                    pool,
+                    feed.id,
+                    now,
+                    feed.etag.as_deref(),
+                    feed.last_modified.as_deref(),
+                )
+                .await;
             }
             Err(e) => {
                 let _ = record_error(pool, feed.id, now, &e).await;
@@ -114,10 +129,7 @@ async fn sync_one(
         .and_then(|v| v.to_str().ok())
         .map(String::from);
 
-    let body = resp
-        .bytes()
-        .await
-        .map_err(|e| format!("body read: {e}"))?;
+    let body = resp.bytes().await.map_err(|e| format!("body read: {e}"))?;
 
     apply_ics_to_calendar(pool, feed.calendar_id, &body)
         .await

@@ -275,7 +275,15 @@ impl QueueStore for InMemoryQueueStore {
     ) -> Result<i64, StoreError> {
         let mut s = self.state.lock().unwrap();
         Ok(Self::insert_msg(
-            &mut s, sender, recipient, domain, message_data, message_id, now, now, is_forwarded,
+            &mut s,
+            sender,
+            recipient,
+            domain,
+            message_data,
+            message_id,
+            now,
+            now,
+            is_forwarded,
         ))
     }
 
@@ -388,7 +396,10 @@ impl QueueStore for InMemoryQueueStore {
         for m in &s.messages {
             *counts.entry(m.status.as_str()).or_insert(0) += 1;
         }
-        Ok(counts.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+        Ok(counts
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect())
     }
 
     async fn list_recent(&self, limit: i32) -> Result<Vec<QueuedMessage>, StoreError> {
@@ -503,28 +514,42 @@ mod tests {
     #[tokio::test]
     async fn lifecycle_transitions() {
         let s = store();
-        let id = s.enqueue("a@x", "b@y", "y", b"", None, 0, false).await.unwrap();
+        let id = s
+            .enqueue("a@x", "b@y", "y", b"", None, 0, false)
+            .await
+            .unwrap();
         s.mark_inflight(id, 10).await.unwrap();
         s.mark_delivered(id, 20).await.unwrap();
-        assert_eq!(s.get_message(id).await.unwrap().unwrap().status, QueueStatus::Delivered);
+        assert_eq!(
+            s.get_message(id).await.unwrap().unwrap().status,
+            QueueStatus::Delivered
+        );
     }
 
     #[tokio::test]
     async fn stale_inflight_recovers() {
         let s = store();
-        let id = s.enqueue("a@x", "b@y", "y", b"", None, 0, false).await.unwrap();
+        let id = s
+            .enqueue("a@x", "b@y", "y", b"", None, 0, false)
+            .await
+            .unwrap();
         s.mark_inflight(id, 0).await.unwrap();
         // 10 minutes + 1 second later, recover_stale should kick it back
         let n = s.recover_stale_inflight(601).await.unwrap();
         assert_eq!(n, 1);
-        assert_eq!(s.get_message(id).await.unwrap().unwrap().status, QueueStatus::Pending);
+        assert_eq!(
+            s.get_message(id).await.unwrap().unwrap().status,
+            QueueStatus::Pending
+        );
     }
 
     #[tokio::test]
     async fn suppression_list() {
         let s = store();
         assert!(!s.is_suppressed("user@x").await);
-        s.add_suppression("user@x", "bounced", Some(550)).await.unwrap();
+        s.add_suppression("user@x", "bounced", Some(550))
+            .await
+            .unwrap();
         assert!(s.is_suppressed("user@x").await);
         assert!(s.remove_suppression("user@x").await.unwrap());
         assert!(!s.is_suppressed("user@x").await);

@@ -1,7 +1,7 @@
 //! Regression budgets for `mailrs-attachment-extract`. See BUDGETS.md.
 
-use std::time::{Duration, Instant};
 use mailrs_attachment_extract::extraction_method;
+use std::time::{Duration, Instant};
 
 const ITERS: usize = 200;
 

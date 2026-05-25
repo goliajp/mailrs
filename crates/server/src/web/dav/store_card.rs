@@ -7,7 +7,6 @@ use mailrs_dav::types::{AddressBook, Contact, PutResult};
 
 use super::{DavAdapter, to_store_err};
 
-
 #[async_trait]
 impl AddressBookStore for DavAdapter {
     async fn list_address_books(&self, user: &str) -> Result<Vec<AddressBook>, StoreError> {
@@ -70,11 +69,7 @@ impl AddressBookStore for DavAdapter {
             .collect())
     }
 
-    async fn get_contact(
-        &self,
-        book_id: i64,
-        uid: &str,
-    ) -> Result<Option<Contact>, StoreError> {
+    async fn get_contact(&self, book_id: i64, uid: &str) -> Result<Option<Contact>, StoreError> {
         let row = sqlx::query_as::<_, (String, String)>(
             "SELECT etag, vcard FROM contacts WHERE address_book_id = $1 AND uid = $2",
         )
@@ -92,19 +87,14 @@ impl AddressBookStore for DavAdapter {
         }))
     }
 
-    async fn contact_etag(
-        &self,
-        book_id: i64,
-        uid: &str,
-    ) -> Result<Option<String>, StoreError> {
-        let etag: Option<String> = sqlx::query_scalar(
-            "SELECT etag FROM contacts WHERE address_book_id = $1 AND uid = $2",
-        )
-        .bind(book_id)
-        .bind(uid)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(to_store_err)?;
+    async fn contact_etag(&self, book_id: i64, uid: &str) -> Result<Option<String>, StoreError> {
+        let etag: Option<String> =
+            sqlx::query_scalar("SELECT etag FROM contacts WHERE address_book_id = $1 AND uid = $2")
+                .bind(book_id)
+                .bind(uid)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(to_store_err)?;
         Ok(etag)
     }
 

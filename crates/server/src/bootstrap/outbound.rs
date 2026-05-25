@@ -10,8 +10,8 @@ use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig};
 use crate::web::WebState;
 use crate::{
     acme, conversation_cache, dmarc_report, event_bus, health, listeners, oidc_jwt,
-    outbound_tls_rpt, rbl_monitor, render_preview, search_index, smtp_session,
-    system_config, tls, web, webhook,
+    outbound_tls_rpt, rbl_monitor, render_preview, search_index, smtp_session, system_config, tls,
+    web, webhook,
 };
 use mailrs_mailbox::PgMailboxStore;
 
@@ -46,10 +46,7 @@ pub(crate) fn spawn_outbound_delivery(
     let tls_rpt_obs = Arc::new(outbound_tls_rpt::TlsRptObserver::new(
         outbound_tls_rpt::PgTlsRptStore::new(pool.clone()).into_arc(),
     ));
-    worker = worker.with_event_sender(make_delivery_event_sender(
-        event_bus,
-        tls_rpt_obs.clone(),
-    ));
+    worker = worker.with_event_sender(make_delivery_event_sender(event_bus, tls_rpt_obs.clone()));
 
     spawn_tlsrpt_flush_task(
         tls_rpt_obs,
@@ -140,7 +137,9 @@ pub(crate) fn make_delivery_event_sender(
                 outcome,
             } => {
                 tokio::spawn(async move {
-                    tls_obs.record_tls_attempt(&domain, &mx_host, &outcome).await;
+                    tls_obs
+                        .record_tls_attempt(&domain, &mx_host, &outcome)
+                        .await;
                 });
                 return;
             }

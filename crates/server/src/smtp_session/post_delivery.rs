@@ -22,7 +22,10 @@ pub(super) async fn post_delivery_process(
     let is_bulk = html_clean::detect_bulk_sender(raw_headers);
     let is_auto = html_clean::is_automated_sender(sender);
 
-    if let Err(e) = mb_store.upsert_contact_inbound(user, sender, &display_name, is_bulk, is_auto).await {
+    if let Err(e) = mb_store
+        .upsert_contact_inbound(user, sender, &display_name, is_bulk, is_auto)
+        .await
+    {
         tracing::warn!("contact upsert failed for {sender}: {e}");
     }
 
@@ -30,18 +33,19 @@ pub(super) async fn post_delivery_process(
     let (text_body, html_body, _attachments) = crate::message_util::parse_message(full_message);
 
     // 3. deep html cleaning
-    let (clean_text, has_tracking, is_template_heavy, link_count) = if let Some(ref html) = html_body {
-        let result = html_clean::clean_email_html(html);
-        (
-            Some(result.clean_text),
-            result.has_tracking_pixel,
-            result.is_template_heavy,
-            result.link_count,
-        )
-    } else {
-        // plain text email: clean_text = text_body
-        (text_body.clone(), false, false, 0)
-    };
+    let (clean_text, has_tracking, is_template_heavy, link_count) =
+        if let Some(ref html) = html_body {
+            let result = html_clean::clean_email_html(html);
+            (
+                Some(result.clean_text),
+                result.has_tracking_pixel,
+                result.is_template_heavy,
+                result.link_count,
+            )
+        } else {
+            // plain text email: clean_text = text_body
+            (text_body.clone(), false, false, 0)
+        };
 
     // 4. split quoted content
     let new_content = clean_text.as_deref().map(|t| {
@@ -50,7 +54,11 @@ pub(super) async fn post_delivery_process(
     });
 
     // 5. importance scoring
-    let contact_info = mb_store.get_contact_for_scoring(user, sender).await.ok().flatten();
+    let contact_info = mb_store
+        .get_contact_for_scoring(user, sender)
+        .await
+        .ok()
+        .flatten();
     let is_reply = mb_store.has_sent_to(user, sender).await.unwrap_or(false);
 
     let signals = ImportanceSignals {
@@ -73,17 +81,20 @@ pub(super) async fn post_delivery_process(
 
     // 6. persist to database
     if let Ok(Some(msg_id)) = mb_store.get_message_id_by_maildir(user, maildir_id).await {
-        if let Err(e) = mb_store.update_message_content(
-            msg_id,
-            text_body.as_deref(),
-            html_body.as_deref(),
-            clean_text.as_deref(),
-            new_content.as_deref(),
-            is_bulk,
-            has_tracking,
-            level.as_str(),
-            score,
-        ).await {
+        if let Err(e) = mb_store
+            .update_message_content(
+                msg_id,
+                text_body.as_deref(),
+                html_body.as_deref(),
+                clean_text.as_deref(),
+                new_content.as_deref(),
+                is_bulk,
+                has_tracking,
+                level.as_str(),
+                score,
+            )
+            .await
+        {
             tracing::warn!("update_message_content failed for msg {msg_id}: {e}");
         }
 
@@ -93,16 +104,17 @@ pub(super) async fn post_delivery_process(
                 .rsplit_once('@')
                 .or_else(|| {
                     // handle "Name <user@domain>" format
-                    sender.rsplit_once('<').and_then(|(_, rest)| {
-                        rest.trim_end_matches('>').rsplit_once('@')
-                    })
+                    sender
+                        .rsplit_once('<')
+                        .and_then(|(_, rest)| rest.trim_end_matches('>').rsplit_once('@'))
                 })
                 .map(|(_, d)| d.trim_end_matches('>'));
             if let Some(domain) = sender_domain
                 && let Some(logo_url) = mailrs_postmaster::lookup_bimi_logo(resolver, domain).await
-                    && let Err(e) = mb_store.update_bimi_logo(msg_id, &logo_url).await {
-                        tracing::warn!("BIMI update failed for msg {msg_id}: {e}");
-                    }
+                && let Err(e) = mb_store.update_bimi_logo(msg_id, &logo_url).await
+            {
+                tracing::warn!("BIMI update failed for msg {msg_id}: {e}");
+            }
         }
     }
 }

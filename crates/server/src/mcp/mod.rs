@@ -12,15 +12,15 @@ use std::sync::Arc;
 
 use rand_core::RngCore;
 
+use rmcp::ErrorData as McpError;
+use rmcp::handler::server::ServerHandler;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::handler::server::ServerHandler;
 use rmcp::model::{
     CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
 };
-use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::StreamableHttpService;
-use rmcp::ErrorData as McpError;
+use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::{tool, tool_handler, tool_router};
 
 use base64::Engine;
@@ -75,10 +75,7 @@ impl MailMcpService {
             ));
         }
 
-        let from = params
-            .from
-            .as_deref()
-            .unwrap_or(&self.auth_user.address);
+        let from = params.from.as_deref().unwrap_or(&self.auth_user.address);
 
         if let Err(msg) = crate::web::mail::verify_sender(
             from,
@@ -139,7 +136,8 @@ impl MailMcpService {
             )]))
         } else {
             Err(McpError::internal_error(
-                body.message.unwrap_or_else(|| "delivery failed".to_string()),
+                body.message
+                    .unwrap_or_else(|| "delivery failed".to_string()),
                 None,
             ))
         }
@@ -158,12 +156,9 @@ impl MailMcpService {
         };
 
         let user = &self.auth_user.address;
-        let mailboxes = mb_store
-            .list_mailboxes(user)
-            .await
-            .map_err(|e| {
-                McpError::internal_error(format!("failed to list mailboxes: {e}"), None)
-            })?;
+        let mailboxes = mb_store.list_mailboxes(user).await.map_err(|e| {
+            McpError::internal_error(format!("failed to list mailboxes: {e}"), None)
+        })?;
 
         for mb in &mailboxes {
             if let Ok(Some(msg)) = mb_store.get_message(mb.id, params.uid).await {
@@ -198,7 +193,9 @@ impl MailMcpService {
         Err(McpError::invalid_params("message not found", None))
     }
 
-    #[tool(description = "Search emails by keyword. Returns conversation summaries (thread_id, subject, snippet, participants).")]
+    #[tool(
+        description = "Search emails by keyword. Returns conversation summaries (thread_id, subject, snippet, participants)."
+    )]
     async fn search_emails(
         &self,
         Parameters(params): Parameters<SearchEmailsParams>,
@@ -237,7 +234,9 @@ impl MailMcpService {
         )]))
     }
 
-    #[tool(description = "Reply to an email thread. Automatically sets In-Reply-To headers. Returns message ID.")]
+    #[tool(
+        description = "Reply to an email thread. Automatically sets In-Reply-To headers. Returns message ID."
+    )]
     async fn reply_email(
         &self,
         Parameters(params): Parameters<ReplyEmailParams>,
@@ -249,10 +248,7 @@ impl MailMcpService {
             ));
         };
 
-        let from = params
-            .from
-            .as_deref()
-            .unwrap_or(&self.auth_user.address);
+        let from = params.from.as_deref().unwrap_or(&self.auth_user.address);
 
         if let Err(msg) = crate::web::mail::verify_sender(
             from,
@@ -282,9 +278,7 @@ impl MailMcpService {
         let thread_messages = mb_store
             .list_thread_messages(from, &params.thread_id, None)
             .await
-            .map_err(|e| {
-                McpError::internal_error(format!("failed to load thread: {e}"), None)
-            })?;
+            .map_err(|e| McpError::internal_error(format!("failed to load thread: {e}"), None))?;
 
         if thread_messages.is_empty() {
             return Err(McpError::invalid_params("thread has no messages", None));
@@ -350,13 +344,16 @@ impl MailMcpService {
             )]))
         } else {
             Err(McpError::internal_error(
-                body.message.unwrap_or_else(|| "delivery failed".to_string()),
+                body.message
+                    .unwrap_or_else(|| "delivery failed".to_string()),
                 None,
             ))
         }
     }
 
-    #[tool(description = "List recent email conversations. Returns thread summaries (thread_id, subject, snippet, participants, unread count).")]
+    #[tool(
+        description = "List recent email conversations. Returns thread summaries (thread_id, subject, snippet, participants, unread count)."
+    )]
     async fn list_conversations(
         &self,
         Parameters(params): Parameters<ListConversationsParams>,
@@ -415,17 +412,23 @@ impl MailMcpService {
     // --- shared helpers ---
 
     fn ds(&self) -> Result<&Arc<crate::domain_store::DomainStore>, McpError> {
-        self.web_state.domain_store.as_ref()
+        self.web_state
+            .domain_store
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("domain store not available", None))
     }
 
     fn pool(&self) -> Result<&sqlx::PgPool, McpError> {
-        self.web_state.pg_pool.as_ref()
+        self.web_state
+            .pg_pool
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("database unavailable", None))
     }
 
     fn mb_store(&self) -> Result<&Arc<mailrs_mailbox::PgMailboxStore>, McpError> {
-        self.web_state.mailbox_store.as_ref()
+        self.web_state
+            .mailbox_store
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("mailbox store not available", None))
     }
 
@@ -453,12 +456,12 @@ impl MailMcpService {
     }
 
     fn validate_audit_target(&self, target_user: &str) -> Result<(), McpError> {
-        let domain = target_user
-            .split_once('@')
-            .map(|(_, d)| d)
-            .unwrap_or("");
+        let domain = target_user.split_once('@').map(|(_, d)| d).unwrap_or("");
         if domain.is_empty() {
-            return Err(McpError::invalid_params("invalid target user address", None));
+            return Err(McpError::invalid_params(
+                "invalid target user address",
+                None,
+            ));
         }
         let perms = &self.auth_user.permissions;
         let accessible = perms.accessible_domains();
@@ -471,33 +474,45 @@ impl MailMcpService {
         Ok(())
     }
 
-    #[tool(description = "List all email accounts. Requires admin.accounts permission. Returns address, domain, display_name, active status.")]
+    #[tool(
+        description = "List all email accounts. Requires admin.accounts permission. Returns address, domain, display_name, active status."
+    )]
     async fn list_accounts(
         &self,
         Parameters(_params): Parameters<ListAccountsParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.accounts")?;
-        let ds = self.web_state.domain_store.as_ref()
+        let ds = self
+            .web_state
+            .domain_store
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
 
-        let accounts = ds.list_accounts().await
+        let accounts = ds
+            .list_accounts()
+            .await
             .map_err(|e| McpError::internal_error(format!("failed to list accounts: {e}"), None))?;
 
-        let items: Vec<serde_json::Value> = accounts.into_iter().map(|a| {
-            serde_json::json!({
-                "address": a.address,
-                "domain": a.domain,
-                "display_name": a.display_name,
-                "active": a.active,
+        let items: Vec<serde_json::Value> = accounts
+            .into_iter()
+            .map(|a| {
+                serde_json::json!({
+                    "address": a.address,
+                    "domain": a.domain,
+                    "display_name": a.display_name,
+                    "active": a.active,
+                })
             })
-        }).collect();
+            .collect();
 
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::to_string(&items).unwrap_or_else(|_| "[]".into()),
         )]))
     }
 
-    #[tool(description = "Create a new email account (onboarding). Requires admin.accounts permission. Automatically adds account to the domain's default user group.")]
+    #[tool(
+        description = "Create a new email account (onboarding). Requires admin.accounts permission. Automatically adds account to the domain's default user group."
+    )]
     async fn create_account(
         &self,
         Parameters(params): Parameters<CreateAccountParams>,
@@ -506,7 +521,10 @@ impl MailMcpService {
         if let Err(e) = crate::users::validate_email(&params.address) {
             return Err(McpError::invalid_params(e, None));
         }
-        let ds = self.web_state.domain_store.as_ref()
+        let ds = self
+            .web_state
+            .domain_store
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
 
         let password_hash = if params.password.is_empty() {
@@ -519,14 +537,28 @@ impl MailMcpService {
                 .map_err(|_| McpError::internal_error("failed to hash password", None))?
         };
 
-        ds.add_account(&params.address, &params.domain, &params.display_name, &password_hash, 0)
-            .await
-            .map_err(|e| McpError::internal_error(format!("failed to create account: {e}"), None))?;
+        ds.add_account(
+            &params.address,
+            &params.domain,
+            &params.display_name,
+            &password_hash,
+            0,
+        )
+        .await
+        .map_err(|e| McpError::internal_error(format!("failed to create account: {e}"), None))?;
 
         // auto-add to domain's user group
-        let groups = ds.list_groups(Some(&params.domain)).await.unwrap_or_default();
-        if let Some(user_group) = groups.iter().find(|g| g.name == "user" && g.domain.as_deref() == Some(&params.domain)) {
-            let _ = ds.add_account_to_group(&params.address, user_group.id).await;
+        let groups = ds
+            .list_groups(Some(&params.domain))
+            .await
+            .unwrap_or_default();
+        if let Some(user_group) = groups
+            .iter()
+            .find(|g| g.name == "user" && g.domain.as_deref() == Some(&params.domain))
+        {
+            let _ = ds
+                .add_account_to_group(&params.address, user_group.id)
+                .await;
         }
 
         Ok(CallToolResult::success(vec![Content::text(
@@ -534,17 +566,23 @@ impl MailMcpService {
         )]))
     }
 
-    #[tool(description = "Remove an email account (offboarding). Requires admin.accounts permission. Removes account, group memberships, and permission overrides.")]
+    #[tool(
+        description = "Remove an email account (offboarding). Requires admin.accounts permission. Removes account, group memberships, and permission overrides."
+    )]
     async fn remove_account(
         &self,
         Parameters(params): Parameters<RemoveAccountParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.accounts")?;
-        let ds = self.web_state.domain_store.as_ref()
+        let ds = self
+            .web_state
+            .domain_store
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
 
-        let removed = ds.remove_account(&params.address).await
-            .map_err(|e| McpError::internal_error(format!("failed to remove account: {e}"), None))?;
+        let removed = ds.remove_account(&params.address).await.map_err(|e| {
+            McpError::internal_error(format!("failed to remove account: {e}"), None)
+        })?;
 
         if removed {
             Ok(CallToolResult::success(vec![Content::text(
@@ -561,14 +599,19 @@ impl MailMcpService {
         Parameters(params): Parameters<SetAccountPasswordParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.accounts")?;
-        let ds = self.web_state.domain_store.as_ref()
+        let ds = self
+            .web_state
+            .domain_store
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
 
         let password_hash = crate::users::UserStore::hash_password(&params.password)
             .map_err(|e| McpError::internal_error(format!("failed to hash password: {e}"), None))?;
 
         // re-add account with new password (upsert)
-        let existing = ds.get_account_with_hash(&params.address).await
+        let existing = ds
+            .get_account_with_hash(&params.address)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?
             .ok_or_else(|| McpError::invalid_params("account not found", None))?;
 
@@ -578,58 +621,80 @@ impl MailMcpService {
             &existing.0.display_name,
             &password_hash,
             0,
-        ).await
-            .map_err(|e| McpError::internal_error(format!("failed to update password: {e}"), None))?;
+        )
+        .await
+        .map_err(|e| McpError::internal_error(format!("failed to update password: {e}"), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(
-            serde_json::json!({"status": "password_updated", "address": params.address}).to_string(),
+            serde_json::json!({"status": "password_updated", "address": params.address})
+                .to_string(),
         )]))
     }
 
-    #[tool(description = "List all permission groups. Returns group id, name, domain (null=global), and builtin flag.")]
+    #[tool(
+        description = "List all permission groups. Returns group id, name, domain (null=global), and builtin flag."
+    )]
     async fn list_groups(
         &self,
         Parameters(_params): Parameters<ListGroupsParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.groups")?;
-        let ds = self.web_state.domain_store.as_ref()
+        let ds = self
+            .web_state
+            .domain_store
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
 
-        let groups = ds.list_groups(None).await
+        let groups = ds
+            .list_groups(None)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
-        let items: Vec<serde_json::Value> = groups.into_iter().map(|g| {
-            serde_json::json!({
-                "id": g.id,
-                "name": g.name,
-                "domain": g.domain,
-                "is_builtin": g.is_builtin,
-                "description": g.description,
+        let items: Vec<serde_json::Value> = groups
+            .into_iter()
+            .map(|g| {
+                serde_json::json!({
+                    "id": g.id,
+                    "name": g.name,
+                    "domain": g.domain,
+                    "is_builtin": g.is_builtin,
+                    "description": g.description,
+                })
             })
-        }).collect();
+            .collect();
 
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::to_string(&items).unwrap_or_else(|_| "[]".into()),
         )]))
     }
 
-    #[tool(description = "Get groups and effective permissions for an account. Returns the groups the account belongs to and computed permission list.")]
+    #[tool(
+        description = "Get groups and effective permissions for an account. Returns the groups the account belongs to and computed permission list."
+    )]
     async fn get_account_permissions(
         &self,
         Parameters(params): Parameters<GetAccountPermissionsParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.groups")?;
-        let ds = self.web_state.domain_store.as_ref()
+        let ds = self
+            .web_state
+            .domain_store
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
 
-        let groups = ds.get_account_groups(&params.address).await
+        let groups = ds
+            .get_account_groups(&params.address)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        let perms = ds.load_account_permissions(&params.address).await
+        let perms = ds
+            .load_account_permissions(&params.address)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
-        let group_items: Vec<serde_json::Value> = groups.into_iter().map(|g| {
-            serde_json::json!({"id": g.id, "name": g.name, "domain": g.domain})
-        }).collect();
+        let group_items: Vec<serde_json::Value> = groups
+            .into_iter()
+            .map(|g| serde_json::json!({"id": g.id, "name": g.name, "domain": g.domain}))
+            .collect();
 
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({
@@ -638,20 +703,27 @@ impl MailMcpService {
                 "permissions": perms.permission_list(),
                 "accessible_domains": perms.accessible_domains(),
                 "is_super": perms.is_super(),
-            }).to_string(),
+            })
+            .to_string(),
         )]))
     }
 
-    #[tool(description = "Add an account to a permission group. Use list_groups to find group IDs. Requires admin.groups permission.")]
+    #[tool(
+        description = "Add an account to a permission group. Use list_groups to find group IDs. Requires admin.groups permission."
+    )]
     async fn add_account_to_group(
         &self,
         Parameters(params): Parameters<AddAccountToGroupParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.groups")?;
-        let ds = self.web_state.domain_store.as_ref()
+        let ds = self
+            .web_state
+            .domain_store
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
 
-        ds.add_account_to_group(&params.address, params.group_id).await
+        ds.add_account_to_group(&params.address, params.group_id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(
@@ -659,16 +731,23 @@ impl MailMcpService {
         )]))
     }
 
-    #[tool(description = "Remove an account from a permission group. Requires admin.groups permission.")]
+    #[tool(
+        description = "Remove an account from a permission group. Requires admin.groups permission."
+    )]
     async fn remove_account_from_group(
         &self,
         Parameters(params): Parameters<RemoveAccountFromGroupParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.groups")?;
-        let ds = self.web_state.domain_store.as_ref()
+        let ds = self
+            .web_state
+            .domain_store
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("domain store not available", None))?;
 
-        let removed = ds.remove_account_from_group(&params.address, params.group_id).await
+        let removed = ds
+            .remove_account_from_group(&params.address, params.group_id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
         if removed {
@@ -688,8 +767,12 @@ impl MailMcpService {
         Parameters(_params): Parameters<ListDomainsParams>,
     ) -> Result<CallToolResult, McpError> {
         let ds = self.ds()?;
-        let domains = ds.list_domains().await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        let items: Vec<serde_json::Value> = domains.into_iter()
+        let domains = ds
+            .list_domains()
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = domains
+            .into_iter()
             .map(|d| serde_json::json!({"name": d.name, "created_at": d.created_at}))
             .collect();
         self.json_result(&items)
@@ -702,19 +785,24 @@ impl MailMcpService {
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.domains")?;
         let ds = self.ds()?;
-        ds.add_domain(&params.name, chrono::Utc::now().timestamp()).await
+        ds.add_domain(&params.name, chrono::Utc::now().timestamp())
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         self.ok_result("domain_added", &params.name)
     }
 
-    #[tool(description = "Remove a domain and all its accounts/aliases. Requires admin.domains permission.")]
+    #[tool(
+        description = "Remove a domain and all its accounts/aliases. Requires admin.domains permission."
+    )]
     async fn remove_domain(
         &self,
         Parameters(params): Parameters<RemoveDomainParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.domains")?;
         let ds = self.ds()?;
-        let removed = ds.remove_domain(&params.name).await
+        let removed = ds
+            .remove_domain(&params.name)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         if removed {
             self.ok_result("domain_removed", &params.name)
@@ -725,34 +813,50 @@ impl MailMcpService {
 
     // --- alias management ---
 
-    #[tool(description = "List all email aliases and forwards. Returns source, target, domain, type.")]
+    #[tool(
+        description = "List all email aliases and forwards. Returns source, target, domain, type."
+    )]
     async fn list_aliases(
         &self,
         Parameters(_params): Parameters<ListAliasesParams>,
     ) -> Result<CallToolResult, McpError> {
         let ds = self.ds()?;
-        let aliases = ds.list_aliases().await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        let items: Vec<serde_json::Value> = aliases.into_iter()
-            .map(|a| serde_json::json!({
-                "id": a.id, "source_address": a.source_address,
-                "target_address": a.target_address, "domain": a.domain,
-                "alias_type": a.alias_type, "active": a.active,
-            }))
+        let aliases = ds
+            .list_aliases()
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = aliases
+            .into_iter()
+            .map(|a| {
+                serde_json::json!({
+                    "id": a.id, "source_address": a.source_address,
+                    "target_address": a.target_address, "domain": a.domain,
+                    "alias_type": a.alias_type, "active": a.active,
+                })
+            })
             .collect();
         self.json_result(&items)
     }
 
-    #[tool(description = "Add an email alias or forward. Type 'alias' delivers to local account, 'forward' relays externally. Requires admin.aliases permission.")]
+    #[tool(
+        description = "Add an email alias or forward. Type 'alias' delivers to local account, 'forward' relays externally. Requires admin.aliases permission."
+    )]
     async fn add_alias(
         &self,
         Parameters(params): Parameters<AddAliasParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.aliases")?;
         let ds = self.ds()?;
-        let id = ds.add_alias(
-            &params.source_address, &params.target_address,
-            &params.domain, &params.alias_type, 0,
-        ).await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let id = ds
+            .add_alias(
+                &params.source_address,
+                &params.target_address,
+                &params.domain,
+                &params.alias_type,
+                0,
+            )
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({"status": "alias_added", "id": id, "source": params.source_address, "target": params.target_address}).to_string(),
         )]))
@@ -765,7 +869,9 @@ impl MailMcpService {
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.aliases")?;
         let ds = self.ds()?;
-        let removed = ds.remove_alias(params.id).await
+        let removed = ds
+            .remove_alias(params.id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         if removed {
             self.ok_result("alias_removed", &params.id.to_string())
@@ -783,52 +889,85 @@ impl MailMcpService {
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.accounts")?;
         let ds = self.ds()?;
-        let apps = ds.list_apps(None).await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        let items: Vec<serde_json::Value> = apps.into_iter()
-            .map(|a| serde_json::json!({
-                "app_id": a.app_id, "name": a.name, "description": a.description,
-                "scopes": a.scopes, "owner": a.owner_address, "active": a.active,
-            }))
+        let apps = ds
+            .list_apps(None)
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = apps
+            .into_iter()
+            .map(|a| {
+                serde_json::json!({
+                    "app_id": a.app_id, "name": a.name, "description": a.description,
+                    "scopes": a.scopes, "owner": a.owner_address, "active": a.active,
+                })
+            })
             .collect();
         self.json_result(&items)
     }
 
-    #[tool(description = "Register a new app and generate its API key. The key is only returned once. Requires admin.accounts permission.")]
+    #[tool(
+        description = "Register a new app and generate its API key. The key is only returned once. Requires admin.accounts permission."
+    )]
     async fn create_app(
         &self,
         Parameters(params): Parameters<CreateAppParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.accounts")?;
         let ds = self.ds()?;
-        let pool = self.web_state.pg_pool.as_ref()
+        let pool = self
+            .web_state
+            .pg_pool
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("database unavailable", None))?;
 
         let app_id = uuid::Uuid::new_v4().to_string();
-        let id = ds.create_app(&app_id, &params.name, &params.description, &self.auth_user.address, &params.scopes).await
+        let id = ds
+            .create_app(
+                &app_id,
+                &params.name,
+                &params.description,
+                &self.auth_user.address,
+                &params.scopes,
+            )
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
         let (full_key, prefix, key_hash) = crate::api_key_store::generate_api_key();
         let key_id = crate::api_key_store::insert_app_api_key(
-            pool, &prefix, &key_hash, &full_key, &self.auth_user.address, &params.name, id, None,
-        ).await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+            pool,
+            &prefix,
+            &key_hash,
+            &full_key,
+            &self.auth_user.address,
+            &params.name,
+            id,
+            None,
+        )
+        .await
+        .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({
                 "app_id": app_id, "name": params.name, "scopes": params.scopes,
                 "api_key": {"id": key_id, "key": full_key, "prefix": prefix},
                 "warning": "Save this API key now. It cannot be retrieved again.",
-            }).to_string(),
+            })
+            .to_string(),
         )]))
     }
 
-    #[tool(description = "Delete an app and revoke all its API keys. Requires admin.accounts permission.")]
+    #[tool(
+        description = "Delete an app and revoke all its API keys. Requires admin.accounts permission."
+    )]
     async fn delete_app(
         &self,
         Parameters(params): Parameters<DeleteAppParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.accounts")?;
         let ds = self.ds()?;
-        let removed = ds.remove_app(&params.app_id).await
+        let removed = ds
+            .remove_app(&params.app_id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         if removed {
             self.ok_result("app_deleted", &params.app_id)
@@ -845,19 +984,25 @@ impl MailMcpService {
         Parameters(_params): Parameters<ListWebhooksParams>,
     ) -> Result<CallToolResult, McpError> {
         let pool = self.pool()?;
-        let subs = crate::webhook::store::list_subscriptions(pool, &self.auth_user.address).await
+        let subs = crate::webhook::store::list_subscriptions(pool, &self.auth_user.address)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        let items: Vec<serde_json::Value> = subs.into_iter()
-            .map(|s| serde_json::json!({
-                "id": s.id, "url": s.url, "event_type": s.event_type,
-                "filter_sender": s.filter_sender, "filter_thread_id": s.filter_thread_id,
-                "active": s.active,
-            }))
+        let items: Vec<serde_json::Value> = subs
+            .into_iter()
+            .map(|s| {
+                serde_json::json!({
+                    "id": s.id, "url": s.url, "event_type": s.event_type,
+                    "filter_sender": s.filter_sender, "filter_thread_id": s.filter_thread_id,
+                    "active": s.active,
+                })
+            })
             .collect();
         self.json_result(&items)
     }
 
-    #[tool(description = "Create a webhook subscription for new email events. Returns the signing secret (save it, shown only once).")]
+    #[tool(
+        description = "Create a webhook subscription for new email events. Returns the signing secret (save it, shown only once)."
+    )]
     async fn create_webhook(
         &self,
         Parameters(params): Parameters<CreateWebhookParams>,
@@ -865,17 +1010,24 @@ impl MailMcpService {
         let pool = self.pool()?;
         let signing_secret = crate::webhook::store::generate_signing_secret();
         let id = crate::webhook::store::create_subscription(
-            pool, &self.auth_user.address, &params.url, &params.event_type,
-            params.filter_sender.as_deref(), params.filter_thread_id.as_deref(),
+            pool,
+            &self.auth_user.address,
+            &params.url,
+            &params.event_type,
+            params.filter_sender.as_deref(),
+            params.filter_thread_id.as_deref(),
             &signing_secret,
-        ).await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        )
+        .await
+        .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({
                 "id": id, "url": params.url, "event_type": params.event_type,
                 "signing_secret": signing_secret,
                 "warning": "Save this signing secret now. It cannot be retrieved again.",
-            }).to_string(),
+            })
+            .to_string(),
         )]))
     }
 
@@ -885,8 +1037,10 @@ impl MailMcpService {
         Parameters(params): Parameters<DeleteWebhookParams>,
     ) -> Result<CallToolResult, McpError> {
         let pool = self.pool()?;
-        let removed = crate::webhook::store::delete_subscription(pool, params.id, &self.auth_user.address).await
-            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let removed =
+            crate::webhook::store::delete_subscription(pool, params.id, &self.auth_user.address)
+                .await
+                .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         if removed {
             self.ok_result("webhook_deleted", &params.id.to_string())
         } else {
@@ -902,8 +1056,12 @@ impl MailMcpService {
         Parameters(_params): Parameters<GetFoldersParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
-        let _ = mb_store.ensure_default_mailboxes(&self.auth_user.address).await;
-        let mailboxes = mb_store.list_mailboxes(&self.auth_user.address).await
+        let _ = mb_store
+            .ensure_default_mailboxes(&self.auth_user.address)
+            .await;
+        let mailboxes = mb_store
+            .list_mailboxes(&self.auth_user.address)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         let mut items = Vec::with_capacity(mailboxes.len());
         for mb in &mailboxes {
@@ -919,7 +1077,9 @@ impl MailMcpService {
         Parameters(params): Parameters<MarkThreadReadParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
-        mb_store.mark_thread_read(&self.auth_user.address, &params.thread_id, None).await
+        mb_store
+            .mark_thread_read(&self.auth_user.address, &params.thread_id, None)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         self.ok_result("marked_read", &params.thread_id)
     }
@@ -930,7 +1090,9 @@ impl MailMcpService {
         Parameters(params): Parameters<MarkThreadUnreadParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
-        mb_store.mark_thread_unread(&self.auth_user.address, &params.thread_id).await
+        mb_store
+            .mark_thread_unread(&self.auth_user.address, &params.thread_id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         self.ok_result("marked_unread", &params.thread_id)
     }
@@ -941,7 +1103,9 @@ impl MailMcpService {
         Parameters(params): Parameters<StarThreadParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
-        mb_store.star_thread(&self.auth_user.address, &params.thread_id).await
+        mb_store
+            .star_thread(&self.auth_user.address, &params.thread_id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         self.ok_result("starred", &params.thread_id)
     }
@@ -952,7 +1116,9 @@ impl MailMcpService {
         Parameters(params): Parameters<UnstarThreadParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
-        mb_store.unstar_thread(&self.auth_user.address, &params.thread_id).await
+        mb_store
+            .unstar_thread(&self.auth_user.address, &params.thread_id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         self.ok_result("unstarred", &params.thread_id)
     }
@@ -963,7 +1129,9 @@ impl MailMcpService {
         Parameters(params): Parameters<ArchiveThreadParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
-        mb_store.archive_thread(&self.auth_user.address, &params.thread_id).await
+        mb_store
+            .archive_thread(&self.auth_user.address, &params.thread_id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         self.ok_result("archived", &params.thread_id)
     }
@@ -974,7 +1142,9 @@ impl MailMcpService {
         Parameters(params): Parameters<UnarchiveThreadParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
-        mb_store.unarchive_thread(&self.auth_user.address, &params.thread_id).await
+        mb_store
+            .unarchive_thread(&self.auth_user.address, &params.thread_id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         self.ok_result("unarchived", &params.thread_id)
     }
@@ -985,7 +1155,9 @@ impl MailMcpService {
         Parameters(params): Parameters<DeleteThreadParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
-        mb_store.delete_thread(&self.auth_user.address, &params.thread_id).await
+        mb_store
+            .delete_thread(&self.auth_user.address, &params.thread_id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         self.ok_result("deleted", &params.thread_id)
     }
@@ -996,23 +1168,31 @@ impl MailMcpService {
         Parameters(_params): Parameters<GetCategoriesParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
-        let cats = mb_store.list_conversation_categories(&self.auth_user.address, None).await
+        let cats = mb_store
+            .list_conversation_categories(&self.auth_user.address, None)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        let items: Vec<serde_json::Value> = cats.into_iter()
+        let items: Vec<serde_json::Value> = cats
+            .into_iter()
             .map(|(cat, count)| serde_json::json!({"category": cat, "count": count}))
             .collect();
         self.json_result(&items)
     }
 
-    #[tool(description = "Search contacts from email history. Returns address, display name, counts.")]
+    #[tool(
+        description = "Search contacts from email history. Returns address, display name, counts."
+    )]
     async fn get_contacts(
         &self,
         Parameters(_params): Parameters<GetContactsParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
-        let contacts = mb_store.search_contacts(&self.auth_user.address, "", 100).await
+        let contacts = mb_store
+            .search_contacts(&self.auth_user.address, "", 100)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        let items: Vec<serde_json::Value> = contacts.into_iter()
+        let items: Vec<serde_json::Value> = contacts
+            .into_iter()
             .map(|c| serde_json::to_value(c).unwrap_or_default())
             .collect();
         self.json_result(&items)
@@ -1026,29 +1206,41 @@ impl MailMcpService {
         Parameters(_params): Parameters<GetQueueParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.queue")?;
-        let pool = self.web_state.outbound_queue.as_ref()
+        let pool = self
+            .web_state
+            .outbound_queue
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("outbound queue not configured", None))?;
-        let entries = mailrs_outbound_queue::queue::list_recent(pool, 100).await
+        let entries = mailrs_outbound_queue::queue::list_recent(pool, 100)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        let items: Vec<serde_json::Value> = entries.into_iter()
-            .map(|m| serde_json::json!({
-                "id": m.id, "sender": m.sender, "recipient": m.recipient,
-                "domain": m.domain, "status": m.status.as_str(),
-                "attempts": m.attempts, "last_error": m.last_error,
-            }))
+        let items: Vec<serde_json::Value> = entries
+            .into_iter()
+            .map(|m| {
+                serde_json::json!({
+                    "id": m.id, "sender": m.sender, "recipient": m.recipient,
+                    "domain": m.domain, "status": m.status.as_str(),
+                    "attempts": m.attempts, "last_error": m.last_error,
+                })
+            })
             .collect();
         self.json_result(&items)
     }
 
     // --- email group management ---
 
-    #[tool(description = "List all email groups (distribution lists). Returns group address, domain, name, member count.")]
+    #[tool(
+        description = "List all email groups (distribution lists). Returns group address, domain, name, member count."
+    )]
     async fn list_email_groups(
         &self,
         Parameters(_params): Parameters<ListEmailGroupsParams>,
     ) -> Result<CallToolResult, McpError> {
         let ds = self.ds()?;
-        let groups = ds.list_email_groups(None).await.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let groups = ds
+            .list_email_groups(None)
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         let mut items = Vec::with_capacity(groups.len());
         for g in &groups {
             let members = ds.list_email_group_members(g.id).await.unwrap_or_default();
@@ -1061,17 +1253,27 @@ impl MailMcpService {
         self.json_result(&items)
     }
 
-    #[tool(description = "Create an email group (distribution list). All members receive copies of incoming mail and can reply as the group address. Requires admin.accounts permission.")]
+    #[tool(
+        description = "Create an email group (distribution list). All members receive copies of incoming mail and can reply as the group address. Requires admin.accounts permission."
+    )]
     async fn create_email_group(
         &self,
         Parameters(params): Parameters<CreateEmailGroupParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.accounts")?;
         let ds = self.ds()?;
-        let id = ds.create_email_group(&params.address, &params.domain, &params.name, &params.description).await
+        let id = ds
+            .create_email_group(
+                &params.address,
+                &params.domain,
+                &params.name,
+                &params.description,
+            )
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         Ok(CallToolResult::success(vec![Content::text(
-            serde_json::json!({"status": "created", "id": id, "address": params.address}).to_string(),
+            serde_json::json!({"status": "created", "id": id, "address": params.address})
+                .to_string(),
         )]))
     }
 
@@ -1082,7 +1284,9 @@ impl MailMcpService {
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.accounts")?;
         let ds = self.ds()?;
-        match ds.remove_email_group(params.id).await
+        match ds
+            .remove_email_group(params.id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?
         {
             Some(addr) => self.ok_result("deleted", &addr),
@@ -1096,32 +1300,42 @@ impl MailMcpService {
         Parameters(params): Parameters<ListEmailGroupMembersParams>,
     ) -> Result<CallToolResult, McpError> {
         let ds = self.ds()?;
-        let members = ds.list_email_group_members(params.id).await
+        let members = ds
+            .list_email_group_members(params.id)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        let items: Vec<serde_json::Value> = members.into_iter().map(|m| serde_json::json!(m)).collect();
+        let items: Vec<serde_json::Value> =
+            members.into_iter().map(|m| serde_json::json!(m)).collect();
         self.json_result(&items)
     }
 
-    #[tool(description = "Add a member to an email group. The member will receive group emails and can reply as the group address. Requires admin.accounts permission.")]
+    #[tool(
+        description = "Add a member to an email group. The member will receive group emails and can reply as the group address. Requires admin.accounts permission."
+    )]
     async fn add_email_group_member(
         &self,
         Parameters(params): Parameters<AddEmailGroupMemberParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.accounts")?;
         let ds = self.ds()?;
-        ds.add_email_group_member(params.group_id, &params.address).await
+        ds.add_email_group_member(params.group_id, &params.address)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         self.ok_result("member_added", &params.address)
     }
 
-    #[tool(description = "Remove a member from an email group. Requires admin.accounts permission.")]
+    #[tool(
+        description = "Remove a member from an email group. Requires admin.accounts permission."
+    )]
     async fn remove_email_group_member(
         &self,
         Parameters(params): Parameters<RemoveEmailGroupMemberParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.accounts")?;
         let ds = self.ds()?;
-        let removed = ds.remove_email_group_member(params.group_id, &params.address).await
+        let removed = ds
+            .remove_email_group_member(params.group_id, &params.address)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         if removed {
             self.ok_result("member_removed", &params.address)
@@ -1130,7 +1344,9 @@ impl MailMcpService {
         }
     }
 
-    #[tool(description = "Schedule an email to be sent at a future time. Returns message ID on success.")]
+    #[tool(
+        description = "Schedule an email to be sent at a future time. Returns message ID on success."
+    )]
     async fn send_scheduled_email(
         &self,
         Parameters(params): Parameters<SendScheduledEmailParams>,
@@ -1139,17 +1355,17 @@ impl MailMcpService {
             return Err(McpError::invalid_params("recipient list is empty", None));
         }
         if params.to.len() > 50 {
-            return Err(McpError::invalid_params("too many recipients (max 50)", None));
+            return Err(McpError::invalid_params(
+                "too many recipients (max 50)",
+                None,
+            ));
         }
 
         let scheduled_ts = chrono::DateTime::parse_from_rfc3339(&params.scheduled_at)
             .map_err(|e| McpError::invalid_params(format!("invalid scheduled_at: {e}"), None))?
             .timestamp();
 
-        let from = params
-            .from
-            .as_deref()
-            .unwrap_or(&self.auth_user.address);
+        let from = params.from.as_deref().unwrap_or(&self.auth_user.address);
 
         if let Err(msg) = crate::web::mail::verify_sender(
             from,
@@ -1209,13 +1425,16 @@ impl MailMcpService {
             )]))
         } else {
             Err(McpError::internal_error(
-                body.message.unwrap_or_else(|| "scheduling failed".to_string()),
+                body.message
+                    .unwrap_or_else(|| "scheduling failed".to_string()),
                 None,
             ))
         }
     }
 
-    #[tool(description = "Query recent audit log entries. Requires admin.accounts permission. Returns actor, action, target, detail, and timestamp.")]
+    #[tool(
+        description = "Query recent audit log entries. Requires admin.accounts permission. Returns actor, action, target, detail, and timestamp."
+    )]
     async fn get_audit_log(
         &self,
         Parameters(params): Parameters<GetAuditLogParams>,
@@ -1223,19 +1442,23 @@ impl MailMcpService {
         self.require_permission("admin.accounts")?;
         let ds = self.ds()?;
         let limit = params.limit.min(200) as i64;
-        let entries = ds.list_audit_log(limit).await
-            .map_err(|e| McpError::internal_error(format!("failed to query audit log: {e}"), None))?;
+        let entries = ds.list_audit_log(limit).await.map_err(|e| {
+            McpError::internal_error(format!("failed to query audit log: {e}"), None)
+        })?;
 
-        let items: Vec<serde_json::Value> = entries.into_iter().map(|e| {
-            serde_json::json!({
-                "id": e.id,
-                "timestamp": e.timestamp,
-                "actor": e.actor,
-                "action": e.action,
-                "target": e.target,
-                "detail": e.detail,
+        let items: Vec<serde_json::Value> = entries
+            .into_iter()
+            .map(|e| {
+                serde_json::json!({
+                    "id": e.id,
+                    "timestamp": e.timestamp,
+                    "actor": e.actor,
+                    "action": e.action,
+                    "target": e.target,
+                    "detail": e.detail,
+                })
             })
-        }).collect();
+            .collect();
 
         self.json_result(&items)
     }
@@ -1246,20 +1469,29 @@ impl MailMcpService {
         Parameters(params): Parameters<RetryQueueMessageParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.queue")?;
-        let pool = self.web_state.outbound_queue.as_ref()
+        let pool = self
+            .web_state
+            .outbound_queue
+            .as_ref()
             .ok_or_else(|| McpError::internal_error("outbound queue not configured", None))?;
         let now = chrono::Utc::now().timestamp();
-        let retried = mailrs_outbound_queue::queue::retry_message(pool, params.id, now).await
+        let retried = mailrs_outbound_queue::queue::retry_message(pool, params.id, now)
+            .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         if retried {
             self.ok_result("retrying", &params.id.to_string())
         } else {
-            Err(McpError::invalid_params("message not found or not retryable", None))
+            Err(McpError::invalid_params(
+                "message not found or not retryable",
+                None,
+            ))
         }
     }
     // --- signature management (user-level, no admin required) ---
 
-    #[tool(description = "List your email signatures. Returns id, name, html, text_content, is_default, and created_at.")]
+    #[tool(
+        description = "List your email signatures. Returns id, name, html, text_content, is_default, and created_at."
+    )]
     async fn list_signatures(
         &self,
         Parameters(_params): Parameters<ListSignaturesParams>,
@@ -1275,21 +1507,26 @@ impl MailMcpService {
         .await
         .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
-        let items: Vec<serde_json::Value> = rows.into_iter().map(|(id, name, html, text_content, is_default, created_at)| {
-            serde_json::json!({
-                "id": id,
-                "name": name,
-                "html": html,
-                "text_content": text_content,
-                "is_default": is_default,
-                "created_at": created_at,
+        let items: Vec<serde_json::Value> = rows
+            .into_iter()
+            .map(|(id, name, html, text_content, is_default, created_at)| {
+                serde_json::json!({
+                    "id": id,
+                    "name": name,
+                    "html": html,
+                    "text_content": text_content,
+                    "is_default": is_default,
+                    "created_at": created_at,
+                })
             })
-        }).collect();
+            .collect();
 
         self.json_result(&items)
     }
 
-    #[tool(description = "Create or update an email signature. Provide id to update an existing signature, omit to create new.")]
+    #[tool(
+        description = "Create or update an email signature. Provide id to update an existing signature, omit to create new."
+    )]
     async fn save_signature(
         &self,
         Parameters(params): Parameters<SaveSignatureParams>,
@@ -1305,12 +1542,11 @@ impl MailMcpService {
 
         // if setting as default, unset any existing default first
         if params.is_default {
-            let _ = sqlx::query(
-                "UPDATE signatures SET is_default = false WHERE account_address = $1",
-            )
-            .bind(&self.auth_user.address)
-            .execute(pool)
-            .await;
+            let _ =
+                sqlx::query("UPDATE signatures SET is_default = false WHERE account_address = $1")
+                    .bind(&self.auth_user.address)
+                    .execute(pool)
+                    .await;
         }
 
         let result = if let Some(id) = params.id {
@@ -1340,26 +1576,25 @@ impl MailMcpService {
             .await
         };
 
-        result
-            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        result.map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
         self.ok_result("saved", &params.name)
     }
 
-    #[tool(description = "Delete an email signature by ID. Only deletes signatures owned by the authenticated user.")]
+    #[tool(
+        description = "Delete an email signature by ID. Only deletes signatures owned by the authenticated user."
+    )]
     async fn delete_signature(
         &self,
         Parameters(params): Parameters<DeleteSignatureParams>,
     ) -> Result<CallToolResult, McpError> {
         let pool = self.pool()?;
-        let result = sqlx::query(
-            "DELETE FROM signatures WHERE id = $1 AND account_address = $2",
-        )
-        .bind(params.id)
-        .bind(&self.auth_user.address)
-        .execute(pool)
-        .await
-        .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let result = sqlx::query("DELETE FROM signatures WHERE id = $1 AND account_address = $2")
+            .bind(params.id)
+            .bind(&self.auth_user.address)
+            .execute(pool)
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
         if result.rows_affected() > 0 {
             self.ok_result("deleted", &params.id.to_string())
@@ -1370,7 +1605,9 @@ impl MailMcpService {
 
     // --- encryption key management ---
 
-    #[tool(description = "List your encryption keys (PGP and S/MIME). Returns key type, fingerprint, and creation time — not the raw key data.")]
+    #[tool(
+        description = "List your encryption keys (PGP and S/MIME). Returns key type, fingerprint, and creation time — not the raw key data."
+    )]
     async fn list_encryption_keys(
         &self,
         Parameters(_params): Parameters<ListEncryptionKeysParams>,
@@ -1394,7 +1631,9 @@ impl MailMcpService {
         self.json_result(&items)
     }
 
-    #[tool(description = "Upload or replace your PGP public key or S/MIME certificate. Key type must be 'pgp' or 'smime'.")]
+    #[tool(
+        description = "Upload or replace your PGP public key or S/MIME certificate. Key type must be 'pgp' or 'smime'."
+    )]
     async fn set_encryption_key(
         &self,
         Parameters(params): Parameters<SetEncryptionKeyParams>,
@@ -1431,7 +1670,9 @@ impl MailMcpService {
         )]))
     }
 
-    #[tool(description = "Delete your PGP public key or S/MIME certificate. Key type must be 'pgp' or 'smime'.")]
+    #[tool(
+        description = "Delete your PGP public key or S/MIME certificate. Key type must be 'pgp' or 'smime'."
+    )]
     async fn delete_encryption_key(
         &self,
         Parameters(params): Parameters<DeleteEncryptionKeyParams>,
@@ -1454,7 +1695,9 @@ impl MailMcpService {
         }
     }
 
-    #[tool(description = "Look up a recipient's PGP public key or S/MIME certificate by email address. Use this before encrypting an email to someone.")]
+    #[tool(
+        description = "Look up a recipient's PGP public key or S/MIME certificate by email address. Use this before encrypting an email to someone."
+    )]
     async fn get_recipient_key(
         &self,
         Parameters(params): Parameters<GetRecipientKeyParams>,
@@ -1494,7 +1737,9 @@ impl MailMcpService {
 
     // --- mail audit ---
 
-    #[tool(description = "List email conversations for a target user (audit/compliance). Requires admin.impersonate permission. Target user must be in your accessible domains.")]
+    #[tool(
+        description = "List email conversations for a target user (audit/compliance). Requires admin.impersonate permission. Target user must be in your accessible domains."
+    )]
     async fn audit_list_conversations(
         &self,
         Parameters(params): Parameters<AuditListConversationsParams>,
@@ -1549,7 +1794,9 @@ impl MailMcpService {
         self.json_result(&items)
     }
 
-    #[tool(description = "Read all messages in a thread for a target user (audit/compliance). Requires admin.impersonate permission. Target user must be in your accessible domains.")]
+    #[tool(
+        description = "Read all messages in a thread for a target user (audit/compliance). Requires admin.impersonate permission. Target user must be in your accessible domains."
+    )]
     async fn audit_read_thread(
         &self,
         Parameters(params): Parameters<AuditReadThreadParams>,
@@ -1610,18 +1857,19 @@ impl MailMcpService {
 
     // --- system config tools ---
 
-    #[tool(description = "Get all system configuration entries with current values, types, sources (database/env/default), and metadata. Requires admin.system_config permission.")]
+    #[tool(
+        description = "Get all system configuration entries with current values, types, sources (database/env/default), and metadata. Requires admin.system_config permission."
+    )]
     async fn get_system_config(
         &self,
         Parameters(_params): Parameters<GetSystemConfigParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.system_config")?;
 
-        let store = self
-            .web_state
-            .system_config
-            .as_ref()
-            .ok_or_else(|| McpError::internal_error("system config store not available", None))?;
+        let store =
+            self.web_state.system_config.as_ref().ok_or_else(|| {
+                McpError::internal_error("system config store not available", None)
+            })?;
 
         let entries = store.get_all_entries();
         let items: Vec<serde_json::Value> = entries
@@ -1643,18 +1891,19 @@ impl MailMcpService {
         self.json_result(&items)
     }
 
-    #[tool(description = "Set a system configuration value. Validates key and value type. Requires admin.system_config permission. Use get_system_config to see available keys.")]
+    #[tool(
+        description = "Set a system configuration value. Validates key and value type. Requires admin.system_config permission. Use get_system_config to see available keys."
+    )]
     async fn set_system_config(
         &self,
         Parameters(params): Parameters<SetSystemConfigParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.system_config")?;
 
-        let store = self
-            .web_state
-            .system_config
-            .as_ref()
-            .ok_or_else(|| McpError::internal_error("system config store not available", None))?;
+        let store =
+            self.web_state.system_config.as_ref().ok_or_else(|| {
+                McpError::internal_error("system config store not available", None)
+            })?;
 
         store
             .set(&params.key, &params.value, &self.auth_user.address)
@@ -1664,18 +1913,19 @@ impl MailMcpService {
         self.ok_result("updated", &format!("{} = {}", params.key, params.value))
     }
 
-    #[tool(description = "Reset a system configuration key to its default value (removes database override). Requires admin.system_config permission.")]
+    #[tool(
+        description = "Reset a system configuration key to its default value (removes database override). Requires admin.system_config permission."
+    )]
     async fn reset_system_config(
         &self,
         Parameters(params): Parameters<ResetSystemConfigParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.system_config")?;
 
-        let store = self
-            .web_state
-            .system_config
-            .as_ref()
-            .ok_or_else(|| McpError::internal_error("system config store not available", None))?;
+        let store =
+            self.web_state.system_config.as_ref().ok_or_else(|| {
+                McpError::internal_error("system config store not available", None)
+            })?;
 
         store
             .delete(&params.key)
@@ -1710,96 +1960,88 @@ async fn resolve_attachments(
         let data_str = a.data.trim();
 
         // determine source type
-        let (bytes, derived_filename) =
-            if data_str.starts_with("http://") || data_str.starts_with("https://") {
-                // URL: download
-                let resp = reqwest::Client::builder()
-                    .timeout(std::time::Duration::from_secs(60))
-                    .build()
-                    .map_err(|e| McpError::internal_error(format!("http client: {e}"), None))?
-                    .get(data_str)
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        McpError::invalid_params(
-                            format!("failed to download attachment '{}': {e}", data_str),
-                            None,
-                        )
-                    })?;
-                if !resp.status().is_success() {
-                    return Err(McpError::invalid_params(
-                        format!(
-                            "download failed for '{}': HTTP {}",
-                            data_str,
-                            resp.status()
-                        ),
-                        None,
-                    ));
-                }
-                let bytes = resp.bytes().await.map_err(|e| {
+        let (bytes, derived_filename) = if data_str.starts_with("http://")
+            || data_str.starts_with("https://")
+        {
+            // URL: download
+            let resp = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(60))
+                .build()
+                .map_err(|e| McpError::internal_error(format!("http client: {e}"), None))?
+                .get(data_str)
+                .send()
+                .await
+                .map_err(|e| {
                     McpError::invalid_params(
-                        format!("failed to read response body: {e}"),
+                        format!("failed to download attachment '{}': {e}", data_str),
                         None,
                     )
                 })?;
-                if bytes.len() > MAX_ATTACHMENT_SIZE {
-                    return Err(McpError::invalid_params(
-                        format!(
-                            "attachment too large: {} bytes (max {})",
-                            bytes.len(),
-                            MAX_ATTACHMENT_SIZE
-                        ),
-                        None,
-                    ));
-                }
-                // derive filename from URL path
-                let name = url_filename(data_str);
-                (bytes.to_vec(), name)
-            } else if tokio::fs::metadata(data_str).await.is_ok() {
-                // file path: read from disk
-                let bytes = tokio::fs::read(data_str).await.map_err(|e| {
+            if !resp.status().is_success() {
+                return Err(McpError::invalid_params(
+                    format!("download failed for '{}': HTTP {}", data_str, resp.status()),
+                    None,
+                ));
+            }
+            let bytes = resp.bytes().await.map_err(|e| {
+                McpError::invalid_params(format!("failed to read response body: {e}"), None)
+            })?;
+            if bytes.len() > MAX_ATTACHMENT_SIZE {
+                return Err(McpError::invalid_params(
+                    format!(
+                        "attachment too large: {} bytes (max {})",
+                        bytes.len(),
+                        MAX_ATTACHMENT_SIZE
+                    ),
+                    None,
+                ));
+            }
+            // derive filename from URL path
+            let name = url_filename(data_str);
+            (bytes.to_vec(), name)
+        } else if tokio::fs::metadata(data_str).await.is_ok() {
+            // file path: read from disk
+            let bytes = tokio::fs::read(data_str).await.map_err(|e| {
+                McpError::invalid_params(format!("failed to read file '{}': {e}", data_str), None)
+            })?;
+            if bytes.len() > MAX_ATTACHMENT_SIZE {
+                return Err(McpError::invalid_params(
+                    format!(
+                        "attachment too large: {} bytes (max {})",
+                        bytes.len(),
+                        MAX_ATTACHMENT_SIZE
+                    ),
+                    None,
+                ));
+            }
+            let name = std::path::Path::new(data_str)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(String::from);
+            (bytes, name)
+        } else {
+            // base64
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(data_str)
+                .map_err(|_| {
                     McpError::invalid_params(
-                        format!("failed to read file '{}': {e}", data_str),
+                        "attachment data is not a valid URL, file path, or base64 string"
+                            .to_string(),
                         None,
                     )
                 })?;
-                if bytes.len() > MAX_ATTACHMENT_SIZE {
-                    return Err(McpError::invalid_params(
-                        format!(
-                            "attachment too large: {} bytes (max {})",
-                            bytes.len(),
-                            MAX_ATTACHMENT_SIZE
-                        ),
-                        None,
-                    ));
-                }
-                let name = std::path::Path::new(data_str)
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .map(String::from);
-                (bytes, name)
-            } else {
-                // base64
-                let bytes = base64::engine::general_purpose::STANDARD
-                    .decode(data_str)
-                    .map_err(|_| {
-                        McpError::invalid_params(
-                            "attachment data is not a valid URL, file path, or base64 string".to_string(),
-                            None,
-                        )
-                    })?;
-                if bytes.len() > MAX_ATTACHMENT_SIZE {
-                    return Err(McpError::invalid_params(
-                        format!(
-                            "attachment too large: {} bytes (max {})",
-                            bytes.len(),
-                            MAX_ATTACHMENT_SIZE
-                        ),
-                        None,
-                    ));
-                }
-                (bytes, None)
-            };
+            if bytes.len() > MAX_ATTACHMENT_SIZE {
+                return Err(McpError::invalid_params(
+                    format!(
+                        "attachment too large: {} bytes (max {})",
+                        bytes.len(),
+                        MAX_ATTACHMENT_SIZE
+                    ),
+                    None,
+                ));
+            }
+            (bytes, None)
+        };
 
         let filename = a
             .filename

@@ -101,7 +101,11 @@ impl InMemoryCalendarStore {
 
     /// Append an event to the given calendar id.
     pub fn with_event(self, calendar_id: i64, event: Event) -> Self {
-        self.inner.write().unwrap().events.push((calendar_id, event));
+        self.inner
+            .write()
+            .unwrap()
+            .events
+            .push((calendar_id, event));
         self
     }
 
@@ -226,11 +230,7 @@ impl CalendarStore for InMemoryCalendarStore {
             .collect())
     }
 
-    async fn get_event(
-        &self,
-        calendar_id: i64,
-        uid: &str,
-    ) -> Result<Option<Event>, StoreError> {
+    async fn get_event(&self, calendar_id: i64, uid: &str) -> Result<Option<Event>, StoreError> {
         let inner = self.inner.read().unwrap();
         if let Some(ref msg) = inner.get_event_error {
             return Err(msg.clone().into());
@@ -242,11 +242,7 @@ impl CalendarStore for InMemoryCalendarStore {
             .map(|(_, e)| e.clone()))
     }
 
-    async fn event_etag(
-        &self,
-        calendar_id: i64,
-        uid: &str,
-    ) -> Result<Option<String>, StoreError> {
+    async fn event_etag(&self, calendar_id: i64, uid: &str) -> Result<Option<String>, StoreError> {
         let inner = self.inner.read().unwrap();
         if let Some(ref msg) = inner.event_etag_error {
             return Err(msg.clone().into());
@@ -296,11 +292,7 @@ impl CalendarStore for InMemoryCalendarStore {
         })
     }
 
-    async fn delete_event(
-        &self,
-        calendar_id: i64,
-        uid: &str,
-    ) -> Result<bool, StoreError> {
+    async fn delete_event(&self, calendar_id: i64, uid: &str) -> Result<bool, StoreError> {
         let mut inner = self.inner.write().unwrap();
         if let Some(ref msg) = inner.delete_event_error {
             return Err(msg.clone().into());
@@ -392,7 +384,11 @@ impl InMemoryAddressBookStore {
 
     /// Append a contact to the given book id.
     pub fn with_contact(self, book_id: i64, contact: Contact) -> Self {
-        self.inner.write().unwrap().contacts.push((book_id, contact));
+        self.inner
+            .write()
+            .unwrap()
+            .contacts
+            .push((book_id, contact));
         self
     }
 
@@ -507,11 +503,7 @@ impl AddressBookStore for InMemoryAddressBookStore {
             .collect())
     }
 
-    async fn get_contact(
-        &self,
-        book_id: i64,
-        uid: &str,
-    ) -> Result<Option<Contact>, StoreError> {
+    async fn get_contact(&self, book_id: i64, uid: &str) -> Result<Option<Contact>, StoreError> {
         let inner = self.inner.read().unwrap();
         if let Some(ref msg) = inner.get_contact_error {
             return Err(msg.clone().into());
@@ -523,11 +515,7 @@ impl AddressBookStore for InMemoryAddressBookStore {
             .map(|(_, c)| c.clone()))
     }
 
-    async fn contact_etag(
-        &self,
-        book_id: i64,
-        uid: &str,
-    ) -> Result<Option<String>, StoreError> {
+    async fn contact_etag(&self, book_id: i64, uid: &str) -> Result<Option<String>, StoreError> {
         let inner = self.inner.read().unwrap();
         if let Some(ref msg) = inner.contact_etag_error {
             return Err(msg.clone().into());
@@ -576,11 +564,7 @@ impl AddressBookStore for InMemoryAddressBookStore {
         })
     }
 
-    async fn delete_contact(
-        &self,
-        book_id: i64,
-        uid: &str,
-    ) -> Result<bool, StoreError> {
+    async fn delete_contact(&self, book_id: i64, uid: &str) -> Result<bool, StoreError> {
         let mut inner = self.inner.write().unwrap();
         if let Some(ref msg) = inner.delete_contact_error {
             return Err(msg.clone().into());
@@ -668,10 +652,7 @@ pub fn body_as_str(body: Vec<u8>) -> String {
 
 /// Find a header value (case-insensitive name match). Returns `None` when
 /// absent.
-pub fn header_value<'a>(
-    headers: &'a [(String, String)],
-    name: &str,
-) -> Option<&'a str> {
+pub fn header_value<'a>(headers: &'a [(String, String)], name: &str) -> Option<&'a str> {
     headers
         .iter()
         .find(|(k, _)| k.eq_ignore_ascii_case(name))

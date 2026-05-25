@@ -1,6 +1,6 @@
 //! Effective-permission computation + cache invalidation.
 
-use super::{DomainStore, Result, CACHE_TTL_SECS};
+use super::{CACHE_TTL_SECS, DomainStore, Result};
 
 impl DomainStore {
     /// load effective permissions for an account
@@ -8,13 +8,13 @@ impl DomainStore {
         &self,
         address: &str,
     ) -> Result<crate::permission::EffectivePermissions> {
-        use crate::permission::{compute_effective_permissions, AccountGroup, GroupInfo};
+        use crate::permission::{AccountGroup, GroupInfo, compute_effective_permissions};
 
         // try valkey cache
         let cache_key = format!("perms:{address}");
-        if let Some(cached) =
-            self.valkey_get::<crate::permission::EffectivePermissions>(&cache_key)
-                .await
+        if let Some(cached) = self
+            .valkey_get::<crate::permission::EffectivePermissions>(&cache_key)
+            .await
         {
             return Ok(cached);
         }
@@ -100,8 +100,8 @@ impl DomainStore {
             }
         }
 
-        let perms =
-            compute_effective_permissions(&groups, &override_rows, &all_domains).with_send_as(send_as);
+        let perms = compute_effective_permissions(&groups, &override_rows, &all_domains)
+            .with_send_as(send_as);
 
         // cache
         self.valkey_set(&cache_key, &perms, CACHE_TTL_SECS).await;

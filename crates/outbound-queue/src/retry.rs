@@ -90,7 +90,10 @@ mod tests {
         let mut prev = 0u64;
         for i in 0..8u32 {
             let d = retry_delay_secs(i);
-            assert!(d > prev, "delay at slot {i} ({d}) is not greater than previous ({prev})");
+            assert!(
+                d > prev,
+                "delay at slot {i} ({d}) is not greater than previous ({prev})"
+            );
             prev = d;
         }
     }
@@ -128,7 +131,10 @@ mod tests {
         for i in 1..7u32 {
             let prev = retry_delay_secs(i - 1);
             let curr = retry_delay_secs(i);
-            assert!(curr >= prev * 2, "step {i}: {curr} should be at least 2× {prev}");
+            assert!(
+                curr >= prev * 2,
+                "step {i}: {curr} should be at least 2× {prev}"
+            );
         }
     }
 

@@ -18,12 +18,7 @@ pub trait LlmProvider: Send + Sync {
     /// Returns `None` on transport error, non-success HTTP status, or any
     /// retry-exhaustion the implementation defines. Errors should already
     /// have been logged via `tracing` by the provider.
-    async fn complete(
-        &self,
-        system: &str,
-        user_message: &str,
-        temperature: f32,
-    ) -> Option<String>;
+    async fn complete(&self, system: &str, user_message: &str, temperature: f32) -> Option<String>;
 
     /// Generate an embedding vector for `text`.
     ///

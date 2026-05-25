@@ -1,8 +1,9 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mailrs_sieve::{compile_sieve, evaluate_sieve};
 use std::hint::black_box;
 
-const SCRIPT: &str = "require \"fileinto\";\nif header :is \"X-Spam\" \"YES\" { fileinto \"Junk\"; } else { keep; }";
+const SCRIPT: &str =
+    "require \"fileinto\";\nif header :is \"X-Spam\" \"YES\" { fileinto \"Junk\"; } else { keep; }";
 const MSG: &[u8] = b"From: a@example.com\r\nX-Spam: NO\r\n\r\nbody";
 
 fn bench_compile(c: &mut Criterion) {

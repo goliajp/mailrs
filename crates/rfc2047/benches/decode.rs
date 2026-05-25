@@ -1,7 +1,7 @@
 //! Comparative bench: `mailrs-rfc2047::decode` vs `mail-parser`'s
 //! `Subject` extraction (which also decodes encoded-words).
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mailrs_rfc2047::{decode, encode};
 use std::hint::black_box;
 
@@ -105,10 +105,7 @@ body\r\n";
                 .windows(8)
                 .position(|w| w.eq_ignore_ascii_case(b"Subject:"))
                 .unwrap();
-            let line_end = bytes[idx..]
-                .iter()
-                .position(|&b| b == b'\n')
-                .unwrap();
+            let line_end = bytes[idx..].iter().position(|&b| b == b'\n').unwrap();
             let value = &bytes[idx + 8..idx + line_end];
             let trimmed = if !value.is_empty() && value[0] == b' ' {
                 &value[1..]
@@ -144,10 +141,7 @@ body\r\n";
                 .windows(8)
                 .position(|w| w.eq_ignore_ascii_case(b"Subject:"))
                 .unwrap();
-            let line_end = bytes[idx..]
-                .iter()
-                .position(|&b| b == b'\n')
-                .unwrap();
+            let line_end = bytes[idx..].iter().position(|&b| b == b'\n').unwrap();
             let value = &bytes[idx + 8..idx + line_end];
             let trimmed = if !value.is_empty() && value[0] == b' ' {
                 &value[1..]

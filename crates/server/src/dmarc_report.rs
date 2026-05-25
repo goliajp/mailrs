@@ -9,8 +9,8 @@ use std::sync::Arc;
 // Re-export the published crate's types so existing call sites
 // `crate::dmarc_report::{DmarcReportStore, DmarcResultRecord}` resolve.
 pub use mailrs_dmarc::{
-    DmarcResultRecord, DmarcStore, PgDmarcStore as DmarcReportStore,
-    extract_rua_from_dmarc_record, format_report_email, generate_dmarc_report_xml,
+    DmarcResultRecord, DmarcStore, PgDmarcStore as DmarcReportStore, extract_rua_from_dmarc_record,
+    format_report_email, generate_dmarc_report_xml,
 };
 
 /// spawn daily DMARC report generation task

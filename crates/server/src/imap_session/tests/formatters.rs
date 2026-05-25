@@ -59,7 +59,10 @@ fn parse_flags_all() {
 
 #[test]
 fn parse_flags_case_insensitive() {
-    assert_eq!(parse_imap_flags("(\\seen \\FLAGGED)"), FLAG_SEEN | FLAG_FLAGGED);
+    assert_eq!(
+        parse_imap_flags("(\\seen \\FLAGGED)"),
+        FLAG_SEEN | FLAG_FLAGGED
+    );
 }
 
 #[test]
@@ -71,7 +74,8 @@ fn parse_flags_unknown_ignored() {
 
 #[test]
 fn flags_roundtrip() {
-    let original = FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
+    let original =
+        FLAG_SEEN | FLAG_ANSWERED | FLAG_FLAGGED | FLAG_DELETED | FLAG_DRAFT | FLAG_RECENT;
     let formatted = format_imap_flags(original);
     let parsed = parse_imap_flags(&format!("({})", formatted));
     assert_eq!(parsed, original);
@@ -111,7 +115,10 @@ fn quote_or_nil_special_chars() {
 
 #[test]
 fn address_no_at() {
-    assert_eq!(format_imap_address("localonly"), "((NIL NIL \"localonly\" \"\"))");
+    assert_eq!(
+        format_imap_address("localonly"),
+        "((NIL NIL \"localonly\" \"\"))"
+    );
 }
 
 #[test]
@@ -315,7 +322,8 @@ fn parse_body_section_peek() {
 
 #[test]
 fn parse_body_section_skips_header_text() {
-    let sections = parse_generic_body_sections("BODY[HEADER] BODY[TEXT] BODY[HEADER.FIELDS (FROM)]");
+    let sections =
+        parse_generic_body_sections("BODY[HEADER] BODY[TEXT] BODY[HEADER.FIELDS (FROM)]");
     assert!(sections.is_empty());
 }
 
@@ -336,20 +344,20 @@ fn parse_body_section_deduplicates() {
 #[test]
 fn find_line_offset_first_line() {
     let data = b"line0\nline1\nline2\n";
-    assert_eq!(find_line_offset(data,0), Some(0));
+    assert_eq!(find_line_offset(data, 0), Some(0));
 }
 
 #[test]
 fn find_line_offset_middle() {
     let data = b"line0\nline1\nline2\n";
-    assert_eq!(find_line_offset(data,1), Some(6));
-    assert_eq!(find_line_offset(data,2), Some(12));
+    assert_eq!(find_line_offset(data, 1), Some(6));
+    assert_eq!(find_line_offset(data, 2), Some(12));
 }
 
 #[test]
 fn find_line_offset_past_end() {
     let data = b"line0\nline1\n";
-    assert_eq!(find_line_offset(data,10), None);
+    assert_eq!(find_line_offset(data, 10), None);
 }
 
 // -- trim_part_trailing_newline --
@@ -420,4 +428,3 @@ fn build_bodystructure_multipart() {
     assert!(upper.contains("PLAIN"));
     assert!(upper.contains("HTML"));
 }
-

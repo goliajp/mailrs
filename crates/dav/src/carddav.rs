@@ -203,7 +203,10 @@ pub async fn contact_put(
     }
 
     let etag = etag_of(body);
-    let PutResult { created, etag: stored_etag } = store
+    let PutResult {
+        created,
+        etag: stored_etag,
+    } = store
         .put_contact(book_id, uid, body, &etag)
         .await
         .map_err(|e| DavError::ServerError(e.to_string()))?;
@@ -287,22 +290,75 @@ mod tests {
     }
     #[async_trait]
     impl AddressBookStore for MemAB {
-        async fn list_address_books(&self, user: &str) -> Result<Vec<AddressBook>, crate::store::StoreError> {
-            Ok(self.books.lock().unwrap().iter().filter(|(o, _)| o == user).map(|(_, b)| b.clone()).collect())
+        async fn list_address_books(
+            &self,
+            user: &str,
+        ) -> Result<Vec<AddressBook>, crate::store::StoreError> {
+            Ok(self
+                .books
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(o, _)| o == user)
+                .map(|(_, b)| b.clone())
+                .collect())
         }
-        async fn get_address_book(&self, user: &str, name: &str) -> Result<Option<AddressBook>, crate::store::StoreError> {
-            Ok(self.books.lock().unwrap().iter().find(|(o, b)| o == user && b.name == name).map(|(_, b)| b.clone()))
+        async fn get_address_book(
+            &self,
+            user: &str,
+            name: &str,
+        ) -> Result<Option<AddressBook>, crate::store::StoreError> {
+            Ok(self
+                .books
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|(o, b)| o == user && b.name == name)
+                .map(|(_, b)| b.clone()))
         }
         async fn list_contacts(&self, bid: i64) -> Result<Vec<Contact>, crate::store::StoreError> {
-            Ok(self.contacts.lock().unwrap().iter().filter(|(b, _)| *b == bid).map(|(_, c)| c.clone()).collect())
+            Ok(self
+                .contacts
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(b, _)| *b == bid)
+                .map(|(_, c)| c.clone())
+                .collect())
         }
-        async fn get_contact(&self, bid: i64, uid: &str) -> Result<Option<Contact>, crate::store::StoreError> {
-            Ok(self.contacts.lock().unwrap().iter().find(|(b, c)| *b == bid && c.uid == uid).map(|(_, c)| c.clone()))
+        async fn get_contact(
+            &self,
+            bid: i64,
+            uid: &str,
+        ) -> Result<Option<Contact>, crate::store::StoreError> {
+            Ok(self
+                .contacts
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|(b, c)| *b == bid && c.uid == uid)
+                .map(|(_, c)| c.clone()))
         }
-        async fn contact_etag(&self, bid: i64, uid: &str) -> Result<Option<String>, crate::store::StoreError> {
-            Ok(self.contacts.lock().unwrap().iter().find(|(b, c)| *b == bid && c.uid == uid).map(|(_, c)| c.etag.clone()))
+        async fn contact_etag(
+            &self,
+            bid: i64,
+            uid: &str,
+        ) -> Result<Option<String>, crate::store::StoreError> {
+            Ok(self
+                .contacts
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|(b, c)| *b == bid && c.uid == uid)
+                .map(|(_, c)| c.etag.clone()))
         }
-        async fn put_contact(&self, bid: i64, uid: &str, vcard: &str, etag: &str) -> Result<PutResult, crate::store::StoreError> {
+        async fn put_contact(
+            &self,
+            bid: i64,
+            uid: &str,
+            vcard: &str,
+            etag: &str,
+        ) -> Result<PutResult, crate::store::StoreError> {
             let mut cs = self.contacts.lock().unwrap();
             let pos = cs.iter().position(|(b, c)| *b == bid && c.uid == uid);
             let created = pos.is_none();
@@ -310,23 +366,36 @@ mod tests {
                 cs[p].1.vcard = vcard.into();
                 cs[p].1.etag = etag.into();
             } else {
-                cs.push((bid, Contact {
-                    uid: uid.into(),
-                    etag: etag.into(),
-                    vcard: vcard.into(),
-                    fn_name: "".into(),
-                    email: "".into(),
-                }));
+                cs.push((
+                    bid,
+                    Contact {
+                        uid: uid.into(),
+                        etag: etag.into(),
+                        vcard: vcard.into(),
+                        fn_name: "".into(),
+                        email: "".into(),
+                    },
+                ));
             }
-            Ok(PutResult { created, etag: etag.into() })
+            Ok(PutResult {
+                created,
+                etag: etag.into(),
+            })
         }
-        async fn delete_contact(&self, bid: i64, uid: &str) -> Result<bool, crate::store::StoreError> {
+        async fn delete_contact(
+            &self,
+            bid: i64,
+            uid: &str,
+        ) -> Result<bool, crate::store::StoreError> {
             let mut cs = self.contacts.lock().unwrap();
             let before = cs.len();
             cs.retain(|(b, c)| !(*b == bid && c.uid == uid));
             Ok(cs.len() < before)
         }
-        async fn ensure_default_address_book(&self, user: &str) -> Result<(), crate::store::StoreError> {
+        async fn ensure_default_address_book(
+            &self,
+            user: &str,
+        ) -> Result<(), crate::store::StoreError> {
             let has = self.books.lock().unwrap().iter().any(|(o, _)| o == user);
             if !has {
                 self.add_book(user, "Default");
@@ -454,8 +523,15 @@ mod tests {
         let s = MemAB::default();
         let bid = s.add_book("u", "B");
         s.add_contact(bid, "x", "BEGIN:VCARD\nEND:VCARD");
-        let r = contact_put(&s, bid, "x", None, Some("*"), "BEGIN:VCARD\nFN:N\nEND:VCARD")
-            .await;
+        let r = contact_put(
+            &s,
+            bid,
+            "x",
+            None,
+            Some("*"),
+            "BEGIN:VCARD\nFN:N\nEND:VCARD",
+        )
+        .await;
         assert!(matches!(r, Err(DavError::PreconditionFailed)));
     }
 
@@ -463,9 +539,16 @@ mod tests {
     async fn contact_put_if_none_match_star_new_succeeds() {
         let s = MemAB::default();
         let bid = s.add_book("u", "B");
-        let r = contact_put(&s, bid, "new", None, Some("*"), "BEGIN:VCARD\nFN:N\nEND:VCARD")
-            .await
-            .unwrap();
+        let r = contact_put(
+            &s,
+            bid,
+            "new",
+            None,
+            Some("*"),
+            "BEGIN:VCARD\nFN:N\nEND:VCARD",
+        )
+        .await
+        .unwrap();
         assert_eq!(r.status, 201);
     }
 
@@ -606,6 +689,10 @@ mod tests {
         s.ensure_default_address_book("u").await.unwrap();
         s.ensure_default_address_book("u").await.unwrap();
         let books = s.list_address_books("u").await.unwrap();
-        assert_eq!(books.len(), 1, "called 3 times; should still only have 1 Default");
+        assert_eq!(
+            books.len(),
+            1,
+            "called 3 times; should still only have 1 Default"
+        );
     }
 }

@@ -41,7 +41,7 @@ pub mod policy;
 pub mod record;
 
 pub use cache::{Cache, CachedPolicy, InMemoryCache};
-pub use enforce::{enforce, mx_matches, policy_url, Decision};
+pub use enforce::{Decision, enforce, mx_matches, policy_url};
 pub use error::MtaStsError;
 pub use policy::{Policy, PolicyMode};
 pub use record::StsRecord;

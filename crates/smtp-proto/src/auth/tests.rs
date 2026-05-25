@@ -1,5 +1,5 @@
+use crate::auth::{AuthError, decode_login_response, decode_plain};
 use base64::Engine;
-use crate::auth::{decode_login_response, decode_plain, AuthError};
 
 // --- PLAIN decoding ---
 
@@ -13,7 +13,10 @@ fn decode_plain_valid() {
 #[test]
 fn decode_plain_with_authzid() {
     // format: authzid\0authcid\0passwd
-    let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, "admin\0test\0pass");
+    let encoded = base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        "admin\0test\0pass",
+    );
     let (user, pass) = decode_plain(&encoded).unwrap();
     assert_eq!(user, "test");
     assert_eq!(pass, "pass");
@@ -84,8 +87,7 @@ fn decode_login_invalid_base64() {
 #[test]
 fn decode_plain_only_one_null() {
     // only one null separator — second null missing
-    let encoded = base64::engine::general_purpose::STANDARD
-        .encode("\0user");
+    let encoded = base64::engine::general_purpose::STANDARD.encode("\0user");
     assert!(matches!(
         decode_plain(&encoded),
         Err(AuthError::MalformedPayload)

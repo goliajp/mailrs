@@ -10,7 +10,7 @@
 //!   `invite_extract` + `parse_invite` to lock in the wire-format quirks
 //!   each vendor ships.
 
-use super::{parse_invite, serialize, CalDateTime, EventStatus, IcalError, Method, PartStat, Role};
+use super::{CalDateTime, EventStatus, IcalError, Method, PartStat, Role, parse_invite, serialize};
 use chrono::TimeZone;
 
 /// Build a minimal VEVENT-bearing VCALENDAR with the given inner body. The
@@ -360,7 +360,10 @@ fn parses_three_attendees() {
     let inv = parse_invite(&bytes).expect("parse");
     assert_eq!(inv.attendees.len(), 3);
     let emails: Vec<_> = inv.attendees.iter().map(|a| a.email.as_str()).collect();
-    assert_eq!(emails, vec!["alice@example.com", "bob@example.com", "carol@example.com"]);
+    assert_eq!(
+        emails,
+        vec!["alice@example.com", "bob@example.com", "carol@example.com"]
+    );
 }
 
 #[test]
@@ -502,7 +505,10 @@ fn exdate_single_utc() {
     assert_eq!(inv.exdate.len(), 1);
     match &inv.exdate[0] {
         CalDateTime::Utc(dt) => {
-            assert_eq!(*dt, chrono::Utc.with_ymd_and_hms(1998, 4, 2, 17, 0, 0).unwrap());
+            assert_eq!(
+                *dt,
+                chrono::Utc.with_ymd_and_hms(1998, 4, 2, 17, 0, 0).unwrap()
+            );
         }
         other => panic!("expected Utc, got {other:?}"),
     }
@@ -803,7 +809,10 @@ fn no_vevent_in_vcalendar_returns_no_event() {
     let bytes: &[u8] = b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//EN\r\nMETHOD:REQUEST\r\n\
 END:VCALENDAR\r\n";
     let err = parse_invite(bytes).unwrap_err();
-    assert!(matches!(err, IcalError::NoEvent | IcalError::InvalidSemantics(_)));
+    assert!(matches!(
+        err,
+        IcalError::NoEvent | IcalError::InvalidSemantics(_)
+    ));
 }
 
 #[test]

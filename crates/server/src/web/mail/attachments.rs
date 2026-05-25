@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Multipart, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Serialize;
 
 use crate::message_util;
@@ -70,27 +70,27 @@ pub(crate) async fn get_attachment(
                     };
                     let body = att.body.clone();
 
-                        // use inline for browser-viewable types, attachment for the rest
-                        let inline = content_type.starts_with("image/")
-                            || content_type.starts_with("text/")
-                            || content_type == "application/pdf";
-                        let param = mailrs_rfc2231::encode_param("filename", &filename);
-                        let disposition = if inline {
-                            format!("inline; {param}")
-                        } else {
-                            format!("attachment; {param}")
-                        };
+                    // use inline for browser-viewable types, attachment for the rest
+                    let inline = content_type.starts_with("image/")
+                        || content_type.starts_with("text/")
+                        || content_type == "application/pdf";
+                    let param = mailrs_rfc2231::encode_param("filename", &filename);
+                    let disposition = if inline {
+                        format!("inline; {param}")
+                    } else {
+                        format!("attachment; {param}")
+                    };
 
-                        return (
-                            StatusCode::OK,
-                            [
-                                ("content-type", content_type),
-                                ("content-disposition", disposition),
-                            ],
-                            body,
-                        );
-                    }
+                    return (
+                        StatusCode::OK,
+                        [
+                            ("content-type", content_type),
+                            ("content-disposition", disposition),
+                        ],
+                        body,
+                    );
                 }
+            }
         }
     }
 
@@ -208,14 +208,15 @@ pub(crate) async fn upload_inline_image(
     let path = crate::inline_image::inline_path(&state.maildir_root, &user, &id, ext);
 
     if let Some(parent) = path.parent()
-        && let Err(e) = tokio::fs::create_dir_all(parent).await {
-            return Json(InlineUploadResult {
-                success: false,
-                id: None,
-                url: None,
-                message: Some(format!("create dir: {e}")),
-            });
-        }
+        && let Err(e) = tokio::fs::create_dir_all(parent).await
+    {
+        return Json(InlineUploadResult {
+            success: false,
+            id: None,
+            url: None,
+            message: Some(format!("create dir: {e}")),
+        });
+    }
 
     if let Err(e) = tokio::fs::write(&path, &data).await {
         return Json(InlineUploadResult {

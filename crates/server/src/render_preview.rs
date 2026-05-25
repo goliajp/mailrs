@@ -108,7 +108,8 @@ impl RenderPreviewClient {
 
     /// resolve the full WebSocket debugger URL from the CDP base URL
     async fn resolve_ws_url(&self) -> Result<String, String> {
-        let host = self.cdp_url
+        let host = self
+            .cdp_url
             .replace("ws://", "")
             .replace("wss://", "")
             .split('/')
@@ -122,7 +123,8 @@ impl RenderPreviewClient {
             .build()
             .unwrap_or_default();
 
-        let text = client.get(&version_url)
+        let text = client
+            .get(&version_url)
             .header("Host", "localhost")
             .send()
             .await
@@ -131,15 +133,20 @@ impl RenderPreviewClient {
             .await
             .map_err(|e| format!("CDP version read failed: {e}"))?;
 
-        let resp: serde_json::Value = serde_json::from_str(&text)
-            .map_err(|e| format!("CDP version parse failed: {e} body={}", &text[..text.len().min(200)]))?;
+        let resp: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+            format!(
+                "CDP version parse failed: {e} body={}",
+                &text[..text.len().min(200)]
+            )
+        })?;
 
         let ws_url = resp["webSocketDebuggerUrl"]
             .as_str()
             .ok_or("webSocketDebuggerUrl not found in /json/version")?;
 
         // extract the path from the returned URL and combine with our known host
-        let path = ws_url.find("/devtools/")
+        let path = ws_url
+            .find("/devtools/")
             .map(|i| &ws_url[i..])
             .unwrap_or("/devtools/browser/unknown");
         let fixed = format!("ws://{host}{path}");
@@ -163,9 +170,7 @@ impl RenderPreviewClient {
             .map_err(|e| format!("CDP connect failed: {e}"))?;
 
         // spawn handler to process CDP events
-        tokio::spawn(async move {
-            while handler.next().await.is_some() {}
-        });
+        tokio::spawn(async move { while handler.next().await.is_some() {} });
 
         let browser = Arc::new(browser);
         *guard = Some(browser.clone());
@@ -265,10 +270,7 @@ impl RenderPreviewClient {
                 find_preset("mobile").unwrap(),
             ]
         } else {
-            preset_names
-                .iter()
-                .filter_map(|n| find_preset(n))
-                .collect()
+            preset_names.iter().filter_map(|n| find_preset(n)).collect()
         };
 
         let mut results = Vec::new();
@@ -359,15 +361,16 @@ fn extract_body_content(html: &str) -> String {
 
     // extract body content
     if let Some(body_open) = lower.find("<body")
-        && let Some(body_tag_end) = lower[body_open..].find('>') {
-            let content_start = body_open + body_tag_end + 1;
-            let content_end = lower.find("</body>").unwrap_or(html.len());
-            let body = html[content_start..content_end].trim();
-            if head_styles.is_empty() {
-                return body.to_string();
-            }
-            return format!("{head_styles}{body}");
+        && let Some(body_tag_end) = lower[body_open..].find('>')
+    {
+        let content_start = body_open + body_tag_end + 1;
+        let content_end = lower.find("</body>").unwrap_or(html.len());
+        let body = html[content_start..content_end].trim();
+        if head_styles.is_empty() {
+            return body.to_string();
         }
+        return format!("{head_styles}{body}");
+    }
 
     html.to_string()
 }
@@ -382,8 +385,7 @@ fn restore_proxy_urls(html: &str) -> String {
         let after = &remaining[idx + 21..]; // skip "/api/proxy/image?url="
 
         // find the end of the URL (either & for token param, or quote char)
-        let end = after.find(['"', '\'', '&'])
-            .unwrap_or(after.len());
+        let end = after.find(['"', '\'', '&']).unwrap_or(after.len());
         let encoded_url = &after[..end];
         match urlencoding::decode(encoded_url) {
             Ok(decoded) => result.push_str(&decoded),
@@ -395,8 +397,7 @@ fn restore_proxy_urls(html: &str) -> String {
 
         // skip past any &token=... parameter
         let skip_to = if end < after.len() && after.as_bytes()[end] == b'&' {
-            after[end..].find(['"', '\''])
-                .unwrap_or(after.len() - end) + end
+            after[end..].find(['"', '\'']).unwrap_or(after.len() - end) + end
         } else {
             end
         };
@@ -459,7 +460,8 @@ mod tests {
 
     #[test]
     fn extract_body_strips_html_wrapper() {
-        let html = r#"<html><head><style>.x{color:red}</style></head><body><p>hello</p></body></html>"#;
+        let html =
+            r#"<html><head><style>.x{color:red}</style></head><body><p>hello</p></body></html>"#;
         let result = extract_body_content(html);
         assert!(result.contains("<p>hello</p>"));
         assert!(result.contains(".x{color:red}"));
@@ -476,7 +478,8 @@ mod tests {
 
     #[test]
     fn restore_proxy_urls_converts_back() {
-        let html = r#"<img src="/api/proxy/image?url=https%3A%2F%2Fexample.com%2Fimg.png&token=abc123">"#;
+        let html =
+            r#"<img src="/api/proxy/image?url=https%3A%2F%2Fexample.com%2Fimg.png&token=abc123">"#;
         let result = restore_proxy_urls(html);
         assert!(result.contains(r#"src="https://example.com/img.png""#));
         assert!(!result.contains("/api/proxy/image"));

@@ -2,10 +2,9 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
-
 
 use super::super::super::{ApiResult, AuthUser, WebState};
 use super::super::*;
@@ -16,7 +15,10 @@ pub(crate) async fn dismiss_action(
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > crate::web::MAX_PATH_LEN {
-        return Json(ApiResult { success: false, message: Some("thread id too long".into()) });
+        return Json(ApiResult {
+            success: false,
+            message: Some("thread id too long".into()),
+        });
     }
     let Some(ref mb_store) = state.mailbox_store else {
         return Json(ApiResult {
@@ -36,7 +38,6 @@ pub(crate) async fn dismiss_action(
         }),
     }
 }
-
 
 pub(crate) async fn record_feedback(
     AuthUser { address: user, .. }: AuthUser,
@@ -85,7 +86,6 @@ pub(crate) async fn record_feedback(
     }
 }
 
-
 pub(crate) async fn toggle_reaction(
     Path((thread_id, uid)): Path<(String, i64)>,
     AuthUser { address: user, .. }: AuthUser,
@@ -110,7 +110,7 @@ pub(crate) async fn toggle_reaction(
         "INSERT INTO reactions (message_uid, thread_id, account_address, emoji)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (message_uid, account_address, emoji) DO NOTHING
-         RETURNING true"
+         RETURNING true",
     )
     .bind(uid)
     .bind(&thread_id)
@@ -124,7 +124,7 @@ pub(crate) async fn toggle_reaction(
     if inserted.is_none() {
         // row already existed — remove it
         let _ = sqlx::query(
-            "DELETE FROM reactions WHERE message_uid = $1 AND account_address = $2 AND emoji = $3"
+            "DELETE FROM reactions WHERE message_uid = $1 AND account_address = $2 AND emoji = $3",
         )
         .bind(uid)
         .bind(&user)

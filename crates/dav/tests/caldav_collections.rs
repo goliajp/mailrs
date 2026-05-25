@@ -2,20 +2,20 @@
 //! collection, PROPFIND on a single calendar, and REPORT
 //! (calendar-multiget / calendar-query).
 
-
-use mailrs_dav::fixtures::{
-    InMemoryCalendarStore, EXAMPLE_USER, body_as_str, header_value, make_calendar, make_event,
-};
 use mailrs_dav::caldav::{calendar_home_propfind, calendar_propfind, calendar_report};
+use mailrs_dav::fixtures::{
+    EXAMPLE_USER, InMemoryCalendarStore, body_as_str, header_value, make_calendar, make_event,
+};
 
 // ---------- calendar_home_propfind ----------
 
 #[tokio::test]
 async fn calendar_home_propfind_depth_zero_returns_only_home_collection() {
-    let store = InMemoryCalendarStore::new()
-        .with_calendar(EXAMPLE_USER, make_calendar(1, "Work"));
+    let store = InMemoryCalendarStore::new().with_calendar(EXAMPLE_USER, make_calendar(1, "Work"));
 
-    let resp = calendar_home_propfind(&store, EXAMPLE_USER, 0).await.unwrap();
+    let resp = calendar_home_propfind(&store, EXAMPLE_USER, 0)
+        .await
+        .unwrap();
     let body = body_as_str(resp.body);
 
     assert_eq!(resp.status, 207);
@@ -32,7 +32,9 @@ async fn calendar_home_propfind_depth_one_lists_child_calendars_with_metadata() 
     cal.description = "Work events".into();
     let store = InMemoryCalendarStore::new().with_calendar(EXAMPLE_USER, cal);
 
-    let resp = calendar_home_propfind(&store, EXAMPLE_USER, 1).await.unwrap();
+    let resp = calendar_home_propfind(&store, EXAMPLE_USER, 1)
+        .await
+        .unwrap();
     let body = body_as_str(resp.body);
 
     assert!(body.contains(&format!("/dav/calendars/{EXAMPLE_USER}/Work/")));
@@ -48,17 +50,21 @@ async fn calendar_home_propfind_depth_one_lists_child_calendars_with_metadata() 
 async fn calendar_home_propfind_auto_creates_default_when_user_has_none() {
     let store = InMemoryCalendarStore::new();
 
-    let _ = calendar_home_propfind(&store, EXAMPLE_USER, 1).await.unwrap();
+    let _ = calendar_home_propfind(&store, EXAMPLE_USER, 1)
+        .await
+        .unwrap();
 
     assert!(store.default_calendar_was_created_for(EXAMPLE_USER));
 }
 
 #[tokio::test]
 async fn calendar_home_propfind_url_encodes_calendar_name_segment() {
-    let store = InMemoryCalendarStore::new()
-        .with_calendar(EXAMPLE_USER, make_calendar(1, "Work + Play"));
+    let store =
+        InMemoryCalendarStore::new().with_calendar(EXAMPLE_USER, make_calendar(1, "Work + Play"));
 
-    let resp = calendar_home_propfind(&store, EXAMPLE_USER, 1).await.unwrap();
+    let resp = calendar_home_propfind(&store, EXAMPLE_USER, 1)
+        .await
+        .unwrap();
     let body = body_as_str(resp.body);
 
     // space → %20, + → %2B
@@ -71,7 +77,9 @@ async fn calendar_home_propfind_only_returns_calendars_for_requested_user() {
         .with_calendar(EXAMPLE_USER, make_calendar(1, "Mine"))
         .with_calendar("bob@example.com", make_calendar(2, "Bobs"));
 
-    let resp = calendar_home_propfind(&store, EXAMPLE_USER, 1).await.unwrap();
+    let resp = calendar_home_propfind(&store, EXAMPLE_USER, 1)
+        .await
+        .unwrap();
     let body = body_as_str(resp.body);
 
     assert!(body.contains(&format!("/dav/calendars/{EXAMPLE_USER}/Mine/")));
@@ -84,7 +92,10 @@ async fn calendar_home_propfind_only_returns_calendars_for_requested_user() {
 async fn calendar_propfind_depth_zero_returns_only_collection_metadata() {
     let store = InMemoryCalendarStore::new()
         .with_calendar(EXAMPLE_USER, make_calendar(10, "Work"))
-        .with_event(10, make_event("evt-1", "BEGIN:VEVENT\nUID:evt-1\nEND:VEVENT"));
+        .with_event(
+            10,
+            make_event("evt-1", "BEGIN:VEVENT\nUID:evt-1\nEND:VEVENT"),
+        );
 
     let resp = calendar_propfind(&store, EXAMPLE_USER, "Work", 10, 0)
         .await
@@ -102,7 +113,13 @@ async fn calendar_propfind_depth_zero_returns_only_collection_metadata() {
 async fn calendar_propfind_depth_one_lists_event_etags_without_calendar_data() {
     let store = InMemoryCalendarStore::new()
         .with_calendar(EXAMPLE_USER, make_calendar(10, "Work"))
-        .with_event(10, make_event("evt-1", "BEGIN:VEVENT\nUID:evt-1\nSUMMARY:lunch\nEND:VEVENT"));
+        .with_event(
+            10,
+            make_event(
+                "evt-1",
+                "BEGIN:VEVENT\nUID:evt-1\nSUMMARY:lunch\nEND:VEVENT",
+            ),
+        );
 
     let resp = calendar_propfind(&store, EXAMPLE_USER, "Work", 10, 1)
         .await
@@ -178,8 +195,7 @@ async fn calendar_report_multiget_with_no_hrefs_returns_empty_multistatus() {
 
 #[tokio::test]
 async fn calendar_report_on_empty_calendar_returns_empty_multistatus() {
-    let store = InMemoryCalendarStore::new()
-        .with_calendar(EXAMPLE_USER, make_calendar(10, "Work"));
+    let store = InMemoryCalendarStore::new().with_calendar(EXAMPLE_USER, make_calendar(10, "Work"));
 
     let body = "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\"/>";
     let resp = calendar_report(&store, EXAMPLE_USER, "Work", 10, body)
@@ -224,8 +240,7 @@ async fn calendar_report_escapes_calendar_data_for_xml_safety() {
 
 #[tokio::test]
 async fn multistatus_envelope_declares_both_caldav_and_carddav_namespaces() {
-    let store = InMemoryCalendarStore::new()
-        .with_calendar(EXAMPLE_USER, make_calendar(10, "Work"));
+    let store = InMemoryCalendarStore::new().with_calendar(EXAMPLE_USER, make_calendar(10, "Work"));
 
     let resp = calendar_propfind(&store, EXAMPLE_USER, "Work", 10, 0)
         .await

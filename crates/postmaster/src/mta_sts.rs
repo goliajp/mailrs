@@ -43,7 +43,6 @@ pub(super) async fn check_mta_sts_record(resolver: &TokioResolver, domain: &str)
     }
 }
 
-
 pub(super) async fn check_mta_sts_policy(domain: &str) -> CheckResult {
     let url = format!("https://mta-sts.{domain}/.well-known/mta-sts.txt");
     let client = reqwest::Client::builder()
@@ -96,7 +95,6 @@ pub(super) async fn check_mta_sts_policy(domain: &str) -> CheckResult {
     }
 }
 
-
 /// Parse an MTA-STS policy body and extract key-value fields.
 ///
 /// Returns a `Vec<(key, value)>` of every non-blank line; handles both
@@ -114,9 +112,3 @@ pub fn parse_mta_sts_policy(body: &str) -> Vec<(String, String)> {
         })
         .collect()
 }
-
-
-
-
-
-

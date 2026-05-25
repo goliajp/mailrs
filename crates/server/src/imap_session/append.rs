@@ -10,10 +10,10 @@
 //! `[APPENDUID <uidvalidity> <uid>] APPEND completed` response
 //! per RFC 4315.
 
-use mailrs_imap_proto::{format_no, format_ok};
 use mailrs_imap_format::parse_imap_flags;
+use mailrs_imap_proto::{format_no, format_ok};
 
-use super::{strs_to_bytes, HandleResult, ImapSession, ImapState, PendingAppend};
+use super::{HandleResult, ImapSession, ImapState, PendingAppend, strs_to_bytes};
 
 impl ImapSession {
     pub(super) async fn handle_append_start(

@@ -24,7 +24,10 @@ fn parse_clean_under_budget() {
     });
     // Budget: 2 µs (release ~25 ns).
     let budget = Duration::from_micros(2);
-    assert!(median < budget, "parse_clean median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "parse_clean median {median:?} > {budget:?}"
+    );
 }
 
 #[test]
@@ -34,7 +37,10 @@ fn parse_virus_under_budget() {
     });
     // Budget: 5 µs (release ~70 ns).
     let budget = Duration::from_micros(5);
-    assert!(median < budget, "parse_virus median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "parse_virus median {median:?} > {budget:?}"
+    );
 }
 
 #[test]
@@ -44,5 +50,8 @@ fn parse_error_under_budget() {
     });
     // Budget: 5 µs (release ~95 ns).
     let budget = Duration::from_micros(5);
-    assert!(median < budget, "parse_error median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "parse_error median {median:?} > {budget:?}"
+    );
 }

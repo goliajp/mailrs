@@ -65,7 +65,10 @@ pub fn verify_chain(chain: &ArcChain) -> ChainOutcome {
     }
     if chain.sets.len() > MAX_INSTANCE as usize {
         return ChainOutcome::Fail {
-            reason: format!("chain length {} exceeds RFC 8617 §4.2.1 max of 50", chain.sets.len()),
+            reason: format!(
+                "chain length {} exceeds RFC 8617 §4.2.1 max of 50",
+                chain.sets.len()
+            ),
         };
     }
     // First set must have cv=none; every later set must have cv=pass
@@ -74,10 +77,7 @@ pub fn verify_chain(chain: &ArcChain) -> ChainOutcome {
         if idx == 0 {
             if set.seal.cv != ArcSealCv::None {
                 return ChainOutcome::Fail {
-                    reason: format!(
-                        "first ARC-Seal must have cv=none, got cv={:?}",
-                        set.seal.cv
-                    ),
+                    reason: format!("first ARC-Seal must have cv=none, got cv={:?}", set.seal.cv),
                 };
             }
         } else if set.seal.cv == ArcSealCv::None {
@@ -91,7 +91,9 @@ pub fn verify_chain(chain: &ArcChain) -> ChainOutcome {
     // which keys the map on the parsed i=. Double-check for paranoia.
     for (idx, set) in chain.sets.iter().enumerate() {
         let expected = (idx + 1) as u32;
-        if set.i != expected || set.aar.instance != expected || set.ams.instance != expected
+        if set.i != expected
+            || set.aar.instance != expected
+            || set.ams.instance != expected
             || set.seal.instance != expected
         {
             return ChainOutcome::Fail {
@@ -158,13 +160,17 @@ mod tests {
 
     const SET1_AAR: &str = "ARC-Authentication-Results: i=1; spf=pass\r\n";
     const SET1_AMS: &str = "ARC-Message-Signature: i=1; a=rsa-sha256; d=example.com; s=mail; h=From; bh=BH1; b=SIG1\r\n";
-    const SET1_AS_NONE: &str = "ARC-Seal: i=1; a=rsa-sha256; cv=none; d=example.com; s=mail; b=SEAL1\r\n";
-    const SET1_AS_PASS: &str = "ARC-Seal: i=1; a=rsa-sha256; cv=pass; d=example.com; s=mail; b=SEAL1\r\n";
+    const SET1_AS_NONE: &str =
+        "ARC-Seal: i=1; a=rsa-sha256; cv=none; d=example.com; s=mail; b=SEAL1\r\n";
+    const SET1_AS_PASS: &str =
+        "ARC-Seal: i=1; a=rsa-sha256; cv=pass; d=example.com; s=mail; b=SEAL1\r\n";
 
     const SET2_AAR: &str = "ARC-Authentication-Results: i=2; dkim=pass\r\n";
     const SET2_AMS: &str = "ARC-Message-Signature: i=2; a=rsa-sha256; d=forwarder.example; s=mail; h=From; bh=BH2; b=SIG2\r\n";
-    const SET2_AS_PASS: &str = "ARC-Seal: i=2; a=rsa-sha256; cv=pass; d=forwarder.example; s=mail; b=SEAL2\r\n";
-    const SET2_AS_NONE: &str = "ARC-Seal: i=2; a=rsa-sha256; cv=none; d=forwarder.example; s=mail; b=SEAL2\r\n";
+    const SET2_AS_PASS: &str =
+        "ARC-Seal: i=2; a=rsa-sha256; cv=pass; d=forwarder.example; s=mail; b=SEAL2\r\n";
+    const SET2_AS_NONE: &str =
+        "ARC-Seal: i=2; a=rsa-sha256; cv=none; d=forwarder.example; s=mail; b=SEAL2\r\n";
 
     #[test]
     fn single_set_with_cv_none_passes_structural() {
@@ -183,7 +189,14 @@ mod tests {
 
     #[test]
     fn two_set_normal_chain_passes_structural() {
-        let m = msg_with(&[SET1_AAR, SET1_AMS, SET1_AS_NONE, SET2_AAR, SET2_AMS, SET2_AS_PASS]);
+        let m = msg_with(&[
+            SET1_AAR,
+            SET1_AMS,
+            SET1_AS_NONE,
+            SET2_AAR,
+            SET2_AMS,
+            SET2_AS_PASS,
+        ]);
         let chain = ArcChain::extract(&m).unwrap().unwrap();
         assert_eq!(verify_chain(&chain), ChainOutcome::Pass);
     }
@@ -191,7 +204,14 @@ mod tests {
     #[test]
     fn later_set_with_cv_none_fails_structural() {
         // Second set with cv=none is illegal.
-        let m = msg_with(&[SET1_AAR, SET1_AMS, SET1_AS_NONE, SET2_AAR, SET2_AMS, SET2_AS_NONE]);
+        let m = msg_with(&[
+            SET1_AAR,
+            SET1_AMS,
+            SET1_AS_NONE,
+            SET2_AAR,
+            SET2_AMS,
+            SET2_AS_NONE,
+        ]);
         let chain = ArcChain::extract(&m).unwrap().unwrap();
         assert!(matches!(verify_chain(&chain), ChainOutcome::Fail { .. }));
     }

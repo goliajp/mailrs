@@ -238,16 +238,16 @@ fn parse_mechanism(token: &str) -> Result<Mechanism, SpfError> {
             })
         }
         b"include" => {
-            let v = value
-                .ok_or_else(|| SpfError::InvalidRecord("include: missing domain".into()))?;
+            let v =
+                value.ok_or_else(|| SpfError::InvalidRecord("include: missing domain".into()))?;
             Ok(Mechanism::Include {
                 qualifier,
                 domain: v.to_string(),
             })
         }
         b"exists" => {
-            let v = value
-                .ok_or_else(|| SpfError::InvalidRecord("exists: missing domain".into()))?;
+            let v =
+                value.ok_or_else(|| SpfError::InvalidRecord("exists: missing domain".into()))?;
             Ok(Mechanism::Exists {
                 qualifier,
                 domain: v.to_string(),
@@ -289,9 +289,7 @@ fn parse_addr_and_prefix(value: &str, default: u8) -> Result<(&str, u8), SpfErro
 }
 
 /// Parse the optional `:domain/prefix4//prefix6` suffix on `a` and `mx`.
-fn parse_a_mx_value(
-    value: Option<&str>,
-) -> Result<(Option<String>, u8, u8), SpfError> {
+fn parse_a_mx_value(value: Option<&str>) -> Result<(Option<String>, u8, u8), SpfError> {
     let Some(v) = value else {
         return Ok((None, 32, 128));
     };
@@ -300,9 +298,7 @@ fn parse_a_mx_value(
         Some(idx) => (Some(&v[..idx]), &v[idx..]),
         None => (Some(v), ""),
     };
-    let domain = domain_part
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string());
+    let domain = domain_part.filter(|s| !s.is_empty()).map(|s| s.to_string());
 
     let (ip4_prefix, ip6_prefix) = if prefix_part.is_empty() {
         (32u8, 128u8)
@@ -344,7 +340,11 @@ pub(crate) fn ip_in_subnet(ip: IpAddr, subnet: IpAddr, prefix: u8) -> bool {
             if prefix > 32 {
                 return false;
             }
-            let mask: u32 = if prefix == 32 { u32::MAX } else { !((1u32 << (32 - prefix)) - 1) };
+            let mask: u32 = if prefix == 32 {
+                u32::MAX
+            } else {
+                !((1u32 << (32 - prefix)) - 1)
+            };
             (u32::from_be_bytes(a.octets()) & mask) == (u32::from_be_bytes(b.octets()) & mask)
         }
         (IpAddr::V6(a), IpAddr::V6(b)) => {
@@ -486,7 +486,13 @@ mod tests {
     #[test]
     fn parse_record_with_a_and_prefix() {
         let r = Record::parse("v=spf1 a:example.com/24 -all").unwrap();
-        if let Mechanism::A { domain, ip4_prefix, ip6_prefix, .. } = &r.mechanisms[0] {
+        if let Mechanism::A {
+            domain,
+            ip4_prefix,
+            ip6_prefix,
+            ..
+        } = &r.mechanisms[0]
+        {
             assert_eq!(domain.as_deref(), Some("example.com"));
             assert_eq!(*ip4_prefix, 24);
             assert_eq!(*ip6_prefix, 128);
@@ -498,7 +504,12 @@ mod tests {
     #[test]
     fn parse_record_with_a_v4_and_v6_prefixes() {
         let r = Record::parse("v=spf1 a:example.com/24//64 -all").unwrap();
-        if let Mechanism::A { ip4_prefix, ip6_prefix, .. } = r.mechanisms[0] {
+        if let Mechanism::A {
+            ip4_prefix,
+            ip6_prefix,
+            ..
+        } = r.mechanisms[0]
+        {
             assert_eq!(ip4_prefix, 24);
             assert_eq!(ip6_prefix, 64);
         } else {

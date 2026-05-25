@@ -90,7 +90,7 @@ embedded-text PDFs.
 | **test** | line cov: 84.9% (`cargo llvm-cov -p mailrs-attachment-extract --summary-only`) |
 | **bench** | ✅ 1 file(s) criterion + ✅ 1 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 128 KB |
-| **fuzz** | ❌ none |
+| **fuzz** | ✅ 1 target(s) |
 | **mem**  | dhat profile pending (v3.4 backlog) |
 
 ### Competitor comparisons

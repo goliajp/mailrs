@@ -39,10 +39,7 @@ pub fn build_email_meta(msg: &Message, email_id: &str, properties: &Option<Vec<&
     obj.insert("id".to_string(), Value::String(email_id.to_string()));
 
     if wants("threadId") {
-        obj.insert(
-            "threadId".to_string(),
-            Value::String(msg.thread_id.clone()),
-        );
+        obj.insert("threadId".to_string(), Value::String(msg.thread_id.clone()));
     }
 
     if wants("mailboxIds") {
@@ -88,10 +85,7 @@ pub fn build_email_meta(msg: &Message, email_id: &str, properties: &Option<Vec<&
     }
 
     if wants("messageId") {
-        obj.insert(
-            "messageId".to_string(),
-            serde_json::json!([msg.message_id]),
-        );
+        obj.insert("messageId".to_string(), serde_json::json!([msg.message_id]));
     }
 
     if wants("inReplyTo") {
@@ -128,7 +122,11 @@ pub fn build_email_meta(msg: &Message, email_id: &str, properties: &Option<Vec<&
 /// Append body / attachment fields to a previously-built Email object using
 /// a [`ParsedBody`]. `parsed` of `None` means the raw bytes weren't readable;
 /// the handler still emits empty body fields rather than dropping the email.
-pub fn extend_with_body(obj: &mut Value, parsed: Option<&ParsedBody>, properties: &Option<Vec<&str>>) {
+pub fn extend_with_body(
+    obj: &mut Value,
+    parsed: Option<&ParsedBody>,
+    properties: &Option<Vec<&str>>,
+) {
     let include_all = properties.is_none();
     let props = properties.as_ref();
     let wants = |name: &str| include_all || props.is_some_and(|p| p.contains(&name));

@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mailrs_delivery_executor::DeliveryExecutor;
 use std::hint::black_box;
 

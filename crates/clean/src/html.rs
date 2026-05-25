@@ -15,17 +15,26 @@ pub(super) fn detect_tracking_pixels(html: &str) -> bool {
         let tag = &lower[img_start..img_end];
 
         // size-based detection
-        let is_tiny = (tag.contains("width=\"1\"") || tag.contains("width='1'")
-            || tag.contains("width:1") || tag.contains("width: 1")
-            || tag.contains("width=\"0\"") || tag.contains("width='0'"))
-            && (tag.contains("height=\"1\"") || tag.contains("height='1'")
-                || tag.contains("height:1") || tag.contains("height: 1")
-                || tag.contains("height=\"0\"") || tag.contains("height='0'"));
+        let is_tiny = (tag.contains("width=\"1\"")
+            || tag.contains("width='1'")
+            || tag.contains("width:1")
+            || tag.contains("width: 1")
+            || tag.contains("width=\"0\"")
+            || tag.contains("width='0'"))
+            && (tag.contains("height=\"1\"")
+                || tag.contains("height='1'")
+                || tag.contains("height:1")
+                || tag.contains("height: 1")
+                || tag.contains("height=\"0\"")
+                || tag.contains("height='0'"));
 
         // hidden via css
-        let is_hidden = tag.contains("display:none") || tag.contains("display: none")
-            || tag.contains("visibility:hidden") || tag.contains("visibility: hidden")
-            || tag.contains("opacity:0") || tag.contains("opacity: 0");
+        let is_hidden = tag.contains("display:none")
+            || tag.contains("display: none")
+            || tag.contains("visibility:hidden")
+            || tag.contains("visibility: hidden")
+            || tag.contains("opacity:0")
+            || tag.contains("opacity: 0");
 
         if is_tiny || is_hidden {
             return true;
@@ -93,12 +102,17 @@ pub(super) fn remove_tracking_and_hidden(html: &str) -> String {
             let tag_lower = &lower[img_start..img_end];
 
             // check if tracking pixel
-            let is_tiny = (tag_lower.contains("width=\"1\"") || tag_lower.contains("width='1'")
-                || tag_lower.contains("width=\"0\"") || tag_lower.contains("width='0'"))
-                && (tag_lower.contains("height=\"1\"") || tag_lower.contains("height='1'")
-                    || tag_lower.contains("height=\"0\"") || tag_lower.contains("height='0'"));
+            let is_tiny = (tag_lower.contains("width=\"1\"")
+                || tag_lower.contains("width='1'")
+                || tag_lower.contains("width=\"0\"")
+                || tag_lower.contains("width='0'"))
+                && (tag_lower.contains("height=\"1\"")
+                    || tag_lower.contains("height='1'")
+                    || tag_lower.contains("height=\"0\"")
+                    || tag_lower.contains("height='0'"));
 
-            let is_hidden = tag_lower.contains("display:none") || tag_lower.contains("display: none")
+            let is_hidden = tag_lower.contains("display:none")
+                || tag_lower.contains("display: none")
                 || tag_lower.contains("visibility:hidden");
 
             if is_tiny || is_hidden {
@@ -134,11 +148,12 @@ pub(super) fn remove_hidden_blocks(html: &str) -> String {
                 let tag_lower = &lower[tag_start..];
                 // find the tag name
                 if let Some(tag_name) = extract_tag_name(tag_lower)
-                    && let Some(end) = find_closing_tag(&lower[tag_start..], &tag_name) {
-                        result.push_str(&html[pos..tag_start]);
-                        pos = tag_start + end;
-                        continue;
-                    }
+                    && let Some(end) = find_closing_tag(&lower[tag_start..], &tag_name)
+                {
+                    result.push_str(&html[pos..tag_start]);
+                    pos = tag_start + end;
+                    continue;
+                }
             }
             result.push_str(&html[pos..check_pos + 12]);
             pos = check_pos + 12;
@@ -162,10 +177,11 @@ pub(super) fn remove_template_chrome(html: &str) -> (String, bool) {
         if let Some(pos) = lower.rfind(keyword) {
             // find the enclosing block element (td, div, tr)
             if let Some(block_start) = find_enclosing_block_start(&lower[..pos])
-                && block_start < earliest_footer {
-                    earliest_footer = block_start;
-                    footer_removed = true;
-                }
+                && block_start < earliest_footer
+            {
+                earliest_footer = block_start;
+                footer_removed = true;
+            }
         }
     }
 
@@ -321,4 +337,3 @@ pub(super) fn count_pattern(html: &str, pattern: &str) -> usize {
     let lower = html.to_lowercase();
     lower.matches(pattern).count()
 }
-

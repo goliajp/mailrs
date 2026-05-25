@@ -63,5 +63,8 @@ fn delay_high_attempt_capped_under_budget() {
     });
     // Budget: 1 µs. multiplier^100 + min + jitter.
     let budget = Duration::from_micros(1);
-    assert!(median < budget, "delay/high_attempt median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "delay/high_attempt median {median:?} > {budget:?}"
+    );
 }

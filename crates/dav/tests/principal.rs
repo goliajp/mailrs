@@ -1,7 +1,6 @@
 //! Integration tests for `principal_propfind` — the `/dav/` discovery handler
 //! (RFC 5397 + RFC 4791 §6.2.1 + RFC 6352 §7.1.1).
 
-
 use mailrs_dav::fixtures::{EXAMPLE_USER, body_as_str, header_value};
 use mailrs_dav::principal::principal_propfind;
 

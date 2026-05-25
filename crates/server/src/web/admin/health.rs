@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 
 use super::*;
 
@@ -82,49 +82,101 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
     let _ = writeln!(body, "# HELP mailrs_uptime_seconds Time since server start");
     let _ = writeln!(body, "# TYPE mailrs_uptime_seconds gauge");
     let _ = writeln!(body, "mailrs_uptime_seconds {uptime}");
-    let _ = writeln!(body, "# HELP mailrs_connections_total Total connections accepted");
+    let _ = writeln!(
+        body,
+        "# HELP mailrs_connections_total Total connections accepted"
+    );
     let _ = writeln!(body, "# TYPE mailrs_connections_total counter");
     let _ = writeln!(body, "mailrs_connections_total {total_connections}");
-    let _ = writeln!(body, "# HELP mailrs_connections_active Currently open connections");
+    let _ = writeln!(
+        body,
+        "# HELP mailrs_connections_active Currently open connections"
+    );
     let _ = writeln!(body, "# TYPE mailrs_connections_active gauge");
     let _ = writeln!(body, "mailrs_connections_active {active_connections}");
-    let _ = writeln!(body, "# HELP mailrs_messages_total Total messages delivered locally");
+    let _ = writeln!(
+        body,
+        "# HELP mailrs_messages_total Total messages delivered locally"
+    );
     let _ = writeln!(body, "# TYPE mailrs_messages_total counter");
     let _ = writeln!(body, "mailrs_messages_total {total_messages}");
     let _ = writeln!(body, "# HELP mailrs_active_sessions Active web sessions");
     let _ = writeln!(body, "# TYPE mailrs_active_sessions gauge");
     let _ = writeln!(body, "mailrs_active_sessions {active_sessions}");
-    let _ = writeln!(body, "# HELP mailrs_account_cache_size Domain store cache entries");
+    let _ = writeln!(
+        body,
+        "# HELP mailrs_account_cache_size Domain store cache entries"
+    );
     let _ = writeln!(body, "# TYPE mailrs_account_cache_size gauge");
     let _ = writeln!(body, "mailrs_account_cache_size {account_cache_size}");
-    let _ = writeln!(body, "# HELP mailrs_inbound_verdict_total Inbound DATA decisions by verdict (since process start)");
+    let _ = writeln!(
+        body,
+        "# HELP mailrs_inbound_verdict_total Inbound DATA decisions by verdict (since process start)"
+    );
     let _ = writeln!(body, "# TYPE mailrs_inbound_verdict_total counter");
-    let _ = writeln!(body, "mailrs_inbound_verdict_total{{verdict=\"accept\"}} {inbound_accept}");
-    let _ = writeln!(body, "mailrs_inbound_verdict_total{{verdict=\"reject\"}} {inbound_reject}");
-    let _ = writeln!(body, "mailrs_inbound_verdict_total{{verdict=\"defer\"}} {inbound_defer}");
-    let _ = writeln!(body, "mailrs_inbound_verdict_total{{verdict=\"junk\"}} {inbound_junk}");
-    let _ = writeln!(body, "# HELP mailrs_auth_total Web login attempts by outcome (since process start)");
+    let _ = writeln!(
+        body,
+        "mailrs_inbound_verdict_total{{verdict=\"accept\"}} {inbound_accept}"
+    );
+    let _ = writeln!(
+        body,
+        "mailrs_inbound_verdict_total{{verdict=\"reject\"}} {inbound_reject}"
+    );
+    let _ = writeln!(
+        body,
+        "mailrs_inbound_verdict_total{{verdict=\"defer\"}} {inbound_defer}"
+    );
+    let _ = writeln!(
+        body,
+        "mailrs_inbound_verdict_total{{verdict=\"junk\"}} {inbound_junk}"
+    );
+    let _ = writeln!(
+        body,
+        "# HELP mailrs_auth_total Web login attempts by outcome (since process start)"
+    );
     let _ = writeln!(body, "# TYPE mailrs_auth_total counter");
-    let _ = writeln!(body, "mailrs_auth_total{{outcome=\"success\"}} {auth_success}");
-    let _ = writeln!(body, "mailrs_auth_total{{outcome=\"failure\"}} {auth_failure}");
-    let _ = writeln!(body, "# HELP mailrs_queue_pending Pending outbound messages");
+    let _ = writeln!(
+        body,
+        "mailrs_auth_total{{outcome=\"success\"}} {auth_success}"
+    );
+    let _ = writeln!(
+        body,
+        "mailrs_auth_total{{outcome=\"failure\"}} {auth_failure}"
+    );
+    let _ = writeln!(
+        body,
+        "# HELP mailrs_queue_pending Pending outbound messages"
+    );
     let _ = writeln!(body, "# TYPE mailrs_queue_pending gauge");
     let _ = writeln!(body, "mailrs_queue_pending {pending}");
-    let _ = writeln!(body, "# HELP mailrs_queue_delivered Delivered outbound messages");
+    let _ = writeln!(
+        body,
+        "# HELP mailrs_queue_delivered Delivered outbound messages"
+    );
     let _ = writeln!(body, "# TYPE mailrs_queue_delivered gauge");
     let _ = writeln!(body, "mailrs_queue_delivered {delivered}");
     let _ = writeln!(body, "# HELP mailrs_queue_failed Failed outbound messages");
     let _ = writeln!(body, "# TYPE mailrs_queue_failed gauge");
     let _ = writeln!(body, "mailrs_queue_failed {failed}");
-    let _ = writeln!(body, "# HELP mailrs_queue_bounced Bounced outbound messages");
+    let _ = writeln!(
+        body,
+        "# HELP mailrs_queue_bounced Bounced outbound messages"
+    );
     let _ = writeln!(body, "# TYPE mailrs_queue_bounced gauge");
     let _ = writeln!(body, "mailrs_queue_bounced {bounced}");
     let _ = writeln!(body, "# HELP mailrs_health_pg_up PostgreSQL availability");
     let _ = writeln!(body, "# TYPE mailrs_health_pg_up gauge");
     let _ = writeln!(body, "mailrs_health_pg_up {}", if pg_up { 1 } else { 0 });
-    let _ = writeln!(body, "# HELP mailrs_health_valkey_up Valkey/Redis availability");
+    let _ = writeln!(
+        body,
+        "# HELP mailrs_health_valkey_up Valkey/Redis availability"
+    );
     let _ = writeln!(body, "# TYPE mailrs_health_valkey_up gauge");
-    let _ = writeln!(body, "mailrs_health_valkey_up {}", if valkey_up { 1 } else { 0 });
+    let _ = writeln!(
+        body,
+        "mailrs_health_valkey_up {}",
+        if valkey_up { 1 } else { 0 }
+    );
 
     // suppression list count
     if let Some(ref pool) = state.pg_pool {
@@ -132,7 +184,10 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
             .fetch_one(pool)
             .await
             .unwrap_or(0);
-        let _ = writeln!(body, "# HELP mailrs_suppression_count Suppressed email addresses");
+        let _ = writeln!(
+            body,
+            "# HELP mailrs_suppression_count Suppressed email addresses"
+        );
         let _ = writeln!(body, "# TYPE mailrs_suppression_count gauge");
         let _ = writeln!(body, "mailrs_suppression_count {suppression_count}");
     }
@@ -140,17 +195,28 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
     // RBL listing status
     if let Some(ref valkey) = state.valkey {
         let rbl_listed: i64 = {
-            let keys: Vec<String> = redis::cmd("KEYS").arg("rbl:status:*")
-                .query_async(&mut valkey.clone()).await.unwrap_or_default();
+            let keys: Vec<String> = redis::cmd("KEYS")
+                .arg("rbl:status:*")
+                .query_async(&mut valkey.clone())
+                .await
+                .unwrap_or_default();
             let mut listed = 0i64;
             for key in &keys {
-                if let Ok(json) = redis::cmd("GET").arg(key)
-                    .query_async::<String>(&mut valkey.clone()).await
-                    && json.contains("\"any_listed\":true") { listed += 1; }
+                if let Ok(json) = redis::cmd("GET")
+                    .arg(key)
+                    .query_async::<String>(&mut valkey.clone())
+                    .await
+                    && json.contains("\"any_listed\":true")
+                {
+                    listed += 1;
+                }
             }
             listed
         };
-        let _ = writeln!(body, "# HELP mailrs_rbl_listed IPs currently listed on RBLs");
+        let _ = writeln!(
+            body,
+            "# HELP mailrs_rbl_listed IPs currently listed on RBLs"
+        );
         let _ = writeln!(body, "# TYPE mailrs_rbl_listed gauge");
         let _ = writeln!(body, "mailrs_rbl_listed {rbl_listed}");
     }
@@ -220,8 +286,20 @@ pub(crate) async fn get_status(State(state): State<Arc<WebState>>) -> impl IntoR
 
 pub(crate) async fn get_health(State(state): State<Arc<WebState>>) -> impl IntoResponse {
     let (status_label, level, pg, valkey, uptime) = match &state.health {
-        Some(h) => (h.status_label(), h.level(), h.pg_up(), h.valkey_up(), h.uptime_secs()),
-        None => ("unhealthy", 3, false, false, state.started_at.elapsed().as_secs()),
+        Some(h) => (
+            h.status_label(),
+            h.level(),
+            h.pg_up(),
+            h.valkey_up(),
+            h.uptime_secs(),
+        ),
+        None => (
+            "unhealthy",
+            3,
+            false,
+            false,
+            state.started_at.elapsed().as_secs(),
+        ),
     };
     (
         StatusCode::OK,
@@ -242,11 +320,7 @@ pub(crate) async fn get_health(State(state): State<Arc<WebState>>) -> impl IntoR
 
 /// kubernetes-style readiness probe: returns 200 if PG is up, 503 otherwise
 pub(crate) async fn get_readiness(State(state): State<Arc<WebState>>) -> impl IntoResponse {
-    let ready = state
-        .health
-        .as_ref()
-        .map(|h| h.is_ready())
-        .unwrap_or(false);
+    let ready = state.health.as_ref().map(|h| h.is_ready()).unwrap_or(false);
     let status = if ready {
         StatusCode::OK
     } else {

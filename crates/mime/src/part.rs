@@ -44,9 +44,7 @@ impl Part {
 
     /// Depth-first iterator over self + all descendant parts.
     pub fn walk(&self) -> Walker<'_> {
-        Walker {
-            stack: vec![self],
-        }
+        Walker { stack: vec![self] }
     }
 
     /// Decode the body as text using the part's `charset=` parameter.
@@ -117,7 +115,10 @@ fn find_by_ct_recursive<'a>(
     target_subtype: &str,
 ) -> Option<&'a Part> {
     if part.content_type.type_.eq_ignore_ascii_case(target_type)
-        && part.content_type.subtype.eq_ignore_ascii_case(target_subtype)
+        && part
+            .content_type
+            .subtype
+            .eq_ignore_ascii_case(target_subtype)
     {
         return Some(part);
     }
@@ -189,8 +190,8 @@ pub fn parse(raw: &[u8]) -> Part {
         None => ContentType::default_for_missing_header(),
     };
     let disposition = header_str("Content-Disposition").map(|v| Disposition::parse(&v));
-    let content_id = header_str("Content-ID")
-        .map(|v| v.trim().trim_matches(['<', '>']).to_string());
+    let content_id =
+        header_str("Content-ID").map(|v| v.trim().trim_matches(['<', '>']).to_string());
     let transfer_encoding = header_str("Content-Transfer-Encoding")
         .map(|v| TransferEncoding::parse(&v))
         .unwrap_or(TransferEncoding::SevenBit);
@@ -296,9 +297,8 @@ fn split_multipart(body: &[u8], boundary: &str) -> Vec<Part> {
 fn find_at_line_start(body: &[u8], cursor: usize, pattern: &[u8]) -> Option<usize> {
     let mut i = cursor;
     while i + pattern.len() <= body.len() {
-        let line_start = i == 0
-            || (i >= 2 && &body[i - 2..i] == b"\r\n")
-            || (i >= 1 && body[i - 1] == b'\n');
+        let line_start =
+            i == 0 || (i >= 2 && &body[i - 2..i] == b"\r\n") || (i >= 1 && body[i - 1] == b'\n');
         if line_start && &body[i..i + pattern.len()] == pattern {
             return Some(i);
         }

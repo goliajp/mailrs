@@ -154,22 +154,24 @@ impl AuthGuard {
 
         if let Some(rec) = self.ip_failures.get(&ip)
             && let Some(until) = rec.lockout_until
-                && now < until {
-                    let remaining = until.duration_since(now).as_secs();
-                    return AuthCheck::LockedOut {
-                        remaining_secs: remaining,
-                    };
-                }
+            && now < until
+        {
+            let remaining = until.duration_since(now).as_secs();
+            return AuthCheck::LockedOut {
+                remaining_secs: remaining,
+            };
+        }
 
         let key = (ip, username.to_string());
         if let Some(rec) = self.account_failures.get(&key)
             && let Some(until) = rec.lockout_until
-                && now < until {
-                    let remaining = until.duration_since(now).as_secs();
-                    return AuthCheck::LockedOut {
-                        remaining_secs: remaining,
-                    };
-                }
+            && now < until
+        {
+            let remaining = until.duration_since(now).as_secs();
+            return AuthCheck::LockedOut {
+                remaining_secs: remaining,
+            };
+        }
 
         AuthCheck::Allowed
     }
@@ -279,16 +281,18 @@ impl AuthGuard {
     pub fn cleanup_stale(&self, before: Instant) {
         self.account_failures.retain(|_, rec| {
             if let Some(until) = rec.lockout_until
-                && until < before {
-                    return false;
-                }
+                && until < before
+            {
+                return false;
+            }
             !rec.failures.is_empty() || rec.lockout_until.is_some()
         });
         self.ip_failures.retain(|_, rec| {
             if let Some(until) = rec.lockout_until
-                && until < before {
-                    return false;
-                }
+                && until < before
+            {
+                return false;
+            }
             !rec.failures.is_empty() || rec.lockout_until.is_some()
         });
     }
@@ -564,7 +568,10 @@ mod tests {
         // alice gets 2 failures (at threshold) — should be locked
         guard.record_failure(ip, "alice");
         guard.record_failure(ip, "alice");
-        assert!(matches!(guard.check(ip, "alice"), AuthCheck::LockedOut { .. }));
+        assert!(matches!(
+            guard.check(ip, "alice"),
+            AuthCheck::LockedOut { .. }
+        ));
         // bob (same IP, different user) should still be allowed
         assert!(matches!(guard.check(ip, "bob"), AuthCheck::Allowed));
     }
@@ -585,7 +592,10 @@ mod tests {
             guard.record_failure(ip, "alice");
         }
         // Still locked out (we never cleared)
-        assert!(matches!(guard.check(ip, "alice"), AuthCheck::LockedOut { .. }));
+        assert!(matches!(
+            guard.check(ip, "alice"),
+            AuthCheck::LockedOut { .. }
+        ));
     }
 
     #[test]
@@ -605,7 +615,10 @@ mod tests {
         // user1 succeeds (but it's already too late for the IP)
         guard.record_success(ip, "user1");
         // IP is still locked out for any user
-        assert!(matches!(guard.check(ip, "anyone"), AuthCheck::LockedOut { .. }));
+        assert!(matches!(
+            guard.check(ip, "anyone"),
+            AuthCheck::LockedOut { .. }
+        ));
     }
 
     #[test]
@@ -628,7 +641,10 @@ mod tests {
         });
         let ip: IpAddr = "192.0.2.30".parse().unwrap();
         guard.record_failure(ip, "alice");
-        assert!(matches!(guard.check(ip, "alice"), AuthCheck::LockedOut { .. }));
+        assert!(matches!(
+            guard.check(ip, "alice"),
+            AuthCheck::LockedOut { .. }
+        ));
     }
 
     #[test]
@@ -673,7 +689,10 @@ mod tests {
         }
         // After 400 concurrent failures, account should be locked
         // (we never panicked or deadlocked — that's the assertion).
-        assert!(matches!(guard.check(ip, "alice"), AuthCheck::LockedOut { .. }));
+        assert!(matches!(
+            guard.check(ip, "alice"),
+            AuthCheck::LockedOut { .. }
+        ));
     }
 
     #[test]
@@ -687,7 +706,10 @@ mod tests {
         let v6: IpAddr = "::1".parse().unwrap();
         guard.record_failure(v4, "alice");
         guard.record_failure(v4, "alice");
-        assert!(matches!(guard.check(v4, "alice"), AuthCheck::LockedOut { .. }));
+        assert!(matches!(
+            guard.check(v4, "alice"),
+            AuthCheck::LockedOut { .. }
+        ));
         // v6 ::1 is independent — should be allowed
         assert!(matches!(guard.check(v6, "alice"), AuthCheck::Allowed));
     }

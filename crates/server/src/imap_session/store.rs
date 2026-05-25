@@ -5,8 +5,10 @@
 //! messages from the selected mailbox. Both require Selected
 //! state.
 
-use mailrs_imap_proto::{format_bad, format_no, format_ok, parse_sequence_set, sequence_set_to_uids};
 use mailrs_imap_format::{format_imap_flags, parse_imap_flags};
+use mailrs_imap_proto::{
+    format_bad, format_no, format_ok, parse_sequence_set, sequence_set_to_uids,
+};
 
 use super::ImapSession;
 

@@ -8,8 +8,8 @@
 //! `pub(crate) use *;` so the web router can import handlers by
 //! the original `super::conversations::FN` path.
 
-mod queries;
 mod mutations;
+mod queries;
 mod search;
 
 pub(crate) use mutations::*;
@@ -23,7 +23,6 @@ use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 
 use crate::message_util;
-
 
 /// Wrap a cached JSON body as an axum Response with content-type set.
 fn cached_json_response(body: String) -> Response {
@@ -182,24 +181,12 @@ pub(crate) fn convos_to_response(
         .collect()
 }
 
-
-
-
-
-
-
-
-
-
-
 // ---- snooze API ----
 
 #[derive(Deserialize)]
 pub(crate) struct SnoozeRequest {
     pub until: String,
 }
-
-
 
 // ---- feedback API ----
 
@@ -218,8 +205,6 @@ const VALID_FEEDBACK_ACTIONS: &[&str] = &[
     "unblock",
 ];
 
-
-
 // ---- mail stats for dashboard ----
 
 #[derive(Deserialize, Serialize)]
@@ -234,7 +219,6 @@ pub(crate) struct MailStats {
 /// staleness is bounded, long enough to absorb the dashboard's 60 s refresh
 /// loop and any tab-focus refetches. perfs/topics/02.
 const MAIL_STATS_TTL_SECS: u64 = 30;
-
 
 /// batch action type
 #[derive(Deserialize)]
@@ -264,14 +248,6 @@ pub(crate) struct BatchResult {
     pub message: Option<String>,
 }
 
-
-
-
-
-
-
-
-
 // ---- reactions API ----
 
 #[derive(Deserialize)]
@@ -296,16 +272,17 @@ pub(crate) struct ThreadReactionsResponse {
     pub reactions: HashMap<i64, Vec<ReactionSummary>>,
 }
 
-
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     // --- convos_to_response: response structure for agent consumption ---
 
-    fn make_summary(thread_id: &str, subject: &str, participants: &str) -> mailrs_mailbox::ConversationSummary {
+    fn make_summary(
+        thread_id: &str,
+        subject: &str,
+        participants: &str,
+    ) -> mailrs_mailbox::ConversationSummary {
         mailrs_mailbox::ConversationSummary {
             thread_id: thread_id.to_string(),
             subject: subject.to_string(),
@@ -321,14 +298,23 @@ mod tests {
             importance_level: "normal".to_string(),
             importance_score: 0.5,
             requires_action: false,
-            last_sender: participants.split(',').next().unwrap_or("").trim().to_string(),
+            last_sender: participants
+                .split(',')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_string(),
             sent_count: 0,
         }
     }
 
     #[test]
     fn convos_to_response_maps_all_fields() {
-        let input = vec![make_summary("thread-1", "Test Subject", "alice@example.com")];
+        let input = vec![make_summary(
+            "thread-1",
+            "Test Subject",
+            "alice@example.com",
+        )];
         let result = convos_to_response(input);
 
         assert_eq!(result.len(), 1);
@@ -537,8 +523,7 @@ mod tests {
 
     #[test]
     fn conversations_query_defaults() {
-        let q: ConversationsQuery =
-            serde_json::from_str("{}").unwrap();
+        let q: ConversationsQuery = serde_json::from_str("{}").unwrap();
         assert_eq!(q.limit, 50); // default_limit()
         assert!(q.before.is_none());
         assert!(q.category.is_none());
@@ -567,8 +552,7 @@ mod tests {
 
     #[test]
     fn search_query_with_defaults() {
-        let q: SearchQuery =
-            serde_json::from_str(r#"{"q":"invoice"}"#).unwrap();
+        let q: SearchQuery = serde_json::from_str(r#"{"q":"invoice"}"#).unwrap();
         assert_eq!(q.q, "invoice");
         assert_eq!(q.limit, 50);
         assert!(q.category.is_none());
@@ -578,8 +562,9 @@ mod tests {
     #[test]
     fn search_query_with_all_params() {
         let q: SearchQuery = serde_json::from_str(
-            r#"{"q":"payment","limit":5,"category":"personal","domains":"example.com"}"#
-        ).unwrap();
+            r#"{"q":"payment","limit":5,"category":"personal","domains":"example.com"}"#,
+        )
+        .unwrap();
         assert_eq!(q.q, "payment");
         assert_eq!(q.limit, 5);
         assert_eq!(q.category.as_deref(), Some("personal"));
@@ -591,7 +576,7 @@ mod tests {
     #[test]
     fn superadmin_api_key_grants_domain_access() {
         use crate::api_key_store::{self, CachedApiKey};
-        use crate::permission::{compute_effective_permissions, AccountGroup, GroupInfo};
+        use crate::permission::{AccountGroup, GroupInfo, compute_effective_permissions};
 
         let (full_key, _prefix, key_hash) = api_key_store::generate_api_key();
         let cached = CachedApiKey {
@@ -621,11 +606,8 @@ mod tests {
                 .map(|s| s.to_string())
                 .collect(),
         }];
-        let perms = compute_effective_permissions(
-            &groups,
-            &[],
-            &["golia.jp".into(), "example.com".into()],
-        );
+        let perms =
+            compute_effective_permissions(&groups, &[], &["golia.jp".into(), "example.com".into()]);
 
         let result = super::super::validate_domains(Some("golia.jp,example.com"), &perms);
         assert_eq!(

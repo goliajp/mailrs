@@ -9,7 +9,10 @@ impl MailAuthStage {
     /// match/divergence vs mail-auth's coarse DKIM verdict; return
     /// the per-signature outputs so the DMARC shadow check can
     /// align by `d=` domain.
-    pub(super) async fn shadow_check_dkim(&self, ctx: &ReceiveContext) -> Vec<mailrs_dkim::SignatureOutput> {
+    pub(super) async fn shadow_check_dkim(
+        &self,
+        ctx: &ReceiveContext,
+    ) -> Vec<mailrs_dkim::SignatureOutput> {
         let Some(ref shadow) = self.shadow_dkim_resolver else {
             return Vec::new();
         };
@@ -41,7 +44,6 @@ impl MailAuthStage {
         }
         outputs
     }
-
 }
 
 pub(super) fn dkim_result_str(dkim_outputs: &[mail_auth::DkimOutput]) -> String {
@@ -56,4 +58,3 @@ pub(super) fn dkim_result_str(dkim_outputs: &[mail_auth::DkimOutput]) -> String 
         "fail".into()
     }
 }
-

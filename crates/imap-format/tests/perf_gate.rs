@@ -1,7 +1,7 @@
 //! Regression budgets for `mailrs-imap-format`. See BUDGETS.md.
 
-use std::time::{Duration, Instant};
 use mailrs_imap_format::{format_imap_flags, parse_imap_flags};
+use std::time::{Duration, Instant};
 
 const ITERS: usize = 200;
 

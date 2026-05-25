@@ -17,7 +17,6 @@ use super::{
     DavAdapter, authenticate, depth_from_headers, err_to_axum, require_basic_auth, to_axum,
 };
 
-
 // ── well-known redirects ─────────────────────────────────────────────
 
 pub(crate) async fn well_known_caldav() -> Redirect {
@@ -254,18 +253,17 @@ pub(crate) async fn dav_contact_collection(
     };
 
     let book_name = urlencoding::decode(&book).unwrap_or_default().into_owned();
-    let ab = match <DavAdapter as AddressBookStore>::get_address_book(
-        &adapter, &address, &book_name,
-    )
-    .await
-    {
-        Ok(Some(b)) => b,
-        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
-        Err(e) => {
-            tracing::error!("dav address book lookup: {e}");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
+    let ab =
+        match <DavAdapter as AddressBookStore>::get_address_book(&adapter, &address, &book_name)
+            .await
+        {
+            Ok(Some(b)) => b,
+            Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+            Err(e) => {
+                tracing::error!("dav address book lookup: {e}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        };
 
     let depth = depth_from_headers(&headers);
     let result = match method.as_str() {
@@ -304,18 +302,17 @@ pub(crate) async fn dav_contact(
     let book_name = urlencoding::decode(&book).unwrap_or_default().into_owned();
     let uid = uid_file.strip_suffix(".vcf").unwrap_or(&uid_file);
 
-    let ab = match <DavAdapter as AddressBookStore>::get_address_book(
-        &adapter, &address, &book_name,
-    )
-    .await
-    {
-        Ok(Some(b)) => b,
-        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
-        Err(e) => {
-            tracing::error!("dav address book lookup: {e}");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
+    let ab =
+        match <DavAdapter as AddressBookStore>::get_address_book(&adapter, &address, &book_name)
+            .await
+        {
+            Ok(Some(b)) => b,
+            Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+            Err(e) => {
+                tracing::error!("dav address book lookup: {e}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        };
 
     let if_match = headers.get("if-match").and_then(|v| v.to_str().ok());
     let if_none_match = headers.get("if-none-match").and_then(|v| v.to_str().ok());

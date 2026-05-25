@@ -16,16 +16,14 @@ impl MailAuthStage {
         let shadow_coarse = match mailrs_arc::ArcChain::extract(&ctx.message) {
             Ok(None) => "none",
             Err(_) => "fail",
-            Ok(Some(chain)) => match mailrs_arc::verify_chain_with_crypto(
-                &chain,
-                shadow.as_ref(),
-                &ctx.message,
-            )
-            .await
-            {
-                Ok(mailrs_arc::ChainOutcome::Pass) => "pass",
-                Ok(_) | Err(_) => "fail",
-            },
+            Ok(Some(chain)) => {
+                match mailrs_arc::verify_chain_with_crypto(&chain, shadow.as_ref(), &ctx.message)
+                    .await
+                {
+                    Ok(mailrs_arc::ChainOutcome::Pass) => "pass",
+                    Ok(_) | Err(_) => "fail",
+                }
+            }
         };
         let mail_auth_coarse = ctx.auth_results.arc.as_str();
         if shadow_coarse == mail_auth_coarse {
@@ -44,12 +42,14 @@ impl MailAuthStage {
             );
         }
     }
-
 }
 
 /// Render mail-auth's ARC verdict as the coarse wire string
 /// `"none" | "pass" | "fail"` (matches `ctx.auth_results.arc`).
-pub(super) fn arc_result_str(arc_output: &mail_auth::ArcOutput, auth_msg: &AuthenticatedMessage) -> String {
+pub(super) fn arc_result_str(
+    arc_output: &mail_auth::ArcOutput,
+    auth_msg: &AuthenticatedMessage,
+) -> String {
     if auth_msg.ams_headers.is_empty() {
         "none".into()
     } else if arc_output.can_be_sealed() {

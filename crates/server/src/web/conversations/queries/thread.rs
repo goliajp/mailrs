@@ -3,20 +3,24 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 
 use crate::conversation_cache;
 use crate::message_util;
 
-use super::super::super::{validate_domains, AuthUser, DomainsQuery, WebState};
+use super::super::super::{AuthUser, DomainsQuery, WebState, validate_domains};
 use super::super::*;
 
 pub(crate) async fn get_thread_messages(
     Path(thread_id): Path<String>,
     Query(dq): Query<DomainsQuery>,
-    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
+    AuthUser {
+        address: ref user,
+        ref permissions,
+        ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> Response {
     let Some(ref mb_store) = state.mailbox_store else {
@@ -33,9 +37,10 @@ pub(crate) async fn get_thread_messages(
     // be heavy for big HTML threads with attachments).
     let cache_key = conversation_cache::thread_key(user, &thread_id);
     if let Some(ref valkey) = state.valkey
-        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
-            return cached_json_response(cached);
-        }
+        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await
+    {
+        return cached_json_response(cached);
+    }
 
     let messages = mb_store
         .list_thread_messages(user, &thread_id, domains.as_deref())
@@ -132,8 +137,12 @@ pub(crate) async fn get_thread_messages(
                 ct,
             )
         } else {
-            let (cat, score) =
-                crate::web::classify_email(&sender, &subject, parsed.0.as_deref(), parsed.1.as_deref());
+            let (cat, score) = crate::web::classify_email(
+                &sender,
+                &subject,
+                parsed.0.as_deref(),
+                parsed.1.as_deref(),
+            );
             (
                 cat,
                 score,
@@ -182,7 +191,9 @@ pub(crate) async fn get_thread_messages(
             is_bulk_sender: msg.is_bulk_sender,
             has_tracking_pixel: msg.has_tracking_pixel,
             requires_action: ai.as_ref().is_some_and(|a| a.requires_action),
-            sender_intent: ai.as_ref().map_or_else(|| "inform".into(), |a| a.sender_intent.clone()),
+            sender_intent: ai
+                .as_ref()
+                .map_or_else(|| "inform".into(), |a| a.sender_intent.clone()),
             action_deadline: ai.as_ref().and_then(|a| a.action_deadline.clone()),
             structured_data,
             invite_method: invite_methods.get(&msg.id).cloned(),
@@ -190,12 +201,18 @@ pub(crate) async fn get_thread_messages(
     }
 
     if let Some(ref valkey) = state.valkey
-        && let Ok(json) = serde_json::to_string(&result) {
-            conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_THREAD_SECS).await;
-        }
+        && let Ok(json) = serde_json::to_string(&result)
+    {
+        conversation_cache::set_json(
+            valkey,
+            &cache_key,
+            &json,
+            conversation_cache::TTL_THREAD_SECS,
+        )
+        .await;
+    }
     Json(result).into_response()
 }
-
 
 pub(crate) async fn get_thread_reactions(
     Path(thread_id): Path<String>,
@@ -203,11 +220,15 @@ pub(crate) async fn get_thread_reactions(
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if thread_id.len() > crate::web::MAX_PATH_LEN {
-        return Json(ThreadReactionsResponse { reactions: HashMap::new() });
+        return Json(ThreadReactionsResponse {
+            reactions: HashMap::new(),
+        });
     }
 
     let Some(ref pool) = state.pg_pool else {
-        return Json(ThreadReactionsResponse { reactions: HashMap::new() });
+        return Json(ThreadReactionsResponse {
+            reactions: HashMap::new(),
+        });
     };
 
     let rows = sqlx::query_as::<_, (i64, String, i64, bool)>(
@@ -216,7 +237,7 @@ pub(crate) async fn get_thread_reactions(
          FROM reactions
          WHERE thread_id = $2
          GROUP BY message_uid, emoji
-         ORDER BY message_uid, emoji"
+         ORDER BY message_uid, emoji",
     )
     .bind(&user)
     .bind(&thread_id)
@@ -235,7 +256,6 @@ pub(crate) async fn get_thread_reactions(
     Json(ThreadReactionsResponse { reactions })
 }
 
-
 pub(crate) async fn fetch_message_reactions(
     pool: &sqlx::PgPool,
     message_uid: i64,
@@ -247,7 +267,7 @@ pub(crate) async fn fetch_message_reactions(
          FROM reactions
          WHERE message_uid = $2
          GROUP BY emoji
-         ORDER BY emoji"
+         ORDER BY emoji",
     )
     .bind(current_user)
     .bind(message_uid)

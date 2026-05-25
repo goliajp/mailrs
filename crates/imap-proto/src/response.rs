@@ -16,10 +16,7 @@ pub fn format_list(flags: &str, delimiter: &str, name: &str) -> String {
 
 /// format FETCH response line
 pub fn format_fetch(seq: u32, items: &[(String, String)]) -> String {
-    let parts: Vec<String> = items
-        .iter()
-        .map(|(k, v)| format!("{k} {v}"))
-        .collect();
+    let parts: Vec<String> = items.iter().map(|(k, v)| format!("{k} {v}")).collect();
     format!("* {seq} FETCH ({parts})\r\n", parts = parts.join(" "))
 }
 
@@ -86,12 +83,18 @@ mod tests {
 
     #[test]
     fn format_ok_response() {
-        assert_eq!(format_ok("a001", "LOGIN completed"), "a001 OK LOGIN completed\r\n");
+        assert_eq!(
+            format_ok("a001", "LOGIN completed"),
+            "a001 OK LOGIN completed\r\n"
+        );
     }
 
     #[test]
     fn format_no_response() {
-        assert_eq!(format_no("a001", "LOGIN failed"), "a001 NO LOGIN failed\r\n");
+        assert_eq!(
+            format_no("a001", "LOGIN failed"),
+            "a001 NO LOGIN failed\r\n"
+        );
     }
 
     #[test]
@@ -104,7 +107,10 @@ mod tests {
 
     #[test]
     fn format_bye_response() {
-        assert_eq!(format_bye("Server shutting down"), "* BYE Server shutting down\r\n");
+        assert_eq!(
+            format_bye("Server shutting down"),
+            "* BYE Server shutting down\r\n"
+        );
     }
 
     #[test]
@@ -176,7 +182,10 @@ mod tests {
 
     #[test]
     fn format_capability_single_item() {
-        assert_eq!(format_capability(&["IMAP4rev1"]), "* CAPABILITY IMAP4rev1\r\n");
+        assert_eq!(
+            format_capability(&["IMAP4rev1"]),
+            "* CAPABILITY IMAP4rev1\r\n"
+        );
     }
 
     #[test]
@@ -208,10 +217,7 @@ mod tests {
 
     #[test]
     fn format_quota_zero_usage() {
-        assert_eq!(
-            format_quota("", 0, 0),
-            "* QUOTA \"\" (STORAGE 0 0)\r\n"
-        );
+        assert_eq!(format_quota("", 0, 0), "* QUOTA \"\" (STORAGE 0 0)\r\n");
     }
 
     #[test]
@@ -224,16 +230,16 @@ mod tests {
 
     #[test]
     fn format_quotaroot_empty_strings() {
-        assert_eq!(
-            format_quotaroot("", ""),
-            "* QUOTAROOT \"\" \"\"\r\n"
-        );
+        assert_eq!(format_quotaroot("", ""), "* QUOTAROOT \"\" \"\"\r\n");
     }
 
     #[test]
     fn format_list_multiple_flags() {
         let result = format_list("\\HasChildren \\Subscribed", "/", "INBOX");
-        assert_eq!(result, "* LIST (\\HasChildren \\Subscribed) \"/\" INBOX\r\n");
+        assert_eq!(
+            result,
+            "* LIST (\\HasChildren \\Subscribed) \"/\" INBOX\r\n"
+        );
     }
 
     #[test]
@@ -286,10 +292,7 @@ mod tests {
 
     #[test]
     fn format_ok_special_chars_in_tag() {
-        assert_eq!(
-            format_ok("A.1+2", "done"),
-            "A.1+2 OK done\r\n"
-        );
+        assert_eq!(format_ok("A.1+2", "done"), "A.1+2 OK done\r\n");
     }
 
     #[test]
@@ -304,8 +307,15 @@ mod tests {
     #[test]
     fn format_capability_many_items() {
         let caps = vec![
-            "IMAP4rev1", "IDLE", "NAMESPACE", "QUOTA", "CHILDREN",
-            "UIDPLUS", "MOVE", "AUTH=PLAIN", "AUTH=LOGIN",
+            "IMAP4rev1",
+            "IDLE",
+            "NAMESPACE",
+            "QUOTA",
+            "CHILDREN",
+            "UIDPLUS",
+            "MOVE",
+            "AUTH=PLAIN",
+            "AUTH=LOGIN",
         ];
         let result = format_capability(&caps);
         assert!(result.starts_with("* CAPABILITY "));
@@ -319,10 +329,7 @@ mod tests {
     #[test]
     fn format_list_dot_delimiter() {
         let result = format_list("\\HasChildren", ".", "INBOX.Drafts");
-        assert_eq!(
-            result,
-            "* LIST (\\HasChildren) \".\" INBOX.Drafts\r\n"
-        );
+        assert_eq!(result, "* LIST (\\HasChildren) \".\" INBOX.Drafts\r\n");
     }
 
     #[test]
@@ -334,10 +341,7 @@ mod tests {
     fn format_flags_system_and_custom() {
         let flags = &["\\Seen", "\\Flagged", "$Important", "$Junk"];
         let result = format_flags(flags);
-        assert_eq!(
-            result,
-            "* FLAGS (\\Seen \\Flagged $Important $Junk)\r\n"
-        );
+        assert_eq!(result, "* FLAGS (\\Seen \\Flagged $Important $Junk)\r\n");
     }
 
     #[test]

@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use sqlx::PgPool;
 
-use mailrs_attachment_extract::{self, ExtractionResult, MAX_EXTRACT_SIZE};
 use crate::message_util;
+use mailrs_attachment_extract::{self, ExtractionResult, MAX_EXTRACT_SIZE};
 
 /// interval between worker polls
 const POLL_INTERVAL: Duration = Duration::from_secs(30);
@@ -20,10 +20,7 @@ const BATCH_SIZE: i64 = 10;
 /// default OCR languages
 const DEFAULT_OCR_LANGS: &str = "eng+chi_sim+jpn";
 
-pub fn spawn_content_worker(
-    pool: PgPool,
-    maildir_root: String,
-) {
+pub fn spawn_content_worker(pool: PgPool, maildir_root: String) {
     tokio::spawn(async move {
         content_worker_loop(pool, maildir_root).await;
     });

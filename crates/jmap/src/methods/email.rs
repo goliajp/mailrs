@@ -201,20 +201,14 @@ pub async fn handle_email_set(
     if let Some(updates) = args.get("update").and_then(|v| v.as_object()) {
         for (email_id, patch) in updates {
             let Some(db_id) = parse_email_db_id(email_id) else {
-                not_updated.insert(
-                    email_id.clone(),
-                    serde_json::json!({"type": "notFound"}),
-                );
+                not_updated.insert(email_id.clone(), serde_json::json!({"type": "notFound"}));
                 continue;
             };
 
             let msg = match store.get_message_by_db_id(user, db_id).await {
                 Ok(Some(m)) => m,
                 _ => {
-                    not_updated.insert(
-                        email_id.clone(),
-                        serde_json::json!({"type": "notFound"}),
-                    );
+                    not_updated.insert(email_id.clone(), serde_json::json!({"type": "notFound"}));
                     continue;
                 }
             };
@@ -311,8 +305,8 @@ mod tests {
     use super::*;
     use crate::store::{MailStore, StoreError};
     use crate::types::{
-        Mailbox, MailboxCounts, Message, ParsedBody, SubmissionResult,
-        FLAG_DELETED, FLAG_FLAGGED, FLAG_SEEN,
+        FLAG_DELETED, FLAG_FLAGGED, FLAG_SEEN, Mailbox, MailboxCounts, Message, ParsedBody,
+        SubmissionResult,
     };
     use async_trait::async_trait;
     use serde_json::json;
@@ -349,7 +343,10 @@ mod tests {
         fn add_mailbox(&self, user: &str, id: i64, name: &str) {
             self.mailboxes.lock().unwrap().push((
                 user.into(),
-                Mailbox { id, name: name.into() },
+                Mailbox {
+                    id,
+                    name: name.into(),
+                },
             ));
         }
         fn add_message(&self, m: Message) {
@@ -386,14 +383,24 @@ mod tests {
                 .filter(|m| m.mailbox_id == mb)
                 .cloned()
                 .collect();
-            Ok(all.into_iter().skip(offset as usize).take(limit as usize).collect())
+            Ok(all
+                .into_iter()
+                .skip(offset as usize)
+                .take(limit as usize)
+                .collect())
         }
         async fn get_message_by_db_id(
             &self,
             _user: &str,
             id: i64,
         ) -> Result<Option<Message>, StoreError> {
-            Ok(self.messages.lock().unwrap().iter().find(|m| m.id == id).cloned())
+            Ok(self
+                .messages
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|m| m.id == id)
+                .cloned())
         }
         async fn list_thread_messages(
             &self,
@@ -409,12 +416,7 @@ mod tests {
                 .cloned()
                 .collect())
         }
-        async fn update_flags(
-            &self,
-            mb: i64,
-            uid: u32,
-            flags: u32,
-        ) -> Result<(), StoreError> {
+        async fn update_flags(&self, mb: i64, uid: u32, flags: u32) -> Result<(), StoreError> {
             for m in self.messages.lock().unwrap().iter_mut() {
                 if m.mailbox_id == mb && m.uid == uid {
                     m.flags = flags;
@@ -422,12 +424,7 @@ mod tests {
             }
             Ok(())
         }
-        async fn add_flags(
-            &self,
-            mb: i64,
-            uid: u32,
-            flags: u32,
-        ) -> Result<(), StoreError> {
+        async fn add_flags(&self, mb: i64, uid: u32, flags: u32) -> Result<(), StoreError> {
             for m in self.messages.lock().unwrap().iter_mut() {
                 if m.mailbox_id == mb && m.uid == uid {
                     m.flags |= flags;
@@ -441,12 +438,7 @@ mod tests {
         fn parse_message(&self, _: &[u8]) -> ParsedBody {
             ParsedBody::default()
         }
-        async fn submit_message(
-            &self,
-            _: &str,
-            _: &Message,
-            _: &[u8],
-        ) -> SubmissionResult {
+        async fn submit_message(&self, _: &str, _: &Message, _: &[u8]) -> SubmissionResult {
             SubmissionResult {
                 success: false,
                 message: None,
@@ -725,7 +717,12 @@ mod tests {
             }
         });
         let (_, result) = handle_email_set(&args, "u", &s).await.unwrap();
-        assert!(result["notUpdated"].as_object().unwrap().contains_key("bogus"));
+        assert!(
+            result["notUpdated"]
+                .as_object()
+                .unwrap()
+                .contains_key("bogus")
+        );
     }
 
     #[tokio::test]

@@ -1,11 +1,10 @@
 //! DMARC: shadow check + production policy + recording.
 
-
 use mailrs_inbound::{DeliveryDecision, DmarcPolicy, ReceiveContext, StageOutcome};
 
 use crate::dmarc_report::{DmarcResultRecord, DmarcStore};
 
-use super::{from_domain, MailAuthStage};
+use super::{MailAuthStage, from_domain};
 
 impl MailAuthStage {
     /// `DmarcInput` from the SPF / per-sig DKIM signals already
@@ -95,7 +94,6 @@ impl MailAuthStage {
         }
     }
 
-
     /// "pass"`; reject short-circuits with a 5.7.1 reject (and
     /// records the result for aggregate reporting); quarantine /
     /// none label the message and let it through. All non-reject
@@ -131,9 +129,7 @@ impl MailAuthStage {
 
                     return StageOutcome::Decide(DeliveryDecision::Reject {
                         code: 550,
-                        message: format!(
-                            "5.7.1 DMARC policy reject for domain {mail_from_domain}"
-                        ),
+                        message: format!("5.7.1 DMARC policy reject for domain {mail_from_domain}"),
                     });
                 }
                 mail_auth::dmarc::Policy::Quarantine => {
@@ -152,7 +148,11 @@ impl MailAuthStage {
             }
         }
 
-        let disposition = if dmarc_quarantine { "quarantine" } else { "none" };
+        let disposition = if dmarc_quarantine {
+            "quarantine"
+        } else {
+            "none"
+        };
         self.record_dmarc(
             ctx,
             mail_from_domain,
@@ -163,7 +163,6 @@ impl MailAuthStage {
 
         StageOutcome::Continue
     }
-
 
     /// Append one DMARC result row for aggregate reporting; no-op
     /// when no `DmarcReportStore` is configured.

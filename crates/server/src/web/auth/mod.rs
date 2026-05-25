@@ -14,10 +14,10 @@ pub(crate) use totp::*;
 
 use std::sync::Arc;
 
-use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
-use axum::http::StatusCode;
 use axum::Json;
+use axum::extract::FromRequestParts;
+use axum::http::StatusCode;
+use axum::http::request::Parts;
 use chrono::Utc;
 use serde::Deserialize;
 
@@ -69,14 +69,11 @@ impl FromRequestParts<Arc<WebState>> for AuthUser {
             Some(t.to_string())
         } else {
             // fallback: ?token= query param (for <img src>, <a href>, <iframe src>)
-            parts
-                .uri
-                .query()
-                .and_then(|q| {
-                    q.split('&')
-                        .find_map(|pair| pair.strip_prefix("token="))
-                        .map(|t| t.to_string())
-                })
+            parts.uri.query().and_then(|q| {
+                q.split('&')
+                    .find_map(|pair| pair.strip_prefix("token="))
+                    .map(|t| t.to_string())
+            })
         };
 
         if let Some(ref token) = token {
@@ -102,14 +99,7 @@ impl FromRequestParts<Arc<WebState>> for AuthUser {
     }
 }
 
-
-
-
 // ---------- one-purpose helpers for login_inner ----------
-
-
-
-
 
 /// Outcome of a TOTP 2FA check during login.
 enum TotpOutcome {
@@ -125,9 +115,6 @@ enum TotpOutcome {
     Failed((StatusCode, Json<serde_json::Value>)),
 }
 
-
-
-
 // ---- identity verification for external IdPs (login.golia.jp) ----
 
 #[derive(Deserialize)]
@@ -142,8 +129,6 @@ pub(crate) struct VerifyTotpRequest {
     pub code: String,
 }
 
-
-
 // ---- OIDC Client (Sign in with GOLIA) ----
 
 #[derive(Deserialize)]
@@ -153,11 +138,6 @@ pub(crate) struct OidcCallbackQuery {
     #[allow(dead_code)]
     pub state: Option<String>,
 }
-
-
-
-
-
 
 #[derive(Deserialize)]
 pub(crate) struct ForgotPasswordRequest {
@@ -171,8 +151,6 @@ pub(crate) struct ResetPasswordRequest {
     pub new_password: String,
 }
 
-
-
 // --- change password (self-service) ---
 
 #[derive(Deserialize)]
@@ -181,7 +159,6 @@ pub(crate) struct ChangePasswordRequest {
     pub new_password: String,
 }
 
-
 // --- recovery email ---
 
 #[derive(Deserialize)]
@@ -189,15 +166,9 @@ pub(crate) struct UpdateRecoveryEmailRequest {
     pub recovery_email: String,
 }
 
-
-
 // --- TOTP 2FA endpoints ---
 
 #[derive(Deserialize)]
 pub(crate) struct TotpCodeRequest {
     pub code: String,
 }
-
-
-
-

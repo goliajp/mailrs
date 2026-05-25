@@ -9,7 +9,8 @@
 //! them directly.
 
 use mailrs_imap_proto::{
-    format_no, format_ok, parse_search_criteria, parse_sequence_set, sequence_set_to_uids, SearchKey,
+    SearchKey, format_no, format_ok, parse_search_criteria, parse_sequence_set,
+    sequence_set_to_uids,
 };
 use mailrs_mailbox::{
     FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_RECENT, FLAG_SEEN,
@@ -100,17 +101,14 @@ pub(super) fn message_matches_criteria(
             SearchKey::Draft => msg.flags & FLAG_DRAFT != 0,
             SearchKey::Undraft => msg.flags & FLAG_DRAFT == 0,
             SearchKey::Recent => msg.flags & FLAG_RECENT != 0,
-            SearchKey::From(pattern) => {
-                msg.sender.to_lowercase().contains(&pattern.to_lowercase())
-            }
+            SearchKey::From(pattern) => msg.sender.to_lowercase().contains(&pattern.to_lowercase()),
             SearchKey::To(pattern) => msg
                 .recipients
                 .to_lowercase()
                 .contains(&pattern.to_lowercase()),
-            SearchKey::Subject(pattern) => msg
-                .subject
-                .to_lowercase()
-                .contains(&pattern.to_lowercase()),
+            SearchKey::Subject(pattern) => {
+                msg.subject.to_lowercase().contains(&pattern.to_lowercase())
+            }
             SearchKey::Text(pattern) => {
                 let p = pattern.to_lowercase();
                 msg.subject.to_lowercase().contains(&p)
@@ -120,9 +118,7 @@ pub(super) fn message_matches_criteria(
             SearchKey::Body(pattern) => {
                 // body search requires reading message content, which is expensive
                 // fall back to subject search as a best-effort approximation
-                msg.subject
-                    .to_lowercase()
-                    .contains(&pattern.to_lowercase())
+                msg.subject.to_lowercase().contains(&pattern.to_lowercase())
             }
             SearchKey::Since(ts) => msg.date >= *ts,
             SearchKey::Before(ts) => msg.date < *ts,
@@ -234,9 +230,7 @@ impl ImapSession {
                         a.1.subject.to_lowercase().cmp(&b.1.subject.to_lowercase())
                     }
                     SortCriterion::Size => a.1.size.cmp(&b.1.size),
-                    SortCriterion::ReverseArrival => {
-                        b.1.internal_date.cmp(&a.1.internal_date)
-                    }
+                    SortCriterion::ReverseArrival => b.1.internal_date.cmp(&a.1.internal_date),
                     SortCriterion::ReverseDate => b.1.date.cmp(&a.1.date),
                     SortCriterion::ReverseFrom => {
                         b.1.sender.to_lowercase().cmp(&a.1.sender.to_lowercase())

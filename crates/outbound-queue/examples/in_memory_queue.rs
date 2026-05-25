@@ -21,10 +21,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. enqueue two messages
     let id1 = store
-        .enqueue("alice@x.org", "bob@y.com", "y.com", b"hi bob", None, now, false)
+        .enqueue(
+            "alice@x.org",
+            "bob@y.com",
+            "y.com",
+            b"hi bob",
+            None,
+            now,
+            false,
+        )
         .await?;
     let id2 = store
-        .enqueue("alice@x.org", "carol@y.com", "y.com", b"hi carol", None, now, false)
+        .enqueue(
+            "alice@x.org",
+            "carol@y.com",
+            "y.com",
+            b"hi carol",
+            None,
+            now,
+            false,
+        )
         .await?;
     println!("enqueued #{id1}, #{id2}");
 
@@ -40,7 +56,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let attempts_after = 1;
     let delay = retry_delay_secs(attempts_after);
     store
-        .mark_failed(id2, "transient error: server too busy", now + delay as i64, now)
+        .mark_failed(
+            id2,
+            "transient error: server too busy",
+            now + delay as i64,
+            now,
+        )
         .await?;
     println!("retry delay after {attempts_after} attempt(s): {delay}s");
 

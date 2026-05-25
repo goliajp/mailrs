@@ -107,13 +107,7 @@ impl MeiliClient {
                 &format!("/indexes/{INDEX_NAME}/settings/searchable-attributes"),
             )
             .await
-            .json(&[
-                "subject",
-                "sender",
-                "recipients",
-                "clean_text",
-                "text_body",
-            ])
+            .json(&["subject", "sender", "recipients", "clean_text", "text_body"])
             .send()
             .await;
 
@@ -159,12 +153,7 @@ impl MeiliClient {
     }
 
     /// search for matching thread_ids
-    pub async fn search(
-        &self,
-        query: &str,
-        user: &str,
-        limit: u32,
-    ) -> Result<Vec<String>, String> {
+    pub async fn search(&self, query: &str, user: &str, limit: u32) -> Result<Vec<String>, String> {
         let resp = self
             .request(
                 reqwest::Method::POST,
@@ -210,10 +199,7 @@ impl MeiliClient {
 }
 
 /// spawn background indexer that syncs messages from PG to meilisearch
-pub fn spawn_indexer(
-    client: Arc<MeiliClient>,
-    pool: sqlx::PgPool,
-) {
+pub fn spawn_indexer(client: Arc<MeiliClient>, pool: sqlx::PgPool) {
     tokio::spawn(async move {
         // configure index on startup
         if let Err(e) = client.configure_index().await {
@@ -226,7 +212,17 @@ pub fn spawn_indexer(
 
         loop {
             // fetch unindexed messages from PG
-            type MessageRow = (i64, String, Option<String>, String, String, Option<String>, Option<String>, i64, String);
+            type MessageRow = (
+                i64,
+                String,
+                Option<String>,
+                String,
+                String,
+                Option<String>,
+                Option<String>,
+                i64,
+                String,
+            );
             let rows: Vec<MessageRow> = match sqlx::query_as(
                 "SELECT m.id, m.thread_id, m.subject, m.sender, m.recipients, m.text_body, m.clean_text, m.internal_date, mb.user_address \
                  FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id \
@@ -257,19 +253,31 @@ pub fn spawn_indexer(
 
             let docs: Vec<MeiliDocument> = rows
                 .into_iter()
-                .map(|(id, thread_id, subject, sender, recipients, text_body, clean_text, internal_date, user_address)| {
-                    MeiliDocument {
+                .map(
+                    |(
                         id,
                         thread_id,
-                        subject: subject.unwrap_or_default(),
+                        subject,
                         sender,
                         recipients,
-                        text_body: text_body.unwrap_or_default(),
-                        clean_text: clean_text.unwrap_or_default(),
+                        text_body,
+                        clean_text,
                         internal_date,
                         user_address,
-                    }
-                })
+                    )| {
+                        MeiliDocument {
+                            id,
+                            thread_id,
+                            subject: subject.unwrap_or_default(),
+                            sender,
+                            recipients,
+                            text_body: text_body.unwrap_or_default(),
+                            clean_text: clean_text.unwrap_or_default(),
+                            internal_date,
+                            user_address,
+                        }
+                    },
+                )
                 .collect();
 
             let count = docs.len();

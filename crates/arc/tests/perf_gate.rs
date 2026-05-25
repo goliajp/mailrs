@@ -48,7 +48,8 @@ fn ams_parse_under_budget() {
 
 #[test]
 fn as_parse_under_budget() {
-    let v = "i=1; a=rsa-sha256; cv=none; d=example.com; s=mail; t=1700000000; b=SEAL1234567890abcdef";
+    let v =
+        "i=1; a=rsa-sha256; cv=none; d=example.com; s=mail; t=1700000000; b=SEAL1234567890abcdef";
     let per = time(10_000, || {
         let _ = std::hint::black_box(ArcSeal::parse(std::hint::black_box(v)).unwrap());
     });

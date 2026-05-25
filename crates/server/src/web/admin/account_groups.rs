@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
 use super::*;
@@ -20,7 +20,9 @@ pub(crate) struct OverrideEntry {
 
 pub(crate) async fn get_account_groups(
     Path(address): Path<String>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if !permissions.has("admin.groups") {
@@ -35,7 +37,9 @@ pub(crate) async fn get_account_groups(
 
 pub(crate) async fn get_account_overrides(
     Path(address): Path<String>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     if !permissions.has("admin.groups") {
@@ -54,7 +58,9 @@ pub(crate) async fn get_account_overrides(
 
 pub(crate) async fn set_account_overrides(
     Path(address): Path<String>,
-    AuthUser { ref permissions, .. }: AuthUser,
+    AuthUser {
+        ref permissions, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetOverridesRequest>,
 ) -> impl IntoResponse {
@@ -91,7 +97,7 @@ pub(crate) async fn set_account_overrides(
             Json(ApiResult {
                 success: false,
                 message: Some("operation failed".into()),
-        })
-        },
+            })
+        }
     }
 }

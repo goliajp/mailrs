@@ -39,7 +39,10 @@ fn verify_correct_under_budget() {
     });
     // Budget: 30 µs (release ~280 ns).
     let budget = Duration::from_micros(30);
-    assert!(median < budget, "verify_correct median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "verify_correct median {median:?} > {budget:?}"
+    );
 }
 
 #[test]
@@ -50,7 +53,10 @@ fn format_header_under_budget() {
     });
     // Budget: 5 µs (release ~10 ns).
     let budget = Duration::from_micros(5);
-    assert!(median < budget, "format_header median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "format_header median {median:?} > {budget:?}"
+    );
 }
 
 #[test]
@@ -61,5 +67,8 @@ fn parse_header_under_budget() {
     });
     // Budget: 5 µs (release ~3 ns).
     let budget = Duration::from_micros(5);
-    assert!(median < budget, "parse_header median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "parse_header median {median:?} > {budget:?}"
+    );
 }

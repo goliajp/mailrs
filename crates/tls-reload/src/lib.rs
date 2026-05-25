@@ -141,8 +141,10 @@ mod tests {
         let cert_pem = cert.cert.pem();
         let key_pem = cert.key_pair.serialize_pem();
         let pid = std::process::id();
-        let cert_path = std::env::temp_dir().join(format!("mailrs-tls-reload-{pid}-{nonce}-cert.pem"));
-        let key_path = std::env::temp_dir().join(format!("mailrs-tls-reload-{pid}-{nonce}-key.pem"));
+        let cert_path =
+            std::env::temp_dir().join(format!("mailrs-tls-reload-{pid}-{nonce}-cert.pem"));
+        let key_path =
+            std::env::temp_dir().join(format!("mailrs-tls-reload-{pid}-{nonce}-key.pem"));
         std::fs::write(&cert_path, cert_pem).unwrap();
         std::fs::write(&key_path, key_pem).unwrap();
         (cert_path, key_path)
@@ -275,10 +277,7 @@ mod tests {
     /// `/tmp` gets reaped).
     fn tempfile_for(name: &str, data: &[u8]) -> std::path::PathBuf {
         let mut path = std::env::temp_dir();
-        path.push(format!(
-            "mailrs-tls-reload-{}-{name}",
-            std::process::id()
-        ));
+        path.push(format!("mailrs-tls-reload-{}-{name}", std::process::id()));
         let mut f = std::fs::File::create(&path).expect("create temp");
         f.write_all(data).expect("write temp");
         path

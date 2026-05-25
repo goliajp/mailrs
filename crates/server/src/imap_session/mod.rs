@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mailrs_imap_proto::{
-    format_bad, format_no, format_ok, parse_command, ImapCommand, TaggedCommand,
+    ImapCommand, TaggedCommand, format_bad, format_no, format_ok, parse_command,
 };
 use mailrs_mailbox::{Mailbox, PgMailboxStore};
 
@@ -95,13 +95,8 @@ pub struct ImapSession {
 
 pub(super) enum ImapState {
     NotAuthenticated,
-    Authenticated {
-        username: String,
-    },
-    Selected {
-        username: String,
-        mailbox: Mailbox,
-    },
+    Authenticated { username: String },
+    Selected { username: String, mailbox: Mailbox },
 }
 
 impl ImapSession {
@@ -277,9 +272,7 @@ impl ImapSession {
             ImapCommand::Move { sequence, mailbox } => {
                 self.handle_move(tag, sequence, mailbox, false).await
             }
-            ImapCommand::Status { mailbox, items } => {
-                self.handle_status(tag, mailbox, items).await
-            }
+            ImapCommand::Status { mailbox, items } => self.handle_status(tag, mailbox, items).await,
             ImapCommand::Create { mailbox } => self.handle_create(tag, mailbox).await,
             ImapCommand::Delete { mailbox } => self.handle_delete(tag, mailbox).await,
             ImapCommand::Rename { from, to } => self.handle_rename(tag, from, to).await,
@@ -293,8 +286,13 @@ impl ImapSession {
                 self.handle_lsub(tag, reference, pattern).await
             }
             ImapCommand::Namespace => self.handle_namespace(tag),
-            ImapCommand::Sort { criteria, search_criteria, .. } => {
-                self.handle_sort(tag, criteria, search_criteria, false).await
+            ImapCommand::Sort {
+                criteria,
+                search_criteria,
+                ..
+            } => {
+                self.handle_sort(tag, criteria, search_criteria, false)
+                    .await
             }
             ImapCommand::Enable(caps) => self.handle_enable(tag, caps),
             ImapCommand::Unselect => self.handle_unselect(tag),

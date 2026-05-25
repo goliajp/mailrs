@@ -35,7 +35,10 @@ fn retry_delay_full_sequence_under_budget() {
     });
     // Budget: 10 µs. Observed P95: ~100 ns (pure arithmetic).
     let budget = Duration::from_micros(10);
-    assert!(median < budget, "retry_delay_secs(0..10) median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "retry_delay_secs(0..10) median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -47,7 +50,10 @@ fn should_bounce_full_sequence_under_budget() {
     });
     // Budget: 10 µs. Observed P95: ~50 ns.
     let budget = Duration::from_micros(10);
-    assert!(median < budget, "should_bounce(0..10, 5) median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "should_bounce(0..10, 5) median {median:?} exceeded {budget:?}"
+    );
 }
 
 // ===== MTA-STS MX-pattern matcher =====

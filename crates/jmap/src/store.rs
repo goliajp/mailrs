@@ -63,20 +63,10 @@ pub trait MailStore: Send + Sync {
     ) -> Result<Vec<Message>, StoreError>;
 
     /// Replace a message's flag bitmask. `mailbox_id` + `uid` identify the row.
-    async fn update_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<(), StoreError>;
+    async fn update_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<(), StoreError>;
 
     /// OR `flags` into the message's flag bitmask. Used to set `\Deleted`.
-    async fn add_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<(), StoreError>;
+    async fn add_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<(), StoreError>;
 
     /// Read the raw RFC 5322 bytes for a message. Returns `None` when not
     /// available (e.g. blob missing on disk). Used to populate `bodyValues`,
@@ -93,10 +83,5 @@ pub trait MailStore: Send + Sync {
     /// The handler has already resolved the [`Message`] and read its raw bytes
     /// via [`Self::read_message_raw`]; the store implementation is responsible
     /// for queueing / signing / actually sending.
-    async fn submit_message(
-        &self,
-        user: &str,
-        message: &Message,
-        raw: &[u8],
-    ) -> SubmissionResult;
+    async fn submit_message(&self, user: &str, message: &Message, raw: &[u8]) -> SubmissionResult;
 }

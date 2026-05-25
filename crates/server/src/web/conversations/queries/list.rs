@@ -2,17 +2,21 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 
 use crate::conversation_cache;
 
-use super::super::super::{validate_domains, AuthUser, WebState};
+use super::super::super::{AuthUser, WebState, validate_domains};
 use super::super::*;
 
 pub(crate) async fn get_conversations(
-    AuthUser { address: ref user, ref permissions, .. }: AuthUser,
+    AuthUser {
+        address: ref user,
+        ref permissions,
+        ..
+    }: AuthUser,
     Query(q): Query<ConversationsQuery>,
     State(state): State<Arc<WebState>>,
 ) -> Response {
@@ -41,9 +45,10 @@ pub(crate) async fn get_conversations(
         q.section.as_deref(),
     );
     if let Some(ref valkey) = state.valkey
-        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await {
-            return cached_json_response(cached);
-        }
+        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await
+    {
+        return cached_json_response(cached);
+    }
 
     let convos = mb_store
         .list_conversations(
@@ -63,12 +68,13 @@ pub(crate) async fn get_conversations(
 
     let response = convos_to_response(convos);
     if let Some(ref valkey) = state.valkey
-        && let Ok(json) = serde_json::to_string(&response) {
-            conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_LIST_SECS).await;
-        }
+        && let Ok(json) = serde_json::to_string(&response)
+    {
+        conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_LIST_SECS)
+            .await;
+    }
     Json(response).into_response()
 }
-
 
 pub(crate) async fn batch_conversations(
     AuthUser { address: user, .. }: AuthUser,
@@ -98,11 +104,18 @@ pub(crate) async fn batch_conversations(
             success: false,
             processed: 0,
             failed: 0,
-            message: Some(format!("too many thread ids (max {})", crate::web::MAX_BATCH_SIZE)),
+            message: Some(format!(
+                "too many thread ids (max {})",
+                crate::web::MAX_BATCH_SIZE
+            )),
         });
     }
 
-    if req.thread_ids.iter().any(|id| id.len() > crate::web::MAX_PATH_LEN) {
+    if req
+        .thread_ids
+        .iter()
+        .any(|id| id.len() > crate::web::MAX_PATH_LEN)
+    {
         return Json(BatchResult {
             success: false,
             processed: 0,
@@ -218,4 +231,3 @@ pub(crate) async fn batch_conversations(
         message,
     })
 }
-

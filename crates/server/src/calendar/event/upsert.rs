@@ -106,24 +106,24 @@ pub async fn upsert_from_parsed_invite(
     };
 
     sqlx::query(sql)
-    .bind(calendar_id)
-    .bind(uid)
-    .bind(etag)
-    .bind(raw_icalendar)
-    .bind(&parsed.summary)
-    .bind(dtstart_utc)
-    .bind(dtend_utc)
-    .bind(organizer_str)
-    .bind(attendees_json)
-    .bind(parsed.sequence)
-    .bind(parsed.dtstamp)
-    .bind(status_str)
-    .bind(method_str)
-    .bind(parsed.rrule.as_deref())
-    .bind(recurrence_id_utc)
-    .bind(parsed.dtstamp)
-    .execute(pool)
-    .await?;
+        .bind(calendar_id)
+        .bind(uid)
+        .bind(etag)
+        .bind(raw_icalendar)
+        .bind(&parsed.summary)
+        .bind(dtstart_utc)
+        .bind(dtend_utc)
+        .bind(organizer_str)
+        .bind(attendees_json)
+        .bind(parsed.sequence)
+        .bind(parsed.dtstamp)
+        .bind(status_str)
+        .bind(method_str)
+        .bind(parsed.rrule.as_deref())
+        .bind(recurrence_id_utc)
+        .bind(parsed.dtstamp)
+        .execute(pool)
+        .await?;
 
     Ok(())
 }
@@ -140,11 +140,7 @@ pub async fn upsert_from_parsed_invite(
 /// past, but if the RRULE produces an occurrence inside the query window
 /// we still emit a synthetic ConflictRow with the occurrence's dtstart /
 /// dtend so the UI shows the right conflict time. Limited to 50 results.
-pub async fn delete_by_uid(
-    pool: &PgPool,
-    calendar_id: i64,
-    uid: &str,
-) -> Result<(), sqlx::Error> {
+pub async fn delete_by_uid(pool: &PgPool, calendar_id: i64, uid: &str) -> Result<(), sqlx::Error> {
     sqlx::query("DELETE FROM calendar_events WHERE calendar_id = $1 AND uid = $2")
         .bind(calendar_id)
         .bind(uid)
@@ -154,4 +150,3 @@ pub async fn delete_by_uid(
 }
 
 // ── helpers ──────────────────────────────────────────────────────────
-

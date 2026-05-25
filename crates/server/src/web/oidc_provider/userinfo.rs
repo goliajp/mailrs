@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 
 use super::super::WebState;
 use crate::oidc_jwt;
@@ -31,7 +31,9 @@ pub(crate) async fn userinfo(
     let Some(token) = auth_header.strip_prefix("Bearer ") else {
         return (
             StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"error": "invalid_token", "error_description": "missing bearer token"})),
+            Json(
+                serde_json::json!({"error": "invalid_token", "error_description": "missing bearer token"}),
+            ),
         );
     };
 
@@ -60,7 +62,9 @@ pub(crate) async fn userinfo(
             tracing::info!(error = %e, "userinfo jwt verification failed");
             return (
                 StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({"error": "invalid_token", "error_description": "token verification failed"})),
+                Json(
+                    serde_json::json!({"error": "invalid_token", "error_description": "token verification failed"}),
+                ),
             );
         }
     };
@@ -68,7 +72,9 @@ pub(crate) async fn userinfo(
     let Some(sub) = claims["sub"].as_str() else {
         return (
             StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"error": "invalid_token", "error_description": "missing sub claim"})),
+            Json(
+                serde_json::json!({"error": "invalid_token", "error_description": "missing sub claim"}),
+            ),
         );
     };
 

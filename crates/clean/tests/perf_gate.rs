@@ -42,7 +42,10 @@ fn clean_email_html_marketing_under_budget() {
     });
     // Budget: 5 ms. Observed P95: ~250 µs.
     let budget = Duration::from_millis(5);
-    assert!(median < budget, "clean_email_html median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "clean_email_html median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -53,7 +56,10 @@ fn detect_bulk_sender_under_budget() {
     });
     // Budget: 50 µs. Observed P95: ~2 µs.
     let budget = Duration::from_micros(50);
-    assert!(median < budget, "detect_bulk_sender median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "detect_bulk_sender median {median:?} exceeded {budget:?}"
+    );
 }
 
 #[test]
@@ -63,5 +69,8 @@ fn split_quoted_content_under_budget() {
     });
     // Budget: 500 µs. Observed P95: ~20 µs.
     let budget = Duration::from_micros(500);
-    assert!(median < budget, "split_quoted_content median {median:?} exceeded {budget:?}");
+    assert!(
+        median < budget,
+        "split_quoted_content median {median:?} exceeded {budget:?}"
+    );
 }

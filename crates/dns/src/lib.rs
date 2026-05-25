@@ -56,8 +56,8 @@ pub trait DnsResolver: Send + Sync {
 #[cfg(feature = "hickory")]
 pub mod hickory {
     use super::*;
-    use hickory_resolver::proto::rr::RData;
     use hickory_resolver::TokioResolver;
+    use hickory_resolver::proto::rr::RData;
 
     /// Wrap a `TokioResolver` for use as a [`DnsResolver`].
     pub struct HickoryResolver {
@@ -187,9 +187,6 @@ mod tests {
             DnsError::Perm("nxdomain".into()),
             DnsError::Perm("nxdomain".into())
         );
-        assert_ne!(
-            DnsError::Temp("x".into()),
-            DnsError::Perm("x".into())
-        );
+        assert_ne!(DnsError::Temp("x".into()), DnsError::Perm("x".into()));
     }
 }

@@ -6,17 +6,13 @@
 //! it returns UIDs in the wire response instead of sequence
 //! numbers — so it's implemented inline here.
 
-use mailrs_imap_proto::{format_bad, format_no, format_ok, parse_search_criteria, ImapCommand};
+use mailrs_imap_proto::{ImapCommand, format_bad, format_no, format_ok, parse_search_criteria};
 
 use super::search::message_matches_criteria;
-use super::{strs_to_bytes, ImapSession, ImapState};
+use super::{ImapSession, ImapState, strs_to_bytes};
 
 impl ImapSession {
-    pub(super) async fn handle_uid(
-        &mut self,
-        tag: &str,
-        subcommand: &ImapCommand,
-    ) -> Vec<Vec<u8>> {
+    pub(super) async fn handle_uid(&mut self, tag: &str, subcommand: &ImapCommand) -> Vec<Vec<u8>> {
         match subcommand {
             ImapCommand::Fetch {
                 sequence,

@@ -42,7 +42,10 @@ mod tests {
     #[test]
     fn wildcard_no_match_subdomain() {
         // *.example.com should NOT match sub.mail.example.com
-        assert!(!mx_matches_policy("sub.mail.example.com", &["*.example.com"]));
+        assert!(!mx_matches_policy(
+            "sub.mail.example.com",
+            &["*.example.com"]
+        ));
     }
 
     #[test]
@@ -256,9 +259,8 @@ mod tests {
 
     #[test]
     fn wildcard_many_patterns_last_matches() {
-        let mut patterns: Vec<String> = (0..99)
-            .map(|i| format!("mx{}.wrong{}.com", i, i))
-            .collect();
+        let mut patterns: Vec<String> =
+            (0..99).map(|i| format!("mx{}.wrong{}.com", i, i)).collect();
         patterns.push("*.target.com".to_string());
         let pattern_refs: Vec<&str> = patterns.iter().map(|s| s.as_str()).collect();
         assert!(mx_matches_policy("relay.target.com", &pattern_refs));
@@ -267,18 +269,9 @@ mod tests {
     #[test]
     fn real_world_google_mx_patterns() {
         // google's MTA-STS policy uses *.gmail-smtp-in.l.google.com
-        let policy = &[
-            "gmail-smtp-in.l.google.com",
-            "*.gmail-smtp-in.l.google.com",
-        ];
-        assert!(mx_matches_policy(
-            "gmail-smtp-in.l.google.com",
-            policy
-        ));
-        assert!(mx_matches_policy(
-            "alt1.gmail-smtp-in.l.google.com",
-            policy
-        ));
+        let policy = &["gmail-smtp-in.l.google.com", "*.gmail-smtp-in.l.google.com"];
+        assert!(mx_matches_policy("gmail-smtp-in.l.google.com", policy));
+        assert!(mx_matches_policy("alt1.gmail-smtp-in.l.google.com", policy));
         // wildcard only matches single level — *.google.com would NOT match multi-level hostnames
         let broad_policy = &["*.google.com"];
         assert!(!mx_matches_policy(

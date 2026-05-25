@@ -135,9 +135,7 @@ fn parse_forward_path_and_params(input: &str) -> Result<Command<'_>, ParseError>
 fn extract_angle_addr(input: &str) -> Result<(&str, &str), ParseError> {
     let input = input.trim_start();
     if !input.starts_with('<') {
-        return Err(ParseError::InvalidSyntax(
-            "expected '<' in path".into(),
-        ));
+        return Err(ParseError::InvalidSyntax("expected '<' in path".into()));
     }
 
     // handle quoted strings inside the angle brackets
@@ -168,9 +166,10 @@ fn extract_angle_addr(input: &str) -> Result<(&str, &str), ParseError> {
 /// strip obsolete source routes: @a.com,@b.com:user@c.com -> user@c.com
 fn strip_source_route(path: &str) -> &str {
     if path.starts_with('@')
-        && let Some(colon_pos) = path.find(':') {
-            return &path[colon_pos + 1..];
-        }
+        && let Some(colon_pos) = path.find(':')
+    {
+        return &path[colon_pos + 1..];
+    }
     path
 }
 
@@ -207,9 +206,7 @@ fn parse_starttls(args: &str) -> Result<Command<'_>, ParseError> {
 
 fn parse_auth<'a>(args: &'a str, _input: &'a str) -> Result<Command<'a>, ParseError> {
     if args.is_empty() {
-        return Err(ParseError::InvalidSyntax(
-            "AUTH requires mechanism".into(),
-        ));
+        return Err(ParseError::InvalidSyntax("AUTH requires mechanism".into()));
     }
 
     let (mech_str, rest) = match args.find(' ') {
@@ -223,15 +220,11 @@ fn parse_auth<'a>(args: &'a str, _input: &'a str) -> Result<Command<'a>, ParseEr
         _ => {
             return Err(ParseError::InvalidSyntax(format!(
                 "unsupported AUTH mechanism: {mech_str}"
-            )))
+            )));
         }
     };
 
-    let initial_response = if rest.is_empty() {
-        None
-    } else {
-        Some(rest)
-    };
+    let initial_response = if rest.is_empty() { None } else { Some(rest) };
 
     Ok(Command::Auth {
         mechanism,

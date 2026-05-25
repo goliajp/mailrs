@@ -17,14 +17,13 @@ use super::super::{AuthUser, SessionInfo, WebState};
 use super::*;
 
 /// initiate OIDC login — redirects user to the configured OIDC provider
-pub(crate) async fn oidc_login(
-    State(state): State<Arc<WebState>>,
-) -> impl IntoResponse {
+pub(crate) async fn oidc_login(State(state): State<Arc<WebState>>) -> impl IntoResponse {
     let Some(ref oidc) = state.oidc_config else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"error": "OIDC not configured"})),
-        ).into_response();
+        )
+            .into_response();
     };
 
     let nonce: String = {
@@ -53,7 +52,8 @@ pub(crate) async fn oidc_callback(
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"error": "OIDC not configured"})),
-        ).into_response();
+        )
+            .into_response();
     };
 
     // exchange code for token
@@ -77,14 +77,16 @@ pub(crate) async fn oidc_callback(
                 return (
                     StatusCode::BAD_GATEWAY,
                     Json(serde_json::json!({"error": "invalid token response"})),
-                ).into_response();
+                )
+                    .into_response();
             }
         },
         _ => {
             return (
                 StatusCode::BAD_GATEWAY,
                 Json(serde_json::json!({"error": "token exchange failed"})),
-            ).into_response();
+            )
+                .into_response();
         }
     };
 
@@ -93,7 +95,8 @@ pub(crate) async fn oidc_callback(
         return (
             StatusCode::BAD_GATEWAY,
             Json(serde_json::json!({"error": "no access_token in response"})),
-        ).into_response();
+        )
+            .into_response();
     }
 
     // fetch userinfo
@@ -110,24 +113,30 @@ pub(crate) async fn oidc_callback(
                 return (
                     StatusCode::BAD_GATEWAY,
                     Json(serde_json::json!({"error": "invalid userinfo response"})),
-                ).into_response();
+                )
+                    .into_response();
             }
         },
         _ => {
             return (
                 StatusCode::BAD_GATEWAY,
                 Json(serde_json::json!({"error": "userinfo fetch failed"})),
-            ).into_response();
+            )
+                .into_response();
         }
     };
 
     // extract email — this must match a local account
-    let email = userinfo["email"].as_str().or_else(|| userinfo["sub"].as_str()).unwrap_or_default();
+    let email = userinfo["email"]
+        .as_str()
+        .or_else(|| userinfo["sub"].as_str())
+        .unwrap_or_default();
     if email.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": "no email in userinfo"})),
-        ).into_response();
+        )
+            .into_response();
     }
 
     // look up local account
@@ -135,7 +144,8 @@ pub(crate) async fn oidc_callback(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": "auth not configured"})),
-        ).into_response();
+        )
+            .into_response();
     };
 
     let account = match ds.get_account_with_hash(email).await {
@@ -144,7 +154,8 @@ pub(crate) async fn oidc_callback(
             return (
                 StatusCode::FORBIDDEN,
                 Json(serde_json::json!({"error": format!("no mailrs account for {email}")})),
-            ).into_response();
+            )
+                .into_response();
         }
     };
 
@@ -169,10 +180,12 @@ pub(crate) async fn oidc_callback(
         },
     );
 
-    ds.log_audit(&account.address, "oidc_login", &oidc.client_id, "").await;
+    ds.log_audit(&account.address, "oidc_login", &oidc.client_id, "")
+        .await;
 
     // redirect to frontend with token as query param (frontend stores it)
-    let redirect_url = format!("/login?oidc_token={}&address={}&display_name={}",
+    let redirect_url = format!(
+        "/login?oidc_token={}&address={}&display_name={}",
         urlencoding::encode(&token),
         urlencoding::encode(&account.address),
         urlencoding::encode(&account.display_name),
@@ -181,9 +194,7 @@ pub(crate) async fn oidc_callback(
 }
 
 /// returns OIDC availability info for the frontend login page (no auth required)
-pub(crate) async fn oidc_client_config(
-    State(state): State<Arc<WebState>>,
-) -> impl IntoResponse {
+pub(crate) async fn oidc_client_config(State(state): State<Arc<WebState>>) -> impl IntoResponse {
     match &state.oidc_config {
         Some(_) => Json(serde_json::json!({
             "enabled": true,

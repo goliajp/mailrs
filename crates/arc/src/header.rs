@@ -375,9 +375,7 @@ impl<'a> Iterator for TagIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let n = self.bytes.len();
         // Skip separators / wsp / folding.
-        while self.i < n
-            && matches!(self.bytes[self.i], b' ' | b'\t' | b'\r' | b'\n' | b';')
-        {
+        while self.i < n && matches!(self.bytes[self.i], b' ' | b'\t' | b'\r' | b'\n' | b';') {
             self.i += 1;
         }
         if self.i >= n {
@@ -386,7 +384,10 @@ impl<'a> Iterator for TagIter<'a> {
         // Tag name.
         let name_start = self.i;
         while self.i < n
-            && !matches!(self.bytes[self.i], b'=' | b' ' | b'\t' | b'\r' | b'\n' | b';')
+            && !matches!(
+                self.bytes[self.i],
+                b'=' | b' ' | b'\t' | b'\r' | b'\n' | b';'
+            )
         {
             self.i += 1;
         }
@@ -491,9 +492,8 @@ mod tests {
     #[test]
     fn ams_rejects_missing_required() {
         // missing b=
-        let r = ArcMessageSignature::parse(
-            "i=1; a=rsa-sha256; d=example.com; s=mail; h=From; bh=X",
-        );
+        let r =
+            ArcMessageSignature::parse("i=1; a=rsa-sha256; d=example.com; s=mail; h=From; bh=X");
         assert!(matches!(r, Err(ArcError::MissingTag(_))));
     }
 
@@ -507,9 +507,8 @@ mod tests {
 
     #[test]
     fn ams_rejects_empty_h() {
-        let r = ArcMessageSignature::parse(
-            "i=1; a=rsa-sha256; d=example.com; s=mail; h=; bh=X; b=Y",
-        );
+        let r =
+            ArcMessageSignature::parse("i=1; a=rsa-sha256; d=example.com; s=mail; h=; bh=X; b=Y");
         assert!(matches!(r, Err(ArcError::InvalidTag(_))));
     }
 

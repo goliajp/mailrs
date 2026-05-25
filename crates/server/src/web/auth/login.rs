@@ -31,17 +31,17 @@ pub(crate) async fn login(
         let (parts, body) = resp.into_parts();
         let bytes = axum::body::to_bytes(body, 4096).await.unwrap_or_default();
         if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&bytes)
-            && let Some(token) = val["token"].as_str() {
-                let cookie = format!(
-                    "mailrs_session={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600"
-                );
-                let mut parts = parts;
-                parts.headers.insert(
-                    axum::http::header::SET_COOKIE,
-                    cookie.parse().unwrap(),
-                );
-                return axum::response::Response::from_parts(parts, axum::body::Body::from(bytes));
-            }
+            && let Some(token) = val["token"].as_str()
+        {
+            let cookie = format!(
+                "mailrs_session={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600"
+            );
+            let mut parts = parts;
+            parts
+                .headers
+                .insert(axum::http::header::SET_COOKIE, cookie.parse().unwrap());
+            return axum::response::Response::from_parts(parts, axum::body::Body::from(bytes));
+        }
         return axum::response::Response::from_parts(parts, axum::body::Body::from(bytes));
     }
     resp
@@ -162,9 +162,7 @@ async fn verify_password_and_load_account(
         password_hash == req.password
     };
 
-    if !valid
-        && let Some(ref ldap) = state.ldap_config
-    {
+    if !valid && let Some(ref ldap) = state.ldap_config {
         valid = ldap.authenticate(&req.address, &req.password).await;
     }
 
@@ -225,13 +223,8 @@ async fn check_totp(
     }
 
     if recovery_valid {
-        ds.log_audit(
-            &req.address,
-            "recovery_code_used",
-            "",
-            &format!("ip={ip}"),
-        )
-        .await;
+        ds.log_audit(&req.address, "recovery_code_used", "", &format!("ip={ip}"))
+            .await;
     }
     TotpOutcome::Ok
 }
@@ -274,7 +267,9 @@ async fn issue_session_response(
         )
     } else {
         Arc::new(crate::permission::compute_effective_permissions(
-            &[], &[], &[],
+            &[],
+            &[],
+            &[],
         ))
     };
 
@@ -367,10 +362,9 @@ pub(crate) async fn verify_credentials(
     };
 
     // LDAP fallback
-    if !valid
-        && let Some(ref ldap) = state.ldap_config {
-            valid = ldap.authenticate(&req.address, &req.password).await;
-        }
+    if !valid && let Some(ref ldap) = state.ldap_config {
+        valid = ldap.authenticate(&req.address, &req.password).await;
+    }
 
     if !valid {
         return (
@@ -383,7 +377,10 @@ pub(crate) async fn verify_credentials(
     }
 
     // check if TOTP is enabled
-    let totp_required = matches!(ds.get_totp_secret(&req.address).await, Ok(Some((_, true, _))));
+    let totp_required = matches!(
+        ds.get_totp_secret(&req.address).await,
+        Ok(Some((_, true, _)))
+    );
 
     (
         StatusCode::OK,
@@ -443,16 +440,15 @@ pub(crate) async fn verify_totp(
 
     let code_valid = crate::totp::verify_code(&secret, &req.code);
     let recovery_valid = if !code_valid {
-        ds.consume_recovery_code(&req.address, &req.code).await.unwrap_or(false)
+        ds.consume_recovery_code(&req.address, &req.code)
+            .await
+            .unwrap_or(false)
     } else {
         false
     };
 
     if code_valid || recovery_valid {
-        (
-            StatusCode::OK,
-            Json(serde_json::json!({"valid": true})),
-        )
+        (StatusCode::OK, Json(serde_json::json!({"valid": true})))
     } else {
         (
             StatusCode::OK,
@@ -479,7 +475,12 @@ pub(crate) async fn logout(
 }
 
 pub(crate) async fn auth_me(
-    AuthUser { address, display_name, permissions, .. }: AuthUser,
+    AuthUser {
+        address,
+        display_name,
+        permissions,
+        ..
+    }: AuthUser,
 ) -> impl IntoResponse {
     Json(serde_json::json!({
         "address": address,

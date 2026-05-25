@@ -8,21 +8,17 @@
 //! `tests/smoke.rs` covers the PG-specific path (testcontainers); this file
 //! is the portable trait coverage.
 
-use mailrs_mailbox::fixtures::{InMemoryMailboxStore, EXAMPLE_USER};
+use mailrs_mailbox::fixtures::{EXAMPLE_USER, InMemoryMailboxStore};
 use mailrs_mailbox::{
-    FlagOp, InsertMessage, MailboxStore, QueryFilter, FLAG_ANSWERED, FLAG_DELETED, FLAG_FLAGGED,
-    FLAG_SEEN,
+    FLAG_ANSWERED, FLAG_DELETED, FLAG_FLAGGED, FLAG_SEEN, FlagOp, InsertMessage, MailboxStore,
+    QueryFilter,
 };
 
 fn store() -> InMemoryMailboxStore {
     InMemoryMailboxStore::new()
 }
 
-fn sample_input<'a>(
-    user: &'a str,
-    mailbox: &'a str,
-    uid_hint: u32,
-) -> InsertMessage<'a> {
+fn sample_input<'a>(user: &'a str, mailbox: &'a str, uid_hint: u32) -> InsertMessage<'a> {
     InsertMessage {
         user,
         mailbox_name: mailbox,
@@ -71,7 +67,10 @@ async fn delete_mailbox_returns_true_when_removed_false_when_missing() {
 async fn delete_mailbox_cascades_to_its_messages() {
     let s = store();
     s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    let _ = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
+    let _ = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
     s.delete_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
     s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
     let inbox = s.get_mailbox(EXAMPLE_USER, "INBOX").await.unwrap().unwrap();
@@ -83,18 +82,26 @@ async fn delete_mailbox_cascades_to_its_messages() {
 async fn rename_mailbox_renames_existing() {
     let s = store();
     s.create_mailbox(EXAMPLE_USER, "Archive").await.unwrap();
-    s.rename_mailbox(EXAMPLE_USER, "Archive", "Old").await.unwrap();
-    assert!(s.get_mailbox(EXAMPLE_USER, "Archive").await.unwrap().is_none());
+    s.rename_mailbox(EXAMPLE_USER, "Archive", "Old")
+        .await
+        .unwrap();
+    assert!(
+        s.get_mailbox(EXAMPLE_USER, "Archive")
+            .await
+            .unwrap()
+            .is_none()
+    );
     assert!(s.get_mailbox(EXAMPLE_USER, "Old").await.unwrap().is_some());
 }
 
 #[tokio::test]
 async fn rename_mailbox_errors_when_missing() {
     let s = store();
-    assert!(s
-        .rename_mailbox(EXAMPLE_USER, "Nope", "Whatever")
-        .await
-        .is_err());
+    assert!(
+        s.rename_mailbox(EXAMPLE_USER, "Nope", "Whatever")
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -121,8 +128,14 @@ async fn get_mailbox_by_id_round_trips_create() {
 async fn mailbox_status_counts_total_and_unread() {
     let s = store();
     let mb = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    let _ = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
-    let _ = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 2)).await.unwrap();
+    let _ = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
+    let _ = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 2))
+        .await
+        .unwrap();
     // mark one as seen
     s.add_flags(mb.id, 1, FLAG_SEEN).await.unwrap();
     let status = s.mailbox_status(mb.id).await.unwrap();
@@ -137,11 +150,20 @@ async fn mailbox_status_counts_total_and_unread() {
 async fn insert_message_allocates_monotonic_uids_and_bumps_modseq() {
     let s = store();
     s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    let first = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
-    let second = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 2)).await.unwrap();
+    let first = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
+    let second = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 2))
+        .await
+        .unwrap();
     assert_eq!(first.uid, 1);
     assert_eq!(second.uid, 2, "uid is monotonic");
-    assert!(second.modseq > first.modseq, "modseq is strictly increasing");
+    assert!(
+        second.modseq > first.modseq,
+        "modseq is strictly increasing"
+    );
 }
 
 #[tokio::test]
@@ -158,7 +180,9 @@ async fn insert_message_with_initial_flags_persists_them() {
 #[tokio::test]
 async fn insert_message_into_unknown_mailbox_errors() {
     let s = store();
-    let err = s.insert_message(sample_input(EXAMPLE_USER, "Missing", 1)).await;
+    let err = s
+        .insert_message(sample_input(EXAMPLE_USER, "Missing", 1))
+        .await;
     assert!(err.is_err());
 }
 
@@ -166,18 +190,36 @@ async fn insert_message_into_unknown_mailbox_errors() {
 async fn get_message_by_uid_returns_some_then_none_after_expunge() {
     let s = store();
     let mb = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    let inserted = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
-    assert!(s.get_message_by_uid(mb.id, inserted.uid).await.unwrap().is_some());
-    s.add_flags(mb.id, inserted.uid, FLAG_DELETED).await.unwrap();
+    let inserted = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
+    assert!(
+        s.get_message_by_uid(mb.id, inserted.uid)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    s.add_flags(mb.id, inserted.uid, FLAG_DELETED)
+        .await
+        .unwrap();
     s.expunge(mb.id).await.unwrap();
-    assert!(s.get_message_by_uid(mb.id, inserted.uid).await.unwrap().is_none());
+    assert!(
+        s.get_message_by_uid(mb.id, inserted.uid)
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[tokio::test]
 async fn get_message_by_id_returns_message_with_user_address_filled() {
     let s = store();
     s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    let inserted = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
+    let inserted = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
     let msg = s.get_message(inserted.id).await.unwrap().unwrap();
     assert_eq!(msg.user_address, EXAMPLE_USER);
 }
@@ -215,7 +257,10 @@ async fn copy_message_keeps_source_and_adds_new_uid_in_destination() {
     let s = store();
     let src = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
     let dst = s.create_mailbox(EXAMPLE_USER, "Archive").await.unwrap();
-    let inserted = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
+    let inserted = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
 
     let new_uid = s.copy_message(src.id, inserted.uid, dst.id).await.unwrap();
     assert_eq!(new_uid, 1, "destination uidnext starts at 1");
@@ -228,7 +273,10 @@ async fn move_message_removes_source_and_adds_destination() {
     let s = store();
     let src = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
     let dst = s.create_mailbox(EXAMPLE_USER, "Archive").await.unwrap();
-    let inserted = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
+    let inserted = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
 
     s.move_message(src.id, inserted.uid, dst.id).await.unwrap();
     assert_eq!(s.mailbox_status(src.id).await.unwrap().total, 0);
@@ -248,7 +296,9 @@ async fn expunge_returns_deleted_uids_in_ascending_order() {
     let s = store();
     let mb = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
     for i in 1..=3 {
-        s.insert_message(sample_input(EXAMPLE_USER, "INBOX", i as u32)).await.unwrap();
+        s.insert_message(sample_input(EXAMPLE_USER, "INBOX", i as u32))
+            .await
+            .unwrap();
     }
     s.add_flags(mb.id, 3, FLAG_DELETED).await.unwrap();
     s.add_flags(mb.id, 1, FLAG_DELETED).await.unwrap();
@@ -262,8 +312,14 @@ async fn expunge_returns_deleted_uids_in_ascending_order() {
 async fn set_flags_replaces_bitmask_and_bumps_modseq() {
     let s = store();
     let mb = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    let inserted = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
-    let modseq = s.set_flags(mb.id, 1, FLAG_SEEN | FLAG_ANSWERED).await.unwrap();
+    let inserted = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
+    let modseq = s
+        .set_flags(mb.id, 1, FLAG_SEEN | FLAG_ANSWERED)
+        .await
+        .unwrap();
     assert!(modseq > inserted.modseq);
     let msg = s.get_message_by_uid(mb.id, 1).await.unwrap().unwrap();
     assert_eq!(msg.flags, FLAG_SEEN | FLAG_ANSWERED);
@@ -273,7 +329,9 @@ async fn set_flags_replaces_bitmask_and_bumps_modseq() {
 async fn add_flags_ors_and_remove_flags_and_nots() {
     let s = store();
     let mb = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
+    s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
     s.add_flags(mb.id, 1, FLAG_SEEN).await.unwrap();
     s.add_flags(mb.id, 1, FLAG_FLAGGED).await.unwrap();
     let msg = s.get_message_by_uid(mb.id, 1).await.unwrap().unwrap();
@@ -288,7 +346,10 @@ async fn add_flags_ors_and_remove_flags_and_nots() {
 async fn store_flags_if_unchanged_succeeds_on_matching_modseq() {
     let s = store();
     let mb = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    let inserted = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
+    let inserted = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
     let result = s
         .store_flags_if_unchanged(mb.id, 1, FlagOp::Add, FLAG_SEEN, inserted.modseq)
         .await
@@ -300,14 +361,19 @@ async fn store_flags_if_unchanged_succeeds_on_matching_modseq() {
 async fn store_flags_if_unchanged_returns_none_on_stale_unchangedsince() {
     let s = store();
     let mb = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
+    s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
     s.add_flags(mb.id, 1, FLAG_SEEN).await.unwrap();
     let stale_modseq = 0u64; // any modseq below the current
     let result = s
         .store_flags_if_unchanged(mb.id, 1, FlagOp::Add, FLAG_FLAGGED, stale_modseq)
         .await
         .unwrap();
-    assert!(result.is_none(), "precondition fails when modseq has advanced");
+    assert!(
+        result.is_none(),
+        "precondition fails when modseq has advanced"
+    );
     // verify the flag was NOT applied
     let msg = s.get_message_by_uid(mb.id, 1).await.unwrap().unwrap();
     assert_eq!(msg.flags & FLAG_FLAGGED, 0);
@@ -377,7 +443,10 @@ async fn thread_references_returns_older_messages_newest_first() {
 async fn thread_references_returns_empty_for_singleton_thread() {
     let s = store();
     s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    let inserted = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
+    let inserted = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
     let refs = s.thread_references(inserted.id).await.unwrap();
     assert!(refs.is_empty());
 }
@@ -388,8 +457,14 @@ async fn thread_references_returns_empty_for_singleton_thread() {
 async fn messages_changed_since_returns_only_strictly_greater_modseq() {
     let s = store();
     let mb = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    let m1 = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1)).await.unwrap();
-    let m2 = s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 2)).await.unwrap();
+    let m1 = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
+    let m2 = s
+        .insert_message(sample_input(EXAMPLE_USER, "INBOX", 2))
+        .await
+        .unwrap();
 
     let changes = s.messages_changed_since(mb.id, m1.modseq).await.unwrap();
     assert_eq!(changes.len(), 1, "only m2 is > m1.modseq");
@@ -401,7 +476,9 @@ async fn messages_changed_since_orders_by_modseq_ascending() {
     let s = store();
     let mb = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
     for i in 1..=3 {
-        s.insert_message(sample_input(EXAMPLE_USER, "INBOX", i)).await.unwrap();
+        s.insert_message(sample_input(EXAMPLE_USER, "INBOX", i))
+            .await
+            .unwrap();
     }
     // mutate flags in reverse order so modseq doesn't follow uid
     s.add_flags(mb.id, 3, FLAG_SEEN).await.unwrap();
@@ -421,8 +498,12 @@ async fn query_messages_filters_by_mailbox() {
     let s = store();
     let a = s.create_mailbox(EXAMPLE_USER, "A").await.unwrap();
     s.create_mailbox(EXAMPLE_USER, "B").await.unwrap();
-    s.insert_message(sample_input(EXAMPLE_USER, "A", 1)).await.unwrap();
-    s.insert_message(sample_input(EXAMPLE_USER, "B", 1)).await.unwrap();
+    s.insert_message(sample_input(EXAMPLE_USER, "A", 1))
+        .await
+        .unwrap();
+    s.insert_message(sample_input(EXAMPLE_USER, "B", 1))
+        .await
+        .unwrap();
     let f = QueryFilter {
         mailbox_id: Some(a.id),
         user: Some(EXAMPLE_USER),
@@ -472,7 +553,9 @@ async fn query_messages_keyword_filters_compose() {
     let s = store();
     let mb = s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
     for i in 1..=4 {
-        s.insert_message(sample_input(EXAMPLE_USER, "INBOX", i)).await.unwrap();
+        s.insert_message(sample_input(EXAMPLE_USER, "INBOX", i))
+            .await
+            .unwrap();
     }
     s.add_flags(mb.id, 1, FLAG_SEEN).await.unwrap();
     s.add_flags(mb.id, 2, FLAG_SEEN).await.unwrap();
@@ -495,7 +578,9 @@ async fn query_messages_paginates_with_position_and_limit() {
     let s = store();
     s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
     for i in 1..=5 {
-        s.insert_message(sample_input(EXAMPLE_USER, "INBOX", i)).await.unwrap();
+        s.insert_message(sample_input(EXAMPLE_USER, "INBOX", i))
+            .await
+            .unwrap();
     }
     let f = QueryFilter {
         user: Some(EXAMPLE_USER),

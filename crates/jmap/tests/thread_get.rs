@@ -1,8 +1,7 @@
 //! Protocol-level integration tests for `Thread/get` (RFC 8621 §3.2).
 
-
-use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message};
 use mailrs_jmap::dispatch::dispatch_method;
+use mailrs_jmap::fixtures::{EXAMPLE_USER, InMemoryStore, make_message};
 use serde_json::json;
 
 #[tokio::test]
@@ -31,14 +30,10 @@ async fn thread_get_returns_email_ids_for_known_thread() {
         .with_message(m2)
         .with_message(m3);
 
-    let (name, resp) = dispatch_method(
-        "Thread/get",
-        &json!({"ids": ["t-A"]}),
-        EXAMPLE_USER,
-        &store,
-    )
-    .await
-    .unwrap();
+    let (name, resp) =
+        dispatch_method("Thread/get", &json!({"ids": ["t-A"]}), EXAMPLE_USER, &store)
+            .await
+            .unwrap();
 
     assert_eq!(name, "Thread/get");
     assert_eq!(resp["accountId"], EXAMPLE_USER);
@@ -74,14 +69,9 @@ async fn thread_get_store_error_falls_back_to_empty_thread_marked_not_found() {
     // the thread is treated as empty and surfaces in notFound.
     let store = InMemoryStore::new().list_thread_messages_fails("temporary glitch");
 
-    let (_, resp) = dispatch_method(
-        "Thread/get",
-        &json!({"ids": ["t-A"]}),
-        EXAMPLE_USER,
-        &store,
-    )
-    .await
-    .unwrap();
+    let (_, resp) = dispatch_method("Thread/get", &json!({"ids": ["t-A"]}), EXAMPLE_USER, &store)
+        .await
+        .unwrap();
 
     assert_eq!(resp["list"].as_array().unwrap().len(), 0);
     assert_eq!(resp["notFound"], json!(["t-A"]));

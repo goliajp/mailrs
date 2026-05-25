@@ -92,10 +92,7 @@ pub fn extract_pdf_text(data: &[u8]) -> Result<ExtractionResult, String> {
 /// Spawns `tesseract --version` and checks for success — no caching.
 /// If you'll call this on a hot path, cache the result yourself.
 pub fn tesseract_available() -> bool {
-    Command::new("tesseract")
-        .arg("--version")
-        .output()
-        .is_ok()
+    Command::new("tesseract").arg("--version").output().is_ok()
 }
 
 /// OCR an image via the `tesseract` CLI subprocess.
@@ -195,12 +192,18 @@ mod tests {
 
     #[test]
     fn method_pdf() {
-        assert_eq!(extraction_method("application/pdf"), ExtractionMethod::PdfText);
+        assert_eq!(
+            extraction_method("application/pdf"),
+            ExtractionMethod::PdfText
+        );
     }
 
     #[test]
     fn method_pdf_case_insensitive() {
-        assert_eq!(extraction_method("Application/PDF"), ExtractionMethod::PdfText);
+        assert_eq!(
+            extraction_method("Application/PDF"),
+            ExtractionMethod::PdfText
+        );
     }
 
     #[test]
@@ -225,7 +228,10 @@ mod tests {
 
     #[test]
     fn method_svg_unsupported() {
-        assert_eq!(extraction_method("image/svg+xml"), ExtractionMethod::Unsupported);
+        assert_eq!(
+            extraction_method("image/svg+xml"),
+            ExtractionMethod::Unsupported
+        );
     }
 
     #[test]
@@ -240,7 +246,10 @@ mod tests {
 
     #[test]
     fn method_text_unsupported() {
-        assert_eq!(extraction_method("text/plain"), ExtractionMethod::Unsupported);
+        assert_eq!(
+            extraction_method("text/plain"),
+            ExtractionMethod::Unsupported
+        );
     }
 
     #[test]

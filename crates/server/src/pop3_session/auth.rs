@@ -17,7 +17,6 @@ impl Pop3Session {
         ]
     }
 
-
     pub(super) fn handle_user(&mut self, arg: &str) -> Vec<String> {
         if !matches!(self.state, Pop3State::Authorization) {
             return vec!["-ERR already authenticated\r\n".into()];
@@ -28,7 +27,6 @@ impl Pop3Session {
         self.pending_user = Some(arg.to_string());
         vec!["+OK\r\n".into()]
     }
-
 
     pub(super) async fn handle_pass(&mut self, password: &str) -> Vec<String> {
         if !matches!(self.state, Pop3State::Authorization) {
@@ -43,9 +41,10 @@ impl Pop3Session {
 
         // check auth guard
         if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr)
-            && let AuthCheck::LockedOut { .. } = guard.check(ip, username) {
-                return vec!["-ERR [IN-USE] too many failures, try later\r\n".into()];
-            }
+            && let AuthCheck::LockedOut { .. } = guard.check(ip, username)
+        {
+            return vec!["-ERR [IN-USE] too many failures, try later\r\n".into()];
+        }
 
         // try domain store (PG accounts) first, then users.toml, then LDAP
         let authenticated = if let Some(ref ds) = self.domain_store {
@@ -120,6 +119,8 @@ impl Pop3Session {
         };
 
         let (count, size) = self.stat_values();
-        vec![format!("+OK {username} has {count} messages ({size} octets)\r\n")]
+        vec![format!(
+            "+OK {username} has {count} messages ({size} octets)\r\n"
+        )]
     }
 }

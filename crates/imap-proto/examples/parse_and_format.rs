@@ -37,7 +37,10 @@ fn main() {
     println!();
 
     // 3. format what we'd write back to the client
-    print!("{}", format_capability(&["IMAP4rev1", "IDLE", "AUTH=PLAIN"]));
+    print!(
+        "{}",
+        format_capability(&["IMAP4rev1", "IDLE", "AUTH=PLAIN"])
+    );
     print!("{}", format_flags(&["\\Seen", "\\Answered", "\\Flagged"]));
     print!("{}", format_exists(8));
     for &uid in &[1u32, 2, 3] {

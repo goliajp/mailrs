@@ -1,8 +1,7 @@
 //! Protocol-level integration tests for `Email/query` (RFC 8621 §4.4).
 
-
-use mailrs_jmap::fixtures::{InMemoryStore, EXAMPLE_USER, make_message};
 use mailrs_jmap::dispatch::dispatch_method;
+use mailrs_jmap::fixtures::{EXAMPLE_USER, InMemoryStore, make_message};
 use mailrs_jmap::types::{FLAG_FLAGGED, FLAG_SEEN};
 use serde_json::json;
 

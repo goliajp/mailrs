@@ -212,10 +212,7 @@ pub(crate) async fn cache_set(
 }
 
 /// remove a cached API key from Valkey
-pub(crate) async fn cache_delete(
-    valkey: &redis::aio::ConnectionManager,
-    prefix: &str,
-) {
+pub(crate) async fn cache_delete(valkey: &redis::aio::ConnectionManager, prefix: &str) {
     let key = format!("apikey:{prefix}");
     let _: Result<(), _> = redis::cmd("DEL")
         .arg(&key)
@@ -233,7 +230,12 @@ mod tests {
         let (full_key, prefix, key_hash) = generate_api_key();
 
         // format: mlrs_{8hex}_{40hex} = 54 chars total
-        assert_eq!(full_key.len(), 54, "key length should be 54, got {}", full_key.len());
+        assert_eq!(
+            full_key.len(),
+            54,
+            "key length should be 54, got {}",
+            full_key.len()
+        );
         assert!(full_key.starts_with("mlrs_"), "key should start with mlrs_");
         assert_eq!(prefix.len(), 8, "prefix should be 8 hex chars");
         assert_eq!(key_hash.len(), 64, "sha256 hash should be 64 hex chars");

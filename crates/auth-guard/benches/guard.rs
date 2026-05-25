@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mailrs_auth_guard::{AuthCheck, AuthGuard, AuthGuardConfig};
 use std::hint::black_box;
 use std::net::IpAddr;

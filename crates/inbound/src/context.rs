@@ -21,7 +21,6 @@ use crate::decision::PipelineInput;
 #[non_exhaustive]
 pub struct ReceiveContext {
     // ===== Static request data =====
-
     /// Client IP that connected and submitted the message.
     pub client_ip: IpAddr,
     /// Domain the client claimed in EHLO/HELO.
@@ -37,7 +36,6 @@ pub struct ReceiveContext {
     pub hostname: String,
 
     // ===== Signal accumulators — written by stages =====
-
     /// SPF / DKIM / ARC / DMARC verification summary. Stages typically fill
     /// `auth_results.spf` first, then `dkim`, etc.
     pub auth_results: AuthResults,

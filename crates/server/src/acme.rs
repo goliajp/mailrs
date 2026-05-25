@@ -8,5 +8,5 @@
 
 #[allow(unused_imports)]
 pub use mailrs_acme::{
-    init, spawn_challenge_server, spawn_renewal_task, ChallengeTokens, RenewalConfig,
+    ChallengeTokens, RenewalConfig, init, spawn_challenge_server, spawn_renewal_task,
 };

@@ -10,8 +10,8 @@ use redis::AsyncCommands;
 use sqlx::PgPool;
 
 use crate::queue;
-use crate::store::{Notifier, QueueStore, StoreError};
 use crate::queue::QueuedMessage;
+use crate::store::{Notifier, QueueStore, StoreError};
 
 /// `QueueStore` backed by a `sqlx::PgPool` against the mailrs schema.
 #[derive(Debug, Clone)]

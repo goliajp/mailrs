@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
-use crate::pg::helpers::row_to_message_meta;
 use crate::pg::PgMailboxStore;
+use crate::pg::helpers::row_to_message_meta;
 use crate::types::{FlagAction, MessageMeta};
 
 impl PgMailboxStore {

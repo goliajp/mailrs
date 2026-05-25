@@ -5,7 +5,11 @@ use hickory_resolver::proto::rr::RData;
 
 use super::{CheckResult, Status};
 
-pub(super) async fn check_mx(resolver: &TokioResolver, domain: &str, hostname: &str) -> CheckResult {
+pub(super) async fn check_mx(
+    resolver: &TokioResolver,
+    domain: &str,
+    hostname: &str,
+) -> CheckResult {
     match resolver.mx_lookup(domain).await {
         Ok(records) => {
             let mxs: Vec<_> = records
@@ -61,4 +65,3 @@ pub(super) async fn check_mx(resolver: &TokioResolver, domain: &str, hostname: &
         },
     }
 }
-

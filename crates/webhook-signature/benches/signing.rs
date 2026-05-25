@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mailrs_webhook_signature::{format_header, parse_header, sign, verify, verify_any};
 use std::hint::black_box;
 
@@ -52,7 +52,11 @@ fn bench_verify_wrong_secret(c: &mut Criterion) {
     let sig = sign(b"right-secret", payload);
     c.bench_function("verify/wrong_secret_constant_time", |b| {
         b.iter(|| {
-            let r = verify(black_box(b"wrong-secret"), black_box(payload), black_box(&sig));
+            let r = verify(
+                black_box(b"wrong-secret"),
+                black_box(payload),
+                black_box(&sig),
+            );
             black_box(r)
         });
     });

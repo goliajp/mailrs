@@ -10,16 +10,22 @@ pub fn detect_bulk_sender(raw_headers: &str) -> bool {
     }
 
     // precedence: bulk or list
-    if lower.contains("precedence: bulk") || lower.contains("precedence: list")
-        || lower.contains("precedence:bulk") || lower.contains("precedence:list")
+    if lower.contains("precedence: bulk")
+        || lower.contains("precedence: list")
+        || lower.contains("precedence:bulk")
+        || lower.contains("precedence:list")
     {
         return true;
     }
 
     // x-mailer headers from known ESPs
-    if lower.contains("x-sg-id") || lower.contains("x-mailgun-") || lower.contains("x-mandrill-")
-        || lower.contains("x-mc-") || lower.contains("x-ses-")
-        || lower.contains("x-campaign") || lower.contains("x-mailer: mailchimp")
+    if lower.contains("x-sg-id")
+        || lower.contains("x-mailgun-")
+        || lower.contains("x-mandrill-")
+        || lower.contains("x-mc-")
+        || lower.contains("x-ses-")
+        || lower.contains("x-campaign")
+        || lower.contains("x-mailer: mailchimp")
     {
         return true;
     }
@@ -41,8 +47,13 @@ pub fn is_automated_sender(email: &str) -> bool {
     let lower = email.to_lowercase();
     let local = lower.split('@').next().unwrap_or("");
 
-    local == "noreply" || local == "no-reply" || local == "do-not-reply"
-        || local == "donotreply" || local == "mailer-daemon"
-        || local == "postmaster" || local.starts_with("bounce")
-        || local.starts_with("notification") || local == "auto"
+    local == "noreply"
+        || local == "no-reply"
+        || local == "do-not-reply"
+        || local == "donotreply"
+        || local == "mailer-daemon"
+        || local == "postmaster"
+        || local.starts_with("bounce")
+        || local.starts_with("notification")
+        || local == "auto"
 }

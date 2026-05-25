@@ -30,7 +30,6 @@
 //! gzipped report (https:). Per-endpoint failures are logged but
 //! don't abort other endpoints' submission.
 
-
 mod convert;
 mod observer;
 mod store;

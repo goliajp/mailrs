@@ -26,7 +26,10 @@ fn reverse_ipv4_under_budget() {
     });
     // Budget: 5 µs (release ~14 ns).
     let budget = Duration::from_micros(5);
-    assert!(median < budget, "reverse_ipv4 median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "reverse_ipv4 median {median:?} > {budget:?}"
+    );
 }
 
 #[test]
@@ -37,7 +40,10 @@ fn dnsbl_query_under_budget() {
     });
     // Budget: 5 µs (release ~25 ns). Pre-sized String + 2 push_str.
     let budget = Duration::from_micros(5);
-    assert!(median < budget, "dnsbl_query median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "dnsbl_query median {median:?} > {budget:?}"
+    );
 }
 
 #[test]
@@ -48,5 +54,8 @@ fn interpret_spamhaus_under_budget() {
     });
     // Budget: 1 µs (release ~700 ps). Pure match arm on a byte.
     let budget = Duration::from_micros(1);
-    assert!(median < budget, "interpret_spamhaus median {median:?} > {budget:?}");
+    assert!(
+        median < budget,
+        "interpret_spamhaus median {median:?} > {budget:?}"
+    );
 }

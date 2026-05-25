@@ -106,7 +106,10 @@ impl DeliveryWorker {
 
     /// Run the worker loop until `shutdown` signals.
     pub async fn run(&self, mut shutdown: tokio::sync::watch::Receiver<bool>) {
-        tracing::info!("delivery worker started (poll_interval={}s)", self.config.poll_interval_secs);
+        tracing::info!(
+            "delivery worker started (poll_interval={}s)",
+            self.config.poll_interval_secs
+        );
 
         // try to subscribe to Valkey queue:notify for fast wakeup
         let mut notify_rx = self.spawn_valkey_listener();
@@ -136,25 +139,23 @@ impl DeliveryWorker {
         tokio::spawn(async move {
             loop {
                 match redis::Client::open(url.as_str()) {
-                    Ok(client) => {
-                        match client.get_async_pubsub().await {
-                            Ok(mut pubsub) => {
-                                if pubsub.subscribe("queue:notify").await.is_err() {
-                                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                                    continue;
-                                }
-                                tracing::info!("delivery worker subscribed to queue:notify");
-                                use futures_util::StreamExt;
-                                let mut stream = pubsub.on_message();
-                                while let Some(_msg) = stream.next().await {
-                                    let _ = tx.try_send(());
-                                }
+                    Ok(client) => match client.get_async_pubsub().await {
+                        Ok(mut pubsub) => {
+                            if pubsub.subscribe("queue:notify").await.is_err() {
+                                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                                continue;
                             }
-                            Err(e) => {
-                                tracing::warn!("valkey pubsub connect failed: {e}");
+                            tracing::info!("delivery worker subscribed to queue:notify");
+                            use futures_util::StreamExt;
+                            let mut stream = pubsub.on_message();
+                            while let Some(_msg) = stream.next().await {
+                                let _ = tx.try_send(());
                             }
                         }
-                    }
+                        Err(e) => {
+                            tracing::warn!("valkey pubsub connect failed: {e}");
+                        }
+                    },
                     Err(e) => {
                         tracing::warn!("valkey client create failed: {e}");
                     }
@@ -193,12 +194,13 @@ impl DeliveryWorker {
             for mut msg in messages {
                 // ARC seal forwarded messages before DKIM signing
                 if msg.is_forwarded
-                    && let Some(ref auth) = self.authenticator {
-                        match dkim_sign::arc_seal_message(dkim, auth, &msg.message_data).await {
-                            Ok(sealed) => msg.message_data = sealed,
-                            Err(e) => tracing::warn!("ARC sealing failed for msg {}: {e}", msg.id),
-                        }
+                    && let Some(ref auth) = self.authenticator
+                {
+                    match dkim_sign::arc_seal_message(dkim, auth, &msg.message_data).await {
+                        Ok(sealed) => msg.message_data = sealed,
+                        Err(e) => tracing::warn!("ARC sealing failed for msg {}: {e}", msg.id),
                     }
+                }
                 // DKIM sign
                 match dkim.sign(&msg.message_data) {
                     Ok(signed) => msg.message_data = signed,
@@ -213,7 +215,9 @@ impl DeliveryWorker {
 
         let groups = group_by_domain(messages);
         let pool = self.pool.clone();
-        let semaphore = Arc::new(tokio::sync::Semaphore::new(self.config.max_concurrent_domains));
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(
+            self.config.max_concurrent_domains,
+        ));
 
         let mut handles = Vec::new();
         for (domain, domain_messages) in groups {
@@ -226,7 +230,16 @@ impl DeliveryWorker {
 
             handles.push(tokio::spawn(async move {
                 let _permit = sem.acquire().await.unwrap();
-                deliver_domain_static(&resolver, &hostname, &domain, domain_messages, &pool, max_per_conn, event_sender.as_ref()).await;
+                deliver_domain_static(
+                    &resolver,
+                    &hostname,
+                    &domain,
+                    domain_messages,
+                    &pool,
+                    max_per_conn,
+                    event_sender.as_ref(),
+                )
+                .await;
             }));
         }
 
@@ -236,13 +249,14 @@ impl DeliveryWorker {
 
         Ok(())
     }
-
 }
 
 /// wait for a Valkey notify signal, or never resolve if no listener
 async fn wait_for_notify(rx: &mut Option<tokio::sync::mpsc::Receiver<()>>) {
     match rx {
-        Some(r) => { r.recv().await; }
+        Some(r) => {
+            r.recv().await;
+        }
         None => std::future::pending().await,
     }
 }
@@ -252,10 +266,29 @@ async fn enqueue_dsn(pool: &PgPool, hostname: &str, msg: &QueuedMessage, error: 
     if msg.sender.is_empty() || msg.sender == "<>" {
         return; // don't bounce bounces
     }
-    let dsn_msg = dsn::format_dsn(hostname, &msg.sender, &msg.recipient, error, msg.message_id.as_deref());
-    let sender_domain = msg.sender.rsplit_once('@').map(|(_, d)| d).unwrap_or("unknown");
+    let dsn_msg = dsn::format_dsn(
+        hostname,
+        &msg.sender,
+        &msg.recipient,
+        error,
+        msg.message_id.as_deref(),
+    );
+    let sender_domain = msg
+        .sender
+        .rsplit_once('@')
+        .map(|(_, d)| d)
+        .unwrap_or("unknown");
     let now = chrono::Utc::now().timestamp();
-    let _ = queue::enqueue(pool, "<>", &msg.sender, sender_domain, dsn_msg.as_bytes(), None, now).await;
+    let _ = queue::enqueue(
+        pool,
+        "<>",
+        &msg.sender,
+        sender_domain,
+        dsn_msg.as_bytes(),
+        None,
+        now,
+    )
+    .await;
 }
 
 /// deliver messages to a single domain (used by concurrent workers)
@@ -281,9 +314,18 @@ async fn deliver_domain_static(
         for msg in &messages {
             if queue::is_suppressed(pool, &msg.recipient).await {
                 tracing::info!("skipping suppressed recipient: {}", msg.recipient);
-                let _ = queue::mark_bounced(pool, msg.id, "recipient suppressed (hard bounce history)", now_check).await;
+                let _ = queue::mark_bounced(
+                    pool,
+                    msg.id,
+                    "recipient suppressed (hard bounce history)",
+                    now_check,
+                )
+                .await;
                 if let Some(es) = event_sender {
-                    es(DeliveryEvent::Bounced { queue_id: msg.id, sender: msg.sender.clone() });
+                    es(DeliveryEvent::Bounced {
+                        queue_id: msg.id,
+                        sender: msg.sender.clone(),
+                    });
                 }
                 suppressed_ids.push(msg.id);
             }
@@ -313,7 +355,10 @@ async fn deliver_domain_static(
                     }
                     enqueue_dsn(pool, hostname, msg, &error).await;
                     if let Some(es) = event_sender {
-                        es(DeliveryEvent::Bounced { queue_id: msg.id, sender: msg.sender.clone() });
+                        es(DeliveryEvent::Bounced {
+                            queue_id: msg.id,
+                            sender: msg.sender.clone(),
+                        });
                     }
                 } else {
                     let _ = queue::mark_failed(
@@ -322,9 +367,14 @@ async fn deliver_domain_static(
                         &format!("MX resolution failed: {e}"),
                         now + delay as i64,
                         now,
-                    ).await;
+                    )
+                    .await;
                     if let Some(es) = event_sender {
-                        es(DeliveryEvent::Failed { queue_id: msg.id, domain: domain.to_string(), error: format!("MX resolution failed: {e}") });
+                        es(DeliveryEvent::Failed {
+                            queue_id: msg.id,
+                            domain: domain.to_string(),
+                            error: format!("MX resolution failed: {e}"),
+                        });
                     }
                 }
             }
@@ -339,13 +389,25 @@ async fn deliver_domain_static(
     for mx in &mx_records {
         let mut all_ok = true;
         for chunk in &chunks {
-            match try_deliver_via_mx(hostname, &mx.exchange, domain, chunk, resolver, event_sender).await {
+            match try_deliver_via_mx(
+                hostname,
+                &mx.exchange,
+                domain,
+                chunk,
+                resolver,
+                event_sender,
+            )
+            .await
+            {
                 Ok(()) => {
                     let now = chrono::Utc::now().timestamp();
                     for msg in *chunk {
                         let _ = queue::mark_delivered(pool, msg.id, now).await;
                         if let Some(es) = event_sender {
-                            es(DeliveryEvent::Success { queue_id: msg.id, domain: domain.to_string() });
+                            es(DeliveryEvent::Success {
+                                queue_id: msg.id,
+                                domain: domain.to_string(),
+                            });
                         }
                     }
                 }
@@ -357,7 +419,11 @@ async fn deliver_domain_static(
             }
         }
         if all_ok {
-            tracing::info!("delivered {} messages to {domain} via {}", messages.len(), mx.exchange);
+            tracing::info!(
+                "delivered {} messages to {domain} via {}",
+                messages.len(),
+                mx.exchange
+            );
             return;
         }
     }
@@ -367,31 +433,36 @@ async fn deliver_domain_static(
     for msg in &messages {
         // skip already delivered messages
         if let Ok(Some(current)) = queue::get_message(pool, msg.id).await
-            && current.status == crate::queue::QueueStatus::Delivered {
-                continue;
-            }
+            && current.status == crate::queue::QueueStatus::Delivered
+        {
+            continue;
+        }
         let delay = retry_delay_secs(msg.attempts);
         if should_bounce(msg.attempts + 1, msg.max_attempts) {
             let _ = queue::mark_bounced(pool, msg.id, "all MX hosts failed", now).await;
             // add to suppression if last error was a hard bounce
             if let Some(ref err) = msg.last_error
-                && queue::is_hard_bounce(err) {
-                    let _ = queue::add_suppression(pool, &msg.recipient, err, None).await;
-                }
+                && queue::is_hard_bounce(err)
+            {
+                let _ = queue::add_suppression(pool, &msg.recipient, err, None).await;
+            }
             enqueue_dsn(pool, hostname, msg, "all MX hosts failed").await;
             if let Some(es) = event_sender {
-                es(DeliveryEvent::Bounced { queue_id: msg.id, sender: msg.sender.clone() });
+                es(DeliveryEvent::Bounced {
+                    queue_id: msg.id,
+                    sender: msg.sender.clone(),
+                });
             }
         } else {
-            let _ = queue::mark_failed(
-                pool,
-                msg.id,
-                "all MX hosts failed",
-                now + delay as i64,
-                now,
-            ).await;
+            let _ =
+                queue::mark_failed(pool, msg.id, "all MX hosts failed", now + delay as i64, now)
+                    .await;
             if let Some(es) = event_sender {
-                es(DeliveryEvent::Failed { queue_id: msg.id, domain: domain.to_string(), error: "all MX hosts failed".into() });
+                es(DeliveryEvent::Failed {
+                    queue_id: msg.id,
+                    domain: domain.to_string(),
+                    error: "all MX hosts failed".into(),
+                });
             }
         }
     }
@@ -543,7 +614,11 @@ async fn try_deliver_via_mx_with_tls(
         emit_tls(TlsAttemptOutcome::NotAdvertised);
         return Err(format!(
             "{mx_host} does not advertise STARTTLS{}",
-            if has_dane { " (DANE TLSA records present, TLS required)" } else { " and TLS is required" }
+            if has_dane {
+                " (DANE TLSA records present, TLS required)"
+            } else {
+                " and TLS is required"
+            }
         )
         .into());
     } else {
@@ -618,7 +693,11 @@ mod tests {
 
     #[test]
     fn group_by_domain_single_domain() {
-        let messages = vec![make_msg(1, "a.com"), make_msg(2, "a.com"), make_msg(3, "a.com")];
+        let messages = vec![
+            make_msg(1, "a.com"),
+            make_msg(2, "a.com"),
+            make_msg(3, "a.com"),
+        ];
         let groups = group_by_domain(messages);
         assert_eq!(groups.len(), 1);
         assert_eq!(groups["a.com"].len(), 3);
@@ -626,7 +705,11 @@ mod tests {
 
     #[test]
     fn group_by_domain_preserves_order_within_group() {
-        let messages = vec![make_msg(10, "x.com"), make_msg(20, "y.com"), make_msg(30, "x.com")];
+        let messages = vec![
+            make_msg(10, "x.com"),
+            make_msg(20, "y.com"),
+            make_msg(30, "x.com"),
+        ];
         let groups = group_by_domain(messages);
         let x_ids: Vec<i64> = groups["x.com"].iter().map(|m| m.id).collect();
         assert_eq!(x_ids, vec![10, 30]);
@@ -766,9 +849,8 @@ mod tests {
 
     #[test]
     fn group_by_domain_all_unique_domains() {
-        let messages: Vec<QueuedMessage> = (0..50)
-            .map(|i| make_msg(i, &format!("d{i}.com")))
-            .collect();
+        let messages: Vec<QueuedMessage> =
+            (0..50).map(|i| make_msg(i, &format!("d{i}.com"))).collect();
         let groups = group_by_domain(messages);
         assert_eq!(groups.len(), 50);
         for v in groups.values() {
@@ -825,7 +907,10 @@ mod tests {
     fn dsn_skip_empty_sender() {
         // enqueue_dsn skips when sender is empty — verify the condition
         let msg = make_msg(1, "example.com");
-        assert!(msg.sender != "<>" && !msg.sender.is_empty(), "test setup: msg has a real sender");
+        assert!(
+            msg.sender != "<>" && !msg.sender.is_empty(),
+            "test setup: msg has a real sender"
+        );
 
         // empty sender should be skipped
         let empty_sender = "";
@@ -857,8 +942,14 @@ mod tests {
         use crate::retry::retry_delay_secs;
         for attempt in 0..10u32 {
             let delay = retry_delay_secs(attempt);
-            assert!(delay >= 60, "delay at attempt {attempt} should be at least 60s");
-            assert!(delay <= 28800, "delay at attempt {attempt} should be capped at 28800s");
+            assert!(
+                delay >= 60,
+                "delay at attempt {attempt} should be at least 60s"
+            );
+            assert!(
+                delay <= 28800,
+                "delay at attempt {attempt} should be capped at 28800s"
+            );
         }
     }
 
@@ -868,10 +959,17 @@ mod tests {
         use crate::retry::should_bounce;
         let max = WorkerConfig::default().max_attempts;
         for attempt in 0..max {
-            assert!(!should_bounce(attempt, max), "attempt {attempt} should not bounce");
+            assert!(
+                !should_bounce(attempt, max),
+                "attempt {attempt} should not bounce"
+            );
         }
         assert!(should_bounce(max, max), "attempt {max} should bounce");
-        assert!(should_bounce(max + 1, max), "attempt {} should bounce", max + 1);
+        assert!(
+            should_bounce(max + 1, max),
+            "attempt {} should bounce",
+            max + 1
+        );
     }
 
     #[test]
@@ -912,7 +1010,10 @@ mod tests {
             make_msg(500, "b.com"),
         ];
         let groups = group_by_domain(messages);
-        let mut all_ids: Vec<i64> = groups.values().flat_map(|v| v.iter().map(|m| m.id)).collect();
+        let mut all_ids: Vec<i64> = groups
+            .values()
+            .flat_map(|v| v.iter().map(|m| m.id))
+            .collect();
         all_ids.sort();
         assert_eq!(all_ids, vec![100, 200, 300, 400, 500]);
     }

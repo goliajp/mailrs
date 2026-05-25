@@ -8,4 +8,4 @@
 //! The public surface is unchanged — anything that previously worked
 //! against `crate::tls::*` continues to work via this re-export.
 
-pub use mailrs_tls_reload::{load_tls_config, TlsState};
+pub use mailrs_tls_reload::{TlsState, load_tls_config};
