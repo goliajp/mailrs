@@ -77,6 +77,25 @@ custom policies without committing to one of the three modes.
 - No **TLS / STARTTLS** — that's `tokio-rustls` + your session layer.
 - No **MTA logic** (auth, alias resolution, delivery) — that's caller territory.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-smtp-codec`) |
+| **test** | line cov: 98.2% (`cargo llvm-cov -p mailrs-smtp-codec --summary-only`) |
+| **bench** | ❌ none criterion + ❌ none `perf_gate.rs` |
+| **size** | release rlib: 47 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of **Apache-2.0** ([LICENSE-APACHE](./LICENSE-APACHE))

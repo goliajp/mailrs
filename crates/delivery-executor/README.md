@@ -92,6 +92,26 @@ timeout.
 - No **delivery scheduling** — first-come-first-served per
   path. For priority queues use a different executor.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-delivery-executor`) |
+| **test** | line cov: 96.1% (`cargo llvm-cov -p mailrs-delivery-executor --summary-only`) |
+| **bench** | ❌ none criterion + ❌ none `perf_gate.rs` |
+| **size** | release rlib: 241 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons (from PERFORMANCE.md)
+
+- | SMTP receive throughput, **post DeliveryExecutor** (`mailrs-delivery-executor` 1.0 group-commit, 2026-05-24) | **999 msg/s mean across 3 × 30s × 32 conns** (rounds: 1045 / 972 / 979). **3.4×** vs the immediately-prior 291 msg/s baseline (same hardware, same bench). **P50 32 ms** (vs 105 ms baseline = **3.3× faster**), **P99 41 ms** (vs 163 ms = **4.0× faster**), **P999 76 ms** (vs 199 ms = **2.6× faster**). All four UX axes — throughput, p50, p99, p999 — improve simultaneously; no axis regresses. The win comes from group-commit: 32 concurrent SMTP sessions delivering to the same Maildir path now share a single fsync per batch (max_batch=64, max_wait=10ms) via `mailrs-delivery-executor`'s mpsc → `Maildir::deliver_batch` pipeline, instead of each session driving its own per-message fsync. | `cargo build --profile release-debug -p mailrs-server --bench smtp_load && $CARGO_TARGET_DIR/release-debug/deps/smtp_load-* --duration 30 --conns 32 --warmup 5` |
+- | SMTP receive throughput, **post pipelined DeliveryExecutor** (`mailrs-delivery-executor` 1.1, max_concurrent_flushes=2, 2026-05-24) | **1079 msg/s mean across 3 × 30s × 32 conns** (rounds: 1074 / 1073 / 1089). **+8%** vs the 1.0 serial-flush 999 msg/s. **P50 29 ms** (-9%), **P99 36 ms** (-12%), **P999 45 ms (-41%)** — tail latency is the headline win. Mechanism: while batch A's fsync is in flight on a `spawn_blocking` thread, batch B starts collecting concurrently; a `Semaphore`-bounded pipeline of 2 in-flight flushes hides disk-wait behind batch-collection latency without queuing unbounded fsyncs. Cumulative since the perf-axis kickoff (#127): **291 → 1079 msg/s = 3.71× throughput**, **P999 199 → 45 ms = 4.4× faster tail**. | Same reproduce command as the 1.0 row above; binary uses the new published `mailrs-delivery-executor` 1.1 default tuning. |
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Apache-2.0 OR MIT.
