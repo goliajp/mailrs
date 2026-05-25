@@ -17,6 +17,8 @@
 //! tag dispatch — same shape as `mailrs_dkim::DkimHeader::parse` so
 //! the parse cost is sub-µs on realistic headers.
 
+use compact_str::CompactString;
+
 use crate::error::ArcError;
 
 /// Maximum legal instance number per RFC 8617 §4.2.1.
@@ -89,10 +91,10 @@ pub struct ArcMessageSignature {
     pub canon_header: Canon,
     /// see [`Self::canon_header`].
     pub canon_body: Canon,
-    /// `d=` signing domain.
-    pub domain: String,
-    /// `s=` selector.
-    pub selector: String,
+    /// `d=` signing domain. `CompactString` inlines ≤24 bytes (see mailrs-dkim 2.0).
+    pub domain: CompactString,
+    /// `s=` selector. `CompactString` inlines ≤24 bytes.
+    pub selector: CompactString,
     /// `h=` colon-separated list of signed header names (lowercased).
     pub signed_headers: Vec<String>,
     /// `t=` timestamp (epoch seconds), optional.
@@ -110,8 +112,8 @@ impl ArcMessageSignature {
         let mut body_hash_b64: Option<String> = None;
         let mut canon_header = Canon::Simple;
         let mut canon_body = Canon::Simple;
-        let mut domain: Option<String> = None;
-        let mut selector: Option<String> = None;
+        let mut domain: Option<CompactString> = None;
+        let mut selector: Option<CompactString> = None;
         let mut signed_headers: Option<Vec<String>> = None;
         let mut timestamp: Option<u64> = None;
         let mut expiration: Option<u64> = None;
@@ -127,42 +129,12 @@ impl ArcMessageSignature {
                     canon_header = h;
                     canon_body = b;
                 }
-                b"d" => domain = Some(raw_val.trim().to_ascii_lowercase()),
-                b"s" => selector = Some(raw_val.trim().to_ascii_lowercase()),
-                b"h" => {
-                    let mut list: Vec<String> = Vec::with_capacity(8);
-                    let mut cur: Vec<u8> = Vec::with_capacity(20);
-                    for &c in raw_val.as_bytes() {
-                        match c {
-                            b' ' | b'\t' | b'\r' | b'\n' => {}
-                            b':' => {
-                                if !cur.is_empty() {
-                                    // SAFETY: only lowercase ASCII pushed below.
-                                    let s = unsafe {
-                                        String::from_utf8_unchecked(std::mem::take(&mut cur))
-                                    };
-                                    list.push(s);
-                                    cur.reserve(20);
-                                }
-                            }
-                            _ => cur.push(c.to_ascii_lowercase()),
-                        }
-                    }
-                    if !cur.is_empty() {
-                        // SAFETY: only lowercase ASCII pushed.
-                        let s = unsafe { String::from_utf8_unchecked(cur) };
-                        list.push(s);
-                    }
-                    if list.is_empty() {
-                        return Err(ArcError::InvalidTag("h= empty".into()));
-                    }
-                    signed_headers = Some(list);
-                }
+                b"d" => domain = Some(lower_compact(raw_val.trim())),
+                b"s" => selector = Some(lower_compact(raw_val.trim())),
+                b"h" => signed_headers = Some(parse_signed_headers(raw_val)?),
                 b"t" => timestamp = Some(parse_u64(raw_val, "t")?),
                 b"x" => expiration = Some(parse_u64(raw_val, "x")?),
-                // Unknown tags are ignored per RFC 6376 §3.2 (and ARC
-                // inherits the syntax). Same forward-compat rule.
-                _ => {}
+                _ => {} // unknown tags ignored per RFC 6376 §3.2 (ARC inherits)
             }
         }
 
@@ -193,10 +165,10 @@ pub struct ArcSeal {
     pub signature_b64: String,
     /// `cv=` chain-validation status. `None` only for `i=1`.
     pub cv: ArcSealCv,
-    /// `d=` signing domain.
-    pub domain: String,
-    /// `s=` selector.
-    pub selector: String,
+    /// `d=` signing domain. `CompactString` inlines ≤24 bytes.
+    pub domain: CompactString,
+    /// `s=` selector. `CompactString` inlines ≤24 bytes.
+    pub selector: CompactString,
     /// `t=` timestamp (epoch seconds), optional.
     pub timestamp: Option<u64>,
 }
@@ -208,8 +180,8 @@ impl ArcSeal {
         let mut algorithm: Option<Algorithm> = None;
         let mut signature_b64: Option<String> = None;
         let mut cv: Option<ArcSealCv> = None;
-        let mut domain: Option<String> = None;
-        let mut selector: Option<String> = None;
+        let mut domain: Option<CompactString> = None;
+        let mut selector: Option<CompactString> = None;
         let mut timestamp: Option<u64> = None;
 
         for (name, raw_val) in TagIter::new(value) {
@@ -223,8 +195,8 @@ impl ArcSeal {
                             .ok_or_else(|| ArcError::InvalidCv(raw_val.trim().into()))?,
                     );
                 }
-                b"d" => domain = Some(raw_val.trim().to_ascii_lowercase()),
-                b"s" => selector = Some(raw_val.trim().to_ascii_lowercase()),
+                b"d" => domain = Some(lower_compact(raw_val.trim())),
+                b"s" => selector = Some(lower_compact(raw_val.trim())),
                 b"t" => timestamp = Some(parse_u64(raw_val, "t")?),
                 _ => {}
             }
@@ -276,10 +248,6 @@ fn parse_instance_value(s: &str) -> Result<u32, ArcError> {
 }
 
 fn parse_algorithm(s: &str) -> Result<Algorithm, ArcError> {
-    // ASCII case-insensitive byte compare against the 2 known
-    // algorithms — avoids the per-call `to_ascii_lowercase()` String
-    // allocation that the old impl paid for every AMS/AS header
-    // parse.
     let trimmed = s.trim().as_bytes();
     if trimmed.eq_ignore_ascii_case(b"rsa-sha256") {
         Ok(Algorithm::RsaSha256)
@@ -323,6 +291,50 @@ fn strip_wsp(s: &str) -> String {
         }
     }
     out
+}
+
+/// Build a lowercased `CompactString` from `s` without going through a `String`
+/// first. Inputs already lowercase (the wire-format common case) skip the fold.
+#[inline]
+fn lower_compact(s: &str) -> CompactString {
+    if s.bytes().all(|b| !b.is_ascii_uppercase()) {
+        return CompactString::new(s);
+    }
+    let mut out = CompactString::with_capacity(s.len());
+    for &b in s.as_bytes() {
+        out.push(b.to_ascii_lowercase() as char);
+    }
+    out
+}
+
+/// Parse an AMS `h=` value into a `Vec<String>` of lowercased, WSP-stripped
+/// header names. Single byte-iter pass; rejects empty lists per RFC 8617 §4.1.2.
+fn parse_signed_headers(raw_val: &str) -> Result<Vec<String>, ArcError> {
+    let mut list: Vec<String> = Vec::with_capacity(8);
+    let mut cur: Vec<u8> = Vec::with_capacity(20);
+    for &c in raw_val.as_bytes() {
+        match c {
+            b' ' | b'\t' | b'\r' | b'\n' => {}
+            b':' => {
+                if !cur.is_empty() {
+                    // SAFETY: only lowercase ASCII bytes are pushed below.
+                    let s = unsafe { String::from_utf8_unchecked(std::mem::take(&mut cur)) };
+                    list.push(s);
+                    cur.reserve(20);
+                }
+            }
+            _ => cur.push(c.to_ascii_lowercase()),
+        }
+    }
+    if !cur.is_empty() {
+        // SAFETY: only lowercase ASCII bytes pushed.
+        let s = unsafe { String::from_utf8_unchecked(cur) };
+        list.push(s);
+    }
+    if list.is_empty() {
+        return Err(ArcError::InvalidTag("h= empty".into()));
+    }
+    Ok(list)
 }
 
 /// Take the mandatory `i=N` prefix off an AAR header. Returns

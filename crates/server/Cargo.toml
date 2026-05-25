@@ -61,7 +61,7 @@ mailrs-tls-reload = "1"
 mailrs-acme = "1"
 mailrs-spf = "1"
 mailrs-dkim = { path = "../dkim", version = "2" }
-mailrs-arc = "1.2"
+mailrs-arc = { path = "../arc", version = "2" }
 mailrs-arf = "1"
 mailrs-tls-rpt = "1.2"
 mailrs-mime = { path = "../mime", version = "2" }

@@ -2829,31 +2829,18 @@ dependencies = [
 
 [[package]]
 name = "mailrs-arc"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "base64",
+ "compact_str",
  "criterion",
  "ed25519-dalek",
- "mailrs-dkim 2.0.0",
+ "mailrs-dkim",
  "rand 0.8.6",
  "rsa",
  "sha2 0.10.9",
  "tokio",
-]
-
-[[package]]
-name = "mailrs-arc"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b775e5232a35ee6f5b5938715c2e7dfb3560cd1ee17820cc148f6e038c048c50"
-dependencies = [
- "async-trait",
- "base64",
- "ed25519-dalek",
- "mailrs-dkim 1.5.0",
- "rsa",
- "sha2 0.10.9",
 ]
 
 [[package]]
@@ -3005,20 +2992,6 @@ dependencies = [
  "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile",
  "tokio",
-]
-
-[[package]]
-name = "mailrs-dkim"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db959556398263504c28fafed75961d5f8cff9f068e10614e414e2a1f7c0df70"
-dependencies = [
- "async-trait",
- "base64",
- "ed25519-dalek",
- "hickory-resolver",
- "rsa",
- "sha2 0.10.9",
 ]
 
 [[package]]
@@ -3490,7 +3463,7 @@ dependencies = [
  "mail-auth",
  "mail-parser",
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-arc 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-arc",
  "mailrs-arf 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-attachment-extract 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-auth-guard 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3499,7 +3472,7 @@ dependencies = [
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0",
  "mailrs-delivery-executor 1.1.0",
- "mailrs-dkim 2.0.0",
+ "mailrs-dkim",
  "mailrs-dmarc 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.2",
  "mailrs-imap-codec 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-arc"
-version = "1.2.0"
+version = "2.0.0"
 edition = "2024"
 description = "RFC 8617 Authenticated Received Chain (ARC) — header parsing, chain extraction, and signature verification. ARC extends DKIM/SPF/DMARC across forwarders by chaining per-hop authentication results inside cryptographically-sealed header sets. Pairs with mailrs-dkim for canonicalization + RSA verify, mailrs-spf / mailrs-dmarc for the auth-results that ARC carries forward."
 license = "Apache-2.0 OR MIT"
@@ -25,28 +25,18 @@ hickory = ["mailrs-dkim/hickory"]
 async-trait = "0.1"
 base64 = "0.22"
 sha2 = { version = "0.10", features = ["oid"] }
-# DKIM canonicalization + crypto primitives are byte-identical between
-# RFC 6376 and RFC 8617 §5 (AMS uses the same canonicalization +
-# algorithms; AS uses relaxed/relaxed + the same algorithms). Route
-# through mailrs-dkim instead of duplicating ~600 LOC of canon + crypto.
-# 1.5 exposes the `crypto::sign_signature` we use for ARC sealing.
+# Reuse DKIM canonicalization + crypto (AMS/AS share the algorithms).
 mailrs-dkim = { path = "../dkim", version = "2", default-features = false }
-# RSA + Ed25519 private-key types appear in our public API
-# (`ArcSigningKey<'_>`) so callers can borrow their already-parsed
-# keys. Already transitively present via mailrs-dkim; making the
-# dep direct keeps `cargo doc` resolving the types in this crate's
-# docs.
+# Direct dep so cargo doc resolves ArcSigningKey<'_> types in this crate.
 rsa = "0.9"
 ed25519-dalek = "2"
+# Inline-short-string for d= / s= / i= tags — see mailrs-dkim 2.0.
+compact_str = "0.9"
 
 [dev-dependencies]
 criterion = { workspace = true }
 tokio = { workspace = true }
-# Crypto signing primitives — used by integration tests to produce real
-# RSA-SHA256 / Ed25519-SHA256 signed AMS / AS headers and round-trip
-# them through verify_chain_with_crypto. Not used by the runtime crate
-# (verification side reuses mailrs-dkim's crypto primitives).
-# rsa 0.9 pulls rand_core 0.6 — match that so RsaPrivateKey::new accepts our RNG.
+# rsa 0.9 + rand 0.8 keep rand_core 0.6 compatible.
 rsa = { version = "0.9", features = ["sha2"] }
 rand = "0.8"
 base64 = "0.22"
