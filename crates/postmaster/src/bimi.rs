@@ -53,7 +53,6 @@ pub(super) async fn check_bimi(resolver: &TokioResolver, domain: &str) -> CheckR
 }
 
 /// extract the logo URL from a BIMI record (l=https://...)
-
 pub fn extract_bimi_logo_url(record: &str) -> Option<String> {
     record
         .split(';')
@@ -70,7 +69,6 @@ pub fn extract_bimi_logo_url(record: &str) -> Option<String> {
 }
 
 /// look up BIMI record for a domain and return the logo URL if found
-
 pub async fn lookup_bimi_logo(resolver: &TokioResolver, domain: &str) -> Option<String> {
     let qname = format!("default._bimi.{domain}");
     let records = resolver.txt_lookup(&qname).await.ok()?;
