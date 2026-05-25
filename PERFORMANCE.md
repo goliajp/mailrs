@@ -111,8 +111,15 @@ record vs ~1 day of focused refactor.
 
 | Input | mailrs-dkim | mail-auth | Winner |
 |---|---:|---:|---|
-| minimal (7 tags) | 147 ns | 167 ns | **mailrs +12%** ✅ |
-| realistic (folded, 11 tags, 7 signed headers) | 405 ns | 423 ns | **mailrs +4%** ✅ |
+| minimal (7 tags) | **103 ns** | 186 ns | **mailrs 1.8×** ✅ (was +12%) |
+| realistic (folded, 11 tags, 7 signed headers) | **338 ns** | 396 ns | **mailrs +17%** ✅ (was +4%) |
+
+v4 round 9 replaced the `h=` signed-headers parse:
+  `raw_val.split(':').map(|s| s.trim().to_ascii_lowercase()).collect()`
+which allocates one `String` per signed header name (5-7 per
+realistic signature), with a single byte-level forward scan that
+lowercases in-place into a reused `Vec<u8>` and pushes finished names
+on `:`. Same pattern as `arc::ArcMessageSignature::parse`.
 
 Before the perf-batch (commit `8eba06c` and later) we were 4.1× / 3.6× slower than mail-auth. Two changes closed the gap and then surpassed it:
 1. Single-pass byte scanner replaces the HashMap + unfold pre-pass.
