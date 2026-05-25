@@ -22,13 +22,18 @@
 //!   apply `subdomain_policy` instead of `policy`.
 
 use crate::align::check as align_check;
+use compact_str::CompactString;
+
 use crate::policy::{DmarcPolicy, PolicyAction};
 
 /// One DKIM signature's verification verdict + identifying domain.
 #[derive(Debug, Clone)]
 pub struct DkimSignatureResult {
     /// `d=` value from the DKIM-Signature header.
-    pub d_domain: String,
+    ///
+    /// **v2 change**: `CompactString` — matches `mailrs-dkim::DkimHeader.domain`'s
+    /// type so the inbound pipeline can clone through without re-allocating.
+    pub d_domain: CompactString,
     /// Whether this signature verified (RSA-SHA256 / Ed25519-SHA256).
     /// Per RFC 7489 §3.1.1, only `pass` results contribute to DMARC.
     pub pass: bool,
@@ -38,7 +43,9 @@ pub struct DkimSignatureResult {
 #[derive(Debug, Clone)]
 pub struct SpfResult {
     /// The MAIL FROM domain used in the SPF check (or HELO when MAIL FROM was empty).
-    pub domain: String,
+    ///
+    /// **v2 change**: `CompactString` — see `DkimSignatureResult.d_domain`.
+    pub domain: CompactString,
     /// Whether the SPF result was `pass`.
     pub pass: bool,
 }
@@ -48,10 +55,10 @@ pub struct SpfResult {
 #[derive(Debug, Clone)]
 pub struct DmarcInput {
     /// RFC 5322 `From:` header domain — the identity DMARC anchors on.
-    pub from_domain: String,
+    pub from_domain: CompactString,
     /// The domain whose `_dmarc.<domain>` TXT we used. Equal to `from_domain`
     /// when the From: domain has a policy directly; otherwise the org domain.
-    pub policy_domain: String,
+    pub policy_domain: CompactString,
     /// SPF result (or absent if SPF wasn't checked / errored).
     pub spf: Option<SpfResult>,
     /// All DKIM signatures observed on the message.
@@ -113,8 +120,8 @@ fn pick_disposition(input: &DmarcInput, policy: &DmarcPolicy) -> PolicyAction {
 ///
 /// let policy = DmarcPolicy::parse("v=DMARC1; p=reject").unwrap();
 /// let input = DmarcInput {
-///     from_domain: "alice@example.com".rsplit('@').next().unwrap().to_string(),
-///     policy_domain: "example.com".to_string(),
+///     from_domain: "alice@example.com".rsplit('@').next().unwrap().into(),
+///     policy_domain: "example.com".into(),
 ///     spf: Some(SpfResult { domain: "mail.example.com".into(), pass: true }),
 ///     dkim: vec![],
 /// };
