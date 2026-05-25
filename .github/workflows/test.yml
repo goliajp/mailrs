@@ -47,8 +47,13 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: cargo test --workspace
-        run: cargo test --workspace --no-fail-fast
+      - name: cargo test --workspace (skip perf_gates — CI runners are too noisy)
+        # Each *_under_budget test asserts wall-clock under a fixed
+        # budget tuned for M-series Mac at idle. GH Actions ubuntu
+        # runners are ~3× slower and have variable CPU. Skip the gates
+        # here; they run locally before `scripts/release.sh` ships and
+        # via `cargo bench` for trend tracking.
+        run: cargo test --workspace --no-fail-fast -- --skip _under_budget
 
   web:
     name: web check + test
