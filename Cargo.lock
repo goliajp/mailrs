@@ -616,6 +616,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
+name = "castaway"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dec551ab6e7578819132c713a93c022a05d60159dc86e7a7050223577484c55a"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "cbc"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -842,6 +851,20 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "compact_str"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fdb1325a1cece981e8a296ab8f0f9b63ae357bd0784a9faaf548cc7b480707a"
+dependencies = [
+ "castaway",
+ "cfg-if",
+ "itoa",
+ "rustversion",
+ "ryu",
+ "static_assertions",
 ]
 
 [[package]]
@@ -2812,7 +2835,7 @@ dependencies = [
  "base64",
  "criterion",
  "ed25519-dalek",
- "mailrs-dkim 1.5.0",
+ "mailrs-dkim 2.0.0",
  "rand 0.8.6",
  "rsa",
  "sha2 0.10.9",
@@ -2828,7 +2851,7 @@ dependencies = [
  "async-trait",
  "base64",
  "ed25519-dalek",
- "mailrs-dkim 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-dkim 1.5.0",
  "rsa",
  "sha2 0.10.9",
 ]
@@ -2987,22 +3010,6 @@ dependencies = [
 [[package]]
 name = "mailrs-dkim"
 version = "1.5.0"
-dependencies = [
- "async-trait",
- "base64",
- "criterion",
- "ed25519-dalek",
- "hickory-resolver",
- "mail-auth",
- "rand 0.8.6",
- "rsa",
- "sha2 0.10.9",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-dkim"
-version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db959556398263504c28fafed75961d5f8cff9f068e10614e414e2a1f7c0df70"
 dependencies = [
@@ -3012,6 +3019,23 @@ dependencies = [
  "hickory-resolver",
  "rsa",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "mailrs-dkim"
+version = "2.0.0"
+dependencies = [
+ "async-trait",
+ "base64",
+ "compact_str",
+ "criterion",
+ "ed25519-dalek",
+ "hickory-resolver",
+ "mail-auth",
+ "rand 0.8.6",
+ "rsa",
+ "sha2 0.10.9",
+ "tokio",
 ]
 
 [[package]]
@@ -3487,7 +3511,7 @@ dependencies = [
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0",
  "mailrs-delivery-executor 1.1.0",
- "mailrs-dkim 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-dkim 2.0.0",
  "mailrs-dmarc 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-ical 1.0.2",
  "mailrs-imap-codec 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5825,6 +5849,12 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "string_cache"

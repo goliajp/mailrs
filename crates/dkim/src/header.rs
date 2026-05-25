@@ -1,5 +1,7 @@
 //! DKIM-Signature header parsing (RFC 6376 §3.5).
 
+use compact_str::CompactString;
+
 use crate::error::DkimError;
 
 /// Algorithm announced in the `a=` tag.
@@ -45,9 +47,15 @@ pub struct DkimHeader {
     /// see [`Self::canon_header`].
     pub canon_body: Canon,
     /// `d=` — signing domain (used in the selector DNS lookup).
-    pub domain: String,
+    ///
+    /// **v2 change**: `CompactString` (inlined ≤24 bytes); real-world
+    /// domains nearly always fit, so the hot path skips the heap alloc
+    /// `String` would do. API is still `Deref<Target=str>` + `==`
+    /// against `&str` so most call sites compile unchanged.
+    pub domain: CompactString,
     /// `s=` — selector (used in `<s>._domainkey.<d>` TXT lookup).
-    pub selector: String,
+    /// `CompactString` per `domain` rationale above.
+    pub selector: CompactString,
     /// `h=` — colon-separated list of signed header names, in the
     /// order they were signed. **Lowercased and trimmed** in
     /// parse so verifier doesn't have to.
@@ -61,11 +69,12 @@ pub struct DkimHeader {
     /// `now > x` → expired.
     pub expiration: Option<u64>,
     /// `i=` — optional identity (used for DMARC alignment but not
-    /// for hash inputs).
-    pub identity: Option<String>,
+    /// for hash inputs). `CompactString` per `domain` rationale.
+    pub identity: Option<CompactString>,
     /// `q=` — query method (default "dns/txt"). We only support
     /// "dns/txt"; anything else → UnsupportedAlgorithm.
-    pub query_method: String,
+    /// `CompactString` per `domain` rationale; `"dns/txt"` inlines.
+    pub query_method: CompactString,
 }
 
 impl DkimHeader {
@@ -89,14 +98,14 @@ impl DkimHeader {
         let mut body_hash_b64: Option<String> = None;
         let mut canon_header = Canon::Simple;
         let mut canon_body = Canon::Simple;
-        let mut domain: Option<String> = None;
-        let mut selector: Option<String> = None;
+        let mut domain: Option<CompactString> = None;
+        let mut selector: Option<CompactString> = None;
         let mut signed_headers: Option<Vec<String>> = None;
         let mut body_length: Option<u64> = None;
         let mut timestamp: Option<u64> = None;
         let mut expiration: Option<u64> = None;
-        let mut identity: Option<String> = None;
-        let mut query_method: Option<String> = None;
+        let mut identity: Option<CompactString> = None;
+        let mut query_method: Option<CompactString> = None;
 
         while i < n {
             // Skip separators / whitespace / folding between tags.
@@ -163,8 +172,8 @@ impl DkimHeader {
                 }
                 b"b" => signature_b64 = Some(strip_wsp(raw_val)),
                 b"bh" => body_hash_b64 = Some(strip_wsp(raw_val)),
-                b"d" => domain = Some(raw_val.trim().to_string()),
-                b"s" => selector = Some(raw_val.trim().to_string()),
+                b"d" => domain = Some(CompactString::new(raw_val.trim())),
+                b"s" => selector = Some(CompactString::new(raw_val.trim())),
                 b"h" => {
                     // Byte-level scan. The realistic case carries 7+ signed
                     // headers; using `split(':').map(to_ascii_lowercase)`
@@ -234,8 +243,8 @@ impl DkimHeader {
                             .map_err(|_| DkimError::InvalidTag(format!("x={trimmed}")))?,
                     );
                 }
-                b"i" => identity = Some(raw_val.trim().to_string()),
-                b"q" => query_method = Some(raw_val.trim().to_string()),
+                b"i" => identity = Some(CompactString::new(raw_val.trim())),
+                b"q" => query_method = Some(CompactString::new(raw_val.trim())),
                 _ => {
                     // Cold path: mixed-case or unknown tag name. Try
                     // case-insensitive once before treating as unknown.
@@ -282,8 +291,8 @@ impl DkimHeader {
                             }
                             b"b" => signature_b64 = Some(strip_wsp(raw_val)),
                             b"bh" => body_hash_b64 = Some(strip_wsp(raw_val)),
-                            b"d" => domain = Some(raw_val.trim().to_string()),
-                            b"s" => selector = Some(raw_val.trim().to_string()),
+                            b"d" => domain = Some(CompactString::new(raw_val.trim())),
+                            b"s" => selector = Some(CompactString::new(raw_val.trim())),
                             b"h" => {
                                 // Byte-level h= header list parser: walk raw_val
                                 // once, accumulate ASCII-lowercased header name
@@ -349,8 +358,8 @@ impl DkimHeader {
                                         DkimError::InvalidTag(format!("x={trimmed}"))
                                     })?);
                             }
-                            b"i" => identity = Some(raw_val.trim().to_string()),
-                            b"q" => query_method = Some(raw_val.trim().to_string()),
+                            b"i" => identity = Some(CompactString::new(raw_val.trim())),
+                            b"q" => query_method = Some(CompactString::new(raw_val.trim())),
                             _ => {} // truly unknown, ignore per §3.2
                         }
                     }
@@ -366,7 +375,8 @@ impl DkimHeader {
         let domain = domain.ok_or_else(|| DkimError::MissingTag("d".into()))?;
         let selector = selector.ok_or_else(|| DkimError::MissingTag("s".into()))?;
         let signed_headers = signed_headers.ok_or_else(|| DkimError::MissingTag("h".into()))?;
-        let query_method = query_method.unwrap_or_else(|| "dns/txt".to_string());
+        let query_method =
+            query_method.unwrap_or_else(|| CompactString::const_new("dns/txt"));
         if !query_method.eq_ignore_ascii_case("dns/txt") {
             return Err(DkimError::UnsupportedAlgorithm(format!("q={query_method}")));
         }
