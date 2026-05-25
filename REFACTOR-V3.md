@@ -156,8 +156,8 @@ fuzz target。
 | Checkpoint | 完成日 | 关键产出 |
 |---|---|---|
 | v3.1 (Tier A 12 stones) | 2026-05-25 | 12 stones audit footer 注入 README：doc clean / cov 85-99% / rlib 43 KB-5 MB / bench + perf_gate 全在 / fuzz 11/12 (arf 待补) / mem 标 v3.4 backlog；competitor 见 PERFORMANCE.md。`scripts/stone-audit-footer.py` + `scripts/stone-audit.sh` 上线 |
-| v3.2 (Tier B 21 stones) | — | — |
-| v3.3 (Tier C 7 stones) | — | — |
+| v3.2 (Tier B 23 stones) | 2026-05-25 | 23 footer + 5 fuzz target (rfc2231/dmarc/dav/srs/arf, dnsbl 跳过没 byte-parse surface) + 5 doc fix + postmaster 740→119 prod split (9 sub-modules) + clean 557→126 prod split (3 sub-modules) |
+| v3.3 (Tier C 6 stones) | 2026-05-25 | 6 footer + 6 BUDGETS + 6 CHANGELOG；bench/perf_gate 加层进 v3.4 backlog (per-stone API-specific work) |
 | v3.4 (v2 cold backlog) | — | — |
 | v3.5 (mail-auth drop) | — | — |
 | v3.6 (ARCHITECTURE 终审) | — | — |
