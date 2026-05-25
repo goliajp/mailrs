@@ -139,6 +139,7 @@ async fn verify_password_and_load_account(
             state
                 .auth_failure_total
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            metrics::counter!("mailrs_auth_total", "outcome" => "failure").increment(1);
             return Err((
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({"error": "invalid credentials"})),
@@ -256,6 +257,7 @@ async fn issue_session_response(
     state
         .auth_success_total
         .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    metrics::counter!("mailrs_auth_total", "outcome" => "success").increment(1);
 
     if let Some(ref ds) = state.domain_store {
         ds.log_audit(&account.address, "login", "", &format!("ip={ip}"))

@@ -299,14 +299,18 @@ impl WebState {
     pub fn on_connect(&self) {
         self.total_connections.fetch_add(1, Ordering::Relaxed);
         self.active_connections.fetch_add(1, Ordering::Relaxed);
+        metrics::counter!("mailrs_connections_total").increment(1);
+        metrics::gauge!("mailrs_connections_active").increment(1.0);
     }
 
     pub fn on_disconnect(&self) {
         self.active_connections.fetch_sub(1, Ordering::Relaxed);
+        metrics::gauge!("mailrs_connections_active").decrement(1.0);
     }
 
     pub fn on_message_delivered(&self) {
         self.total_messages.fetch_add(1, Ordering::Relaxed);
+        metrics::counter!("mailrs_messages_total").increment(1);
     }
 }
 
