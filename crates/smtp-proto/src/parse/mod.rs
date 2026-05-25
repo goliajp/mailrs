@@ -28,33 +28,47 @@ pub fn parse_command(input: &str) -> Result<Command<'_>, ParseError> {
         None => (input, ""),
     };
 
-    match verb.to_ascii_uppercase().as_str() {
-        "EHLO" => parse_ehlo(args),
-        "HELO" => parse_helo(args),
-        "MAIL" => parse_mail_from(args),
-        "RCPT" => parse_rcpt_to(args),
-        "DATA" => Ok(Command::Data),
-        "RSET" => Ok(Command::Rset),
-        "QUIT" => Ok(Command::Quit),
-        "NOOP" => Ok(Command::Noop(if args.is_empty() {
+    // ASCII-uppercase verb into a stack buffer. Longest SMTP verb
+    // we accept is "STARTTLS" (8); 16 gives headroom for any
+    // future ESMTP extension verb. Killing the `to_ascii_uppercase()`
+    // String allocation is the dominant DATA-path saving (no args).
+    let verb_bytes = verb.as_bytes();
+    if verb_bytes.len() > 16 {
+        return Err(ParseError::UnknownCommand);
+    }
+    let mut verb_upper = [0u8; 16];
+    for (i, &b) in verb_bytes.iter().enumerate() {
+        verb_upper[i] = b.to_ascii_uppercase();
+    }
+    let verb_upper = &verb_upper[..verb_bytes.len()];
+
+    match verb_upper {
+        b"EHLO" => parse_ehlo(args),
+        b"HELO" => parse_helo(args),
+        b"MAIL" => parse_mail_from(args),
+        b"RCPT" => parse_rcpt_to(args),
+        b"DATA" => Ok(Command::Data),
+        b"RSET" => Ok(Command::Rset),
+        b"QUIT" => Ok(Command::Quit),
+        b"NOOP" => Ok(Command::Noop(if args.is_empty() {
             None
         } else {
             Some(&input[verb.len() + 1..])
         })),
-        "VRFY" => {
+        b"VRFY" => {
             if args.is_empty() {
                 Err(ParseError::InvalidSyntax("VRFY requires argument".into()))
             } else {
                 Ok(Command::Vrfy(args))
             }
         }
-        "HELP" => Ok(Command::Help(if args.is_empty() {
+        b"HELP" => Ok(Command::Help(if args.is_empty() {
             None
         } else {
             Some(args)
         })),
-        "STARTTLS" => parse_starttls(args),
-        "AUTH" => parse_auth(args, input),
+        b"STARTTLS" => parse_starttls(args),
+        b"AUTH" => parse_auth(args, input),
         _ => Err(ParseError::UnknownCommand),
     }
 }
@@ -214,9 +228,22 @@ fn parse_auth<'a>(args: &'a str, _input: &'a str) -> Result<Command<'a>, ParseEr
         None => (args, ""),
     };
 
-    let mechanism = match mech_str.to_ascii_uppercase().as_str() {
-        "PLAIN" => AuthMechanism::Plain,
-        "LOGIN" => AuthMechanism::Login,
+    // Same stack-buffer pattern as the main verb match — AUTH
+    // mechanisms are short ASCII keywords (PLAIN / LOGIN /
+    // CRAM-MD5 / GSSAPI etc.), well under 16 bytes.
+    let mech_bytes = mech_str.as_bytes();
+    let mut mech_upper = [0u8; 16];
+    if mech_bytes.len() > 16 {
+        return Err(ParseError::InvalidSyntax(format!(
+            "unsupported AUTH mechanism: {mech_str}"
+        )));
+    }
+    for (i, &b) in mech_bytes.iter().enumerate() {
+        mech_upper[i] = b.to_ascii_uppercase();
+    }
+    let mechanism = match &mech_upper[..mech_bytes.len()] {
+        b"PLAIN" => AuthMechanism::Plain,
+        b"LOGIN" => AuthMechanism::Login,
         _ => {
             return Err(ParseError::InvalidSyntax(format!(
                 "unsupported AUTH mechanism: {mech_str}"
