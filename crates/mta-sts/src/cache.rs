@@ -25,7 +25,9 @@ use crate::policy::Policy;
 pub struct CachedPolicy {
     /// `id` field from the most recent TXT record. Cache key for
     /// freshness comparison.
-    pub id: String,
+    ///
+    /// **v2 change**: `CompactString` — matches `StsRecord.id`.
+    pub id: compact_str::CompactString,
     /// Parsed policy body.
     pub policy: Policy,
     /// Unix-seconds at which the caller fetched the policy file.
