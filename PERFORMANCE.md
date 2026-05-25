@@ -78,10 +78,10 @@ which excludes upstream deps unlike `target/release/deps/`).
 
 | Bucket | Stones | Range |
 |---|---|---:|
-| **Tiny** (≤50 KB, 8 stones) | imap_codec, rfc2231, srs, backoff, webhook_signature, rfc2047, smtp_codec, sieve | 20–38 KB |
-| **Small** (50–110 KB, 9 stones) | rfc5322, arf, attachment_extract, auth_guard, clamav, shield, maildir, rate_limit, tls_reload | 39–85 KB |
-| **Medium** (110–500 KB, 16 stones) | mime (97), delivery_executor, imap_format, mta_sts, dnsbl, inbound, imap_proto, smtp_proto, postmaster, arc, ical, dav, clean | 97–496 KB |
-| **Large** (≥500 KB, 8 stones) | smtp_client (563), jmap (591), tls_rpt (678), dns (779), spf (930), dkim (1008), intelligence (1014), acme (1163), dmarc (1432), outbound_queue (1579), mailbox (1659) | 563–1659 KB |
+| **Tiny** (≤50 KB, 9 stones) | imap_codec, rfc2231, srs, backoff, webhook_signature, rfc2047, smtp_codec, sieve, rfc5322 | 20–39 KB |
+| **Small** (50–110 KB, 11 stones) | arf, attachment_extract, auth_guard, clamav, shield, maildir, rate_limit, tls_reload, mime (97), delivery_executor, imap_format | 56–108 KB |
+| **Medium** (110–500 KB, 10 stones) | mta_sts, dnsbl, inbound, imap_proto, smtp_proto, postmaster, arc, ical, dav, clean | 117–496 KB |
+| **Large** (≥500 KB, 11 stones) | smtp_client (563), jmap (591), tls_rpt (678), dns (779), spf (930), dkim (1008), intelligence (1014), acme (1163), dmarc (1432), outbound_queue (1579), mailbox (1659) | 563–1659 KB |
 
 Note: `mime` was 143 KB before the v4 round 13 single-pass header collect
 landed — the refactor removed 5 distinct `Message::header()` / `Message::body()`
