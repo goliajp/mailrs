@@ -285,11 +285,39 @@ impl DkimHeader {
                             b"d" => domain = Some(raw_val.trim().to_string()),
                             b"s" => selector = Some(raw_val.trim().to_string()),
                             b"h" => {
-                                let list: Vec<String> = raw_val
-                                    .split(':')
-                                    .map(|s| s.trim().to_ascii_lowercase())
-                                    .filter(|s| !s.is_empty())
-                                    .collect();
+                                // Byte-level h= header list parser: walk raw_val
+                                // once, accumulate ASCII-lowercased header name
+                                // into a Vec<u8>, push on `:`. Avoids:
+                                //   * `.split(':')` -> Vec<&str> intermediate
+                                //   * `.to_ascii_lowercase()` per element
+                                //     (each allocates a fresh String)
+                                //   * `.trim()` per element (two passes)
+                                // Same pattern as arc::ArcMessageSignature::parse.
+                                let mut list: Vec<String> = Vec::with_capacity(8);
+                                let mut cur: Vec<u8> = Vec::with_capacity(20);
+                                for &b in raw_val.as_bytes() {
+                                    match b {
+                                        b' ' | b'\t' | b'\r' | b'\n' => {}
+                                        b':' => {
+                                            if !cur.is_empty() {
+                                                // SAFETY: only lowercase ASCII bytes pushed.
+                                                let s = unsafe {
+                                                    String::from_utf8_unchecked(std::mem::take(
+                                                        &mut cur,
+                                                    ))
+                                                };
+                                                list.push(s);
+                                                cur.reserve(20);
+                                            }
+                                        }
+                                        _ => cur.push(b.to_ascii_lowercase()),
+                                    }
+                                }
+                                if !cur.is_empty() {
+                                    // SAFETY: only lowercase ASCII bytes pushed.
+                                    let s = unsafe { String::from_utf8_unchecked(cur) };
+                                    list.push(s);
+                                }
                                 if list.is_empty() {
                                     return Err(DkimError::InvalidTag("h= empty".into()));
                                 }
