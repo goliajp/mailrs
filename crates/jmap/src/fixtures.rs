@@ -1,4 +1,4 @@
-//! In-memory [`MailStore`](crate::store::MailStore) implementation suitable
+//! In-memory [`MailStore`] implementation suitable
 //! for tests, examples, and downstream-consumer test harnesses.
 //!
 //! **Intended use is testing.** The store keeps every value in process memory

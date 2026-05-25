@@ -92,6 +92,25 @@ Most "SMTP client" crates either bundle a full MUA (auth, MIME building, attachm
 
 It's the outbound side of the [mailrs] mail server and is published independently so anyone building an MTA, a delivery-test harness, or a bounce probe in Rust can lean on the same battle-tested pieces.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-smtp-client`) |
+| **test** | line cov: 72.9% (`cargo llvm-cov -p mailrs-smtp-client --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 1007 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of:

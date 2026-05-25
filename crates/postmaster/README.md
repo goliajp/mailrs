@@ -79,6 +79,25 @@ BIMI: Pass — selector default, logo URL valid
 
 Mail-server tooling repeatedly asks the same question: "is `foo.com` set up correctly?" Splitting the answer across 9 separate function calls forces every consumer to re-glue them — and they always end up writing the same retry, ordering, and result-shape code. One call → one report keeps the friction off the consumer.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-postmaster`) |
+| **test** | line cov: 51.3% (`cargo llvm-cov -p mailrs-postmaster --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 514 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.

@@ -90,6 +90,25 @@ in 10-30 ms; the CPU portion of that is microseconds.
 Reproduce: `cargo bench -p mailrs-clamav --bench clamav`. Workspace
 [PERFORMANCE.md](../../PERFORMANCE.md) carries the same table.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-clamav`) |
+| **test** | line cov: 71.2% (`cargo llvm-cov -p mailrs-clamav --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 88 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Apache-2.0 OR MIT.

@@ -1,4 +1,4 @@
-//! In-memory [`MailboxStore`](crate::store::MailboxStore) implementation
+//! In-memory [`MailboxStore`] implementation
 //! suitable for tests, examples, and downstream-consumer test harnesses.
 //!
 //! **Intended use is testing.** All state lives in process memory and never

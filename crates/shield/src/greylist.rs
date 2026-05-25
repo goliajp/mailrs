@@ -1,6 +1,6 @@
 //! Greylisting policy + an optional Redis-backed store.
 //!
-//! The policy is pure (no I/O): you call [`evaluate_triplet`] with the
+//! The policy is pure (no I/O): you call [`evaluate_triplet`](crate::greylist::evaluate_triplet) with the
 //! first-seen timestamp and the current time, and it tells you whether
 //! to defer, retry, or accept. The store is just there for convenience —
 //! plug your own backend in by passing the right `first_seen` value.

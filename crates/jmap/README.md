@@ -195,6 +195,25 @@ These will land as `MailStore` trait extensions (additive — default impls or f
 
 Helper-module internals (e.g. the exact JSON shape `build::extend_with_body` produces, or the per-method handler signatures inside `methods::*`) may evolve within a minor version; consumers should drive through the dispatcher unless they have a reason not to.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-jmap`) |
+| **test** | line cov: 95.8% (`cargo llvm-cov -p mailrs-jmap --summary-only`) |
+| **bench** | ✅ 2 file(s) criterion + ✅ 1 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 814 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.

@@ -100,6 +100,25 @@ Measured (criterion, M-series Mac, release, 100-sample median):
 Run: `cargo bench -p mailrs-srs --bench srs`. Reproduce numbers in
 [BUDGETS.md](BUDGETS.md).
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-srs`) |
+| **test** | line cov: 99.1% (`cargo llvm-cov -p mailrs-srs --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 54 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Apache-2.0 OR MIT.
