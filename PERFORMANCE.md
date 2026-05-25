@@ -227,10 +227,12 @@ Clean sweep on parse. Note: `icalendar` has serializer / builder APIs we don't b
 
 #### `mailrs-rate-limit` vs `governor` 0.10 (DashMap-backed)
 
+3-run noise-controlled median:
+
 | Input | mailrs-rate-limit | governor | Winner |
 |---|---:|---:|---|
-| hot key, allowed | 13-16 ns | 14-18 ns | **mailrs +6-10%** ✅ |
-| cold key first-touch | 275-372 ns | 290-420 ns | comparable (noisy) |
+| hot key, allowed | **17.1 ns** | 18.8 ns | **mailrs +9%** ✅ |
+| cold key first-touch | **210 ns** | 222 ns | **mailrs +5-6%** ✅ |
 
 Caught up. The earlier 2.2× governor lead came from three sources, all of them governor's open-source homework that we hadn't done:
 
