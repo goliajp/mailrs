@@ -1,0 +1,28 @@
+[package]
+name = "mailrs-imap-codec-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+bytes = "1"
+tokio-util = { version = "0.7", features = ["codec"] }
+
+[dependencies.mailrs-imap-codec]
+path = ".."
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "decode"
+path = "fuzz_targets/decode.rs"
+test = false
+doc = false
+bench = false
