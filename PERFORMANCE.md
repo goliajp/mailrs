@@ -83,14 +83,17 @@ default 100 samples × 3 fresh invocations):
 |---|---:|---:|---|
 | `v=spf1 ip4:203.0.113.0/24 -all` (simple) | **46 ns** | 60 ns | **mailrs +23%** ✅ |
 | 8-mechanism complex | **301 ns** | 480 ns | **mailrs +37%** ✅ |
-| 8-include pathological | **332 ns** | 585 ns | **mailrs +43%** ✅ |
+| 8-include pathological | **332 ns** | ≈585 ns (prior bench) | **mailrs +43%** ✅ |
 
 **Honest re-bench, v4 round 12 (2026-05-26):** the previously
 claimed "tied within noise" for the simple case was *under-claim*
 — controlled 3-run median actually shows mailrs +23% (46 ns vs
 60 ns, gap is comfortably outside per-bench CI band). The
 complex_8 claim of "+34%" was also conservative; real median
-across 3 runs is +37%.
+across 3 runs is +37%. The pathological row's mail-auth side is
+carried forward from the prior bench — the 3-run output captured
+only mailrs's side, so the ratio is approximate pending a fresh
+both-sides bench.
 
 v4 round 4 + v4.next together closed the gap on the simple case
 from −25% baseline to clear-lead +23%. Three changes:
