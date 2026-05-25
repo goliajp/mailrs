@@ -37,16 +37,23 @@ impl ContentType {
     /// Parse from raw header value (e.g. `multipart/mixed; boundary="xyz"`).
     pub fn parse(value: &str) -> Self {
         let trimmed = value.trim();
-        // type/subtype is everything up to the first `;`.
+        // type/subtype is everything up to the first `;`. Fast-path when
+        // no `;` appears at all: skip the `parse_params` HashMap setup
+        // and return an empty default map (covers the very common
+        // `text/plain` / `text/html` paramless headers + saves an alloc
+        // on every leaf part during multipart walks).
         let (kind, rest) = match trimmed.split_once(';') {
-            Some((k, r)) => (k.trim(), r),
-            None => (trimmed, ""),
+            Some((k, r)) => (k.trim(), Some(r)),
+            None => (trimmed, None),
         };
         let (type_, subtype) = match kind.split_once('/') {
             Some((t, s)) => (t.trim().to_ascii_lowercase(), s.trim().to_ascii_lowercase()),
             None => (kind.to_ascii_lowercase(), String::new()),
         };
-        let params = parse_params(rest);
+        let params = match rest {
+            Some(r) => parse_params(r),
+            None => HashMap::new(),
+        };
         Self {
             type_,
             subtype,

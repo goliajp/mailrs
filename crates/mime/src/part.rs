@@ -4,8 +4,6 @@
 
 use std::borrow::Cow;
 
-use mailrs_rfc5322::Message;
-
 use crate::content_type::{ContentType, Disposition};
 use crate::decoder::TransferEncoding;
 
@@ -45,11 +43,15 @@ impl<'a> Part<'a> {
     /// `<type>/<subtype>` (lowercased compare). Returns `None` if
     /// no part matches.
     pub fn find_by_content_type(&self, mime_type: &str) -> Option<&Part<'a>> {
-        // Split the target once into (type, subtype) and compare bytewise.
-        // Recursive descent — no Vec allocation for the walk stack, which
-        // [`Self::walk`] would otherwise do.
+        // Split the target once into (type, subtype). `ContentType::parse`
+        // already lowercases both halves on the part side, so we lowercase
+        // the target *once* here and let the recursive walk do plain `==`
+        // comparisons — a 6-byte ASCII memcmp per level instead of an
+        // `eq_ignore_ascii_case` byte fold.
         let (target_type, target_subtype) = mime_type.split_once('/')?;
-        find_by_ct_recursive(self, target_type, target_subtype)
+        let tt: String = target_type.to_ascii_lowercase();
+        let ts: String = target_subtype.to_ascii_lowercase();
+        find_by_ct_recursive(self, &tt, &ts)
     }
 
     /// Depth-first iterator over self + all descendant parts.
@@ -124,12 +126,7 @@ fn find_by_ct_recursive<'p, 'a>(
     target_type: &str,
     target_subtype: &str,
 ) -> Option<&'p Part<'a>> {
-    if part.content_type.type_.eq_ignore_ascii_case(target_type)
-        && part
-            .content_type
-            .subtype
-            .eq_ignore_ascii_case(target_subtype)
-    {
+    if part.content_type.type_ == target_type && part.content_type.subtype == target_subtype {
         return Some(part);
     }
     for child in &part.children {
@@ -185,34 +182,33 @@ impl<'p, 'a> Iterator for Walker<'p, 'a> {
 /// assert_eq!(root.children[1].content_type.mime_type(), "text/html");
 /// ```
 pub fn parse(raw: &[u8]) -> Part<'_> {
-    let msg = Message::new(raw);
+    // Single-pass header walk: one scan of the header region picks
+    // up all 4 MIME headers + the body offset. Previous version
+    // called `Message::header()` 4 times + `Message::body()` once,
+    // each doing its own O(header-region) scan — 5× redundancy on
+    // every Part, which dominates parse cost on multipart messages
+    // with many leaves.
+    let mh = collect_mime_headers(raw);
 
-    // Headers parse from `&str`. Use `from_utf8_lossy` only as a
-    // fallback for the (rare) non-ASCII case — header values per RFC
-    // 5322 are restricted to printable ASCII, so the borrowed branch is
-    // the hot path. Avoids 4 small allocations on every typical message.
-    let header_str = |name: &str| -> Option<Cow<'_, str>> {
-        msg.header(name).map(|v| match std::str::from_utf8(v) {
-            Ok(s) => Cow::Borrowed(s),
-            Err(_) => Cow::Owned(String::from_utf8_lossy(v).into_owned()),
-        })
-    };
-
-    let content_type = match header_str("Content-Type") {
-        Some(v) => ContentType::parse(&v),
+    let content_type = match mh.content_type {
+        Some(v) => ContentType::parse(&header_bytes_to_str(v)),
         None => ContentType::default_for_missing_header(),
     };
-    let disposition = header_str("Content-Disposition").map(|v| Disposition::parse(&v));
-    let content_id =
-        header_str("Content-ID").map(|v| v.trim().trim_matches(['<', '>']).to_string());
-    let transfer_encoding = header_str("Content-Transfer-Encoding")
-        .map(|v| TransferEncoding::parse(&v))
+    let disposition = mh
+        .disposition
+        .map(|v| Disposition::parse(&header_bytes_to_str(v)));
+    let content_id = mh.content_id.map(|v| {
+        header_bytes_to_str(v)
+            .trim()
+            .trim_matches(['<', '>'])
+            .to_string()
+    });
+    let transfer_encoding = mh
+        .transfer_encoding
+        .map(|v| TransferEncoding::parse(&header_bytes_to_str(v)))
         .unwrap_or(TransferEncoding::SevenBit);
 
-    // `body` is a slice into `raw` (the input). Children also borrow
-    // from `raw` via `split_multipart`, so the whole tree's lifetime
-    // is tied to `'raw`.
-    let body: &[u8] = msg.body().unwrap_or(b"");
+    let body: &[u8] = &raw[mh.body_offset..];
 
     if content_type.is_multipart() {
         let children = match content_type.boundary() {
@@ -245,6 +241,134 @@ pub fn parse(raw: &[u8]) -> Part<'_> {
             children: Vec::new(),
         }
     }
+}
+
+/// Coerce a header value byte slice into `Cow<str>`. The borrowed
+/// branch is the hot path — header bytes per RFC 5322 §2.2 are 7-bit
+/// ASCII, and per RFC 6532 they may also be UTF-8; both are
+/// `str::from_utf8` clean. The lossy fallback exists only for
+/// real-world malformed messages.
+#[inline]
+fn header_bytes_to_str(v: &[u8]) -> Cow<'_, str> {
+    match std::str::from_utf8(v) {
+        Ok(s) => Cow::Borrowed(s),
+        Err(_) => Cow::Owned(String::from_utf8_lossy(v).into_owned()),
+    }
+}
+
+/// Find the end of the logical header line that starts at `start`,
+/// handling RFC 5322 §3.2.2 line folding (continuation lines starting
+/// with WSP belong to the same logical header). Inlined from
+/// `mailrs-rfc5322` because the helper is `pub(crate)` upstream and
+/// shipping a new rfc5322 release just to expose 20 lines isn't worth
+/// the version churn for now.
+///
+/// Returns `Some((line_end, after_crlf))` where `line_end` is the
+/// content end (before the terminating CR/LF) and `after_crlf` is the
+/// next line's start. Returns `None` if no terminator is found.
+#[inline]
+fn find_unfolded_line_end(bytes: &[u8], start: usize) -> Option<(usize, usize)> {
+    let mut i = start;
+    while i < bytes.len() {
+        let lf = memchr::memchr(b'\n', &bytes[i..])?;
+        let lf_abs = i + lf;
+        let mut content_end = lf_abs;
+        if content_end > start && bytes[content_end - 1] == b'\r' {
+            content_end -= 1;
+        }
+        let next = lf_abs + 1;
+        if next < bytes.len() && (bytes[next] == b' ' || bytes[next] == b'\t') {
+            i = next;
+            continue;
+        }
+        return Some((content_end, next));
+    }
+    None
+}
+
+/// All four MIME-relevant headers + the body offset, collected in one
+/// pass over the header region. Each `Option<&[u8]>` is the raw header
+/// value (after the colon + one optional WSP, folding preserved). The
+/// `body_offset` is the index of the first body byte (or `raw.len()`
+/// when the message has no body separator).
+struct MimeHeaders<'a> {
+    content_type: Option<&'a [u8]>,
+    disposition: Option<&'a [u8]>,
+    content_id: Option<&'a [u8]>,
+    transfer_encoding: Option<&'a [u8]>,
+    body_offset: usize,
+}
+
+/// Walk the header region exactly once, dispatching each line by its
+/// length-at-colon to one of the four MIME slots. Cheaper than five
+/// independent `Message::header()` / `Message::body()` scans (which is
+/// what naive code does), and the dispatch is branchless after the
+/// first-byte 'C'/'c' reject.
+fn collect_mime_headers(raw: &[u8]) -> MimeHeaders<'_> {
+    let mut out = MimeHeaders {
+        content_type: None,
+        disposition: None,
+        content_id: None,
+        transfer_encoding: None,
+        body_offset: raw.len(),
+    };
+    let mut cursor = 0usize;
+    while cursor < raw.len() {
+        // Empty line terminates header block.
+        if raw[cursor] == b'\n' {
+            out.body_offset = cursor + 1;
+            return out;
+        }
+        if raw[cursor] == b'\r' && cursor + 1 < raw.len() && raw[cursor + 1] == b'\n' {
+            out.body_offset = cursor + 2;
+            return out;
+        }
+
+        let Some((line_end, after_crlf)) = find_unfolded_line_end(raw, cursor) else {
+            // EOF before any body separator — no body.
+            return out;
+        };
+        let line = &raw[cursor..line_end];
+        cursor = after_crlf;
+
+        // All four MIME headers start with C/c followed by o/O. Cheap
+        // reject before doing the case-insensitive memcmp on the name.
+        if line.len() < 11 {
+            continue;
+        }
+        let b0 = line[0];
+        let b1 = line[1];
+        if !((b0 == b'C' || b0 == b'c') && (b1 == b'O' || b1 == b'o')) {
+            continue;
+        }
+
+        // Dispatch by name-length-at-colon. Each branch: O(name_len)
+        // case-insensitive compare on a byte slice (LLVM lowers this
+        // to a vectorised memcmp-with-folding loop).
+        let _ = try_dispatch(line, b"Content-Type", &mut out.content_type)
+            || try_dispatch(line, b"Content-Disposition", &mut out.disposition)
+            || try_dispatch(line, b"Content-ID", &mut out.content_id)
+            || try_dispatch(line, b"Content-Transfer-Encoding", &mut out.transfer_encoding);
+    }
+    out
+}
+
+/// If `line` matches `name:` (case-insensitive), capture the value
+/// portion into `slot` (unless already filled) and return `true`.
+#[inline]
+fn try_dispatch<'a>(line: &'a [u8], name: &[u8], slot: &mut Option<&'a [u8]>) -> bool {
+    let n = name.len();
+    if line.len() > n && line[n] == b':' && line[..n].eq_ignore_ascii_case(name) {
+        if slot.is_none() {
+            let mut vs = n + 1;
+            if vs < line.len() && (line[vs] == b' ' || line[vs] == b'\t') {
+                vs += 1;
+            }
+            *slot = Some(&line[vs..]);
+        }
+        return true;
+    }
+    false
 }
 
 /// Split a multipart body by `--<boundary>` markers (RFC 2046 §5.1.1).
