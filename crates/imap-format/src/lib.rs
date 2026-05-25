@@ -121,19 +121,35 @@ fn match_4_byte_ci(input: &[u8], target: &[u8; 4], bit: u32) -> Option<u32> {
 }
 #[inline(always)]
 fn match_5_byte_ci(input: &[u8], target: &[u8; 5], bit: u32) -> Option<u32> {
-    if input.eq_ignore_ascii_case(target) { Some(bit) } else { None }
+    if input.eq_ignore_ascii_case(target) {
+        Some(bit)
+    } else {
+        None
+    }
 }
 #[inline(always)]
 fn match_6_byte_ci(input: &[u8], target: &[u8; 6], bit: u32) -> Option<u32> {
-    if input.eq_ignore_ascii_case(target) { Some(bit) } else { None }
+    if input.eq_ignore_ascii_case(target) {
+        Some(bit)
+    } else {
+        None
+    }
 }
 #[inline(always)]
 fn match_7_byte_ci(input: &[u8], target: &[u8; 7], bit: u32) -> Option<u32> {
-    if input.eq_ignore_ascii_case(target) { Some(bit) } else { None }
+    if input.eq_ignore_ascii_case(target) {
+        Some(bit)
+    } else {
+        None
+    }
 }
 #[inline(always)]
 fn match_8_byte_ci(input: &[u8], target: &[u8; 8], bit: u32) -> Option<u32> {
-    if input.eq_ignore_ascii_case(target) { Some(bit) } else { None }
+    if input.eq_ignore_ascii_case(target) {
+        Some(bit)
+    } else {
+        None
+    }
 }
 
 /// Format a Unix timestamp as an IMAP `INTERNALDATE` value
