@@ -166,12 +166,21 @@ We're a pure function `base_delay(attempt: u32)`; `exponential-backoff` is itera
 
 | Command | mailrs-smtp-proto | smtp-codec | Winner |
 |---|---:|---:|---|
-| `EHLO mail.example.com` | 18 ns | 126 ns | **mailrs 7×** ✅ |
-| `MAIL FROM:<…> SIZE=…` | 95 ns | 198 ns | **mailrs 2×** ✅ |
-| `RCPT TO:<…>` | 68 ns | 148 ns | **mailrs 2.2×** ✅ |
-| `DATA` | 16 ns | 12 ns | smtp-codec +25% (trivial cmd) |
+| `EHLO mail.example.com` | **11.0 ns** | 134.8 ns | **mailrs 12.3×** ✅ |
+| `MAIL FROM:<…> SIZE=…` | **93.7 ns** | 227.9 ns | **mailrs 2.4×** ✅ |
+| `RCPT TO:<…>` | **52.6 ns** | 163.7 ns | **mailrs 3.1×** ✅ |
+| `DATA` | **4.1 ns** | 15.8 ns | **mailrs 3.9×** ✅ |
 
-smtp-codec's nom-grammar pays a fixed setup cost per command. Our hand-written byte-level parser wins everything but the smallest possible command. Bench source: `crates/smtp-proto/benches/compare_smtp_codec.rs`.
+Clean sweep. The previous DATA −25% loss was the only blemish — fixed
+in v4 round 2 by killing the `verb.to_ascii_uppercase()` heap
+allocation per command. For the verb-only DATA case, the per-call
+String alloc was the entire wall clock (16 ns); replacing it with a
+16-byte stack buffer + `match` over `&[u8]` literals drops the cost
+to ~4 ns. Same pattern applied to `mech_str.to_ascii_uppercase()`
+inside `parse_auth`.
+
+Bench source: `crates/smtp-proto/benches/compare_smtp_codec.rs`. Run
+`cargo bench -p mailrs-smtp-proto --bench compare_smtp_codec`.
 
 #### `mailrs-imap-proto` vs `imap-codec` 2.0-alpha (Rust nom-based IMAP codec)
 
@@ -243,10 +252,10 @@ can drop in the binary and `scripts/run-all.sh` will pick it up.
 
 | Path | Median | Notes |
 |---|---:|---|
-| `parse_command/EHLO` | **22 ns** | hot wire-parse path |
-| `parse_command/DATA` | **22 ns** | |
-| `parse_command/RCPT_TO` | **70 ns** | envelope address extract |
-| `parse_command/MAIL_FROM` | **103 ns** | envelope address extract |
+| `parse_command/EHLO` | **11 ns** | was 22 ns; v4 round 2 killed `verb.to_ascii_uppercase()` heap alloc |
+| `parse_command/DATA` | **4 ns** | was 22 ns (and 16 ns vs smtp-codec 12 ns → loss); v4 round 2 = **−82%** |
+| `parse_command/RCPT_TO` | **53 ns** | was 70 ns; same verb-buffer change |
+| `parse_command/MAIL_FROM` | **94 ns** | was 103 ns; same |
 | `format_ehlo_response` | **35 ns** | was 307 ns; commit `19aa482` replaced `write!`-macro dispatch with direct `push_str` of `&str` segments for **−89%** measured (~9× faster) |
 | `address/is_valid_typical` | **10 ns** | |
 | `address/split_typical` | **12 ns** | |
