@@ -124,10 +124,36 @@ Before the perf-batch (commit `8eba06c` and later) we were 4.1× / 3.6× slower 
 
 | Input | mailrs-mime | mail-parser | Winner |
 |---|---:|---:|---|
-| simple `text/plain` body_text | 153 ns | 184 ns | **mailrs +17%** ✅ |
-| find `text/calendar` part | 1.20 µs | 595 ns (proxy) | mail-parser 2.0× ⚠ |
+| simple `text/plain` body_text | **163 ns** | 195 ns | **mailrs +17%** ✅ |
+| find `text/calendar` part (apples-to-apples) | **825 ns** | 580 ns | mail-parser +42% (was +58%) ⚠ |
 
-`find_calendar` comparison is approximate — mail-parser doesn't have an exact equivalent so we benchmark "first sub-part raw_len" as a proxy. Apples-to-apples requires building a mail-parser visitor; deferred.
+The find-calendar comparison is now true apples-to-apples — both sides
+parse the message and walk parts looking for the `text/calendar`
+mime-type, returning the body's length. Bench source:
+`crates/mime/benches/mime.rs::bench_vs_mail_parser_invite`.
+
+v4 round 3 closed the gap from +58% to +42% via:
+
+1. **memchr-based boundary scan.** `split_multipart` used to do a
+   manual byte-by-byte walk comparing the `--<boundary>` token at
+   every offset (O(n) per match attempt). New impl jumps to `\n`
+   positions via `memchr::memchr(b'\n', _)` and only verifies the
+   `--<boundary>` prefix at confirmed line starts — O(n / avg_line_len)
+   work, SIMD-vectorised on aarch64/x86_64.
+2. **Skip per-call delimiter Vec build.** Boundary token comparisons
+   now reuse the original `&[u8]` slice instead of allocating a fresh
+   `Vec<u8>` per `split_multipart` call.
+3. **`Vec::with_capacity(4)`** on the parts Vec — typical
+   `multipart/alternative` and `multipart/mixed` have 2-4 parts.
+
+The remaining +42% is architectural: `mail-parser` returns body
+slices as `Cow<'msg, [u8]>` (borrowed from the input when no
+encoding transform is needed), so its multipart leaves cost zero
+heap allocation. mailrs-mime owns `Part::body: Vec<u8>`, which
+forces `body.to_vec()` per leaf for 7bit/8bit/binary parts (the
+common case). Closing the rest requires adding an `'a` lifetime
+parameter to `Part` and changing the body type to `Cow<'a, [u8]>` —
+breaking API change, tracked as v4.next.
 
 #### `mailrs-rfc5322` vs `mail-parser` (header lookup, lazy)
 

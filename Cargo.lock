@@ -3249,6 +3249,7 @@ dependencies = [
  "mailrs-rfc2047 1.1.1",
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc5322 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "memchr",
 ]
 
 [[package]]
