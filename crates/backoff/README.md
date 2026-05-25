@@ -116,6 +116,25 @@ Measured (criterion, M-series Mac, release, 100-sample median):
 Reproduce: `cargo bench -p mailrs-backoff --bench backoff`. Workspace
 [PERFORMANCE.md](../../PERFORMANCE.md) carries the same table.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-backoff`) |
+| **test** | line cov: 96.7% (`cargo llvm-cov -p mailrs-backoff --summary-only`) |
+| **bench** | ✅ 2 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 28 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons (from PERFORMANCE.md)
+
+- `mailrs-backoff` vs `exponential-backoff` 2
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Apache-2.0 OR MIT.

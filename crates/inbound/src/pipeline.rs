@@ -41,7 +41,7 @@ impl Pipeline {
     ///
     /// If every stage returns `Continue`, the final decision is computed
     /// from the accumulated signals via
-    /// [`make_delivery_decision`](crate::make_delivery_decision).
+    /// [`make_delivery_decision`].
     ///
     /// **Tracing.** Emits one `info_span!("inbound.pipeline", n_stages, …)`
     /// for the whole run + one nested `debug_span!("inbound.stage",

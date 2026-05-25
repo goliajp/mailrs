@@ -58,6 +58,25 @@ See [`examples/deliver_and_scan.rs`](examples/deliver_and_scan.rs) for a runnabl
 
 Filenames look like `1684500000.M123456P9999Q0.hostname:2,S` — timestamp + uniqueness components + `:2,FLAGS` suffix. This crate handles the parsing and the atomic transitions; what you do with the messages is your business.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-maildir`) |
+| **test** | line cov: 98.9% (`cargo llvm-cov -p mailrs-maildir --summary-only`) |
+| **bench** | ✅ 2 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 126 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of:

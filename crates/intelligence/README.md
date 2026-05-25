@@ -77,6 +77,25 @@ async-trait = "0.1"
 
 Production mail servers tend to mix cheap inference (per-message spam classification, hot path) with rarer expensive calls (deep structured extraction, big context). Letting analysis functions take `&dyn LlmProvider` keeps the choice of model **visible at the call site** — you can grep your own code for "which provider does this path hand into `analyze_email`?" without diving into config or environment variables. That visibility is the whole point of carving the trait out instead of shipping the concrete config struct.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-intelligence`) |
+| **test** | line cov: 92.2% (`cargo llvm-cov -p mailrs-intelligence --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 1.4 MB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.

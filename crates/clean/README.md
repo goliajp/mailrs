@@ -77,6 +77,25 @@ Run with `cargo bench -p mailrs-clean`. See [`tests/perf_gate.rs`](tests/perf_ga
 - Not a parser for MIME bodies — bring your own (`mail-parser`, `lettre`, etc.); feed us the `text/html` part.
 - Not opinionated about how you score senders — the heuristics return booleans, the policy decisions are yours.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-clean`) |
+| **test** | line cov: 91.6% (`cargo llvm-cov -p mailrs-clean --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 1.3 MB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.

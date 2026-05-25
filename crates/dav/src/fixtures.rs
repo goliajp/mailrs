@@ -1,5 +1,5 @@
-//! In-memory [`CalendarStore`](crate::store::CalendarStore) and
-//! [`AddressBookStore`](crate::store::AddressBookStore) implementations
+//! In-memory [`CalendarStore`] and
+//! [`AddressBookStore`] implementations
 //! suitable for tests, examples, and downstream-consumer test harnesses.
 //!
 //! **Intended use is testing.** Both stores keep every value in process

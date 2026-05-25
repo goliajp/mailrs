@@ -93,6 +93,25 @@ Both are stable for v1.x. The v2 plan is to consolidate around the trait surface
 - No SPF / DMARC enforcement on inbound. Those belong upstream of this crate.
 - No message storage / threading. See `mailrs-mailbox` / `mailrs-maildir` for those.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-outbound-queue`) |
+| **test** | line cov: 68.0% (`cargo llvm-cov -p mailrs-outbound-queue --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 6 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 2.8 MB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of:

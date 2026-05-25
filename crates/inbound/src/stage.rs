@@ -1,6 +1,6 @@
-//! The [`Stage`] trait — one check that runs as part of a [`Pipeline`](crate::Pipeline).
+//! The [`Stage`] trait — one check that runs as part of a [`crate::Pipeline`].
 //!
-//! A stage reads + mutates the [`ReceiveContext`](crate::ReceiveContext) and
+//! A stage reads + mutates the [`ReceiveContext`] and
 //! returns either [`StageOutcome::Continue`] (move on to the next stage) or
 //! [`StageOutcome::Decide`] (terminal — pipeline returns this decision).
 //!

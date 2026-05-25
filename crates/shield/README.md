@@ -108,6 +108,25 @@ Run with `cargo bench -p mailrs-shield`. See [`tests/perf_gate.rs`](tests/perf_g
 
 Disable both default features (`default-features = false`) if you're plugging in your own backends.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-shield`) |
+| **test** | line cov: 69.2% (`cargo llvm-cov -p mailrs-shield --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 5 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 87 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.

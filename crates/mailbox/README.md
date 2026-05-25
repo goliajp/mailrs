@@ -175,6 +175,25 @@ The set of inherent PG-EXT methods on `PgMailboxStore` may grow or
 re-shape within `1.x` to track the parent mailrs project's needs.
 Trait-first code is unaffected.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-mailbox`) |
+| **test** | line cov: 50.0% (`cargo llvm-cov -p mailrs-mailbox --summary-only`) |
+| **bench** | ✅ 2 file(s) criterion + ✅ 7 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 2.7 MB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either [Apache License, Version 2.0](LICENSE-APACHE) or

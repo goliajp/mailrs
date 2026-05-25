@@ -1,6 +1,6 @@
-//! PostgreSQL reference implementation of [`MailboxStore`](crate::store::MailboxStore).
+//! PostgreSQL reference implementation of [`crate::MailboxStore`](crate::store::MailboxStore).
 //!
-//! [`PgMailboxStore`] satisfies the portable [`MailboxStore`] trait AND exposes
+//! [`PgMailboxStore`] satisfies the portable [`crate::MailboxStore`] trait AND exposes
 //! a set of mailrs-specific inherent methods (PG-EXT) for product features that
 //! are not part of the portable contract: thread-level UI state (pin / archive
 //! / snooze), email-analysis annotations, contact tracking, semantic search,
@@ -27,7 +27,7 @@ use sqlx::PgPool;
 
 /// PostgreSQL-backed mailbox metadata store.
 ///
-/// Wraps a [`sqlx::PgPool`] and implements [`MailboxStore`](crate::store::MailboxStore)
+/// Wraps a [`sqlx::PgPool`] and implements [`crate::MailboxStore`](crate::store::MailboxStore)
 /// plus a number of mailrs-specific inherent methods. See the module docs for
 /// the trait / PG-EXT distinction.
 pub struct PgMailboxStore {

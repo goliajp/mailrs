@@ -112,6 +112,25 @@ legitimate login goes through it. Two DashMap reads, no allocation,
 Workspace [PERFORMANCE.md](../../PERFORMANCE.md) carries the same
 table.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-auth-guard`) |
+| **test** | line cov: 99.5% (`cargo llvm-cov -p mailrs-auth-guard --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 131 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Apache-2.0 OR MIT.

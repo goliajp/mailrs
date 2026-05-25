@@ -102,6 +102,25 @@ the inner `Arc`). Cost is ~1-10 ns; never a contention point.
 No bench file — the perf is dominated by `arc_swap`'s internals,
 which has its own perf coverage.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-tls-reload`) |
+| **test** | line cov: 98.6% (`cargo llvm-cov -p mailrs-tls-reload --summary-only`) |
+| **bench** | ✅ 0 file(s) criterion + ❌ none `perf_gate.rs` |
+| **size** | release rlib: 164 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Apache-2.0 OR MIT.
