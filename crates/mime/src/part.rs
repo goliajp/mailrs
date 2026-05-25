@@ -230,24 +230,27 @@ pub fn parse(raw: &[u8]) -> Part {
 
 /// Split a multipart body by `--<boundary>` markers (RFC 2046 §5.1.1).
 fn split_multipart(body: &[u8], boundary: &str) -> Vec<Part> {
-    // Build "--<boundary>" / "--<boundary>--" delimiters as `Vec<u8>` once,
-    // avoiding `format!` (which goes through `String::new` + `write!` + the
-    // formatter machinery; a flat byte concat is ~10× cheaper).
-    let mut delim = Vec::with_capacity(2 + boundary.len());
-    delim.extend_from_slice(b"--");
-    delim.extend_from_slice(boundary.as_bytes());
-    let mut close = Vec::with_capacity(4 + boundary.len());
-    close.extend_from_slice(b"--");
-    close.extend_from_slice(boundary.as_bytes());
-    close.extend_from_slice(b"--");
+    let boundary_bytes = boundary.as_bytes();
+    // Boundary token = `--<boundary>`. The close form appends `--` again.
+    // No heap allocation for either — we work directly against byte
+    // slices, so the same `boundary_bytes` is read multiple times.
+    let delim_len = 2 + boundary_bytes.len();
+    let close_len = 4 + boundary_bytes.len();
 
-    let mut parts = Vec::new();
+    // Pre-size to 4 — typical multipart/alternative or multipart/mixed
+    // has 2-4 parts. Saves the first growth tick.
+    let mut parts = Vec::with_capacity(4);
     let mut cursor = 0usize;
     let mut current_start: Option<usize> = None;
 
     while cursor < body.len() {
-        // Find next `--<boundary>` at start of a line.
-        let next = find_at_line_start(body, cursor, &delim);
+        // Find next `--<boundary>` at start of a line via memchr-based
+        // search for `\n` (SIMD-vectorised on aarch64/x86_64), then
+        // confirm the `--<boundary>` token follows immediately. Was a
+        // hand-rolled O(n) byte walk that called the prefix-compare on
+        // every offset; this version only compares at confirmed line
+        // starts, which is O(n/avg_line_len).
+        let next = find_boundary_at_line_start(body, cursor, boundary_bytes);
         let Some(pos) = next else {
             break;
         };
@@ -268,12 +271,13 @@ fn split_multipart(body: &[u8], boundary: &str) -> Vec<Part> {
             parts.push(parse(part_bytes));
         }
         // Is this the close delimiter (`--boundary--`)?
-        let is_close = pos + close.len() <= body.len() && body[pos..pos + close.len()] == close[..];
+        let close_end = pos + close_len;
+        let is_close = close_end <= body.len() && body[pos + delim_len..close_end] == [b'-', b'-'];
         if is_close {
             break;
         }
         // Advance past delim + any trailing WSP/CRLF on the boundary line.
-        let mut after = pos + delim.len();
+        let mut after = pos + delim_len;
         // Skip any trailing transport-padding WSP
         while after < body.len() && matches!(body[after], b' ' | b'\t') {
             after += 1;
@@ -291,18 +295,35 @@ fn split_multipart(body: &[u8], boundary: &str) -> Vec<Part> {
     parts
 }
 
-/// Find `pattern` in `body` starting at `cursor` such that it appears
-/// at the start of a line (i.e. immediately after CRLF, LF, or at
-/// position 0).
-fn find_at_line_start(body: &[u8], cursor: usize, pattern: &[u8]) -> Option<usize> {
-    let mut i = cursor;
-    while i + pattern.len() <= body.len() {
-        let line_start =
-            i == 0 || (i >= 2 && &body[i - 2..i] == b"\r\n") || (i >= 1 && body[i - 1] == b'\n');
-        if line_start && &body[i..i + pattern.len()] == pattern {
-            return Some(i);
+/// Find `--<boundary>` in `body` starting at `cursor`, restricted to
+/// matches at the start of a line. Uses `memchr` to jump to candidate
+/// line starts (via `\n` byte search) and confirms the `--` prefix +
+/// boundary match only at those positions — avoids the per-position
+/// pattern compare that the previous hand-rolled walk paid for.
+#[inline]
+fn find_boundary_at_line_start(body: &[u8], cursor: usize, boundary: &[u8]) -> Option<usize> {
+    let delim_len = 2 + boundary.len();
+    // Pos-0 special case: line-start without a preceding newline.
+    if cursor == 0 && body.len() >= delim_len {
+        if body[0] == b'-' && body[1] == b'-' && body[2..delim_len] == *boundary {
+            return Some(0);
         }
-        i += 1;
+    }
+    // memchr-driven hops over `\n`s. Each hit is a candidate line start
+    // at position `nl + 1`; we just need to verify the `--<boundary>`
+    // prefix matches there.
+    let mut search = cursor;
+    while search < body.len() {
+        let rel = memchr::memchr(b'\n', &body[search..])?;
+        let line_start = search + rel + 1;
+        if line_start + delim_len <= body.len()
+            && body[line_start] == b'-'
+            && body[line_start + 1] == b'-'
+            && body[line_start + 2..line_start + delim_len] == *boundary
+        {
+            return Some(line_start);
+        }
+        search = line_start;
     }
     None
 }
