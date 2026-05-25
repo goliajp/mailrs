@@ -80,6 +80,25 @@ If tesseract isn't installed, `extract_content` for image
 content-types returns an `Err`. PDF extraction still works for
 embedded-text PDFs.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-attachment-extract`) |
+| **test** | line cov: 84.9% (`cargo llvm-cov -p mailrs-attachment-extract --summary-only`) |
+| **bench** | ❌ none criterion + ❌ none `perf_gate.rs` |
+| **size** | release rlib: 128 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Apache-2.0 OR MIT.
