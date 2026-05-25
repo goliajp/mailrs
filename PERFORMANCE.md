@@ -81,19 +81,19 @@ default 100 samples × 3 fresh invocations):
 
 | Input | mailrs-spf | mail-auth | Winner |
 |---|---:|---:|---|
-| `v=spf1 ip4:203.0.113.0/24 -all` (simple) | **46 ns** | 60 ns | **mailrs +23%** ✅ |
-| 8-mechanism complex | **301 ns** | 480 ns | **mailrs +37%** ✅ |
-| 8-include pathological | **332 ns** | ≈585 ns (prior bench) | **mailrs +43%** ✅ |
+| `v=spf1 ip4:203.0.113.0/24 -all` (simple) | **41 ns** | 50 ns | **mailrs +22%** ✅ |
+| 8-mechanism complex | **258 ns** | 412 ns | **mailrs +37%** ✅ |
+| 8-include pathological | **290 ns** | 578 ns | **mailrs +50%** ✅ |
 
-**Honest re-bench, v4 round 12 (2026-05-26):** the previously
+**Honest re-bench, v4 round 12 → 13 (2026-05-26):** the previously
 claimed "tied within noise" for the simple case was *under-claim*
-— controlled 3-run median actually shows mailrs +23% (46 ns vs
-60 ns, gap is comfortably outside per-bench CI band). The
+— controlled 3-run median actually shows mailrs +22% (41 ns vs
+50 ns, gap is comfortably outside per-bench CI band). The
 complex_8 claim of "+34%" was also conservative; real median
-across 3 runs is +37%. The pathological row's mail-auth side is
-carried forward from the prior bench — the 3-run output captured
-only mailrs's side, so the ratio is approximate pending a fresh
-both-sides bench.
+across 3 runs is +37%. Pathological got a fresh both-sides
+quiet-CPU bench: mailrs 290 ns vs mail-auth 578 ns is a clean
+**+50% lead**, ~14% better than the prior carried-forward
+estimate (+43% with mail-auth = 585 ns).
 
 v4 round 4 + v4.next together closed the gap on the simple case
 from −25% baseline to clear-lead +23%. Three changes:
