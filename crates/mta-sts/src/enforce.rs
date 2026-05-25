@@ -102,7 +102,7 @@ mod tests {
     fn policy(mode: PolicyMode, mx: &[&str]) -> Policy {
         Policy {
             mode,
-            mx: mx.iter().map(|s| s.to_string()).collect(),
+            mx: mx.iter().map(|s| compact_str::CompactString::new(s)).collect(),
             max_age: 86400,
         }
     }

@@ -53,7 +53,10 @@ pub struct Policy {
     /// (`mail.example.com`) or a wildcard pattern (`*.example.com`,
     /// matching exactly one label per RFC 8461 §4.1). Order is
     /// preserved as it appears in the policy file.
-    pub mx: Vec<String>,
+    ///
+    /// **v2 change**: `CompactString` — typical MX hostnames fit
+    /// inline (≤24 B).
+    pub mx: Vec<compact_str::CompactString>,
     /// `max_age:` in seconds. Receivers cache the policy for at most
     /// this long before refreshing. RFC 8461 §3.2 says 86_400 ≤
     /// max_age ≤ 31_557_600, but we accept any non-negative integer
@@ -66,7 +69,7 @@ impl Policy {
     pub fn parse(body: &str) -> Result<Self, MtaStsError> {
         let mut version_seen = false;
         let mut mode: Option<PolicyMode> = None;
-        let mut mx: Vec<String> = Vec::new();
+        let mut mx: Vec<compact_str::CompactString> = Vec::new();
         let mut max_age: Option<u64> = None;
 
         for line in body.lines() {
@@ -93,7 +96,10 @@ impl Policy {
                     );
                 }
                 "mx" if !value.is_empty() => {
-                    mx.push(value.to_ascii_lowercase());
+                    // std's vectorised to_ascii_lowercase, then move into
+                    // CompactString — From<String> reuses the buffer when
+                    // it would exceed inline, copies inline when ≤24 B.
+                    mx.push(value.to_ascii_lowercase().into());
                 }
                 "mx" => {} // empty mx: line, skip
                 "max_age" => {
@@ -265,6 +271,7 @@ max_age: 86400
         // Empty mx: line shouldn't count toward the required mx list.
         let body = "version: STSv1\nmode: enforce\nmx:\nmx: real.example\nmax_age: 86400";
         let p = Policy::parse(body).unwrap();
-        assert_eq!(p.mx, vec!["real.example"]);
+        assert_eq!(p.mx, vec![compact_str::CompactString::new("real.example")]);
     }
 }
+

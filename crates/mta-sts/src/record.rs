@@ -10,6 +10,8 @@
 //! domain's STS policy changes. Receivers cache the parsed policy
 //! per id and re-fetch only when the id moves.
 
+use compact_str::CompactString;
+
 use crate::error::MtaStsError;
 
 /// Maximum length of the `id` field per RFC 8461 §3.1.
@@ -19,7 +21,11 @@ pub const MAX_ID_LEN: usize = 32;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StsRecord {
     /// `id=` value. Opaque ≤ 32 chars; treat as a cache key.
-    pub id: String,
+    ///
+    /// **v2 change**: `CompactString` — RFC caps `id` at 32 chars; the
+    /// 24-byte inline buffer covers the overwhelmingly common case
+    /// (typical IDs are timestamp-shaped like `20200101T000000Z`).
+    pub id: CompactString,
 }
 
 impl StsRecord {
@@ -27,7 +33,7 @@ impl StsRecord {
     /// case-insensitive tag names, and unknown tags (forward-compat).
     pub fn parse(txt: &str) -> Result<Self, MtaStsError> {
         let mut saw_version = false;
-        let mut id: Option<String> = None;
+        let mut id: Option<CompactString> = None;
         for tag in txt.split(';') {
             let tag = tag.trim();
             if tag.is_empty() {
@@ -50,10 +56,9 @@ impl StsRecord {
                     if value.len() > MAX_ID_LEN {
                         return Err(MtaStsError::IdTooLong(value.len()));
                     }
-                    id = Some(value.to_string());
+                    id = Some(CompactString::new(value));
                 }
-                // Unknown tags are skipped per RFC 8461 §3.1 (forward-compat).
-                _ => {}
+                _ => {} // forward-compat: unknown tags skipped per RFC 8461 §3.1
             }
         }
         if !saw_version {

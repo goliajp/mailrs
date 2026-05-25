@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-mta-sts"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2024"
 description = "RFC 8461 MTA Strict Transport Security (MTA-STS) — policy + STS record parsers, MX pattern matching, enforce(policy, mx) decision, plus a Cache trait + in-memory reference impl. Pure: no HTTP / DNS — bring your own resolver and HTTPS client and feed the parsed bytes in."
 license = "Apache-2.0 OR MIT"
@@ -19,6 +19,8 @@ workspace = true
 async-trait = "0.1"
 # `sync` only — for `RwLock` in the InMemoryCache. No `rt` or `net`.
 tokio = { version = "1", default-features = false, features = ["sync"] }
+# Inline-short-string for Policy.mx + StsRecord.id (hostnames + IDs fit inline).
+compact_str = "0.9"
 
 [dev-dependencies]
 criterion = { workspace = true }
