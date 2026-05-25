@@ -193,10 +193,7 @@ impl Record {
                 // (every record ends with `-all`, `~all`, `?all`, or
                 // `+all`). Skips the parse_mechanism call entirely.
                 let tb = token.as_bytes();
-                let inline_all = match tb {
-                    b"all" | b"+all" | b"-all" | b"~all" | b"?all" => true,
-                    _ => false,
-                };
+                let inline_all = matches!(tb, b"all" | b"+all" | b"-all" | b"~all" | b"?all");
                 if inline_all {
                     let qualifier = if tb.len() == 4 {
                         match tb[0] {
@@ -218,18 +215,6 @@ impl Record {
         }
 
         Ok(Record { mechanisms })
-    }
-
-    /// Distinguish `ip4:1.2.3.4` (mechanism with value, uses `:`) from
-    /// `redirect=example.com` (modifier, uses `=`).
-    fn is_mechanism_with_value(token: &str) -> bool {
-        // Mechanisms use `:` for their value separator, modifiers use `=`.
-        // If `=` appears before any `:`, it's a modifier.
-        match (token.find('='), token.find(':')) {
-            (Some(eq), Some(colon)) => colon < eq,
-            (Some(_), None) => false,
-            _ => true,
-        }
     }
 }
 
