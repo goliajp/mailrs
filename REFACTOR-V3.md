@@ -135,6 +135,23 @@ fuzz target。
 - 见上表 12 项，按 ROI 排序：A04 deprecation marker (10 min) → A10 SSRF
   allowlist (1h) → tracing instrument (1h) → ... → Sieve rewrite (最大)
 
+### v3.4 cold backlog 状态 (live)
+
+| # | 任务 | 状态 | 备注 |
+|---|---|---|---|
+| 1 | Sieve rewrite (sieve-rs AGPL drop) | active | Phase 13；最重，~2000 LOC RFC 5228 |
+| 2 | A04 plaintext IMAP/POP3 toggle | ✅ closed | commit b2d30f7 — `MAILRS_DISABLE_PLAIN_IMAP/POP3` |
+| 3 | A10 SSRF allowlist | ✅ closed | commit b2d30f7 — `url::Host` enum + 8 tests |
+| 4 | OpenAPI 50 stub schemas 补完 | active | Phase 11 |
+| 5 | hot-path tracing instrument | ✅ closed | IMAP `imap.cmd` 已有；POP3 `pop3.cmd` 加 (commit b5f6eb4)；MCP `mcp.request` 加 (此 commit)；per-tool 受 `rmcp::tool_router` 宏限制无法叠 `#[instrument]`，已文档化 |
+| 6 | tracing event= 字段 normalize | ✅ refused | 实测 90+ `event=` 字段已是 snake_case 名词；少数动词前置 (`send_message`, `delete_message_failed`) 属语义合理而非不一致；不做形式化重命名 |
+| 7 | render_preview / inline_image / webhook delivery / event_bus / dmarc_report / web/auth/oidc 二次 audit | ✅ closed | commit 6064185 ARCHITECTURE.md "v3.6 re-audit verdict" 段；无新 stone 可抽出 |
+| 8 | bench infra — inbound + PG/Valkey 进 smtp_load | active | Phase 12；testcontainers 路径 |
+| 9 | 旧手写 prometheus 文本生成 → metrics-rs facade | ✅ closed | commit 30361a3 — 镜像 7 个 counter/gauge；旧文本生成保留作 fallback |
+| 10 | mail-auth runtime drop (task #112) | deferred → v3.5 | passive — 等 prod shadow divergence log 阈值 |
+| 11 | mail-builder dep re-audit | ✅ deferred | 无直接 dep；仅 transitive via mail-auth + sieve-rs；自然随 #1 + #10 消除 |
+| 12 | docs/ 整理 (login-golia-jp-integration.md) | ✅ closed | 实测为 golia.jp 部署专用 integration 文档，非 temp；保留 docs/ 不动 |
+
 ### v3.5 — task #112 mail-auth drop
 - 看 prod shadow divergence log 累计；判断 cut-over 阈值
 - 删 `mail-auth` 依赖；server cargo tree 验证无 mail-auth 残留
