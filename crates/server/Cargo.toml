@@ -64,7 +64,7 @@ mailrs-dkim = { path = "../dkim", version = "2" }
 mailrs-arc = "1.2"
 mailrs-arf = "1"
 mailrs-tls-rpt = "1.2"
-mailrs-mime = "1"
+mailrs-mime = { path = "../mime", version = "2" }
 metrics = "0.24"
 metrics-exporter-prometheus = { version = "0.18", default-features = false }
 sqlx = { workspace = true }

@@ -7,14 +7,20 @@
 
 use std::collections::HashMap;
 
+use compact_str::CompactString;
+
 /// Parsed `Content-Type:` header value.
 #[derive(Debug, Clone)]
 pub struct ContentType {
     /// Top-level type ("text", "multipart", "application", ...), lowercased.
-    pub type_: String,
+    ///
+    /// **v2 change**: `CompactString` (inlined ≤24 bytes); all real
+    /// MIME top-level types fit, so the parse path no longer heap-
+    /// allocates a `String` per leaf.
+    pub type_: CompactString,
     /// Subtype ("plain", "html", "alternative", "mixed", "calendar", ...),
-    /// lowercased.
-    pub subtype: String,
+    /// lowercased. `CompactString` per `type_` rationale.
+    pub subtype: CompactString,
     /// Lowercased parameter map (boundary, charset, name, ...).
     /// Values are RFC 2231-decoded when the on-wire shape was
     /// `name*=charset''pct-encoded`.
@@ -28,8 +34,8 @@ impl ContentType {
         let mut params = HashMap::new();
         params.insert("charset".into(), "us-ascii".into());
         Self {
-            type_: "text".into(),
-            subtype: "plain".into(),
+            type_: CompactString::const_new("text"),
+            subtype: CompactString::const_new("plain"),
             params,
         }
     }
@@ -47,8 +53,8 @@ impl ContentType {
             None => (trimmed, None),
         };
         let (type_, subtype) = match kind.split_once('/') {
-            Some((t, s)) => (t.trim().to_ascii_lowercase(), s.trim().to_ascii_lowercase()),
-            None => (kind.to_ascii_lowercase(), String::new()),
+            Some((t, s)) => (lower_compact(t.trim()), lower_compact(s.trim())),
+            None => (lower_compact(kind), CompactString::default()),
         };
         let params = match rest {
             Some(r) => parse_params(r),
@@ -97,7 +103,10 @@ impl ContentType {
 #[derive(Debug, Clone)]
 pub struct Disposition {
     /// `"inline"`, `"attachment"`, or other disposition type, lowercased.
-    pub kind: String,
+    ///
+    /// **v2 change**: `CompactString` (inlined ≤24 bytes); "inline" and
+    /// "attachment" both fit, so the common case is zero-alloc.
+    pub kind: CompactString,
     /// Same shape as `ContentType::params`.
     pub params: HashMap<String, String>,
 }
@@ -108,8 +117,8 @@ impl Disposition {
     pub fn parse(value: &str) -> Self {
         let trimmed = value.trim();
         let (kind, rest) = match trimmed.split_once(';') {
-            Some((k, r)) => (k.trim().to_ascii_lowercase(), r),
-            None => (trimmed.to_ascii_lowercase(), ""),
+            Some((k, r)) => (lower_compact(k.trim()), r),
+            None => (lower_compact(trimmed), ""),
         };
         let params = parse_params(rest);
         Self { kind, params }
@@ -129,6 +138,29 @@ impl Disposition {
     pub fn is_inline(&self) -> bool {
         self.kind == "inline"
     }
+}
+
+/// Build a lowercased `CompactString` from `s` without going through a
+/// `String` first. For inputs already lowercase (the overwhelming
+/// real-world case — wire-format MIME types are typically already
+/// lowercase) this stays inline and skips the heap allocation an
+/// intermediate `String::to_ascii_lowercase` would do.
+#[inline]
+fn lower_compact(s: &str) -> CompactString {
+    if s.bytes().all(|b| !b.is_ascii_uppercase()) {
+        // Already lowercase — direct CompactString::new uses inline buf
+        // when ≤24 bytes, otherwise heap. Either way: no intermediate
+        // String alloc.
+        return CompactString::new(s);
+    }
+    // Has uppercase bytes — fold inline into a CompactString. Push
+    // byte-by-byte; CompactString keeps using inline storage until 24
+    // bytes, then promotes to heap.
+    let mut out = CompactString::with_capacity(s.len());
+    for &b in s.as_bytes() {
+        out.push(b.to_ascii_lowercase() as char);
+    }
+    out
 }
 
 /// Parse the `; name=value; name2=value2` parameter tail of a

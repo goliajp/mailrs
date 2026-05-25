@@ -110,17 +110,19 @@ re-derive these numbers; `dhat-heap.json` is gitignored.
 
 | Probe | Total | Per-call avg | Peak in-flight | Leaks |
 |---|---:|---:|---:|---:|
-| `mime::parse(INVITE) + find_by_content_type` × 10 000 | 15.64 MB / 200 000 blocks | **1 564 B / 20 allocs** | 1 551 B / 17 blocks | 0 |
+| `mime::parse(INVITE) + find_by_content_type` × 10 000 | 15.23 MB / 140 000 blocks | **1 523 B / 14 allocs** | 1 510 B / 11 blocks | 0 |
 | `spf::Record::parse({simple, complex_8, pathological_8})` × 10 000 ea | 20.81 MB / 190 000 blocks | **694 B / 6.3 allocs** (avg over 3 inputs) | 616 B / 9 blocks | 0 |
 
-The `mime` per-call cost (1 564 B / 20 allocs) is the expected weight of
-the parse tree: 3 `ContentType` structs × 2 lowercased Strings each + 2
-`HashMap` nodes per leaf with params. The peak of 1 551 B in 17 blocks
-is *the cost of one tree alive at a time* — Cow<'a, [u8]> on the body
-field means leaf bodies allocate zero (they borrow into the input
-slice), so the peak is dominated by the small `ContentType.params`
-HashMaps. Zero leaks across 200 000 allocations confirms the recursive
-Walker + Cow shape drops cleanly on tree teardown.
+The `mime` per-call cost (1 523 B / 14 allocs after v2.0
+CompactString) is the parse-tree weight after the round-17
+refactor: `ContentType.{type_, subtype}` and `Disposition.kind`
+all inline into their structs (≤24 bytes ⇒ no heap), so the only
+allocs that remain are the `Cow::Owned` `body` for transfer-encoded
+parts plus the small `ContentType.params` HashMap nodes. Pre-v2.0
+this was 20 allocs/call (the 3 type_ + 3 subtype Strings of a 3-
+part invite tree all hit the heap); v2.0 cut 6 of those 20.
+Zero leaks across 140 000 allocations confirms the recursive Walker
++ Cow tree shape drops cleanly on teardown.
 
 The `spf` per-call cost (694 B / 6.3 allocs) is mostly the
 `Mechanism::*` Vec growth (4-slot pre-sized in `Vec::with_capacity(4)`)
@@ -278,8 +280,8 @@ when system load contaminates a single run):
 
 | Input | mailrs-mime | mail-parser | Winner |
 |---|---:|---:|---|
-| simple `text/plain` body_text | **108 ns** | 195 ns | **mailrs +45%** ✅ |
-| find `text/calendar` part (apples-to-apples) | **~620 ns** | ~640 ns | **mailrs +5-10%** ✅ (was −28%, reversed) |
+| simple `text/plain` body_text | **84 ns** | 194 ns | **mailrs +57%** ✅ |
+| find `text/calendar` part (apples-to-apples) | **539 ns** | 629 ns | **mailrs +15%** ✅ (was −28%, fully reversed) |
 
 The find-calendar comparison is true apples-to-apples — both sides
 parse the message and walk parts looking for the `text/calendar`
@@ -292,6 +294,32 @@ outlier — controlled 3-run repeated measurement showed mailrs was
 actually **~28% slower** than mail-parser. The same noise control
 caught us *under-claiming* the simple body_text win (real ~+45%,
 not +17%). Re-bench discipline now applied to every close-call.
+
+**v4 round 17 (2026-05-26 — mime 2.0 CompactString)**: bumped
+`mailrs-mime` to **2.0.0**; switched `ContentType.{type_, subtype}`
+and `Disposition.kind` from `String` to `compact_str::CompactString`
+(inline ≤24 bytes). All real MIME top-level types ("text", "multipart",
+"application") and subtypes ("plain", "html", "calendar",
+"alternative", "mixed", "report") fit inline → zero alloc on every
+leaf parse for those fields. Added `lower_compact()` helper so
+already-lowercase inputs (the overwhelming wire-format case) skip
+the intermediate `String::to_ascii_lowercase` alloc entirely.
+
+Measured:
+
+  Before (1.0.4): simple 108 ns | find_calendar ~620 ns
+  After  (2.0.0): simple  84 ns | find_calendar  539 ns
+  Δ:             −22% simple   | −13% find_calendar
+
+Lead over mail-parser:
+
+  Before (1.0.4): simple +45% | find_calendar +5-10% (borderline)
+  After  (2.0.0): simple +57% | find_calendar +15% (clean, out of noise)
+
+dhat per-call alloc count: 20 → 14 (−30%, 6 heap allocs saved
+on the 3-Part invite shape: 3 type_ + 3 subtype Strings replaced
+by inline CompactStrings). Per-call bytes 1564 → 1523. Peak in-
+flight 1551 / 17 blocks → 1510 / 11 blocks.
 
 **Round 13 fix — single-pass header collection.** The dominant cost
 in `parse()` was 5× redundant scans of the header region: 4×
