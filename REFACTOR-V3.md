@@ -139,7 +139,7 @@ fuzz target。
 
 | # | 任务 | 状态 | 备注 |
 |---|---|---|---|
-| 1 | Sieve rewrite (sieve-rs AGPL drop) | active | Phase 13；最重，~2000 LOC RFC 5228 |
+| 1 | Sieve rewrite (sieve-rs AGPL drop) | ✅ deferred → v4 | Phase 13 scope re-audit: 真实工作量 = RFC 5228 core (~1200 LOC) + RFC 5230/5232/5429/5435 extensions (~800 LOC) + sieve-rs 行为 parity 测试套件 (~500 LOC) + shadow-mode 框架 + 跑一个 release cycle 收发散信号。约 1-2 周专项工作。**对的做法是单开 v4 = "in-house Sieve" 作为独立 version**（同 v3.5 的 mail-auth shadow 模式），不挤进 v3.4 batch 影响 release 节奏。当前 sieve-rs AGPL-3.0-only 是 transitive 风险（pulled by `sieve-rs v0.7.2`）— 用户已知会 |
 | 2 | A04 plaintext IMAP/POP3 toggle | ✅ closed | commit b2d30f7 — `MAILRS_DISABLE_PLAIN_IMAP/POP3` |
 | 3 | A10 SSRF allowlist | ✅ closed | commit b2d30f7 — `url::Host` enum + 8 tests |
 | 4 | OpenAPI 50 stub schemas 补完 | active | Phase 11 |
@@ -160,6 +160,14 @@ fuzz target。
 - 整 cement 表再过 lens；记录"经审计仍为 cement，因 X" or "提到 v4 抽
   作 stone"
 - v3 closing: REFACTOR-V3.md 写 close-out summary
+
+## v4 预告 (deferred 项 catch-all)
+
+- **In-house Sieve** (从 v3.4 cold #1 deferred) — RFC 5228 + RFC 5230/
+  5232/5429/5435 extensions；shadow-mode framework；drop sieve-rs +
+  mail-builder transitive。约 1-2 周专项 hot 计划。
+- **mail-auth runtime drop** — 见 task #112 / v3.5。等 prod shadow
+  divergence log 累计 ≥ 30 天 + 0 divergence 后切换。
 
 ## 我的执行准则（继承 v2）
 
