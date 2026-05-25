@@ -70,6 +70,36 @@ the criterion bench medians above instead.
 | mailrs-smtp-proto | budgets in `BUDGETS.md` | 5 |
 | mailrs-maildir | budgets in `BUDGETS.md` | 3 |
 
+### Stone size — release `.rlib` per published crate
+
+41 published stones, sorted by release-mode `.rlib` size
+(`cargo build --workspace --release` → top-level `target/release/lib*.rlib`,
+which excludes upstream deps unlike `target/release/deps/`).
+
+| Bucket | Stones | Range |
+|---|---|---:|
+| **Tiny** (≤50 KB, 8 stones) | imap_codec, rfc2231, srs, backoff, webhook_signature, rfc2047, smtp_codec, sieve | 20–38 KB |
+| **Small** (50–110 KB, 9 stones) | rfc5322, arf, attachment_extract, auth_guard, clamav, shield, maildir, rate_limit, tls_reload | 39–85 KB |
+| **Medium** (110–500 KB, 16 stones) | mime (97), delivery_executor, imap_format, mta_sts, dnsbl, inbound, imap_proto, smtp_proto, postmaster, arc, ical, dav, clean | 97–496 KB |
+| **Large** (≥500 KB, 8 stones) | smtp_client (563), jmap (591), tls_rpt (678), dns (779), spf (930), dkim (1008), intelligence (1014), acme (1163), dmarc (1432), outbound_queue (1579), mailbox (1659) | 563–1659 KB |
+
+Note: `mime` was 143 KB before the v4 round 13 single-pass header collect
+landed — the refactor removed 5 distinct `Message::header()` / `Message::body()`
+call sites per `Part`, so monomorphisation shrinks too. **97 KB now (–32 %)**.
+
+The "Large" bucket is dominated by crates with crypto + DNS + storage backends
+(`dkim` has rsa/ed25519, `dmarc` has the full reporter, `outbound_queue` /
+`mailbox` link sqlx + tokio). The "Tiny" bucket is the pure-parser core; their
+size is dominated by criterion-target machinery, not their own logic.
+
+Reproduce:
+```bash
+cargo build --workspace --release
+find target/release -maxdepth 2 -name 'libmailrs_*.rlib' -not -path '*/deps/*' \
+  | xargs -I{} sh -c 'printf "%6dKB  %s\n" "$(stat -f%z "$1" 2>/dev/null \
+    || stat -c%s "$1")" $(basename "$1" .rlib)' _ {} | sort -rn
+```
+
 ### Head-to-head vs. Rust community competitors (criterion, M-series Mac, release profile, `--quick` mode)
 
 Honest comparison. Wins **and** losses. Bench source: `crates/<crate>/benches/compare_<competitor>.rs` (each crate's compare bench is reproducible in-tree).
