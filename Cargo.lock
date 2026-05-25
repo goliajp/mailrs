@@ -3182,6 +3182,7 @@ dependencies = [
  "chrono",
  "criterion",
  "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "memchr",
  "serde",
  "serde_json",
  "sqlx",

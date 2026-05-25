@@ -21,6 +21,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
 async-trait = "0.1"
+memchr = "2"
 mailrs-maildir = "1"
 
 [dev-dependencies]

@@ -75,7 +75,7 @@ v5 先做（小、独立、给 v4 加速 release 节奏）—— v5 没完成不
 
 | From → To | Trigger |
 |---|---|
-| v5.0 → v5.1 | `Dockerfile` 优化完 + ghcr push 通 |
+| v5.0 → v5.1 | `Dockerfile` 优化完 + ghcr push 通 — ✅ `test.yml` 首次 green at commit `564f1fe` (run 26395568983, 8m24s, 2026-05-25) |
 | v5.1 → v5.2 | `release.yml` workflow 跑通一个 dry-run tag |
 | v5.2 → v5.3 | 1 个 real release 经 CI 跑完 + prod 健康 |
 | v5.3 → v5 closed | 连续 3 个 release 经 CI 无干预 |

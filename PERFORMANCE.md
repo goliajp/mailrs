@@ -268,7 +268,10 @@ can drop in the binary and `scripts/run-all.sh` will pick it up.
 | Path | Median | Notes |
 |---|---:|---|
 | `add_flags` hot path | **~55 ns** | DashMap entry update |
-| `extract_message_id(short header)` | **~150 ns** | per-message threading helper |
+| `extract_message_id(short header)` | **54 ns** | was ~150 ns; v4 squeeze replaced `String::from_utf8_lossy(data).lines()` with a byte-level memchr scan that stops at the first blank line — skips full UTF-8 validation + avoids cloning the whole message; **−64%** measured |
+| `extract_message_id(long real-world header)` | **123 ns** | 20+ header lines, still bounded by line count not body length |
+| `extract_in_reply_to(short / long)` | **61 / 133 ns** | same path as message_id |
+| `normalize_message_id` | **~8 ns** | `<…>` strip |
 | `query_messages text-match 1k msg` | **~120 µs** | fixture-impl (clones full Message rows — PG impl pushes work into SQL; see README §"Performance") |
 
 ### `mailrs-rate-limit` (criterion, `cargo bench -p mailrs-rate-limit`)
