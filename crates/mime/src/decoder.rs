@@ -39,14 +39,23 @@ impl TransferEncoding {
     /// Decode `body` bytes to the canonical octet stream. Per RFC 2045:
     /// `7bit`, `8bit`, `binary` pass through unchanged. `base64` and
     /// `quoted-printable` are decoded. `Other(_)` passes through.
-    pub fn decode(&self, body: &[u8]) -> Vec<u8> {
+    ///
+    /// Returns `Cow::Borrowed(body)` for the identity encodings
+    /// (7bit/8bit/binary/Other) so callers can keep the raw input
+    /// slice without allocating. Only Base64 and Quoted-Printable
+    /// produce an owned `Vec<u8>`.
+    ///
+    /// **API change in v4**: was `-> Vec<u8>` before. Callers that
+    /// needed an owned `Vec<u8>` can wrap with `.into_owned()`.
+    pub fn decode<'a>(&self, body: &'a [u8]) -> std::borrow::Cow<'a, [u8]> {
+        use std::borrow::Cow;
         match self {
             TransferEncoding::SevenBit
             | TransferEncoding::EightBit
             | TransferEncoding::Binary
-            | TransferEncoding::Other(_) => body.to_vec(),
-            TransferEncoding::Base64 => decode_base64(body),
-            TransferEncoding::QuotedPrintable => decode_quoted_printable(body),
+            | TransferEncoding::Other(_) => Cow::Borrowed(body),
+            TransferEncoding::Base64 => Cow::Owned(decode_base64(body)),
+            TransferEncoding::QuotedPrintable => Cow::Owned(decode_quoted_printable(body)),
         }
     }
 }
@@ -156,8 +165,9 @@ mod tests {
 
     #[test]
     fn decode_7bit_passes_through() {
+        // v4 Cow API: deref the Cow to a slice for comparison.
         assert_eq!(
-            TransferEncoding::SevenBit.decode(b"Hello, world!\r\n"),
+            &*TransferEncoding::SevenBit.decode(b"Hello, world!\r\n"),
             b"Hello, world!\r\n"
         );
     }
@@ -165,69 +175,69 @@ mod tests {
     #[test]
     fn decode_base64_basic() {
         let r = TransferEncoding::Base64.decode(b"SGVsbG8gd29ybGQ=");
-        assert_eq!(r, b"Hello world");
+        assert_eq!(&*r, b"Hello world");
     }
 
     #[test]
     fn decode_base64_with_line_breaks() {
         let input = b"SGVsbG8s\r\nIHdvcmxkIQ==";
         let r = TransferEncoding::Base64.decode(input);
-        assert_eq!(r, b"Hello, world!");
+        assert_eq!(&*r, b"Hello, world!");
     }
 
     #[test]
     fn decode_base64_with_spaces() {
         let r = TransferEncoding::Base64.decode(b"SGVs bG8g d29y bGQ=");
-        assert_eq!(r, b"Hello world");
+        assert_eq!(&*r, b"Hello world");
     }
 
     #[test]
     fn decode_quoted_printable_basic() {
         let r = TransferEncoding::QuotedPrintable.decode(b"Hello=20world");
-        assert_eq!(r, b"Hello world");
+        assert_eq!(&*r, b"Hello world");
     }
 
     #[test]
     fn decode_quoted_printable_soft_break() {
         // `=\r\n` is a soft line break (no real newline in output)
         let r = TransferEncoding::QuotedPrintable.decode(b"long line=\r\nbreak");
-        assert_eq!(r, b"long linebreak");
+        assert_eq!(&*r, b"long linebreak");
     }
 
     #[test]
     fn decode_quoted_printable_japanese_utf8() {
         // "日" (E6 97 A5 in UTF-8)
         let r = TransferEncoding::QuotedPrintable.decode(b"=E6=97=A5");
-        assert_eq!(r, vec![0xE6, 0x97, 0xA5]);
+        assert_eq!(&*r, &[0xE6_u8, 0x97, 0xA5][..]);
     }
 
     #[test]
     fn decode_quoted_printable_lowercase_hex() {
         let r = TransferEncoding::QuotedPrintable.decode(b"=e6=97=a5");
-        assert_eq!(r, vec![0xE6, 0x97, 0xA5]);
+        assert_eq!(&*r, &[0xE6_u8, 0x97, 0xA5][..]);
     }
 
     #[test]
     fn decode_quoted_printable_lone_equals_passes() {
         let r = TransferEncoding::QuotedPrintable.decode(b"100% sure");
-        assert_eq!(r, b"100% sure");
+        assert_eq!(&*r, b"100% sure");
     }
 
     #[test]
     fn decode_quoted_printable_invalid_hex_passes() {
         let r = TransferEncoding::QuotedPrintable.decode(b"=XY");
-        assert_eq!(r, b"=XY");
+        assert_eq!(&*r, b"=XY");
     }
 
     #[test]
     fn decode_binary_passes_through_arbitrary_bytes() {
         let bytes: &[u8] = &[0x00, 0xFF, 0x80, 0x7F];
-        assert_eq!(TransferEncoding::Binary.decode(bytes), bytes);
+        assert_eq!(&*TransferEncoding::Binary.decode(bytes), bytes);
     }
 
     #[test]
     fn decode_other_passes_through() {
         let enc = TransferEncoding::Other("uuencode".into());
-        assert_eq!(enc.decode(b"raw"), b"raw");
+        assert_eq!(&*enc.decode(b"raw"), b"raw");
     }
 }
