@@ -540,8 +540,10 @@ Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
 
 | Path | Median | Notes |
 |---|---:|---|
-| `clean_email_html(5 KB marketing)` | **~336 µs** | typical-size hot path |
-| `clean_email_html(50 KB worst-case)` | **~2.5 ms** | **~22 MB/s** throughput |
+| `clean_email_html(60 B short)` | **10.8 µs** | constant-overhead floor |
+| `clean_email_html(500 B marketing)` | **28 µs** | small marketing |
+| `clean_email_html(5 KB marketing)` | **188 µs** | was ~336 µs; v4 round 6 fused 5 single-tag scans into one + killed quadratic comment loop; **−44%** measured |
+| `clean_email_html(50 KB worst-case)` | **2.42 ms** | was ~2.5 ms; **~20 MB/s** throughput (large messages dominated by html2text final stage) |
 
 ### Server-internal (`mailrs-server`, gated `#[test]` bench)
 
