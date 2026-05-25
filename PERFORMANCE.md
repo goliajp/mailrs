@@ -229,6 +229,14 @@ can drop in the binary and `scripts/run-all.sh` will pick it up.
 | `address/is_valid_typical` | **10 ns** | |
 | `address/split_typical` | **12 ns** | |
 
+### `mailrs-imap-format` (criterion, `cargo bench -p mailrs-imap-format`)
+
+| Path | Median | Notes |
+|---|---:|---|
+| `format_imap_flags/seen+answered` | **12.9 ns** | was 27.8 ns (v4 squeeze, commit replaces `Vec::push` + `join` with `String::with_capacity(47) + push_str`); **−54%** measured |
+| `parse_imap_flags/seen answered` | **16.1 ns** | was 42.2 ns; v4 squeeze killed the `to_uppercase()` allocation per token, replaced with length-keyed `eq_ignore_ascii_case` against compile-time `&[u8; N]` targets; **−62%** measured |
+| `format_internal_date` | **157 ns** | dominated by `chrono` `from_timestamp` + format; squeeze deferred (would require an in-house date formatter) |
+
 ### `mailrs-smtp-client` (criterion, `cargo bench -p mailrs-smtp-client`)
 
 | Path | Median | Notes |
