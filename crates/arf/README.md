@@ -98,6 +98,25 @@ the substring scan for the literal `feedback-report` marker —
 sub-30 ns means even hot mailbox loops that try every inbound
 message can safely call `parse()` unconditionally.)
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-arf`) |
+| **test** | line cov: 99.2% (`cargo llvm-cov -p mailrs-arf --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 75 KB |
+| **fuzz** | ❌ none |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Dual-licensed under [Apache 2.0](./LICENSE-APACHE) or [MIT](./LICENSE-MIT).

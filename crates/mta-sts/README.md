@@ -120,6 +120,25 @@ Two reasons it exists:
 2. Tests for the enforce path don't need a real HTTP fetcher — they can fill
    the cache directly.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ❌ 2 errors, 0 warnings (`cargo doc --no-deps -p mailrs-mta-sts`) |
+| **test** | line cov: 97.3% (`cargo llvm-cov -p mailrs-mta-sts --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 170 KB |
+| **fuzz** | ✅ 2 target(s) |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of **Apache License, Version 2.0** ([LICENSE-APACHE](./LICENSE-APACHE))

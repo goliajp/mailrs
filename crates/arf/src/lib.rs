@@ -3,7 +3,7 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 
 //! Internal layout: [`parse`] does the full one-shot extraction.
-//! Helpers ([`is_arf`], header continuation handling) are private —
+//! Helpers (`is_arf`, header continuation handling) are private —
 //! the public surface is intentionally a single function returning
 //! a single struct.
 

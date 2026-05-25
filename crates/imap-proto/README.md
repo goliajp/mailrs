@@ -82,6 +82,25 @@ Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release 
 
 Re-run locally with `cargo bench -p mailrs-imap-proto`. See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-imap-proto`) |
+| **test** | line cov: 96.9% (`cargo llvm-cov -p mailrs-imap-proto --summary-only`) |
+| **bench** | ✅ 2 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 308 KB |
+| **fuzz** | ✅ 2 target(s) |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons (from PERFORMANCE.md)
+
+- `mailrs-imap-proto` vs `imap-codec` 2.0-alpha (Rust nom-based IMAP codec)
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of:

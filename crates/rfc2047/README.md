@@ -77,6 +77,26 @@ with zero allocations and constant time (just a forward scan for
 `=?`). Encoded inputs go through one `String` allocation sized to the
 input length.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-rfc2047`) |
+| **test** | line cov: 96.5% (`cargo llvm-cov -p mailrs-rfc2047 --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 48 KB |
+| **fuzz** | ✅ 2 target(s) |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons (from PERFORMANCE.md)
+
+- `mailrs-rfc2047` vs `mail-parser` (subject extraction)
+- Subject extraction: `mailrs-rfc2047` vs `mail-parser` full parse
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Apache-2.0 OR MIT.

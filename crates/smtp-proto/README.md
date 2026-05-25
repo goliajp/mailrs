@@ -96,6 +96,25 @@ No other published Rust SMTP-protocol crate currently posts per-command parsing 
 
 It's also the foundation of the [mailrs] mail server, which uses it on the inbound listener side. Publishing it independently means everyone gets the same battle-tested core.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-smtp-proto`) |
+| **test** | line cov: 99.2% (`cargo llvm-cov -p mailrs-smtp-proto --summary-only`) |
+| **bench** | ✅ 2 file(s) criterion + ✅ 5 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 311 KB |
+| **fuzz** | ✅ 2 target(s) |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons (from PERFORMANCE.md)
+
+- `mailrs-smtp-proto` vs `smtp-codec` 0.2 (Rust nom-based SMTP parser)
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of:

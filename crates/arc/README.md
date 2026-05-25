@@ -125,6 +125,25 @@ candidate #1 — the server's inbound stage can swap
 `mail_authenticator.verify_arc` for `verify_chain_with_crypto` and
 drop `mail-auth` from runtime dependencies entirely.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ❌ 2 errors, 0 warnings (`cargo doc --no-deps -p mailrs-arc`) |
+| **test** | line cov: 90.5% (`cargo llvm-cov -p mailrs-arc --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 446 KB |
+| **fuzz** | ✅ 3 target(s) |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Apache-2.0 OR MIT.

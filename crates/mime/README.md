@@ -120,6 +120,25 @@ cost is dwarfed by DNS / disk / DB calls.
 
 Reproduce: `cargo bench -p mailrs-mime --bench mime`.
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-mime`) |
+| **test** | line cov: 96.5% (`cargo llvm-cov -p mailrs-mime --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 142 KB |
+| **fuzz** | ✅ 1 target(s) |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons (from PERFORMANCE.md)
+
+- `mailrs-mime` vs `mail-parser` (MIME body parse)
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Apache-2.0 OR MIT.
