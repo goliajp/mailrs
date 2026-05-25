@@ -321,9 +321,9 @@ can drop in the binary and `scripts/run-all.sh` will pick it up.
 
 | Path | Median | Notes |
 |---|---:|---|
-| `sort_mx_records(20)` | **~12 ns** | MX priority sort |
-| `parse_response(short)` | **~30 ns** | 250 OK |
-| `parse_response(10-line EHLO)` | **~290 ns** | multi-line response |
+| `sort_mx_records(20)` | **12 ns** | MX priority sort |
+| `parse_response(short)` | **27 ns** | was 30 ns; v4 round 5 unrolled 3-digit byte code parse |
+| `parse_response(10-line EHLO)` | **257 ns** | was 290 ns; same change + Vec::with_capacity(8) for typical 4-12-line EHLO |
 | `dot_stuff(5 KB no dots)` | **~1.4 µs** | passthrough fast-path |
 | `dot_stuff(5 KB with dots)` | **~1.6 µs** | allocates new Vec to escape |
 
