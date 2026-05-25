@@ -20,5 +20,10 @@ mailrs-maildir = "1.2"
 tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
 
 [dev-dependencies]
+criterion = { workspace = true }
 tokio = { version = "1", features = ["full"] }
 tempfile = "3"
+
+[[bench]]
+name = "delivery_executor"
+harness = false

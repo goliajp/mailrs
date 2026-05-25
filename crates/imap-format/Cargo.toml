@@ -17,3 +17,10 @@ workspace = true
 
 [dependencies]
 chrono = { workspace = true }
+
+[[bench]]
+name = "imap_format"
+harness = false
+
+[dev-dependencies]
+criterion = { workspace = true }

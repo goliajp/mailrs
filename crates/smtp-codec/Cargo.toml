@@ -18,3 +18,10 @@ workspace = true
 [dependencies]
 bytes = "1"
 tokio-util = { version = "0.7", features = ["codec"] }
+
+[[bench]]
+name = "smtp_codec"
+harness = false
+
+[dev-dependencies]
+criterion = { workspace = true }

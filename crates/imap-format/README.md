@@ -85,7 +85,7 @@ project use.
 |---|---|
 | **doc** | ❌ 4 errors, 0 warnings (`cargo doc --no-deps -p mailrs-imap-format`) |
 | **test** | line cov: 64.5% (`cargo llvm-cov -p mailrs-imap-format --summary-only`) |
-| **bench** | ❌ none criterion + ❌ none `perf_gate.rs` |
+| **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 243 KB |
 | **fuzz** | ❌ none |
 | **mem**  | dhat profile pending (v3.4 backlog) |
