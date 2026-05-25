@@ -193,7 +193,7 @@ The exact XML shape inside `multistatus` may evolve within a minor version as lo
 | **test** | line cov: 96.8% (`cargo llvm-cov -p mailrs-dav --summary-only`) |
 | **bench** | ✅ 2 file(s) criterion + ✅ 1 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 596 KB |
-| **fuzz** | ❌ none |
+| **fuzz** | ✅ 1 target(s) |
 | **mem**  | dhat profile pending (v3.4 backlog) |
 
 ### Competitor comparisons

@@ -110,7 +110,7 @@ Run: `cargo bench -p mailrs-srs --bench srs`. Reproduce numbers in
 | **test** | line cov: 99.1% (`cargo llvm-cov -p mailrs-srs --summary-only`) |
 | **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 54 KB |
-| **fuzz** | ❌ none |
+| **fuzz** | ✅ 1 target(s) |
 | **mem**  | dhat profile pending (v3.4 backlog) |
 
 ### Competitor comparisons

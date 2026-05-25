@@ -108,7 +108,7 @@ impl DmarcStore for FileStore {
 | **test** | line cov: 96.0% (`cargo llvm-cov -p mailrs-dmarc --summary-only`) |
 | **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 3.2 MB |
-| **fuzz** | ❌ none |
+| **fuzz** | ✅ 1 target(s) |
 | **mem**  | dhat profile pending (v3.4 backlog) |
 
 ### Competitor comparisons

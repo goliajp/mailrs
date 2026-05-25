@@ -108,7 +108,7 @@ message can safely call `parse()` unconditionally.)
 | **test** | line cov: 99.2% (`cargo llvm-cov -p mailrs-arf --summary-only`) |
 | **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 75 KB |
-| **fuzz** | ❌ none |
+| **fuzz** | ✅ 1 target(s) |
 | **mem**  | dhat profile pending (v3.4 backlog) |
 
 ### Competitor comparisons
