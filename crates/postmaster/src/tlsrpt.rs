@@ -55,7 +55,6 @@ pub fn validate_tlsrpt_record(record: &str) -> bool {
 /// TLSRPT format: `v=TLSRPTv1; rua=mailto:reports@example.com,https://...`.
 /// Returns each comma-separated URI in `rua=` as a separate `String`, or
 /// an empty `Vec` when the `rua=` field is missing.
-
 pub fn extract_tlsrpt_rua(record: &str) -> Vec<String> {
     record
         .split(';')
