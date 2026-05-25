@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-mime"
-version = "1.0.4"
+version = "2.0.0"
 edition = "2024"
 description = "RFC 2045/2046 MIME body parser. Walks the multipart tree, decodes Content-Transfer-Encoding (base64, quoted-printable, 7bit, 8bit, binary), exposes text/HTML extraction + find-by-content-type + attachment iteration. Layered on mailrs-rfc5322 (headers) + mailrs-rfc2231 (parameters) + mailrs-rfc2047 (encoded-words)."
 license = "Apache-2.0 OR MIT"
@@ -22,6 +22,10 @@ mailrs-rfc2231 = "1"
 base64 = "0.22"
 encoding_rs = "0.8"
 memchr = "2"
+# Inline-short-string for ContentType.type_/subtype + Disposition.kind.
+# Real-world MIME types ("text", "plain", "html", "multipart", etc) all
+# fit in the 24-byte inline; saves ~8 heap allocs/parse per dhat data.
+compact_str = "0.9"
 
 [dev-dependencies]
 criterion = { workspace = true }
