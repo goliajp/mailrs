@@ -35,11 +35,17 @@ pub enum ArcSealCv {
 
 impl ArcSealCv {
     fn parse(s: &str) -> Option<Self> {
-        match s.trim().to_ascii_lowercase().as_str() {
-            "none" => Some(Self::None),
-            "pass" => Some(Self::Pass),
-            "fail" => Some(Self::Fail),
-            _ => None,
+        // ASCII-byte compare against the 3 known values; avoids the
+        // per-call `to_ascii_lowercase()` String allocation.
+        let t = s.trim().as_bytes();
+        if t.eq_ignore_ascii_case(b"none") {
+            Some(Self::None)
+        } else if t.eq_ignore_ascii_case(b"pass") {
+            Some(Self::Pass)
+        } else if t.eq_ignore_ascii_case(b"fail") {
+            Some(Self::Fail)
+        } else {
+            None
         }
     }
 }
@@ -270,10 +276,17 @@ fn parse_instance_value(s: &str) -> Result<u32, ArcError> {
 }
 
 fn parse_algorithm(s: &str) -> Result<Algorithm, ArcError> {
-    match s.trim().to_ascii_lowercase().as_str() {
-        "rsa-sha256" => Ok(Algorithm::RsaSha256),
-        "ed25519-sha256" => Ok(Algorithm::Ed25519Sha256),
-        other => Err(ArcError::UnsupportedAlgorithm(other.to_string())),
+    // ASCII case-insensitive byte compare against the 2 known
+    // algorithms — avoids the per-call `to_ascii_lowercase()` String
+    // allocation that the old impl paid for every AMS/AS header
+    // parse.
+    let trimmed = s.trim().as_bytes();
+    if trimmed.eq_ignore_ascii_case(b"rsa-sha256") {
+        Ok(Algorithm::RsaSha256)
+    } else if trimmed.eq_ignore_ascii_case(b"ed25519-sha256") {
+        Ok(Algorithm::Ed25519Sha256)
+    } else {
+        Err(ArcError::UnsupportedAlgorithm(s.trim().to_string()))
     }
 }
 
