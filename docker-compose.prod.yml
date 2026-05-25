@@ -1,0 +1,141 @@
+# docker-compose.prod.yml — prod deployment via pre-built GHCR image
+#
+# Use this on the deployment host (currently t02.golia.jp) once the v5
+# CI/CD migration is live. Pulls the published `ghcr.io/<org>/mailrs:<tag>`
+# image instead of building from source. Same service surface as
+# docker-compose.yml so dev/prod parity holds.
+#
+# Switching prod: edit `.env` on the host to set `MAILRS_VERSION=<tag>`,
+# then `docker compose -f docker-compose.prod.yml pull && docker compose
+# -f docker-compose.prod.yml up -d`. The release workflow does this
+# remotely via the deploy webhook (see scripts/deploy-from-ghcr.sh).
+#
+# Until v5.3 cutover, `scripts/release.sh` keeps deploying via ssh
+# upload of the cross-compiled binary; this file is here for the
+# parallel-run period so we can dry-run the CI image alongside.
+
+services:
+  postgres:
+    container_name: mailrs-postgres
+    image: pgvector/pgvector:0.8.2-pg18-trixie
+    environment:
+      POSTGRES_DB: mailrs
+      POSTGRES_USER: mailrs
+      POSTGRES_PASSWORD: ${MAILRS_PG_PASSWORD:-mailrs}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./scripts/init-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailrs -d mailrs"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    restart: unless-stopped
+
+  valkey:
+    container_name: mailrs-valkey
+    image: valkey/valkey:9.1-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+    restart: unless-stopped
+
+  chromium:
+    container_name: mailrs-chromium
+    image: zenika/alpine-chrome:124
+    command: ["--no-sandbox", "--remote-debugging-address=0.0.0.0", "--remote-debugging-port=9222", "--disable-gpu", "--headless"]
+    ports:
+      - "9222:9222"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    restart: unless-stopped
+
+  meilisearch:
+    container_name: mailrs-meilisearch
+    image: getmeili/meilisearch:v1.44
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+  mailrs:
+    container_name: mailrs
+    # Pinned to ghcr.io image instead of `build: .`. The release workflow
+    # publishes both `:<version>` and `:latest`; prefer pinning to a
+    # specific version in .env so rollback is one variable edit away.
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
+    pull_policy: always
+    ports:
+      - "25:25"
+      - "110:110"
+      - "587:587"
+      - "465:465"
+      - "143:143"
+      - "993:993"
+      - "995:995"
+      - "3100:3100"
+      - "4190:4190"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    environment:
+      MAILRS_HOSTNAME: ${MAILRS_HOSTNAME:-mx.example.com}
+      MAILRS_MAILDIR: /data/maildir
+      MAILRS_PG_URL: postgres://mailrs:${MAILRS_PG_PASSWORD:-mailrs}@postgres:5432/mailrs
+      MAILRS_VALKEY_URL: redis://valkey:6379
+      MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
+      MAILRS_LOCAL_DOMAINS: ${MAILRS_LOCAL_DOMAINS:-example.com}
+      MAILRS_TLS_CERT: /certs/fullchain.pem
+      MAILRS_TLS_KEY: /certs/privkey.pem
+      MAILRS_USERS_FILE: /data/users.toml
+      MAILRS_DKIM_SELECTOR: ${MAILRS_DKIM_SELECTOR:-}
+      MAILRS_DKIM_DOMAIN: ${MAILRS_DKIM_DOMAIN:-}
+      MAILRS_DKIM_PRIVATE_KEY: ${MAILRS_DKIM_PRIVATE_KEY:-}
+      MAILRS_ACME_EMAIL: ${MAILRS_ACME_EMAIL:-}
+      MAILRS_ACME_DOMAINS: ${MAILRS_ACME_DOMAINS:-}
+      MAILRS_ACME_DIR: /data/acme
+      MAILRS_ACME_STAGING: ${MAILRS_ACME_STAGING:-false}
+      MAILRS_AI_ANALYSIS_ENABLED: "${MAILRS_AI_ANALYSIS_ENABLED:-false}"
+      MAILRS_LLM_URL: "${MAILRS_LLM_URL:-}"
+      MAILRS_LLM_API_KEY: "${MAILRS_LLM_API_KEY:-}"
+      MAILRS_ANTISPAM_ENABLED: "${MAILRS_ANTISPAM_ENABLED:-false}"
+      MAILRS_MEILI_URL: http://meilisearch:7700
+      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
+      MAILRS_CHROME_CDP_URL: ws://chromium:9222
+      MAILRS_WEBHOOK_URL: "${MAILRS_WEBHOOK_URL:-}"
+      MAILRS_WEBHOOK_API_KEY: "${MAILRS_WEBHOOK_API_KEY:-}"
+    volumes:
+      - mailrs-data:/data
+      - ./certs:/certs:ro
+    restart: unless-stopped
+
+volumes:
+  mailrs-data:
+  pg-data:
+  valkey-data:
+  meili-data:

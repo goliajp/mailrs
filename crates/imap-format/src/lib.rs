@@ -173,8 +173,9 @@ pub fn parse_header_fields_request(attributes: &str) -> Option<(Vec<String>, Str
     Some((fields, raw_section))
 }
 
-/// parse all generic BODY[section] requests like BODY[1], BODY[1.1], BODY[1.MIME], BODY.PEEK[1]
-/// returns all section specifiers (e.g. ["1", "1.1", "1.MIME"])
+/// parse all generic `BODY\[section\]` requests like `BODY\[1\]`,
+/// `BODY\[1.1\]`, `BODY\[1.MIME\]`, `BODY.PEEK\[1\]`. Returns all section
+/// specifiers (e.g. `["1", "1.1", "1.MIME"]`).
 pub fn parse_generic_body_sections(attributes: &str) -> Vec<String> {
     let upper = attributes.to_uppercase();
     let mut sections = Vec::new();
