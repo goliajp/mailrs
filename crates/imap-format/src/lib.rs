@@ -52,26 +52,30 @@ pub const FLAG_RECENT: u32 = 0b0010_0000;
 
 /// convert bitmask flags to IMAP flag string
 pub fn format_imap_flags(flags: u32) -> String {
-    let mut parts = Vec::new();
-    if flags & FLAG_SEEN != 0 {
-        parts.push("\\Seen");
+    // Per-bit lookup table — `(bit_const, "\\Name")`. Layout sized to
+    // the worst-case all-six-flags output ("\\Seen \\Answered \\Flagged
+    // \\Deleted \\Draft \\Recent" = 47 chars) so the String never has
+    // to reallocate on push_str.
+    const ENTRIES: [(u32, &str); 6] = [
+        (FLAG_SEEN, "\\Seen"),
+        (FLAG_ANSWERED, "\\Answered"),
+        (FLAG_FLAGGED, "\\Flagged"),
+        (FLAG_DELETED, "\\Deleted"),
+        (FLAG_DRAFT, "\\Draft"),
+        (FLAG_RECENT, "\\Recent"),
+    ];
+    let mut out = String::with_capacity(47);
+    let mut first = true;
+    for (bit, name) in ENTRIES {
+        if flags & bit != 0 {
+            if !first {
+                out.push(' ');
+            }
+            out.push_str(name);
+            first = false;
+        }
     }
-    if flags & FLAG_ANSWERED != 0 {
-        parts.push("\\Answered");
-    }
-    if flags & FLAG_FLAGGED != 0 {
-        parts.push("\\Flagged");
-    }
-    if flags & FLAG_DELETED != 0 {
-        parts.push("\\Deleted");
-    }
-    if flags & FLAG_DRAFT != 0 {
-        parts.push("\\Draft");
-    }
-    if flags & FLAG_RECENT != 0 {
-        parts.push("\\Recent");
-    }
-    parts.join(" ")
+    out
 }
 
 /// parse IMAP flag names from a FLAGS string like "(\\Seen \\Flagged)"
@@ -79,18 +83,57 @@ pub fn parse_imap_flags(s: &str) -> u32 {
     let s = s.trim().trim_start_matches('(').trim_end_matches(')');
     let mut bits = 0u32;
     for part in s.split_whitespace() {
-        let flag = part.trim_start_matches('\\');
-        match flag.to_uppercase().as_str() {
-            "SEEN" => bits |= FLAG_SEEN,
-            "ANSWERED" => bits |= FLAG_ANSWERED,
-            "FLAGGED" => bits |= FLAG_FLAGGED,
-            "DELETED" => bits |= FLAG_DELETED,
-            "DRAFT" => bits |= FLAG_DRAFT,
-            "RECENT" => bits |= FLAG_RECENT,
-            _ => {}
+        let flag = part.trim_start_matches('\\').as_bytes();
+        // ASCII-case-insensitive comparison against the 6 system flag
+        // names. Avoids the `.to_uppercase()` allocation that
+        // dominated the hot path (~25 ns / call when allocating an
+        // owned String for the match arm).
+        let matched = match flag.len() {
+            4 => match_4_byte_ci(flag, b"SEEN", FLAG_SEEN),
+            5 => match_5_byte_ci(flag, b"DRAFT", FLAG_DRAFT),
+            6 => match_6_byte_ci(flag, b"RECENT", FLAG_RECENT),
+            7 => match_7_byte_ci(flag, b"DELETED", FLAG_DELETED)
+                .or_else(|| match_7_byte_ci(flag, b"FLAGGED", FLAG_FLAGGED)),
+            8 => match_8_byte_ci(flag, b"ANSWERED", FLAG_ANSWERED),
+            _ => None,
+        };
+        if let Some(bit) = matched {
+            bits |= bit;
         }
     }
     bits
+}
+
+// Length-keyed ASCII case-insensitive matchers. Inlined into the
+// `match` so LLVM can unroll the 4/5/6/7/8-byte path it takes.
+#[inline(always)]
+fn match_4_byte_ci(input: &[u8], target: &[u8; 4], bit: u32) -> Option<u32> {
+    debug_assert_eq!(input.len(), 4);
+    if input[0].eq_ignore_ascii_case(&target[0])
+        && input[1].eq_ignore_ascii_case(&target[1])
+        && input[2].eq_ignore_ascii_case(&target[2])
+        && input[3].eq_ignore_ascii_case(&target[3])
+    {
+        Some(bit)
+    } else {
+        None
+    }
+}
+#[inline(always)]
+fn match_5_byte_ci(input: &[u8], target: &[u8; 5], bit: u32) -> Option<u32> {
+    if input.eq_ignore_ascii_case(target) { Some(bit) } else { None }
+}
+#[inline(always)]
+fn match_6_byte_ci(input: &[u8], target: &[u8; 6], bit: u32) -> Option<u32> {
+    if input.eq_ignore_ascii_case(target) { Some(bit) } else { None }
+}
+#[inline(always)]
+fn match_7_byte_ci(input: &[u8], target: &[u8; 7], bit: u32) -> Option<u32> {
+    if input.eq_ignore_ascii_case(target) { Some(bit) } else { None }
+}
+#[inline(always)]
+fn match_8_byte_ci(input: &[u8], target: &[u8; 8], bit: u32) -> Option<u32> {
+    if input.eq_ignore_ascii_case(target) { Some(bit) } else { None }
 }
 
 /// Format a Unix timestamp as an IMAP `INTERNALDATE` value
