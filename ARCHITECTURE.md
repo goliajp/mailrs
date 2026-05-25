@@ -225,34 +225,70 @@ satisfy at least one of: project-schema-coupled, business-rule-
 specific, glue-only-wiring, or session-state-machine. **Re-audit each
 periodically — a piece of cement may have a stone hiding inside.**
 
-| Module | LOC | Why it stays |
+**Audit history:**
+- 2026-05-23: original audit (cycle that ran 7→31 stones).
+- 2026-05-25: v3.6 terminal re-audit. fbl.rs (37 LOC) extracted as
+  `mailrs-arf`. Larger files split into per-concern sub-modules
+  (imap_session, domain_store, web/, smtp_session/, postmaster,
+  clean — see git log refactor commits) but core identity remains
+  cement. No further stones hiding here as of v1.7.29.
+
+| Module | prod LOC (v1.7.29) | Why it stays |
 |---|---|---|
-| `web/` routes | ~6000 | Axum handlers wiring stones to HTTP/JSON; mailrs URL paths + auth flow |
-| `domain_store.rs` | 2018 | PG-backed domain/account/alias resolver tied to mailrs schema |
-| `config.rs` | 1925 | All `MAILRS_*` env vars + validation; pure project config |
-| `imap_session.rs` | 2725 | IMAP **session** handler (state machine driving mailrs-imap-proto stone) |
-| `smtp_session/` | ~2000 | Same for SMTP; calls inbound pipeline stones |
-| `pop3_session.rs` | 622 | POP3 session handler |
-| `managesieve_session.rs` | 518 | ManageSieve session handler |
-| `sieve.rs` | 1505 | Thin wrapper around upstream `sieve::` crate, translating its events to mailrs delivery actions |
-| `mcp/` | ~2800 | Model Context Protocol tools exposing mailrs APIs to LLMs |
-| `users.rs` | 729 | Argon2 password backend + LDAP fallback, tied to PG `accounts` |
-| `permission.rs` | 345 | Mailrs-specific RBAC permission list + group resolution |
-| `api_key_store.rs` | 280 | API key hash + lookup, PG-backed |
-| `oidc_store.rs` | 397 | OIDC token storage |
-| `web/oidc_provider.rs` | 811 | mailrs's specific OIDC issuer flow |
-| `acme.rs` | 310 | Thin glue over `mailrs-acme` stone + mailrs's challenge token storage (`mailrs-acme` 1.0 has the orchestration; this file is the project-specific store binding) |
-| `tls.rs` | 50 | Thin glue over `mailrs-tls-reload` stone for hot-reloadable certs |
-| `event_bus.rs` | 185 | Wraps `tokio::broadcast` with mailrs's `SmtpEvent` enum |
-| `inline_image.rs` | 496 | CID inline image upload/serve tied to maildir |
-| `render_preview.rs` | 527 | Chromium-backed mail preview render, tied to mailrs's preview cache |
-| `calendar/` | 1547 | Per-account calendar feed using mailrs-ical for parsing |
-| `inbound/content_scan.rs` | 638 | mailrs-specific spam scoring rules (ClamAV is now mailrs-clamav stone) |
-| `inbound/pipeline.rs` | 909 | Wiring of mailrs-inbound stages with project config |
+| `web/` routes (split into `web/{router,auth,conversations,mail,...}/`) | ~6000 | Axum handlers wiring stones to HTTP/JSON; mailrs URL paths + auth flow |
+| `domain_store/` (split into entity sub-mods) | 394 + sub | PG-backed domain/account/alias resolver tied to mailrs schema |
+| `config.rs` | 487 | All `MAILRS_*` env vars + validation; pure project config |
+| `imap_session/` (split into 6 sub-mods after v1.7.x refactor) | 441 + subs | IMAP **session** handler (state machine driving mailrs-imap-proto stone) |
+| `smtp_session/` (split into `events/{data,...}/`) | 365 + subs | Same for SMTP; calls inbound pipeline stones |
+| `pop3_session/` (split into 6 sub-mods) | 244 + subs | POP3 session handler |
+| `managesieve_session.rs` | 440 | ManageSieve session handler |
+| `sieve.rs` | (replaced) | Now replaced by `mailrs-sieve` stone (Tier A2 of stones-out wave) |
+| `mcp/mod.rs` (macro carve-out) | 1869 | `#[tool_router]` proc-macro can't span modules; documented exception |
+| `users.rs` | 136 | Argon2 password backend + LDAP fallback, tied to PG `accounts` |
+| `permission.rs` | 214 | Mailrs-specific RBAC permission list + group resolution |
+| `api_key_store.rs` | 225 | API key hash + lookup, PG-backed |
+| `oidc_store.rs` | 360 | OIDC token storage |
+| `web/oidc_provider/` (split per endpoint) | sub-mods | mailrs's specific OIDC issuer flow |
+| `acme.rs` | 12 | Thin glue over `mailrs-acme` stone + mailrs's challenge token storage |
+| `tls.rs` | 11 | Thin glue over `mailrs-tls-reload` stone for hot-reloadable certs |
+| `event_bus.rs` | 110 | Wraps `tokio::broadcast` with mailrs's `SmtpEvent` enum (re-audited 2026-05-25: ties to project-specific SmtpEvent enum; remains cement) |
+| `inline_image.rs` | 197 | CID inline image upload/serve tied to maildir (re-audited: 1/2 of work is mailrs maildir path format; remains cement) |
+| `render_preview.rs` | 409 | Chromium-backed mail preview render, tied to mailrs's preview cache (re-audited: tightly coupled to mailrs caching layer; remains cement) |
+| `calendar/event/` (split per concern) | sub-mods | Per-account calendar feed using mailrs-ical for parsing |
+| `inbound/content_scan.rs` | 148 | mailrs-specific spam scoring rules (ClamAV is now mailrs-clamav stone) |
+| `inbound/pipeline.rs` | 79 | Wiring of mailrs-inbound stages with project config |
+| `outbound_tls_rpt/` (split into observer/store/submit/convert) | sub-mods | Server-side TLSRPT observer (wraps mailrs-tls-rpt store with PG binding) |
+| `bootstrap/` (10 sub-mods) | 25 + subs | Server startup wiring — pure glue between stones and runtime |
+| `dmarc_report.rs` | 111 | PG report storage bridge for `mailrs-dmarc` |
+| `webhook/` | 61 | Server webhook delivery + retry (wraps `mailrs-webhook-signature`) |
+
+### v3.6 re-audit verdict
+
+**No new stones extracted.** Every cement module above was re-checked
+through the "all ✓ lens" (single identity / RFC boundary / no
+project import / measurable / ≤500 LOC). All remain cement because of
+specific project bindings:
+
+- `event_bus`, `inline_image`, `render_preview`, `webhook` carry
+  enough project-specific signal that an extracted version would have
+  no other users
+- `dmarc_report` is a thin PG binding (could become a `Store` trait
+  but the stone (`mailrs-dmarc`) already has one — server is the
+  binding)
+- `outbound_tls_rpt` similarly is the binding from `mailrs-tls-rpt`
+  Store trait to mailrs's PG schema
+
+Only large stone-shaped candidate remaining for a future v4 cycle:
+**Sieve rewrite** to replace `sieve-rs` (AGPL contamination
+documented in REFACTOR-V2-v0.6-security.md). Tracked separately
+because it is a 2-3 day implementation of RFC 5228, not a polish
+pass.
 | `web/conversations.rs` | 1924 | Chat-like conversation view API |
 | `dmarc_report.rs` | ~200 | Bridge between mailrs-dmarc + PG report storage |
 
-Total cement ≈ 28k LOC. Total stones (published) = 41 crates.
+Total cement ≈ 18k LOC (after v2 + v3 splits dropped ~10k via
+per-concern sub-module breakouts that didn't extract new stones).
+Total stones (published) = 41 crates.
 
 If you spot something here that satisfies the **all ✓** lens above,
 re-audit. If you find a *new* repetition of the same shape across

@@ -205,7 +205,7 @@ Helper-module internals (e.g. the exact JSON shape `build::extend_with_body` pro
 | **test** | line cov: 95.8% (`cargo llvm-cov -p mailrs-jmap --summary-only`) |
 | **bench** | ✅ 2 file(s) criterion + ✅ 1 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 814 KB |
-| **fuzz** | ❌ none |
+| **fuzz** | ✅ 1 target(s) |
 | **mem**  | dhat profile pending (v3.4 backlog) |
 
 ### Competitor comparisons

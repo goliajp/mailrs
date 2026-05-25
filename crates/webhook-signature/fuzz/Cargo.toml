@@ -1,0 +1,26 @@
+[package]
+name = "mailrs-webhook-signature-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.mailrs-webhook-signature]
+path = ".."
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "parse_header"
+path = "fuzz_targets/parse_header.rs"
+test = false
+doc = false
+bench = false
