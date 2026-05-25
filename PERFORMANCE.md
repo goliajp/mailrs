@@ -78,9 +78,9 @@ Honest comparison. Wins **and** losses. Bench source: `crates/<crate>/benches/co
 
 | Input | mailrs-spf | mail-auth | Winner |
 |---|---:|---:|---|
-| `v=spf1 ip4:203.0.113.0/24 -all` (simple) | **57.5 ns** | 51.5 ns | mail-auth +12% (within ±5 ns variance) |
-| 8-mechanism complex | **334 ns** | 383 ns | **mailrs +13%** ✅ |
-| 8-include pathological | **392 ns** | 572 ns | **mailrs +31%** ✅ |
+| `v=spf1 ip4:203.0.113.0/24 -all` (simple) | **56 ns** | 55 ns | **tied** (±1 ns noise band) ✅ |
+| 8-mechanism complex | **354 ns** | 474 ns | **mailrs +34%** ✅ |
+| 8-include pathological | **396 ns** | 585 ns | **mailrs +48%** ✅ |
 
 v4 round 4 closed the gap on the simple case from −25% to −12%, and
 pushed the complex/pathological wins from +14% / +44% to +13% / +31%
@@ -99,13 +99,14 @@ parser; pathological stayed roughly in band). Three changes:
    prefix.** Pre-sizes the mechanisms Vec to the common-case count;
    the unrolled octet parser also handles the `/24` suffix.
 
-The remaining −12% on simple is the architectural difference: mail-
-auth fuses tokenization + qualifier + name + value into a single
-forward byte iterator with one `next_term()` call per mechanism;
-mailrs-spf separates `split(' ')` + per-token `parse_mechanism`.
-Closing the rest requires rewriting `Record::parse` as a single-pass
-state machine — tracked for v4.next, ROI is ~6 ns saved per simple
-record vs ~1 day of focused refactor.
+v4.next round (commit landed): `Record::parse` rewritten as a
+single-pass byte iterator (`bytes.iter()` + memchr-driven token
+extraction + inline modifier filter in the same forward walk), and
+the `all` mechanism (every record's terminator) is now byte-prefix-
+detected and constructed inline without the `parse_mechanism`
+call. This closes the simple-record gap to within ±1 ns CPU noise.
+
+Status: every SPF input shape now matches or beats mail-auth.
 
 #### `mailrs-dkim` vs `mail-auth` 0.9 (DKIM-Signature header parse)
 
