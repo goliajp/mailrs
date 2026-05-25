@@ -68,7 +68,7 @@ pub(crate) async fn get_attachment(
                     } else {
                         content_type
                     };
-                    let body = att.body.clone();
+                    let body: Vec<u8> = att.body.to_vec();
 
                     // use inline for browser-viewable types, attachment for the rest
                     let inline = content_type.starts_with("image/")

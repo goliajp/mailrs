@@ -49,7 +49,7 @@ impl MailAuthStage {
 
         let spf_pass = ctx.auth_results.spf == "pass";
         let spf_input = spf_pass.then(|| mailrs_dmarc::SpfResult {
-            domain: mail_from_domain.to_string(),
+            domain: mail_from_domain.into(),
             pass: true,
         });
         let dkim_input = shadow_dkim_outputs
@@ -60,15 +60,15 @@ impl MailAuthStage {
                     None
                 } else {
                     Some(mailrs_dmarc::DkimSignatureResult {
-                        d_domain: d.to_string(),
+                        d_domain: d.into(),
                         pass: o.is_pass(),
                     })
                 }
             })
             .collect::<Vec<_>>();
         let input = mailrs_dmarc::DmarcInput {
-            from_domain: from_d.clone(),
-            policy_domain: from_d.clone(),
+            from_domain: from_d.clone().into(),
+            policy_domain: from_d.clone().into(),
             spf: spf_input,
             dkim: dkim_input,
         };

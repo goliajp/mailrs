@@ -3282,28 +3282,7 @@ dependencies = [
  "hickory-resolver",
  "mail-auth",
  "mailrs-backoff 1.0.0",
- "mailrs-smtp-client 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "redis",
- "rustls-pki-types",
- "sqlx",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "mailrs-outbound-queue"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35e746481c38db2aecbf6c596318bd52f920d2c28c52537c56c8a2f5331cf610"
-dependencies = [
- "async-trait",
- "chrono",
- "futures-util",
- "hickory-resolver",
- "mail-auth",
- "mailrs-backoff 1.0.0",
- "mailrs-smtp-client 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-smtp-client",
  "redis",
  "rustls-pki-types",
  "sqlx",
@@ -3461,7 +3440,7 @@ dependencies = [
  "mailrs-mailbox 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mime",
- "mailrs-outbound-queue 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-outbound-queue",
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rate-limit 1.0.1",
  "mailrs-rfc2047 1.1.1",
@@ -3469,7 +3448,7 @@ dependencies = [
  "mailrs-rfc5322 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-shield 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-sieve 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-smtp-client 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-smtp-client",
  "mailrs-smtp-codec 1.0.0",
  "mailrs-smtp-proto 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-spf",
@@ -3554,23 +3533,10 @@ dependencies = [
 
 [[package]]
 name = "mailrs-smtp-client"
-version = "1.1.0"
+version = "2.0.0"
 dependencies = [
+ "compact_str",
  "criterion",
- "hickory-resolver",
- "rustls",
- "sha2 0.11.0",
- "tokio",
- "tokio-rustls",
- "webpki-roots",
-]
-
-[[package]]
-name = "mailrs-smtp-client"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "010d51b97353db121262a963b07a35cbca365e71798110c98b770f029e32d7fd"
-dependencies = [
  "hickory-resolver",
  "rustls",
  "sha2 0.11.0",

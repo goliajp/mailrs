@@ -328,7 +328,7 @@ async fn extract_full_forward_by_id(
             attachments.push(AttachmentData {
                 filename,
                 content_type,
-                data: part.body.clone(),
+                data: part.body.to_vec(),
             });
         }
     }
