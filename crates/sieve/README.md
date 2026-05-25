@@ -76,7 +76,7 @@ match &actions[0] {
 | **test** | line cov: 96.4% (`cargo llvm-cov -p mailrs-sieve --summary-only`) |
 | **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 113 KB |
-| **fuzz** | ❌ none |
+| **fuzz** | ✅ 1 target(s) |
 | **mem**  | dhat profile pending (v3.4 backlog) |
 
 ### Competitor comparisons
