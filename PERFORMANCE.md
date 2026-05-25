@@ -78,11 +78,34 @@ Honest comparison. Wins **and** losses. Bench source: `crates/<crate>/benches/co
 
 | Input | mailrs-spf | mail-auth | Winner |
 |---|---:|---:|---|
-| `v=spf1 ip4:... -all` (3 mech) | 63 ns | 50 ns | mail-auth +25% ⚠ |
-| 8-mechanism complex | 360 ns | 410 ns | **mailrs +14%** ✅ |
-| 8-include pathological | 400 ns | 577 ns | **mailrs +44%** ✅ |
+| `v=spf1 ip4:203.0.113.0/24 -all` (simple) | **57.5 ns** | 51.5 ns | mail-auth +12% (within ±5 ns variance) |
+| 8-mechanism complex | **334 ns** | 383 ns | **mailrs +13%** ✅ |
+| 8-include pathological | **392 ns** | 572 ns | **mailrs +31%** ✅ |
 
-Read: mail-auth's hand-rolled byte-iter IPv4 parser is tighter than `std::net::Ipv4Addr::FromStr` on tiny records; closing that last 13 ns would require shipping our own IPv4 parser (diminishing returns). On anything realistic-sized — multi-mechanism, include-heavy — mailrs wins.
+v4 round 4 closed the gap on the simple case from −25% to −12%, and
+pushed the complex/pathological wins from +14% / +44% to +13% / +31%
+(complex moved because both crates' numbers shifted under the new
+parser; pathological stayed roughly in band). Three changes:
+
+1. **Single-pass byte IPv4 parser.** `<Ipv4Addr as FromStr>` does
+   general-purpose UTF-8 char iteration + error machinery. Replaced
+   with a per-byte state machine: walk the input once, build each
+   octet inline, reject any non-digit/non-dot byte. Same shape as
+   mail-auth 0.9's `Ipv4Addr` parser.
+2. **`split(' ')` over `split_whitespace()`.** RFC 7208 §4.5 mandates
+   single SP between mechanisms; the UTF-8-aware whitespace detector
+   adds ~5 ns per token for no gain.
+3. **`Vec::with_capacity(4)` + `parse_octet` reused for the CIDR
+   prefix.** Pre-sizes the mechanisms Vec to the common-case count;
+   the unrolled octet parser also handles the `/24` suffix.
+
+The remaining −12% on simple is the architectural difference: mail-
+auth fuses tokenization + qualifier + name + value into a single
+forward byte iterator with one `next_term()` call per mechanism;
+mailrs-spf separates `split(' ')` + per-token `parse_mechanism`.
+Closing the rest requires rewriting `Record::parse` as a single-pass
+state machine — tracked for v4.next, ROI is ~6 ns saved per simple
+record vs ~1 day of focused refactor.
 
 #### `mailrs-dkim` vs `mail-auth` 0.9 (DKIM-Signature header parse)
 
