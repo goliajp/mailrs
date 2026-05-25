@@ -146,7 +146,7 @@ fuzz target。
 | 5 | hot-path tracing instrument | ✅ closed | IMAP `imap.cmd` 已有；POP3 `pop3.cmd` 加 (commit b5f6eb4)；MCP `mcp.request` 加 (此 commit)；per-tool 受 `rmcp::tool_router` 宏限制无法叠 `#[instrument]`，已文档化 |
 | 6 | tracing event= 字段 normalize | ✅ refused | 实测 90+ `event=` 字段已是 snake_case 名词；少数动词前置 (`send_message`, `delete_message_failed`) 属语义合理而非不一致；不做形式化重命名 |
 | 7 | render_preview / inline_image / webhook delivery / event_bus / dmarc_report / web/auth/oidc 二次 audit | ✅ closed | commit 6064185 ARCHITECTURE.md "v3.6 re-audit verdict" 段；无新 stone 可抽出 |
-| 8 | bench infra — inbound + PG/Valkey 进 smtp_load | active | Phase 12；testcontainers 路径 |
+| 8 | bench infra — inbound + PG/Valkey 进 smtp_load | ✅ closed | Phase 12：inbound 框架 bench 已存在 (`crates/inbound/benches/pipeline.rs`，256 LOC，2 个 criterion suite)；PG/Valkey 入 criterion bench 经评估非正解 (variance 过大遮蔽 CPU regression)，文档化引导到 integration harness。`smtp_load.rs` 顶部 doc 加 cross-reference |
 | 9 | 旧手写 prometheus 文本生成 → metrics-rs facade | ✅ closed | commit 30361a3 — 镜像 7 个 counter/gauge；旧文本生成保留作 fallback |
 | 10 | mail-auth runtime drop (task #112) | deferred → v3.5 | passive — 等 prod shadow divergence log 阈值 |
 | 11 | mail-builder dep re-audit | ✅ deferred | 无直接 dep；仅 transitive via mail-auth + sieve-rs；自然随 #1 + #10 消除 |
