@@ -4349,6 +4349,17 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/xml": {
+              "schema": {
+                "type": "string",
+                "description": "Microsoft Autodiscover XML request \u2014 see Microsoft Autodiscover Protocol spec"
+              }
+            }
+          }
         }
       }
     },
@@ -4422,6 +4433,17 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/xml": {
+              "schema": {
+                "type": "string",
+                "description": "Microsoft Autodiscover XML request \u2014 see Microsoft Autodiscover Protocol spec"
               }
             }
           }
@@ -4546,6 +4568,16 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOAuthClientRequest"
               }
             }
           }
@@ -4707,6 +4739,16 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConfigRequest"
+              }
+            }
+          }
         }
       }
     },
@@ -4722,6 +4764,16 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
               }
             }
           }
@@ -4813,6 +4865,16 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecoveryEmailRequest"
+              }
+            }
+          }
         }
       }
     },
@@ -4831,6 +4893,16 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyRequest"
+              }
+            }
+          }
         }
       }
     },
@@ -4846,6 +4918,16 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyTotpRequest"
               }
             }
           }
@@ -4919,6 +5001,16 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFeedReq"
+              }
+            }
+          }
         }
       }
     },
@@ -4973,6 +5065,16 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissActionRequest"
+              }
+            }
+          }
         }
       }
     },
@@ -5009,6 +5111,16 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CounterRequest"
+              }
+            }
+          }
         }
       }
     },
@@ -5024,6 +5136,16 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RsvpRequest"
               }
             }
           }
@@ -5045,6 +5167,16 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubjectGenerateRequest"
+              }
+            }
+          }
         }
       }
     },
@@ -5063,6 +5195,16 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckDeliverabilityRequest"
+              }
+            }
+          }
         }
       }
     },
@@ -5078,6 +5220,16 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenderPreviewRequest"
               }
             }
           }
@@ -5114,6 +5266,16 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpamFeedbackRequest"
               }
             }
           }
@@ -5221,6 +5383,17 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
+              }
+            }
+          }
         }
       },
       "post": {
@@ -5237,6 +5410,17 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
+              }
+            }
+          }
         }
       },
       "put": {
@@ -5250,6 +5434,17 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "WebDAV resource body"
               }
             }
           }
@@ -5303,6 +5498,17 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
+              }
+            }
+          }
         }
       },
       "post": {
@@ -5319,6 +5525,17 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
+              }
+            }
+          }
         }
       },
       "put": {
@@ -5332,6 +5549,17 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "text/calendar": {
+              "schema": {
+                "type": "string",
+                "description": "RFC 5545 iCalendar resource (CalDAV PUT)"
               }
             }
           }
@@ -5385,6 +5613,17 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
+              }
+            }
+          }
         }
       },
       "post": {
@@ -5401,6 +5640,17 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
+              }
+            }
+          }
         }
       },
       "put": {
@@ -5414,6 +5664,17 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "text/calendar": {
+              "schema": {
+                "type": "string",
+                "description": "RFC 5545 iCalendar resource (CalDAV PUT)"
               }
             }
           }
@@ -5467,6 +5728,17 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
+              }
+            }
+          }
         }
       },
       "post": {
@@ -5483,6 +5755,17 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
+              }
+            }
+          }
         }
       },
       "put": {
@@ -5496,6 +5779,17 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "text/vcard": {
+              "schema": {
+                "type": "string",
+                "description": "RFC 6350 vCard resource (CardDAV PUT)"
               }
             }
           }
@@ -5549,6 +5843,17 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
+              }
+            }
+          }
         }
       },
       "post": {
@@ -5565,6 +5870,17 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
+              }
+            }
+          }
         }
       },
       "put": {
@@ -5578,6 +5894,17 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "text/vcard": {
+              "schema": {
+                "type": "string",
+                "description": "RFC 6350 vCard resource (CardDAV PUT)"
               }
             }
           }
@@ -5650,6 +5977,42 @@
                 "schema": {
                   "type": "object"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "grant_type": {
+                    "type": "string",
+                    "description": "one of: authorization_code | refresh_token | client_credentials"
+                  },
+                  "code": {
+                    "type": "string",
+                    "description": "for grant_type=authorization_code"
+                  },
+                  "refresh_token": {
+                    "type": "string",
+                    "description": "for grant_type=refresh_token"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "client_secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "grant_type"
+                ]
               }
             }
           }
@@ -5827,10 +6190,12 @@
         "type": "object",
         "properties": {
           "address": {
-            "type": "string",
-            "description": "Email address"
+            "type": "string"
           },
           "password": {
+            "type": "string"
+          },
+          "totp_code": {
             "type": "string"
           }
         },
@@ -7469,6 +7834,239 @@
           "actor",
           "action",
           "created_at"
+        ]
+      },
+      "VerifyRequest": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "password"
+        ]
+      },
+      "VerifyTotpRequest": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "code"
+        ]
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "properties": {
+          "current_password": {
+            "type": "string"
+          },
+          "new_password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password"
+        ]
+      },
+      "UpdateRecoveryEmailRequest": {
+        "type": "object",
+        "properties": {
+          "recovery_email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "recovery_email"
+        ]
+      },
+      "RenderPreviewRequest": {
+        "type": "object",
+        "properties": {
+          "html": {
+            "type": "string"
+          },
+          "presets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "html",
+          "presets"
+        ]
+      },
+      "SubjectGenerateRequest": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "context": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "CreateOAuthClientRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "redirect_uris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopes": {
+            "type": "string"
+          },
+          "trusted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "redirect_uris",
+          "scopes",
+          "trusted"
+        ]
+      },
+      "SpamFeedbackRequest": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "one of: spam | not_spam"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "sender": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message_id",
+          "label"
+        ]
+      },
+      "UpdateConfigRequest": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "RsvpRequest": {
+        "type": "object",
+        "properties": {
+          "partstat": {
+            "type": "string",
+            "description": "one of: ACCEPTED | DECLINED | TENTATIVE"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "occurrence": {
+            "type": "string",
+            "description": "RFC 5545 RECURRENCE-ID instant for per-occurrence RSVP"
+          }
+        },
+        "required": [
+          "partstat"
+        ]
+      },
+      "CounterRequest": {
+        "type": "object",
+        "properties": {
+          "dtstart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dtend": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "comment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dtstart"
+        ]
+      },
+      "CreateFeedReq": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "basic_auth_user": {
+            "type": "string"
+          },
+          "basic_auth_pass": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "CheckDeliverabilityRequest": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "from": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to"
+        ]
+      },
+      "DismissActionRequest": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
         ]
       }
     }
