@@ -303,19 +303,29 @@ default 100 samples × 3 fresh invocations):
 
 | Input | mailrs-spf | mail-auth | Winner |
 |---|---:|---:|---|
-| `v=spf1 ip4:203.0.113.0/24 -all` (simple) | **41 ns** | 50 ns | **mailrs +22%** ✅ |
-| 8-mechanism complex | **258 ns** | 412 ns | **mailrs +37%** ✅ |
-| 8-include pathological | **290 ns** | 578 ns | **mailrs +50%** ✅ |
+| `v=spf1 ip4:203.0.113.0/24 -all` (simple) | **43 ns** | 53 ns | **mailrs +23%** ✅ |
+| 8-mechanism complex | **240 ns** | 440 ns | **mailrs +45%** ✅ |
+| 8-include pathological | **223 ns** | 583 ns | **mailrs +62%** ✅ |
 
-**Honest re-bench, v4 round 12 → 13 (2026-05-26):** the previously
+**Honest re-bench, v4 round 12 → 13 (2026-05-26):** previously
 claimed "tied within noise" for the simple case was *under-claim*
-— controlled 3-run median actually shows mailrs +22% (41 ns vs
-50 ns, gap is comfortably outside per-bench CI band). The
-complex_8 claim of "+34%" was also conservative; real median
-across 3 runs is +37%. Pathological got a fresh both-sides
-quiet-CPU bench: mailrs 290 ns vs mail-auth 578 ns is a clean
-**+50% lead**, ~14% better than the prior carried-forward
-estimate (+43% with mail-auth = 585 ns).
+— controlled 3-run median shows mailrs +22%. The complex_8 claim
+of "+34%" was also conservative; real median is +37%. Pathological
+got a fresh both-sides quiet-CPU bench: +50% lead (vs the prior
+carried-forward +43%).
+
+**v4 round 20 (2026-05-26 — spf 2.0 CompactString)**: bumped
+`mailrs-spf` to **2.0.0**; `Mechanism::{A, Mx, Include, Exists}`
+`domain` fields move from `String` / `Option<String>` to
+`CompactString` / `Option<CompactString>`. The pathological_8
+record (8 `include:` mechanisms) saved 8 heap allocations per
+parse — mailrs's absolute time dropped from 290 ns to **223 ns
+(-23%)**, pushing the lead over mail-auth from **+50% → +62%**.
+The complex_8 case (1 `a:`, 1 `mx:`, 2 `include:`) saved 4 allocs
+and gained +37% → +45%. Simple has no domain mechanisms so the
++23% number is unchanged. API break is contained to the
+`Mechanism::*` enum variants via `CompactString::Deref<Target=str>`
++ `PartialEq<&str>`.
 
 v4 round 4 + v4.next together closed the gap on the simple case
 from −25% baseline to clear-lead +23%. Three changes:

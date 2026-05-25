@@ -59,7 +59,7 @@ mailrs-clamav = "1"
 mailrs-backoff = "1"
 mailrs-tls-reload = "1"
 mailrs-acme = "1"
-mailrs-spf = "1"
+mailrs-spf = { path = "../spf", version = "2" }
 mailrs-dkim = { path = "../dkim", version = "2" }
 mailrs-arc = { path = "../arc", version = "2" }
 mailrs-arf = "1"
