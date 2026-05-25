@@ -106,6 +106,25 @@ Forcing one choice on every caller is exactly the trade-off
 | `mailrs-spf` / `mailrs-dkim` / `mailrs-dmarc` / `mailrs-arc` | The email-auth quartet (also pure parsers + decision logic) |
 | `mailrs-tls-rpt` | **This crate.** The feedback side of MTA-STS / DANE |
 
+<!-- AUDIT-FOOTER:BEGIN -->
+
+## Stone audit (v3 cycle, 2026-05-25)
+
+| Axis | Status |
+|---|---|
+| **doc** | ❌ 2 errors, 0 warnings (`cargo doc --no-deps -p mailrs-tls-rpt`) |
+| **test** | line cov: 95.9% (`cargo llvm-cov -p mailrs-tls-rpt --summary-only`) |
+| **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
+| **size** | release rlib: 879 KB |
+| **fuzz** | ✅ 2 target(s) |
+| **mem**  | dhat profile pending (v3.4 backlog) |
+
+### Competitor comparisons
+
+- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
+
+<!-- AUDIT-FOOTER:END -->
+
 ## License
 
 Licensed under either of **Apache License, Version 2.0**
