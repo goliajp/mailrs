@@ -98,7 +98,7 @@ Reproduce: `cargo bench -p mailrs-rfc2231 --bench params`. Workspace
 | **test** | line cov: 99.5% (`cargo llvm-cov -p mailrs-rfc2231 --summary-only`) |
 | **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 33 KB |
-| **fuzz** | ❌ none |
+| **fuzz** | ✅ 1 target(s) |
 | **mem**  | dhat profile pending (v3.4 backlog) |
 
 ### Competitor comparisons
