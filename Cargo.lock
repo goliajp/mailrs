@@ -3625,6 +3625,7 @@ dependencies = [
  "criterion",
  "hickory-resolver",
  "mail-auth",
+ "memchr",
  "tokio",
 ]
 

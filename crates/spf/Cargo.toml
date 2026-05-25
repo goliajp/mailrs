@@ -22,6 +22,7 @@ default = ["hickory"]
 hickory = ["dep:hickory-resolver"]
 
 [dependencies]
+memchr = "2"
 async-trait = "0.1"
 hickory-resolver = { version = "0.26", optional = true }
 

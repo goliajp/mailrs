@@ -135,36 +135,88 @@ impl Record {
     /// assert_eq!(r.mechanisms.len(), 3);
     /// ```
     pub fn parse(input: &str) -> Result<Self, SpfError> {
+        // Single-pass byte iterator over the input. Tokenisation
+        // (find the next SP), modifier filter (is the token a
+        // `name=value` modifier rather than a `mech:value`?) and
+        // per-token parsing are all driven from the same forward
+        // walk — no `str::split(' ')` iterator intermediate, no
+        // `token.contains('=')` second pass over each token.
+        //
+        // Same architectural shape as mail-auth 0.9's
+        // `TxtRecordParser::parse(bytes)`, which uses a stateful
+        // `bytes.iter()` + `next_term()` driver.
         let trimmed = input.trim();
         let after_version = trimmed
             .strip_prefix("v=spf1")
             .ok_or_else(|| SpfError::InvalidRecord("missing v=spf1 prefix".into()))?;
-        // After `v=spf1`, mechanisms are space-separated. Empty record
-        // (just `v=spf1`) is valid → no mechanisms → defaults to None.
-        //
-        // Pre-size to 4 — typical SPF records have 2-4 mechanisms
-        // (ip4 + a + mx + all is a common shape). Avoids the first
-        // growth tick. mail-auth 0.9 also counts mechanisms up front.
+
+        let bytes = after_version.as_bytes();
         let mut mechanisms = Vec::with_capacity(4);
-        // RFC 7208 §4.5 says mechanisms are SP-separated; we accept
-        // any ASCII whitespace, but for the hot path use plain `split`
-        // on b' ' to skip the UTF-8-aware whitespace detection
-        // `split_whitespace` does. The trim() above already removed
-        // leading/trailing whitespace, so empty middle tokens are
-        // rare (extra SP between mechanisms) — those filtered by the
-        // `is_empty()` early-out.
-        for token in after_version.split(' ') {
-            if token.is_empty() {
-                continue;
+
+        // tok_start: start of the current token's bytes (or end-of-input
+        // if we're between tokens).
+        let mut pos = 0;
+        while pos < bytes.len() {
+            // Skip leading SP — typically just one between mechanisms.
+            while pos < bytes.len() && bytes[pos] == b' ' {
+                pos += 1;
             }
-            // Skip modifiers (`name=value`) for the v1.0 surface —
-            // `redirect=` and `exp=` aren't evaluated yet (out of scope
-            // per CHANGELOG; PR welcome).
-            if token.contains('=') && !Self::is_mechanism_with_value(token) {
-                continue;
+            if pos >= bytes.len() {
+                break;
             }
-            mechanisms.push(parse_mechanism(token)?);
+            // Find end of token via memchr (SIMD on aarch64 / x86_64).
+            let tok_start = pos;
+            let tok_end = match memchr::memchr(b' ', &bytes[tok_start..]) {
+                Some(rel) => tok_start + rel,
+                None => bytes.len(),
+            };
+            // Decide: modifier (skip) or mechanism (parse)? A token is
+            // a modifier iff it has '=' BEFORE any ':'. We compute both
+            // positions inline in the same byte walk; saves a second
+            // pass for the simple-record common case where neither
+            // char is present in the token (e.g. `-all`).
+            let token_bytes = &bytes[tok_start..tok_end];
+            let eq = memchr::memchr(b'=', token_bytes);
+            let colon = memchr::memchr(b':', token_bytes);
+            let is_modifier = match (eq, colon) {
+                (Some(e), Some(c)) => e < c,
+                (Some(_), None) => true,
+                _ => false,
+            };
+            if !is_modifier {
+                // SAFETY: bytes come from a valid `&str` and we only
+                // sliced on memchr-found byte boundaries, all ASCII.
+                let token = unsafe { std::str::from_utf8_unchecked(token_bytes) };
+
+                // Inline fast-path for the bare `all` mechanism — by
+                // far the most common token in a simple SPF record
+                // (every record ends with `-all`, `~all`, `?all`, or
+                // `+all`). Skips the parse_mechanism call entirely.
+                let tb = token.as_bytes();
+                let inline_all = match tb {
+                    b"all" | b"+all" | b"-all" | b"~all" | b"?all" => true,
+                    _ => false,
+                };
+                if inline_all {
+                    let qualifier = if tb.len() == 4 {
+                        match tb[0] {
+                            b'+' => Qualifier::Pass,
+                            b'-' => Qualifier::Fail,
+                            b'~' => Qualifier::SoftFail,
+                            b'?' => Qualifier::Neutral,
+                            _ => Qualifier::Pass, // unreachable
+                        }
+                    } else {
+                        Qualifier::Pass
+                    };
+                    mechanisms.push(Mechanism::All { qualifier });
+                } else {
+                    mechanisms.push(parse_mechanism(token)?);
+                }
+            }
+            pos = tok_end + 1;
         }
+
         Ok(Record { mechanisms })
     }
 
