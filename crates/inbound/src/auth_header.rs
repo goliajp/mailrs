@@ -71,29 +71,38 @@ pub fn build_auth_header(
     dmarc: &str,
     dmarc_reason: Option<&str>,
 ) -> String {
-    let results = vec![
-        AuthResult {
-            method: "spf".into(),
-            result: spf.into(),
-            reason: None,
-        },
-        AuthResult {
-            method: "dkim".into(),
-            result: dkim.into(),
-            reason: None,
-        },
-        AuthResult {
-            method: "arc".into(),
-            result: arc.into(),
-            reason: None,
-        },
-        AuthResult {
-            method: "dmarc".into(),
-            result: dmarc.into(),
-            reason: dmarc_reason.map(|s| s.to_string()),
-        },
-    ];
-    format_auth_results_header(hostname, &results)
+    // Direct single-allocation builder, bypassing the
+    // `Vec<AuthResult>` materialisation that the generic
+    // `format_auth_results_header` path needs. The old impl
+    // allocated 5 `String`s up front (4× method names + 1× optional
+    // reason) plus the Vec itself, then walked the Vec to emit the
+    // header. For the canonical SPF/DKIM/ARC/DMARC quadruple all 4
+    // method names are compile-time constants — we can write them
+    // directly to a single pre-sized output buffer.
+    //
+    // Capacity sizing: 24-char "Authentication-Results: " + hostname
+    // + ~140 bytes for the 4 `;\r\n\t<method>=<result>` lines + a
+    // generous 64-byte budget for the optional `reason="..."` on
+    // the DMARC entry. Real-world headers cap out at ~250-300 bytes.
+    let est = 64 + hostname.len() + spf.len() + dkim.len() + arc.len() + dmarc.len();
+    let mut out = String::with_capacity(est + 64);
+    out.push_str("Authentication-Results: ");
+    out.push_str(hostname);
+    out.push_str(";\r\n\tspf=");
+    out.push_str(spf);
+    out.push_str(";\r\n\tdkim=");
+    out.push_str(dkim);
+    out.push_str(";\r\n\tarc=");
+    out.push_str(arc);
+    out.push_str(";\r\n\tdmarc=");
+    out.push_str(dmarc);
+    if let Some(reason) = dmarc_reason {
+        out.push_str(" reason=\"");
+        out.push_str(reason);
+        out.push('"');
+    }
+    out.push_str("\r\n");
+    out
 }
 
 #[cfg(test)]
