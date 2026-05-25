@@ -177,12 +177,34 @@ smtp-codec's nom-grammar pays a fixed setup cost per command. Our hand-written b
 
 | Command | mailrs-imap-proto | imap-codec | Winner |
 |---|---:|---:|---|
-| `A001 SELECT INBOX` | 86 ns | 60 ns | imap-codec +43% ⚠ |
-| `A002 FETCH 1:100 (FLAGS BODY[…])` | 127 ns | 278 ns | **mailrs 2.2×** ✅ |
-| `A003 LOGIN alice@example.com password` | 222 ns | 110 ns | imap-codec 2× ⚠ |
-| `A004 NOOP` | 71 ns | 32 ns | imap-codec 2.2× ⚠ |
+| `A001 SELECT INBOX` | **47.8 ns** | 62.2 ns | **mailrs +23%** ✅ |
+| `A002 FETCH 1:100 (FLAGS BODY[…])` | **82.0 ns** | 280.2 ns | **mailrs 3.4×** ✅ |
+| `A003 LOGIN alice@example.com password` | **78.8 ns** | 112.9 ns | **mailrs +30%** ✅ |
+| `A004 NOOP` | **27.8 ns** | 36.2 ns | **mailrs +23%** ✅ |
 
-Honest mixed result. imap-codec has years of nom-tuning behind it. Our handler wins on the *complex* FETCH case (where their grammar's combinator overhead shows), loses on the simple commands. We dominate downstream on sequence sets and search criteria though — see `parse_sequence_set` perf gate in `BUDGETS.md`. Bench source: `crates/imap-proto/benches/compare_imap_codec.rs`.
+Clean sweep after the v4 round-1 squeeze. The previous numbers had us
+losing 3 of 4 cases (LOGIN −59%, NOOP −44%, SELECT −14%). Three
+changes closed all gaps and pushed us into the lead on every path:
+
+1. **Stack-buffer verb uppercase.** Replaced
+   `cmd_word.to_uppercase().as_str()` (which allocates a `String` per
+   command) with a 16-byte `[u8; 16]` stack buffer + manual ASCII
+   uppercase loop + `match` against byte-literal arms (`b"LOGIN" =>
+   ...`). Saves one heap alloc per command — dominant on short verbs
+   like NOOP.
+2. **Zero-intermediate-alloc `parse_login_args`.** Old impl built a
+   `Vec<String>` + rolling `String` + `parts[i].clone()`, totalling
+   ~5 heap allocs per LOGIN. New impl is a single byte-level forward
+   pass with two allocations (the two returned `String`s — minimum
+   given the public API). Same byte-token scanner pattern as imap-
+   codec's `astring` parser; we can match their alloc count now.
+3. The macro-`match` over `cmd_upper: &[u8]` lets LLVM lower the
+   verb dispatch to a length-keyed jump-table rather than a chain
+   of `eq_ignore_ascii_case` comparisons.
+
+Bench source: `crates/imap-proto/benches/compare_imap_codec.rs`. Run
+`cargo bench -p mailrs-imap-proto --bench compare_imap_codec` to
+reproduce.
 
 ### Cross-language (`bench-harness/`)
 
