@@ -91,7 +91,7 @@ impl Pop3Session {
             Some((c, a)) => (c.to_uppercase(), a.to_string()),
             None => (trimmed.to_uppercase(), String::new()),
         };
-        tracing::Span::current().record("verb", &cmd.as_str());
+        tracing::Span::current().record("verb", cmd.as_str());
 
         match cmd.as_str() {
             "QUIT" => self.handle_quit().await,
