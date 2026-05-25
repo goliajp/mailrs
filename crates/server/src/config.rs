@@ -43,8 +43,17 @@ pub struct ServerConfig {
     // IMAP
     pub imap_port: u16,
     pub imaps_port: u16,
+    /// Disable the plaintext IMAP listener on `imap_port`. Defaults
+    /// to `false` (listener active) for backwards compat. Per OWASP
+    /// A04 (Insecure Design), production deployments should set this
+    /// to `true` and use the TLS-only `imaps_port` instead — plain
+    /// IMAP transmits credentials in cleartext on the wire.
+    pub disable_plain_imap: bool,
     // POP3
     pub pop3_port: u16,
+    /// Disable the plaintext POP3 listener on `pop3_port`. See
+    /// `disable_plain_imap` for rationale — same OWASP A04 reason.
+    pub disable_plain_pop3: bool,
     // ManageSieve
     pub managesieve_port: u16,
     // anti-spam
@@ -125,7 +134,9 @@ impl Default for ServerConfig {
             web_port: 3100,
             imap_port: 1143,
             imaps_port: 1993,
+            disable_plain_imap: false,
             pop3_port: 1110,
+            disable_plain_pop3: false,
             managesieve_port: 4190,
             local_domains: vec![],
             dnsbl_zones: vec![],
@@ -289,7 +300,9 @@ impl ServerConfig {
         set_parsed("MAILRS_WEB_PORT", &mut self.web_port);
         set_parsed("MAILRS_IMAP_PORT", &mut self.imap_port);
         set_parsed("MAILRS_IMAPS_PORT", &mut self.imaps_port);
+        set_bool_truthy("MAILRS_DISABLE_PLAIN_IMAP", &mut self.disable_plain_imap);
         set_parsed("MAILRS_POP3_PORT", &mut self.pop3_port);
+        set_bool_truthy("MAILRS_DISABLE_PLAIN_POP3", &mut self.disable_plain_pop3);
         set_parsed("MAILRS_MANAGESIEVE_PORT", &mut self.managesieve_port);
         set_csv_lower("MAILRS_LOCAL_DOMAINS", &mut self.local_domains);
         set_opt_path("MAILRS_WEB_STATIC_DIR", &mut self.web_static_dir);

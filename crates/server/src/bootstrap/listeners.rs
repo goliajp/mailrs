@@ -86,7 +86,19 @@ pub(crate) async fn spawn_imap_listeners(
     cfg: &config::ServerConfig,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) {
-    if let Some(mb_store) = mailbox_store.as_ref().cloned() {
+    if cfg.disable_plain_imap {
+        tracing::info!(
+            event = "plaintext_listener_disabled",
+            protocol = "imap",
+            reason = "MAILRS_DISABLE_PLAIN_IMAP=1 (OWASP A04 — use imaps_port instead)"
+        );
+    } else if let Some(mb_store) = mailbox_store.as_ref().cloned() {
+        tracing::warn!(
+            event = "plaintext_listener_active",
+            protocol = "imap",
+            port = cfg.imap_port,
+            "plaintext IMAP transmits credentials in cleartext — set MAILRS_DISABLE_PLAIN_IMAP=1 to use TLS-only imaps_port"
+        );
         let imap_users = users.clone();
         let imap_hostname = cfg.hostname.clone();
         let imap_maildir_root = cfg.maildir_root.clone();
@@ -170,9 +182,23 @@ pub(crate) async fn spawn_pop3_listener(
     cfg: &config::ServerConfig,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) {
+    if cfg.disable_plain_pop3 {
+        tracing::info!(
+            event = "plaintext_listener_disabled",
+            protocol = "pop3",
+            reason = "MAILRS_DISABLE_PLAIN_POP3=1 (OWASP A04)"
+        );
+        return;
+    }
     let Some(mb_store) = mailbox_store.as_ref().cloned() else {
         return;
     };
+    tracing::warn!(
+        event = "plaintext_listener_active",
+        protocol = "pop3",
+        port = cfg.pop3_port,
+        "plaintext POP3 transmits credentials in cleartext — set MAILRS_DISABLE_PLAIN_POP3=1 to disable"
+    );
     let pop3_users = users.clone();
     let pop3_maildir_root = cfg.maildir_root.clone();
     let pop3_auth_guard = auth_guard.clone();
