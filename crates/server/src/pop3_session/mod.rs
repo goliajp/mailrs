@@ -86,12 +86,14 @@ impl Pop3Session {
     }
 
     /// handle a single POP3 command line, return response(s)
+    #[tracing::instrument(name = "pop3.cmd", skip(self, line), fields(verb))]
     pub async fn handle_line(&mut self, line: &str) -> Vec<String> {
         let trimmed = line.trim_end_matches(['\r', '\n']);
         let (cmd, arg) = match trimmed.split_once(' ') {
             Some((c, a)) => (c.to_uppercase(), a.to_string()),
             None => (trimmed.to_uppercase(), String::new()),
         };
+        tracing::Span::current().record("verb", &cmd.as_str());
 
         match cmd.as_str() {
             "QUIT" => self.handle_quit().await,
