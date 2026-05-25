@@ -304,10 +304,13 @@ fn split_multipart(body: &[u8], boundary: &str) -> Vec<Part> {
 fn find_boundary_at_line_start(body: &[u8], cursor: usize, boundary: &[u8]) -> Option<usize> {
     let delim_len = 2 + boundary.len();
     // Pos-0 special case: line-start without a preceding newline.
-    if cursor == 0 && body.len() >= delim_len {
-        if body[0] == b'-' && body[1] == b'-' && body[2..delim_len] == *boundary {
-            return Some(0);
-        }
+    if cursor == 0
+        && body.len() >= delim_len
+        && body[0] == b'-'
+        && body[1] == b'-'
+        && body[2..delim_len] == *boundary
+    {
+        return Some(0);
     }
     // memchr-driven hops over `\n`s. Each hit is a candidate line start
     // at position `nl + 1`; we just need to verify the `--<boundary>`
