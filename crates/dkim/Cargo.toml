@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-dkim"
-version = "1.5.0"
+version = "2.0.0"
 edition = "2024"
 description = "RFC 6376 DKIM signature verifier. Parses DKIM-Signature headers, applies simple/relaxed canonicalization, verifies rsa-sha256 signatures against the selector TXT record. Pluggable DNS via DkimResolver trait."
 license = "Apache-2.0 OR MIT"
@@ -28,6 +28,9 @@ base64 = "0.22"
 rsa = "0.9"
 ed25519-dalek = "2"
 hickory-resolver = { version = "0.26", optional = true }
+# Inline-short-string for d= / s= / i= / q= tags. Domain + selector
+# almost always fit in 24 bytes inline → zero alloc on the hot path.
+compact_str = "0.9"
 
 [dev-dependencies]
 criterion = { workspace = true }

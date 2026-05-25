@@ -30,7 +30,7 @@ sha2 = { version = "0.10", features = ["oid"] }
 # algorithms; AS uses relaxed/relaxed + the same algorithms). Route
 # through mailrs-dkim instead of duplicating ~600 LOC of canon + crypto.
 # 1.5 exposes the `crypto::sign_signature` we use for ARC sealing.
-mailrs-dkim = { path = "../dkim", version = "1.5", default-features = false }
+mailrs-dkim = { path = "../dkim", version = "2", default-features = false }
 # RSA + Ed25519 private-key types appear in our public API
 # (`ArcSigningKey<'_>`) so callers can borrow their already-parsed
 # keys. Already transitively present via mailrs-dkim; making the

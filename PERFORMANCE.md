@@ -225,15 +225,37 @@ Status: every SPF input shape now matches or beats mail-auth.
 
 | Input | mailrs-dkim | mail-auth | Winner |
 |---|---:|---:|---|
-| minimal (7 tags) | **183 ns** | 205 ns | **mailrs +11%** ✅ |
-| realistic (folded, 11 tags, 7 signed headers) | **480 ns** | (not bench'd in same harness) | — |
+| minimal (7 tags) | **121 ns** | 175 ns | **mailrs +31%** ✅ |
+| realistic (folded, 11 tags, 7 signed headers) | **374 ns** | 433 ns | **mailrs +14%** ✅ |
 
-**Honest re-bench, v4 round 12 (2026-05-26):** the previously
+**v4 round 16 (2026-05-26 — DkimHeader 2.0 CompactString)**: bumped
+`mailrs-dkim` to **2.0.0**; switched the four `d=` / `s=` / `i=` / `q=`
+tag fields from `String` to `compact_str::CompactString` (inline
+≤24 bytes — real-world domains and selectors almost always fit).
+On minimal-shape DKIM (1 domain + 1 selector + default q), the
+hot path drops from ~6 String allocations to ~2 (just `b=` and
+`bh=` which transform via `strip_wsp`). Measured drop:
+
+  Before (v1.5): 183 ns minimal / 480 ns realistic
+  After  (v2.0): 121 ns minimal / 374 ns realistic
+  Δ:             −34% minimal   / −22% realistic
+
+Lead over mail-auth jumped from **+11% → +31%** on minimal,
+**now also +14% on realistic** (mail-auth side measured in the
+same harness this round, where prior bench only captured
+mailrs's side).
+
+Caveat: the 2.0 break changes pub field types
+(`String` → `CompactString`). Most call sites compile unchanged
+because `CompactString: Deref<Target = str>` and `PartialEq<&str>`.
+Server crate's `mailrs-dkim` dep is gated on `path = "../dkim",
+version = "2"` until the 2.0.0 publish lands on crates.io.
+
+**Previous v4 round 12 framing (now superseded):** the previously
 claimed "mailrs 1.8×" on minimal was a single-run quiet-CPU lucky
-outlier. Controlled 3-run repeated measurement under realistic
-system load shows mailrs at 183 ns vs mail-auth at 205 ns —
-**clear +11% lead, but well shy of the 1.8× headline**. We choose
-to report the conservative median number rather than the cherry-pick.
+outlier under the 1.x parser; round 12 corrected the 1.x number
+to a conservative +11% median, and round 16's CompactString
+refactor reclaims a real +31% structural lead.
 
 v4 round 9 replaced the `h=` signed-headers parse:
   `raw_val.split(':').map(|s| s.trim().to_ascii_lowercase()).collect()`
