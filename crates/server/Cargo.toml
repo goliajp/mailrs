@@ -46,7 +46,7 @@ async-trait = "0.1"
 mailrs-postmaster = "1"
 mailrs-shield = "1"
 mailrs-clean = "1"
-mailrs-dmarc = "1"
+mailrs-dmarc = { path = "../dmarc", version = "2" }
 mailrs-inbound = "1"
 mailrs-rate-limit = "1"
 mailrs-rfc5322 = "1"
