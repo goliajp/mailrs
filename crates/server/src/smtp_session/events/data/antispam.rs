@@ -64,6 +64,7 @@ pub(super) async fn run_antispam(
             ctx.web_state
                 .inbound_reject_total
                 .fetch_add(1, Ordering::Relaxed);
+            metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "reject").increment(1);
             let class = (code / 100) as u8;
             let resp = Response::new(
                 code,
@@ -84,6 +85,7 @@ pub(super) async fn run_antispam(
             ctx.web_state
                 .inbound_defer_total
                 .fetch_add(1, Ordering::Relaxed);
+            metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "defer").increment(1);
             let resp = Response::new(
                 451,
                 Some(mailrs_smtp_proto::EnhancedCode {
@@ -106,6 +108,7 @@ pub(super) async fn run_antispam(
             ctx.web_state
                 .inbound_junk_total
                 .fetch_add(1, Ordering::Relaxed);
+            metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "junk").increment(1);
             tracing::info!(
                 event = "junk",
                 id = conn_id,
@@ -123,6 +126,7 @@ pub(super) async fn run_antispam(
             ctx.web_state
                 .inbound_accept_total
                 .fetch_add(1, Ordering::Relaxed);
+            metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "accept").increment(1);
             let mut new_msg = auth_header.into_bytes();
             new_msg.extend_from_slice(&full_message);
             AntiSpamOutcome::Continue {
