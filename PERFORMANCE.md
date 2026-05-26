@@ -1300,6 +1300,65 @@ typical 1-3 recipient messages the difference is below measurement
 noise; for 50+ recipient bulk-mail it should be observable but isn't
 gated by a benchmark yet.
 
+### v6 ckpt 3 — P2 stones measured (criterion `--quick`, busy laptop)
+
+Quick-mode (10 samples) ballpark, run during the v6 ckpt 3 polish
+pass to confirm every P2 stone has a criterion bench producing
+numbers. Use the per-crate sections above for the higher-confidence
+medians; these are regression-catch ballpark.
+
+| Stone | Bench | Median (`--quick`) |
+|---|---|---:|
+| `mailrs-outbound-queue` | `dkim_sign/short` | **2.27 ms** |
+| `mailrs-outbound-queue` | `dkim_sign/long_8kb` | **2.71 ms** |
+| `mailrs-outbound-queue` | `retry_delay_secs` (×10) | 3.4 ns |
+| `mailrs-outbound-queue` | `should_bounce` (×10) | 3.3 ns |
+| `mailrs-shield` | `greylist/evaluate_retry` | 2.2 ns |
+| `mailrs-shield` | `greylist/triplet_key` | 50 ns |
+| `mailrs-shield` | `ptr_score_from_names(match)` | 135 ns |
+| `mailrs-shield` | `ptr_score_from_names(no_match)` | 410 ns |
+| `mailrs-clean` | `clean_email_html/short_60b` | 18 µs |
+| `mailrs-clean` | `clean_email_html/marketing_500b` | 56 µs |
+| `mailrs-clean` | `clean_email_html/marketing_5kb` | 315 µs |
+| `mailrs-clean` | `clean_email_html/marketing_50kb` | 2.85 ms |
+| `mailrs-clean` | `sender_heuristics/detect_bulk_sender_yes` | 42 ns |
+| `mailrs-clean` | `sender_heuristics/is_automated_sender_yes` | 57 ns |
+| `mailrs-clean` | `sender_heuristics/is_automated_sender_no` | 54 ns |
+| `mailrs-clean` | `split_quoted_content` | 526 ns |
+| `mailrs-postmaster` | `extract_bimi_logo_url` | 44 ns |
+| `mailrs-intelligence` | `extract_structured_data/short_single_event` | 709 ns |
+| `mailrs-intelligence` | `extract_structured_data/long_with_flight_and_order` | 9.3 µs |
+| `mailrs-intelligence` | `calculate_importance` | 7.4 ns |
+| `mailrs-attachment-extract` | `extraction_method/text_plain` | 27 ns |
+| `mailrs-attachment-extract` | `extraction_method/application_pdf` | 45 ns |
+| `mailrs-sieve` | `compile_sieve/typical` | 2.1 µs |
+| `mailrs-sieve` | `evaluate_sieve/typical` | 3.5 µs |
+
+**Findings during the measurement pass:**
+
+- `mailrs-outbound-queue::dkim_sign` was ~3-4× slower than the
+  pre-v1.7.31 mail-auth baseline. Two causes:
+  1. `DkimSignConfig::sign` was parsing the PKCS#8 PEM into an
+     `RsaPrivateKey` on every call — fixed in commit `172dde2` with
+     an `OnceLock` cache shared across worker clones.
+  2. Remaining gap is the `rsa` crate's RSA-2048 PKCS#1 v1.5 sign
+     primitive itself (~1.5 ms) vs `mail-auth`'s default
+     `aws-lc-rs` backend (~0.5 ms). Logged as a v7-track backlog
+     item — out of v6 ckpt 3 scope. Outbound prod volume is small
+     enough today that the absolute regression is academic.
+- All other P2 benches are within reasonable ballpark for their
+  stone size; no further hot-path investigation triggered.
+
+Run:
+
+```bash
+for c in outbound-queue shield clean postmaster intelligence \
+         attachment-extract sieve; do
+  bn=$(ls crates/$c/benches/ | head -1 | sed 's/\.rs$//')
+  cargo bench -p mailrs-$c --bench $bn -- --quick
+done
+```
+
 ## How to add a new perf claim
 
 1. Write a benchmark. Either a criterion bench under `crates/<x>/benches/`
