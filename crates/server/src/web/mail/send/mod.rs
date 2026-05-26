@@ -104,7 +104,11 @@ pub(crate) async fn check_deliverability(
     Json(req): Json<DeliverabilityCheckRequest>,
 ) -> impl IntoResponse {
     let mut issues = Vec::new();
-    let recipient = req.recipient.trim().to_lowercase();
+    // Email addresses are ASCII for the case-significant parts (the
+    // local part may be case-significant per RFC 5321 §2.3.11 but
+    // SMTP-Receive treats it case-insensitively by convention; the
+    // domain is ASCII per RFC 5321 §2.3.10 / 5891 — punycode for IDN).
+    let recipient = req.recipient.trim().to_ascii_lowercase();
 
     // check suppression list
     let suppressed = if let Some(ref pool) = state.outbound_queue {
