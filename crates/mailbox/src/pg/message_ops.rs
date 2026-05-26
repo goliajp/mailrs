@@ -25,24 +25,37 @@ impl PgMailboxStore {
         in_reply_to: &str,
         thread_id: &str,
     ) -> Result<u32, sqlx::Error> {
-        let mut tx = self.pool.begin().await?;
-
-        // lock mailbox row to prevent concurrent UID allocation
-        let (mailbox_id, uidnext, highest_modseq) = sqlx::query_as::<_, (i64, i32, i64)>(
-            "SELECT id, uidnext, highest_modseq FROM mailboxes
-                 WHERE user_address = $1 AND name = $2 FOR UPDATE",
+        // Autocommit, no explicit tx. The atomic UPDATE-RETURNING
+        // allocates uid + modseq under a row-level lock that lasts
+        // only for the UPDATE statement itself, not the surrounding
+        // INSERT. The prior tx-wrapped pattern held the mailbox row
+        // lock across the full `BEGIN → SELECT FOR UPDATE → INSERT
+        // → UPDATE → COMMIT` chain — ≈80 ms under WAL fsync — and
+        // serialised every concurrent delivery to the same mailbox.
+        //
+        // Failure mode that this trades off: a crash between the
+        // UPDATE and the INSERT leaves uidnext incremented but no
+        // message row at that uid — a transient gap. RFC 9051 §2.3.1.1
+        // explicitly allows UID gaps, so this is semantically clean.
+        // (The pre-change code had the equivalent failure mode if a
+        // crash happened between `maildir.deliver()` writing the file
+        // and `index_message` committing the tx.)
+        let (mailbox_id, uid, new_modseq) = sqlx::query_as::<_, (i64, i32, i64)>(
+            "UPDATE mailboxes
+             SET uidnext = uidnext + 1,
+                 highest_modseq = highest_modseq + 1
+             WHERE user_address = $1 AND name = $2
+             RETURNING id, uidnext - 1 AS uid, highest_modseq AS new_modseq",
         )
         .bind(user)
         .bind(mailbox_name)
-        .fetch_one(&mut *tx)
+        .fetch_one(&self.pool)
         .await?;
 
-        let uid = uidnext;
-        let new_modseq = highest_modseq + 1;
-
-        // insert message
         sqlx::query(
-            "INSERT INTO messages (mailbox_id, uid, maildir_id, sender, recipients, subject, size, date_epoch, internal_date, message_id, in_reply_to, thread_id, modseq)
+            "INSERT INTO messages (mailbox_id, uid, maildir_id, sender, recipients, subject,
+                                   size, date_epoch, internal_date, message_id,
+                                   in_reply_to, thread_id, modseq)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
         )
         .bind(mailbox_id)
@@ -52,24 +65,14 @@ impl PgMailboxStore {
         .bind(recipients)
         .bind(subject)
         .bind(size as i32)
-        .bind(now) // date_epoch
-        .bind(now) // internal_date
+        .bind(now)
+        .bind(now)
         .bind(message_id)
         .bind(in_reply_to)
         .bind(thread_id)
         .bind(new_modseq)
-        .execute(&mut *tx)
+        .execute(&self.pool)
         .await?;
-
-        // increment uidnext and highest_modseq
-        sqlx::query("UPDATE mailboxes SET uidnext = $1, highest_modseq = $2 WHERE id = $3")
-            .bind(uid + 1)
-            .bind(new_modseq)
-            .bind(mailbox_id)
-            .execute(&mut *tx)
-            .await?;
-
-        tx.commit().await?;
 
         Ok(uid as u32)
     }
