@@ -700,19 +700,29 @@ fn parse_imap_date(s: &str) -> Option<i64> {
         return None;
     }
     let day: u32 = parts[0].parse().ok()?;
-    let month = match parts[1].to_uppercase().as_str() {
-        "JAN" => 1,
-        "FEB" => 2,
-        "MAR" => 3,
-        "APR" => 4,
-        "MAY" => 5,
-        "JUN" => 6,
-        "JUL" => 7,
-        "AUG" => 8,
-        "SEP" => 9,
-        "OCT" => 10,
-        "NOV" => 11,
-        "DEC" => 12,
+    // Month is exactly 3 ASCII letters per RFC 3501 — byte-level compare
+    // avoids the per-call `to_uppercase()` String alloc.
+    let mb = parts[1].as_bytes();
+    if mb.len() != 3 {
+        return None;
+    }
+    let month = match [
+        mb[0].to_ascii_uppercase(),
+        mb[1].to_ascii_uppercase(),
+        mb[2].to_ascii_uppercase(),
+    ] {
+        [b'J', b'A', b'N'] => 1,
+        [b'F', b'E', b'B'] => 2,
+        [b'M', b'A', b'R'] => 3,
+        [b'A', b'P', b'R'] => 4,
+        [b'M', b'A', b'Y'] => 5,
+        [b'J', b'U', b'N'] => 6,
+        [b'J', b'U', b'L'] => 7,
+        [b'A', b'U', b'G'] => 8,
+        [b'S', b'E', b'P'] => 9,
+        [b'O', b'C', b'T'] => 10,
+        [b'N', b'O', b'V'] => 11,
+        [b'D', b'E', b'C'] => 12,
         _ => return None,
     };
     let year: i64 = parts[2].parse().ok()?;
