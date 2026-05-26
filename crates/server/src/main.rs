@@ -155,10 +155,19 @@ async fn main() {
 
     let outbound_queue = pg_pool.clone();
 
-    // DNS resolver for DNSBL and other lookups
+    // DNS resolver for DNSBL and other lookups. Bumped cache from
+    // hickory's default 32 entries to 4096 — at modest steady-state
+    // mail traffic, 32 entries holds maybe a minute of unique
+    // lookups; SPF/DKIM/DMARC queries hammer the same sender domain
+    // up to four ways and benefit hugely from staying in cache. The
+    // working set is bounded by unique sender domains × policy
+    // record types (~4) which for any realistic load fits in 4096.
     let resolver = TokioResolver::builder_tokio()
         .ok()
-        .and_then(|b| b.build().ok())
+        .and_then(|mut b| {
+            b.options_mut().cache_size = 4096;
+            b.build().ok()
+        })
         .map(Arc::new);
 
     // PTR record check
