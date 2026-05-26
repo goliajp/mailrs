@@ -584,10 +584,26 @@ We're a pure function `base_delay(attempt: u32)`; `exponential-backoff` is itera
 
 | Command | mailrs-smtp-proto | smtp-codec | Winner |
 |---|---:|---:|---|
-| `EHLO mail.example.com` | **11.0 ns** | 134.8 ns | **mailrs 12.3×** ✅ |
-| `MAIL FROM:<…> SIZE=…` | **93.7 ns** | 227.9 ns | **mailrs 2.4×** ✅ |
-| `RCPT TO:<…>` | **52.6 ns** | 163.7 ns | **mailrs 3.1×** ✅ |
-| `DATA` | **4.1 ns** | 15.8 ns | **mailrs 3.9×** ✅ |
+| `EHLO mail.example.com` | **10.3 ns** | 129 ns | **mailrs 12.5×** ✅ |
+| `MAIL FROM:<…> SIZE=…` | **68 ns** | 205 ns | **mailrs 3.0×** ✅ |
+| `RCPT TO:<…>` | **42 ns** | 150 ns | **mailrs 3.5×** ✅ |
+| `DATA` | **3.7 ns** | 14.5 ns | **mailrs 3.9×** ✅ |
+
+**v4 round 27 (2026-05-26 — MAIL FROM / RCPT TO byte-cmp)**:
+`parse_mail_from` / `parse_rcpt_to` previously allocated a
+String of the entire args region just to check the 5-byte
+`FROM:` / `TO:` prefix case-insensitively. With ESMTP params
+(`MAIL FROM:<a@b> SIZE=4096 BODY=8BITMIME`) that args slice
+can be 50+ bytes — all heap-allocated and uppercased just to
+inspect five. Replaced with byte-level `eq_ignore_ascii_case`
+on the prefix slice via a `starts_with_ascii_ci` helper. Drops
+one heap alloc per MAIL FROM / RCPT TO command.
+
+  Before: MAIL FROM 93.7 ns | RCPT TO 52.6 ns
+  After:  MAIL FROM 68   ns | RCPT TO 42   ns
+  Δ:     −27%             | −20%
+
+Lead vs smtp-codec: MAIL FROM 2.4× → 3.0×, RCPT TO 3.1× → 3.5×.
 
 Clean sweep. The previous DATA −25% loss was the only blemish — fixed
 in v4 round 2 by killing the `verb.to_ascii_uppercase()` heap
