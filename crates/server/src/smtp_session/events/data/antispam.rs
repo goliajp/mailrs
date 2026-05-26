@@ -42,16 +42,21 @@ pub(super) async fn run_antispam(
         _ => "unknown",
     };
     let first_rcpt = forward_paths.first().map(|s| s.as_str()).unwrap_or("");
+    // Move `full_message` into ReceiveContext (the pipeline owns it
+    // during run()) and reclaim it with `mem::take` after — saves a
+    // full-body clone on every inbound message. The pipeline does
+    // not retain the body past `run().await` so the take is safe.
     let mut receive_ctx = mailrs_inbound::ReceiveContext::new(
         addr.ip(),
         ehlo_domain,
         reverse_path,
         first_rcpt,
-        full_message.clone(),
+        full_message,
         &ctx.hostname,
     );
     let started = std::time::Instant::now();
     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;
+    let full_message: Vec<u8> = std::mem::take(&mut receive_ctx.message);
     tracing::debug!(
         phase = "inbound_pipeline",
         duration_us = started.elapsed().as_micros() as u64,
