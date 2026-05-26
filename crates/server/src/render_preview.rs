@@ -338,14 +338,17 @@ body {{ margin: 0; padding: 16px; background: #fff; }}
 
 /// extract content between <body> and </body>, preserving <style> blocks from <head>
 fn extract_body_content(html: &str) -> String {
-    let lower = html.to_lowercase();
+    // HTML tag names are ASCII by spec; ASCII fold also preserves byte
+    // length, so positions found in `lower` index `html` safely (Unicode
+    // case-fold can change byte length, e.g. ß→ss).
+    let lower = html.to_ascii_lowercase();
 
     // collect <style> blocks from <head> section
     let mut head_styles = String::new();
     if let Some(head_start) = lower.find("<head") {
         let head_end = lower.find("</head>").unwrap_or(lower.len());
         let head_section = &html[head_start..head_end];
-        let head_lower = head_section.to_lowercase();
+        let head_lower = head_section.to_ascii_lowercase();
         let mut pos = 0;
         while let Some(style_start) = head_lower[pos..].find("<style") {
             let abs_start = pos + style_start;

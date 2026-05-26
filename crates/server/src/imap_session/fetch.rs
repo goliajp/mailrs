@@ -60,8 +60,10 @@ impl ImapSession {
             sequence_set_to_uids(&seq_set, total)
         };
 
-        // parse requested attributes
-        let attrs_upper = attributes.to_uppercase();
+        // parse requested attributes. IMAP attribute names are ASCII
+        // per RFC 9051 §6.4.5; ASCII fold avoids walking the Unicode
+        // case-fold table for every FETCH command.
+        let attrs_upper = attributes.to_ascii_uppercase();
         let want_flags = attrs_upper.contains("FLAGS");
         let want_uid = attrs_upper.contains("UID") || use_uid;
         let want_rfc822_size = attrs_upper.contains("RFC822.SIZE");

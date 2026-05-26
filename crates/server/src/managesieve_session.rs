@@ -65,9 +65,11 @@ impl ManageSieveSession {
             return vec![];
         }
 
+        // ManageSieve commands are ASCII per RFC 5804 §2; the SASL
+        // mechanism check below is similarly ASCII.
         let (cmd, args) = match trimmed.split_once(' ') {
-            Some((c, a)) => (c.to_uppercase(), a.to_string()),
-            None => (trimmed.to_uppercase(), String::new()),
+            Some((c, a)) => (c.to_ascii_uppercase(), a.to_string()),
+            None => (trimmed.to_ascii_uppercase(), String::new()),
         };
 
         match cmd.as_str() {
@@ -108,7 +110,7 @@ impl ManageSieveSession {
         }
 
         let mechanism = unquote(parts[0].trim());
-        if mechanism.to_uppercase() != "PLAIN" {
+        if !mechanism.eq_ignore_ascii_case("PLAIN") {
             return vec!["NO \"unsupported mechanism\"\r\n".into()];
         }
 

@@ -186,8 +186,10 @@ impl ImapSession {
                 }
                 _ => "?",
             };
-            // hide passwords in LOGIN commands
-            let redacted = if line.to_uppercase().contains("LOGIN") {
+            // hide passwords in LOGIN commands. IMAP commands are ASCII;
+            // avoid allocating a Unicode-folded copy just to substring-match.
+            let redacted = if line.as_bytes().windows(5).any(|w| w.eq_ignore_ascii_case(b"LOGIN"))
+            {
                 let parts: Vec<&str> = line.splitn(4, ' ').collect();
                 if parts.len() >= 4 {
                     format!("{} {} {} ***", parts[0], parts[1], parts[2])
