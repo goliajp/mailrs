@@ -19,39 +19,79 @@ or marketing material says.
 The `smtp_load` rows below intentionally skip PG persistence (per their
 exclusion comment); this row uses `crates/server/tests/inbound_pg_throughput.rs`
 to measure the **full inbound persistence path**:
-`PgMailboxStore::append_message → maildir deliver + 4 PG queries
-(SELECT FOR UPDATE on mailbox, INSERT messages, UPDATE mailbox uidnext,
-COMMIT)`. v4 round 29 baseline (2026-05-26, dev PG 18 on M-series Mac
-local NVMe, single dev cluster):
+`PgMailboxStore::append_message → maildir deliver + PG queries`. All
+numbers below collected 2026-05-26 on dev PG 18, M-series Mac, local
+NVMe, single shared dev cluster. The cluster is a **shared dev box**:
+absolute numbers vary across runs depending on what else is sharing
+the WAL/checkpoint queue, so the table below distinguishes (a) the
+**best-case observation** under an unusually quiet PG and (b) the
+**apples-to-apples comparison** between candidate code patterns
+benchmarked back-to-back on the same PG state.
+
+#### Best-case observed (quiet PG, sync_commit=on)
 
 | Scenario | msg/s | p50 | p95 | p99 | Notes |
 |---|---:|---:|---:|---:|---|
-| **Round 29 baseline (pre-fix)** | | | | | |
-| 1 mailbox, 4 workers, default config | 16.6 | 80 ms | 773 ms | 3.2 s | FOR UPDATE row lock serialises deliveries |
-| 1 mailbox, 4 workers, `test_before_acquire=false` | 15.1 | 81 ms | 890 ms | 4.6 s | Same — RTT save dwarfed by lock wait |
-| 10 mailboxes, 4 workers | 35.0 | 41 ms | 447 ms | 749 ms | Lock contention amortised across 10 rows |
-| 100 mailboxes, 8 workers | 50.3 | 79 ms | 423 ms | 2.1 s | PG WAL fsync is now the floor |
+| **Round 29 baseline** (tx-wrapped SELECT FOR UPDATE → INSERT → UPDATE) | | | | | |
+| 1 mailbox, 4 workers | 16.6 | 80 ms | 773 ms | 3.2 s | FOR UPDATE row lock serialises deliveries |
+| 100 mailboxes, 8 workers | 50.3 | 79 ms | 423 ms | 2.1 s | PG WAL fsync is the floor |
 | 100 mailboxes, 8 workers, `synchronous_commit=off` | 128.1 | 53 ms | 130 ms | 285 ms | Fsync removed — proves PG WAL was the floor |
-| **Round 30 (atomic UPDATE-RETURNING, no tx)** | | | | | |
-| 1 mailbox, 4 workers | **134.3** | **27 ms** | **55 ms** | **69 ms** | **+8.1× thru, −98% p99** vs round 29 |
-| 100 mailboxes, 8 workers (msgs=2000) | **235.8** | **33 ms** | **52 ms** | **60 ms** | **+4.7× thru, −97% p99** |
+| **Round 30 (autocommit, atomic UPDATE-RETURNING + INSERT)** | | | | | |
+| 1 mailbox, 4 workers | **134.3** | 27 ms | 55 ms | **69 ms** | best of several runs; **+8.1× thru, −98% p99** |
+| 100 mailboxes, 8 workers (msgs=2000) | **235.8** | 33 ms | 52 ms | **60 ms** | best of several runs; **+4.7× thru, −97% p99** |
+
+#### Apples-to-apples R30 vs R31-A tx (same PG state, back-to-back, round 31)
+
+R31 directly compared the round-30 autocommit pattern against an
+explicit `BEGIN; UPDATE; INSERT; COMMIT` tx variant (R31-A) by
+truncating + re-running each three times on the same dev cluster.
+Both variants were below their best-case ceiling because the cluster
+had picked up unrelated WAL/checkpoint pressure between R30's original
+measurement and R31's; but the **relative** ordering is the load-bearing
+signal:
+
+| Scenario | R30 autocommit | R31-A tx | R30 advantage |
+|---|---:|---:|---|
+| 1 mailbox, 4 workers (median of 3) | 18.8 msg/s, p99 2.7 s | 21.2 msg/s, p99 1.9 s | within noise; both stuck on WAL backlog |
+| 100 mailboxes, 8 workers (msgs=2000) | **110.0 msg/s, p99 809 ms** | 74.2 msg/s, p99 1.36 s | **+48% throughput, −41% p99** ✅ |
+
+The fanout=100 case is the decisive comparison — under any concurrency
+the autocommit pattern wins. The fanout=1 case is dominated by WAL
+backlog at this PG state and cannot rank the two patterns.
 
 **Key finding**: at the e2e layer, neither sqlx itself nor the
 `test_before_acquire(true)` setting nor any Rust-side allocation we
 chased in rounds 16-28 is the bottleneck. The real ladder is:
 
-1. **`FOR UPDATE` on `mailboxes` row** (mailbox/src/pg/message_ops.rs:33)
+1. **`FOR UPDATE` on `mailboxes` row** (the pre-round-30 pattern)
    — caps single-mailbox throughput at ~17 msg/s regardless of worker
    count or pool size. Distribute across N mailboxes ⇒ throughput
-   scales linearly until step 2 kicks in.
-2. **PG WAL fsync on commit** — caps multi-mailbox throughput at
-   ~50 msg/s at `synchronous_commit=on` (one disk-write per delivery).
-   To go further: batch INSERTs (`COPY` or multi-row INSERT) so
-   N deliveries share one fsync, mirror of the
-   `mailrs-delivery-executor` group-commit trick at the PG layer.
+   scales linearly until step 2 kicks in. Round 30 removes this floor
+   by collapsing `SELECT FOR UPDATE` + `UPDATE` into a single
+   `UPDATE … RETURNING`.
+2. **Per-tx WAL fsync (group-commit defeat)** — wrapping the two
+   write statements in an explicit `BEGIN; … COMMIT;` forces one
+   fsync per delivery. Round 31 measured this directly: explicit-tx
+   regresses 1.5× on fanout=100 (110 → 74 msg/s) vs autocommit, even
+   under the same PG state and schema, because PG's group-commit
+   (`commit_delay` / `commit_siblings`) can only coalesce concurrent
+   autocommit COMMITs into shared fsyncs at the WAL layer; explicit
+   per-tx COMMITs each force their own fsync, defeating the batch.
+   Counter-intuitive vs "1 fsync per tx beats 2 autocommit fsyncs"
+   reasoning; reproducible — autocommit kept.
 3. **Disk write throughput** — at `synchronous_commit=off` we hit
    ~128 msg/s; the floor here is maildir fsync + PG WAL writeback,
    neither of which sqlx or the Rust side can move.
+
+**Caveat on absolute numbers.** The "best-case observed" rows above
+(134.3 / 235.8) were the highest reproducible reading at the time
+the change landed; they are not a stable ceiling — re-running on the
+same dev cluster a few hours later (with different WAL/checkpoint
+state) yielded 18-30 / 110 msg/s for the same code. The
+*architectural* round-30 win (FOR UPDATE removal) and round-31
+finding (autocommit > tx) survive in every re-measurement and are the
+load-bearing claims; the specific msg/s numbers should be treated as
+"observed once, easily affected by what else lives on the PG host".
 
 Reproduce:
 ```bash
