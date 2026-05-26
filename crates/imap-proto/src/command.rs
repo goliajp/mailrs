@@ -575,64 +575,76 @@ pub fn parse_search_criteria(criteria: &str) -> Vec<SearchKey> {
     let mut i = 0;
 
     while i < tokens.len() {
-        let token_upper = tokens[i].to_uppercase();
-        match token_upper.as_str() {
-            "ALL" => keys.push(SearchKey::All),
-            "SEEN" => keys.push(SearchKey::Seen),
-            "UNSEEN" => keys.push(SearchKey::Unseen),
-            "FLAGGED" => keys.push(SearchKey::Flagged),
-            "UNFLAGGED" => keys.push(SearchKey::Unflagged),
-            "ANSWERED" => keys.push(SearchKey::Answered),
-            "UNANSWERED" => keys.push(SearchKey::Unanswered),
-            "DELETED" => keys.push(SearchKey::Deleted),
-            "UNDELETED" => keys.push(SearchKey::Undeleted),
-            "DRAFT" => keys.push(SearchKey::Draft),
-            "UNDRAFT" => keys.push(SearchKey::Undraft),
-            "RECENT" => keys.push(SearchKey::Recent),
-            "FROM" if i + 1 < tokens.len() => {
+        // Stack-buffer uppercase: SEARCH keywords are bounded ASCII
+        // (longest is `UNANSWERED` at 10 bytes). Fits in 16; tokens
+        // exceeding 16 are non-keywords (quoted strings / numbers /
+        // unknown extensions) and fall through to the default arm.
+        let tok = tokens[i].as_bytes();
+        if tok.len() > 16 {
+            i += 1;
+            continue;
+        }
+        let mut buf = [0u8; 16];
+        for (j, &b) in tok.iter().enumerate() {
+            buf[j] = b.to_ascii_uppercase();
+        }
+        let kw = &buf[..tok.len()];
+        match kw {
+            b"ALL" => keys.push(SearchKey::All),
+            b"SEEN" => keys.push(SearchKey::Seen),
+            b"UNSEEN" => keys.push(SearchKey::Unseen),
+            b"FLAGGED" => keys.push(SearchKey::Flagged),
+            b"UNFLAGGED" => keys.push(SearchKey::Unflagged),
+            b"ANSWERED" => keys.push(SearchKey::Answered),
+            b"UNANSWERED" => keys.push(SearchKey::Unanswered),
+            b"DELETED" => keys.push(SearchKey::Deleted),
+            b"UNDELETED" => keys.push(SearchKey::Undeleted),
+            b"DRAFT" => keys.push(SearchKey::Draft),
+            b"UNDRAFT" => keys.push(SearchKey::Undraft),
+            b"RECENT" => keys.push(SearchKey::Recent),
+            b"FROM" if i + 1 < tokens.len() => {
                 i += 1;
                 keys.push(SearchKey::From(unquote(&tokens[i])));
             }
-            "TO" if i + 1 < tokens.len() => {
+            b"TO" if i + 1 < tokens.len() => {
                 i += 1;
                 keys.push(SearchKey::To(unquote(&tokens[i])));
             }
-            "SUBJECT" if i + 1 < tokens.len() => {
+            b"SUBJECT" if i + 1 < tokens.len() => {
                 i += 1;
                 keys.push(SearchKey::Subject(unquote(&tokens[i])));
             }
-            "TEXT" if i + 1 < tokens.len() => {
+            b"TEXT" if i + 1 < tokens.len() => {
                 i += 1;
                 keys.push(SearchKey::Text(unquote(&tokens[i])));
             }
-            "BODY" if i + 1 < tokens.len() => {
+            b"BODY" if i + 1 < tokens.len() => {
                 i += 1;
                 keys.push(SearchKey::Body(unquote(&tokens[i])));
             }
-            "SINCE" if i + 1 < tokens.len() => {
+            b"SINCE" if i + 1 < tokens.len() => {
                 i += 1;
                 if let Some(ts) = parse_imap_date(&tokens[i]) {
                     keys.push(SearchKey::Since(ts));
                 }
             }
-            "BEFORE" if i + 1 < tokens.len() => {
+            b"BEFORE" if i + 1 < tokens.len() => {
                 i += 1;
                 if let Some(ts) = parse_imap_date(&tokens[i]) {
                     keys.push(SearchKey::Before(ts));
                 }
             }
-            "ON" if i + 1 < tokens.len() => {
+            b"ON" if i + 1 < tokens.len() => {
                 i += 1;
                 if let Some(ts) = parse_imap_date(&tokens[i]) {
                     keys.push(SearchKey::On(ts));
                 }
             }
-            "UID" if i + 1 < tokens.len() => {
+            b"UID" if i + 1 < tokens.len() => {
                 i += 1;
                 keys.push(SearchKey::Uid(tokens[i].clone()));
             }
-            // skip unknown tokens (e.g. "CHARSET", "UTF-8")
-            _ => {}
+            _ => {} // skip unknown tokens (CHARSET / UTF-8 / extensions)
         }
         i += 1;
     }
