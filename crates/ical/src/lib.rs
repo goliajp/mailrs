@@ -96,7 +96,9 @@ pub enum CalDateTime {
     /// [`vtimezone`] (handles both IANA names and inline VTIMEZONE blocks).
     Zoned {
         /// IANA timezone identifier or inline VTIMEZONE id.
-        tz_name: String,
+        ///
+        /// **v2 change**: `CompactString` — IANA TZIDs fit inline.
+        tz_name: CompactString,
         /// Local civil time in that zone.
         local: chrono::NaiveDateTime,
     },
@@ -142,7 +144,9 @@ pub struct Attendee {
     /// Mailto address (stripped of the `mailto:` prefix).
     pub email: String,
     /// Common name (`CN=` parameter), if present.
-    pub cn: Option<String>,
+    ///
+    /// **v2 change**: `CompactString` — display names typically fit inline.
+    pub cn: Option<CompactString>,
     /// Response status.
     pub partstat: PartStat,
     /// Participation role.
@@ -157,7 +161,9 @@ pub struct Person {
     /// Mailto address.
     pub email: String,
     /// Common name (`CN=` parameter).
-    pub cn: Option<String>,
+    ///
+    /// **v2 change**: `CompactString` — display names typically fit inline.
+    pub cn: Option<CompactString>,
 }
 
 /// STATUS property values for a VEVENT (RFC 5545 §3.8.1.11).
@@ -209,7 +215,12 @@ pub struct RawProperty {
     /// **v2 change**: `CompactString` — all standard property names fit inline.
     pub name: CompactString,
     /// Parameter list (e.g. `TZID=America/New_York`).
-    pub params: Vec<(String, String)>,
+    ///
+    /// **v2.0.1**: both name and value moved to `CompactString` — RFC 5545
+    /// param names are short (`TZID`, `VALUE`, `CN`, `ROLE`, `PARTSTAT`)
+    /// and typical values (`America/New_York`, `REQ-PARTICIPANT`) fit
+    /// the 24-byte inline buffer.
+    pub params: Vec<(CompactString, CompactString)>,
     /// Property value string (un-unfolded).
     pub value: String,
 }

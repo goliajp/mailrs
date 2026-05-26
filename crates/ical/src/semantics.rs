@@ -14,6 +14,7 @@
 //! [`super::ParsedInvite::vtimezones`].
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use compact_str::CompactString;
 
 use super::{
     Attendee, CalDateTime, EventStatus, IcalError, Method, ParsedInvite, PartStat, Person,
@@ -248,7 +249,10 @@ fn parse_attendee(prop: &RawProperty) -> Result<Attendee, IcalError> {
     })
 }
 
-fn param<'a>(params: &'a [(String, String)], name: &str) -> Option<&'a String> {
+fn param<'a>(
+    params: &'a [(CompactString, CompactString)],
+    name: &str,
+) -> Option<&'a CompactString> {
     params
         .iter()
         .find(|(n, _)| n.eq_ignore_ascii_case(name))
@@ -277,7 +281,7 @@ fn parse_caldatetime(prop: &RawProperty) -> Result<CalDateTime, IcalError> {
 
 fn parse_caldatetime_with_params(
     value: &str,
-    params: &[(String, String)],
+    params: &[(CompactString, CompactString)],
 ) -> Result<CalDateTime, IcalError> {
     let value = value.trim();
 
