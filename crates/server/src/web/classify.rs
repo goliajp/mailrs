@@ -8,11 +8,20 @@ pub(crate) fn classify_email(
     text: Option<&str>,
     html: Option<&str>,
 ) -> (String, u8) {
-    let sender_lc = sender.to_lowercase();
-    let subject_lc = subject.to_lowercase();
-    let text_lc = text.unwrap_or("").to_lowercase();
-    let html_lc = html.unwrap_or("").to_lowercase();
-    let all = format!("{sender_lc} {subject_lc} {text_lc}");
+    // ASCII-fold only: the needle tables below are already lowercase
+    // ASCII or CJK (which has no case), so Unicode case-folding adds
+    // no matches but burns CPU walking the full Unicode case-fold
+    // table on every byte. `to_ascii_lowercase` is a byte-level SIMD
+    // path that gives identical match semantics for these needles.
+    let sender_lc = sender.to_ascii_lowercase();
+    let subject_lc = subject.to_ascii_lowercase();
+    let text_lc = text.unwrap_or("").to_ascii_lowercase();
+    let html_lc = html.unwrap_or("").to_ascii_lowercase();
+    // search the three text fields individually instead of
+    // pre-concatenating them — saves a body-sized String alloc per
+    // email (text bodies can be 100s of KB) while preserving the
+    // "needle hit anywhere" semantics.
+    let contains_any = |s: &str| sender_lc.contains(s) || subject_lc.contains(s) || text_lc.contains(s);
 
     let mut score: i32 = 0;
 
@@ -47,7 +56,7 @@ pub(crate) fn classify_email(
     ];
     let ad_count = ad_signals
         .iter()
-        .filter(|s| all.contains(*s) || html_lc.contains(*s))
+        .filter(|s| contains_any(s) || html_lc.contains(*s))
         .count();
 
     // newsletter / marketing patterns
@@ -74,7 +83,7 @@ pub(crate) fn classify_email(
     ];
     let marketing_count = marketing_signals
         .iter()
-        .filter(|s| all.contains(*s))
+        .filter(|s| contains_any(s))
         .count();
 
     // spam signals
@@ -97,7 +106,7 @@ pub(crate) fn classify_email(
         "恭喜",
         "紧急",
     ];
-    let spam_count = spam_signals.iter().filter(|s| all.contains(*s)).count();
+    let spam_count = spam_signals.iter().filter(|s| contains_any(s)).count();
 
     // phishing signals
     let phish_signals = [
@@ -111,7 +120,7 @@ pub(crate) fn classify_email(
         "账户异常",
         "账号被锁",
     ];
-    let phish_count = phish_signals.iter().filter(|s| all.contains(*s)).count();
+    let phish_count = phish_signals.iter().filter(|s| contains_any(s)).count();
 
     // technical signals (tracking pixels, many links, hidden text)
     let has_tracking = html_lc.contains("width=\"1\"")

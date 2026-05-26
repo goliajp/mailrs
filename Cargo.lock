@@ -3456,6 +3456,7 @@ dependencies = [
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-rpt 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "memchr",
  "metrics",
  "metrics-exporter-prometheus",
  "mime_guess",
