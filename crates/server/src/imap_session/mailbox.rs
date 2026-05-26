@@ -225,7 +225,8 @@ impl ImapSession {
             .unwrap_or((0, 0));
 
         let mut parts = Vec::new();
-        let items_upper = items.to_uppercase();
+        // STATUS item names are ASCII per RFC 9051 §6.3.11.
+        let items_upper = items.to_ascii_uppercase();
         if items_upper.contains("MESSAGES") {
             parts.push(format!("MESSAGES {total}"));
         }

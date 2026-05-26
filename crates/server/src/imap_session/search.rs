@@ -39,30 +39,36 @@ pub(super) enum SortCriterion {
 /// Unknown tokens are silently skipped — the IMAP wire never
 /// allows for protocol-level error reporting from SORT.
 pub(super) fn parse_sort_criteria(criteria: &str) -> Vec<SortCriterion> {
+    // RFC 5256 SORT keys are ASCII; match directly via
+    // `eq_ignore_ascii_case` so the parser stays alloc-free.
+    fn classify(tok: &str, reverse: bool) -> Option<SortCriterion> {
+        if tok.eq_ignore_ascii_case("ARRIVAL") {
+            Some(if reverse { SortCriterion::ReverseArrival } else { SortCriterion::Arrival })
+        } else if tok.eq_ignore_ascii_case("DATE") {
+            Some(if reverse { SortCriterion::ReverseDate } else { SortCriterion::Date })
+        } else if tok.eq_ignore_ascii_case("FROM") {
+            Some(if reverse { SortCriterion::ReverseFrom } else { SortCriterion::From })
+        } else if tok.eq_ignore_ascii_case("SUBJECT") {
+            Some(if reverse { SortCriterion::ReverseSubject } else { SortCriterion::Subject })
+        } else if tok.eq_ignore_ascii_case("SIZE") || tok.eq_ignore_ascii_case("RFC822.SIZE") {
+            Some(if reverse { SortCriterion::ReverseSize } else { SortCriterion::Size })
+        } else {
+            None
+        }
+    }
+
     let tokens: Vec<&str> = criteria.split_whitespace().collect();
     let mut result = Vec::new();
     let mut i = 0;
     while i < tokens.len() {
-        let token = tokens[i].to_uppercase();
-        if token == "REVERSE" && i + 1 < tokens.len() {
-            let next = tokens[i + 1].to_uppercase();
-            match next.as_str() {
-                "ARRIVAL" => result.push(SortCriterion::ReverseArrival),
-                "DATE" => result.push(SortCriterion::ReverseDate),
-                "FROM" => result.push(SortCriterion::ReverseFrom),
-                "SUBJECT" => result.push(SortCriterion::ReverseSubject),
-                "SIZE" | "RFC822.SIZE" => result.push(SortCriterion::ReverseSize),
-                _ => {}
+        if tokens[i].eq_ignore_ascii_case("REVERSE") && i + 1 < tokens.len() {
+            if let Some(c) = classify(tokens[i + 1], true) {
+                result.push(c);
             }
             i += 2;
         } else {
-            match token.as_str() {
-                "ARRIVAL" => result.push(SortCriterion::Arrival),
-                "DATE" => result.push(SortCriterion::Date),
-                "FROM" => result.push(SortCriterion::From),
-                "SUBJECT" => result.push(SortCriterion::Subject),
-                "SIZE" | "RFC822.SIZE" => result.push(SortCriterion::Size),
-                _ => {}
+            if let Some(c) = classify(tokens[i], false) {
+                result.push(c);
             }
             i += 1;
         }

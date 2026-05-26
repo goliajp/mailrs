@@ -54,7 +54,8 @@ impl ImapSession {
         // parse UNCHANGEDSINCE modifier (RFC 7162)
         // format: STORE seq (UNCHANGEDSINCE modseq) +FLAGS (...)
         // parser splits: action = "(UNCHANGEDSINCE", flags = "modseq) +FLAGS (...)"
-        let action_upper = action.to_uppercase();
+        // IMAP STORE action verbs are ASCII per RFC 9051 §6.4.6.
+        let action_upper = action.to_ascii_uppercase();
         let (unchangedsince, real_action, real_flags) =
             if action_upper.starts_with("(UNCHANGEDSINCE") {
                 // extract modseq from flags_str: "12345) +FLAGS (\Seen)"
@@ -64,9 +65,9 @@ impl ImapSession {
                     let modseq = modseq_str.parse::<u64>().ok();
                     // rest is "+FLAGS (\Seen)" — split into action and flags
                     if let Some((act, flg)) = rest.split_once(' ') {
-                        (modseq, act.to_uppercase(), flg.to_string())
+                        (modseq, act.to_ascii_uppercase(), flg.to_string())
                     } else {
-                        (modseq, rest.to_uppercase(), String::new())
+                        (modseq, rest.to_ascii_uppercase(), String::new())
                     }
                 } else {
                     (None, action_upper.clone(), flags_str.to_string())
