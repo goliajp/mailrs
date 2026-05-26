@@ -161,6 +161,91 @@ pub fn find_header_value<'a>(headers: &'a [u8], name: &str) -> Option<&'a str> {
     None
 }
 
+/// Per RFC 6376 §5.4.2: for each entry in `names`, consume one
+/// occurrence of that header from `headers_raw`, scanning **bottom-up**
+/// and tracking already-consumed positions. Returns one
+/// `(name, Option<value>)` per `names` entry in the same order. `None`
+/// means the message had fewer instances of that name than `names`
+/// references; the caller (sign/verify) should SKIP that entry from
+/// the hash input — both OpenDKIM and stalwart/mail-auth drop missing
+/// h= entries rather than emit a `name:\r\n` null line.
+///
+/// This handles the common DKIM hardening pattern `h=From:From` (sign
+/// the From header plus a "ghost" empty From to prevent header
+/// injection attacks). A naive top-down `find_header_value` would
+/// always return the same header for both `h=` entries and miscompute
+/// the signed-header block.
+pub fn collect_signed_headers(headers_raw: &[u8], names: &[String]) -> Vec<(String, Option<String>)> {
+    // 1. Walk headers top-down, recording (lowercase name, value-slice)
+    //    for each header line (including folded continuations).
+    let mut occurrences: Vec<(String, String)> = Vec::new();
+    let mut i = 0;
+    while i < headers_raw.len() {
+        let line_start = i;
+        let mut colon: Option<usize> = None;
+        // Walk until end-of-line, noting first colon.
+        while i < headers_raw.len() && headers_raw[i] != b'\n' {
+            if headers_raw[i] == b':' && colon.is_none() {
+                colon = Some(i);
+            }
+            i += 1;
+        }
+        // i is now at '\n' or end-of-buffer.
+        let value_end_first = if i > line_start && headers_raw[i.saturating_sub(1)] == b'\r' {
+            i - 1
+        } else {
+            i
+        };
+        if i < headers_raw.len() {
+            i += 1; // consume the \n
+        }
+        if let Some(colon_pos) = colon {
+            let mut value_end = value_end_first;
+            // Fold: consume continuation lines starting with WSP.
+            while i < headers_raw.len() && matches!(headers_raw[i], b' ' | b'\t') {
+                // walk to next \n
+                while i < headers_raw.len() && headers_raw[i] != b'\n' {
+                    i += 1;
+                }
+                value_end = if i > line_start && headers_raw[i.saturating_sub(1)] == b'\r' {
+                    i - 1
+                } else {
+                    i
+                };
+                if i < headers_raw.len() {
+                    i += 1;
+                }
+            }
+            let name = std::str::from_utf8(&headers_raw[line_start..colon_pos])
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            let value = std::str::from_utf8(&headers_raw[colon_pos + 1..value_end])
+                .unwrap_or("")
+                .to_string();
+            occurrences.push((name, value));
+        }
+        // Lines without a colon (e.g. accidental whitespace lines) get skipped.
+    }
+
+    // 2. For each requested name (in h= order), consume the next
+    //    unconsumed bottom-up occurrence.
+    let mut consumed = vec![false; occurrences.len()];
+    let mut result = Vec::with_capacity(names.len());
+    for name in names {
+        let name_lower = name.to_ascii_lowercase();
+        let mut found: Option<String> = None;
+        for idx in (0..occurrences.len()).rev() {
+            if !consumed[idx] && occurrences[idx].0 == name_lower {
+                consumed[idx] = true;
+                found = Some(occurrences[idx].1.clone());
+                break;
+            }
+        }
+        result.push((name.clone(), found));
+    }
+    result
+}
+
 /// Remove the value of the `b=` tag from a signature header value,
 /// leaving the `b=` itself in place. Used when computing the
 /// header-hash input — the signature bytes themselves are not part
@@ -226,6 +311,82 @@ mod tests {
         let headers = b"Subject: line1\r\n line2\r\nFrom: a@b\r\n";
         let v = find_header_value(headers, "Subject");
         assert_eq!(v, Some(" line1\r\n line2"));
+    }
+
+    #[test]
+    fn collect_signed_headers_basic() {
+        let headers = b"Date: today\r\nFrom: alice@example.com\r\nTo: bob@example.com\r\n";
+        let names = vec!["Date".to_string(), "From".to_string(), "To".to_string()];
+        let got = collect_signed_headers(headers, &names);
+        assert_eq!(got.len(), 3);
+        assert_eq!(got[0], ("Date".to_string(), Some(" today".to_string())));
+        assert_eq!(
+            got[1],
+            ("From".to_string(), Some(" alice@example.com".to_string()))
+        );
+        assert_eq!(
+            got[2],
+            ("To".to_string(), Some(" bob@example.com".to_string()))
+        );
+    }
+
+    #[test]
+    fn collect_signed_headers_repeated_h_consumes_bottom_up() {
+        // Two From headers, two h= entries: consume bottom one first,
+        // then top one (RFC 6376 §5.4.2 bottom-up scan).
+        let headers = b"From: first@example.com\r\nFrom: second@example.com\r\nSubject: hi\r\n";
+        let names = vec!["From".to_string(), "From".to_string()];
+        let got = collect_signed_headers(headers, &names);
+        assert_eq!(
+            got[0],
+            ("From".to_string(), Some(" second@example.com".to_string()))
+        );
+        assert_eq!(
+            got[1],
+            ("From".to_string(), Some(" first@example.com".to_string()))
+        );
+    }
+
+    #[test]
+    fn collect_signed_headers_overcount_yields_none() {
+        // Only one From, but h= references it twice — second is null.
+        // This is the RFC-compliant anti-header-injection pattern.
+        let headers = b"Date: today\r\nFrom: alice@example.com\r\n";
+        let names = vec!["From".to_string(), "From".to_string()];
+        let got = collect_signed_headers(headers, &names);
+        assert_eq!(
+            got[0],
+            ("From".to_string(), Some(" alice@example.com".to_string()))
+        );
+        assert_eq!(got[1], ("From".to_string(), None));
+    }
+
+    #[test]
+    fn collect_signed_headers_case_insensitive_name_match() {
+        let headers = b"FROM: alice@example.com\r\n";
+        let names = vec!["From".to_string()];
+        let got = collect_signed_headers(headers, &names);
+        assert_eq!(
+            got[0],
+            ("From".to_string(), Some(" alice@example.com".to_string()))
+        );
+    }
+
+    #[test]
+    fn collect_signed_headers_missing_header_yields_none() {
+        let headers = b"From: a@b\r\n";
+        let names = vec!["From".to_string(), "Reply-To".to_string()];
+        let got = collect_signed_headers(headers, &names);
+        assert_eq!(got[0].1.as_deref(), Some(" a@b"));
+        assert_eq!(got[1].1, None);
+    }
+
+    #[test]
+    fn collect_signed_headers_folded_value() {
+        let headers = b"Subject: line1\r\n line2\r\n\tline3\r\nFrom: a@b\r\n";
+        let names = vec!["Subject".to_string()];
+        let got = collect_signed_headers(headers, &names);
+        assert_eq!(got[0].1.as_deref(), Some(" line1\r\n line2\r\n\tline3"));
     }
 
     #[test]

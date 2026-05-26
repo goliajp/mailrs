@@ -9,8 +9,8 @@ use crate::crypto::{extract_public_key, verify_signature};
 use crate::error::{DkimError, DkimResult};
 use crate::header::DkimHeader;
 use crate::headers::{
-    body_offset_minus_blank, clear_b_value, find_all_header_values_in_raw, find_body_offset,
-    find_header_value, find_header_value_in_raw,
+    body_offset_minus_blank, clear_b_value, collect_signed_headers,
+    find_all_header_values_in_raw, find_body_offset, find_header_value_in_raw,
 };
 use crate::resolver::DkimResolver;
 
@@ -180,15 +180,20 @@ async fn verify_one<R: DkimResolver + ?Sized>(
     //    §3.7, the signed headers are emitted in the order listed by
     //    h=, then the DKIM-Signature header itself with b= empty).
     let mut signed_block = Vec::new();
-    for name in &header.signed_headers {
-        if let Some(value) = find_header_value(signed_headers_raw, name) {
-            let canon = canonicalize_header(name, value, header.canon_header);
-            signed_block.extend_from_slice(&canon);
-        }
-        // Missing signed header → skip (per §3.5: only signed headers
-        // that actually exist contribute). This means a malicious
-        // signer can list non-existent headers; the absence is its own
-        // signal but doesn't break verification.
+    // Per RFC 6376 §5.4.2: walk h= in order, consume one occurrence
+    // each scanning bottom-up. For repeated entries (the
+    // `h=From:...:From` anti-injection pattern) the second+ entry
+    // simply finds no remaining instance and is SKIPPED from the
+    // signed block — not canonicalized as a null header. Per RFC
+    // §3.5: "the additional instance is treated as having a null
+    // value, which would not match a valid header field"; in
+    // practice both OpenDKIM and stalwart/mail-auth omit the null
+    // entry from the hash input rather than emit "name:\r\n".
+    let collected = collect_signed_headers(signed_headers_raw, &header.signed_headers);
+    for (name, value_opt) in &collected {
+        let Some(value) = value_opt else { continue };
+        let canon = canonicalize_header(name, value, header.canon_header);
+        signed_block.extend_from_slice(&canon);
     }
     // Append the DKIM-Signature header itself with `b=` value cleared.
     let dkim_sig_b_cleared = clear_b_value(header_value);
