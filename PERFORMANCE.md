@@ -14,6 +14,70 @@ or marketing material says.
 
 ## Measured
 
+### E2E inbound throughput with PG (the real bottleneck)
+
+The `smtp_load` rows below intentionally skip PG persistence (per their
+exclusion comment); this row uses `crates/server/tests/inbound_pg_throughput.rs`
+to measure the **full inbound persistence path**:
+`PgMailboxStore::append_message → maildir deliver + 4 PG queries
+(SELECT FOR UPDATE on mailbox, INSERT messages, UPDATE mailbox uidnext,
+COMMIT)`. v4 round 29 baseline (2026-05-26, dev PG 18 on M-series Mac
+local NVMe, single dev cluster):
+
+| Scenario | msg/s | p50 | p95 | p99 | Notes |
+|---|---:|---:|---:|---:|---|
+| 1 mailbox, 4 workers, default config | **16.6** | 80 ms | 773 ms | 3.2 s | FOR UPDATE row lock serialises deliveries |
+| 1 mailbox, 4 workers, `test_before_acquire=false` | **15.1** | 81 ms | 890 ms | 4.6 s | Same — RTT save dwarfed by lock wait |
+| 10 mailboxes, 4 workers | **35.0** | 41 ms | 447 ms | 749 ms | Lock contention amortised across 10 rows |
+| 100 mailboxes, 8 workers | **50.3** | 79 ms | 423 ms | 2.1 s | PG WAL fsync is now the floor |
+| 100 mailboxes, 8 workers, `synchronous_commit=off` | **128.1** | 53 ms | 130 ms | 285 ms | Fsync removed — proves PG WAL was the floor |
+
+**Key finding**: at the e2e layer, neither sqlx itself nor the
+`test_before_acquire(true)` setting nor any Rust-side allocation we
+chased in rounds 16-28 is the bottleneck. The real ladder is:
+
+1. **`FOR UPDATE` on `mailboxes` row** (mailbox/src/pg/message_ops.rs:33)
+   — caps single-mailbox throughput at ~17 msg/s regardless of worker
+   count or pool size. Distribute across N mailboxes ⇒ throughput
+   scales linearly until step 2 kicks in.
+2. **PG WAL fsync on commit** — caps multi-mailbox throughput at
+   ~50 msg/s at `synchronous_commit=on` (one disk-write per delivery).
+   To go further: batch INSERTs (`COPY` or multi-row INSERT) so
+   N deliveries share one fsync, mirror of the
+   `mailrs-delivery-executor` group-commit trick at the PG layer.
+3. **Disk write throughput** — at `synchronous_commit=off` we hit
+   ~128 msg/s; the floor here is maildir fsync + PG WAL writeback,
+   neither of which sqlx or the Rust side can move.
+
+Reproduce:
+```bash
+docker exec dev-postgres psql -U postgres -c "CREATE DATABASE mailrs OWNER mailrs"
+docker exec -i dev-postgres psql -U mailrs -d mailrs < scripts/init-schema.sql
+for f in scripts/migrate-*.sql; do
+  docker exec -i dev-postgres psql -U mailrs -d mailrs < "$f"
+done
+MAILRS_PG_URL='postgres://mailrs:mailrs@127.0.0.1:5432/mailrs' \
+  BASELINE_MSGS=500 BASELINE_WORKERS=4 BASELINE_MAILBOX_FANOUT=1 \
+  cargo test -p mailrs-server --test inbound_pg_throughput --release \
+  -- --ignored --nocapture | grep BASELINE_RESULT
+```
+
+The 28 stone-level optimization rounds (16-28) sit upstream of these
+PG-anchored bottlenecks: their CPU savings are real and load-bearing
+once the e2e path is freed of the lock + fsync floors. The next
+e2e perf wave (planned task list) targets the row-lock + fsync ladder
+directly:
+
+* **Drop `FOR UPDATE` on mailboxes — use `nextval()` sequence per
+  mailbox.** Estimated single-mailbox throughput 16.6 → ~50 msg/s
+  (becomes fsync-bound, same as multi-mailbox).
+* **Batch PG INSERTs (multi-row `INSERT … VALUES (...), (...)`).**
+  Estimated 50 → ~250 msg/s at batch=32 (mirror of the
+  `mailrs-delivery-executor` group-commit win).
+* **Switch outbound-queue workers to `SELECT … FOR UPDATE SKIP
+  LOCKED LIMIT N`.** Already a known PG pattern; saves multi-worker
+  outbound from per-job lock contention.
+
 ### Workspace-level
 
 | Path | Measurement | Run command |
