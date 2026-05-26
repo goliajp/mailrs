@@ -61,36 +61,37 @@ pub async fn run(
         tokio::select! {
             event = rx.recv() => {
                 match event {
-                    Ok(SmtpEvent::NewMessage { user, sender, subject, snippet, .. }) => {
-                        // read url/key from config store each time (runtime-changeable)
-                        let cfg = config_store.get();
-                        let url = match cfg.webhook_url {
-                            Some(ref u) if !u.is_empty() => u.clone(),
-                            _ => continue, // no webhook configured, skip
-                        };
-                        let api_key = cfg.webhook_api_key.clone();
+                    Ok(env) => {
+                        if let SmtpEvent::NewMessage { user, sender, subject, snippet, .. } = &env.event {
+                            // read url/key from config store each time (runtime-changeable)
+                            let cfg = config_store.get();
+                            let url = match cfg.webhook_url {
+                                Some(ref u) if !u.is_empty() => u.clone(),
+                                _ => continue, // no webhook configured, skip
+                            };
+                            let api_key = cfg.webhook_api_key.clone();
 
-                        let permit = match semaphore.clone().try_acquire_owned() {
-                            Ok(p) => p,
-                            Err(_) => {
-                                tracing::warn!("global webhook concurrency limit reached, dropping event for {user}");
-                                continue;
-                            }
-                        };
-                        let payload = build_payload(&user, &sender, &subject, &snippet);
-                        let client = client.clone();
-                        tokio::spawn(async move {
-                            send_webhook(&client, &url, api_key.as_deref(), &payload).await;
-                            drop(permit);
-                        });
-                    }
+                            let permit = match semaphore.clone().try_acquire_owned() {
+                                Ok(p) => p,
+                                Err(_) => {
+                                    tracing::warn!("global webhook concurrency limit reached, dropping event for {user}");
+                                    continue;
+                                }
+                            };
+                            let payload = build_payload(user, sender, subject, snippet);
+                            let client = client.clone();
+                            tokio::spawn(async move {
+                                send_webhook(&client, &url, api_key.as_deref(), &payload).await;
+                                drop(permit);
+                            });
+                        }
+                    },
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         tracing::warn!("global webhook listener lagged, missed {n} events");
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                         break;
                     }
-                    _ => {}
                 }
             }
             _ = shutdown.changed() => {

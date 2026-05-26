@@ -33,10 +33,13 @@ pub(crate) fn spawn_cache_bust_task(
     tokio::spawn(async move {
         loop {
             match rx.recv().await {
-                Ok(event_bus::SmtpEvent::NewMessage {
-                    user, thread_id, ..
-                }) => {
-                    conversation_cache::bust_thread(&vk, &user, &thread_id).await;
+                Ok(env) => {
+                    if let event_bus::SmtpEvent::NewMessage {
+                        user, thread_id, ..
+                    } = &env.event
+                    {
+                        conversation_cache::bust_thread(&vk, user, thread_id).await;
+                    }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 _ => {}
