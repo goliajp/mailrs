@@ -142,33 +142,35 @@ pub async fn enqueue_delivery(
     Ok(row.0)
 }
 
-/// dequeue pending outbox entries ready for delivery
-pub async fn dequeue_pending(
+/// Atomically claim up to `limit` pending entries and transition
+/// them to `inflight`, returning the claimed rows.
+///
+/// `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING …`
+/// — concurrent workers never claim the same row, and claim +
+/// transition collapse to one roundtrip / one WAL fsync per batch
+/// instead of one SELECT + N per-row UPDATEs.
+pub async fn claim_for_delivery(
     pool: &PgPool,
     now: i64,
     limit: i32,
 ) -> Result<Vec<OutboxEntry>, sqlx::Error> {
     sqlx::query_as::<_, OutboxEntry>(
-        "SELECT id, subscription_id, payload, status, attempts, max_attempts, next_retry, last_error, created_at, updated_at
-         FROM webhook_outbox
-         WHERE status = 'pending' AND next_retry <= $1
-         ORDER BY created_at
-         LIMIT $2",
+        "UPDATE webhook_outbox
+         SET status = 'inflight', updated_at = $1
+         WHERE id IN (
+           SELECT id FROM webhook_outbox
+           WHERE status = 'pending' AND next_retry <= $2
+           ORDER BY created_at
+           LIMIT $3
+           FOR UPDATE SKIP LOCKED
+         )
+         RETURNING id, subscription_id, payload, status, attempts, max_attempts, next_retry, last_error, created_at, updated_at",
     )
+    .bind(now)
     .bind(now)
     .bind(limit)
     .fetch_all(pool)
     .await
-}
-
-/// mark an outbox entry as inflight
-pub async fn mark_inflight(pool: &PgPool, id: i64, now: i64) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE webhook_outbox SET status = 'inflight', updated_at = $2 WHERE id = $1")
-        .bind(id)
-        .bind(now)
-        .execute(pool)
-        .await?;
-    Ok(())
 }
 
 /// mark an outbox entry as delivered
