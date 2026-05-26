@@ -83,7 +83,6 @@ redis = { workspace = true }
 hickory-resolver = "0.26"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-mail-auth = "0.9"
 argon2 = "0.5"
 # password-hash + rand_core pinned to older majors — argon2 0.5.x (latest)
 # hard-deps password-hash 0.5, and rsa 0.9.x (latest) hard-deps rand_core 0.6.
