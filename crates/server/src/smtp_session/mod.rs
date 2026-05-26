@@ -21,7 +21,6 @@ const DATA_TIMEOUT: Duration = Duration::from_secs(600);
 use crate::config::SmuggleProtection;
 use crate::domain_store::DomainStore;
 use crate::event_bus::{EventBus, SmtpEvent, next_connection_id};
-use mail_auth::MessageAuthenticator;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
 use crate::inbound::auth_guard::AuthGuard;
@@ -43,7 +42,9 @@ pub struct ConnectionContext {
     pub resolver: Option<Arc<TokioResolver>>,
     pub dnsbl_zones: Vec<String>,
     pub dnsbl_enabled: bool,
-    pub mail_authenticator: Option<Arc<MessageAuthenticator>>,
+    /// `true` when the SPF/DKIM/ARC/DMARC + content-scan pipeline
+    /// should run on inbound mail. Mirrors `cfg.antispam_enabled`.
+    pub antispam_enabled: bool,
     pub mailbox_store: Option<Arc<mailrs_mailbox::PgMailboxStore>>,
     pub smuggle_protection: SmuggleProtection,
     pub auth_guard: Arc<AuthGuard>,

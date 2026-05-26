@@ -71,7 +71,7 @@ where
             full_message.extend_from_slice(&body);
 
             let mut target_folder = "INBOX";
-            if !is_authenticated && ctx.mail_authenticator.is_some() {
+            if !is_authenticated && ctx.antispam_enabled {
                 match run_antispam(
                     &session.state,
                     addr,

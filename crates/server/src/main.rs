@@ -191,19 +191,6 @@ async fn main() {
         ..Default::default()
     };
 
-    // mail authenticator (SPF/DKIM/DMARC/ARC)
-    let mail_authenticator = if cfg.antispam_enabled {
-        match mail_auth::MessageAuthenticator::new_system_conf() {
-            Ok(a) => Some(Arc::new(a)),
-            Err(e) => {
-                tracing::warn!(event = "subsystem_init_failed", subsystem = "mail_authenticator", error = %e);
-                None
-            }
-        }
-    } else {
-        None
-    };
-
     let auth_guard = init_auth_guard(&cfg);
 
     // mailbox store for IMAP (PG-backed)
@@ -331,7 +318,6 @@ async fn main() {
         &greylist_db,
         &greylist_config,
         &resolver,
-        &mail_authenticator,
         &dmarc_report_store,
         &cfg,
         &llm_provider,
@@ -351,7 +337,7 @@ async fn main() {
         resolver,
         dnsbl_zones: cfg.dnsbl_zones.clone(),
         dnsbl_enabled: cfg.dnsbl_enabled,
-        mail_authenticator,
+        antispam_enabled: cfg.antispam_enabled,
         mailbox_store: mailbox_store.clone(),
         smuggle_protection: cfg.smuggle_protection,
         auth_guard: auth_guard.clone(),
