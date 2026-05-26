@@ -151,7 +151,19 @@ impl DkimHeader {
             // says case-insensitive but every signer in the wild emits
             // lowercase). For correctness with mixed-case tags we fall
             // through to a case-insensitive comparison after the byte match.
-            let name_bytes = name.as_bytes();
+            // RFC 6376 §3.2: tag names are case-insensitive. Real-world
+            // signers emit lowercase, so we scan for an ASCII uppercase
+            // byte first (cheap) and only allocate a lowercased copy when
+            // we see one. The single dispatch below then handles both
+            // common (already-lowercase) and rare (mixed-case) cases
+            // without duplicating the per-tag logic.
+            let lower_storage: String;
+            let name_bytes: &[u8] = if name.bytes().any(|b| b.is_ascii_uppercase()) {
+                lower_storage = name.to_ascii_lowercase();
+                lower_storage.as_bytes()
+            } else {
+                name.as_bytes()
+            };
             match name_bytes {
                 b"v" => {
                     let trimmed = raw_val.trim();
@@ -174,197 +186,18 @@ impl DkimHeader {
                 b"bh" => body_hash_b64 = Some(strip_wsp(raw_val)),
                 b"d" => domain = Some(CompactString::new(raw_val.trim())),
                 b"s" => selector = Some(CompactString::new(raw_val.trim())),
-                b"h" => {
-                    // Byte-level scan. The realistic case carries 7+ signed
-                    // headers; using `split(':').map(to_ascii_lowercase)`
-                    // does double work (split walks chars, then each
-                    // to_ascii_lowercase walks chars again allocating a new
-                    // String). Doing both in one byte-iteration shaves
-                    // ~50 ns on the realistic case.
-                    let bytes = raw_val.as_bytes();
-                    let mut list: Vec<String> = Vec::with_capacity(8);
-                    let mut cur: Vec<u8> = Vec::with_capacity(20);
-                    for &b in bytes {
-                        match b {
-                            b' ' | b'\t' | b'\r' | b'\n' => {} // skip wsp
-                            b':' => {
-                                if !cur.is_empty() {
-                                    // SAFETY: we only push ASCII-lowercased
-                                    // bytes (a..z, 0..9, '-') below, never
-                                    // anything outside the ASCII range, so
-                                    // the buffer is valid UTF-8 by
-                                    // construction.
-                                    let s = unsafe {
-                                        String::from_utf8_unchecked(std::mem::take(&mut cur))
-                                    };
-                                    list.push(s);
-                                    cur.reserve(20);
-                                }
-                            }
-                            _ => cur.push(b.to_ascii_lowercase()),
-                        }
-                    }
-                    if !cur.is_empty() {
-                        // SAFETY: see above — only ASCII bytes pushed.
-                        let s = unsafe { String::from_utf8_unchecked(cur) };
-                        list.push(s);
-                    }
-                    if list.is_empty() {
-                        return Err(DkimError::InvalidTag("h= empty".into()));
-                    }
-                    signed_headers = Some(list);
-                }
+                b"h" => signed_headers = Some(parse_signed_headers(raw_val)?),
                 b"c" => {
                     let (h, b) = parse_canon(raw_val)?;
                     canon_header = h;
                     canon_body = b;
                 }
-                b"l" => {
-                    let trimmed = raw_val.trim();
-                    body_length = Some(
-                        trimmed
-                            .parse()
-                            .map_err(|_| DkimError::InvalidTag(format!("l={trimmed}")))?,
-                    );
-                }
-                b"t" => {
-                    let trimmed = raw_val.trim();
-                    timestamp = Some(
-                        trimmed
-                            .parse()
-                            .map_err(|_| DkimError::InvalidTag(format!("t={trimmed}")))?,
-                    );
-                }
-                b"x" => {
-                    let trimmed = raw_val.trim();
-                    expiration = Some(
-                        trimmed
-                            .parse()
-                            .map_err(|_| DkimError::InvalidTag(format!("x={trimmed}")))?,
-                    );
-                }
+                b"l" => body_length = Some(parse_u64_tag("l", raw_val)?),
+                b"t" => timestamp = Some(parse_u64_tag("t", raw_val)?),
+                b"x" => expiration = Some(parse_u64_tag("x", raw_val)?),
                 b"i" => identity = Some(CompactString::new(raw_val.trim())),
                 b"q" => query_method = Some(CompactString::new(raw_val.trim())),
-                _ => {
-                    // Cold path: mixed-case or unknown tag name. Try
-                    // case-insensitive once before treating as unknown.
-                    if name.eq_ignore_ascii_case("v")
-                        || name.eq_ignore_ascii_case("a")
-                        || name.eq_ignore_ascii_case("b")
-                        || name.eq_ignore_ascii_case("bh")
-                        || name.eq_ignore_ascii_case("d")
-                        || name.eq_ignore_ascii_case("s")
-                        || name.eq_ignore_ascii_case("h")
-                        || name.eq_ignore_ascii_case("c")
-                        || name.eq_ignore_ascii_case("l")
-                        || name.eq_ignore_ascii_case("t")
-                        || name.eq_ignore_ascii_case("x")
-                        || name.eq_ignore_ascii_case("i")
-                        || name.eq_ignore_ascii_case("q")
-                    {
-                        // Retry with the lowercased name; we expect this
-                        // to be rare so allocation cost is acceptable.
-                        let lower = name.to_ascii_lowercase();
-                        match lower.as_bytes() {
-                            b"v" => {
-                                let trimmed = raw_val.trim();
-                                let parsed: u32 = trimmed
-                                    .parse()
-                                    .map_err(|_| DkimError::InvalidTag(format!("v={trimmed}")))?;
-                                if parsed != 1 {
-                                    return Err(DkimError::InvalidTag(format!(
-                                        "v={parsed}, expected 1"
-                                    )));
-                                }
-                                version = Some(parsed);
-                            }
-                            b"a" => {
-                                algorithm = Some(match raw_val.trim() {
-                                    "rsa-sha256" => Algorithm::RsaSha256,
-                                    "ed25519-sha256" => Algorithm::Ed25519Sha256,
-                                    other => {
-                                        return Err(DkimError::UnsupportedAlgorithm(
-                                            other.to_string(),
-                                        ));
-                                    }
-                                });
-                            }
-                            b"b" => signature_b64 = Some(strip_wsp(raw_val)),
-                            b"bh" => body_hash_b64 = Some(strip_wsp(raw_val)),
-                            b"d" => domain = Some(CompactString::new(raw_val.trim())),
-                            b"s" => selector = Some(CompactString::new(raw_val.trim())),
-                            b"h" => {
-                                // Byte-level h= header list parser: walk raw_val
-                                // once, accumulate ASCII-lowercased header name
-                                // into a Vec<u8>, push on `:`. Avoids:
-                                //   * `.split(':')` -> Vec<&str> intermediate
-                                //   * `.to_ascii_lowercase()` per element
-                                //     (each allocates a fresh String)
-                                //   * `.trim()` per element (two passes)
-                                // Same pattern as arc::ArcMessageSignature::parse.
-                                let mut list: Vec<String> = Vec::with_capacity(8);
-                                let mut cur: Vec<u8> = Vec::with_capacity(20);
-                                for &b in raw_val.as_bytes() {
-                                    match b {
-                                        b' ' | b'\t' | b'\r' | b'\n' => {}
-                                        b':' => {
-                                            if !cur.is_empty() {
-                                                // SAFETY: only lowercase ASCII bytes pushed.
-                                                let s = unsafe {
-                                                    String::from_utf8_unchecked(std::mem::take(
-                                                        &mut cur,
-                                                    ))
-                                                };
-                                                list.push(s);
-                                                cur.reserve(20);
-                                            }
-                                        }
-                                        _ => cur.push(b.to_ascii_lowercase()),
-                                    }
-                                }
-                                if !cur.is_empty() {
-                                    // SAFETY: only lowercase ASCII bytes pushed.
-                                    let s = unsafe { String::from_utf8_unchecked(cur) };
-                                    list.push(s);
-                                }
-                                if list.is_empty() {
-                                    return Err(DkimError::InvalidTag("h= empty".into()));
-                                }
-                                signed_headers = Some(list);
-                            }
-                            b"c" => {
-                                let (h, b) = parse_canon(raw_val)?;
-                                canon_header = h;
-                                canon_body = b;
-                            }
-                            b"l" => {
-                                let trimmed = raw_val.trim();
-                                body_length =
-                                    Some(trimmed.parse().map_err(|_| {
-                                        DkimError::InvalidTag(format!("l={trimmed}"))
-                                    })?);
-                            }
-                            b"t" => {
-                                let trimmed = raw_val.trim();
-                                timestamp =
-                                    Some(trimmed.parse().map_err(|_| {
-                                        DkimError::InvalidTag(format!("t={trimmed}"))
-                                    })?);
-                            }
-                            b"x" => {
-                                let trimmed = raw_val.trim();
-                                expiration =
-                                    Some(trimmed.parse().map_err(|_| {
-                                        DkimError::InvalidTag(format!("x={trimmed}"))
-                                    })?);
-                            }
-                            b"i" => identity = Some(CompactString::new(raw_val.trim())),
-                            b"q" => query_method = Some(CompactString::new(raw_val.trim())),
-                            _ => {} // truly unknown, ignore per §3.2
-                        }
-                    }
-                    // Else: unknown tag, ignored per RFC 6376 §3.2.
-                }
+                _ => {} // unknown tag, ignored per RFC 6376 §3.2
             }
         }
 
@@ -398,6 +231,53 @@ impl DkimHeader {
             query_method,
         })
     }
+}
+
+/// Parse a u64-valued DKIM tag (`l=`, `t=`, `x=`) with the tag name
+/// surfaced in the error so the caller can tell which tag failed.
+fn parse_u64_tag(name: &str, raw_val: &str) -> Result<u64, DkimError> {
+    let trimmed = raw_val.trim();
+    trimmed
+        .parse()
+        .map_err(|_| DkimError::InvalidTag(format!("{name}={trimmed}")))
+}
+
+/// Parse the `h=` tag value (colon-separated, possibly folded list of
+/// header names) into a lowercased `Vec<String>`.
+///
+/// Byte-level scan: the realistic case carries 7+ signed headers; using
+/// `split(':').map(to_ascii_lowercase)` does double work (split walks
+/// chars, then each to_ascii_lowercase walks chars again allocating a
+/// new String). Doing both in one byte-iteration shaves ~50 ns on the
+/// realistic case.
+fn parse_signed_headers(raw_val: &str) -> Result<Vec<String>, DkimError> {
+    let mut list: Vec<String> = Vec::with_capacity(8);
+    let mut cur: Vec<u8> = Vec::with_capacity(20);
+    for &b in raw_val.as_bytes() {
+        match b {
+            b' ' | b'\t' | b'\r' | b'\n' => {} // skip wsp / folding
+            b':' => {
+                if !cur.is_empty() {
+                    // SAFETY: only ASCII-lowercased bytes (a..z, 0..9,
+                    // '-') are pushed below, so the buffer is valid
+                    // UTF-8 by construction.
+                    let s = unsafe { String::from_utf8_unchecked(std::mem::take(&mut cur)) };
+                    list.push(s);
+                    cur.reserve(20);
+                }
+            }
+            _ => cur.push(b.to_ascii_lowercase()),
+        }
+    }
+    if !cur.is_empty() {
+        // SAFETY: see above — only ASCII bytes pushed.
+        let s = unsafe { String::from_utf8_unchecked(cur) };
+        list.push(s);
+    }
+    if list.is_empty() {
+        return Err(DkimError::InvalidTag("h= empty".into()));
+    }
+    Ok(list)
 }
 
 fn parse_canon(c: &str) -> Result<(Canon, Canon), DkimError> {
