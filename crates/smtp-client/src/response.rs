@@ -41,14 +41,23 @@ impl SmtpResponse {
         self.lines.join("\n")
     }
 
-    /// check if a specific EHLO extension keyword is advertised
-    /// matches against individual response lines (case-insensitive),
-    /// checking the keyword before any parameters (e.g. "SIZE 10240000")
+    /// Check if a specific EHLO extension keyword is advertised. Match is
+    /// case-insensitive against the keyword segment of each line, before any
+    /// space-separated parameters (e.g. `SIZE 10240000`).
+    ///
+    /// Byte-level compare — no per-call `to_uppercase` String allocations.
     pub fn has_extension(&self, keyword: &str) -> bool {
-        let kw = keyword.to_uppercase();
+        let kw = keyword.as_bytes();
         self.lines.iter().any(|line| {
-            let upper = line.to_uppercase();
-            upper == kw || upper.starts_with(&format!("{kw} "))
+            let lb = line.as_bytes();
+            if lb.len() < kw.len() {
+                return false;
+            }
+            if !lb[..kw.len()].eq_ignore_ascii_case(kw) {
+                return false;
+            }
+            // Either full-line match or followed by a space-separated param.
+            lb.len() == kw.len() || lb[kw.len()] == b' '
         })
     }
 }
