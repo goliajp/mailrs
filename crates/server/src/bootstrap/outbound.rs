@@ -90,6 +90,7 @@ pub(crate) fn build_delivery_worker(
                     selector: selector.clone(),
                     domain: domain.clone(),
                     private_key_pem: pem,
+                    ..Default::default()
                 });
                 tracing::info!(
                     event = "subsystem_started",

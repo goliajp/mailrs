@@ -1,5 +1,7 @@
 //! Outbound DKIM signing + ARC sealing, on the mailrs-* crates.
 
+use std::sync::{Arc, OnceLock};
+
 use mailrs_arc::{
     ArcChain, ArcSealCv, ArcSigningKey, Canon as ArcCanon, ChainOutcome, SealOpts,
     seal as arc_seal, verify_chain_with_crypto,
@@ -11,7 +13,13 @@ use rsa::RsaPrivateKey;
 use rsa::pkcs8::DecodePrivateKey;
 
 /// DKIM signing configuration.
-#[derive(Debug, Clone)]
+///
+/// The PKCS#8 PEM is parsed into an `RsaPrivateKey` lazily on first use
+/// and cached for the lifetime of this config — important on the hot
+/// outbound path where every delivered message triggers a sign call.
+/// Existing struct-literal callers need to add `..Default::default()`
+/// (the parsed-key cache is non-public, populated on demand).
+#[derive(Debug, Clone, Default)]
 pub struct DkimSignConfig {
     /// DKIM selector — the label under `<selector>._domainkey.<domain>`.
     pub selector: String,
@@ -19,13 +27,35 @@ pub struct DkimSignConfig {
     pub domain: String,
     /// Private RSA key in PKCS#8 PEM form.
     pub private_key_pem: String,
+    /// Lazy-parsed RsaPrivateKey, shared across clones so worker
+    /// concurrency doesn't re-parse per delivery thread.
+    ///
+    /// **Implementation detail** — leave at `Default::default()`. Pub
+    /// only so out-of-crate struct-literal callers can spread
+    /// `..Default::default()`. Reading or mutating this field
+    /// directly is not supported and the type may change.
+    #[doc(hidden)]
+    pub parsed_key: Arc<OnceLock<Result<RsaPrivateKey, String>>>,
 }
 
 impl DkimSignConfig {
+    /// Return a borrowed handle to the parsed RSA key, parsing the PEM
+    /// once on first call and caching the result (success OR error) so
+    /// every later call is a pointer-load.
+    fn rsa_key(&self) -> Result<&RsaPrivateKey, String> {
+        let cached = self
+            .parsed_key
+            .get_or_init(|| load_rsa_key(&self.private_key_pem));
+        match cached {
+            Ok(k) => Ok(k),
+            Err(e) => Err(e.clone()),
+        }
+    }
+
     /// Sign a message, prepending the DKIM-Signature header.
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, String> {
-        let rsa = load_rsa_key(&self.private_key_pem)?;
-        let key = DkimSigningKey::Rsa(rsa);
+        let rsa = self.rsa_key()?;
+        let key = DkimSigningKey::Rsa(rsa.clone());
         let opts = SignOpts {
             domain: self.domain.clone(),
             selector: self.selector.clone(),
@@ -85,9 +115,10 @@ pub async fn arc_seal_message(
     //    the same shape an `Authentication-Results` header would carry.
     let authres = build_authres_body(&dkim_config.domain, &dkim_outputs);
 
-    // 4. Load the signing key and seal.
-    let rsa = load_rsa_key(&dkim_config.private_key_pem)?;
-    let key = ArcSigningKey::Rsa(&rsa);
+    // 4. Load the signing key and seal. Reuse the lazy-parsed cache
+    //    on DkimSignConfig so we don't re-parse PEM per outbound msg.
+    let rsa = dkim_config.rsa_key()?;
+    let key = ArcSigningKey::Rsa(rsa);
     let opts = SealOpts {
         domain: dkim_config.domain.clone(),
         selector: dkim_config.selector.clone(),
@@ -175,6 +206,7 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
             selector: "test".into(),
             domain: "example.com".into(),
             private_key_pem: TEST_RSA_KEY.into(),
+            ..Default::default()
         }
     }
 
@@ -228,6 +260,7 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
             selector: "selector".into(),
             domain: "example.com".into(),
             private_key_pem: "not-a-valid-pem".into(),
+            ..Default::default()
         };
         let result = cfg.sign(b"From: test@example.com\r\n\r\nbody");
         assert!(result.is_err());
@@ -244,6 +277,7 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
             selector: "sel".into(),
             domain: "example.com".into(),
             private_key_pem: String::new(),
+            ..Default::default()
         };
         let result = cfg.sign(b"From: test@example.com\r\n\r\n");
         assert!(result.is_err());
@@ -255,6 +289,7 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
             selector: "myselector".into(),
             domain: "mydomain.com".into(),
             private_key_pem: "pem-data".into(),
+            ..Default::default()
         };
         assert_eq!(cfg.selector, "myselector");
         assert_eq!(cfg.domain, "mydomain.com");
@@ -398,6 +433,7 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
             selector: "mail2025".into(),
             domain: "custom-mail.example.org".into(),
             private_key_pem: TEST_RSA_KEY.into(),
+            ..Default::default()
         };
         let msg = simple_message();
         let signed = cfg.sign(&msg).unwrap();
