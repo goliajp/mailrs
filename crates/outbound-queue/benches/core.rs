@@ -64,6 +64,7 @@ fn bench_dkim_sign(c: &mut Criterion) {
         selector: "test".into(),
         domain: "example.com".into(),
         private_key_pem: TEST_KEY_PEM.into(),
+        ..Default::default()
     };
 
     let mut group = c.benchmark_group("dkim_sign");
