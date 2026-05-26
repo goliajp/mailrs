@@ -53,6 +53,7 @@ impl PgMailboxStore {
 // `mailrs_mailbox::pg::{ContactInfo, EmailAnalysisInput}`.
 pub use crate::pg::analysis_ops::EmailAnalysisInput;
 pub use crate::pg::contact_ops::ContactInfo;
+pub use crate::pg::message_ops::IndexRecord;
 
 // NOTE: `impl MailboxStore for PgMailboxStore` is added in stage 2b together
 // with server adaptation. Keeping them in lockstep avoids the complexity of

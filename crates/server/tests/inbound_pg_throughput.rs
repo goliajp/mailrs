@@ -24,6 +24,9 @@
 //!   * BASELINE_TEST_BEFORE_ACQUIRE   `0` or `1` (default 1, matches prod)
 //!   * BASELINE_MAILBOX_FANOUT    1 = single hot mailbox (FOR UPDATE serial),
 //!     N = round-robin across N mailboxes (default 1)
+//!   * BASELINE_BATCH_SIZE        per-worker batch claim size (default 1 →
+//!     per-message `append_message`; > 1 → DeliveryExecutor-style buffered
+//!     batch via `index_messages_batch` in one tx)
 //!
 //! Output: a single `BASELINE_RESULT=` line so callers can `grep` it.
 
@@ -31,6 +34,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use mailrs_mailbox::pg::IndexRecord;
 use mailrs_mailbox::PgMailboxStore;
 use sqlx::postgres::PgPoolOptions;
 
@@ -117,6 +121,7 @@ async fn baseline_inbound_delivery() {
     let pool_max: u32 = env("BASELINE_POOL_MAX", 20);
     let test_before_acquire: u8 = env("BASELINE_TEST_BEFORE_ACQUIRE", 1);
     let fanout: u32 = env("BASELINE_MAILBOX_FANOUT", 1);
+    let batch_size: usize = env("BASELINE_BATCH_SIZE", 1);
 
     let pool = PgPoolOptions::new()
         .max_connections(pool_max)
@@ -146,31 +151,106 @@ async fn baseline_inbound_delivery() {
         let store = store.clone();
         let counter = counter.clone();
         let maildir_root = maildir_root.clone();
+        let user_owned = user.to_string();
         handles.push(tokio::spawn(async move {
             let mut latencies = Vec::with_capacity(msgs / workers + 1);
-            loop {
-                let n = counter.fetch_add(1, Ordering::Relaxed);
-                if n >= msgs {
-                    break;
-                }
-                let mb = if fanout == 1 {
-                    "INBOX".to_string()
-                } else {
-                    format!("INBOX{}", n as u32 % fanout)
-                };
-                let body = SAMPLE_MESSAGE.to_vec();
-                // cheap template substitution: replace `{N}` with the index
-                let body = String::from_utf8(body).unwrap().replace("{N}", &n.to_string());
+            if batch_size <= 1 {
+                // single-message path: per-message append (one autocommit
+                // tx, fsync coalesced by PG group commit).
+                loop {
+                    let n = counter.fetch_add(1, Ordering::Relaxed);
+                    if n >= msgs {
+                        break;
+                    }
+                    let mb = if fanout == 1 {
+                        "INBOX".to_string()
+                    } else {
+                        format!("INBOX{}", n as u32 % fanout)
+                    };
+                    let body = String::from_utf8(SAMPLE_MESSAGE.to_vec())
+                        .unwrap()
+                        .replace("{N}", &n.to_string());
 
-                let t0 = Instant::now();
-                let r = store
-                    .append_message(user, &mb, &maildir_root, body.as_bytes(), 0, now_unix)
-                    .await;
-                let dt_us = t0.elapsed().as_micros() as u64;
-                if r.is_ok() {
-                    latencies.push(dt_us);
+                    let t0 = Instant::now();
+                    let r = store
+                        .append_message(&user_owned, &mb, &maildir_root, body.as_bytes(), 0, now_unix)
+                        .await;
+                    let dt_us = t0.elapsed().as_micros() as u64;
+                    if r.is_ok() {
+                        latencies.push(dt_us);
+                    }
+                    let _ = w;
                 }
-                let _ = w;
+            } else {
+                // batch path: buffer up to `batch_size` deliveries
+                // (maildir write per-message, but a single
+                // `index_messages_batch` per buffer for the PG write
+                // → 1 tx, 1 fsync, K rows).
+                let (local, domain) = user_owned.split_once('@').expect("user");
+                let user_md_dir = format!("{}/{}/{}", maildir_root, domain, local);
+                let md = mailrs_maildir::Maildir::create(&user_md_dir)
+                    .expect("maildir create");
+                loop {
+                    // claim up to `batch_size` indices atomically
+                    let start = counter.fetch_add(batch_size, Ordering::Relaxed);
+                    if start >= msgs {
+                        break;
+                    }
+                    let end = (start + batch_size).min(msgs);
+                    let count = end - start;
+
+                    // 1) per-message maildir write — measured inside
+                    //    the batch latency since a real DeliveryExecutor
+                    //    would also fsync the maildir before committing
+                    //    PG.
+                    let mut bodies: Vec<String> = Vec::with_capacity(count);
+                    let mut mb_names: Vec<String> = Vec::with_capacity(count);
+                    let mut maildir_ids: Vec<String> = Vec::with_capacity(count);
+                    let t0 = Instant::now();
+                    for i in start..end {
+                        let mb_name = if fanout == 1 {
+                            "INBOX".to_string()
+                        } else {
+                            format!("INBOX{}", i as u32 % fanout)
+                        };
+                        let body = String::from_utf8(SAMPLE_MESSAGE.to_vec())
+                            .unwrap()
+                            .replace("{N}", &i.to_string());
+                        let id = md.deliver(body.as_bytes()).expect("maildir deliver");
+                        bodies.push(body);
+                        mb_names.push(mb_name);
+                        maildir_ids.push(id.to_string());
+                    }
+
+                    // 2) single PG batch insert
+                    let records: Vec<IndexRecord<'_>> = (0..count)
+                        .map(|i| IndexRecord {
+                            user: &user_owned,
+                            mailbox_name: &mb_names[i],
+                            maildir_id: &maildir_ids[i],
+                            sender: "sender@example.com",
+                            recipients: "alice@example.com",
+                            subject: "baseline",
+                            size: bodies[i].len() as u32,
+                            now: now_unix,
+                            message_id: "",
+                            in_reply_to: "",
+                            thread_id: "",
+                        })
+                        .collect();
+                    let r = store.index_messages_batch(&records).await;
+                    let dt_us = t0.elapsed().as_micros() as u64;
+                    if r.is_ok() {
+                        // Record per-message latency = batch latency / count
+                        // (gives a fair p99-on-message basis; alternative
+                        // would be reporting batch latency directly).
+                        let per_msg = dt_us / count as u64;
+                        for _ in 0..count {
+                            latencies.push(per_msg);
+                        }
+                    }
+                    let _ = w;
+                }
             }
             latencies
         }));
@@ -193,12 +273,13 @@ async fn baseline_inbound_delivery() {
     let pool_idle = pool.num_idle();
 
     println!(
-        "BASELINE_RESULT msgs={} workers={} pool_max={} test_before_acquire={} fanout={} elapsed_ms={} throughput_msg_s={:.1} p50_us={} p95_us={} p99_us={} p999_us={} pool_size={} pool_idle={}",
+        "BASELINE_RESULT msgs={} workers={} pool_max={} test_before_acquire={} fanout={} batch={} elapsed_ms={} throughput_msg_s={:.1} p50_us={} p95_us={} p99_us={} p999_us={} pool_size={} pool_idle={}",
         all_latencies.len(),
         workers,
         pool_max,
         test_before_acquire,
         fanout,
+        batch_size,
         elapsed.as_millis(),
         throughput,
         p50,

@@ -40,6 +40,51 @@ benchmarked back-to-back on the same PG state.
 | 1 mailbox, 4 workers | **134.3** | 27 ms | 55 ms | **69 ms** | best of several runs; **+8.1× thru, −98% p99** |
 | 100 mailboxes, 8 workers (msgs=2000) | **235.8** | 33 ms | 52 ms | **60 ms** | best of several runs; **+4.7× thru, −97% p99** |
 
+#### v5 baseline (post R30-R38, 2026-05-26 quiet PG window)
+
+Re-measured after the round 30-38 wave (FOR UPDATE drop, async tokio::fs
+for all read paths, ASCII-fold sweep, SKIP LOCKED claim). 3 runs each,
+sync_commit=on, same dev-PG cluster as R29:
+
+| Scenario | msg/s (3-run median) | p50 | p95 | p99 | Notes |
+|---|---:|---:|---:|---:|---|
+| 1 mailbox, 4 workers | **169.2** | 24 ms | 38 ms | **48 ms** | cumulative 16.6 → 169 = **10.2×** vs R29 |
+| 10 mailboxes, 4 workers | **220.5** | 18 ms | 27 ms | 34 ms | cumulative 35.0 → 220 = **6.3×** |
+| 100 mailboxes, 8 workers (msgs=2000) | **238.7** | 33 ms | 50 ms | **60 ms** | cumulative 50.3 → 238 = **4.7×** |
+
+These are the v5 phase-0 starting numbers. p99 fanout=1: 3.2s → 48ms = **−98.5%**.
+v5 phases 1-7 will be measured against this row.
+
+#### v5 R43: PG batch INSERT via `index_messages_batch`
+
+Added `PgMailboxStore::index_messages_batch(&[IndexRecord])` — one
+explicit tx, K UPDATE-RETURNING per unique mailbox to reserve uids,
+one multi-row INSERT for all rows. Bench harness gained
+`BASELINE_BATCH_SIZE` env var so workers can buffer K-message batches.
+
+| Scenario / batch | b=1 | b=4 | b=16 | b=32 |
+|---|---:|---:|---:|---:|
+| fanout=1 (one mailbox) | 165 | **235** | 242 | 244 |
+| fanout=100 (round-robin) | 197 | **258** | 60 ❌ | 24 ❌ |
+
+Findings:
+
+1. **batch ≤ 4 is an unconditional win** (single +43%, multi +31% vs b=1).
+2. **batch ≥ 16 with mixed-mailbox traffic deadlocks**: a single tx
+   holding 16 mailbox row locks contended with 8 concurrent workers
+   produces PG deadlock aborts (msgs completed: 2000 → 768, p999
+   spikes to ~400ms). Lock-order across batches isn't well-defined
+   when each worker picks an arbitrary K-prefix of the message
+   queue.
+3. **Single-mailbox batches scale freely**: fanout=1 at batch=32
+   still gains.
+
+**Production implication for R44**: the upcoming DeliveryExecutor
+at the PG layer **must buffer per-mailbox** (one batch = one
+mailbox). Cross-mailbox batching causes lock-order conflicts that
+no amount of retry escapes deterministically. Per-mailbox buffer
++ K up to ~32 is the right ceiling.
+
 #### Apples-to-apples R30 vs R31-A tx (same PG state, back-to-back, round 31)
 
 R31 directly compared the round-30 autocommit pattern against an
