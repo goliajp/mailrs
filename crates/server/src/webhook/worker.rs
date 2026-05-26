@@ -48,10 +48,13 @@ impl WebhookWorker {
 
     async fn poll_and_deliver(&self) {
         let now = chrono::Utc::now().timestamp();
-        let entries = match store::dequeue_pending(&self.pool, now, self.batch_size).await {
+        // Atomic SKIP LOCKED claim: one statement, single fsync,
+        // multi-worker safe (no duplicate POSTs). Replaces the prior
+        // dequeue + per-entry mark_inflight flow.
+        let entries = match store::claim_for_delivery(&self.pool, now, self.batch_size).await {
             Ok(e) => e,
             Err(e) => {
-                tracing::error!("webhook worker: failed to dequeue: {e}");
+                tracing::error!("webhook worker: failed to claim: {e}");
                 return;
             }
         };
@@ -81,16 +84,13 @@ impl WebhookWorker {
     }
 }
 
-/// build the headers and deliver a single outbox entry
+/// build the headers and deliver a single outbox entry. The entry
+/// has already been atomically transitioned to `inflight` by the
+/// poll-loop's `claim_for_delivery`, so this function does not
+/// re-mark it.
 async fn deliver_one(client: &reqwest::Client, pool: &PgPool, entry: OutboxEntry) {
     let now = chrono::Utc::now().timestamp();
     let attempt = entry.attempts + 1;
-
-    // mark inflight
-    if let Err(e) = store::mark_inflight(pool, entry.id, now).await {
-        tracing::error!("webhook: failed to mark inflight {}: {e}", entry.id);
-        return;
-    }
 
     // load subscription to get url and signing_secret
     let sub = match store::get_subscription(pool, entry.subscription_id).await {
