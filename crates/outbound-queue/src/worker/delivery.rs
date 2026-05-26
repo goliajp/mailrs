@@ -60,6 +60,12 @@ pub(super) async fn deliver_domain_static(
     max_per_conn: usize,
     event_sender: Option<&DeliveryEventSender>,
 ) {
+    // Wall-clock start for the per-domain delivery batch. Used to
+    // emit `mailrs_outbound_delivery_seconds` histogram on each
+    // terminal mark (delivered / failed / bounced) — gives ops a
+    // distribution of end-to-end delivery latency per outcome.
+    let batch_start = std::time::Instant::now();
+
     // filter out suppressed recipients before delivery
     let mut messages = messages;
     let now_check = chrono::Utc::now().timestamp();
@@ -155,7 +161,13 @@ pub(super) async fn deliver_domain_static(
             {
                 Ok(()) => {
                     let now = chrono::Utc::now().timestamp();
+                    let elapsed = batch_start.elapsed().as_secs_f64();
                     for msg in *chunk {
+                        metrics::histogram!(
+                            "mailrs_outbound_delivery_seconds",
+                            "outcome" => "delivered",
+                        )
+                        .record(elapsed);
                         let _ = queue::mark_delivered(pool, msg.id, now).await;
                         if let Some(es) = event_sender {
                             es(DeliveryEvent::Success {

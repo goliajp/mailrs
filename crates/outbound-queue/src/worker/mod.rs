@@ -188,6 +188,19 @@ impl DeliveryWorker {
             tracing::warn!("recovered {recovered} stale inflight messages");
         }
 
+        // Publish queue-depth gauges every poll tick. Cheap: two
+        // count(*) on an indexed `status` column. Lets ops dashboards
+        // alert on a queue that won't drain (delivery wedged) or one
+        // that's growing faster than we can flush.
+        if let Ok(pending) = queue::count_pending(&self.pool).await {
+            metrics::gauge!("mailrs_outbound_queue_depth", "status" => "pending")
+                .set(pending as f64);
+        }
+        if let Ok(inflight) = queue::count_inflight(&self.pool).await {
+            metrics::gauge!("mailrs_outbound_queue_depth", "status" => "inflight")
+                .set(inflight as f64);
+        }
+
         // Atomic SKIP LOCKED claim + inflight transition in one
         // statement: collapses the previous SELECT + N per-row
         // UPDATEs (N+1 roundtrips, N+1 WAL fsyncs) into a single
