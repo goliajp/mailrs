@@ -9,7 +9,17 @@ use mailrs_mailbox::{
     FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_RECENT, FLAG_SEEN,
 };
 
-use crate::imap_session::search::message_matches_criteria;
+use crate::imap_session::search::{message_matches_criteria, prelower_search_keys};
+
+/// Helper that mirrors the production flow: lowers any text-pattern
+/// keys before invoking the matcher. The handlers
+/// (`handle_search` / `handle_sort`) run `prelower_search_keys` once
+/// after parsing the wire criteria — these tests do the same so the
+/// pre-lowered-pattern contract is exercised end-to-end.
+fn matches(msg: &mailrs_mailbox::MessageMeta, mut keys: Vec<SearchKey>) -> bool {
+    prelower_search_keys(&mut keys);
+    message_matches_criteria(msg, &keys)
+}
 
 // ===== unit tests for pure helper functions =====
 
@@ -121,18 +131,9 @@ fn matches_recent() {
 #[test]
 fn matches_from_case_insensitive() {
     let msg = make_msg(|m| m.sender = "Alice@Example.COM".into());
-    assert!(message_matches_criteria(
-        &msg,
-        &[SearchKey::From("alice".into())]
-    ));
-    assert!(message_matches_criteria(
-        &msg,
-        &[SearchKey::From("ALICE".into())]
-    ));
-    assert!(!message_matches_criteria(
-        &msg,
-        &[SearchKey::From("bob".into())]
-    ));
+    assert!(matches(&msg, vec![SearchKey::From("alice".into())]));
+    assert!(matches(&msg, vec![SearchKey::From("ALICE".into())]));
+    assert!(!matches(&msg, vec![SearchKey::From("bob".into())]));
 }
 
 #[test]
@@ -151,18 +152,9 @@ fn matches_to_case_insensitive() {
 #[test]
 fn matches_subject_case_insensitive() {
     let msg = make_msg(|m| m.subject = "Meeting Tomorrow".into());
-    assert!(message_matches_criteria(
-        &msg,
-        &[SearchKey::Subject("meeting".into())]
-    ));
-    assert!(message_matches_criteria(
-        &msg,
-        &[SearchKey::Subject("TOMORROW".into())]
-    ));
-    assert!(!message_matches_criteria(
-        &msg,
-        &[SearchKey::Subject("yesterday".into())]
-    ));
+    assert!(matches(&msg, vec![SearchKey::Subject("meeting".into())]));
+    assert!(matches(&msg, vec![SearchKey::Subject("TOMORROW".into())]));
+    assert!(!matches(&msg, vec![SearchKey::Subject("yesterday".into())]));
 }
 
 #[test]
