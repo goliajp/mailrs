@@ -22,7 +22,7 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 async-trait = "0.1"
 memchr = "2"
-mailrs-maildir = "1"
+mailrs-maildir = { path = "../storage-maildir", version = "1" }
 
 [dev-dependencies]
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
