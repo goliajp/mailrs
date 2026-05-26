@@ -23,7 +23,7 @@
 //!   * BASELINE_POOL_MAX          PG pool max_connections (default 20)
 //!   * BASELINE_TEST_BEFORE_ACQUIRE   `0` or `1` (default 1, matches prod)
 //!   * BASELINE_MAILBOX_FANOUT    1 = single hot mailbox (FOR UPDATE serial),
-//!                                N = round-robin across N mailboxes (default 1)
+//!     N = round-robin across N mailboxes (default 1)
 //!
 //! Output: a single `BASELINE_RESULT=` line so callers can `grep` it.
 
@@ -158,12 +158,7 @@ async fn baseline_inbound_delivery() {
                 } else {
                     format!("INBOX{}", n as u32 % fanout)
                 };
-                let body = SAMPLE_MESSAGE
-                    .iter()
-                    .copied()
-                    .collect::<Vec<u8>>()
-                    .into_iter()
-                    .collect::<Vec<u8>>();
+                let body = SAMPLE_MESSAGE.to_vec();
                 // cheap template substitution: replace `{N}` with the index
                 let body = String::from_utf8(body).unwrap().replace("{N}", &n.to_string());
 

@@ -70,16 +70,38 @@ pub(super) fn parse_sort_criteria(criteria: &str) -> Vec<SortCriterion> {
     result
 }
 
+/// In-place ASCII-lowercase all text patterns on the parsed
+/// `Vec<SearchKey>` so the per-message matcher can do a single
+/// ASCII-fold per field and compare against an already-lowered
+/// needle, instead of `to_lowercase`-ing the pattern once per
+/// message × per key. Net effect on N=1000 messages × K=4 keys:
+/// K String allocations + lowercases instead of N·K.
+pub(super) fn prelower_search_keys(keys: &mut [SearchKey]) {
+    for k in keys.iter_mut() {
+        match k {
+            SearchKey::From(p)
+            | SearchKey::To(p)
+            | SearchKey::Subject(p)
+            | SearchKey::Text(p)
+            | SearchKey::Body(p) => p.make_ascii_lowercase(),
+            _ => {}
+        }
+    }
+}
+
 /// Evaluate an AND-list of [`SearchKey`] criteria against one
 /// message's metadata. Returns true iff every key matches.
 ///
 /// Date keys (`SINCE`/`BEFORE`/`ON`) work in seconds-since-epoch
 /// (`msg.date`); `ON` widens the timestamp to a 86_400-second
 /// day window. Text keys (`FROM`/`TO`/`SUBJECT`/`TEXT`) compare
-/// case-insensitively. `BODY` is approximated by `SUBJECT`
-/// because reading the message body would cost a Maildir disk
-/// read per message — opt-in expensive matching is a future
-/// enhancement, not a regression of this refactor.
+/// case-insensitively *and assume the caller has already lowered
+/// the pattern via [`prelower_search_keys`]* — the matcher only
+/// folds the message field and avoids re-folding the needle on
+/// every message. `BODY` is approximated by `SUBJECT` because
+/// reading the message body would cost a Maildir disk read per
+/// message — opt-in expensive matching is a future enhancement,
+/// not a regression of this refactor.
 pub(super) fn message_matches_criteria(
     msg: &mailrs_mailbox::MessageMeta,
     keys: &[SearchKey],
@@ -101,24 +123,18 @@ pub(super) fn message_matches_criteria(
             SearchKey::Draft => msg.flags & FLAG_DRAFT != 0,
             SearchKey::Undraft => msg.flags & FLAG_DRAFT == 0,
             SearchKey::Recent => msg.flags & FLAG_RECENT != 0,
-            SearchKey::From(pattern) => msg.sender.to_lowercase().contains(&pattern.to_lowercase()),
-            SearchKey::To(pattern) => msg
-                .recipients
-                .to_lowercase()
-                .contains(&pattern.to_lowercase()),
-            SearchKey::Subject(pattern) => {
-                msg.subject.to_lowercase().contains(&pattern.to_lowercase())
-            }
+            SearchKey::From(pattern) => msg.sender.to_ascii_lowercase().contains(pattern),
+            SearchKey::To(pattern) => msg.recipients.to_ascii_lowercase().contains(pattern),
+            SearchKey::Subject(pattern) => msg.subject.to_ascii_lowercase().contains(pattern),
             SearchKey::Text(pattern) => {
-                let p = pattern.to_lowercase();
-                msg.subject.to_lowercase().contains(&p)
-                    || msg.sender.to_lowercase().contains(&p)
-                    || msg.recipients.to_lowercase().contains(&p)
+                msg.subject.to_ascii_lowercase().contains(pattern)
+                    || msg.sender.to_ascii_lowercase().contains(pattern)
+                    || msg.recipients.to_ascii_lowercase().contains(pattern)
             }
             SearchKey::Body(pattern) => {
                 // body search requires reading message content, which is expensive
                 // fall back to subject search as a best-effort approximation
-                msg.subject.to_lowercase().contains(&pattern.to_lowercase())
+                msg.subject.to_ascii_lowercase().contains(pattern)
             }
             SearchKey::Since(ts) => msg.date >= *ts,
             SearchKey::Before(ts) => msg.date < *ts,
@@ -164,7 +180,8 @@ impl ImapSession {
             Err(_) => return vec![format_no(tag, "SEARCH failed")],
         };
 
-        let keys = parse_search_criteria(criteria);
+        let mut keys = parse_search_criteria(criteria);
+        prelower_search_keys(&mut keys);
         let mut matching_seqs: Vec<u32> = Vec::new();
 
         for (i, msg) in messages.iter().enumerate() {
@@ -209,35 +226,55 @@ impl ImapSession {
         };
 
         // filter by search criteria
-        let keys = parse_search_criteria(search_criteria);
-        let mut filtered: Vec<(usize, &mailrs_mailbox::MessageMeta)> = messages
+        let mut keys = parse_search_criteria(search_criteria);
+        prelower_search_keys(&mut keys);
+        let filtered_raw: Vec<(usize, &mailrs_mailbox::MessageMeta)> = messages
             .iter()
             .enumerate()
             .filter(|(_, msg)| message_matches_criteria(msg, &keys))
             .collect();
 
-        // sort by criteria
+        // decorate-sort-undecorate: precompute ASCII-lowered sort
+        // fields once per surviving message so sort_by's comparator is
+        // pure cmp on Strings instead of allocating a fresh lowercased
+        // copy on every comparison. For N filtered messages and an
+        // N·log N comparator, this drops the alloc count from
+        // O(N·log N) to O(N).
         let sort_keys = parse_sort_criteria(criteria);
+        let needs_sender_lc = sort_keys
+            .iter()
+            .any(|k| matches!(k, SortCriterion::From | SortCriterion::ReverseFrom));
+        let needs_subject_lc = sort_keys
+            .iter()
+            .any(|k| matches!(k, SortCriterion::Subject | SortCriterion::ReverseSubject));
+        let mut filtered: Vec<(usize, &mailrs_mailbox::MessageMeta, String, String)> = filtered_raw
+            .into_iter()
+            .map(|(i, msg)| {
+                let sender_lc = if needs_sender_lc {
+                    msg.sender.to_ascii_lowercase()
+                } else {
+                    String::new()
+                };
+                let subject_lc = if needs_subject_lc {
+                    msg.subject.to_ascii_lowercase()
+                } else {
+                    String::new()
+                };
+                (i, msg, sender_lc, subject_lc)
+            })
+            .collect();
         filtered.sort_by(|a, b| {
             for key in &sort_keys {
                 let ord = match key {
                     SortCriterion::Arrival => a.1.internal_date.cmp(&b.1.internal_date),
                     SortCriterion::Date => a.1.date.cmp(&b.1.date),
-                    SortCriterion::From => {
-                        a.1.sender.to_lowercase().cmp(&b.1.sender.to_lowercase())
-                    }
-                    SortCriterion::Subject => {
-                        a.1.subject.to_lowercase().cmp(&b.1.subject.to_lowercase())
-                    }
+                    SortCriterion::From => a.2.cmp(&b.2),
+                    SortCriterion::Subject => a.3.cmp(&b.3),
                     SortCriterion::Size => a.1.size.cmp(&b.1.size),
                     SortCriterion::ReverseArrival => b.1.internal_date.cmp(&a.1.internal_date),
                     SortCriterion::ReverseDate => b.1.date.cmp(&a.1.date),
-                    SortCriterion::ReverseFrom => {
-                        b.1.sender.to_lowercase().cmp(&a.1.sender.to_lowercase())
-                    }
-                    SortCriterion::ReverseSubject => {
-                        b.1.subject.to_lowercase().cmp(&a.1.subject.to_lowercase())
-                    }
+                    SortCriterion::ReverseFrom => b.2.cmp(&a.2),
+                    SortCriterion::ReverseSubject => b.3.cmp(&a.3),
                     SortCriterion::ReverseSize => b.1.size.cmp(&a.1.size),
                 };
                 if ord != std::cmp::Ordering::Equal {
@@ -250,10 +287,13 @@ impl ImapSession {
         let ids: Vec<String> = if uid_mode {
             filtered
                 .iter()
-                .map(|(_, msg)| msg.uid.to_string())
+                .map(|(_, msg, _, _)| msg.uid.to_string())
                 .collect()
         } else {
-            filtered.iter().map(|(i, _)| (i + 1).to_string()).collect()
+            filtered
+                .iter()
+                .map(|(i, _, _, _)| (i + 1).to_string())
+                .collect()
         };
 
         vec![
