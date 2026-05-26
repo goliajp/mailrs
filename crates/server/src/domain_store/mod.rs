@@ -305,8 +305,36 @@ impl<'de> serde::Deserialize<'de> for CachedAccount {
     }
 }
 
+// Account needs Deserialize for valkey cache
+impl<'de> serde::Deserialize<'de> for Account {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        #[derive(serde::Deserialize)]
+        struct Helper {
+            address: String,
+            domain: String,
+            display_name: String,
+            active: bool,
+            created_at: i64,
+            quota_bytes: i64,
+            #[serde(default)]
+            recovery_email: String,
+        }
+        let h = Helper::deserialize(deserializer)?;
+        Ok(Account {
+            address: h.address,
+            domain: h.domain,
+            display_name: h.display_name,
+            active: h.active,
+            created_at: h.created_at,
+            quota_bytes: h.quota_bytes,
+            recovery_email: h.recovery_email,
+        })
+    }
+}
+
 #[cfg(test)]
-#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
     use std::time::Duration;
@@ -647,34 +675,5 @@ mod tests {
                 _ => panic!("mismatch: {orig:?} vs {back:?}"),
             }
         }
-    }
-}
-
-// Account needs Deserialize for valkey cache
-impl<'de> serde::Deserialize<'de> for Account {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> std::result::Result<Self, D::Error> {
-        #[derive(serde::Deserialize)]
-        struct Helper {
-            address: String,
-            domain: String,
-            display_name: String,
-            active: bool,
-            created_at: i64,
-            quota_bytes: i64,
-            #[serde(default)]
-            recovery_email: String,
-        }
-        let h = Helper::deserialize(deserializer)?;
-        Ok(Account {
-            address: h.address,
-            domain: h.domain,
-            display_name: h.display_name,
-            active: h.active,
-            created_at: h.created_at,
-            quota_bytes: h.quota_bytes,
-            recovery_email: h.recovery_email,
-        })
     }
 }
