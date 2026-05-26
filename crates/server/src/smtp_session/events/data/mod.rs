@@ -166,6 +166,11 @@ where
                         Ok(id) => {
                             // index in mailbox store if available
                             if let Some(ref mb_store) = ctx.mailbox_store {
+                                // Compute `id.to_string()` once per
+                                // delivery — used both as `maildir_id`
+                                // for `index_message` and again for the
+                                // AI post-delivery background task.
+                                let maildir_id_str = id.to_string();
                                 let user = format!("{local}@{domain}");
                                 let _ = mb_store.ensure_default_mailboxes(&user).await;
                                 let now = chrono::Utc::now().timestamp();
@@ -226,7 +231,7 @@ where
                                     .index_message(
                                         &user,
                                         &rcpt_folder,
-                                        &id.to_string(),
+                                        &maildir_id_str,
                                         &sender,
                                         rcpt,
                                         &subject,
@@ -346,7 +351,7 @@ where
                                 let mb_store_bg = Arc::clone(mb_store);
                                 let user_bg = user.clone();
                                 let sender_bg = sender.clone();
-                                let maildir_id_bg = id.to_string();
+                                let maildir_id_bg = maildir_id_str.clone();
                                 let maildir_root_bg = ctx.maildir_root.clone();
                                 let raw_headers = String::from_utf8_lossy(
                                     &full_message[..full_message.len().min(4096)],
