@@ -32,11 +32,18 @@ async fn handle_ws(socket: WebSocket, state: Arc<WebState>) {
     let (mut sender, mut receiver) = socket.split();
     let mut rx = state.event_bus.subscribe();
 
-    // forward events to websocket
+    // forward events to websocket. Shared envelope: when N WS clients
+    // are subscribed, JSON serialisation runs once per emit (lazily
+    // via `BroadcastEvent::json`'s OnceLock) and is shared across all
+    // N subscribers as `Arc<str>` — N-1 redundant serialisations
+    // dropped for free.
     let send_task = tokio::spawn(async move {
-        while let Ok(event) = rx.recv().await {
-            if let Ok(json) = serde_json::to_string(&event)
-                && sender.send(Message::Text(json.into())).await.is_err()
+        while let Ok(env) = rx.recv().await {
+            let json = env.json();
+            if sender
+                .send(Message::Text(json.as_ref().into()))
+                .await
+                .is_err()
             {
                 break;
             }

@@ -49,32 +49,33 @@ pub async fn run(event_bus: &EventBus, pool: &PgPool, mut shutdown: watch::Recei
         tokio::select! {
             event = rx.recv() => {
                 match event {
-                    Ok(SmtpEvent::NewMessage { user, thread_id, sender, subject, snippet }) => {
-                        match store::find_matching_subscriptions(pool, &user, "new_message", &sender, &thread_id).await {
-                            Ok(subs) => {
-                                for sub in subs {
-                                    if matches_subscription(&sub, &sender, &thread_id) {
-                                        let payload = build_payload(&user, &thread_id, &sender, &subject, &snippet);
-                                        let now = chrono::Utc::now().timestamp();
-                                        if let Ok(json) = serde_json::to_value(&payload)
-                                            && let Err(e) = store::enqueue_delivery(pool, sub.id, &json, now).await {
-                                                tracing::error!("failed to enqueue webhook delivery for sub {}: {e}", sub.id);
-                                            }
+                    Ok(env) => {
+                        if let SmtpEvent::NewMessage { user, thread_id, sender, subject, snippet } = &env.event {
+                            match store::find_matching_subscriptions(pool, user, "new_message", sender, thread_id).await {
+                                Ok(subs) => {
+                                    for sub in subs {
+                                        if matches_subscription(&sub, sender, thread_id) {
+                                            let payload = build_payload(user, thread_id, sender, subject, snippet);
+                                            let now = chrono::Utc::now().timestamp();
+                                            if let Ok(json) = serde_json::to_value(&payload)
+                                                && let Err(e) = store::enqueue_delivery(pool, sub.id, &json, now).await {
+                                                    tracing::error!("failed to enqueue webhook delivery for sub {}: {e}", sub.id);
+                                                }
+                                        }
                                     }
                                 }
-                            }
-                            Err(e) => {
-                                tracing::error!("failed to find matching webhook subscriptions: {e}");
+                                Err(e) => {
+                                    tracing::error!("failed to find matching webhook subscriptions: {e}");
+                                }
                             }
                         }
-                    }
+                    },
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         tracing::warn!("webhook listener lagged, missed {n} events");
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                         break;
                     }
-                    _ => {}
                 }
             }
             _ = shutdown.changed() => {

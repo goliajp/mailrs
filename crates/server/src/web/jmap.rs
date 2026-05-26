@@ -310,20 +310,24 @@ pub(super) async fn jmap_eventsource(
                     }
                     result = rx.recv() => {
                         match result {
-                            Ok(ev) => {
-                                if let Ok(json) = serde_json::to_string(&ev)
-                                    && json.contains(&address) {
-                                        let data = serde_json::json!({
-                                            "@type": "StateChange",
-                                            "changed": {
-                                                &address: {
-                                                    "Email": chrono::Utc::now().timestamp().to_string()
-                                                }
+                            Ok(env) => {
+                                // Lazy-shared JSON: first JMAP-push
+                                // subscriber to look at this envelope
+                                // serialises once; further subscribers
+                                // and the WS path reuse the same Arc<str>.
+                                let json = env.json();
+                                if json.contains(&address) {
+                                    let data = serde_json::json!({
+                                        "@type": "StateChange",
+                                        "changed": {
+                                            &address: {
+                                                "Email": chrono::Utc::now().timestamp().to_string()
                                             }
-                                        });
-                                        let event = Event::default().event("state").data(data.to_string());
-                                        return Some((Ok(event), (rx, address, ping_secs)));
-                                    }
+                                        }
+                                    });
+                                    let event = Event::default().event("state").data(data.to_string());
+                                    return Some((Ok(event), (rx, address, ping_secs)));
+                                }
                             }
                             Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                             Err(_) => return None,

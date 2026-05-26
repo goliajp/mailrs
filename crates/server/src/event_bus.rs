@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::Serialize;
@@ -87,9 +89,45 @@ pub enum SmtpEvent {
     },
 }
 
+/// Envelope wrapping an [`SmtpEvent`] for broadcast.
+///
+/// Carries an optional pre-serialised JSON cache populated lazily on
+/// first call to [`Self::json`]. All subscribers receiving the same
+/// `Arc<BroadcastEvent>` share the cache — for N web-socket / JMAP
+/// push subscribers consuming the same event, JSON serialisation
+/// runs exactly once instead of N times.
+pub struct BroadcastEvent {
+    /// The typed event. Subscribers that pattern-match (ai_analyzer,
+    /// webhook listener, cache invalidator) read this field directly.
+    pub event: SmtpEvent,
+    json: OnceLock<Arc<str>>,
+}
+
+impl BroadcastEvent {
+    fn new(event: SmtpEvent) -> Self {
+        Self {
+            event,
+            json: OnceLock::new(),
+        }
+    }
+
+    /// Get (or lazily compute) the JSON serialisation of the event.
+    /// Returns an `Arc<str>` so cloning into per-subscriber send paths
+    /// is free.
+    pub fn json(&self) -> Arc<str> {
+        self.json
+            .get_or_init(|| {
+                serde_json::to_string(&self.event)
+                    .map(Arc::from)
+                    .unwrap_or_else(|_| Arc::from(""))
+            })
+            .clone()
+    }
+}
+
 #[derive(Clone)]
 pub struct EventBus {
-    tx: broadcast::Sender<SmtpEvent>,
+    tx: broadcast::Sender<Arc<BroadcastEvent>>,
 }
 
 impl EventBus {
@@ -100,10 +138,10 @@ impl EventBus {
 
     pub fn emit(&self, event: SmtpEvent) {
         // ignore send errors (no subscribers)
-        let _ = self.tx.send(event);
+        let _ = self.tx.send(Arc::new(BroadcastEvent::new(event)));
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<SmtpEvent> {
+    pub fn subscribe(&self) -> broadcast::Receiver<Arc<BroadcastEvent>> {
         self.tx.subscribe()
     }
 }
@@ -132,8 +170,8 @@ mod tests {
         let bus = EventBus::new(16);
         let mut rx = bus.subscribe();
         bus.emit(SmtpEvent::ConnectionClosed { id: 42 });
-        let event = rx.recv().await.unwrap();
-        assert!(matches!(event, SmtpEvent::ConnectionClosed { id: 42 }));
+        let env = rx.recv().await.unwrap();
+        assert!(matches!(env.event, SmtpEvent::ConnectionClosed { id: 42 }));
     }
 
     #[tokio::test]
@@ -143,13 +181,30 @@ mod tests {
         let mut rx2 = bus.subscribe();
         bus.emit(SmtpEvent::TlsUpgraded { id: 1 });
         assert!(matches!(
-            rx1.recv().await.unwrap(),
+            rx1.recv().await.unwrap().event,
             SmtpEvent::TlsUpgraded { id: 1 }
         ));
         assert!(matches!(
-            rx2.recv().await.unwrap(),
+            rx2.recv().await.unwrap().event,
             SmtpEvent::TlsUpgraded { id: 1 }
         ));
+    }
+
+    #[tokio::test]
+    async fn broadcast_event_json_cached_once_per_envelope() {
+        let bus = EventBus::new(16);
+        let mut rx1 = bus.subscribe();
+        let mut rx2 = bus.subscribe();
+        bus.emit(SmtpEvent::ConnectionClosed { id: 7 });
+        let env1 = rx1.recv().await.unwrap();
+        let env2 = rx2.recv().await.unwrap();
+        // Both receivers share the same envelope Arc — first .json()
+        // call serialises, subsequent calls return the cached Arc<str>.
+        assert!(Arc::ptr_eq(&env1, &env2));
+        let j1 = env1.json();
+        let j2 = env2.json();
+        assert!(Arc::ptr_eq(&j1, &j2));
+        assert!(j1.contains("\"type\":\"ConnectionClosed\""));
     }
 
     #[test]

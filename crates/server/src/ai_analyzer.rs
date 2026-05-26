@@ -177,12 +177,14 @@ async fn listen_new_messages(
     let mut rx = event_bus.subscribe();
     loop {
         match rx.recv().await {
-            Ok(SmtpEvent::NewMessage { user, .. }) => {
-                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                if let Ok(batch) = store.list_unanalyzed_message_ids(5, &model_version).await {
-                    for row in batch {
-                        if row.1 == user {
-                            let _ = tx.send(row);
+            Ok(env) => {
+                if let SmtpEvent::NewMessage { user, .. } = &env.event {
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    if let Ok(batch) = store.list_unanalyzed_message_ids(5, &model_version).await {
+                        for row in batch {
+                            if row.1 == *user {
+                                let _ = tx.send(row);
+                            }
                         }
                     }
                 }

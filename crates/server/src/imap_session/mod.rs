@@ -397,8 +397,9 @@ pub async fn handle_connection<S>(
                             tokio::select! {
                                 event = rx.recv() => {
                                     match event {
-                                        Ok(crate::event_bus::SmtpEvent::NewMessage { ref user, .. })
-                                            if idle_user.as_deref() == Some(user.as_str()) => {
+                                        Ok(env) => {
+                                            if let crate::event_bus::SmtpEvent::NewMessage { user, .. } = &env.event
+                                                && idle_user.as_deref() == Some(user.as_str()) {
                                                 let updates = session.idle_status_update().await;
                                                 for u in updates {
                                                     if framed.send(u).await.is_err() {
@@ -406,6 +407,7 @@ pub async fn handle_connection<S>(
                                                     }
                                                 }
                                             }
+                                        }
                                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                                         _ => {}
                                     }
