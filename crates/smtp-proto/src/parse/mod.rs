@@ -88,9 +88,10 @@ fn parse_helo(args: &str) -> Result<Command<'_>, ParseError> {
 }
 
 fn parse_mail_from(args: &str) -> Result<Command<'_>, ParseError> {
-    // expect "FROM:" prefix (case-insensitive)
-    let upper = args.to_ascii_uppercase();
-    if !upper.starts_with("FROM:") {
+    // Byte-level case-insensitive prefix probe — avoids allocating a
+    // String for the whole args (which can be 50+ B with ESMTP params)
+    // just to check the 5-byte "FROM:" tag.
+    if !starts_with_ascii_ci(args, b"FROM:") {
         return Err(ParseError::InvalidSyntax("expected FROM:".into()));
     }
     let after_from = args[5..].trim_start();
@@ -98,12 +99,17 @@ fn parse_mail_from(args: &str) -> Result<Command<'_>, ParseError> {
 }
 
 fn parse_rcpt_to(args: &str) -> Result<Command<'_>, ParseError> {
-    let upper = args.to_ascii_uppercase();
-    if !upper.starts_with("TO:") {
+    if !starts_with_ascii_ci(args, b"TO:") {
         return Err(ParseError::InvalidSyntax("expected TO:".into()));
     }
     let after_to = args[3..].trim_start();
     parse_forward_path_and_params(after_to)
+}
+
+#[inline]
+fn starts_with_ascii_ci(s: &str, prefix: &[u8]) -> bool {
+    let b = s.as_bytes();
+    b.len() >= prefix.len() && b[..prefix.len()].eq_ignore_ascii_case(prefix)
 }
 
 fn parse_reverse_path_and_params(input: &str) -> Result<Command<'_>, ParseError> {
