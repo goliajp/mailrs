@@ -3109,16 +3109,16 @@ dependencies = [
 [[package]]
 name = "mailrs-imap-proto"
 version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4663c9fbc541c10769336630c3b3db383da1f9d71396919883454a0b2eb13cd"
+
+[[package]]
+name = "mailrs-imap-proto"
+version = "1.0.4"
 dependencies = [
  "criterion",
  "imap-codec",
 ]
-
-[[package]]
-name = "mailrs-imap-proto"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4663c9fbc541c10769336630c3b3db383da1f9d71396919883454a0b2eb13cd"
 
 [[package]]
 name = "mailrs-inbound"
@@ -3433,7 +3433,7 @@ dependencies = [
  "mailrs-ical",
  "mailrs-imap-codec 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-imap-format 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-imap-proto 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-imap-proto 1.0.3",
  "mailrs-inbound 1.0.5",
  "mailrs-intelligence 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-jmap 1.1.1",
