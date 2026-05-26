@@ -29,7 +29,7 @@ use crate::canon::{canonicalize_body, canonicalize_header};
 use crate::crypto::{CryptoSigningKey, sign_signature};
 use crate::error::DkimError;
 use crate::header::{Algorithm, Canon};
-use crate::headers::{body_offset_minus_blank, find_body_offset, find_header_value};
+use crate::headers::{body_offset_minus_blank, find_body_offset};
 
 /// Private key used to sign a DKIM-Signature. Algorithm is implied by
 /// the variant.
@@ -209,16 +209,20 @@ pub fn sign(
     // keeps the contract self-consistent.
     let headers_region = &raw_message[..body_offset_minus_blank(body_offset, raw_message)];
     let mut signed_block = Vec::with_capacity(512);
-    for name in &opts.signed_headers {
-        if let Some(value) = find_header_value(headers_region, name) {
-            let canon_name = name.to_ascii_lowercase();
-            signed_block.extend_from_slice(&canonicalize_header(
-                &canon_name,
-                value,
-                opts.canon_header,
-            ));
-        }
-        // Missing signed header → skip (per §3.5).
+    // Per RFC 6376 §5.4.2: walk h= in order, consume one occurrence
+    // each scanning bottom-up. Repeated entries for which no fresh
+    // occurrence exists are SKIPPED — not emitted as a null header.
+    // Matches OpenDKIM + stalwart/mail-auth convention; an emitted
+    // `from:\r\n` would corrupt the hash on the verify side.
+    let collected = crate::headers::collect_signed_headers(headers_region, &opts.signed_headers);
+    for (name, value_opt) in &collected {
+        let Some(value) = value_opt else { continue };
+        let canon_name = name.to_ascii_lowercase();
+        signed_block.extend_from_slice(&canonicalize_header(
+            &canon_name,
+            value,
+            opts.canon_header,
+        ));
     }
     // Append the DKIM-Signature header value itself with b= empty.
     // canonicalize_header takes a name + value; the value here is the
