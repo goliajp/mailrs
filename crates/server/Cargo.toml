@@ -11,7 +11,7 @@ workspace = true
 
 [dependencies]
 mailrs-smtp-proto = "1"
-mailrs-maildir = "1.2"
+mailrs-maildir = { path = "../storage-maildir", version = "1.2" }
 mailrs-delivery-executor = "1.1"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["codec"] }

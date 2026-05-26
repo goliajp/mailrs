@@ -232,8 +232,16 @@ impl Maildir {
         }
     }
 
-    /// Atomically deliver a message: write the body to `tmp/`, fsync,
+    /// Atomically deliver a message: write the body to `tmp/`, fdatasync,
     /// then rename to `new/`. Returns the generated [`MessageId`].
+    ///
+    /// File durability uses `sync_data` (fdatasync on Linux, fsync on
+    /// macOS where the kernel makes no distinction): the newly-written
+    /// file's data + size inode metadata are persisted but the access
+    /// timestamps are not flushed. On Linux this saves one journal
+    /// write per delivery compared to `sync_all` (~100-300 µs on NVMe,
+    /// proportionally more on rotating storage); on macOS the call
+    /// degenerates to `fsync` and is identical to `sync_all`.
     pub fn deliver(&self, data: &[u8]) -> io::Result<MessageId> {
         let filename = self.generate_filename();
         let tmp_path = self.root.join("tmp").join(&filename);
@@ -241,7 +249,7 @@ impl Maildir {
 
         let mut file = fs::File::create(&tmp_path)?;
         file.write_all(data)?;
-        file.sync_all()?;
+        file.sync_data()?;
         drop(file);
 
         fs::rename(&tmp_path, &new_path)?;

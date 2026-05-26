@@ -16,7 +16,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-mailrs-maildir = "1.2"
+mailrs-maildir = { path = "../storage-maildir", version = "1.2" }
 tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
 
 [dev-dependencies]

@@ -2981,7 +2981,7 @@ version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e8b551cf12fb8362e65e93cfdeea299d6f8fd02e7ace53b2e59bca394f6d224"
 dependencies = [
- "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-maildir 1.2.0",
  "tokio",
 ]
 
@@ -2990,7 +2990,7 @@ name = "mailrs-delivery-executor"
 version = "1.1.1"
 dependencies = [
  "criterion",
- "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-maildir 1.2.1",
  "tempfile",
  "tokio",
 ]
@@ -3201,7 +3201,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "criterion",
- "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-maildir 1.2.1",
  "memchr",
  "serde",
  "serde_json",
@@ -3213,22 +3213,22 @@ dependencies = [
 [[package]]
 name = "mailrs-maildir"
 version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12aa843ac26d27ff3b990bdc90b60e2edd3c04a6463602ceb689cd10ef3d393f"
+dependencies = [
+ "dashmap",
+ "hostname",
+]
+
+[[package]]
+name = "mailrs-maildir"
+version = "1.2.1"
 dependencies = [
  "criterion",
  "dashmap",
  "filetime",
  "hostname",
  "tempfile",
-]
-
-[[package]]
-name = "mailrs-maildir"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12aa843ac26d27ff3b990bdc90b60e2edd3c04a6463602ceb689cd10ef3d393f"
-dependencies = [
- "dashmap",
- "hostname",
 ]
 
 [[package]]
@@ -3424,7 +3424,7 @@ dependencies = [
  "mailrs-intelligence 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-jmap 1.1.1",
  "mailrs-mailbox",
- "mailrs-maildir 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-maildir 1.2.1",
  "mailrs-mime",
  "mailrs-outbound-queue",
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
