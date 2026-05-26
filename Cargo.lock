@@ -3114,7 +3114,7 @@ checksum = "d4663c9fbc541c10769336630c3b3db383da1f9d71396919883454a0b2eb13cd"
 
 [[package]]
 name = "mailrs-imap-proto"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "criterion",
  "imap-codec",

@@ -2,7 +2,8 @@
 
 /// detect if sender is a bulk/automated sender based on email headers
 pub fn detect_bulk_sender(raw_headers: &str) -> bool {
-    let lower = raw_headers.to_lowercase();
+    // RFC 5322 headers are ASCII; full Unicode fold is wasted work.
+    let lower = raw_headers.to_ascii_lowercase();
 
     // list-unsubscribe header
     if lower.contains("list-unsubscribe:") {
@@ -44,7 +45,9 @@ pub fn detect_bulk_sender(raw_headers: &str) -> bool {
 
 /// detect automated/noreply senders
 pub fn is_automated_sender(email: &str) -> bool {
-    let lower = email.to_lowercase();
+    // Local-parts are dominantly ASCII; the keyword set we check
+    // (`noreply`, `bounce`, etc.) is ASCII-only.
+    let lower = email.to_ascii_lowercase();
     let local = lower.split('@').next().unwrap_or("");
 
     local == "noreply"
