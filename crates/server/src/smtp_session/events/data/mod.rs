@@ -109,6 +109,14 @@ where
             let msg_message_id = mailrs_mailbox::threading::extract_message_id(&full_message);
             let msg_in_reply_to = mailrs_mailbox::threading::extract_in_reply_to(&full_message);
 
+            // Hoist the message body into one Arc shared across all
+            // local-recipient deliveries: the per-rcpt body was a
+            // `Vec<u8>` clone inside the loop (one full copy per
+            // recipient), but the delivery executor only needs a
+            // ref-counted handle. For an N-recipient message this
+            // collapses N×body_size bytes of alloc into ONE.
+            let shared_body = std::sync::Arc::new(full_message.clone());
+
             // deliver to local recipients via maildir
             for rcpt in &local_rcpts {
                 let (rcpt_folder, skip_delivery) =
@@ -148,8 +156,11 @@ where
                     // microbench, 2026-05-24). Worst-case added
                     // latency for a single in-flight delivery is
                     // the executor's max_wait (default 10ms).
-                    let body_arc = std::sync::Arc::new(full_message.clone());
-                    match ctx.delivery_executor.deliver(path.clone(), body_arc).await {
+                    match ctx
+                        .delivery_executor
+                        .deliver(path.clone(), shared_body.clone())
+                        .await
+                    {
                         Ok(id) => {
                             // index in mailbox store if available
                             if let Some(ref mb_store) = ctx.mailbox_store {
