@@ -56,7 +56,8 @@ pub(crate) async fn get_attachment(
     let mailboxes = mb_store.list_mailboxes(&user).await.unwrap_or_default();
     for mb in &mailboxes {
         if let Ok(Some(msg)) = mb_store.get_message(mb.id, uid).await {
-            let raw = message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id);
+            let raw = message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id)
+                .await;
             if let Some(data) = raw {
                 let parsed = mailrs_mime::parse(&data);
                 let attachments: Vec<&mailrs_mime::Part> = parsed.attachments().collect();

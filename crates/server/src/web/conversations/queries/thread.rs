@@ -70,7 +70,8 @@ pub(crate) async fn get_thread_messages(
             &msg.user_address
         };
         let raw =
-            message_util::read_message_raw(&state.maildir_root, maildir_user, &msg.maildir_id);
+            message_util::read_message_raw(&state.maildir_root, maildir_user, &msg.maildir_id)
+                .await;
         let parsed = raw
             .as_deref()
             .map(message_util::parse_message)

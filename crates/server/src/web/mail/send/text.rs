@@ -116,6 +116,7 @@ pub(crate) async fn send_message(
             {
                 if let Some(raw_orig) =
                     message_util::read_message_raw(&state.maildir_root, from, &orig.maildir_id)
+                        .await
                 {
                     let (text_body, _, _) = message_util::parse_message(&raw_orig);
                     if let Some(text) = text_body {
@@ -280,6 +281,7 @@ async fn extract_full_forward_by_id(
     };
 
     let Some(raw) = message_util::read_message_raw(&state.maildir_root, user, &meta.maildir_id)
+        .await
     else {
         tracing::warn!(
             event = "forward_raw_not_found",

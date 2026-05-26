@@ -166,7 +166,8 @@ impl MailMcpService {
                     &self.web_state.maildir_root,
                     user,
                     &msg.maildir_id,
-                );
+                )
+                .await;
                 let (text_body, _html_body, _attachments) = raw
                     .as_deref()
                     .map(crate::message_util::parse_message)
@@ -1821,36 +1822,35 @@ impl MailMcpService {
             .await;
         }
 
-        let items: Vec<serde_json::Value> = messages
-            .iter()
-            .map(|msg| {
-                let maildir_user = if msg.user_address.is_empty() {
-                    &params.target_user
-                } else {
-                    &msg.user_address
-                };
-                let raw = crate::message_util::read_message_raw(
-                    &self.web_state.maildir_root,
-                    maildir_user,
-                    &msg.maildir_id,
-                );
-                let parsed = raw
-                    .as_deref()
-                    .map(crate::message_util::parse_message)
-                    .unwrap_or_default();
+        let mut items: Vec<serde_json::Value> = Vec::with_capacity(messages.len());
+        for msg in &messages {
+            let maildir_user = if msg.user_address.is_empty() {
+                &params.target_user
+            } else {
+                &msg.user_address
+            };
+            let raw = crate::message_util::read_message_raw(
+                &self.web_state.maildir_root,
+                maildir_user,
+                &msg.maildir_id,
+            )
+            .await;
+            let parsed = raw
+                .as_deref()
+                .map(crate::message_util::parse_message)
+                .unwrap_or_default();
 
-                serde_json::json!({
-                    "id": msg.id,
-                    "uid": msg.uid,
-                    "sender": msg.sender,
-                    "recipients": msg.recipients,
-                    "subject": msg.subject,
-                    "internal_date": msg.internal_date,
-                    "text_body": parsed.0,
-                    "attachments": parsed.2.iter().map(|a| serde_json::json!({"filename": a.filename, "content_type": a.content_type, "size": a.size})).collect::<Vec<_>>(),
-                })
-            })
-            .collect();
+            items.push(serde_json::json!({
+                "id": msg.id,
+                "uid": msg.uid,
+                "sender": msg.sender,
+                "recipients": msg.recipients,
+                "subject": msg.subject,
+                "internal_date": msg.internal_date,
+                "text_body": parsed.0,
+                "attachments": parsed.2.iter().map(|a| serde_json::json!({"filename": a.filename, "content_type": a.content_type, "size": a.size})).collect::<Vec<_>>(),
+            }));
+        }
 
         self.json_result(&items)
     }

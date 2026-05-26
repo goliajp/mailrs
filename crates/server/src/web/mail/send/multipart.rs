@@ -152,6 +152,7 @@ pub(crate) async fn send_message_multipart(
             {
                 if let Some(raw_orig) =
                     message_util::read_message_raw(&state.maildir_root, &from, &orig.maildir_id)
+                        .await
                 {
                     let (text_body, _, _) = message_util::parse_message(&raw_orig);
                     if let Some(text) = text_body {

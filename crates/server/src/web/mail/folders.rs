@@ -141,6 +141,7 @@ pub(crate) async fn export_mbox(
             for msg in &messages {
                 if let Some(raw) =
                     message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id)
+                        .await
                 {
                     // mbox "From " line: use sender and date_epoch
                     let sender = msg.sender.trim();
