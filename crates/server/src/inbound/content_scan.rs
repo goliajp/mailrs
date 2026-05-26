@@ -19,80 +19,114 @@ struct ScoringRule {
     check: fn(&[u8]) -> bool,
 }
 
-fn has_from_header(data: &[u8]) -> bool {
-    let s = String::from_utf8_lossy(data);
-    // check for From: header (case insensitive, at start of line)
-    for line in s.lines() {
-        if line.to_lowercase().starts_with("from:") {
-            return true;
+// Byte-level helpers. RFC 5322 header names are ASCII by spec, and
+// the substrings we look for in headers/bodies are also ASCII, so an
+// ASCII-case-insensitive byte scan gives identical semantics to the
+// prior `String::from_utf8_lossy(...).to_lowercase()` chain at a
+// fraction of the cost (no UTF-8 validation, no allocation, no
+// Unicode case-fold table walk).
+
+fn iter_lines(data: &[u8]) -> impl Iterator<Item = &[u8]> {
+    // RFC 5322 lines end in CRLF, but tolerate bare LF too (some MUAs).
+    // Yields each line without its trailing CR/LF.
+    data.split(|&b| b == b'\n').map(|line| {
+        if let Some((&b'\r', rest)) = line.split_last() {
+            rest
+        } else {
+            line
+        }
+    })
+}
+
+fn line_starts_with_ignore_case(line: &[u8], prefix: &[u8]) -> bool {
+    line.len() >= prefix.len() && line[..prefix.len()].eq_ignore_ascii_case(prefix)
+}
+
+fn contains_ignore_case(data: &[u8], needle: &[u8]) -> bool {
+    if needle.is_empty() || data.len() < needle.len() {
+        return false;
+    }
+    // memchr-anchored case-insensitive search: SIMD-skip to candidate
+    // first-byte positions, then verify the tail with a single
+    // `eq_ignore_ascii_case`. Compared to a naive O(N·M) window scan
+    // this is O(N/skip) for the SIMD phase plus O(M) per candidate,
+    // and the needles here are short (≤24 bytes) so candidates are
+    // rare in typical email text.
+    let first = needle[0];
+    let n = needle.len();
+    let mut cursor = 0;
+    while cursor + n <= data.len() {
+        let hay = &data[cursor..];
+        let off = if first.is_ascii_alphabetic() {
+            memchr::memchr2(first.to_ascii_lowercase(), first.to_ascii_uppercase(), hay)
+        } else {
+            memchr::memchr(first, hay)
+        };
+        match off {
+            None => return false,
+            Some(i) => {
+                if cursor + i + n > data.len() {
+                    return false;
+                }
+                if data[cursor + i..cursor + i + n].eq_ignore_ascii_case(needle) {
+                    return true;
+                }
+                cursor += i + 1;
+            }
         }
     }
     false
+}
+
+fn has_from_header(data: &[u8]) -> bool {
+    iter_lines(data).any(|line| line_starts_with_ignore_case(line, b"from:"))
 }
 
 fn has_subject_header(data: &[u8]) -> bool {
-    let s = String::from_utf8_lossy(data);
-    for line in s.lines() {
-        if line.to_lowercase().starts_with("subject:") {
-            let value = line[8..].trim();
-            if !value.is_empty() {
-                return true;
-            }
+    iter_lines(data).any(|line| {
+        if !line_starts_with_ignore_case(line, b"subject:") {
+            return false;
         }
-    }
-    false
+        // RFC 5322 §3.2.2: field values use only SP / HTAB whitespace.
+        line[8..].iter().any(|&b| !matches!(b, b' ' | b'\t'))
+    })
 }
 
 fn has_date_header(data: &[u8]) -> bool {
-    let s = String::from_utf8_lossy(data);
-    for line in s.lines() {
-        if line.to_lowercase().starts_with("date:") {
-            return true;
-        }
-    }
-    false
+    iter_lines(data).any(|line| line_starts_with_ignore_case(line, b"date:"))
 }
 
 fn has_message_id(data: &[u8]) -> bool {
-    let s = String::from_utf8_lossy(data);
-    for line in s.lines() {
-        if line.to_lowercase().starts_with("message-id:") {
-            return true;
-        }
-    }
-    false
+    iter_lines(data).any(|line| line_starts_with_ignore_case(line, b"message-id:"))
 }
 
 fn count_urls(data: &[u8]) -> usize {
-    let s = String::from_utf8_lossy(data);
-    s.matches("http://").count() + s.matches("https://").count()
+    // memchr's memmem does fast byte search; `[u8]::windows` would
+    // be O(N·M) and this routine runs on full email bodies.
+    memchr::memmem::find_iter(data, b"http://").count()
+        + memchr::memmem::find_iter(data, b"https://").count()
 }
 
 fn has_suspicious_attachment(data: &[u8]) -> bool {
-    let s = String::from_utf8_lossy(data);
-    let suspicious = [
-        ".exe", ".scr", ".bat", ".cmd", ".com", ".pif", ".vbs", ".js", ".wsf",
+    let suspicious: &[&[u8]] = &[
+        b".exe", b".scr", b".bat", b".cmd", b".com", b".pif", b".vbs", b".js", b".wsf",
     ];
-    for ext in &suspicious {
-        if s.contains(ext) {
-            // check if it's in a Content-Disposition or Content-Type
-            for line in s.lines() {
-                let lower = line.to_lowercase();
-                if (lower.contains("content-disposition") || lower.contains("content-type"))
-                    && lower.contains(ext)
-                {
-                    return true;
-                }
-            }
+    for line in iter_lines(data) {
+        let is_attachment_header = line_starts_with_ignore_case(line, b"content-disposition")
+            || line_starts_with_ignore_case(line, b"content-type");
+        if !is_attachment_header {
+            continue;
+        }
+        if suspicious.iter().any(|ext| contains_ignore_case(line, ext)) {
+            return true;
         }
     }
     false
 }
 
 fn is_html_only(data: &[u8]) -> bool {
-    let s = String::from_utf8_lossy(data);
-    let lower = s.to_lowercase();
-    lower.contains("content-type: text/html") && !lower.contains("content-type: text/plain")
+    contains_ignore_case(data, b"content-type: text/html")
+        && !contains_ignore_case(data, b"content-type: text/plain")
 }
 
 /// evaluate all content rules and return total score + matched rule names
