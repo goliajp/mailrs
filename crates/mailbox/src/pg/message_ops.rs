@@ -25,21 +25,37 @@ impl PgMailboxStore {
         in_reply_to: &str,
         thread_id: &str,
     ) -> Result<u32, sqlx::Error> {
-        // Autocommit, no explicit tx. The atomic UPDATE-RETURNING
-        // allocates uid + modseq under a row-level lock that lasts
-        // only for the UPDATE statement itself, not the surrounding
-        // INSERT. The prior tx-wrapped pattern held the mailbox row
-        // lock across the full `BEGIN → SELECT FOR UPDATE → INSERT
-        // → UPDATE → COMMIT` chain — ≈80 ms under WAL fsync — and
-        // serialised every concurrent delivery to the same mailbox.
+        // Autocommit, no explicit tx. Two non-trivial observations
+        // earned by benchmark, both counterintuitive:
         //
-        // Failure mode that this trades off: a crash between the
-        // UPDATE and the INSERT leaves uidnext incremented but no
-        // message row at that uid — a transient gap. RFC 9051 §2.3.1.1
-        // explicitly allows UID gaps, so this is semantically clean.
-        // (The pre-change code had the equivalent failure mode if a
-        // crash happened between `maildir.deliver()` writing the file
-        // and `index_message` committing the tx.)
+        // 1) The UPDATE-RETURNING acquires the mailbox row lock only
+        //    for the duration of the statement (~ms). The prior
+        //    tx-wrapped SELECT FOR UPDATE → INSERT → UPDATE chain
+        //    held the lock across the COMMIT fsync (~17 ms on NVMe),
+        //    serialising every concurrent delivery to the same mailbox.
+        //    Single-mailbox throughput before round 30: 16.6 msg/s.
+        //    After: 134.3 msg/s. (p99: 3.19 s → 69 ms.)
+        //
+        // 2) Apples-to-apples round 31 measurement, back-to-back on
+        //    the same dev cluster, sync_commit=on, identical schema
+        //    + workload: wrapping the two writes in an explicit
+        //    `BEGIN; UPDATE; INSERT; COMMIT` regresses 1.5× on
+        //    100-mailbox fanout (110 → 74 msg/s, p99 +68%) vs
+        //    autocommit. The single-mailbox case sits inside noise
+        //    at this PG state and cannot rank the two patterns, but
+        //    the concurrency-bound fanout=100 case settles it.
+        //    Counterintuitive vs the "1 tx = 1 fsync" intuition, but
+        //    reproducible: PG's group-commit (`commit_delay` /
+        //    `commit_siblings`) coalesces concurrent autocommit COMMITs
+        //    into shared fsyncs at the WAL layer; explicit per-tx
+        //    COMMITs each force their own fsync, defeating the batch.
+        //
+        // The semantic cost: a crash between the UPDATE and the INSERT
+        // leaves uidnext incremented with no message row at that uid.
+        // RFC 9051 §2.3.1.1 explicitly allows UID gaps. The
+        // pre-round-30 tx-wrapped code had the equivalent failure
+        // mode if a crash happened between maildir.deliver() writing
+        // the file and the tx committing.
         let (mailbox_id, uid, new_modseq) = sqlx::query_as::<_, (i64, i32, i64)>(
             "UPDATE mailboxes
              SET uidnext = uidnext + 1,
