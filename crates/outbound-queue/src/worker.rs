@@ -175,18 +175,19 @@ impl DeliveryWorker {
             tracing::warn!("recovered {recovered} stale inflight messages");
         }
 
-        let messages = queue::dequeue(&self.pool, now, self.config.batch_size).await?;
+        // Atomic SKIP LOCKED claim + inflight transition in one
+        // statement: collapses the previous SELECT + N per-row
+        // UPDATEs (N+1 roundtrips, N+1 WAL fsyncs) into a single
+        // roundtrip and single fsync per batch, and prevents
+        // duplicate delivery in multi-worker setups (each pending
+        // row goes to at most one worker).
+        let messages = queue::claim_for_delivery(&self.pool, now, self.config.batch_size).await?;
 
         if messages.is_empty() {
             return Ok(());
         }
 
-        tracing::info!("dequeued {} messages for delivery", messages.len());
-
-        // mark all as inflight
-        for msg in &messages {
-            let _ = queue::mark_inflight(&self.pool, msg.id, now).await;
-        }
+        tracing::info!("claimed {} messages for delivery", messages.len());
 
         // apply ARC sealing (for forwarded messages) + DKIM signing
         let messages: Vec<QueuedMessage> = if let Some(ref dkim) = self.dkim {

@@ -36,7 +36,7 @@ mailrs-imap-codec = "1"
 mailrs-imap-format = "1"
 mailrs-attachment-extract = "1"
 mailrs-sieve = "1"
-mailrs-outbound-queue = { path = "../outbound-queue", version = "1.2" }
+mailrs-outbound-queue = { path = "../outbound-queue", version = "1.3" }
 mailrs-imap-proto = "1"
 mailrs-ical = { path = "../ical", version = "2" }
 mailrs-intelligence = "1"
