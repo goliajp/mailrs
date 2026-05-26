@@ -138,6 +138,48 @@ finding (autocommit > tx) survive in every re-measurement and are the
 load-bearing claims; the specific msg/s numbers should be treated as
 "observed once, easily affected by what else lives on the PG host".
 
+#### v5 phase 0-4 ceilings (R39 → R51, 2026-05-26)
+
+The v5 wave pushes each layer separately:
+
+| Round | Layer | Change | Measured impact |
+|---|---|---|---|
+| R39 | PG | re-measure post R30-R38 baseline | 169 / 220 / 238 msg/s (fanout 1 / 10 / 100); p99 48 ms (single mailbox) |
+| R43 | PG | `index_messages_batch` atomic K-msg INSERT (mailbox 1.1, `BASELINE_BATCH_SIZE` knob added) | b=4: fanout=1 235 (+39%), fanout=100 258 (+8%). b≥16 deadlocks on multi-mailbox (lock-order). Per-mailbox buffering required for prod wire-up. |
+| R44 | PG | tried single-statement CTE; **negative** finding | -6% on fanout=100, PG CTE materialization > 1-RTT save. Reverted. |
+| R47 | Disk | maildir `sync_all` → `sync_data` (fdatasync) | -1 journal write per delivery on Linux; macOS no-op |
+| R48 | Disk | delivery-executor: `std::thread::scope` per-path parallel flush | Multi-recipient bursts: N×fsync no longer serial |
+| R50 | Outbound | DKIM sign + ARC seal `buffer_unordered(8)` | Sequential signing → 8-way parallel; CPU-bound RSA on blocking pool |
+| R51 | DNS | hickory cache 32 → 4096 | SPF/DKIM/DMARC repeats stay in cache |
+
+**Cumulative since R29 baseline (single dev cluster, same hardware):**
+
+| Path | R29 | R39 (v5 phase 0) | Cumulative |
+|---|---:|---:|---|
+| fanout=1, 4w (msg/s) | 16.6 | **169** | **10.2×** |
+| fanout=10, 4w (msg/s) | 35.0 | **220** | **6.3×** |
+| fanout=100, 8w (msg/s) | 50.3 | **238** | **4.7×** |
+| fanout=1 p99 | 3.2 s | **48 ms** | **−98.5%** |
+| fanout=100 p99 | 2.1 s | **60 ms** | **−97.1%** |
+
+R43 batch API adds another +30-40% on top when callers can buffer
+(b=4 across mailboxes), but production wire-up requires a
+per-mailbox accumulator — not yet built (R52 candidate).
+
+#### Negative findings recorded so future ops don't re-litigate
+
+* **CTE INSERT (R44)** regresses 6% on fanout=100 vs the 2-stmt form
+  because PG materialises CTE results between UPDATE and INSERT.
+* **Explicit BEGIN/COMMIT around the two writes (R31)** regresses
+  1.5× on fanout=100 — PG's group-commit can only batch
+  *autocommit* COMMITs, not explicit tx ones.
+* **`mail-auth` `default-features = false, features = ["ring"]`** to
+  eliminate aws-lc-sys was tried and reverted: aws-lc-sys is still
+  pulled by `instant-acme` / `jsonwebtoken` / `rcgen`, so the swap
+  links BOTH crypto libs and INCREASES binary size. Eliminating
+  aws-lc-sys requires switching all four upstream consumers; not
+  in scope here.
+
 Reproduce:
 ```bash
 docker exec dev-postgres psql -U postgres -c "CREATE DATABASE mailrs OWNER mailrs"
