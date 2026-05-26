@@ -9,6 +9,16 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# By default the server builds without the headless-Chrome
+# render-preview backend — saves ~1 MiB of binary (chromiumoxide +
+# chromiumoxide_cdp). Enable with `--features render-preview` (or via
+# release.sh, which passes it) when you need the
+# /api/mail/render-preview endpoint. The feature is purely additive;
+# disabling it just turns the RPC into a "feature not enabled" error.
+default = []
+render-preview = ["dep:chromiumoxide"]
+
 [dependencies]
 mailrs-smtp-proto = "1"
 mailrs-maildir = { path = "../storage-maildir", version = "1.2" }
@@ -104,7 +114,7 @@ uuid = { version = "1.23.1", features = ["v4"] }
 totp-rs = { version = "5.7.1", features = ["otpauth"] }
 data-encoding = "2.11.0"
 ldap3 = { version = "0.12.1", default-features = false, features = ["tls-rustls-ring"] }
-chromiumoxide = { version = "0.9", default-features = false }
+chromiumoxide = { version = "0.9", default-features = false, optional = true }
 jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 rsa = { version = "0.9", features = ["pem"] }
 

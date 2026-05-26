@@ -3,18 +3,32 @@
 //! connects to a headless Chrome instance via CDP (Chrome DevTools Protocol)
 //! to render HTML emails and capture screenshots at different viewport sizes.
 //! used to preview how emails will look in different clients.
+//!
+//! Gated by the `render-preview` cargo feature (off by default — saves
+//! ~1 MiB of binary by dropping chromiumoxide + its CDP types). When
+//! disabled, `RenderPreviewClient::render` returns a feature-not-built
+//! error so the JSON API contract stays the same.
+
+#![cfg_attr(not(feature = "render-preview"), allow(dead_code))]
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
+#[cfg(feature = "render-preview")]
 use chromiumoxide::Browser;
+#[cfg(feature = "render-preview")]
 use chromiumoxide::cdp::browser_protocol::emulation::SetDeviceMetricsOverrideParams;
+#[cfg(feature = "render-preview")]
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
+#[cfg(feature = "render-preview")]
 use chromiumoxide::page::ScreenshotParams;
+#[cfg(feature = "render-preview")]
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::sync::{Mutex, Semaphore};
+#[cfg(feature = "render-preview")]
+use tokio::sync::Mutex;
+use tokio::sync::Semaphore;
 
 const RENDER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 const CACHE_DIR: &str = "/tmp/mailrs-render-cache";
@@ -88,8 +102,11 @@ pub fn find_preset(name: &str) -> Option<ViewportPreset> {
 }
 
 pub struct RenderPreviewClient {
+    #[allow(dead_code)] // unused when render-preview feature is off
     cdp_url: String,
+    #[cfg(feature = "render-preview")]
     browser: Mutex<Option<Arc<Browser>>>,
+    #[allow(dead_code)] // unused when render-preview feature is off
     semaphore: Arc<Semaphore>,
     cache_dir: PathBuf,
 }
@@ -100,6 +117,7 @@ impl RenderPreviewClient {
         let _ = std::fs::create_dir_all(&cache_dir);
         Self {
             cdp_url,
+            #[cfg(feature = "render-preview")]
             browser: Mutex::new(None),
             semaphore: Arc::new(Semaphore::new(max_concurrent)),
             cache_dir,
@@ -107,6 +125,7 @@ impl RenderPreviewClient {
     }
 
     /// resolve the full WebSocket debugger URL from the CDP base URL
+    #[cfg(feature = "render-preview")]
     async fn resolve_ws_url(&self) -> Result<String, String> {
         let host = self
             .cdp_url
@@ -154,6 +173,7 @@ impl RenderPreviewClient {
         Ok(fixed)
     }
 
+    #[cfg(feature = "render-preview")]
     async fn get_browser(&self) -> Result<Arc<Browser>, String> {
         let mut guard = self.browser.lock().await;
         if let Some(ref browser) = *guard {
@@ -179,6 +199,7 @@ impl RenderPreviewClient {
     }
 
     /// render a single preset and return cached file path
+    #[cfg(feature = "render-preview")]
     async fn render_single(
         &self,
         html: &str,
@@ -259,6 +280,7 @@ impl RenderPreviewClient {
     }
 
     /// render html with multiple presets
+    #[cfg(feature = "render-preview")]
     pub async fn render(
         &self,
         html: &str,
@@ -278,6 +300,20 @@ impl RenderPreviewClient {
             results.push(self.render_single(html, preset).await);
         }
         results
+    }
+
+    /// Stub render() when the `render-preview` feature is disabled: returns
+    /// a single "feature disabled" error result so the JSON API contract
+    /// stays the same (caller gets `Vec<Result<_, String>>`).
+    #[cfg(not(feature = "render-preview"))]
+    pub async fn render(
+        &self,
+        _html: &str,
+        _preset_names: &[String],
+    ) -> Vec<Result<RenderResult, String>> {
+        vec![Err(
+            "render-preview feature is not compiled into this build".to_string(),
+        )]
     }
 
     /// serve a cached screenshot file
