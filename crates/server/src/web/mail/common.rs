@@ -154,6 +154,27 @@ pub(crate) async fn deliver_message_ex(
     resolved_recipients.sort_unstable();
     resolved_recipients.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
 
+    // Pre-compute subject + snippet once so the NewMessage events we
+    // emit below carry the same payload shape as the inbound-SMTP
+    // path (smtp_session/events/data). Without these events, the
+    // freshly-sent message was invisible until a manual list/thread
+    // fetch — sometimes minutes — because no WS / JMAP push fired.
+    let send_subject = crate::message_util::decode_header(
+        &crate::message_util::extract_header_from_raw(raw, "Subject"),
+    );
+    let send_snippet: String = {
+        let (text, _, _) = crate::message_util::parse_message(raw);
+        text.unwrap_or_default().chars().take(200).collect()
+    };
+    let send_from_display = {
+        let from_header = crate::message_util::extract_header_from_raw(raw, "From");
+        if from_header.is_empty() {
+            from.to_string()
+        } else {
+            crate::message_util::decode_header(&from_header)
+        }
+    };
+
     for rcpt in &resolved_recipients {
         let domain = rcpt.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
         let is_local = local_domains
@@ -168,12 +189,31 @@ pub(crate) async fn deliver_message_ex(
                     .await
                 {
                     errors.push(format!("{rcpt}: {e}"));
-                } else if let Some(ref vk) = state.valkey {
-                    // Bust the recipient's conversation caches so the
-                    // newly-delivered local message shows up on their
-                    // next thread/list fetch — without this, the cached
-                    // thread list silently misses the message until TTL.
-                    crate::conversation_cache::bust_user(&vk.clone(), rcpt).await;
+                } else {
+                    if let Some(ref vk) = state.valkey {
+                        // Bust the recipient's conversation caches so the
+                        // newly-delivered local message shows up on their
+                        // next thread/list fetch — without this, the cached
+                        // thread list silently misses the message until TTL.
+                        crate::conversation_cache::bust_user(&vk.clone(), rcpt).await;
+                    }
+                    // Fire the same NewMessage event the SMTP inbound
+                    // pipeline emits, so the recipient's IMAP IDLE / WS /
+                    // JMAP-push subscribers all see the new mail right
+                    // away instead of waiting for a manual refresh. Empty
+                    // thread_id is acceptable here — the frontend uses
+                    // the event as a "refresh" trigger; thread_id is only
+                    // used to invalidate the open-thread cache when it
+                    // matches, and we don't have it cheaply at this
+                    // point. Per-message `bust_user` above covers the
+                    // wider cache.
+                    state.event_bus.emit(crate::event_bus::SmtpEvent::NewMessage {
+                        user: rcpt.clone(),
+                        thread_id: String::new(),
+                        sender: send_from_display.clone(),
+                        subject: send_subject.clone(),
+                        snippet: send_snippet.clone(),
+                    });
                 }
             }
         } else if let Some(ref pool) = state.outbound_queue {
@@ -214,7 +254,7 @@ pub(crate) async fn deliver_message_ex(
     // save copy to Sent folder
     if let Some(ref mb_store) = state.mailbox_store {
         let _ = mb_store.ensure_default_mailboxes(from).await;
-        let _ = mb_store
+        let sent_ok = mb_store
             .append_message(
                 from,
                 "Sent",
@@ -223,7 +263,8 @@ pub(crate) async fn deliver_message_ex(
                 mailrs_mailbox::FLAG_SEEN,
                 ts,
             )
-            .await;
+            .await
+            .is_ok();
         // Bust the sender's conversation caches so the newly-Sent
         // message shows up in the thread view on the next fetch.
         // Without this, multi-turn conversation replies appeared to
@@ -235,6 +276,23 @@ pub(crate) async fn deliver_message_ex(
         // a comparatively rare operation.
         if let Some(ref vk) = state.valkey {
             crate::conversation_cache::bust_user(&vk.clone(), from).await;
+        }
+        // And the missing other half: fire NewMessage on the bus so
+        // the sender's own IMAP IDLE / WS / JMAP push subscribers
+        // refresh their list right away. The previous code paths only
+        // busted Valkey, which the frontend only consults on the next
+        // explicit fetch — so a sent message sat invisible until the
+        // user manually refreshed (the symptom: "Sent shows up after a
+        // few minutes"). Emit the same shape the SMTP inbound pipeline
+        // uses (`smtp_session/events/data/mod.rs`).
+        if sent_ok {
+            state.event_bus.emit(crate::event_bus::SmtpEvent::NewMessage {
+                user: from.to_string(),
+                thread_id: String::new(),
+                sender: send_from_display.clone(),
+                subject: send_subject.clone(),
+                snippet: send_snippet.clone(),
+            });
         }
     }
 
