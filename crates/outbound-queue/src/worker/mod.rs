@@ -11,9 +11,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use hickory_resolver::TokioResolver;
+use mailrs_dkim::HickoryDkimResolver;
 use sqlx::PgPool;
-
-use mail_auth::MessageAuthenticator;
 
 use crate::dkim_sign::{self, DkimSignConfig};
 use crate::queue::{self, QueuedMessage};
@@ -70,7 +69,10 @@ pub struct DeliveryWorker {
     resolver: TokioResolver,
     hostname: String,
     dkim: Option<DkimSignConfig>,
-    authenticator: Option<MessageAuthenticator>,
+    /// DKIM/ARC verify resolver — reuses the same hickory binding as
+    /// `resolver`, wrapped in the shape `mailrs-dkim` / `mailrs-arc`
+    /// expect. Used by ARC sealing for the verify-then-seal flow.
+    dkim_resolver: Arc<HickoryDkimResolver>,
     event_sender: Option<DeliveryEventSender>,
     valkey_url: Option<String>,
 }
@@ -83,10 +85,7 @@ impl DeliveryWorker {
         resolver: TokioResolver,
         hostname: String,
     ) -> Self {
-        // create authenticator for ARC sealing (non-fatal if fails)
-        let authenticator = MessageAuthenticator::new_system_conf()
-            .map_err(|e| tracing::warn!("failed to create authenticator for ARC: {e}"))
-            .ok();
+        let dkim_resolver = Arc::new(HickoryDkimResolver::new(resolver.clone()));
 
         Self {
             config,
@@ -94,7 +93,7 @@ impl DeliveryWorker {
             resolver,
             hostname,
             dkim: None,
-            authenticator,
+            dkim_resolver,
             event_sender: None,
             valkey_url: None,
         }
@@ -222,17 +221,20 @@ impl DeliveryWorker {
         let messages: Vec<QueuedMessage> = if let Some(ref dkim) = self.dkim {
             use futures_util::stream::{self, StreamExt};
             let dkim = dkim.clone();
-            let authenticator = self.authenticator.clone();
+            let dkim_resolver = self.dkim_resolver.clone();
             stream::iter(messages)
                 .map(|mut msg| {
                     let dkim = dkim.clone();
-                    let authenticator = authenticator.clone();
+                    let dkim_resolver = dkim_resolver.clone();
                     async move {
                         // ARC seal forwarded messages before DKIM signing.
-                        if msg.is_forwarded
-                            && let Some(ref auth) = authenticator
-                        {
-                            match dkim_sign::arc_seal_message(&dkim, auth, &msg.message_data).await
+                        if msg.is_forwarded {
+                            match dkim_sign::arc_seal_message(
+                                &dkim,
+                                dkim_resolver.as_ref(),
+                                &msg.message_data,
+                            )
+                            .await
                             {
                                 Ok(sealed) => msg.message_data = sealed,
                                 Err(e) => {
