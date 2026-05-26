@@ -165,7 +165,8 @@ pub(crate) async fn audit_get_thread_messages(
             &msg.user_address
         };
         let raw =
-            message_util::read_message_raw(&state.maildir_root, maildir_user, &msg.maildir_id);
+            message_util::read_message_raw(&state.maildir_root, maildir_user, &msg.maildir_id)
+                .await;
         let parsed = raw
             .as_deref()
             .map(message_util::parse_message)
@@ -334,6 +335,7 @@ pub(crate) async fn audit_get_raw_message(
             let maildir_user = &q.target_user;
             if let Some(data) =
                 message_util::read_message_raw(&state.maildir_root, maildir_user, &msg.maildir_id)
+                    .await
             {
                 // audit log
                 if let Some(ref ds) = state.domain_store {

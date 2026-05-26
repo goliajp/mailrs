@@ -88,6 +88,7 @@ async fn process_message(
     user_address: &str,
 ) -> Result<(), String> {
     let raw = message_util::read_message_raw(maildir_root, user_address, maildir_id)
+        .await
         .ok_or("raw message not found")?;
 
     let parsed = mailrs_mime::parse(&raw);

@@ -249,7 +249,7 @@ async fn do_analyze(
     subject_raw: &str,
     model_version: &str,
 ) -> bool {
-    let raw = match message_util::read_message_raw(maildir_root, user, maildir_id) {
+    let raw = match message_util::read_message_raw(maildir_root, user, maildir_id).await {
         Some(r) => r,
         None => return false,
     };

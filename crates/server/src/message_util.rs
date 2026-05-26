@@ -13,24 +13,35 @@ pub(crate) struct AttachmentInfo {
     pub size: u32,
 }
 
-pub(crate) fn read_message_raw(
+pub(crate) async fn read_message_raw(
     maildir_root: &str,
     user: &str,
     maildir_id: &str,
 ) -> Option<Vec<u8>> {
     let (local, domain) = user.split_once('@')?;
-    let path = format!("{maildir_root}/{domain}/{local}");
-    let md = mailrs_maildir::Maildir::open(&path);
+    let base = format!("{maildir_root}/{domain}/{local}");
 
-    let find_in = |entries: Vec<mailrs_maildir::Entry>| -> Option<Vec<u8>> {
-        entries
-            .into_iter()
-            .find(|e| e.id.to_string() == maildir_id)
-            .and_then(|e| std::fs::read(&e.path).ok())
-    };
-
-    find_in(md.scan_cur().unwrap_or_default())
-        .or_else(|| find_in(md.scan_new().unwrap_or_default()))
+    // scan_cur / scan_new are blocking readdir; run them on the
+    // blocking pool so the tokio runtime keeps making progress.
+    let base_clone = base.clone();
+    let maildir_id_owned = maildir_id.to_string();
+    let path = tokio::task::spawn_blocking(move || -> Option<std::path::PathBuf> {
+        let md = mailrs_maildir::Maildir::open(&base_clone);
+        for entries in [md.scan_cur(), md.scan_new()] {
+            if let Ok(entries) = entries
+                && let Some(entry) = entries
+                    .into_iter()
+                    .find(|e| e.id.to_string() == maildir_id_owned)
+            {
+                return Some(entry.path);
+            }
+        }
+        None
+    })
+    .await
+    .ok()
+    .flatten()?;
+    tokio::fs::read(&path).await.ok()
 }
 
 /// extract a header value from raw RFC 5322 bytes (handles folded headers)

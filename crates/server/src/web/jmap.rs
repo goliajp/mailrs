@@ -159,6 +159,7 @@ impl MailStore for JmapAdapter {
             &message.user_address,
             &message.blob_id,
         )
+        .await
     }
 
     fn parse_message(&self, raw: &[u8]) -> ParsedBody {
