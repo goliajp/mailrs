@@ -73,21 +73,25 @@ impl PgMailboxStore {
         //    + workload: wrapping the two writes in an explicit
         //    `BEGIN; UPDATE; INSERT; COMMIT` regresses 1.5× on
         //    100-mailbox fanout (110 → 74 msg/s, p99 +68%) vs
-        //    autocommit. The single-mailbox case sits inside noise
-        //    at this PG state and cannot rank the two patterns, but
-        //    the concurrency-bound fanout=100 case settles it.
-        //    Counterintuitive vs the "1 tx = 1 fsync" intuition, but
-        //    reproducible: PG's group-commit (`commit_delay` /
-        //    `commit_siblings`) coalesces concurrent autocommit COMMITs
-        //    into shared fsyncs at the WAL layer; explicit per-tx
-        //    COMMITs each force their own fsync, defeating the batch.
+        //    autocommit. PG's group-commit (`commit_delay` /
+        //    `commit_siblings`) coalesces concurrent autocommit
+        //    COMMITs into shared fsyncs; explicit per-tx COMMITs
+        //    each force their own fsync, defeating the batch.
         //
-        // The semantic cost: a crash between the UPDATE and the INSERT
-        // leaves uidnext incremented with no message row at that uid.
-        // RFC 9051 §2.3.1.1 explicitly allows UID gaps. The
-        // pre-round-30 tx-wrapped code had the equivalent failure
-        // mode if a crash happened between maildir.deliver() writing
-        // the file and the tx committing.
+        // 3) R44 tried collapsing the two statements into one
+        //    `WITH … INSERT … SELECT FROM reserved` CTE expecting a
+        //    -1 RTT win. Measured: fanout=1 flat, fanout=10 +3%,
+        //    fanout=100 −6% vs the 2-statement form. PG materialises
+        //    CTE results between the UPDATE and INSERT and that
+        //    overhead outweighs the saved roundtrip. Two-statement
+        //    autocommit kept.
+        //
+        // The semantic cost of the 2-statement form: a crash between
+        // the UPDATE and the INSERT leaves uidnext incremented with
+        // no message row at that uid. RFC 9051 §2.3.1.1 explicitly
+        // allows UID gaps. The pre-round-30 tx-wrapped code had the
+        // equivalent failure mode if a crash happened between
+        // maildir.deliver() writing the file and the tx committing.
         let (mailbox_id, uid, new_modseq) = sqlx::query_as::<_, (i64, i32, i64)>(
             "UPDATE mailboxes
              SET uidnext = uidnext + 1,
