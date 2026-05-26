@@ -169,15 +169,17 @@ fn parse_property_line(line: &str) -> Result<RawProperty, IcalError> {
         )));
     }
 
-    let mut params = Vec::new();
+    let mut params: Vec<(compact_str::CompactString, compact_str::CompactString)> = Vec::new();
     for raw in iter {
         if let Some(eq) = raw.find('=') {
-            let pname = raw[..eq].to_string();
+            let pname = compact_str::CompactString::new(&raw[..eq]);
             let pval = unquote_param(&raw[eq + 1..]);
             params.push((pname, pval));
         } else {
-            // Bare flag-style parameter (uncommon but allowed in some impls).
-            params.push((raw.to_string(), String::new()));
+            params.push((
+                compact_str::CompactString::new(raw),
+                compact_str::CompactString::default(),
+            ));
         }
     }
 
@@ -212,11 +214,11 @@ fn split_unquoted_semicolons(header: &str) -> Vec<&str> {
 /// Strip surrounding double quotes from a parameter value if present.
 ///
 /// RFC 5545 §3.2 keeps quoting strictly outermost (no escapes inside quotes).
-fn unquote_param(s: &str) -> String {
+fn unquote_param(s: &str) -> compact_str::CompactString {
     if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
-        s[1..s.len() - 1].to_string()
+        compact_str::CompactString::new(&s[1..s.len() - 1])
     } else {
-        s.to_string()
+        compact_str::CompactString::new(s)
     }
 }
 
