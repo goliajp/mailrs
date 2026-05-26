@@ -350,7 +350,10 @@ where
                                     &full_message[..full_message.len().min(4096)],
                                 )
                                 .to_string();
-                                let full_msg_bg = full_message.clone();
+                                // Reuse the loop-level `shared_body` Arc instead of
+                                // cloning the full message body again — refcount bump,
+                                // not a fresh Vec<u8> copy.
+                                let full_msg_bg = Arc::clone(&shared_body);
                                 let resolver_bg = ctx.resolver.clone();
                                 tokio::spawn(async move {
                                     post_delivery_process(
