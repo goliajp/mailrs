@@ -154,6 +154,30 @@ pub async fn recover_stale_inflight(pool: &PgPool, now: i64) -> Result<u64, sqlx
     Ok(result.rows_affected())
 }
 
+/// Count of rows in `status = 'pending'` (any `next_retry`). Used by
+/// the delivery worker to publish a `mailrs_outbound_queue_depth` gauge
+/// per poll tick. O(rows) but cheap with the `status` index.
+#[cfg(feature = "pg")]
+pub async fn count_pending(pool: &PgPool) -> Result<i64, sqlx::Error> {
+    let (n,): (i64,) =
+        sqlx::query_as("SELECT count(*) FROM outbound_queue WHERE status = 'pending'")
+            .fetch_one(pool)
+            .await?;
+    Ok(n)
+}
+
+/// Count of rows in `status = 'inflight'` (currently being delivered
+/// by a worker). Used alongside `count_pending` so dashboards can show
+/// both "queued" and "in-flight" depth.
+#[cfg(feature = "pg")]
+pub async fn count_inflight(pool: &PgPool) -> Result<i64, sqlx::Error> {
+    let (n,): (i64,) =
+        sqlx::query_as("SELECT count(*) FROM outbound_queue WHERE status = 'inflight'")
+            .fetch_one(pool)
+            .await?;
+    Ok(n)
+}
+
 /// fetch pending messages ready for delivery (legacy, non-atomic).
 ///
 /// Returns rows in `status = 'pending'` without locking or marking

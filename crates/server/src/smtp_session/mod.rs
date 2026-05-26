@@ -77,6 +77,7 @@ pub async fn handle_plain_connection(
     addr: SocketAddr,
     ctx: Arc<ConnectionContext>,
 ) {
+    metrics::counter!("mailrs_smtp_connections_total", "tls" => "plain").increment(1);
     let conn_id = next_connection_id();
     ctx.web_state.on_connect();
     ctx.event_bus.emit(SmtpEvent::ConnectionOpened {
@@ -234,6 +235,7 @@ pub async fn handle_tls_connection(
     addr: SocketAddr,
     ctx: Arc<ConnectionContext>,
 ) {
+    metrics::counter!("mailrs_smtp_connections_total", "tls" => "implicit").increment(1);
     let conn_id = next_connection_id();
     ctx.web_state.on_connect();
     ctx.event_bus.emit(SmtpEvent::ConnectionOpened {
