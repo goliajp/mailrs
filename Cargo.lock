@@ -3384,7 +3384,6 @@ dependencies = [
  "instant-acme",
  "jsonwebtoken",
  "ldap3",
- "mail-parser",
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-arc",
  "mailrs-arf 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
