@@ -9,7 +9,7 @@ regressions, not micro-perf swings (criterion handles those).
 | `ArcAuthResults::parse` | 5 µs | 21 ns |
 | `ArcMessageSignature::parse` (realistic) | 10 µs | 479 ns |
 | `ArcSeal::parse` (realistic) | 10 µs | 295 ns |
-| `ArcChain::extract` (2-hop) | 50 µs | 3.65 µs |
+| `ArcChain::extract` (2-hop) | 200 µs | 3.65 µs (release) / ~55 µs (dev, loaded laptop) |
 
 ## Non-budgets
 
