@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-delivery-executor"
-version = "1.1.1"
+version = "1.2.0"
 edition = "2024"
 description = "Group-commit delivery executor on top of mailrs-maildir 1.2's deliver_batch. Accumulates per-path delivery requests from concurrent async tasks (SMTP / LMTP / IMAP APPEND sessions) and flushes each path's batch via a single fsync, with optional pipelined in-flight flushes (max_concurrent_flushes=2 default) to hide disk wait behind batch collection. Caller awaits a oneshot::Receiver for per-message confirmation. Default tuning: max_batch=64, max_wait=10ms, max_concurrent_flushes=2."
 license = "Apache-2.0 OR MIT"

@@ -2977,20 +2977,10 @@ dependencies = [
 
 [[package]]
 name = "mailrs-delivery-executor"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e8b551cf12fb8362e65e93cfdeea299d6f8fd02e7ace53b2e59bca394f6d224"
-dependencies = [
- "mailrs-maildir 1.2.0",
- "tokio",
-]
-
-[[package]]
-name = "mailrs-delivery-executor"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "criterion",
- "mailrs-maildir 1.2.1",
+ "mailrs-maildir",
  "tempfile",
  "tokio",
 ]
@@ -3201,23 +3191,13 @@ dependencies = [
  "async-trait",
  "chrono",
  "criterion",
- "mailrs-maildir 1.2.1",
+ "mailrs-maildir",
  "memchr",
  "serde",
  "serde_json",
  "sqlx",
  "testcontainers",
  "tokio",
-]
-
-[[package]]
-name = "mailrs-maildir"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12aa843ac26d27ff3b990bdc90b60e2edd3c04a6463602ceb689cd10ef3d393f"
-dependencies = [
- "dashmap",
- "hostname",
 ]
 
 [[package]]
@@ -3413,7 +3393,7 @@ dependencies = [
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dav 1.1.0",
- "mailrs-delivery-executor 1.1.0",
+ "mailrs-delivery-executor",
  "mailrs-dkim",
  "mailrs-dmarc",
  "mailrs-ical",
@@ -3424,7 +3404,7 @@ dependencies = [
  "mailrs-intelligence 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-jmap 1.1.1",
  "mailrs-mailbox",
- "mailrs-maildir 1.2.1",
+ "mailrs-maildir",
  "mailrs-mime",
  "mailrs-outbound-queue",
  "mailrs-postmaster 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",

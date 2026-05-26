@@ -212,29 +212,52 @@ fn flush_batch(reqs: Vec<Request>) {
         by_path.entry(r.path.clone()).or_default().push(r);
     }
 
-    for (path, mut group) in by_path {
-        let bodies: Vec<&[u8]> = group.iter().map(|r| r.body.as_slice()).collect();
-        let result = match Maildir::create_cached(&path) {
-            Ok(md) => md.deliver_batch(&bodies),
-            Err(e) => Err(e),
-        };
-        match result {
-            Ok(ids) => {
-                // Per-message reply — preserve positional mapping.
-                for (req, id) in group.drain(..).zip(ids) {
-                    let _ = req.reply.send(Ok(id));
-                }
+    // Fast path: a single destination path needs no fan-out. Avoids
+    // the thread::scope overhead for the common single-recipient-
+    // burst case (e.g. a chat-style mailing list where every message
+    // goes to one inbox).
+    if by_path.len() == 1 {
+        let (path, group) = by_path.into_iter().next().unwrap();
+        flush_one_path(path, group);
+        return;
+    }
+
+    // Multi-path: fan out one OS thread per path so independent
+    // mailboxes' fsyncs run in parallel instead of serially. Each
+    // worker uses `std::thread::scope` so we don't need to extend
+    // lifetimes — the scope blocks until all spawned threads finish,
+    // ensuring `reqs` lifetimes are honoured. Concurrency is bounded
+    // by the number of distinct paths in this batch, which the
+    // outer driver already throttles via `max_concurrent_flushes`.
+    std::thread::scope(|s| {
+        for (path, group) in by_path {
+            s.spawn(move || flush_one_path(path, group));
+        }
+    });
+}
+
+fn flush_one_path(path: String, mut group: Vec<Request>) {
+    let bodies: Vec<&[u8]> = group.iter().map(|r| r.body.as_slice()).collect();
+    let result = match Maildir::create_cached(&path) {
+        Ok(md) => md.deliver_batch(&bodies),
+        Err(e) => Err(e),
+    };
+    match result {
+        Ok(ids) => {
+            // Per-message reply — preserve positional mapping.
+            for (req, id) in group.drain(..).zip(ids) {
+                let _ = req.reply.send(Ok(id));
             }
-            Err(e) => {
-                // Whole batch failed (e.g. disk full). Inform every
-                // caller — they'll see the same root error but each
-                // gets its own io::Error to surface upstream.
-                let msg = format!("{e}");
-                for req in group {
-                    let _ = req
-                        .reply
-                        .send(Err(io::Error::other(format!("batch delivery: {msg}"))));
-                }
+        }
+        Err(e) => {
+            // Whole batch failed (e.g. disk full). Inform every
+            // caller — they'll see the same root error but each
+            // gets its own io::Error to surface upstream.
+            let msg = format!("{e}");
+            for req in group {
+                let _ = req
+                    .reply
+                    .send(Err(io::Error::other(format!("batch delivery: {msg}"))));
             }
         }
     }
