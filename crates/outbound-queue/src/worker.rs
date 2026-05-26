@@ -189,27 +189,64 @@ impl DeliveryWorker {
 
         tracing::info!("claimed {} messages for delivery", messages.len());
 
-        // apply ARC sealing (for forwarded messages) + DKIM signing
+        // apply ARC sealing (for forwarded messages) + DKIM signing.
+        //
+        // Both steps are independent across messages. ARC sealing is
+        // async (awaits DNS lookups when reconstructing the
+        // authentication-results chain); DKIM signing is CPU-bound
+        // (RSA-SHA256 over the canonicalised message). Previously
+        // these ran one-after-another for the whole batch, paying
+        // ARC's DNS RTT × N + RSA-sign × N sequentially.
+        //
+        // Now: `buffer_unordered(8)` runs up to 8 messages' ARC+DKIM
+        // concurrently. DKIM sign goes through `spawn_blocking` to
+        // keep CPU work off the tokio reactor thread — multiple
+        // signs can land on different blocking-pool threads. The
+        // ordering of the returned batch is no longer guaranteed,
+        // which is fine because each `QueuedMessage` is independent
+        // and the downstream `group_by_domain` re-sorts anyway.
         let messages: Vec<QueuedMessage> = if let Some(ref dkim) = self.dkim {
-            let mut signed_msgs = Vec::with_capacity(messages.len());
-            for mut msg in messages {
-                // ARC seal forwarded messages before DKIM signing
-                if msg.is_forwarded
-                    && let Some(ref auth) = self.authenticator
-                {
-                    match dkim_sign::arc_seal_message(dkim, auth, &msg.message_data).await {
-                        Ok(sealed) => msg.message_data = sealed,
-                        Err(e) => tracing::warn!("ARC sealing failed for msg {}: {e}", msg.id),
+            use futures_util::stream::{self, StreamExt};
+            let dkim = dkim.clone();
+            let authenticator = self.authenticator.clone();
+            stream::iter(messages)
+                .map(|mut msg| {
+                    let dkim = dkim.clone();
+                    let authenticator = authenticator.clone();
+                    async move {
+                        // ARC seal forwarded messages before DKIM signing.
+                        if msg.is_forwarded
+                            && let Some(ref auth) = authenticator
+                        {
+                            match dkim_sign::arc_seal_message(&dkim, auth, &msg.message_data).await
+                            {
+                                Ok(sealed) => msg.message_data = sealed,
+                                Err(e) => {
+                                    tracing::warn!("ARC sealing failed for msg {}: {e}", msg.id)
+                                }
+                            }
+                        }
+                        // DKIM sign: RSA-SHA256 is CPU-bound; run on
+                        // the blocking pool so the reactor stays
+                        // responsive for the other in-flight signs.
+                        let data = std::mem::take(&mut msg.message_data);
+                        let dkim_for_sign = dkim.clone();
+                        match tokio::task::spawn_blocking(move || dkim_for_sign.sign(&data)).await {
+                            Ok(Ok(signed)) => msg.message_data = signed,
+                            Ok(Err(e)) => {
+                                tracing::warn!("DKIM signing failed for msg {}: {e}", msg.id)
+                            }
+                            Err(e) => tracing::warn!(
+                                "DKIM signing task join failed for msg {}: {e}",
+                                msg.id
+                            ),
+                        }
+                        msg
                     }
-                }
-                // DKIM sign
-                match dkim.sign(&msg.message_data) {
-                    Ok(signed) => msg.message_data = signed,
-                    Err(e) => tracing::warn!("DKIM signing failed for msg {}: {e}", msg.id),
-                }
-                signed_msgs.push(msg);
-            }
-            signed_msgs
+                })
+                .buffer_unordered(8)
+                .collect()
+                .await
         } else {
             messages
         };
