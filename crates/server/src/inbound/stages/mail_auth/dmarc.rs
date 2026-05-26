@@ -1,118 +1,55 @@
-//! DMARC: shadow check + production policy + recording.
+//! DMARC: policy TXT lookup + policy enforcement + aggregate recording.
 
+use hickory_resolver::TokioResolver;
+use hickory_resolver::proto::rr::RData;
+use mailrs_dmarc::{DmarcOutcome, DmarcPolicy as MailrsPolicy, PolicyAction};
 use mailrs_inbound::{DeliveryDecision, DmarcPolicy, ReceiveContext, StageOutcome};
 
 use crate::dmarc_report::{DmarcResultRecord, DmarcStore};
 
-use super::{MailAuthStage, from_domain};
+use super::MailAuthStage;
+
+/// Look up `_dmarc.<domain>` TXT records via the hickory resolver and
+/// parse the result as a [`MailrsPolicy`]. Returns `None` when no
+/// record exists or it doesn't parse — both behave like `p=none`.
+pub(super) async fn lookup_policy(
+    resolver: &TokioResolver,
+    from_domain: &str,
+) -> Option<MailrsPolicy> {
+    let q = format!("_dmarc.{from_domain}");
+    let lookup = resolver.txt_lookup(q).await.ok()?;
+    let txt: String = lookup
+        .answers()
+        .iter()
+        .filter_map(|r| match &r.data {
+            RData::TXT(t) => Some(t.to_string()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("");
+    MailrsPolicy::parse(&txt).ok()
+}
 
 impl MailAuthStage {
-    /// `DmarcInput` from the SPF / per-sig DKIM signals already
-    /// computed, evaluate via mailrs-dmarc, and log match/divergence
-    /// vs mail-auth's coarse DMARC verdict.
-    pub(super) async fn shadow_check_dmarc(
-        &self,
-        ctx: &ReceiveContext,
-        shadow_dkim_outputs: &[mailrs_dkim::SignatureOutput],
-        dmarc_pass: bool,
-        mail_from_domain: &str,
-    ) {
-        let Some(ref dmarc_resolver) = self.shadow_dmarc_resolver else {
-            return;
-        };
-        use hickory_resolver::proto::rr::RData;
-
-        let from_dom = mailrs_rfc5322::Message::new(&ctx.message)
-            .header_str("From")
-            .and_then(from_domain);
-        let Some(from_d) = from_dom else { return };
-
-        let q = format!("_dmarc.{from_d}");
-        let Ok(lookup) = dmarc_resolver.txt_lookup(q).await else {
-            // No _dmarc TXT — same as policy=none. Skip rather
-            // than emit a misleading divergence.
-            return;
-        };
-        let txt: String = lookup
-            .answers()
-            .iter()
-            .filter_map(|r| match &r.data {
-                RData::TXT(t) => Some(t.to_string()),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-            .join("");
-        let Ok(policy) = mailrs_dmarc::DmarcPolicy::parse(&txt) else {
-            // Unparseable policy — same skip rule.
-            return;
-        };
-
-        let spf_pass = ctx.auth_results.spf == "pass";
-        let spf_input = spf_pass.then(|| mailrs_dmarc::SpfResult {
-            domain: mail_from_domain.into(),
-            pass: true,
-        });
-        let dkim_input = shadow_dkim_outputs
-            .iter()
-            .filter_map(|o| {
-                let d = o.domain();
-                if d.is_empty() {
-                    None
-                } else {
-                    Some(mailrs_dmarc::DkimSignatureResult {
-                        d_domain: d.into(),
-                        pass: o.is_pass(),
-                    })
-                }
-            })
-            .collect::<Vec<_>>();
-        let input = mailrs_dmarc::DmarcInput {
-            from_domain: from_d.clone().into(),
-            policy_domain: from_d.clone().into(),
-            spf: spf_input,
-            dkim: dkim_input,
-        };
-        let outcome = mailrs_dmarc::evaluate(&policy, &input);
-        let shadow_coarse = if outcome.dmarc_pass { "pass" } else { "fail" };
-        let mail_auth_coarse = if dmarc_pass { "pass" } else { "fail" };
-        if shadow_coarse == mail_auth_coarse {
-            tracing::info!(
-                event = "dmarc_shadow_match",
-                dmarc = %mail_auth_coarse,
-                domain = %from_d,
-                "mailrs-dmarc matches mail-auth"
-            );
-        } else {
-            tracing::warn!(
-                event = "dmarc_shadow_divergence",
-                mail_auth = %mail_auth_coarse,
-                mailrs_dmarc = %shadow_coarse,
-                domain = %from_d,
-                sender = %ctx.sender,
-                "DMARC result divergence — mailrs-dmarc says different from mail-auth"
-            );
-        }
-    }
-
-    /// "pass"`; reject short-circuits with a 5.7.1 reject (and
-    /// records the result for aggregate reporting); quarantine /
-    /// none label the message and let it through. All non-reject
-    /// outcomes also record the result for aggregate reports.
+    /// Apply the DMARC policy from `outcome` to the receive context.
+    /// `pass` → label and continue; `reject` → short-circuit with 5.7.1
+    /// reject (and record the result); `quarantine` / `none` → label
+    /// and continue. All non-pass outcomes also record the result for
+    /// aggregate reporting.
     pub(super) async fn apply_dmarc_policy(
         &self,
         ctx: &mut ReceiveContext,
-        dmarc_output: &mail_auth::DmarcOutput,
-        dmarc_pass: bool,
+        outcome: &DmarcOutcome,
         mail_from_domain: &str,
     ) -> StageOutcome {
         let mut dmarc_quarantine = false;
 
-        if dmarc_pass {
+        if outcome.dmarc_pass {
             ctx.auth_results.dmarc = "pass".into();
             ctx.auth_results.dmarc_policy = DmarcPolicy::Pass;
         } else {
-            match dmarc_output.policy() {
-                mail_auth::dmarc::Policy::Reject => {
+            match outcome.disposition {
+                PolicyAction::Reject => {
                     ctx.auth_results.dmarc = "fail".into();
                     ctx.auth_results.dmarc_policy = DmarcPolicy::Reject;
 
@@ -124,25 +61,24 @@ impl MailAuthStage {
                         domain = mail_from_domain,
                         spf = %ctx.auth_results.spf,
                         dkim = %ctx.auth_results.dkim,
+                        reason = %outcome.reason,
                         "DMARC reject"
                     );
 
                     return StageOutcome::Decide(DeliveryDecision::Reject {
                         code: 550,
-                        message: format!("5.7.1 DMARC policy reject for domain {mail_from_domain}"),
+                        message: format!(
+                            "5.7.1 DMARC policy reject for domain {mail_from_domain}"
+                        ),
                     });
                 }
-                mail_auth::dmarc::Policy::Quarantine => {
+                PolicyAction::Quarantine => {
                     ctx.auth_results.dmarc = "fail".into();
                     ctx.auth_results.dmarc_policy = DmarcPolicy::Quarantine;
                     dmarc_quarantine = true;
                 }
-                mail_auth::dmarc::Policy::None => {
+                PolicyAction::None => {
                     ctx.auth_results.dmarc = "fail".into();
-                    ctx.auth_results.dmarc_policy = DmarcPolicy::None;
-                }
-                mail_auth::dmarc::Policy::Unspecified => {
-                    ctx.auth_results.dmarc = "none".into();
                     ctx.auth_results.dmarc_policy = DmarcPolicy::None;
                 }
             }
@@ -173,7 +109,7 @@ impl MailAuthStage {
         dmarc_result: &str,
         disposition: &str,
     ) {
-        let Some(store) = &self.dmarc_report_store else {
+        let Some(store) = self.report_store() else {
             return;
         };
         let _ = store

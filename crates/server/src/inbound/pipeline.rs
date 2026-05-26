@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use mail_auth::MessageAuthenticator;
-
 // Core types + RFC 8601 helpers come from the published mailrs-inbound crate.
 // Re-exported here so existing in-crate callers can keep using
 // `crate::inbound::pipeline::DeliveryDecision` etc.
@@ -10,6 +8,7 @@ pub use mailrs_inbound::{
     format_auth_results_header, make_delivery_decision,
 };
 
+use super::stages::mail_auth::MailAuthResolvers;
 use super::stages::{
     AiScoringStage, ClamavStage, ContentScanStage, GreylistStage, MailAuthStage, PtrStage,
 };
@@ -31,12 +30,8 @@ pub fn build_inbound_pipeline(
     greylist_db: Option<Arc<GreylistDb>>,
     greylist_config: GreylistConfig,
     resolver: Option<Arc<TokioResolver>>,
-    mail_authenticator: Option<Arc<MessageAuthenticator>>,
+    mail_auth_resolvers: Option<MailAuthResolvers>,
     dmarc_report_store: Option<Arc<DmarcReportStore>>,
-    shadow_spf_resolver: Option<Arc<mailrs_spf::HickoryResolver>>,
-    shadow_dkim_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
-    shadow_arc_resolver: Option<Arc<mailrs_dkim::HickoryDkimResolver>>,
-    shadow_dmarc_resolver: Option<Arc<TokioResolver>>,
     clamav_addr: Option<String>,
     llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     valkey: Option<redis::aio::ConnectionManager>,
@@ -50,21 +45,8 @@ pub fn build_inbound_pipeline(
     if let Some(r) = resolver {
         builder = builder.add(PtrStage::new(r));
     }
-    if let Some(auth) = mail_authenticator {
-        let mut stage = MailAuthStage::new(auth, dmarc_report_store);
-        if let Some(shadow) = shadow_spf_resolver {
-            stage = stage.with_shadow_spf(shadow);
-        }
-        if let Some(shadow) = shadow_dkim_resolver {
-            stage = stage.with_shadow_dkim(shadow);
-        }
-        if let Some(shadow) = shadow_arc_resolver {
-            stage = stage.with_shadow_arc(shadow);
-        }
-        if let Some(shadow) = shadow_dmarc_resolver {
-            stage = stage.with_shadow_dmarc(shadow);
-        }
-        builder = builder.add(stage);
+    if let Some(resolvers) = mail_auth_resolvers {
+        builder = builder.add(MailAuthStage::new(resolvers, dmarc_report_store));
     }
     if let Some(addr) = clamav_addr {
         builder = builder.add(ClamavStage::new(addr));
