@@ -1,9 +1,41 @@
-use sqlx::PgPool;
+use std::collections::HashMap;
+
+use sqlx::{PgPool, QueryBuilder};
 
 use crate::pg::PgMailboxStore;
 use crate::pg::helpers::{extract_header_value, row_to_message_meta};
 use crate::threading;
 use crate::types::MessageMeta;
+
+/// A single delivery's metadata as input to [`PgMailboxStore::index_messages_batch`].
+///
+/// Borrowed-only — the batch routine binds straight into the
+/// multi-row INSERT without taking ownership.
+#[derive(Debug, Clone)]
+pub struct IndexRecord<'a> {
+    /// `local@domain` recipient address. Used to look up the mailbox row.
+    pub user: &'a str,
+    /// Mailbox folder name (e.g. `"INBOX"`).
+    pub mailbox_name: &'a str,
+    /// Maildir filename identifier already returned by `Maildir::deliver`.
+    pub maildir_id: &'a str,
+    /// Decoded `From:` value (header-extracted by the caller).
+    pub sender: &'a str,
+    /// Decoded `To:` value.
+    pub recipients: &'a str,
+    /// Decoded `Subject:` value.
+    pub subject: &'a str,
+    /// Raw message byte length.
+    pub size: u32,
+    /// Unix timestamp (seconds) used as both `date_epoch` and `internal_date`.
+    pub now: i64,
+    /// RFC 5322 `Message-ID` (already canonicalised, no angle brackets).
+    pub message_id: &'a str,
+    /// RFC 5322 `In-Reply-To` first id (empty when absent).
+    pub in_reply_to: &'a str,
+    /// Thread id resolved by the caller via [`crate::threading::resolve_thread_id`].
+    pub thread_id: &'a str,
+}
 
 impl PgMailboxStore {
     /// index a new message: assigns UID, inserts metadata, returns UID
@@ -91,6 +123,108 @@ impl PgMailboxStore {
         .await?;
 
         Ok(uid as u32)
+    }
+
+    /// Batch-index up to N delivered messages in a single explicit
+    /// PG transaction. Designed for a DeliveryExecutor-style caller
+    /// that has already written the maildir files (and computed all
+    /// metadata) for the batch and now needs PG rows in one go.
+    ///
+    /// Wire shape:
+    ///   * One `UPDATE mailboxes … RETURNING base_uid, base_modseq`
+    ///     per unique `(user, mailbox_name)` in the batch, to
+    ///     reserve a contiguous range of uids in that mailbox.
+    ///   * One multi-row `INSERT INTO messages VALUES (...), (...)`
+    ///     for the entire batch.
+    ///   * One COMMIT.
+    ///
+    /// Net cost: K + 2 statements + 1 fsync for N deliveries spread
+    /// across K mailboxes. Compared to per-message `index_message`
+    /// (autocommit, 2N statements + group-commit-coalesced fsyncs),
+    /// this trades single-message latency for batch throughput —
+    /// per-tx fsync amortises across N rows even when the individual
+    /// rows go to different mailboxes.
+    ///
+    /// Returns the assigned uids in input order. The internal modseq
+    /// and uidnext bookkeeping mirrors per-message `index_message`
+    /// exactly (CONDSTORE semantics preserved).
+    ///
+    /// Empty input is a successful no-op.
+    pub async fn index_messages_batch(
+        &self,
+        records: &[IndexRecord<'_>],
+    ) -> Result<Vec<u32>, sqlx::Error> {
+        if records.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Group records by (user, mailbox) so we can reserve uids
+        // in one UPDATE per mailbox. Preserve per-record input
+        // order via the inner Vec<usize> of indices into `records`.
+        let mut by_mailbox: HashMap<(&str, &str), Vec<usize>> = HashMap::new();
+        for (i, r) in records.iter().enumerate() {
+            by_mailbox
+                .entry((r.user, r.mailbox_name))
+                .or_default()
+                .push(i);
+        }
+
+        let mut tx = self.pool.begin().await?;
+
+        // Reserve uids per mailbox; remember (mailbox_id, base_uid,
+        // base_modseq) and the per-record offset within the mailbox.
+        let mut mailbox_info: HashMap<(&str, &str), (i64, i32, i64)> = HashMap::new();
+        let mut per_record_uid: Vec<i32> = vec![0; records.len()];
+        let mut per_record_modseq: Vec<i64> = vec![0; records.len()];
+        let mut per_record_mb_id: Vec<i64> = vec![0; records.len()];
+
+        for ((user, mailbox_name), indices) in &by_mailbox {
+            let n = indices.len() as i32;
+            let (mailbox_id, base_uid, base_modseq): (i64, i32, i64) = sqlx::query_as(
+                "UPDATE mailboxes
+                 SET uidnext = uidnext + $1, highest_modseq = highest_modseq + $1
+                 WHERE user_address = $2 AND name = $3
+                 RETURNING id, uidnext - $1 AS base_uid, highest_modseq - $1 AS base_modseq",
+            )
+            .bind(n)
+            .bind(*user)
+            .bind(*mailbox_name)
+            .fetch_one(&mut *tx)
+            .await?;
+            mailbox_info.insert((*user, *mailbox_name), (mailbox_id, base_uid, base_modseq));
+
+            for (offset, &record_idx) in indices.iter().enumerate() {
+                per_record_mb_id[record_idx] = mailbox_id;
+                per_record_uid[record_idx] = base_uid + offset as i32;
+                per_record_modseq[record_idx] = base_modseq + offset as i64 + 1;
+            }
+        }
+
+        // One multi-row INSERT for the whole batch.
+        let mut qb: QueryBuilder<sqlx::Postgres> = QueryBuilder::new(
+            "INSERT INTO messages (mailbox_id, uid, maildir_id, sender, recipients, subject, \
+             size, date_epoch, internal_date, message_id, in_reply_to, thread_id, modseq) ",
+        );
+        qb.push_values(records.iter().enumerate(), |mut b, (i, r)| {
+            b.push_bind(per_record_mb_id[i])
+                .push_bind(per_record_uid[i])
+                .push_bind(r.maildir_id)
+                .push_bind(r.sender)
+                .push_bind(r.recipients)
+                .push_bind(r.subject)
+                .push_bind(r.size as i32)
+                .push_bind(r.now)
+                .push_bind(r.now)
+                .push_bind(r.message_id)
+                .push_bind(r.in_reply_to)
+                .push_bind(r.thread_id)
+                .push_bind(per_record_modseq[i]);
+        });
+        qb.build().execute(&mut *tx).await?;
+
+        tx.commit().await?;
+
+        Ok(per_record_uid.into_iter().map(|u| u as u32).collect())
     }
 
     /// Batch-fetch `invite_method` for a list of message ids. Caller (the
