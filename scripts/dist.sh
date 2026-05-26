@@ -11,7 +11,7 @@ echo "==> building web frontend"
 (cd web && bun run build)
 
 echo "==> building mailrs-server for $TARGET"
-cargo zigbuild --release --target "$TARGET"
+cargo zigbuild --release --target "$TARGET" --features render-preview
 
 # respect CARGO_TARGET_DIR / [build].target-dir / cargo wrappers
 TARGET_DIR="$(cargo metadata --format-version 1 --no-deps --offline 2>/dev/null \
