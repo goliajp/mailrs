@@ -26,11 +26,15 @@ local NVMe, single dev cluster):
 
 | Scenario | msg/s | p50 | p95 | p99 | Notes |
 |---|---:|---:|---:|---:|---|
-| 1 mailbox, 4 workers, default config | **16.6** | 80 ms | 773 ms | 3.2 s | FOR UPDATE row lock serialises deliveries |
-| 1 mailbox, 4 workers, `test_before_acquire=false` | **15.1** | 81 ms | 890 ms | 4.6 s | Same — RTT save dwarfed by lock wait |
-| 10 mailboxes, 4 workers | **35.0** | 41 ms | 447 ms | 749 ms | Lock contention amortised across 10 rows |
-| 100 mailboxes, 8 workers | **50.3** | 79 ms | 423 ms | 2.1 s | PG WAL fsync is now the floor |
-| 100 mailboxes, 8 workers, `synchronous_commit=off` | **128.1** | 53 ms | 130 ms | 285 ms | Fsync removed — proves PG WAL was the floor |
+| **Round 29 baseline (pre-fix)** | | | | | |
+| 1 mailbox, 4 workers, default config | 16.6 | 80 ms | 773 ms | 3.2 s | FOR UPDATE row lock serialises deliveries |
+| 1 mailbox, 4 workers, `test_before_acquire=false` | 15.1 | 81 ms | 890 ms | 4.6 s | Same — RTT save dwarfed by lock wait |
+| 10 mailboxes, 4 workers | 35.0 | 41 ms | 447 ms | 749 ms | Lock contention amortised across 10 rows |
+| 100 mailboxes, 8 workers | 50.3 | 79 ms | 423 ms | 2.1 s | PG WAL fsync is now the floor |
+| 100 mailboxes, 8 workers, `synchronous_commit=off` | 128.1 | 53 ms | 130 ms | 285 ms | Fsync removed — proves PG WAL was the floor |
+| **Round 30 (atomic UPDATE-RETURNING, no tx)** | | | | | |
+| 1 mailbox, 4 workers | **134.3** | **27 ms** | **55 ms** | **69 ms** | **+8.1× thru, −98% p99** vs round 29 |
+| 100 mailboxes, 8 workers (msgs=2000) | **235.8** | **33 ms** | **52 ms** | **60 ms** | **+4.7× thru, −97% p99** |
 
 **Key finding**: at the e2e layer, neither sqlx itself nor the
 `test_before_acquire(true)` setting nor any Rust-side allocation we
