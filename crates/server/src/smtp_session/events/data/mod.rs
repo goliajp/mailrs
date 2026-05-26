@@ -109,13 +109,15 @@ where
             let msg_message_id = mailrs_mailbox::threading::extract_message_id(&full_message);
             let msg_in_reply_to = mailrs_mailbox::threading::extract_in_reply_to(&full_message);
 
-            // Hoist the message body into one Arc shared across all
-            // local-recipient deliveries: the per-rcpt body was a
-            // `Vec<u8>` clone inside the loop (one full copy per
-            // recipient), but the delivery executor only needs a
-            // ref-counted handle. For an N-recipient message this
-            // collapses N×body_size bytes of alloc into ONE.
-            let shared_body = std::sync::Arc::new(full_message.clone());
+            // Hand ownership of the message body to an `Arc<Vec<u8>>` —
+            // every downstream consumer (delivery_executor, AI
+            // post-delivery spawn, content_scan helpers) only needs a
+            // ref-counted handle. Shadowing rather than building a
+            // separate `shared_body` Arc means we don't pay even one
+            // Vec clone for the wrap — the body bytes move into the
+            // Arc directly. Subsequent `&full_message` calls work
+            // through `Arc<Vec<u8>> → Vec<u8> → [u8]` deref coercion.
+            let full_message = std::sync::Arc::new(full_message);
 
             // deliver to local recipients via maildir
             for rcpt in &local_rcpts {
@@ -158,7 +160,7 @@ where
                     // the executor's max_wait (default 10ms).
                     match ctx
                         .delivery_executor
-                        .deliver(path.clone(), shared_body.clone())
+                        .deliver(path.clone(), full_message.clone())
                         .await
                     {
                         Ok(id) => {
@@ -350,10 +352,9 @@ where
                                     &full_message[..full_message.len().min(4096)],
                                 )
                                 .to_string();
-                                // Reuse the loop-level `shared_body` Arc instead of
-                                // cloning the full message body again — refcount bump,
-                                // not a fresh Vec<u8> copy.
-                                let full_msg_bg = Arc::clone(&shared_body);
+                                // Arc-clone the function-level body (cheap refcount
+                                // bump) instead of copying its bytes.
+                                let full_msg_bg = Arc::clone(&full_message);
                                 let resolver_bg = ctx.resolver.clone();
                                 tokio::spawn(async move {
                                     post_delivery_process(
