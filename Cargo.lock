@@ -689,7 +689,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "pin-project-lite",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "thiserror",
@@ -2107,6 +2107,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -3140,7 +3141,7 @@ dependencies = [
  "async-trait",
  "criterion",
  "redis",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "thiserror",
@@ -3156,7 +3157,7 @@ checksum = "70f52f0d609bd1c5a09ad85bb9c26e2bb35cb0fc91695575e2608768b579d959"
 dependencies = [
  "async-trait",
  "redis",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "thiserror",
@@ -3200,6 +3201,10 @@ dependencies = [
  "mailrs-rfc2047 1.1.2",
  "mailrs-rfc5322 1.0.1",
  "proptest",
+ "reqwest 0.12.28",
+ "serde",
+ "testcontainers",
+ "tokio",
 ]
 
 [[package]]
@@ -3291,7 +3296,7 @@ dependencies = [
  "chrono",
  "criterion",
  "hickory-resolver",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "thiserror",
@@ -3445,7 +3450,7 @@ dependencies = [
  "pdf-extract",
  "rand_core 0.6.4",
  "redis",
- "reqwest",
+ "reqwest 0.13.3",
  "rmcp",
  "rrule",
  "rsa",
@@ -4808,6 +4813,44 @@ name = "regex-syntax"
 version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
+
+[[package]]
+name = "reqwest"
+version = "0.12.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
+dependencies = [
+ "base64",
+ "bytes",
+ "futures-core",
+ "http",
+ "http-body",
+ "http-body-util",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "js-sys",
+ "log",
+ "percent-encoding",
+ "pin-project-lite",
+ "quinn",
+ "rustls",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "sync_wrapper",
+ "tokio",
+ "tokio-rustls",
+ "tower",
+ "tower-http",
+ "tower-service",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "webpki-roots",
+]
 
 [[package]]
 name = "reqwest"

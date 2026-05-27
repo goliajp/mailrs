@@ -7,6 +7,7 @@ use crate::encode::{
     maybe_encode_word,
 };
 use crate::multipart::{PartBytes, multipart_envelope};
+use crate::strict::LintError;
 
 /// One attachment: filename + content-type + raw bytes. The
 /// builder picks the CTE automatically (almost always `base64`) and
@@ -186,6 +187,38 @@ impl MessageBuilder {
     pub fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.extra_headers.push((name.into(), value.into()));
         self
+    }
+
+    /// Render the message to raw bytes after running the strict-mode
+    /// invariant checks. Returns the first failure if any.
+    ///
+    /// Use this when you want compile-time-level confidence that the
+    /// outbound bytes meet RFC 5322 / 2045 invariants — e.g. before
+    /// handing them to a DKIM signer that would silently sign a
+    /// non-compliant message, or before publishing them as a
+    /// stalwart-grade artifact in a corpus.
+    pub fn build_strict(&self) -> Result<Vec<u8>, LintError> {
+        // Pre-build checks that don't need the rendered bytes.
+        if self.from.is_none() {
+            return Err(LintError::MissingFrom);
+        }
+        if self.to.is_empty() && self.cc.is_empty() && self.bcc.is_empty() {
+            return Err(LintError::MissingRecipient);
+        }
+        if let Some(mid) = &self.message_id
+            && (!mid.starts_with('<') || !mid.ends_with('>'))
+        {
+            return Err(LintError::BadMessageId(mid.clone()));
+        }
+        for att in &self.attachments {
+            if att.filename.bytes().any(|b| b == b'\r' || b == b'\n' || b == 0) {
+                return Err(LintError::BadAttachmentFilename(att.filename.clone()));
+            }
+        }
+        let bytes = self.build();
+        // Post-build structural checks (line lengths, bare LF, etc.)
+        crate::strict::lint(&bytes)?;
+        Ok(bytes)
     }
 
     /// Render the message to raw bytes.
