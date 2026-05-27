@@ -27,6 +27,11 @@ base64 = "0.22"
 chrono = "0.4"
 flate2 = "1"
 thiserror = "2"
+# Canonical RFC 5322 builder for the aggregate-report email
+# envelope. format_report_email constructs the message via
+# MessageBuilder + Attachment to keep encoding / folding / boundary
+# semantics consistent with the rest of mailrs's outbound stack.
+mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 # Inline-short-string for domain fields that flow in from dkim 2.0 / spf 2.0.
 compact_str = "0.9"
 # Public Suffix List for organizational-domain extraction (DMARC relaxed

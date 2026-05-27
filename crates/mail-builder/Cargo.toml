@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-mail-builder"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 description = "RFC 5322 / 2046 / 2047 / 2231 outbound mail builder. Constructs canonically-compliant raw bytes for plain-text, multipart/alternative, and multipart/mixed messages — encoded-word headers, soft-fold lines, CTE selection (7bit / quoted-printable / base64), boundary collision-scan. The inverse of mailrs-rfc5322 + mailrs-rfc2047 + mailrs-mime parse stones."
 license = "Apache-2.0 OR MIT"

@@ -3016,6 +3016,7 @@ dependencies = [
  "compact_str",
  "criterion",
  "flate2",
+ "mailrs-mail-builder",
  "psl",
  "sqlx",
  "thiserror",
@@ -3191,7 +3192,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-mail-builder"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "base64",
  "chrono",
@@ -3273,6 +3274,7 @@ dependencies = [
  "mailrs-arc",
  "mailrs-backoff 1.0.0",
  "mailrs-dkim",
+ "mailrs-mail-builder",
  "mailrs-smtp-client",
  "metrics",
  "rcgen 0.14.8",
