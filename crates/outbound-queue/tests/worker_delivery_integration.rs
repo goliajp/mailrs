@@ -13,11 +13,14 @@
 
 mod common;
 
-use common::mock_smtp::{Behavior, ensure_crypto_provider, spawn_mock_smtp};
+use std::sync::Arc;
+
+use common::mock_smtp::{Behavior, ensure_crypto_provider, skip_verify_client_config, spawn_mock_smtp};
 use common::pg::start_pg;
 use mailrs_outbound_queue::queue::{self, QueueStatus};
 use mailrs_outbound_queue::worker::{
-    DeliveryWorker, WorkerConfig, deliver_domain_static, try_deliver_via_mx,
+    DeliveryWorker, TlsPolicy, WorkerConfig, deliver_domain_static, try_deliver_via_mx,
+    try_deliver_via_mx_with_tls,
 };
 use mailrs_outbound_queue::PgQueueStore;
 use mailrs_outbound_queue::store::QueueStore;
@@ -388,6 +391,125 @@ async fn delivery_worker_run_drains_pending_via_full_pipeline() {
     // covering.
     let stats = queue::queue_stats(&pool).await.unwrap();
     assert!(!stats.is_empty(), "worker ran and produced stats");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn try_deliver_via_mx_starttls_success_full_deliver() {
+    ensure_crypto_provider();
+    let mock = spawn_mock_smtp(Behavior::StarttlsAccept).await;
+    let (_c, pool) = start_pg().await;
+
+    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"Subject: hi\r\n\r\nbody\r\n", None, 0, false)
+        .await
+        .unwrap();
+    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+
+    let r = resolver();
+    let tls_config = Arc::new(skip_verify_client_config());
+    let result = try_deliver_via_mx_with_tls(
+        "client.test",
+        "127.0.0.1",
+        mock.addr.port(),
+        "dest.com",
+        std::slice::from_ref(&msg),
+        TlsPolicy::Opportunistic,
+        Some(tls_config),
+        &r,
+        None,
+    )
+    .await;
+    assert!(result.is_ok(), "STARTTLS-success path must complete deliver: {result:?}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn try_deliver_via_mx_require_policy_rejected_starttls_returns_err() {
+    ensure_crypto_provider();
+    let mock = spawn_mock_smtp(Behavior::StarttlsRejected).await;
+    let (_c, pool) = start_pg().await;
+
+    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"body\r\n", None, 0, false)
+        .await
+        .unwrap();
+    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+
+    let r = resolver();
+    let tls_config = Arc::new(skip_verify_client_config());
+    // Require policy with STARTTLS rejected → Err (no plaintext fallback).
+    let result = try_deliver_via_mx_with_tls(
+        "client.test",
+        "127.0.0.1",
+        mock.addr.port(),
+        "dest.com",
+        std::slice::from_ref(&msg),
+        TlsPolicy::Require,
+        Some(tls_config),
+        &r,
+        None,
+    )
+    .await;
+    assert!(result.is_err(), "Require policy + STARTTLS rejected must be Err");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn try_deliver_via_mx_require_policy_handshake_fail_returns_err() {
+    ensure_crypto_provider();
+    let mock = spawn_mock_smtp(Behavior::StarttlsHandshakeFail).await;
+    let (_c, pool) = start_pg().await;
+
+    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"body\r\n", None, 0, false)
+        .await
+        .unwrap();
+    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+
+    let r = resolver();
+    let tls_config = Arc::new(skip_verify_client_config());
+    let result = try_deliver_via_mx_with_tls(
+        "client.test",
+        "127.0.0.1",
+        mock.addr.port(),
+        "dest.com",
+        std::slice::from_ref(&msg),
+        TlsPolicy::Require,
+        Some(tls_config),
+        &r,
+        None,
+    )
+    .await;
+    assert!(
+        result.is_err(),
+        "Require policy + handshake fail must be Err (no plaintext fallback)"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn try_deliver_via_mx_require_policy_no_starttls_returns_err() {
+    ensure_crypto_provider();
+    // AcceptNoStarttls does NOT advertise STARTTLS in EHLO
+    let mock = spawn_mock_smtp(Behavior::AcceptNoStarttls).await;
+    let (_c, pool) = start_pg().await;
+
+    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"body\r\n", None, 0, false)
+        .await
+        .unwrap();
+    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+
+    let r = resolver();
+    let result = try_deliver_via_mx_with_tls(
+        "client.test",
+        "127.0.0.1",
+        mock.addr.port(),
+        "dest.com",
+        std::slice::from_ref(&msg),
+        TlsPolicy::Require,
+        None,
+        &r,
+        None,
+    )
+    .await;
+    assert!(
+        result.is_err(),
+        "Require policy + server does not advertise STARTTLS must be Err"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
