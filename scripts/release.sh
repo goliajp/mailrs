@@ -35,8 +35,14 @@ echo ""
 
 # 1. tests
 if [ "$WEB_ONLY" = false ]; then
-  echo "==> running cargo test"
-  cargo test --workspace
+  echo "==> running cargo test (skip _under_budget — dev-profile noise)"
+  # Mirror .github/workflows/release.yml gate: perf_gate *_under_budget
+  # tests are calibrated for release profile on M-series. Dev profile
+  # under `cargo test --workspace` parallel load borders the budgets
+  # and yields flaky failures that block ship. Skip them here; CI
+  # already skips them. To run perf gates explicitly:
+  #   cargo test --release --workspace -- _under_budget
+  cargo test --workspace -- --skip _under_budget
   echo ""
 fi
 
