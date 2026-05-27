@@ -3521,6 +3521,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-sieve-core"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "mailrs-rfc5322 1.0.1",
+ "sieve-rs",
+ "thiserror",
+]
+
+[[package]]
 name = "mailrs-smtp-client"
 version = "2.0.1"
 dependencies = [

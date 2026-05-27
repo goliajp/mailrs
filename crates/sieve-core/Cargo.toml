@@ -1,0 +1,27 @@
+[package]
+name = "mailrs-sieve-core"
+version = "0.1.0"
+edition = "2024"
+description = "Native RFC 5228 Sieve interpreter — tokenizer + parser + evaluator. Built from the spec, no AGPL dependencies. The internal engine the `mailrs-sieve` wrapper will route to once parity with `sieve-rs` is reached (v8 ckpt 6)."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-sieve-core"
+authors = ["GOLIA K.K."]
+keywords = ["sieve", "rfc5228", "email", "filter", "interpreter"]
+categories = ["email", "parser-implementations"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
+thiserror = "2"
+
+[dev-dependencies]
+# Oracle for differential testing during the parity ramp-up
+# (v8 ckpt 4 — first slice). Once we hit ≥ 99 % differential
+# agreement (ckpt 5 trigger), the dep gets dropped.
+sieve-rs = "0.7"
+criterion = { workspace = true }
