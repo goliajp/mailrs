@@ -22,7 +22,7 @@ mod delivery;
 mod smtp;
 
 pub use delivery::deliver_domain_static;
-pub use smtp::{TlsPolicy, try_deliver_via_mx};
+pub use smtp::{TlsPolicy, try_deliver_via_mx, try_deliver_via_mx_with_tls};
 
 /// Delivery worker configuration.
 #[derive(Debug, Clone)]

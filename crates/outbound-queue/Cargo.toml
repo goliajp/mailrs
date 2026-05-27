@@ -33,6 +33,13 @@ chrono = "0.4"
 hickory-resolver = "0.26"
 futures-util = "0.3"
 rustls-pki-types = { version = "1", features = ["alloc"] }
+# Type-only dependency: `try_deliver_via_mx_with_tls` accepts an
+# optional `rustls::ClientConfig` so integration tests can inject a
+# dangerous (skip-verify) verifier. Production callers pass `None`.
+# default-features = false because we don't construct a ClientConfig
+# here — the actual crypto provider feature is selected by the binary
+# (mailrs-server enables ring via mailrs-smtp-client).
+rustls = { version = "0.23", default-features = false }
 mailrs-smtp-client = { path = "../smtp-client", version = "2" }
 mailrs-dkim = { path = "../dkim", version = "3" }
 mailrs-arc = { path = "../arc", version = "3" }

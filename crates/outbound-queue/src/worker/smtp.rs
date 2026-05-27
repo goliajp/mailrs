@@ -1,5 +1,7 @@
 //! Per-MX SMTP delivery with STARTTLS / DANE policy handling.
 
+use std::sync::Arc;
+
 use hickory_resolver::TokioResolver;
 
 use crate::queue::QueuedMessage;
@@ -38,21 +40,30 @@ pub async fn try_deliver_via_mx(
         domain,
         messages,
         TlsPolicy::Opportunistic,
+        None,
         resolver,
         event_sender,
     )
     .await
 }
 
-/// try to deliver messages via a specific MX host with explicit TLS policy
+/// Try to deliver messages via a specific MX host with explicit TLS
+/// policy and optional ClientConfig override.
+///
+/// `tls_config_override` lets integration tests inject a dangerous
+/// (skip-verify) `rustls::ClientConfig` so the STARTTLS-success path
+/// can be driven against a mock SMTP server presenting a self-signed
+/// cert. Production code (`try_deliver_via_mx`) passes `None` so the
+/// default `webpki-roots` PKIX verifier is used.
 #[allow(clippy::too_many_arguments)]
-async fn try_deliver_via_mx_with_tls(
+pub async fn try_deliver_via_mx_with_tls(
     hostname: &str,
     mx_host: &str,
     port: u16,
     domain: &str,
     messages: &[QueuedMessage],
     tls_policy: TlsPolicy,
+    tls_config_override: Option<Arc<rustls::ClientConfig>>,
     resolver: &TokioResolver,
     event_sender: Option<&DeliveryEventSender>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -88,6 +99,12 @@ async fn try_deliver_via_mx_with_tls(
         let tls_result = if has_dane {
             // use DANE-verified TLS
             smtp.try_starttls_dane(mx_host, tlsa_records).await
+        } else if let Some(ref cfg) = tls_config_override {
+            // caller-supplied ClientConfig (typically a test
+            // harness with a skip-verify verifier; never used in
+            // production paths)
+            smtp.try_starttls_with_config(mx_host, (**cfg).clone())
+                .await
         } else {
             // standard PKIX TLS
             smtp.try_starttls(mx_host).await

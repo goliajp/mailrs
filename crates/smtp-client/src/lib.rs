@@ -82,7 +82,7 @@ pub mod response;
 /// than an opaque `io::Error`.
 pub mod tls_outcome;
 
-pub use connection::{SmtpConnection, TimeoutConfig};
+pub use connection::{SmtpConnection, TimeoutConfig, default_pkix_client_config};
 pub use dane::{DaneVerifier, TlsaRecord, dane_tls_config, resolve_tlsa};
 pub use mx::{MxCache, MxRecord, TokioResolver, fallback_to_domain, resolve_mx, sort_mx_records};
 pub use response::{SmtpResponse, parse_response};

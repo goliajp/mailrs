@@ -159,7 +159,29 @@ impl SmtpConnection {
     /// (connection unrecoverable, must reconnect). On handshake
     /// failure, the wrapped [`TlsOutcome`] is RFC 8460 §4.3-aligned
     /// so callers can build TLSRPT reports directly.
-    pub async fn try_starttls(mut self, hostname: &str) -> StarttlsResult {
+    ///
+    /// Uses the default PKIX trust store (`webpki-roots`). Callers
+    /// needing a custom verifier (DANE-only test harnesses, mock
+    /// servers in integration tests, etc.) should use
+    /// [`Self::try_starttls_with_config`].
+    pub async fn try_starttls(self, hostname: &str) -> StarttlsResult {
+        self.try_starttls_with_config(hostname, default_pkix_client_config())
+            .await
+    }
+
+    /// Upgrade to TLS via STARTTLS using a caller-supplied
+    /// [`ClientConfig`]. Same return shape as [`Self::try_starttls`].
+    ///
+    /// The point of this hook is to let integration tests inject a
+    /// dangerous (skip-verify) verifier so the production trust
+    /// store stays untouched, and to let downstream stones plug in
+    /// non-PKIX trust paths (DANE-only configs, pinned-cert configs,
+    /// etc.) without forking the connection state machine.
+    pub async fn try_starttls_with_config(
+        mut self,
+        hostname: &str,
+        client_config: ClientConfig,
+    ) -> StarttlsResult {
         let resp = match self.send_command("STARTTLS\r\n").await {
             Ok(r) => r,
             Err(e) => {
@@ -175,14 +197,7 @@ impl SmtpConnection {
             };
         }
 
-        let mut config = ClientConfig::builder()
-            .with_root_certificates(rustls::RootCertStore {
-                roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-            })
-            .with_no_client_auth();
-        config.alpn_protocols = vec![];
-
-        let connector = TlsConnector::from(Arc::new(config));
+        let connector = TlsConnector::from(Arc::new(client_config));
         let server_name: rustls::pki_types::ServerName<'static> =
             match hostname.to_string().try_into() {
                 Ok(n) => n,
@@ -376,6 +391,18 @@ impl SmtpConnection {
             )
         })
     }
+}
+
+/// Default PKIX client config used by [`SmtpConnection::try_starttls`]:
+/// `webpki-roots` trust store, no client auth, empty ALPN.
+pub fn default_pkix_client_config() -> ClientConfig {
+    let mut config = ClientConfig::builder()
+        .with_root_certificates(rustls::RootCertStore {
+            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+        })
+        .with_no_client_auth();
+    config.alpn_protocols = vec![];
+    config
 }
 
 /// dot-stuff message body for SMTP DATA transmission (RFC 5321 section 4.5.2)
