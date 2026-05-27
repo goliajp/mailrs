@@ -59,7 +59,25 @@ impl Pipeline {
         use tracing::Instrument;
         for stage in &self.stages {
             let stage_span = tracing::debug_span!("inbound.stage", name = stage.name());
+            // Per-stage timing histogram. Recorded around every
+            // evaluate() call (including the short-circuit case so
+            // ops can see how long the rejecting stage took). Label
+            // `outcome` distinguishes Continue vs Decide so dashboards
+            // can split per-stage latency by whether the stage let
+            // the message through.
+            let stage_start = std::time::Instant::now();
             let outcome = stage.evaluate(ctx).instrument(stage_span).await;
+            let elapsed = stage_start.elapsed().as_secs_f64();
+            let outcome_label: &'static str = match &outcome {
+                StageOutcome::Continue => "continue",
+                StageOutcome::Decide(_) => "decide",
+            };
+            metrics::histogram!(
+                "mailrs_inbound_stage_seconds",
+                "stage" => stage.name().to_string(),
+                "outcome" => outcome_label,
+            )
+            .record(elapsed);
             if let StageOutcome::Decide(d) = outcome {
                 tracing::debug!(stage = stage.name(), "pipeline short-circuit");
                 return d;
