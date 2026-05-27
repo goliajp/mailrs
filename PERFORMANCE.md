@@ -1309,8 +1309,8 @@ medians; these are regression-catch ballpark.
 
 | Stone | Bench | Median (`--quick`) |
 |---|---|---:|
-| `mailrs-outbound-queue` | `dkim_sign/short` | **2.27 ms** |
-| `mailrs-outbound-queue` | `dkim_sign/long_8kb` | **2.71 ms** |
+| `mailrs-outbound-queue` | `dkim_sign/short` | **288 µs** (was 2.27 ms pre-v1.7.35; aws-lc-rs swap) |
+| `mailrs-outbound-queue` | `dkim_sign/long_8kb` | **309 µs** (was 2.71 ms pre-v1.7.35; aws-lc-rs swap) |
 | `mailrs-outbound-queue` | `retry_delay_secs` (×10) | 3.4 ns |
 | `mailrs-outbound-queue` | `should_bounce` (×10) | 3.3 ns |
 | `mailrs-shield` | `greylist/evaluate_retry` | 2.2 ns |
@@ -1337,15 +1337,18 @@ medians; these are regression-catch ballpark.
 **Findings during the measurement pass:**
 
 - `mailrs-outbound-queue::dkim_sign` was ~3-4× slower than the
-  pre-v1.7.31 mail-auth baseline. Two causes:
+  pre-v1.7.31 mail-auth baseline. Two causes, both closed:
   1. `DkimSignConfig::sign` was parsing the PKCS#8 PEM into an
-     `RsaPrivateKey` on every call — fixed in commit `172dde2` with
-     an `OnceLock` cache shared across worker clones.
-  2. Remaining gap is the `rsa` crate's RSA-2048 PKCS#1 v1.5 sign
-     primitive itself (~1.5 ms) vs `mail-auth`'s default
-     `aws-lc-rs` backend (~0.5 ms). Logged as a v7-track backlog
-     item — out of v6 ckpt 3 scope. Outbound prod volume is small
-     enough today that the absolute regression is academic.
+     `RsaPrivateKey` on every call — fixed in commit `172dde2`
+     (v1.7.32) with an `OnceLock` cache shared across worker clones.
+  2. The `rsa` crate's RSA-2048 PKCS#1 v1.5 sign primitive itself
+     was the dominant residual (~1.5 ms / sign) vs `mail-auth`'s
+     default `aws-lc-rs` backend (~0.5 ms). Swapped in v1.7.35
+     (commit `fca3c12`) — `mailrs-dkim` 3.0 now wraps
+     `aws_lc_rs::signature::RsaKeyPair`, taking sign per-call from
+     2.27 ms / 2.71 ms (short / long_8kb) down to 288 µs / 309 µs
+     measured. **8-9× speed-up**, full parity with mail-auth's
+     pre-cutover throughput.
 - All other P2 benches are within reasonable ballpark for their
   stone size; no further hot-path investigation triggered.
 

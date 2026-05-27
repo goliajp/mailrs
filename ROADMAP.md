@@ -137,11 +137,18 @@ full plan; the deliverable docs live at:
   timeout fix held). The cancelled v1.7.31 is the last failure;
   the streak after is uninterrupted.
 
-**Still open (genuine v7 RFC scope)**:
+**v7 first major (one item from the post-v6 backlog)**:
 
-- mailrs-dkim crypto backend swap (`rsa` 0.9 → `aws-lc-rs`) for
-  ~3× RSA-2048 sign speed-up on outbound dkim path. User-parked
-  pending a decision on the pure-Rust posture trade-off.
+- ✅ mailrs-dkim crypto backend swap (`rsa` 0.9 → `aws-lc-rs`) —
+  shipped as mailrs-dkim 3.0 / mailrs-arc 3.0 / outbound-queue 2.0
+  in v1.7.35 (commit `fca3c12`). Measured **8-9× speed-up** on
+  RSA-2048 sign (2.27 ms → 288 µs short, 2.71 ms → 309 µs 8 KB).
+  Better than the predicted 3× because aws-lc-rs's AWS-LC backend
+  is ~6-7× faster on the primitive itself, multiplied by the PEM
+  cache we already had.
+
+**Still open**:
+
 - Coverage gaps on live-SMTP / PG-backed modules
   (outbound-queue worker, smtp-client connection) — postmaster is
   closed; these need a docker-pg fixture layer.
