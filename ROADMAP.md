@@ -120,17 +120,28 @@ full plan; the deliverable docs live at:
   `PERFORMANCE.md`; ARCHITECTURE.md stone count (41) already
   correct; this section closes the loop
 
-**Carry-overs to v7** (not blockers, just follow-ups):
+**v6-followup backlog cleanup** (after v6 closeout, same session):
+
+- ✅ Per-stage inbound pipeline timing histograms — `mailrs-inbound`
+  `Pipeline::run` now wraps every `Stage::evaluate` with an
+  `Instant` timer + emits `mailrs_inbound_stage_seconds{stage,outcome}`
+  histogram (commit `ff1eaa2`).
+- ✅ Grafana dashboard JSON — `deploy/grafana-dashboard.json` covers
+  all 11 metric families; parameterised datasource (commit `ff1eaa2`).
+- ✅ Mock-DNS layer for postmaster — new `PostmasterResolver` trait
+  with `HickoryPostmasterResolver` + `MockResolver` impls; all 9
+  check submodules converted; postmaster lib coverage jumped from
+  ~20 % to **89.57 %** with 41 → 133 unit tests (commit `83e336c`).
+- ✅ ckpt 6 trigger "3 successful release.yml in a row" — satisfied
+  by v1.7.32 / v1.7.33 / v1.7.34 (all CI-green, multi-arch QEMU
+  timeout fix held). The cancelled v1.7.31 is the last failure;
+  the streak after is uninterrupted.
+
+**Still open (genuine v7 RFC scope)**:
 
 - mailrs-dkim crypto backend swap (`rsa` 0.9 → `aws-lc-rs`) for
-  ~3× RSA-2048 sign speed-up on outbound dkim path
-- Per-stage inbound pipeline timing histograms (`mailrs-inbound`
-  Stage trait needs a timing facade first)
-- TLS-RPT / MTA-STS / ARC Grafana dashboard JSON (waits on
-  `devops.golia.jp` Grafana → mailrs `/metrics` plumbing)
-- Coverage gaps on live-DNS / live-SMTP / PG-backed modules
-  (postmaster check submodules, outbound-queue worker, smtp-client
-  connection) — needs a mock-DNS + docker-pg fixture layer
-- ckpt 6 trigger says "3 successful release.yml runs in a row";
-  v1.7.32 is #1 of 3 — the remaining 2 will accumulate as future
-  releases ship through the now-working CI
+  ~3× RSA-2048 sign speed-up on outbound dkim path. User-parked
+  pending a decision on the pure-Rust posture trade-off.
+- Coverage gaps on live-SMTP / PG-backed modules
+  (outbound-queue worker, smtp-client connection) — postmaster is
+  closed; these need a docker-pg fixture layer.
