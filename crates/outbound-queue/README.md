@@ -128,3 +128,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`mailrs-smtp-client`]: https://crates.io/crates/mailrs-smtp-client
 [`mailrs-smtp-proto`]: https://crates.io/crates/mailrs-smtp-proto
 [`mail-auth`]: https://crates.io/crates/mail-auth
+
+## Performance
+
+Criterion benches: `cargo bench -p mailrs-outbound-queue`. Per-bench medians + regression budgets are documented in [`BUDGETS.md`](BUDGETS.md) (this crate) and the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).

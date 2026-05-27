@@ -92,3 +92,7 @@ match codec.decode(&mut buf).unwrap() {
 
 Licensed under either of **Apache-2.0** ([LICENSE-APACHE](./LICENSE-APACHE))
 or **MIT** ([LICENSE-MIT](./LICENSE-MIT)) at your option.
+
+## Performance
+
+Criterion benches: `cargo bench -p mailrs-imap-codec`. Per-bench medians + regression budgets are documented in [`BUDGETS.md`](BUDGETS.md) (this crate) and the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).

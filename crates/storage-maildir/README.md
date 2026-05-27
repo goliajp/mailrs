@@ -91,3 +91,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Maildir]: https://cr.yp.to/proto/maildir.html
 [mailrs]: https://github.com/goliajp/mailrs
 [hostname]: https://crates.io/crates/hostname
+
+## Performance
+
+Criterion benches: `cargo bench -p mailrs-storage-maildir`. Per-bench medians + regression budgets are documented in [`BUDGETS.md`](BUDGETS.md) (this crate) and the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).

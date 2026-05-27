@@ -73,3 +73,7 @@ let mxs = resolver.lookup_mx("example.com").await?;
 ## License
 
 Apache-2.0 OR MIT.
+
+## Performance
+
+Criterion benches: `cargo bench -p mailrs-dns`. Per-bench medians + regression budgets are documented in [`BUDGETS.md`](BUDGETS.md) (this crate) and the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).

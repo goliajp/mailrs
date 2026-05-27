@@ -103,3 +103,7 @@ Mail-server tooling repeatedly asks the same question: "is `foo.com` set up corr
 Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.
 
 [mailrs]: https://github.com/goliajp/mailrs
+
+## Performance
+
+Criterion benches: `cargo bench -p mailrs-postmaster`. Per-bench medians + regression budgets are documented in [`BUDGETS.md`](BUDGETS.md) (this crate) and the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).
