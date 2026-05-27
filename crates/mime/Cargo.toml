@@ -31,6 +31,7 @@ compact_str = "0.9"
 criterion = { workspace = true }
 mail-parser = "0.11"  # comparison bench only
 dhat = "0.3"          # mem profile target (examples/dhat_profile.rs)
+proptest = "1"
 
 [[bench]]
 name = "mime"
