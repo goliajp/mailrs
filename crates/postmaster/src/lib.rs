@@ -29,8 +29,11 @@
 //! # }
 //! ```
 
-use hickory_resolver::TokioResolver;
 use serde::Serialize;
+
+pub use resolver::{MockResolver, MxRecord, PostmasterResolver, ResolverError};
+#[cfg(feature = "hickory")]
+pub use resolver::HickoryPostmasterResolver;
 
 /// Full domain-health report returned by [`check_domain`].
 #[derive(Debug, Clone, Serialize)]
@@ -75,8 +78,8 @@ pub enum Status {
 /// `dkim_selector` lets the caller specify the published selector for the
 /// DKIM check; pass `None` to skip it. `hostname` is the expected reverse-
 /// DNS / EHLO name for outgoing mail.
-pub async fn check_domain(
-    resolver: &TokioResolver,
+pub async fn check_domain<R: PostmasterResolver + ?Sized>(
+    resolver: &R,
     domain: &str,
     dkim_selector: Option<&str>,
     hostname: &str,
@@ -108,6 +111,7 @@ mod dmarc;
 mod mta_sts;
 mod mx;
 mod ptr;
+mod resolver;
 mod spf;
 mod tlsrpt;
 

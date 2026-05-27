@@ -54,7 +54,7 @@ mailrs-mailbox = { path = "../mailbox", version = "1" }
 mailrs-jmap = "1"
 mailrs-dav = "1"
 async-trait = "0.1"
-mailrs-postmaster = "1"
+mailrs-postmaster = { path = "../postmaster", version = "1" }
 mailrs-shield = "1"
 mailrs-clean = "1"
 mailrs-dmarc = { path = "../dmarc", version = "2" }

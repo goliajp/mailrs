@@ -15,11 +15,19 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+default = ["hickory"]
+# Enable the `HickoryPostmasterResolver` impl over hickory_resolver.
+# Disable if you implement the `PostmasterResolver` trait yourself.
+hickory = ["dep:hickory-resolver"]
+
 [dependencies]
+async-trait = "0.1"
 chrono = "0.4"
-hickory-resolver = "0.26"
+hickory-resolver = { version = "0.26", optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 serde = { version = "1", features = ["derive"] }
+thiserror = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }

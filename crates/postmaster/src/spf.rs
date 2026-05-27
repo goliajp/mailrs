@@ -1,32 +1,22 @@
 //! Per-check submodule (see lib.rs for the dispatcher).
 
-use hickory_resolver::TokioResolver;
-use hickory_resolver::proto::rr::RData;
 use std::net::IpAddr;
 
+use super::resolver::PostmasterResolver;
 use super::{CheckResult, Status};
 
-pub(super) async fn check_spf(
-    resolver: &TokioResolver,
+pub(super) async fn check_spf<R: PostmasterResolver + ?Sized>(
+    resolver: &R,
     domain: &str,
     hostname: &str,
 ) -> CheckResult {
     // resolve our hostname to IPs for SPF inclusion check
-    let our_ips: Vec<IpAddr> = resolver
-        .lookup_ip(hostname)
-        .await
-        .map(|ips| ips.iter().collect())
-        .unwrap_or_default();
+    let our_ips: Vec<IpAddr> = resolver.ip_lookup(hostname).await.unwrap_or_default();
 
     match resolver.txt_lookup(domain).await {
         Ok(records) => {
             let spf_records: Vec<String> = records
-                .answers()
-                .iter()
-                .filter_map(|r| match &r.data {
-                    RData::TXT(txt) => Some(txt.to_string()),
-                    _ => None,
-                })
+                .into_iter()
                 .filter(|txt| txt.starts_with("v=spf1"))
                 .collect();
             match spf_records.len() {
@@ -89,5 +79,73 @@ pub(super) async fn check_spf(
             message: format!("TXT lookup failed: {e}"),
             details: vec![],
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::resolver::MockResolver;
+
+    #[tokio::test]
+    async fn no_spf_yields_fail() {
+        let r = MockResolver::new();
+        let res = check_spf(&r, "example.com", "mail.example.com").await;
+        assert!(matches!(res.status, Status::Fail));
+    }
+
+    #[tokio::test]
+    async fn spf_including_hostname_yields_pass() {
+        let r = MockResolver::new()
+            .with_txt("example.com", vec!["v=spf1 mx a:mail.example.com -all".into()]);
+        let res = check_spf(&r, "example.com", "mail.example.com").await;
+        assert!(matches!(res.status, Status::Pass));
+        assert!(res.message.contains("strict"));
+    }
+
+    #[tokio::test]
+    async fn spf_not_including_hostname_yields_warn() {
+        let r = MockResolver::new()
+            .with_txt("example.com", vec!["v=spf1 include:other.com -all".into()]);
+        let res = check_spf(&r, "example.com", "mail.example.com").await;
+        assert!(matches!(res.status, Status::Warn));
+    }
+
+    #[tokio::test]
+    async fn soft_fail_policy_recognized() {
+        let r = MockResolver::new()
+            .with_txt("example.com", vec!["v=spf1 mx ~all".into()])
+            .with_mx("example.com", vec![]);
+        let res = check_spf(&r, "example.com", "anything").await;
+        assert!(res.message.contains("soft fail"));
+    }
+
+    #[tokio::test]
+    async fn dangerous_pass_all_recognized() {
+        let r = MockResolver::new().with_txt("example.com", vec!["v=spf1 +all".into()]);
+        let res = check_spf(&r, "example.com", "mail.example.com").await;
+        assert!(res.message.contains("+all"));
+    }
+
+    #[tokio::test]
+    async fn multiple_spf_yields_warn() {
+        let r = MockResolver::new().with_txt(
+            "example.com",
+            vec!["v=spf1 mx -all".into(), "v=spf1 a -all".into()],
+        );
+        let res = check_spf(&r, "example.com", "mail.example.com").await;
+        assert!(matches!(res.status, Status::Warn));
+        assert!(res.message.contains("multiple"));
+    }
+
+    #[tokio::test]
+    async fn ip_match_via_ip_lookup_yields_pass() {
+        use std::net::{IpAddr, Ipv4Addr};
+        let ip = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 5));
+        let r = MockResolver::new()
+            .with_txt("example.com", vec!["v=spf1 ip4:203.0.113.5 -all".into()])
+            .with_ip("mail.example.com", vec![ip]);
+        let res = check_spf(&r, "example.com", "mail.example.com").await;
+        assert!(matches!(res.status, Status::Pass));
     }
 }
