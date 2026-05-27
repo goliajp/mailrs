@@ -17,10 +17,11 @@
 //!
 //! ```no_run
 //! use hickory_resolver::TokioResolver;
-//! use mailrs_postmaster::check_domain;
+//! use mailrs_postmaster::{HickoryPostmasterResolver, check_domain};
 //!
 //! # async fn run() -> Result<(), Box<dyn std::error::Error>> {
-//! let resolver = TokioResolver::builder_tokio()?.build()?;
+//! let hickory = TokioResolver::builder_tokio()?.build()?;
+//! let resolver = HickoryPostmasterResolver::new(hickory);
 //! let report = check_domain(&resolver, "example.com", Some("default"), "mail.example.com").await;
 //! for check in &report.checks {
 //!     println!("{}: {:?} — {}", check.name, check.status, check.message);
