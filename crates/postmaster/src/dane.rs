@@ -1,26 +1,17 @@
 //! Per-check submodule (see lib.rs for the dispatcher).
 
-use hickory_resolver::TokioResolver;
-use hickory_resolver::proto::rr::{RData, RecordType};
-
+use super::resolver::PostmasterResolver;
 use super::{CheckResult, Status};
 
-pub(super) async fn check_dane(resolver: &TokioResolver, domain: &str) -> CheckResult {
+pub(super) async fn check_dane<R: PostmasterResolver + ?Sized>(
+    resolver: &R,
+    domain: &str,
+) -> CheckResult {
     // look up MX first, then check TLSA for port 25 on first MX
     let mx_host = match resolver.mx_lookup(domain).await {
-        Ok(records) => {
-            let mut entries: Vec<_> = records
-                .answers()
-                .iter()
-                .filter_map(|r| match &r.data {
-                    RData::MX(mx) => Some(mx),
-                    _ => None,
-                })
-                .collect();
-            entries.sort_by_key(|mx| mx.preference);
-            entries
-                .first()
-                .map(|mx| mx.exchange.to_string().trim_end_matches('.').to_string())
+        Ok(mut records) => {
+            records.sort_by_key(|mx| mx.preference);
+            records.into_iter().next().map(|mx| mx.exchange)
         }
         Err(_) => None,
     };
@@ -34,13 +25,8 @@ pub(super) async fn check_dane(resolver: &TokioResolver, domain: &str) -> CheckR
     };
 
     let qname = format!("_25._tcp.{mx_host}");
-    match resolver.lookup(&qname, RecordType::TLSA).await {
-        Ok(records) => {
-            let entries: Vec<String> = records
-                .answers()
-                .iter()
-                .map(|r| format!("{}", r.data))
-                .collect();
+    match resolver.tlsa_lookup(&qname).await {
+        Ok(entries) => {
             if entries.is_empty() {
                 CheckResult {
                     name: "DANE/TLSA".into(),
@@ -63,5 +49,68 @@ pub(super) async fn check_dane(resolver: &TokioResolver, domain: &str) -> CheckR
             message: format!("no TLSA records at {qname} (DANE not configured)"),
             details: vec![],
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::resolver::{MockResolver, MxRecord};
+
+    #[tokio::test]
+    async fn no_mx_yields_skip() {
+        let r = MockResolver::new();
+        let res = check_dane(&r, "example.com").await;
+        assert!(matches!(res.status, Status::Skip));
+        assert!(res.message.contains("no MX"));
+    }
+
+    #[tokio::test]
+    async fn mx_but_no_tlsa_yields_skip() {
+        let r = MockResolver::new().with_mx(
+            "example.com",
+            vec![MxRecord {
+                preference: 10,
+                exchange: "mx.example.com".into(),
+            }],
+        );
+        let res = check_dane(&r, "example.com").await;
+        assert!(matches!(res.status, Status::Skip));
+        assert!(res.message.contains("DANE not configured") || res.message.contains("no TLSA"));
+    }
+
+    #[tokio::test]
+    async fn mx_with_tlsa_yields_pass() {
+        let r = MockResolver::new()
+            .with_mx(
+                "example.com",
+                vec![MxRecord {
+                    preference: 10,
+                    exchange: "mx.example.com".into(),
+                }],
+            )
+            .with_tlsa("_25._tcp.mx.example.com", vec!["3 1 1 abc123".into()]);
+        let res = check_dane(&r, "example.com").await;
+        assert!(matches!(res.status, Status::Pass));
+        assert_eq!(res.details, vec!["3 1 1 abc123"]);
+    }
+
+    #[tokio::test]
+    async fn lowest_preference_mx_used() {
+        // first MX in input is higher preference (less preferred) — should
+        // pick the lower-preference one for the TLSA lookup
+        let r = MockResolver::new()
+            .with_mx(
+                "example.com",
+                vec![
+                    MxRecord { preference: 30, exchange: "third.example.com".into() },
+                    MxRecord { preference: 10, exchange: "primary.example.com".into() },
+                    MxRecord { preference: 20, exchange: "second.example.com".into() },
+                ],
+            )
+            .with_tlsa("_25._tcp.primary.example.com", vec!["3 1 1 deadbeef".into()]);
+        let res = check_dane(&r, "example.com").await;
+        assert!(matches!(res.status, Status::Pass));
+        assert_eq!(res.details, vec!["3 1 1 deadbeef"]);
     }
 }

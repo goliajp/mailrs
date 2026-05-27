@@ -1,21 +1,17 @@
 //! Per-check submodule (see lib.rs for the dispatcher).
 
-use hickory_resolver::TokioResolver;
-use hickory_resolver::proto::rr::RData;
-
+use super::resolver::PostmasterResolver;
 use super::{CheckResult, Status};
 
-pub(super) async fn check_mta_sts_record(resolver: &TokioResolver, domain: &str) -> CheckResult {
+pub(super) async fn check_mta_sts_record<R: PostmasterResolver + ?Sized>(
+    resolver: &R,
+    domain: &str,
+) -> CheckResult {
     let qname = format!("_mta-sts.{domain}");
     match resolver.txt_lookup(&qname).await {
         Ok(records) => {
             let sts_records: Vec<String> = records
-                .answers()
-                .iter()
-                .filter_map(|r| match &r.data {
-                    RData::TXT(txt) => Some(txt.to_string()),
-                    _ => None,
-                })
+                .into_iter()
                 .filter(|txt| txt.contains("v=STSv1"))
                 .collect();
             if sts_records.is_empty() {
@@ -111,4 +107,65 @@ pub fn parse_mta_sts_policy(body: &str) -> Vec<(String, String)> {
             Some((key.trim().to_lowercase(), value.trim().to_string()))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::resolver::MockResolver;
+
+    #[tokio::test]
+    async fn no_record_yields_warn() {
+        let r = MockResolver::new();
+        let res = check_mta_sts_record(&r, "example.com").await;
+        assert!(matches!(res.status, Status::Warn));
+    }
+
+    #[tokio::test]
+    async fn valid_record_yields_pass() {
+        let r = MockResolver::new()
+            .with_txt("_mta-sts.example.com", vec!["v=STSv1; id=20260527T0001".into()]);
+        let res = check_mta_sts_record(&r, "example.com").await;
+        assert!(matches!(res.status, Status::Pass));
+    }
+
+    #[tokio::test]
+    async fn unrelated_txt_filtered_out() {
+        let r = MockResolver::new()
+            .with_txt("_mta-sts.example.com", vec!["something else".into()]);
+        let res = check_mta_sts_record(&r, "example.com").await;
+        assert!(matches!(res.status, Status::Warn));
+    }
+
+    #[test]
+    fn parse_simple_policy() {
+        let body = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
+        let kv = parse_mta_sts_policy(body);
+        assert_eq!(kv.len(), 4);
+        assert_eq!(kv[0], ("version".into(), "STSv1".into()));
+        assert_eq!(kv[1], ("mode".into(), "enforce".into()));
+        assert_eq!(kv[2], ("mx".into(), "mail.example.com".into()));
+    }
+
+    #[test]
+    fn parse_skips_blank_lines() {
+        let body = "version: STSv1\n\nmode: testing\n";
+        let kv = parse_mta_sts_policy(body);
+        assert_eq!(kv.len(), 2);
+    }
+
+    #[test]
+    fn parse_lowercases_keys() {
+        let body = "VERSION: STSv1\nMode: enforce";
+        let kv = parse_mta_sts_policy(body);
+        assert_eq!(kv[0].0, "version");
+        assert_eq!(kv[1].0, "mode");
+    }
+
+    #[test]
+    fn parse_skips_lines_without_colon() {
+        let body = "version: STSv1\nignored\nmode: enforce";
+        let kv = parse_mta_sts_policy(body);
+        assert_eq!(kv.len(), 2);
+    }
 }

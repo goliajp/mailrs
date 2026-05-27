@@ -109,11 +109,15 @@ pub(super) async fn post_delivery_process(
                         .and_then(|(_, rest)| rest.trim_end_matches('>').rsplit_once('@'))
                 })
                 .map(|(_, d)| d.trim_end_matches('>'));
-            if let Some(domain) = sender_domain
-                && let Some(logo_url) = mailrs_postmaster::lookup_bimi_logo(resolver, domain).await
-                && let Err(e) = mb_store.update_bimi_logo(msg_id, &logo_url).await
-            {
-                tracing::warn!("BIMI update failed for msg {msg_id}: {e}");
+            if let Some(domain) = sender_domain {
+                let pm_resolver =
+                    mailrs_postmaster::HickoryPostmasterResolver::new(resolver.clone());
+                if let Some(logo_url) =
+                    mailrs_postmaster::lookup_bimi_logo(&pm_resolver, domain).await
+                    && let Err(e) = mb_store.update_bimi_logo(msg_id, &logo_url).await
+                {
+                    tracing::warn!("BIMI update failed for msg {msg_id}: {e}");
+                }
             }
         }
     }
