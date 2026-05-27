@@ -7,8 +7,9 @@
 //! signature this crate produces is unusable.
 
 use base64::Engine as _;
-use rsa::pkcs8::EncodePublicKey;
+use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
 use rsa::{RsaPrivateKey, RsaPublicKey};
+use mailrs_dkim::RsaSigningKey;
 
 use mailrs_dkim::{Canon, DkimResolver, DkimResult, DkimSigningKey, SignOpts, sign, verify_all};
 
@@ -43,7 +44,9 @@ async fn sign_and_verify_rsa_sha256_roundtrip() {
     let mut rng = rand::thread_rng();
     let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
     let pub_key = RsaPublicKey::from(&priv_key);
-    let key = DkimSigningKey::Rsa(priv_key);
+    let pkcs8_der = priv_key.to_pkcs8_der().unwrap();
+    let signer = RsaSigningKey::from_pkcs8_der(pkcs8_der.as_bytes()).unwrap();
+    let key = DkimSigningKey::Rsa(signer);
 
     let body = b"Hello, world.\r\n";
     let msg = {
@@ -127,7 +130,9 @@ async fn sign_with_optional_tags_round_trips() {
     let mut rng = rand::thread_rng();
     let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
     let pub_key = RsaPublicKey::from(&priv_key);
-    let key = DkimSigningKey::Rsa(priv_key);
+    let pkcs8_der = priv_key.to_pkcs8_der().unwrap();
+    let signer = RsaSigningKey::from_pkcs8_der(pkcs8_der.as_bytes()).unwrap();
+    let key = DkimSigningKey::Rsa(signer);
 
     let msg = {
         let mut v = Vec::new();
@@ -161,7 +166,9 @@ async fn sign_simple_canon_round_trips() {
     let mut rng = rand::thread_rng();
     let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
     let pub_key = RsaPublicKey::from(&priv_key);
-    let key = DkimSigningKey::Rsa(priv_key);
+    let pkcs8_der = priv_key.to_pkcs8_der().unwrap();
+    let signer = RsaSigningKey::from_pkcs8_der(pkcs8_der.as_bytes()).unwrap();
+    let key = DkimSigningKey::Rsa(signer);
 
     let msg = b"From: alice@example.com\r\nSubject: t\r\n\r\nbody\r\n".to_vec();
     let mut opts = SignOpts::new("example.com", "s1").signed_headers(["From", "Subject"]);

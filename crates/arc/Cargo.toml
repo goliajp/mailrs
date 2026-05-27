@@ -1,8 +1,8 @@
 [package]
 name = "mailrs-arc"
-version = "2.0.0"
+version = "3.0.0"
 edition = "2024"
-description = "RFC 8617 Authenticated Received Chain (ARC) — header parsing, chain extraction, and signature verification. ARC extends DKIM/SPF/DMARC across forwarders by chaining per-hop authentication results inside cryptographically-sealed header sets. Pairs with mailrs-dkim for canonicalization + RSA verify, mailrs-spf / mailrs-dmarc for the auth-results that ARC carries forward."
+description = "RFC 8617 Authenticated Received Chain (ARC) — header parsing, chain extraction, and signature verification + sealing. ARC extends DKIM/SPF/DMARC across forwarders by chaining per-hop authentication results inside cryptographically-sealed header sets. v3 cuts RSA crypto over to aws-lc-rs via mailrs-dkim 3.0 for ~3× faster sign."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"
 homepage = "https://github.com/goliajp/mailrs"
@@ -25,18 +25,20 @@ hickory = ["mailrs-dkim/hickory"]
 async-trait = "0.1"
 base64 = "0.22"
 sha2 = { version = "0.10", features = ["oid"] }
-# Reuse DKIM canonicalization + crypto (AMS/AS share the algorithms).
-mailrs-dkim = { path = "../dkim", version = "2", default-features = false }
-# Direct dep so cargo doc resolves ArcSigningKey<'_> types in this crate.
-rsa = "0.9"
+# Reuse DKIM canonicalization + crypto (AMS/AS share the algorithms);
+# the v3 bump tracks mailrs-dkim 2.0 → 3.0 where RsaSigningKey is the
+# new public RSA handle (wraps aws-lc-rs's RsaKeyPair).
+mailrs-dkim = { path = "../dkim", version = "3", default-features = false }
 ed25519-dalek = "2"
-# Inline-short-string for d= / s= / i= tags — see mailrs-dkim 2.0.
+# Inline-short-string for d= / s= / i= tags — see mailrs-dkim 3.0.
 compact_str = "0.9"
 
 [dev-dependencies]
 criterion = { workspace = true }
 tokio = { workspace = true }
-# rsa 0.9 + rand 0.8 keep rand_core 0.6 compatible.
+# Integration tests still use the pure-Rust `rsa` crate for ad-hoc
+# RSA-2048 key generation + PKCS#8 export. rsa 0.9 + rand 0.8 keep
+# rand_core 0.6 compatible.
 rsa = { version = "0.9", features = ["sha2"] }
 rand = "0.8"
 base64 = "0.22"

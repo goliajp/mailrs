@@ -7,18 +7,21 @@ use mailrs_arc::{
     seal as arc_seal, verify_chain_with_crypto,
 };
 use mailrs_dkim::{
-    Canon as DkimCanon, DkimSigningKey, HickoryDkimResolver, SignOpts, sign as dkim_sign, verify_all,
+    Canon as DkimCanon, DkimSigningKey, HickoryDkimResolver, RsaSigningKey, SignOpts,
+    sign as dkim_sign, verify_all,
 };
-use rsa::RsaPrivateKey;
-use rsa::pkcs8::DecodePrivateKey;
 
 /// DKIM signing configuration.
 ///
-/// The PKCS#8 PEM is parsed into an `RsaPrivateKey` lazily on first use
+/// The PKCS#8 PEM is parsed into an `RsaSigningKey` lazily on first use
 /// and cached for the lifetime of this config — important on the hot
 /// outbound path where every delivered message triggers a sign call.
 /// Existing struct-literal callers need to add `..Default::default()`
 /// (the parsed-key cache is non-public, populated on demand).
+///
+/// **v3 (mailrs-dkim 3.0)**: `RsaSigningKey` wraps aws-lc-rs's
+/// `RsaKeyPair`, so per-sign cost dropped from ~1.5 ms (pure-Rust
+/// `rsa` crate) to ~0.5 ms.
 #[derive(Debug, Clone, Default)]
 pub struct DkimSignConfig {
     /// DKIM selector — the label under `<selector>._domainkey.<domain>`.
@@ -27,7 +30,7 @@ pub struct DkimSignConfig {
     pub domain: String,
     /// Private RSA key in PKCS#8 PEM form.
     pub private_key_pem: String,
-    /// Lazy-parsed RsaPrivateKey, shared across clones so worker
+    /// Lazy-parsed `RsaSigningKey`, shared across clones so worker
     /// concurrency doesn't re-parse per delivery thread.
     ///
     /// **Implementation detail** — leave at `Default::default()`. Pub
@@ -35,14 +38,14 @@ pub struct DkimSignConfig {
     /// `..Default::default()`. Reading or mutating this field
     /// directly is not supported and the type may change.
     #[doc(hidden)]
-    pub parsed_key: Arc<OnceLock<Result<RsaPrivateKey, String>>>,
+    pub parsed_key: Arc<OnceLock<Result<RsaSigningKey, String>>>,
 }
 
 impl DkimSignConfig {
     /// Return a borrowed handle to the parsed RSA key, parsing the PEM
     /// once on first call and caching the result (success OR error) so
     /// every later call is a pointer-load.
-    fn rsa_key(&self) -> Result<&RsaPrivateKey, String> {
+    fn rsa_key(&self) -> Result<&RsaSigningKey, String> {
         let cached = self
             .parsed_key
             .get_or_init(|| load_rsa_key(&self.private_key_pem));
@@ -142,8 +145,8 @@ pub async fn arc_seal_message(
     Ok(out)
 }
 
-fn load_rsa_key(pem: &str) -> Result<RsaPrivateKey, String> {
-    RsaPrivateKey::from_pkcs8_pem(pem).map_err(|e| format!("failed to parse DKIM key: {e}"))
+fn load_rsa_key(pem: &str) -> Result<RsaSigningKey, String> {
+    RsaSigningKey::from_pkcs8_pem(pem).map_err(|e| format!("failed to parse DKIM key: {e}"))
 }
 
 fn build_authres_body(

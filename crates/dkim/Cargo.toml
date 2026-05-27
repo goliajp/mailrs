@@ -1,8 +1,8 @@
 [package]
 name = "mailrs-dkim"
-version = "2.0.0"
+version = "3.0.0"
 edition = "2024"
-description = "RFC 6376 DKIM signature verifier. Parses DKIM-Signature headers, applies simple/relaxed canonicalization, verifies rsa-sha256 signatures against the selector TXT record. Pluggable DNS via DkimResolver trait."
+description = "RFC 6376 DKIM signature verifier + signer. Parses DKIM-Signature headers, applies simple/relaxed canonicalization, verifies rsa-sha256 / ed25519-sha256 against the selector TXT record. RSA primitive backed by aws-lc-rs for ~3× faster sign vs pure-Rust. Pluggable DNS via DkimResolver trait."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"
 homepage = "https://github.com/goliajp/mailrs"
@@ -25,7 +25,16 @@ hickory = ["dep:hickory-resolver"]
 async-trait = "0.1"
 sha2 = { version = "0.10", features = ["oid"] }  # pinned + oid for AssociatedOid
 base64 = "0.22"
-rsa = "0.9"
+# RSA primitives via aws-lc-rs (native AWS-LC bindings). ~3× faster
+# RSA-2048 sign vs the pure-Rust `rsa` crate it replaced in 3.0.
+# Pulled in by `rustls` in the workspace anyway, so no new dep tree
+# weight — just an explicit use here. Closes the dkim_sign regression
+# observed during the v6 ckpt 3 PERFORMANCE.md walk.
+aws-lc-rs = "1"
+# PKCS#8 PEM parsing — `aws-lc-rs::RsaKeyPair::from_pkcs8` takes DER,
+# this gives us PEM → DER. workspace already has it via rustls.
+rustls-pki-types = { version = "1", features = ["alloc"] }
+thiserror = "2"
 ed25519-dalek = "2"
 hickory-resolver = { version = "0.26", optional = true }
 # Inline-short-string for d= / s= / i= / q= tags. Domain + selector
@@ -42,6 +51,10 @@ mail-auth = "0.9"
 # and round-trips them through verify_all. rand 0.8 to match rsa's
 # rand_core 0.6 expectation (rand 0.9 ships rand_core 0.10).
 rand = "0.8"
+# Integration tests still need the pure-Rust `rsa` crate for ad-hoc
+# RSA-2048 key generation + PKCS#8 export — aws-lc-rs's key gen API
+# is more awkward for test fixtures, and this is dev-only weight.
+rsa = "0.9"
 
 [[bench]]
 name = "dkim"

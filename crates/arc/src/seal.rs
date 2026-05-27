@@ -43,9 +43,16 @@ use crate::header::{Algorithm, ArcSealCv, Canon, MAX_INSTANCE};
 
 /// Private key used to sign ARC AMS + AS headers. Mirrors the same
 /// shape as `mailrs_dkim::DkimSigningKey`. Algorithm is implied.
+///
+/// **v3 note**: `Rsa` variant now takes
+/// `&mailrs_dkim::RsaSigningKey` (which wraps aws-lc-rs's
+/// `RsaKeyPair`) instead of `&rsa::RsaPrivateKey`. Migration:
+/// load the PEM via `RsaSigningKey::from_pkcs8_pem`, hold it in a
+/// local, then pass `&signer` to `ArcSigningKey::Rsa`. Matches the
+/// `mailrs-dkim` 3.0 break.
 pub enum ArcSigningKey<'a> {
     /// RSA → `a=rsa-sha256` on both AMS and AS.
-    Rsa(&'a rsa::RsaPrivateKey),
+    Rsa(&'a mailrs_dkim::RsaSigningKey),
     /// Ed25519 → `a=ed25519-sha256` on both AMS and AS (RFC 8463).
     Ed25519(&'a ed25519_dalek::SigningKey),
 }

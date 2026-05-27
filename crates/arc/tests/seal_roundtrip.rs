@@ -9,8 +9,14 @@
 //! unusable.
 
 use base64::Engine as _;
-use rsa::pkcs8::EncodePublicKey;
+use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
 use rsa::{RsaPrivateKey, RsaPublicKey};
+use mailrs_dkim::RsaSigningKey;
+
+fn into_signer(priv_key: &RsaPrivateKey) -> RsaSigningKey {
+    let der = priv_key.to_pkcs8_der().unwrap();
+    RsaSigningKey::from_pkcs8_der(der.as_bytes()).unwrap()
+}
 
 use mailrs_arc::{
     ArcChain, ArcSealCv, ArcSigningKey, Canon, ChainOutcome, SealOpts, seal,
@@ -42,7 +48,8 @@ async fn seal_first_hop_and_verify_passes() {
     let mut rng = rand::thread_rng();
     let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
     let pub_key = RsaPublicKey::from(&priv_key);
-    let key = ArcSigningKey::Rsa(&priv_key);
+    let signer = into_signer(&priv_key);
+    let key = ArcSigningKey::Rsa(&signer);
 
     let raw_msg =
         b"From: alice@origin.example\r\nTo: bob@forwarder.example\r\nSubject: t\r\n\r\nbody\r\n"
@@ -93,11 +100,13 @@ async fn seal_second_hop_on_existing_chain_verifies() {
     let mut rng = rand::thread_rng();
     let priv_a = RsaPrivateKey::new(&mut rng, 2048).unwrap();
     let pub_a = RsaPublicKey::from(&priv_a);
-    let key_a = ArcSigningKey::Rsa(&priv_a);
+    let signer_a = into_signer(&priv_a);
+    let key_a = ArcSigningKey::Rsa(&signer_a);
 
     let priv_b = RsaPrivateKey::new(&mut rng, 2048).unwrap();
     let pub_b = RsaPublicKey::from(&priv_b);
-    let key_b = ArcSigningKey::Rsa(&priv_b);
+    let signer_b = into_signer(&priv_b);
+    let key_b = ArcSigningKey::Rsa(&signer_b);
 
     let raw_msg =
         b"From: alice@origin.example\r\nTo: bob@b.example\r\nSubject: chain\r\n\r\nbody\r\n"
@@ -178,7 +187,8 @@ async fn seal_second_hop_on_existing_chain_verifies() {
 async fn seal_rejects_first_hop_with_non_none_cv() {
     let mut rng = rand::thread_rng();
     let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let key = ArcSigningKey::Rsa(&priv_key);
+    let signer = into_signer(&priv_key);
+    let key = ArcSigningKey::Rsa(&signer);
     let raw_msg = b"From: a@b\r\n\r\nbody\r\n".to_vec();
 
     let opts = SealOpts {
@@ -199,7 +209,8 @@ async fn seal_rejects_first_hop_with_non_none_cv() {
 async fn seal_rejects_later_hop_with_cv_none() {
     let mut rng = rand::thread_rng();
     let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let key = ArcSigningKey::Rsa(&priv_key);
+    let signer = into_signer(&priv_key);
+    let key = ArcSigningKey::Rsa(&signer);
 
     // Seal a first hop to give us a "prior chain", then try to seal
     // a second hop with cv=none — which should be rejected.

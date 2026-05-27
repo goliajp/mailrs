@@ -20,6 +20,7 @@ pub mod resolver;
 pub mod sign;
 pub mod verifier;
 
+pub use crypto::RsaSigningKey;
 pub use error::{DkimError, DkimResult};
 pub use header::{Algorithm, Canon, DkimHeader};
 pub use resolver::DkimResolver;
