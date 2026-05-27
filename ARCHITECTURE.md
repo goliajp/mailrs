@@ -205,14 +205,20 @@ The aggressive stone-finding cycle from 7 → 41 published crates is
 
 What's still open:
 
-1. **ARC (RFC 8617)** — Authenticated Received Chain, the
-   forwarding-friendly successor to DKIM/SPF/DMARC. Natural sibling
-   to the email-auth trio; planned `mailrs-arc` 1.0.
-2. **MTA-STS (RFC 8461)** — currently lives inside `mailrs-postmaster`
-   as a health-check; could carve out `mailrs-mta-sts` doing real
-   policy lookup + cache + decide.
-3. **Sieve eval** — `sieve-rs` is still an external dep; rewrite is a
-   large lift (~2000 LOC of RFC 5228 + extensions), deferred.
+1. **Sieve eval** — `sieve-rs` is still an external dep; rewrite is a
+   large lift (~2000 LOC of RFC 5228 + extensions), explicitly
+   deferred per `DEPS_AUDIT.md` (AGPL exception documented and
+   compliant; not blocking). Re-evaluate periodically.
+2. **mail-builder** wrap (DSN / DMARC aggregate / TLS-RPT report
+   mail composition). Currently used in low-traffic paths only;
+   not hot enough to justify a stone carve-out yet.
+
+Previously listed as "still open" but now shipped:
+
+- **ARC (RFC 8617)** — `mailrs-arc` 3.0 (started 1.0 structural-only,
+  1.1 added crypto AMS/AS verify, 3.0 = aws-lc-rs RSA backend).
+- **MTA-STS (RFC 8461)** — `mailrs-mta-sts` 1.0 (parser + Cache
+  trait + `enforce(&Policy, mx)`).
 
 After those land, the natural next axis is **server-level polish**:
 end-to-end SMTP/IMAP throughput, observability, deploy story.
