@@ -1,0 +1,30 @@
+[package]
+name = "mailrs-mail-builder"
+version = "0.1.0"
+edition = "2024"
+description = "RFC 5322 / 2046 / 2047 / 2231 outbound mail builder. Constructs canonically-compliant raw bytes for plain-text, multipart/alternative, and multipart/mixed messages — encoded-word headers, soft-fold lines, CTE selection (7bit / quoted-printable / base64), boundary collision-scan. The inverse of mailrs-rfc5322 + mailrs-rfc2047 + mailrs-mime parse stones."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-mail-builder"
+authors = ["GOLIA K.K."]
+keywords = ["email", "rfc5322", "mime", "builder", "encoder"]
+categories = ["email", "encoding"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Re-uses our existing encode helper (B/Q boundary already handled
+# inside this stone). No other prod deps — pure builder logic.
+mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
+base64 = "0.22"
+chrono = { workspace = true }
+
+[dev-dependencies]
+mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
+mailrs-mime = { path = "../mime", version = "2" }
+mail-parser = "0.11"  # differential parse oracle for ckpt 2 (not used yet)
+proptest = "1"
+criterion = { workspace = true }

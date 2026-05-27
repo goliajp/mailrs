@@ -45,6 +45,7 @@ members = [
     "crates/sieve",
     "crates/delivery-executor",
     "crates/arf",
+    "crates/mail-builder",
     "crates/server",
 ]
 
