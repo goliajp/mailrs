@@ -91,3 +91,46 @@ v5 先做（小、独立、给 v4 加速 release 节奏）—— v5 没完成不
 - 每完成一个 stone / 每完成一个 workflow patch 立即 commit；不悄悄扩 scope
 - 竞品 perf 数字必须有 reproducible 命令；不存在的不写"first-in-Rust"
 - CI 改动绝不在 v3.x prod hotfix 路径里做；prod 出问题永远用本地 release.sh fallback
+
+## v6 — Polish pass (2026-05-26 → 2026-05-27) — closed
+
+7 checkpoint linear sweep; "no new features, close existing
+commitments". See `.claude/rfcs/20260526-polish-pass-v6.md` for the
+full plan; the deliverable docs live at:
+
+- ckpt 0 — `health-check-2026-05-26.md` (no P0 blocker)
+- ckpt 1 — 10 god-file splits committed (`6ca1eaa` → `08c1b93`)
+- ckpt 2 — `mail-auth` + `mail-parser` removed from server +
+  outbound-queue; mailrs-spf/dkim/arc/dmarc primary path
+  (`2841088` → `97ca1f8` + `e269dcd` h= fix)
+- ckpt 3 — P2 stones measured numbers in `PERFORMANCE.md`; P3
+  spot-check labels confirmed; PEM-cache fix on dkim_sign
+  (`172dde2` + `7b77d12`)
+- ckpt 4 — `REFACTOR-V2-v6-ckpt4-security.md` (OWASP 10/10 ✅);
+  3 new metric names (`mailrs_smtp_connections_total`,
+  `mailrs_outbound_queue_depth`, `mailrs_outbound_delivery_seconds`)
+- ckpt 5 — `REFACTOR-V2-v6-ckpt5-coverage.md` (workspace 82.42 %
+  lib coverage); proptest added to rfc5322 + mime to bring all 4
+  parser crates to coverage
+- ckpt 6 — `release.yml` fixed (multi-arch QEMU build that timed
+  out at 1h replaced by single-arch linux/amd64; ~11 min instead
+  of 1h+); v1.7.32 release.yml all 3 jobs green
+- ckpt 7 — every published stone has a `Performance` section in
+  its README pointing to `BUDGETS.md` + workspace
+  `PERFORMANCE.md`; ARCHITECTURE.md stone count (41) already
+  correct; this section closes the loop
+
+**Carry-overs to v7** (not blockers, just follow-ups):
+
+- mailrs-dkim crypto backend swap (`rsa` 0.9 → `aws-lc-rs`) for
+  ~3× RSA-2048 sign speed-up on outbound dkim path
+- Per-stage inbound pipeline timing histograms (`mailrs-inbound`
+  Stage trait needs a timing facade first)
+- TLS-RPT / MTA-STS / ARC Grafana dashboard JSON (waits on
+  `devops.golia.jp` Grafana → mailrs `/metrics` plumbing)
+- Coverage gaps on live-DNS / live-SMTP / PG-backed modules
+  (postmaster check submodules, outbound-queue worker, smtp-client
+  connection) — needs a mock-DNS + docker-pg fixture layer
+- ckpt 6 trigger says "3 successful release.yml runs in a row";
+  v1.7.32 is #1 of 3 — the remaining 2 will accumulate as future
+  releases ship through the now-working CI

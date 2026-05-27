@@ -123,3 +123,7 @@ Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT license](L
 
 [mailrs]: https://github.com/goliajp/mailrs
 [`mail-auth`]: https://crates.io/crates/mail-auth
+
+## Performance
+
+Criterion benches: `cargo bench -p mailrs-dmarc`. Per-bench medians + regression budgets are documented in [`BUDGETS.md`](BUDGETS.md) (this crate) and the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).

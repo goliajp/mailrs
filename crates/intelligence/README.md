@@ -101,3 +101,7 @@ Production mail servers tend to mix cheap inference (per-message spam classifica
 Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.
 
 [mailrs]: https://github.com/goliajp/mailrs
+
+## Performance
+
+Criterion benches: `cargo bench -p mailrs-intelligence`. Per-bench medians + regression budgets are documented in [`BUDGETS.md`](BUDGETS.md) (this crate) and the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).

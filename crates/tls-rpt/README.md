@@ -130,3 +130,7 @@ Forcing one choice on every caller is exactly the trade-off
 Licensed under either of **Apache License, Version 2.0**
 ([LICENSE-APACHE](./LICENSE-APACHE)) or **MIT License**
 ([LICENSE-MIT](./LICENSE-MIT)) at your option.
+
+## Performance
+
+Criterion benches: `cargo bench -p mailrs-tls-rpt`. Per-bench medians + regression budgets are documented in [`BUDGETS.md`](BUDGETS.md) (this crate) and the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).
