@@ -22,21 +22,30 @@
 //! There is no `a=` tag in [`SignOpts`] — pass the right key.
 
 use base64::Engine as _;
-use rsa::RsaPrivateKey;
 use sha2::{Digest, Sha256};
 
 use crate::canon::{canonicalize_body, canonicalize_header};
-use crate::crypto::{CryptoSigningKey, sign_signature};
+use crate::crypto::{CryptoSigningKey, RsaSigningKey, sign_signature};
 use crate::error::DkimError;
 use crate::header::{Algorithm, Canon};
 use crate::headers::{body_offset_minus_blank, find_body_offset};
 
 /// Private key used to sign a DKIM-Signature. Algorithm is implied by
 /// the variant.
+#[allow(
+    clippy::large_enum_variant,
+    reason = "ed25519_dalek::SigningKey holds a cached scalar (~64-96 bytes); \
+              RsaSigningKey is an Arc + usize (~16 bytes). Boxing the larger \
+              variant would mean a heap alloc per DkimSigningKey::Ed25519 \
+              construction. The enum is created once per outbound mail at \
+              most and not stored in large collections, so the size penalty \
+              is benign."
+)]
 pub enum DkimSigningKey {
     /// RSA private key — produces `a=rsa-sha256`. Mainstream choice;
-    /// supports 1024 / 2048 / 4096-bit moduli.
-    Rsa(RsaPrivateKey),
+    /// supports 1024 / 2048 / 4096-bit moduli. Construct via
+    /// [`RsaSigningKey::from_pkcs8_pem`] (or `_der`).
+    Rsa(RsaSigningKey),
     /// Ed25519 signing key — produces `a=ed25519-sha256` (RFC 8463).
     /// Smaller signatures, faster signing, but selector TXT records
     /// publish the raw 32-byte key (NOT PKCS8) so receivers need to

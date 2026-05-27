@@ -2830,7 +2830,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-arc"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -2987,9 +2987,10 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dkim"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "async-trait",
+ "aws-lc-rs",
  "base64",
  "compact_str",
  "criterion",
@@ -2998,7 +2999,9 @@ dependencies = [
  "mail-auth",
  "rand 0.8.6",
  "rsa",
+ "rustls-pki-types",
  "sha2 0.10.9",
+ "thiserror",
  "tokio",
 ]
 
@@ -3241,7 +3244,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "1.3.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3254,7 +3257,6 @@ dependencies = [
  "mailrs-smtp-client",
  "metrics",
  "redis",
- "rsa",
  "rustls-pki-types",
  "sqlx",
  "thiserror",

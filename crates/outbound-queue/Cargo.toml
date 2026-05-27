@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-outbound-queue"
-version = "1.3.0"
+version = "2.0.0"
 edition = "2024"
 description = "Outbound mail queue primitives: DKIM signing, DSN generation, MTA-STS lookup, retry/backoff, with a pluggable store trait and a Postgres reference implementation."
 license = "Apache-2.0 OR MIT"
@@ -34,9 +34,8 @@ hickory-resolver = "0.26"
 futures-util = "0.3"
 rustls-pki-types = { version = "1", features = ["alloc"] }
 mailrs-smtp-client = { path = "../smtp-client", version = "2" }
-mailrs-dkim = { path = "../dkim", version = "2" }
-mailrs-arc = { path = "../arc", version = "2" }
-rsa = { version = "0.9", features = ["pem"] }
+mailrs-dkim = { path = "../dkim", version = "3" }
+mailrs-arc = { path = "../arc", version = "3" }
 
 # pg feature
 sqlx = { workspace = true, optional = true }
