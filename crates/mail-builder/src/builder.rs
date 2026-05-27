@@ -52,6 +52,12 @@ pub struct MessageBuilder {
     html_body: Option<String>,
     attachments: Vec<Attachment>,
     extra_headers: Vec<(String, String)>,
+    /// When set, the multipart container subtype switches from
+    /// `mixed` to `report` and the outer `Content-Type:` carries a
+    /// `report-type=<value>` parameter (RFC 6522 / 3464). Required
+    /// for DSN bounces (`delivery-status`), DMARC failure reports
+    /// (`disposition-notification`), and TLSRPT (`tlsrpt`).
+    report_type: Option<String>,
 }
 
 /// Single mailbox address with optional display name. Internal-only;
@@ -186,6 +192,18 @@ impl MessageBuilder {
     /// folded and encoded-word-protected automatically.
     pub fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.extra_headers.push((name.into(), value.into()));
+        self
+    }
+
+    /// Set the multipart report-type per RFC 6522. With this set,
+    /// any multipart container the builder emits uses
+    /// `multipart/report; report-type=<value>; boundary=...` instead
+    /// of `multipart/mixed`. Required for DSN
+    /// (`report_type("delivery-status")`), MDN
+    /// (`report_type("disposition-notification")`), and TLSRPT
+    /// (`report_type("tlsrpt")`).
+    pub fn report_type(mut self, kind: impl Into<String>) -> Self {
+        self.report_type = Some(kind.into());
         self
     }
 
@@ -330,11 +348,11 @@ impl MessageBuilder {
             parts.push(attachment_part_bytes(att));
         }
         let (boundary, envelope) = multipart_envelope(&parts);
-        push_header(
-            out,
-            "Content-Type",
-            &format!("multipart/mixed; boundary=\"{boundary}\""),
-        );
+        let outer_ct = match &self.report_type {
+            Some(rt) => format!("multipart/report; report-type={rt}; boundary=\"{boundary}\""),
+            None => format!("multipart/mixed; boundary=\"{boundary}\""),
+        };
+        push_header(out, "Content-Type", &outer_ct);
         out.extend_from_slice(b"\r\n");
         out.extend_from_slice(&envelope);
     }
@@ -376,18 +394,29 @@ fn html_part_bytes(body: &[u8]) -> PartBytes {
 }
 
 fn attachment_part_bytes(att: &Attachment) -> PartBytes {
-    // Attachments are emitted as base64 unconditionally — they're
-    // almost always binary, and base64 keeps them safely transport-
-    // neutral.
+    // Attachment CTE choice is content-type-driven:
+    // - text/*, message/* parts route through choose_cte so e.g.
+    //   the message/delivery-status body inside a DSN comes
+    //   through as 7bit ASCII (RFC 3464 §2), not base64
+    // - everything else (application/*, image/*, audio/*, …) is
+    //   treated as binary and forced to base64 regardless of how
+    //   the bytes happen to shape up
+    let ct_lower = att.content_type.to_ascii_lowercase();
+    let cte = if ct_lower.starts_with("text/") || ct_lower.starts_with("message/") {
+        choose_cte(&att.data)
+    } else {
+        ContentTransferEncoding::Base64
+    };
     let mut headers = Vec::new();
     push_header(&mut headers, "Content-Type", &att.content_type);
-    push_header(&mut headers, "Content-Transfer-Encoding", "base64");
+    push_header(&mut headers, "Content-Transfer-Encoding", cte.as_str());
     push_header(
         &mut headers,
         "Content-Disposition",
         &format!("attachment; filename=\"{}\"", att.filename.replace('"', "")),
     );
-    let body = encode_base64(&att.data).into_bytes();
+    let mut body = Vec::new();
+    write_encoded_body(&mut body, &att.data, cte);
     PartBytes { headers, body }
 }
 
@@ -585,6 +614,42 @@ mod tests {
         assert!(s.contains("To: b@y\r\n"));
         assert!(s.contains("Cc: c@y\r\n"));
         assert!(s.contains("Bcc: d@y\r\n"));
+    }
+
+    #[test]
+    fn report_type_switches_outer_to_multipart_report() {
+        let msg = MessageBuilder::new()
+            .from("postmaster@mail.example.com")
+            .to("alice@example.com")
+            .subject("DSN")
+            .text_body("Your message could not be delivered.\r\n")
+            .attachment(Attachment::new(
+                "delivery-status.txt",
+                "message/delivery-status",
+                b"Reporting-MTA: dns; relay\r\n".to_vec(),
+            ))
+            .report_type("delivery-status")
+            .date("Wed, 27 May 2026 12:00:00 +0000")
+            .build();
+        let s = std::str::from_utf8(&msg).unwrap();
+        let unfold = s.replace("\r\n ", " ").replace("\r\n\t", " ");
+        assert!(unfold.contains("Content-Type: multipart/report; report-type=delivery-status;"));
+        assert!(!unfold.contains("multipart/mixed"));
+    }
+
+    #[test]
+    fn no_report_type_keeps_multipart_mixed() {
+        let msg = MessageBuilder::new()
+            .from("a@x")
+            .to("b@y")
+            .subject("s")
+            .text_body("body")
+            .attachment(Attachment::new("a.bin", "application/octet-stream", vec![1]))
+            .date("Wed, 27 May 2026 12:00:00 +0000")
+            .build();
+        let s = std::str::from_utf8(&msg).unwrap();
+        let unfold = s.replace("\r\n ", " ").replace("\r\n\t", " ");
+        assert!(unfold.contains("multipart/mixed"));
     }
 
     #[test]

@@ -379,40 +379,18 @@ pub fn format_report_email(
     date: &str,
     xml: &str,
 ) -> Vec<u8> {
-    use base64::Engine;
+    use mailrs_mail_builder::{Attachment, MessageBuilder};
     let gz = gzip_compress(xml.as_bytes());
-    let b64 = base64::engine::general_purpose::STANDARD.encode(&gz);
-    let boundary = format!("dmarc-report-{report_id}");
     let filename = format!("{org_domain}!{to}!{date}!{report_id}.xml.gz");
-    let now = chrono::Utc::now().to_rfc2822();
-
-    let mut msg = format!(
-        "From: {from}\r\n\
-         To: {to}\r\n\
-         Subject: Report domain: {org_domain} Submitter: {from} Report-ID: <{report_id}>\r\n\
-         Date: {now}\r\n\
-         MIME-Version: 1.0\r\n\
-         Content-Type: multipart/mixed; boundary=\"{boundary}\"\r\n\
-         \r\n\
-         --{boundary}\r\n\
-         Content-Type: text/plain; charset=utf-8\r\n\
-         \r\n\
-         DMARC aggregate report for {org_domain} ({date})\r\n\
-         \r\n\
-         --{boundary}\r\n\
-         Content-Type: application/gzip\r\n\
-         Content-Disposition: attachment; filename=\"{filename}\"\r\n\
-         Content-Transfer-Encoding: base64\r\n\
-         \r\n"
-    );
-
-    for chunk in b64.as_bytes().chunks(76) {
-        msg.push_str(std::str::from_utf8(chunk).unwrap_or(""));
-        msg.push_str("\r\n");
-    }
-    msg.push_str(&format!("--{boundary}--\r\n"));
-
-    msg.into_bytes()
+    MessageBuilder::new()
+        .from(from)
+        .to(to)
+        .subject(format!(
+            "Report domain: {org_domain} Submitter: {from} Report-ID: <{report_id}>",
+        ))
+        .text_body(format!("DMARC aggregate report for {org_domain} ({date})\r\n"))
+        .attachment(Attachment::new(filename, "application/gzip", gz))
+        .build()
 }
 
 /// Extract the `rua` mailbox from a `_dmarc.<domain>` TXT record.
@@ -879,9 +857,21 @@ mod tests {
         let xml = "<feedback/>";
         let email = format_report_email("f@f.com", "t@t.com", "d.com", "rpt-1", "2026-01-01", xml);
         let email_str = String::from_utf8_lossy(&email);
-        assert!(email_str.contains("boundary=\"dmarc-report-rpt-1\""));
-        assert!(email_str.contains("--dmarc-report-rpt-1"));
-        assert!(email_str.contains("--dmarc-report-rpt-1--"));
+        // mail-builder generates random boundaries — verify the
+        // envelope shape: a boundary parameter on the outer
+        // Content-Type, opening + closing lines using that exact
+        // value.
+        let unfold = email_str.replace("\r\n ", " ").replace("\r\n\t", " ");
+        let needle = "boundary=\"";
+        let start = unfold.find(needle).expect("no boundary= on outer Content-Type")
+            + needle.len();
+        let end = unfold[start..].find('"').unwrap() + start;
+        let boundary = &unfold[start..end];
+        assert!(!boundary.is_empty());
+        let open = format!("--{boundary}");
+        let close = format!("--{boundary}--");
+        assert!(email_str.contains(&open), "no opening boundary line {open:?}");
+        assert!(email_str.contains(&close), "no closing boundary line {close:?}");
     }
 
     #[test]
@@ -946,10 +936,16 @@ mod tests {
         let email = format_report_email("f@f.com", "t@t.com", "d.com", "r", "2026-01-01", xml);
         let email_str = String::from_utf8_lossy(&email);
 
-        // extract base64 content between the base64 header and the closing boundary
-        let b64_marker = "Content-Transfer-Encoding: base64\r\n\r\n";
-        let start = email_str.find(b64_marker).unwrap() + b64_marker.len();
-        let end = email_str[start..].find("--dmarc-report-r--").unwrap() + start;
+        // extract base64 content between the attachment header
+        // block and the next boundary line. mail-builder emits
+        // Content-Type, CTE, and Content-Disposition in that order,
+        // so we anchor on the CTE header then walk to the
+        // header-body separator and finally the boundary.
+        let cte_marker = "Content-Transfer-Encoding: base64";
+        let cte_at = email_str.find(cte_marker).unwrap();
+        let blank = email_str[cte_at..].find("\r\n\r\n").unwrap() + cte_at + 4;
+        let start = blank;
+        let end = email_str[start..].find("\r\n--").unwrap() + start;
         let b64_content: String = email_str[start..end].lines().collect::<Vec<_>>().join("");
         // should be valid base64
         let decoded = base64::engine::general_purpose::STANDARD
@@ -971,9 +967,11 @@ mod tests {
         let xml = "<feedback>".repeat(100); // large enough to produce multi-line base64
         let email = format_report_email("f@f.com", "t@t.com", "d.com", "r", "2026-01-01", &xml);
         let email_str = String::from_utf8_lossy(&email);
-        let b64_marker = "Content-Transfer-Encoding: base64\r\n\r\n";
-        let start = email_str.find(b64_marker).unwrap() + b64_marker.len();
-        let end = email_str[start..].find("--dmarc-report-r--").unwrap() + start;
+        let cte_marker = "Content-Transfer-Encoding: base64";
+        let cte_at = email_str.find(cte_marker).unwrap();
+        let blank = email_str[cte_at..].find("\r\n\r\n").unwrap() + cte_at + 4;
+        let start = blank;
+        let end = email_str[start..].find("\r\n--").unwrap() + start;
         for line in email_str[start..end].split("\r\n") {
             if !line.is_empty() && !line.starts_with("--") {
                 assert!(
