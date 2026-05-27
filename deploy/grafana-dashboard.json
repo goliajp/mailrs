@@ -1,0 +1,183 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "mailrs server operational overview. Points at /metrics on the mailrs-server HTTP API (default :3100 internal, :3200 dev). Designed against the metric names emitted as of v1.7.32.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisLabel": "msgs/sec", "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "spanNulls": false },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "SMTP / IMAP / POP3 connection rate",
+      "targets": [
+        { "expr": "rate(mailrs_smtp_connections_total[5m])", "legendFormat": "smtp ({{tls}})", "refId": "A" },
+        { "expr": "rate(mailrs_imap_connections_total[5m])", "legendFormat": "imap", "refId": "B" },
+        { "expr": "rate(mailrs_pop3_connections_total[5m])", "legendFormat": "pop3", "refId": "C" }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "stacking": { "mode": "normal" } },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "title": "Inbound verdict mix",
+      "targets": [
+        { "expr": "rate(mailrs_inbound_verdict_total[5m])", "legendFormat": "{{verdict}}", "refId": "A" }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 1000 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "id": 3,
+      "title": "Outbound queue depth",
+      "targets": [
+        { "expr": "mailrs_outbound_queue_depth", "legendFormat": "{{status}}", "refId": "A" }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "id": 4,
+      "title": "Outbound delivery latency (P50/P95/P99)",
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(mailrs_outbound_delivery_seconds_bucket[5m])) by (le, outcome))", "legendFormat": "p50 ({{outcome}})", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(mailrs_outbound_delivery_seconds_bucket[5m])) by (le, outcome))", "legendFormat": "p95 ({{outcome}})", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum(rate(mailrs_outbound_delivery_seconds_bucket[5m])) by (le, outcome))", "legendFormat": "p99 ({{outcome}})", "refId": "C" }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "id": 5,
+      "title": "Inbound per-stage P95 latency",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(mailrs_inbound_stage_seconds_bucket[5m])) by (le, stage))", "legendFormat": "{{stage}} p95", "refId": "A" }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 6,
+      "title": "Auth success vs failure rate",
+      "targets": [
+        { "expr": "rate(mailrs_auth_total[5m])", "legendFormat": "{{outcome}}", "refId": "A" }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 7,
+      "title": "Active connections (current)",
+      "targets": [
+        { "expr": "mailrs_connections_active", "legendFormat": "active", "refId": "A" }
+      ],
+      "type": "stat"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["mailrs", "smtp", "email"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "Prometheus", "value": "prometheus" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Prometheus",
+        "multi": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "mailrs — operational overview",
+  "uid": "mailrs-ops-v1",
+  "version": 1,
+  "weekStart": ""
+}
