@@ -23,6 +23,7 @@ workspace = true
 [dev-dependencies]
 mail-parser = "0.11"  # for comparison benches only
 criterion = { workspace = true }
+proptest = "1"
 
 [[bench]]
 name = "parse"
