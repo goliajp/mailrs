@@ -25,6 +25,12 @@ chrono = { workspace = true }
 [dev-dependencies]
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
-mail-parser = "0.11"  # differential parse oracle for ckpt 2 (not used yet)
+mail-parser = "0.11"  # differential parse oracle (ckpt 2.2)
 proptest = "1"
 criterion = { workspace = true }
+# Cross-MTA interop (ckpt 2.3): SMTP-submit to a real Mailpit
+# container and verify the stored bytes match what we sent.
+testcontainers = "0.27"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { workspace = true }

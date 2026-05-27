@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc ac9e89500c14c8b294421a1d4bbbcbfc9bc403125272216fff0ab63a2fd11d26 # shrinks to shape = TextPlusHtmlPlusAttachment("A", "<p>hello</p>", AttachmentSpec { name: "a.bin", ct: "text/plain", data: [44, 239, 217, 89, 160, 31, 207, 194, 226, 174, 14, 114, 83, 251, 97, 124, 16, 188, 154, 60, 25, 124, 205, 141, 226, 213, 148, 0, 48, 217, 132, 0, 33, 0, 69, 53, 119, 150, 47, 29, 231, 51, 134, 236, 6, 55, 169, 212, 120, 228, 86, 61, 251, 247, 73, 16, 113, 198, 78, 173, 122, 208, 89, 103, 57, 35, 39, 186, 166, 43, 236, 160, 151, 100, 119, 80, 80, 99, 46, 181, 26, 233, 18, 92, 254, 61, 190, 130, 111, 180, 37, 170, 169, 10, 125, 247, 244, 114, 238, 9, 98, 14, 110, 187, 171, 7, 167, 185, 19, 201, 133, 21, 149, 141, 157, 125, 156, 228, 162, 221, 72, 101, 212, 100, 243, 93, 99, 219, 29, 121, 192] })
