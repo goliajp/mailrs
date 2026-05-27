@@ -53,9 +53,12 @@ fn iso_2022_jp_under_budget() {
     let median = time_median(|| {
         let _ = decode(input);
     });
-    // Budget: 5 µs (release P95 ~154 ns). ISO-2022-JP via encoding_rs
-    // is the heaviest decode path for typical Japanese subjects.
-    let budget = Duration::from_micros(5);
+    // Budget: 20 µs (release P95 ~154 ns; dev profile under workspace
+    // test load borders 5-8 µs). ISO-2022-JP via encoding_rs is the
+    // heaviest decode path for typical Japanese subjects. The 20 µs
+    // headroom matches the ckpt 3 / ckpt 4 convention for budgets
+    // that must survive `cargo test --workspace` in dev profile.
+    let budget = Duration::from_micros(20);
     assert!(
         median < budget,
         "iso_2022_jp median {median:?} exceeded {budget:?}"
