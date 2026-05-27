@@ -15,9 +15,17 @@ pub enum TlsPolicy {
 }
 
 /// try to deliver messages via a specific MX host
-pub(super) async fn try_deliver_via_mx(
+///
+/// `port` is the TCP port to connect to on `mx_host`. Production
+/// always passes 25 (the SMTP relay port); integration tests inject
+/// an ephemeral mock-server port. Kept as a parameter rather than
+/// hardcoded so the worker stays testable end-to-end without a real
+/// MTA on port 25.
+#[allow(clippy::too_many_arguments)]
+pub async fn try_deliver_via_mx(
     hostname: &str,
     mx_host: &str,
+    port: u16,
     domain: &str,
     messages: &[QueuedMessage],
     resolver: &TokioResolver,
@@ -26,6 +34,7 @@ pub(super) async fn try_deliver_via_mx(
     try_deliver_via_mx_with_tls(
         hostname,
         mx_host,
+        port,
         domain,
         messages,
         TlsPolicy::Opportunistic,
@@ -36,9 +45,11 @@ pub(super) async fn try_deliver_via_mx(
 }
 
 /// try to deliver messages via a specific MX host with explicit TLS policy
+#[allow(clippy::too_many_arguments)]
 async fn try_deliver_via_mx_with_tls(
     hostname: &str,
     mx_host: &str,
+    port: u16,
     domain: &str,
     messages: &[QueuedMessage],
     tls_policy: TlsPolicy,
@@ -58,7 +69,7 @@ async fn try_deliver_via_mx_with_tls(
         }
     };
 
-    let mut smtp = mailrs_smtp_client::SmtpConnection::connect(mx_host, 25).await?;
+    let mut smtp = mailrs_smtp_client::SmtpConnection::connect(mx_host, port).await?;
     let ehlo_resp = smtp.ehlo(hostname).await?;
 
     if !ehlo_resp.is_positive() {
@@ -140,7 +151,7 @@ async fn try_deliver_via_mx_with_tls(
                     "STARTTLS handshake failed for {mx_host} ({}): {source}; reconnecting in plain",
                     outcome.as_str()
                 );
-                smtp = mailrs_smtp_client::SmtpConnection::connect(mx_host, 25).await?;
+                smtp = mailrs_smtp_client::SmtpConnection::connect(mx_host, port).await?;
                 let resp = smtp.ehlo(hostname).await?;
                 if !resp.is_positive() {
                     return Err(format!("EHLO rejected on reconnect: {}", resp.message()).into());

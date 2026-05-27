@@ -21,9 +21,8 @@ use crate::{DeliveryEventSender};
 mod delivery;
 mod smtp;
 
-pub use smtp::TlsPolicy;
-
-use delivery::deliver_domain_static;
+pub use delivery::deliver_domain_static;
+pub use smtp::{TlsPolicy, try_deliver_via_mx};
 
 /// Delivery worker configuration.
 #[derive(Debug, Clone)]
@@ -303,6 +302,7 @@ impl DeliveryWorker {
                     &domain,
                     domain_messages,
                     &pool,
+                    25,
                     max_per_conn,
                     event_sender.as_ref(),
                 )

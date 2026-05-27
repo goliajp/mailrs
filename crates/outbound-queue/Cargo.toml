@@ -42,8 +42,23 @@ sqlx = { workspace = true, optional = true }
 redis = { workspace = true, optional = true }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt"] }
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+# Integration tests spin a real Postgres in a container so the `pg`
+# feature paths (queue.rs SQL, pg_store.rs trait wiring) run against
+# the actual db, not a mock. Required serially — see tests/common/pg.rs.
+testcontainers = "0.27"
+testcontainers-modules = { version = "0.15", features = ["postgres", "redis"] }
+sqlx = { workspace = true }
+# Mirrors smtp-client/tests/common/mock_smtp.rs deps so the same mock
+# can serve worker-integration tests end-to-end (worker → smtp-client →
+# mock SMTP). Plain-text fixture deps only; TLS support is unused here
+# but the file is byte-identical to smtp-client's copy to keep the
+# helper drift-free across the two crates' integration suites.
+rcgen = "0.14"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+tokio-rustls = "0.26"
+hickory-resolver = "0.26"
 
 [[bench]]
 name = "core"
