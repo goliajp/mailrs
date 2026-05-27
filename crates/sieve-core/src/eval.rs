@@ -49,6 +49,9 @@ struct EvalState {
     /// Once an `if` branch matches, subsequent `elsif`/`else` are
     /// skipped per RFC 5228 §3.1.
     last_if_matched: bool,
+    /// RFC 5228 §3.3 `stop` — terminate evaluation, do not run any
+    /// subsequent commands in any enclosing block.
+    stopped: bool,
 }
 
 struct MessageContext<'m> {
@@ -82,6 +85,9 @@ fn eval_block(
     state: &mut EvalState,
 ) -> Result<(), EvalError> {
     for cmd in commands {
+        if state.stopped {
+            break;
+        }
         eval_command(cmd, ctx, state)?;
     }
     Ok(())
@@ -132,14 +138,11 @@ fn eval_command(
             Ok(())
         }
         "stop" => {
-            // RFC 5228 §3.3 — stop terminates evaluation. We
-            // emulate this by clearing the remaining commands;
-            // since we're inside eval_block, return early.
-            // (The caller's loop will continue but no command
-            // after stop is processed in this scope.)
-            // For simplicity in 0.1 we treat stop as no-op
-            // beyond setting explicit_action — the spec-correct
-            // behaviour is captured in subsequent slices.
+            // RFC 5228 §3.3 — terminate evaluation. The
+            // `stopped` flag is checked at the top of every
+            // block-loop iteration, so all enclosing blocks
+            // unwind without running any further commands.
+            state.stopped = true;
             state.explicit_action = true;
             Ok(())
         }
