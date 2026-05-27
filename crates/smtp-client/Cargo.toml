@@ -27,8 +27,14 @@ sha2 = "0.11.0"
 compact_str = "0.9"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt"] }
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "io-util", "net", "time"] }
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+# Server-side TLS for STARTTLS-success path coverage. `rcgen` generates
+# an ephemeral self-signed cert per test; the mock server uses
+# `tokio-rustls` as the server-side handshake driver (the same TLS
+# stack the production client uses, just configured for the listening
+# end). Both are dev-only.
+rcgen = "0.14"
 
 [[bench]]
 name = "parse"

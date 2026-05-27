@@ -46,17 +46,24 @@ pub(super) async fn enqueue_dsn(
 }
 
 /// deliver messages to a single domain (used by concurrent workers)
+///
+/// `port` is the TCP port used to connect to every MX in the
+/// resolved set. Production wires 25; integration tests pass an
+/// ephemeral mock-server port to drive the full claim → MX-resolve
+/// → SMTP → mark_* lifecycle without a real MTA on the box.
 #[tracing::instrument(
     name = "outbound.deliver_domain",
     skip(resolver, hostname, messages, pool, event_sender),
     fields(domain, n_messages = messages.len(), max_per_conn),
 )]
-pub(super) async fn deliver_domain_static(
+#[allow(clippy::too_many_arguments)]
+pub async fn deliver_domain_static(
     resolver: &TokioResolver,
     hostname: &str,
     domain: &str,
     messages: Vec<QueuedMessage>,
     pool: &PgPool,
+    port: u16,
     max_per_conn: usize,
     event_sender: Option<&DeliveryEventSender>,
 ) {
@@ -152,6 +159,7 @@ pub(super) async fn deliver_domain_static(
             match try_deliver_via_mx(
                 hostname,
                 &mx.exchange,
+                port,
                 domain,
                 chunk,
                 resolver,
