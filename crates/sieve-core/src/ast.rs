@@ -85,4 +85,51 @@ pub enum Action {
     Redirect(String),
     /// Reject with the given reason string.
     Reject(String),
+    /// RFC 5230 `vacation` — generate an automatic reply. The
+    /// stateful parts (dedup window, recipient detection, reply
+    /// message build) are the caller's job; this engine only
+    /// surfaces the parsed action.
+    Vacation(VacationAction),
+}
+
+/// RFC 5230 `vacation` action — everything the caller needs to
+/// generate the auto-reply.
+///
+/// Fields with `Option` default to "use the server-defined
+/// value" (per RFC 5230 §4.1–4.5). `addresses` and `mime` default
+/// to `Vec::new()` / `false`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VacationAction {
+    /// The auto-reply body (positional argument — required).
+    pub reason: String,
+    /// `:days <n>` or `:seconds <n>` — the dedup window.
+    /// `None` = server default (RFC 5230 §4.1 hints at 7 days).
+    pub period: Option<VacationPeriod>,
+    /// `:subject <s>` — overrides the default `Auto:`-prefixed
+    /// Subject (RFC 5230 §4.2).
+    pub subject: Option<String>,
+    /// `:from <addr>` — overrides the default `From:` of the auto-
+    /// reply (RFC 5230 §4.3); must be a path the mailbox owner can
+    /// legitimately use.
+    pub from: Option<String>,
+    /// `:addresses [<a>, <b>, …]` — alternate recipient addresses
+    /// the user may be addressed at; the auto-reply is only sent
+    /// if one of these matches the incoming envelope-to (RFC 5230
+    /// §4.4).
+    pub addresses: Vec<String>,
+    /// `:mime` — when true the `reason` is a full RFC 2822 MIME
+    /// entity; otherwise it's plain text (RFC 5230 §4.5).
+    pub mime: bool,
+    /// `:handle <h>` — handle for the dedup index (RFC 5230 §4.6);
+    /// distinct reasons sharing one handle are deduplicated as one.
+    pub handle: Option<String>,
+}
+
+/// The `:days` / `:seconds` window on a `vacation` action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VacationPeriod {
+    /// `:days <n>` — RFC 5230 §4.1.
+    Days(u64),
+    /// `:seconds <n>` — RFC 6131 extension (sub-day windows).
+    Seconds(u64),
 }
