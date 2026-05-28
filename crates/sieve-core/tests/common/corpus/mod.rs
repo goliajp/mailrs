@@ -77,6 +77,7 @@ mod slice4_e;
 mod slice4_f;
 mod slice4_g;
 mod slice5_a;
+mod slice5_b;
 
 /// Envelope-aware corpus — driven by the envelope diff test.
 pub fn envelope_corpus() -> Vec<EnvelopeRow> {
@@ -95,5 +96,6 @@ pub fn corpus() -> Vec<CorpusRow> {
     all.extend(slice4_f::corpus());
     all.extend(slice4_g::corpus());
     all.extend(slice5_a::corpus());
+    all.extend(slice5_b::corpus());
     all
 }
