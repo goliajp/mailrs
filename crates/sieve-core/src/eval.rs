@@ -141,12 +141,10 @@ fn eval_command(
             Ok(())
         }
         "stop" => {
-            // RFC 5228 §3.3 — terminate evaluation. The
-            // `stopped` flag is checked at the top of every
-            // block-loop iteration, so all enclosing blocks
-            // unwind without running any further commands.
+            // RFC 5228 §4.5 — terminate evaluation but do NOT
+            // cancel the implicit keep (leave `explicit_action`
+            // unchanged).
             state.stopped = true;
-            state.explicit_action = true;
             Ok(())
         }
         "vacation" => {
