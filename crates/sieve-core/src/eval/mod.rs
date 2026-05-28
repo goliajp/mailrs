@@ -5,6 +5,7 @@ mod context;
 mod test_engine;
 
 use crate::ast::{Action, Argument, Command, Envelope, Test};
+use crate::capabilities::validate as validate_capabilities;
 use crate::parse::{ParseError, parse_script};
 use crate::vacation::parse_vacation_args;
 
@@ -13,6 +14,7 @@ use test_engine::eval_test;
 
 /// Eval failure modes.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum EvalError {
     /// Parse failed before evaluation could start.
     #[error("parse: {0}")]
@@ -32,6 +34,32 @@ pub enum EvalError {
         /// Human-readable explanation.
         detail: String,
     },
+    /// Script uses an extension feature without declaring the
+    /// corresponding capability via `require` (RFC 5228 §3.2 —
+    /// "implementations MUST treat scripts which contain capability
+    /// declarations not satisfied by the implementation as
+    /// containing a syntax error").
+    #[error(
+        "missing capability for {feature:?}: script must `require [\"{capability}\"]`"
+    )]
+    MissingCapability {
+        /// Identifier of the unrequired feature (command / test /
+        /// `:tag`).
+        feature: String,
+        /// Capability string the script must declare via `require`
+        /// to use the feature.
+        capability: String,
+    },
+    /// `require` declared a capability the implementation does not
+    /// support (RFC 5228 §3.2).
+    #[error("unsupported capability {0:?}")]
+    UnsupportedCapability(String),
+    /// `require` action appeared after a non-`require` command
+    /// (RFC 5228 §3.2 — "If the 'require' action is used, it MUST
+    /// be used before any other actions other than other 'require'
+    /// actions").
+    #[error("require out of order: must appear before any other action")]
+    RequireOutOfOrder,
 }
 
 /// Evaluate a Sieve script against a message. Returns the
@@ -53,6 +81,7 @@ pub fn eval_script_with_envelope(
     envelope: &Envelope,
 ) -> Result<Vec<Action>, EvalError> {
     let commands = parse_script(script)?;
+    validate_capabilities(&commands)?;
     let ctx = MessageContext::new(message);
     let mut state = EvalState::default();
     eval_block(&commands, &ctx, envelope, &mut state)?;
@@ -103,7 +132,7 @@ fn eval_command(
     state: &mut EvalState,
 ) -> Result<(), EvalError> {
     match cmd.name.as_str() {
-        "require" => Ok(()), // capabilities are advisory in the v0.1 evaluator
+        "require" => Ok(()), // validated upstream by `capabilities::validate`
         "keep" => {
             let local = override_flags_from_tag(&cmd.args);
             state.actions.push(Action::Keep {
@@ -333,7 +362,8 @@ hello world\r\n";
 
     #[test]
     fn header_contains_substring() {
-        let script = r#"if header :contains "Subject" "offer" { fileinto "Ads"; }"#;
+        let script = r#"require ["fileinto"];
+                        if header :contains "Subject" "offer" { fileinto "Ads"; }"#;
         assert_eq!(
             eval_script(script, MSG).unwrap(),
             vec![Action::FileInto { mailbox: "Ads".into(), flags: vec![] }]
@@ -431,7 +461,8 @@ hello world\r\n";
 
     #[test]
     fn address_domain() {
-        let script = r#"if address :domain "To" "dest.com" { fileinto "Sent"; }"#;
+        let script = r#"require ["fileinto"];
+                        if address :domain "To" "dest.com" { fileinto "Sent"; }"#;
         assert_eq!(
             eval_script(script, MSG).unwrap(),
             vec![Action::FileInto { mailbox: "Sent".into(), flags: vec![] }]
@@ -449,10 +480,49 @@ hello world\r\n";
 
     #[test]
     fn reject_action() {
-        let script = r#"reject "policy reject";"#;
+        let script = r#"require ["reject"]; reject "policy reject";"#;
         assert_eq!(
             eval_script(script, MSG).unwrap(),
             vec![Action::Reject("policy reject".into())]
         );
+    }
+
+    // --- RFC 5228 §3.2 strict require enforcement ---
+
+    #[test]
+    fn fileinto_without_require_errors() {
+        let err = eval_script(r#"fileinto "Junk";"#, MSG).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                EvalError::MissingCapability { ref capability, .. } if capability == "fileinto"
+            ),
+            "got {err:?}",
+        );
+    }
+
+    #[test]
+    fn reject_without_require_errors() {
+        let err = eval_script(r#"reject "no";"#, MSG).unwrap_err();
+        assert!(
+            matches!(err, EvalError::MissingCapability { .. }),
+            "got {err:?}",
+        );
+    }
+
+    #[test]
+    fn unsupported_require_errors() {
+        let err = eval_script(r#"require ["foreverbar"]; keep;"#, MSG).unwrap_err();
+        assert!(
+            matches!(err, EvalError::UnsupportedCapability(ref s) if s == "foreverbar"),
+            "got {err:?}",
+        );
+    }
+
+    #[test]
+    fn require_out_of_order_errors() {
+        let err =
+            eval_script(r#"keep; require ["fileinto"];"#, MSG).unwrap_err();
+        assert!(matches!(err, EvalError::RequireOutOfOrder), "got {err:?}");
     }
 }
