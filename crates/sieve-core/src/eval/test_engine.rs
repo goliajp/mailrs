@@ -61,7 +61,9 @@ fn eval_envelope_test(t: &Test, envelope: &Envelope) -> bool {
     for part_name in &parts {
         let candidates = envelope_field(envelope, part_name);
         for addr in candidates {
-            let scoped = scope_to_part(&addr, part);
+            let Some(scoped) = scope_to_part(&addr, part) else {
+                continue; // undefined :detail (no `+`) → skip
+            };
             for needle in &values {
                 if match_string(mt, &scoped, needle) {
                     return true;
@@ -140,7 +142,9 @@ fn eval_address(t: &Test, ctx: &MessageContext<'_>) -> bool {
     for name in &names {
         for hv in ctx.header_values(name) {
             for addr in extract_addresses(&hv) {
-                let scoped = scope_to_part(&addr, part);
+                let Some(scoped) = scope_to_part(&addr, part) else {
+                    continue; // undefined :detail (no `+`) → skip
+                };
                 for needle in &values {
                     if match_string(mt, &scoped, needle) {
                         return true;

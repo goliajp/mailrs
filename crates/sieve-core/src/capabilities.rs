@@ -31,7 +31,7 @@ const SUPPORTED: &[&str] = &[
     "vacation",   // RFC 5230 (partial — emits Action::Vacation)
     "envelope",   // RFC 5228 §5.4
     "imap4flags", // RFC 5232
-    "subaddress", // RFC 5233 (partial — `:user` aliased to localpart)
+    "subaddress", // RFC 5233 — `:user` / `:detail` address-part tags
 ];
 
 fn is_supported(cap: &str) -> bool {
@@ -169,6 +169,7 @@ fn capability_for_test(name: &str) -> Option<&'static str> {
 fn capability_for_tag(name: &str) -> Option<&'static str> {
     match name {
         "flags" => Some("imap4flags"),
+        "user" | "detail" => Some("subaddress"),
         _ => None,
     }
 }
@@ -364,5 +365,55 @@ mod tests {
     #[test]
     fn subaddress_capability_supported() {
         validate_src(r#"require ["subaddress"]; keep;"#).unwrap();
+    }
+
+    #[test]
+    fn user_tag_without_require_rejected() {
+        let err = validate_src(
+            r#"if address :user "From" "alice" { discard; }"#,
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                EvalError::MissingCapability { ref feature, ref capability }
+                    if feature == ":user" && capability == "subaddress"
+            ),
+            "got {err:?}",
+        );
+    }
+
+    #[test]
+    fn detail_tag_without_require_rejected() {
+        let err = validate_src(
+            r#"if address :detail "From" "work" { discard; }"#,
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                EvalError::MissingCapability { ref feature, ref capability }
+                    if feature == ":detail" && capability == "subaddress"
+            ),
+            "got {err:?}",
+        );
+    }
+
+    #[test]
+    fn subaddress_with_user_tag_ok() {
+        validate_src(
+            r#"require ["subaddress"];
+               if address :user "From" "alice" { discard; }"#,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn subaddress_with_detail_tag_ok() {
+        validate_src(
+            r#"require ["subaddress"];
+               if address :detail "From" "work" { discard; }"#,
+        )
+        .unwrap();
     }
 }
