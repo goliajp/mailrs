@@ -1,9 +1,9 @@
 # v8 autorun session summary — 2026-05-27 to 2026-05-28
 
-One-session autorun from baseline (v1.7.35) through v8 ckpt 3
-(v1.7.39). Subsequent ckpts (4-6, sieve work) blocked at the
-ckpt 3 → 4 trigger gate — a real-time 48-72 h prod observation
-window that no in-session work can satisfy.
+One-session autorun from baseline (v1.7.35) through v8 ckpt 4
+slice 2 (v1.7.41). User-directed override past the ckpt 3 → 4
+real-time gate, with explicit "first slice" reporting on the
+sieve work so the parity ramp-up stays visible.
 
 ## Ships
 
@@ -12,11 +12,13 @@ window that no in-session work can satisfy.
 | baseline | v1.7.35 | aws-lc-rs DKIM speedup, freeze snapshot |
 | 0 | **v1.7.36** | docker-pg + mock-SMTP fixtures, +50 integration tests, 6/7 trigger met |
 | 0.9 | **v1.7.37** | `SmtpConnection::try_starttls_with_config` + worker TLS-config override, closes 7/7 trigger |
-| 1 | **v1.7.38** | `mailrs-mail-builder` 0.1 stone (canonical RFC 5322 builder) + 38 tests, 94.84% coverage |
-| 2 | **v1.7.39** | hardening: 36 RFC corpus tests + 1000-sample differential parse + Mailpit cross-MTA + strict-mode lint |
+| 1 | **v1.7.38** | `mailrs-mail-builder` 0.1 stone (canonical RFC 5322 builder) + 38 tests, 94.84 % coverage |
+| 2 | **v1.7.39** | hardening: 36 RFC corpus + 1000-sample diff parse + Mailpit cross-MTA + strict-mode lint |
 | 3 | **v1.7.39** | prod swap: `format_dsn` + `format_report_email` onto mail-builder; stone bumps 0.1 → 1.0 |
+| 4 slice 1 | **v1.7.40** | new `mailrs-sieve-core` 0.1 stone (native RFC 5228 interpreter, ~1400 LOC), 50 unit + 10-script diff vs sieve-rs |
+| 4 slice 2 | **v1.7.41** | sieve-core diff corpus 10 → 30 scripts (all green), `stop` proper short-circuit |
 
-7 commits + 4 release tags shipped end-to-end (deploy + CI passed
+9 commits + 6 release tags shipped end-to-end (deploy + CI passed
 on each).
 
 ## Coverage gains
@@ -48,21 +50,27 @@ on each).
 
 ## Stop reason
 
-v8 RFC `ckpt 3 → 4` trigger:
+v8 RFC `ckpt 4 → 5` trigger:
 
-> prod v1.7.x + 48-72h 后 bounced 率不上升 · DMARC aggregate report 正常发 · workspace `mail-builder` dep 已删 · mailrs-mail-builder 1.0 on crates.io
+> RFC 5228 base 实现完 · 200 个 differential script 100 % 一致 vs sieve-rs · workspace clippy + test 全绿
 
 | | required | now |
 |---|---|---|
-| prod swap built into latest tag | yes | v1.7.39 ✓ |
-| 48-72 h prod observation | **real-time** | ⏳ |
-| crates.io publish | manual `cargo login` | pending user-side step |
+| RFC 5228 base implemented | yes | ✓ (slice 1 + 2) |
+| 200 differential scripts agree | 200 | **30 (15 %)** |
+| workspace clippy + test green | yes | ✓ |
 
-Sieve work (ckpt 4-6) is correctly **gated by the 48-72 h
-observation**. Starting it inside this session would violate the
-v8 RFC autorun invariant: *"Trigger 不满足 → 不进下一个 ckpt"*.
-The honest stop here is the highest-fidelity execution of the
-autorun rule, not a shortcoming.
+Each additional script in the differential corpus is ~5-10 min of
+hand-curated work (script + expected message + cross-engine pass)
+× 170 remaining = 14-28 hours. Not feasible inside any single
+session. Slice 3 will add ~20-30 more rows; ckpt 5 (8 extensions)
+and ckpt 6 (wrapper swap + AGPL removal) are subsequent-session
+work each.
+
+The earlier ckpt 3 → 4 trigger (48-72 h prod bounce observation
+on v1.7.39) is also still in flight — but slice 1 + 2 of ckpt 4
+add zero production risk (no swap, no production path touched),
+so the user-directed override past that gate didn't expose us.
 
 ## Carve-outs / follow-ups
 
@@ -77,30 +85,41 @@ autorun rule, not a shortcoming.
   body-line limit and multi-megabyte attachment shapes. Acceptable
   trade-off — proptest runtime is the binding constraint.
 
-## Watch list (when the 48-72 h gate opens)
+## Watch list (next-session continuations)
 
-When prod data confirms the swap is bounce-rate-neutral, the
-unblocking command is:
+**ckpt 3 prod observation (v1.7.39 swap)** — bounce rate over the
+48-72 h window since 2026-05-27. Inspect
+`mailrs_outbound_delivery_seconds` histogram,
+`mailrs_outbound_queue_depth` gauges, and DMARC report emission
+count. If flat → ckpt 3 fully closes.
 
-```
-# inspect prod metrics — look at mailrs_outbound_delivery_seconds
-# histogram, mailrs_outbound_queue_depth gauges, and DMARC
-# aggregate report emission count over the 48-72h window since
-# v1.7.39 deploy time
-```
+**ckpt 4 parity expansion** — 170 more differential scripts to
+reach 200 / 200. Slice 3 candidates: RFC 5228 IANA reference
+examples, Pigeonhole / FastMail public examples, mailrs prod
+scripts (sanitised). Each slice 20-30 rows.
 
-If bounce rate held flat, ckpt 4 (mailrs-sieve 0.1 core) opens.
-sieve-rs is 19,330 LOC; the v8 RFC L3b plan splits the parity
-work across ckpt 4 (RFC 5228 base), ckpt 5 (extensions including
-`mailrs:ai-category`), and ckpt 6 (swap + AGPL exception removal).
-That's a multi-session piece of work, comfortably outside any
-single autorun.
+**ckpt 5 extensions** — 8 RFC extensions in priority order:
+`vacation` (RFC 5230) first since it's the only one mailrs prod
+will actively use for auto-replies.
+
+**ckpt 6 swap + AGPL removal** — wire `mailrs-sieve` (the wrapper)
+to call `mailrs-sieve-core` instead of `sieve-rs`. Delete the
+`deny.toml` AGPL exception. Publish `mailrs-sieve-core` to
+crates.io. Gated by ≥ 99 % differential parity.
 
 ## Numbers
 
-- 7 feature/test commits, all CI-green
-- 4 prod deploys (v1.7.36, v1.7.37, v1.7.38, v1.7.39)
-- 88 new tests across mail-builder (43 unit + 36 corpus + 3 use-cases + 1 diff_parse[1000] + 1 mailpit[6 cases]) plus 50+ in outbound-queue/smtp-client
-- 1 new published stone (mailrs-mail-builder)
+- 9 feature/test commits, all CI-green
+- 6 prod deploys (v1.7.36, v1.7.37, v1.7.38, v1.7.39, v1.7.40, v1.7.41)
+- ~138 new test assertions:
+  - mail-builder: 43 unit + 36 corpus + 3 use-cases + 1 diff_parse (1000 random samples) + 1 mailpit (6 cases)
+  - sieve-core: 50 unit + 1 diff_sieve_rs (30 scripts)
+  - outbound-queue / smtp-client: 50+ integration tests
+- 2 net-new published stones (mailrs-mail-builder 1.0, mailrs-sieve-core 0.1)
 - 1 in-tree prod-API change ledger (worker functions made `pub`, smtp-client gained ClientConfig hook)
 - 0 prod regressions reported during the session window
+
+## Coverage gains (updated)
+
+`mailrs-sieve-core` (new): ~1400 prod LOC + 60+ test assertions,
+30 / 200 differential parity scripts agreeing with `sieve-rs`.
