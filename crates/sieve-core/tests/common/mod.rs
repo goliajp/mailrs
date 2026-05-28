@@ -1,7 +1,8 @@
 //! Shared differential-test helpers — `NormalizedAction` + the
 //! two engine wrappers (`ours` calling `sieve-core`, `sieve_rs`
-//! calling the oracle crate). Extracted into a `common` module so
-//! `tests/diff_sieve_rs.rs` stays under the file-size limit.
+//! calling the oracle crate) + the differential corpus. Extracted
+//! into a `common` module so `tests/diff_sieve_rs.rs` stays under
+//! the file-size limit.
 
 #![allow(dead_code)]
 
@@ -9,6 +10,11 @@ use std::sync::Arc;
 
 use mailrs_sieve_core::{Action, eval_script};
 use sieve::{Compiler, Event, Input, Recipient, Runtime};
+
+pub mod corpus;
+
+/// One corpus row: label + Sieve script + sample message bytes.
+pub type CorpusRow = (&'static str, &'static str, &'static [u8]);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NormalizedAction {
@@ -47,7 +53,12 @@ pub fn sieve_rs(script: &str, msg: &[u8]) -> Vec<NormalizedAction> {
         Ok(c) => Arc::new(c),
         Err(_) => return Vec::new(),
     };
-    let runtime = Runtime::new();
+    // sieve-rs defaults `max_redirects = 1` as an anti-mail-loop
+    // policy. That's a caller-policy choice, not an RFC 5228
+    // requirement — sieve-core (zero-I/O stone) leaves the
+    // decision to the caller. Lift the cap here so the
+    // differential test compares spec behaviour, not policy.
+    let runtime = Runtime::new().with_max_redirects(usize::MAX);
     let mut ctx = runtime.filter(msg);
     let input = Input::Script {
         name: sieve::Script::Personal("main".into()),

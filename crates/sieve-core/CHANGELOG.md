@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.1.2 (unreleased)
+
+### Added
+
+- Differential corpus grown 65 → 100 scripts (`corpus_slice4_a` +
+  `corpus_slice4_b`), pushing ckpt 4 → 5 trigger gate progress to
+  100/200 (50%). New categories: comments (`#` line + `/* block */`),
+  escape sequences in quoted strings, numbers with K/M/G suffix,
+  long elsif chains (5+ levels), deeply nested `if` (4 levels),
+  multi-action sequences, `require` with multi-extension lists,
+  empty/minimal blocks, nested `allof(anyof, allof)`, `not` around
+  `allof` / `anyof`, multi-recipient `address` tests against
+  `To` + `Cc`, case-insensitive header lookup, address-part edges
+  (`:all` / `:localpart` / `:domain` exact matches).
+
+### Fixed
+
+- `stop` (RFC 5228 §4.5) no longer cancels the implicit keep. Slice 2
+  set `explicit_action = true` by mistake; slice 4 corpus row
+  `stop_at_top_level_before_keep` surfaced the divergence vs
+  `sieve-rs`. Fix is one removed line in `eval.rs`'s `stop` arm.
+
+### Changed
+
+- Differential test framework: `sieve-rs` is now configured with
+  `max_redirects = usize::MAX`. Default 1 is a sieve-rs anti-mail-loop
+  policy, not an RFC 5228 requirement — `sieve-core` (zero-I/O stone)
+  leaves the decision to the caller. The lift makes the differential
+  comparison fair across multi-redirect scripts.
+- Corpus moved out of `tests/diff_sieve_rs.rs` into
+  `tests/common/corpus/` (per-slice sub-modules). The diff test
+  driver is now ~30 lines.
+
 ## 0.1.1 (unreleased)
 
 ### Added
