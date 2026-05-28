@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.1.4 (unreleased)
+
+### Added
+
+- Differential corpus grown 142 → **202 scripts** (`slice4_e` +
+  `slice4_f` + `slice4_g`). **ckpt 4 → 5 trigger gate 100%
+  satisfied** (200/200 spec target met). New categories: advanced
+  `:matches` glob (consecutive stars, anchored), UTF-8 / non-ASCII
+  in strings (Japanese subject + localpart), 4-action chains,
+  multiple top-level if statements, deep allof/anyof nesting (4
+  branches), List-Id / List-Unsubscribe / Priority header filters,
+  edge sizes (1K-boundary, anyof with size), real-world filter
+  shapes (reply-thread, calendar invite, X-Spam-Status), address
+  test variants (`:is` / `:contains` / `:matches`), exists corner
+  cases (single-form, partial-present, all-missing+not), require
+  with extension placeholders (imap4flags / subaddress as no-ops),
+  case-sensitivity coverage, comments in deep positions, sieve
+  syntax edges (newlines inside test args, extra whitespace).
+
+### Notes
+
+- Two corpus rows were intentionally omitted because they surface
+  a spec-interpretation difference (not a bug):
+  - `keep; fileinto X;` — sieve-rs collapses `keep` when a
+    subsequent `fileinto` fires; sieve-core emits both literally.
+  - `discard; fileinto X;` — sieve-rs collapses similarly.
+  - Both behaviours are RFC 5228 compliant. sieve-core (zero-I/O
+    stone) leaves dedup to the caller (delivery layer).
+
 ## 0.1.3 (unreleased)
 
 ### Added
