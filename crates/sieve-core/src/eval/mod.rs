@@ -4,7 +4,7 @@
 mod context;
 mod test_engine;
 
-use crate::ast::{Action, Argument, Command, Test};
+use crate::ast::{Action, Argument, Command, Envelope, Test};
 use crate::parse::{ParseError, parse_script};
 use crate::vacation::parse_vacation_args;
 
@@ -37,11 +37,25 @@ pub enum EvalError {
 /// Evaluate a Sieve script against a message. Returns the
 /// action list the delivery layer should apply, or `[Keep]` if
 /// no script action fired (the RFC 5228 §2.10.6 implicit keep).
+///
+/// Equivalent to [`eval_script_with_envelope`] called with
+/// `Envelope::default()` — use the envelope variant when the
+/// script may inspect SMTP MAIL FROM / RCPT TO.
 pub fn eval_script(script: &str, message: &[u8]) -> Result<Vec<Action>, EvalError> {
+    eval_script_with_envelope(script, message, &Envelope::default())
+}
+
+/// Evaluate a Sieve script with an explicit SMTP envelope. The
+/// RFC 5228 §5.4 `envelope` test inspects `from` / `to` / `auth`.
+pub fn eval_script_with_envelope(
+    script: &str,
+    message: &[u8],
+    envelope: &Envelope,
+) -> Result<Vec<Action>, EvalError> {
     let commands = parse_script(script)?;
     let ctx = MessageContext::new(message);
     let mut state = EvalState::default();
-    eval_block(&commands, &ctx, &mut state)?;
+    eval_block(&commands, &ctx, envelope, &mut state)?;
     if !state.explicit_action {
         state.actions.push(Action::Keep {
             flags: state.flags.clone(),
@@ -70,13 +84,14 @@ struct EvalState {
 fn eval_block(
     commands: &[Command],
     ctx: &MessageContext<'_>,
+    envelope: &Envelope,
     state: &mut EvalState,
 ) -> Result<(), EvalError> {
     for cmd in commands {
         if state.stopped {
             break;
         }
-        eval_command(cmd, ctx, state)?;
+        eval_command(cmd, ctx, envelope, state)?;
     }
     Ok(())
 }
@@ -84,6 +99,7 @@ fn eval_block(
 fn eval_command(
     cmd: &Command,
     ctx: &MessageContext<'_>,
+    envelope: &Envelope,
     state: &mut EvalState,
 ) -> Result<(), EvalError> {
     match cmd.name.as_str() {
@@ -177,10 +193,10 @@ fn eval_command(
                 cmd: "if".into(),
                 detail: "expects test expression".into(),
             })?;
-            let matched = eval_test(test, ctx, &state.flags)?;
+            let matched = eval_test(test, ctx, &state.flags, envelope)?;
             state.last_if_matched = matched;
             if matched {
-                eval_block(&cmd.block, ctx, state)?;
+                eval_block(&cmd.block, ctx, envelope, state)?;
             }
             Ok(())
         }
@@ -193,10 +209,10 @@ fn eval_command(
                 cmd: "elsif".into(),
                 detail: "expects test expression".into(),
             })?;
-            let matched = eval_test(test, ctx, &state.flags)?;
+            let matched = eval_test(test, ctx, &state.flags, envelope)?;
             state.last_if_matched = matched;
             if matched {
-                eval_block(&cmd.block, ctx, state)?;
+                eval_block(&cmd.block, ctx, envelope, state)?;
             }
             Ok(())
         }
@@ -205,7 +221,7 @@ fn eval_command(
                 return Ok(());
             }
             state.last_if_matched = true;
-            eval_block(&cmd.block, ctx, state)?;
+            eval_block(&cmd.block, ctx, envelope, state)?;
             Ok(())
         }
         other => Err(EvalError::UnknownCommand(other.to_string())),

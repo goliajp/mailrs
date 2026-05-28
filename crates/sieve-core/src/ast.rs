@@ -145,3 +145,20 @@ pub enum VacationPeriod {
     /// `:seconds <n>` — RFC 6131 extension (sub-day windows).
     Seconds(u64),
 }
+
+/// RFC 5228 §5.4 envelope context — caller-supplied state the
+/// `envelope` test inspects.
+///
+/// `from` is the SMTP MAIL FROM (RFC 5321 reverse-path).
+/// `to` is the list of RCPT TO (one envelope test may match any).
+/// `auth` is the RFC 5228 §5.4 SASL-authenticated identity.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Envelope {
+    /// SMTP MAIL FROM (RFC 5321 reverse-path).
+    pub from: Option<String>,
+    /// SMTP RCPT TO list (RFC 5321 forward-path); the envelope
+    /// test on `"to"` matches if ANY recipient matches.
+    pub to: Vec<String>,
+    /// RFC 5228 §5.4 SASL `:auth` identity.
+    pub auth: Option<String>,
+}

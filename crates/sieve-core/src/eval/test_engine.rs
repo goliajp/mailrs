@@ -6,7 +6,7 @@
 //! they're only used by tests, not by command dispatch.
 
 use crate::address::{address_part_from_tags, extract_addresses, scope_to_part};
-use crate::ast::{Argument, MatchType, Test};
+use crate::ast::{Argument, Envelope, MatchType, Test};
 use crate::match_str::match_string;
 
 use super::EvalError;
@@ -16,14 +16,15 @@ pub(super) fn eval_test(
     t: &Test,
     ctx: &MessageContext<'_>,
     flags: &[String],
+    envelope: &Envelope,
 ) -> Result<bool, EvalError> {
     match t.name.as_str() {
         "true" => Ok(true),
         "false" => Ok(false),
-        "not" => Ok(!eval_test(&t.children[0], ctx, flags)?),
+        "not" => Ok(!eval_test(&t.children[0], ctx, flags, envelope)?),
         "allof" => {
             for c in &t.children {
-                if !eval_test(c, ctx, flags)? {
+                if !eval_test(c, ctx, flags, envelope)? {
                     return Ok(false);
                 }
             }
@@ -31,7 +32,7 @@ pub(super) fn eval_test(
         }
         "anyof" => {
             for c in &t.children {
-                if eval_test(c, ctx, flags)? {
+                if eval_test(c, ctx, flags, envelope)? {
                     return Ok(true);
                 }
             }
@@ -45,7 +46,40 @@ pub(super) fn eval_test(
         "header" => Ok(eval_header(t, ctx)),
         "address" => Ok(eval_address(t, ctx)),
         "hasflag" => Ok(eval_hasflag(t, flags)),
+        "envelope" => Ok(eval_envelope_test(t, envelope)),
         other => Err(EvalError::UnknownTest(other.to_string())),
+    }
+}
+
+/// RFC 5228 §5.4 `envelope` test. Inspects the caller-supplied
+/// `from` / `to` / `auth` envelope state with the requested
+/// match-type + address-part semantics.
+fn eval_envelope_test(t: &Test, envelope: &Envelope) -> bool {
+    let mt = MatchType::from_tags(&t.tags);
+    let part = address_part_from_tags(&t.tags);
+    let (parts, values) = pair_lists(&t.args);
+    for part_name in &parts {
+        let candidates = envelope_field(envelope, part_name);
+        for addr in candidates {
+            let scoped = scope_to_part(&addr, part);
+            for needle in &values {
+                if match_string(mt, &scoped, needle) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Resolve `from` / `to` / `auth` (RFC 5228 §5.4, case-insensitive
+/// part name) into the candidate address strings for matching.
+fn envelope_field(envelope: &Envelope, name: &str) -> Vec<String> {
+    match name.to_ascii_lowercase().as_str() {
+        "from" => envelope.from.clone().into_iter().collect(),
+        "to" => envelope.to.clone(),
+        "auth" => envelope.auth.clone().into_iter().collect(),
+        _ => Vec::new(),
     }
 }
 
