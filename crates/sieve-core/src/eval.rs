@@ -1,8 +1,11 @@
 //! RFC 5228 §4 evaluator — walk the AST against a parsed message,
 //! emit a list of `Action`s.
 
+use crate::address::{address_part_from_tags, extract_addresses, scope_to_part};
 use crate::ast::{Action, Argument, Command, MatchType, Test};
+use crate::match_str::match_string;
 use crate::parse::{ParseError, parse_script};
+use crate::vacation::parse_vacation_args;
 
 /// Eval failure modes.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -144,6 +147,17 @@ fn eval_command(
             // unwind without running any further commands.
             state.stopped = true;
             state.explicit_action = true;
+            Ok(())
+        }
+        "vacation" => {
+            // RFC 5230 §3: vacation emits an action but does NOT
+            // cancel the implicit keep — leave `explicit_action`
+            // unchanged.
+            let va = parse_vacation_args(&cmd.args).map_err(|e| EvalError::BadArg {
+                cmd: "vacation".into(),
+                detail: e.to_string(),
+            })?;
+            state.actions.push(Action::Vacation(va));
             Ok(())
         }
         "if" => {
@@ -313,93 +327,6 @@ fn pair_lists(args: &[Argument]) -> (Vec<String>, Vec<String>) {
         idx += 1;
     }
     (names, values)
-}
-
-/// Match-type comparison. All comparisons are case-insensitive
-/// (RFC 5228 default comparator `i;ascii-casemap`).
-fn match_string(mt: MatchType, haystack: &str, needle: &str) -> bool {
-    let h = haystack.to_ascii_lowercase();
-    let n = needle.to_ascii_lowercase();
-    match mt {
-        MatchType::Is => h == n,
-        MatchType::Contains => h.contains(&n),
-        MatchType::Matches => glob_match(&h, &n),
-    }
-}
-
-/// Tiny glob matcher: `*` matches any sequence, `?` matches one
-/// char. ASCII only — sufficient for RFC 5228 `:matches` against
-/// header values.
-fn glob_match(haystack: &str, pattern: &str) -> bool {
-    let h = haystack.as_bytes();
-    let p = pattern.as_bytes();
-    // recursive memoless implementation; cheap for short patterns
-    fn rec(h: &[u8], p: &[u8]) -> bool {
-        if p.is_empty() {
-            return h.is_empty();
-        }
-        match p[0] {
-            b'*' => {
-                // try matching * to empty, then one char, then two, ...
-                for i in 0..=h.len() {
-                    if rec(&h[i..], &p[1..]) {
-                        return true;
-                    }
-                }
-                false
-            }
-            b'?' => !h.is_empty() && rec(&h[1..], &p[1..]),
-            c => !h.is_empty() && h[0] == c && rec(&h[1..], &p[1..]),
-        }
-    }
-    rec(h, p)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AddressPart {
-    All,
-    LocalPart,
-    Domain,
-}
-
-fn address_part_from_tags(tags: &[String]) -> AddressPart {
-    for t in tags {
-        match t.as_str() {
-            "all" => return AddressPart::All,
-            "localpart" | "user" => return AddressPart::LocalPart,
-            "domain" => return AddressPart::Domain,
-            _ => {}
-        }
-    }
-    AddressPart::All
-}
-
-fn scope_to_part(addr: &str, part: AddressPart) -> String {
-    match part {
-        AddressPart::All => addr.to_string(),
-        AddressPart::LocalPart => addr.split_once('@').map(|(l, _)| l.to_string()).unwrap_or_else(|| addr.to_string()),
-        AddressPart::Domain => addr.split_once('@').map(|(_, d)| d.to_string()).unwrap_or_default(),
-    }
-}
-
-/// Naive address extractor: pulls the bare addr-spec(s) out of a
-/// raw RFC 5322 address header value. Supports the two common
-/// shapes (`alice@example.com` and `Name <alice@example.com>`)
-/// plus comma-separated lists. Quoted display names are kept
-/// trimmed.
-fn extract_addresses(value: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    for piece in value.split(',') {
-        let trim = piece.trim();
-        if let Some(open) = trim.rfind('<')
-            && trim.ends_with('>')
-        {
-            out.push(trim[open + 1..trim.len() - 1].trim().to_string());
-        } else if trim.contains('@') {
-            out.push(trim.to_string());
-        }
-    }
-    out
 }
 
 #[cfg(test)]

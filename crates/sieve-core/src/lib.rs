@@ -30,12 +30,16 @@
 //!
 //! 0.1 first slice — RFC 5228 base only. See `CHANGELOG.md`.
 
+mod address;
 mod ast;
 mod eval;
 mod lex;
+mod match_str;
 mod parse;
+mod vacation;
 
-pub use ast::{Action, Argument, Command, MatchType, Test};
+pub use ast::{Action, Argument, Command, MatchType, Test, VacationAction, VacationPeriod};
 pub use eval::{EvalError, eval_script};
 pub use lex::{Token, TokenizeError, tokenize};
 pub use parse::{ParseError, parse_script};
+pub use vacation::{VacationParseError, parse_vacation_args};
