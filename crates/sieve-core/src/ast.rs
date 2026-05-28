@@ -75,12 +75,24 @@ impl MatchType {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     /// Keep the message in the default mailbox (the implicit
-    /// default when no action fires).
-    Keep,
+    /// default when no action fires). The `flags` vector carries
+    /// any IMAP flags set by RFC 5232 `imap4flags` extension
+    /// (empty when the extension is not used).
+    Keep {
+        /// IMAP flags to attach to the kept copy (RFC 5232).
+        flags: Vec<String>,
+    },
     /// Discard the message — drop without notice.
     Discard,
-    /// File into a named mailbox (RFC 5228 `fileinto` ext).
-    FileInto(String),
+    /// File into a named mailbox (RFC 5228 `fileinto` ext) with
+    /// optional IMAP flags (RFC 5232 `imap4flags` ext — empty
+    /// when the extension is not used).
+    FileInto {
+        /// Destination mailbox name.
+        mailbox: String,
+        /// IMAP flags to attach to the filed copy (RFC 5232).
+        flags: Vec<String>,
+    },
     /// Forward / redirect to another address.
     Redirect(String),
     /// Reject with the given reason string.

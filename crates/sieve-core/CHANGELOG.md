@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+### Added (RFC 5232 `imap4flags` extension)
+
+- New commands: `setflag`, `addflag`, `removeflag` — manage the
+  implicit flags variable on `EvalState`. Do NOT count as
+  `explicit_action` (state mutation, not delivery).
+- New test: `hasflag` — case-insensitive comparison (default
+  `i;ascii-casemap`) against the current flags variable.
+- New `:flags` tag on `keep` and `fileinto` — override the
+  implicit flags variable for this specific action.
+- 15 new differential corpus rows in `slice5_a` covering all of
+  the above (cumulative corpus 217 rows, all green).
+
+### Changed (API break — `Action` enum)
+
+- `Action::Keep` is now `Action::Keep { flags: Vec<String> }`.
+- `Action::FileInto(String)` is now
+  `Action::FileInto { mailbox: String, flags: Vec<String> }`.
+- Callers without imap4flags-aware delivery can simply ignore
+  the `flags` field; the default is an empty `Vec`.
+- `NormalizedAction` in the differential test framework was
+  updated in lockstep.
+
+### Fixed
+
+- `first_string` argument extractor now skips `:tag <value>`
+  pairs when looking for a positional string. Before the fix
+  `fileinto :flags "\Seen" "Inbox"` would treat `"\Seen"` as
+  the mailbox.
+
 ## 0.1.4 (unreleased)
 
 ### Added

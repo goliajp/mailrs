@@ -18,9 +18,9 @@ pub type CorpusRow = (&'static str, &'static str, &'static [u8]);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NormalizedAction {
-    Keep,
+    Keep { flags: Vec<String> },
     Discard,
-    FileInto(String),
+    FileInto { folder: String, flags: Vec<String> },
     Redirect(String),
     Reject(String),
 }
@@ -30,9 +30,12 @@ pub fn ours(script: &str, msg: &[u8]) -> Vec<NormalizedAction> {
     actions
         .into_iter()
         .map(|a| match a {
-            Action::Keep => NormalizedAction::Keep,
+            Action::Keep { flags } => NormalizedAction::Keep { flags: sort_flags(flags) },
             Action::Discard => NormalizedAction::Discard,
-            Action::FileInto(s) => NormalizedAction::FileInto(s),
+            Action::FileInto { mailbox, flags } => NormalizedAction::FileInto {
+                folder: mailbox,
+                flags: sort_flags(flags),
+            },
             Action::Redirect(s) => NormalizedAction::Redirect(s),
             Action::Reject(s) => NormalizedAction::Reject(s),
             // Vacation is intentionally excluded from the differential
@@ -45,6 +48,14 @@ pub fn ours(script: &str, msg: &[u8]) -> Vec<NormalizedAction> {
             }
         })
         .collect()
+}
+
+/// IMAP flags have no defined order in RFC 5232 — the two engines
+/// may emit them in different orders depending on internal data
+/// structures. Sort for fair comparison.
+fn sort_flags(mut v: Vec<String>) -> Vec<String> {
+    v.sort();
+    v
 }
 
 pub fn sieve_rs(script: &str, msg: &[u8]) -> Vec<NormalizedAction> {
@@ -68,16 +79,16 @@ pub fn sieve_rs(script: &str, msg: &[u8]) -> Vec<NormalizedAction> {
     let mut result = ctx.run(input);
     loop {
         match result {
-            Some(Ok(Event::Keep { .. })) => {
-                out.push(NormalizedAction::Keep);
+            Some(Ok(Event::Keep { flags, .. })) => {
+                out.push(NormalizedAction::Keep { flags: sort_flags(flags) });
                 break;
             }
             Some(Ok(Event::Discard)) => {
                 out.push(NormalizedAction::Discard);
                 break;
             }
-            Some(Ok(Event::FileInto { folder, .. })) => {
-                out.push(NormalizedAction::FileInto(folder));
+            Some(Ok(Event::FileInto { folder, flags, .. })) => {
+                out.push(NormalizedAction::FileInto { folder, flags: sort_flags(flags) });
                 result = ctx.run(Input::True);
             }
             Some(Ok(Event::SendMessage { recipient, .. })) => {
