@@ -36,6 +36,7 @@
 
 mod address;
 mod ast;
+mod capabilities;
 mod eval;
 mod lex;
 mod match_str;
