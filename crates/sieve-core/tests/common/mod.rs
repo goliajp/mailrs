@@ -8,13 +8,22 @@
 
 use std::sync::Arc;
 
-use mailrs_sieve_core::{Action, eval_script};
-use sieve::{Compiler, Event, Input, Recipient, Runtime};
+use mailrs_sieve_core::{Action, Envelope, eval_script, eval_script_with_envelope};
+use sieve::{Compiler, Event, Envelope as SrEnvelope, Input, Recipient, Runtime};
 
 pub mod corpus;
 
 /// One corpus row: label + Sieve script + sample message bytes.
 pub type CorpusRow = (&'static str, &'static str, &'static [u8]);
+
+/// One envelope-aware corpus row: label + script + message +
+/// envelope entries (part name + value).
+pub type EnvelopeRow = (
+    &'static str,
+    &'static str,
+    &'static [u8],
+    &'static [(&'static str, &'static str)],
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NormalizedAction {
@@ -27,27 +36,7 @@ pub enum NormalizedAction {
 
 pub fn ours(script: &str, msg: &[u8]) -> Vec<NormalizedAction> {
     let actions = eval_script(script, msg).unwrap_or_default();
-    actions
-        .into_iter()
-        .map(|a| match a {
-            Action::Keep { flags } => NormalizedAction::Keep { flags: sort_flags(flags) },
-            Action::Discard => NormalizedAction::Discard,
-            Action::FileInto { mailbox, flags } => NormalizedAction::FileInto {
-                folder: mailbox,
-                flags: sort_flags(flags),
-            },
-            Action::Redirect(s) => NormalizedAction::Redirect(s),
-            Action::Reject(s) => NormalizedAction::Reject(s),
-            // Vacation is intentionally excluded from the differential
-            // corpus — sieve-rs internalises message-building while
-            // sieve-core surfaces an abstract action, so the
-            // abstractions don't line up. RFC 5230 spec coverage is
-            // in vacation.rs's inline unit tests instead.
-            Action::Vacation(_) => {
-                panic!("vacation is excluded from the differential corpus; see vacation.rs tests")
-            }
-        })
-        .collect()
+    normalize(actions)
 }
 
 /// IMAP flags have no defined order in RFC 5232 — the two engines
@@ -59,6 +48,62 @@ fn sort_flags(mut v: Vec<String>) -> Vec<String> {
 }
 
 pub fn sieve_rs(script: &str, msg: &[u8]) -> Vec<NormalizedAction> {
+    sieve_rs_with_envelope(script, msg, &[])
+}
+
+/// `ours` with explicit envelope context for the RFC 5228 §5.4
+/// envelope test. `entries` is a slice of `(part_name, value)`
+/// where part_name is one of "from" / "to" / "auth"
+/// (case-insensitive).
+pub fn ours_with_envelope(
+    script: &str,
+    msg: &[u8],
+    entries: &[(&str, &str)],
+) -> Vec<NormalizedAction> {
+    let env = build_envelope(entries);
+    let actions = eval_script_with_envelope(script, msg, &env).unwrap_or_default();
+    normalize(actions)
+}
+
+fn build_envelope(entries: &[(&str, &str)]) -> Envelope {
+    let mut env = Envelope::default();
+    for (part, value) in entries {
+        match part.to_ascii_lowercase().as_str() {
+            "from" => env.from = Some((*value).into()),
+            "to" => env.to.push((*value).into()),
+            "auth" => env.auth = Some((*value).into()),
+            _ => {}
+        }
+    }
+    env
+}
+
+fn normalize(actions: Vec<Action>) -> Vec<NormalizedAction> {
+    actions
+        .into_iter()
+        .map(|a| match a {
+            Action::Keep { flags } => NormalizedAction::Keep { flags: sort_flags(flags) },
+            Action::Discard => NormalizedAction::Discard,
+            Action::FileInto { mailbox, flags } => NormalizedAction::FileInto {
+                folder: mailbox,
+                flags: sort_flags(flags),
+            },
+            Action::Redirect(s) => NormalizedAction::Redirect(s),
+            Action::Reject(s) => NormalizedAction::Reject(s),
+            Action::Vacation(_) => {
+                panic!("vacation is excluded from the differential corpus; see vacation.rs tests")
+            }
+        })
+        .collect()
+}
+
+/// `sieve_rs` with explicit envelope context. Mirrors
+/// `ours_with_envelope` so both engines see the same envelope.
+pub fn sieve_rs_with_envelope(
+    script: &str,
+    msg: &[u8],
+    entries: &[(&str, &str)],
+) -> Vec<NormalizedAction> {
     let compiler = Compiler::new();
     let compiled = match compiler.compile(script.as_bytes()) {
         Ok(c) => Arc::new(c),
@@ -71,6 +116,14 @@ pub fn sieve_rs(script: &str, msg: &[u8]) -> Vec<NormalizedAction> {
     // differential test compares spec behaviour, not policy.
     let runtime = Runtime::new().with_max_redirects(usize::MAX);
     let mut ctx = runtime.filter(msg);
+    for (part, value) in entries {
+        let sr_part = match part.to_ascii_lowercase().as_str() {
+            "from" => SrEnvelope::From,
+            "to" => SrEnvelope::To,
+            _ => continue, // sieve-rs Envelope enum has no "auth" variant
+        };
+        ctx.set_envelope(sr_part, *value);
+    }
     let input = Input::Script {
         name: sieve::Script::Personal("main".into()),
         script: compiled,

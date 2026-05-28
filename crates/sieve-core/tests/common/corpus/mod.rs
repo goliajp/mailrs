@@ -2,7 +2,9 @@
 //! corpus functions. Lives in `tests/common/` so the corpus and
 //! the test-driver file each stay under the file-size limit.
 
-use super::CorpusRow;
+use super::{CorpusRow, EnvelopeRow};
+
+pub mod envelope;
 
 // --- Message fixtures (module-level consts to keep corpus fns small) ---
 
@@ -75,6 +77,11 @@ mod slice4_e;
 mod slice4_f;
 mod slice4_g;
 mod slice5_a;
+
+/// Envelope-aware corpus — driven by the envelope diff test.
+pub fn envelope_corpus() -> Vec<EnvelopeRow> {
+    envelope::corpus()
+}
 
 /// Combined corpus driven by the diff test.
 pub fn corpus() -> Vec<CorpusRow> {

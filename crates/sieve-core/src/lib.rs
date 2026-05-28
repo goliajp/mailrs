@@ -42,8 +42,10 @@ mod match_str;
 mod parse;
 mod vacation;
 
-pub use ast::{Action, Argument, Command, MatchType, Test, VacationAction, VacationPeriod};
-pub use eval::{EvalError, eval_script};
+pub use ast::{
+    Action, Argument, Command, Envelope, MatchType, Test, VacationAction, VacationPeriod,
+};
+pub use eval::{EvalError, eval_script, eval_script_with_envelope};
 pub use lex::{Token, TokenizeError, tokenize};
 pub use parse::{ParseError, parse_script};
 pub use vacation::{VacationParseError, parse_vacation_args};

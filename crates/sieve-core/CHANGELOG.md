@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.1 (unreleased)
+
+### Added (RFC 5228 §5.4 `envelope` test)
+
+- New `Envelope` struct in `mailrs_sieve_core::Envelope` carrying
+  `from` (RFC 5321 reverse-path), `to` (forward-path list), and
+  `auth` (SASL identity).
+- New entry point `eval_script_with_envelope(script, msg, &env)`.
+  Existing `eval_script` keeps working — it passes
+  `Envelope::default()` automatically.
+- New `envelope` test in the evaluator, supporting all standard
+  match-types (`:is` / `:contains` / `:matches`) and address-parts
+  (`:all` / `:localpart` / `:domain`). `from` / `to` / `auth`
+  part names are case-insensitive. Multiple `to` recipients in
+  the envelope all participate in the match (any-one-matches).
+- 12 new envelope-aware differential corpus rows in
+  `tests/common/corpus/envelope.rs` (229 cumulative rows, all
+  green). Both engines are now given the same envelope state
+  via a new `EnvelopeRow` type + the `sieve-rs`
+  `ctx.set_envelope(...)` API.
+
 ## 0.2.0 (unreleased)
 
 ### Added (RFC 5232 `imap4flags` extension)
