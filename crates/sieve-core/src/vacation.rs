@@ -313,7 +313,7 @@ body\r\n";
             }
             other => panic!("expected Vacation, got {other:?}"),
         }
-        assert_eq!(actions[1], Action::Keep);
+        assert_eq!(actions[1], Action::Keep { flags: vec![] });
     }
 
     #[test]
@@ -342,6 +342,6 @@ body\r\n";
         let actions = eval_script(script, MSG).unwrap();
         assert_eq!(actions.len(), 2);
         assert!(matches!(actions[0], Action::Vacation(_)));
-        assert_eq!(actions[1], Action::FileInto("Sent".into()));
+        assert_eq!(actions[1], Action::FileInto { mailbox: "Sent".into(), flags: vec![] });
     }
 }

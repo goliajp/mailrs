@@ -23,12 +23,16 @@
 //! "#;
 //! let message = b"Subject: spam\r\n\r\nbody\r\n";
 //! let actions = eval_script(script, message).unwrap();
-//! assert_eq!(actions, vec![Action::FileInto("Junk".into())]);
+//! assert_eq!(
+//!     actions,
+//!     vec![Action::FileInto { mailbox: "Junk".into(), flags: vec![] }],
+//! );
 //! ```
 //!
 //! ## Status
 //!
-//! 0.1 first slice — RFC 5228 base only. See `CHANGELOG.md`.
+//! 0.1 — RFC 5228 base + RFC 5230 vacation + RFC 5232 imap4flags.
+//! See `CHANGELOG.md`.
 
 mod address;
 mod ast;

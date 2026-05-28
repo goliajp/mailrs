@@ -12,14 +12,18 @@ use crate::match_str::match_string;
 use super::EvalError;
 use super::context::MessageContext;
 
-pub(super) fn eval_test(t: &Test, ctx: &MessageContext<'_>) -> Result<bool, EvalError> {
+pub(super) fn eval_test(
+    t: &Test,
+    ctx: &MessageContext<'_>,
+    flags: &[String],
+) -> Result<bool, EvalError> {
     match t.name.as_str() {
         "true" => Ok(true),
         "false" => Ok(false),
-        "not" => Ok(!eval_test(&t.children[0], ctx)?),
+        "not" => Ok(!eval_test(&t.children[0], ctx, flags)?),
         "allof" => {
             for c in &t.children {
-                if !eval_test(c, ctx)? {
+                if !eval_test(c, ctx, flags)? {
                     return Ok(false);
                 }
             }
@@ -27,7 +31,7 @@ pub(super) fn eval_test(t: &Test, ctx: &MessageContext<'_>) -> Result<bool, Eval
         }
         "anyof" => {
             for c in &t.children {
-                if eval_test(c, ctx)? {
+                if eval_test(c, ctx, flags)? {
                     return Ok(true);
                 }
             }
@@ -40,8 +44,29 @@ pub(super) fn eval_test(t: &Test, ctx: &MessageContext<'_>) -> Result<bool, Eval
         "size" => eval_size(t, ctx),
         "header" => Ok(eval_header(t, ctx)),
         "address" => Ok(eval_address(t, ctx)),
+        "hasflag" => Ok(eval_hasflag(t, flags)),
         other => Err(EvalError::UnknownTest(other.to_string())),
     }
+}
+
+/// RFC 5232 §5.4 `hasflag` — true iff any flag in the test arg
+/// list matches any flag in the implicit flags variable, using
+/// the requested match-type (defaults to `:is`, case-insensitive).
+fn eval_hasflag(t: &Test, flags: &[String]) -> bool {
+    let mt = MatchType::from_tags(&t.tags);
+    let needles = match t.args.first() {
+        Some(Argument::String(s)) => vec![s.clone()],
+        Some(Argument::StringList(v)) => v.clone(),
+        _ => return false,
+    };
+    for needle in &needles {
+        for held in flags {
+            if match_string(mt, held, needle) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn eval_size(t: &Test, ctx: &MessageContext<'_>) -> Result<bool, EvalError> {
