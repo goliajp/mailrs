@@ -69,6 +69,8 @@ mod slice12;
 mod slice3;
 mod slice4_a;
 mod slice4_b;
+mod slice4_c;
+mod slice4_d;
 
 /// Combined corpus driven by the diff test.
 pub fn corpus() -> Vec<CorpusRow> {
@@ -76,5 +78,7 @@ pub fn corpus() -> Vec<CorpusRow> {
     all.extend(slice3::corpus());
     all.extend(slice4_a::corpus());
     all.extend(slice4_b::corpus());
+    all.extend(slice4_c::corpus());
+    all.extend(slice4_d::corpus());
     all
 }

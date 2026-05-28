@@ -1,11 +1,15 @@
 //! RFC 5228 §4 evaluator — walk the AST against a parsed message,
 //! emit a list of `Action`s.
 
-use crate::address::{address_part_from_tags, extract_addresses, scope_to_part};
-use crate::ast::{Action, Argument, Command, MatchType, Test};
-use crate::match_str::match_string;
+mod context;
+mod test_engine;
+
+use crate::ast::{Action, Argument, Command, Test};
 use crate::parse::{ParseError, parse_script};
 use crate::vacation::parse_vacation_args;
+
+use context::MessageContext;
+use test_engine::eval_test;
 
 /// Eval failure modes.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -55,31 +59,6 @@ struct EvalState {
     /// RFC 5228 §3.3 `stop` — terminate evaluation, do not run any
     /// subsequent commands in any enclosing block.
     stopped: bool,
-}
-
-struct MessageContext<'m> {
-    raw: &'m [u8],
-}
-
-impl<'m> MessageContext<'m> {
-    fn new(raw: &'m [u8]) -> Self {
-        Self { raw }
-    }
-
-    fn header_values(&self, name: &str) -> Vec<String> {
-        let parsed = mailrs_rfc5322::Message::new(self.raw);
-        parsed
-            .header_all(name)
-            .filter_map(|h| {
-                h.value_str()
-                    .map(|s| s.replace("\r\n ", " ").replace("\r\n\t", " "))
-            })
-            .collect()
-    }
-
-    fn body_size(&self) -> u64 {
-        self.raw.len() as u64
-    }
 }
 
 fn eval_block(
@@ -198,88 +177,6 @@ fn eval_command(
     }
 }
 
-fn eval_test(t: &Test, ctx: &MessageContext<'_>) -> Result<bool, EvalError> {
-    match t.name.as_str() {
-        "true" => Ok(true),
-        "false" => Ok(false),
-        "not" => Ok(!eval_test(&t.children[0], ctx)?),
-        "allof" => {
-            for c in &t.children {
-                if !eval_test(c, ctx)? {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
-        }
-        "anyof" => {
-            for c in &t.children {
-                if eval_test(c, ctx)? {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
-        }
-        "exists" => {
-            let names = arg_strings_or_list(&t.args);
-            Ok(names.iter().all(|n| !ctx.header_values(n).is_empty()))
-        }
-        "size" => {
-            let n = match t.args.first() {
-                Some(Argument::Number(n)) => *n,
-                _ => {
-                    return Err(EvalError::BadArg {
-                        cmd: "size".into(),
-                        detail: "expects numeric size".into(),
-                    });
-                }
-            };
-            let size = ctx.body_size();
-            let mode = if t.tags.iter().any(|s| s == "under") {
-                "under"
-            } else {
-                "over"
-            };
-            Ok(match mode {
-                "under" => size < n,
-                _ => size > n,
-            })
-        }
-        "header" => {
-            let mt = MatchType::from_tags(&t.tags);
-            let (names, values) = pair_lists(&t.args);
-            for name in &names {
-                for hv in ctx.header_values(name) {
-                    for needle in &values {
-                        if match_string(mt, &hv, needle) {
-                            return Ok(true);
-                        }
-                    }
-                }
-            }
-            Ok(false)
-        }
-        "address" => {
-            let mt = MatchType::from_tags(&t.tags);
-            let part = address_part_from_tags(&t.tags);
-            let (names, values) = pair_lists(&t.args);
-            for name in &names {
-                for hv in ctx.header_values(name) {
-                    for addr in extract_addresses(&hv) {
-                        let scoped = scope_to_part(&addr, part);
-                        for needle in &values {
-                            if match_string(mt, &scoped, needle) {
-                                return Ok(true);
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(false)
-        }
-        other => Err(EvalError::UnknownTest(other.to_string())),
-    }
-}
-
 fn first_string(args: &[Argument]) -> Option<&str> {
     args.iter().find_map(|a| match a {
         Argument::String(s) => Some(s.as_str()),
@@ -292,39 +189,6 @@ fn first_test(args: &[Argument]) -> Option<&Test> {
         Argument::Test(t) => Some(t),
         _ => None,
     })
-}
-
-fn arg_strings_or_list(args: &[Argument]) -> Vec<String> {
-    let mut out = Vec::new();
-    for a in args {
-        match a {
-            Argument::String(s) => out.push(s.clone()),
-            Argument::StringList(v) => out.extend(v.iter().cloned()),
-            _ => {}
-        }
-    }
-    out
-}
-
-fn pair_lists(args: &[Argument]) -> (Vec<String>, Vec<String>) {
-    // First non-tag arg is "names" (string-or-list), second is "values".
-    let mut names = Vec::new();
-    let mut values = Vec::new();
-    let mut idx = 0usize;
-    for a in args {
-        let collected = match a {
-            Argument::String(s) => vec![s.clone()],
-            Argument::StringList(v) => v.clone(),
-            _ => continue,
-        };
-        if idx == 0 {
-            names = collected;
-        } else if idx == 1 {
-            values = collected;
-        }
-        idx += 1;
-    }
-    (names, values)
 }
 
 #[cfg(test)]

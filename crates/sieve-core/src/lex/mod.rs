@@ -4,13 +4,17 @@
 //!
 //! - identifiers (`require`, `if`, `header`, …)
 //! - tagged args (`:is`, `:contains`, `:domain`)
-//! - quoted strings (with `\\` and `\"` escapes)
-//! - multi-line strings (`text: … .CRLF`)
+//! - quoted strings (with `\\` and `\"` escapes) — see `string.rs`
+//! - multi-line strings (`text: … .CRLF`) — see `string.rs`
 //! - numbers with K/M/G suffix (`100K`, `2M`)
 //! - punctuation (`{`, `}`, `[`, `]`, `;`, `,`, `(`, `)`)
 //! - comments (`# …` to EOL, `/* … */`)
 
+mod string;
+
 use std::fmt;
+
+use string::{is_multiline_start, scan_multiline, scan_quoted};
 
 /// One lexeme. `String` and `Number` carry the parsed value;
 /// `Identifier` and `Tag` carry the slice content.
@@ -176,89 +180,17 @@ pub fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
 
         // quoted string "..."
         if b == b'"' {
-            let start = i;
-            i += 1;
-            let mut s = String::new();
-            loop {
-                if i >= bytes.len() {
-                    return Err(TokenizeError::UnterminatedString(start));
-                }
-                let c = bytes[i];
-                if c == b'"' {
-                    i += 1;
-                    break;
-                }
-                if c == b'\\' {
-                    if i + 1 >= bytes.len() {
-                        return Err(TokenizeError::BadEscape(i));
-                    }
-                    let esc = bytes[i + 1];
-                    match esc {
-                        b'"' => s.push('"'),
-                        b'\\' => s.push('\\'),
-                        _ => return Err(TokenizeError::BadEscape(i)),
-                    }
-                    i += 2;
-                    continue;
-                }
-                // append the actual UTF-8 code point starting at i
-                let ch_start = i;
-                let ch_len = utf8_char_len(c);
-                let ch_end = ch_start + ch_len;
-                if ch_end > bytes.len() {
-                    return Err(TokenizeError::UnterminatedString(start));
-                }
-                s.push_str(std::str::from_utf8(&bytes[ch_start..ch_end]).unwrap_or(""));
-                i = ch_end;
-            }
+            let (s, new_i) = scan_quoted(bytes, i)?;
             out.push(Token::String(s));
+            i = new_i;
             continue;
         }
 
         // multi-line string: text: ... .CRLF
-        if b == b't'
-            && bytes[i..].starts_with(b"text:")
-            && (bytes[i..].starts_with(b"text:\r\n")
-                || bytes[i..].starts_with(b"text:\n")
-                || bytes[i..].starts_with(b"text: \r\n")
-                || bytes[i..].starts_with(b"text: \n"))
-        {
-            let start = i;
-            // skip "text:" and any trailing CR/space, plus the LF
-            i += "text:".len();
-            while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t' || bytes[i] == b'\r') {
-                i += 1;
-            }
-            if i >= bytes.len() || bytes[i] != b'\n' {
-                return Err(TokenizeError::UnterminatedMultiline(start));
-            }
-            i += 1; // past the LF
-            let mut s = String::new();
-            loop {
-                if i >= bytes.len() {
-                    return Err(TokenizeError::UnterminatedMultiline(start));
-                }
-                // dot-stuffing terminator: ".\r\n" or ".\n" on its own line
-                if bytes[i] == b'.'
-                    && (bytes[i..].starts_with(b".\r\n") || bytes[i..].starts_with(b".\n"))
-                {
-                    if bytes[i..].starts_with(b".\r\n") {
-                        i += 3;
-                    } else {
-                        i += 2;
-                    }
-                    break;
-                }
-                // dot-stuffed line ("..") becomes a single dot
-                if bytes[i] == b'.' && i + 1 < bytes.len() && bytes[i + 1] == b'.' {
-                    s.push('.');
-                    i += 2;
-                    continue;
-                }
-                s.push(bytes[i] as char);
-                i += 1;
-            }
+        if b == b't' && is_multiline_start(bytes, i) {
+            let (s, new_i) = scan_multiline(bytes, i)?;
             out.push(Token::String(s));
+            i = new_i;
             continue;
         }
 
@@ -333,16 +265,6 @@ fn is_ident_start_byte(b: u8) -> bool {
 
 fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
-}
-
-fn utf8_char_len(first_byte: u8) -> usize {
-    match first_byte {
-        0x00..=0x7F => 1,
-        0xC0..=0xDF => 2,
-        0xE0..=0xEF => 3,
-        0xF0..=0xF7 => 4,
-        _ => 1,
-    }
 }
 
 #[cfg(test)]

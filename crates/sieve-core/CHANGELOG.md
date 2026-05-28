@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.1.3 (unreleased)
+
+### Added
+
+- Differential corpus grown 100 → 142 scripts (`slice4_c` + `slice4_d`),
+  pushing ckpt 4 → 5 trigger gate progress to 142/200 (71%). New
+  categories: multi-line `text:` strings in scripts, number edges
+  (0 / huge / exact-kilobyte), whitespace tolerance, header-value
+  edges (empty `Subject`, `:matches "*"`), address shape edges
+  (dotted localpart, subdomain), message-shape edges (no body),
+  comments in unusual positions, deep nesting variants, action
+  sequence semantics including `stop` inside `else`, `require`
+  edges (no action / repeated calls), real-world filter shapes
+  (newsletter / VIP priority / auto-archive).
+
+### Changed
+
+- File-size hard limit closed: every file ≤ 500, every function ≤ 200.
+  - `src/lex.rs` (523) → `src/lex/mod.rs` (445) + `src/lex/string.rs` (153).
+  - `src/eval.rs` (501) → `src/eval/mod.rs` (365) + `src/eval/context.rs`
+    (35) + `src/eval/test_engine.rs` (131).
+  - `tokenize` function 235 lines → 164 lines after string-scanning
+    extraction.
+- Slice 1/2 inherited file-size debt fully closed.
+
 ## 0.1.2 (unreleased)
 
 ### Added
