@@ -56,19 +56,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ahash"
-version = "0.8.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75"
-dependencies = [
- "cfg-if",
- "getrandom 0.3.4",
- "once_cell",
- "version_check",
- "zerocopy",
-]
-
-[[package]]
 name = "aho-corasick"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1401,17 +1388,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "020662aa57307d8884be79fca464cce073745cfe6ac70805770972113ca6ee95"
 dependencies = [
  "fastrand",
-]
-
-[[package]]
-name = "fancy-regex"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1e1dacd0d2082dfcf1351c4bdd566bbe89a2b263235a2b50058f1e130a47277"
-dependencies = [
- "bit-set",
- "regex-automata",
- "regex-syntax",
 ]
 
 [[package]]
@@ -3016,7 +2992,7 @@ dependencies = [
  "compact_str",
  "criterion",
  "flate2",
- "mailrs-mail-builder",
+ "mailrs-mail-builder 1.0.0",
  "psl",
  "sqlx",
  "thiserror",
@@ -3209,6 +3185,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-mail-builder"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f95ec0d3ef1b799ef453b8dd1a186c4d80da99c18ff3a7bcb1b08b4b0fd60561"
+dependencies = [
+ "base64",
+ "chrono",
+ "mailrs-rfc2047 1.1.1",
+]
+
+[[package]]
 name = "mailrs-mailbox"
 version = "1.0.3"
 dependencies = [
@@ -3274,7 +3261,7 @@ dependencies = [
  "mailrs-arc",
  "mailrs-backoff 1.0.0",
  "mailrs-dkim",
- "mailrs-mail-builder",
+ "mailrs-mail-builder 1.0.0",
  "mailrs-smtp-client",
  "metrics",
  "rcgen 0.14.8",
@@ -3425,6 +3412,7 @@ dependencies = [
  "mailrs-inbound 1.0.5",
  "mailrs-intelligence 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-jmap 1.1.1",
+ "mailrs-mail-builder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox",
  "mailrs-maildir",
  "mailrs-mime",
@@ -3435,7 +3423,7 @@ dependencies = [
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc5322 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-shield 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-sieve 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-sieve",
  "mailrs-smtp-client",
  "mailrs-smtp-codec 1.0.0",
  "mailrs-smtp-proto 1.0.4",
@@ -3462,7 +3450,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
- "sieve-rs",
  "sqlx",
  "tempfile",
  "tokio",
@@ -3505,19 +3492,10 @@ dependencies = [
 
 [[package]]
 name = "mailrs-sieve"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "criterion",
- "sieve-rs",
-]
-
-[[package]]
-name = "mailrs-sieve"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0efe1eb60d19f28e6af2b2cbbfc70969aaae55e63f558d70c279f0647679e153"
-dependencies = [
- "sieve-rs",
+ "mailrs-sieve-core",
 ]
 
 [[package]]
@@ -3526,7 +3504,6 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "mailrs-rfc5322 1.0.1",
- "sieve-rs",
  "thiserror",
 ]
 
@@ -5429,20 +5406,6 @@ name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
-
-[[package]]
-name = "sieve-rs"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4f8e4b2c299c75cffe27efa4d762777d0e616c5741d21627839e80848797cca"
-dependencies = [
- "ahash",
- "arc-swap",
- "fancy-regex",
- "hashify",
- "mail-builder",
- "mail-parser",
-]
 
 [[package]]
 name = "signal-hook-registry"

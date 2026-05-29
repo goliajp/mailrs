@@ -24,6 +24,7 @@ mod groups;
 mod permissions;
 mod sieve;
 mod totp;
+mod vacation;
 
 /// cache entries expire after 5 minutes
 pub(super) const CACHE_TTL_SECS: u64 = 300;

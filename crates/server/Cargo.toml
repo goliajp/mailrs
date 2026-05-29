@@ -45,7 +45,7 @@ mailrs-smtp-codec = "1"
 mailrs-imap-codec = "1"
 mailrs-imap-format = "1"
 mailrs-attachment-extract = "1"
-mailrs-sieve = "1"
+mailrs-sieve = { path = "../sieve", version = "2" }
 mailrs-outbound-queue = { path = "../outbound-queue", version = "2" }
 mailrs-imap-proto = "1"
 mailrs-ical = { path = "../ical", version = "2" }
@@ -62,6 +62,7 @@ mailrs-inbound = "1"
 mailrs-rate-limit = "1"
 mailrs-rfc5322 = "1"
 mailrs-rfc2047 = "1"
+mailrs-mail-builder = "1"
 mailrs-auth-guard = "1"
 mailrs-srs = "1"
 mailrs-rfc2231 = "1"
@@ -95,7 +96,6 @@ base64 = "0.22"
 instant-acme = { version = "0.8", features = ["rcgen"] }
 arc-swap = "1"
 x509-parser = "0.18"
-sieve-rs = "0.7"
 flate2 = "1"
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls"] }
 html2text = "0.17"

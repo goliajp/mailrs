@@ -1,49 +1,51 @@
-//! ckpt 4 sieve-core — differential test against Stalwart's
-//! `sieve-rs` (the oracle this engine will eventually replace).
+//! sieve-core golden regression test.
 //!
-//! Builds the same action sequence out of both engines (mapped to
-//! a shared `NormalizedAction` enum that drops engine-specific
-//! metadata) and asserts equality. The corpus + framework live in
-//! `tests/common/`; this file is just the entry point.
-//!
-//! ckpt 4 → 5 trigger gate: 200/200 corpus rows agree. Slice 4
-//! lands at 100/200 (50%).
+//! Freezes the engine's output across the corpus as
+//! `tests/common/golden.txt`. The corpus was validated == Stalwart
+//! `sieve-rs` across 245 rows during the v8 ckpt 4-5 parity ramp; the
+//! AGPL oracle was dropped in ckpt 6, so this is now a pure golden
+//! regression. Regenerate via the `gen_golden` test (`--ignored`)
+//! after an intentional behavior change.
 
 mod common;
 
 use common::{
     corpus::{corpus, envelope_corpus},
-    ours, ours_with_envelope, sieve_rs, sieve_rs_with_envelope,
+    ours, ours_with_envelope,
 };
 
-#[test]
-fn engines_agree_on_corpus() {
-    let mut disagreements = Vec::new();
-    for (label, script, msg) in corpus() {
-        let a = ours(script, msg);
-        let b = sieve_rs(script, msg);
-        if a != b {
-            disagreements.push((label, a, b));
-        }
-    }
-    assert!(
-        disagreements.is_empty(),
-        "engine disagreement: {disagreements:#?}",
-    );
-}
+const GOLDEN: &str = include_str!("common/golden.txt");
 
 #[test]
-fn engines_agree_on_envelope_corpus() {
-    let mut disagreements = Vec::new();
-    for (label, script, msg, env) in envelope_corpus() {
-        let a = ours_with_envelope(script, msg, env);
-        let b = sieve_rs_with_envelope(script, msg, env);
-        if a != b {
-            disagreements.push((label, a, b));
-        }
+fn ours_matches_golden() {
+    let golden: Vec<&str> = GOLDEN.lines().collect();
+    let mut i = 0;
+    for (label, script, msg) in corpus() {
+        let got = format!("{label}\t{:?}", ours(script, msg));
+        assert_eq!(got, golden[i], "corpus row {i} ({label}) drifted from golden");
+        i += 1;
     }
-    assert!(
-        disagreements.is_empty(),
-        "envelope engine disagreement: {disagreements:#?}",
-    );
+    for (label, script, msg, env) in envelope_corpus() {
+        let got = format!("{label}\t{:?}", ours_with_envelope(script, msg, env));
+        assert_eq!(got, golden[i], "envelope row {i} ({label}) drifted from golden");
+        i += 1;
+    }
+    assert_eq!(i, golden.len(), "corpus size != golden line count");
+}
+
+/// One-off generator (run with `--ignored`) that freezes the current
+/// sieve-core output as `tests/common/golden.txt`. Re-run only when an
+/// intentional behavior change updates expected output.
+#[test]
+#[ignore = "regenerates golden.txt"]
+fn gen_golden() {
+    use std::fmt::Write;
+    let mut out = String::new();
+    for (label, script, msg) in corpus() {
+        writeln!(out, "{label}\t{:?}", ours(script, msg)).unwrap();
+    }
+    for (label, script, msg, env) in envelope_corpus() {
+        writeln!(out, "{label}\t{:?}", ours_with_envelope(script, msg, env)).unwrap();
+    }
+    std::fs::write("tests/common/golden.txt", out).unwrap();
 }
