@@ -6,17 +6,18 @@ a modern conversational email interface.
 
 ## Architecture
 
-mailrs is organized as a Cargo workspace with **42 crates** — 1 server
-binary + **41 published libraries** ("stones") on [crates.io](https://crates.io/users/golia-jp).
+mailrs is organized as a Cargo workspace with **44 crates** — 1 server
+binary + **43 reusable library crates** (42 of them published on
+[crates.io](https://crates.io/users/golia-jp)).
 
-The stones cover the full email-protocol + auth stack and are individually
-reusable in any Rust project; the server binary is the "cement" that wires
-them into a deployable mail server. See [ARCHITECTURE.md](./ARCHITECTURE.md)
-for the stone-by-stone breakdown and [DEPS_AUDIT.md](./DEPS_AUDIT.md) for
+These library crates cover the full email-protocol + auth stack and are
+individually reusable in any Rust project; the server binary wires them
+into a deployable mail server. See [ARCHITECTURE.md](./ARCHITECTURE.md)
+for the crate-by-crate breakdown and [DEPS_AUDIT.md](./DEPS_AUDIT.md) for
 the rewrite-vs-keep ledger on every external dependency.
 
 ```
-server (mailrs-server binary, cement)
+server (mailrs-server binary)
 │
 ├── Protocol parsers (zero-I/O)
 │   ├── smtp-proto / imap-proto         — wire-format command parsers + state machines
@@ -45,7 +46,7 @@ server (mailrs-server binary, cement)
 ```
 
 Protocol crates have **zero I/O** — the server crate owns all async
-networking via Tokio. Every stone has its own perf budget
+networking via Tokio. Every library crate has its own perf budget
 (`tests/perf_gate.rs`), criterion benches, fuzz target where applicable,
 and a CHANGELOG.
 
