@@ -193,7 +193,7 @@ MAILRS_PG_URL='postgres://mailrs:mailrs@127.0.0.1:5432/mailrs' \
   -- --ignored --nocapture | grep BASELINE_RESULT
 ```
 
-The 28 stone-level optimization rounds (16-28) sit upstream of these
+The 28 crate-level optimization rounds (16-28) sit upstream of these
 PG-anchored bottlenecks: their CPU savings are real and load-bearing
 once the e2e path is freed of the lock + fsync floors. The next
 e2e perf wave (planned task list) targets the row-lock + fsync ladder
@@ -215,7 +215,7 @@ directly:
 |---|---|---|
 | Release binary size (mailrs-server) | 44 MB (default) → 22 MB (perf-first profile). M-series Mac. | `du -h $TARGET_DIR/release/mailrs-server` before/after commit `9f21e0b`. |
 | SMTP receive throughput (perf-first vs vanilla profile, original measurement 2026-05) | **+2.10%** throughput (267.2 vs 261.7 msg/s median, 3 rounds × 30s × 32 conns); **p99 latency −5.57%** (179.7 ms vs 190.3 ms). The original commit claim of "+10-20% throughput" was wrong; the real measured win is much smaller but still positive and consistent. Binary-size win is the dominant payoff of the perf-first profile. | `scripts/bench-smtp-load.sh 30 32 3` (builds both `release` and `release-vanilla` profiles, runs 3 rounds each, prints comparison) |
-| SMTP receive throughput, **current** (post tracing + listener refactor, 2026-05-23) | **300.2 msg/s** (1 round × 30s × 32 conns, perf-first profile), **P50 106 ms, P99 152 ms, P999 166 ms** — single-round number, not a perf-first-vs-vanilla comparison. Logged here as the latest end-to-end number after all stone-level optimizations + the server-level listener helper refactor + tracing span addition. | `cargo bench -p mailrs-server --bench smtp_load --release -- --duration 30 --conns 32` |
+| SMTP receive throughput, **current** (post tracing + listener refactor, 2026-05-23) | **300.2 msg/s** (1 round × 30s × 32 conns, perf-first profile), **P50 106 ms, P99 152 ms, P999 166 ms** — single-round number, not a perf-first-vs-vanilla comparison. Logged here as the latest end-to-end number after all crate-level optimizations + the server-level listener helper refactor + tracing span addition. | `cargo bench -p mailrs-server --bench smtp_load --release -- --duration 30 --conns 32` |
 | SMTP receive throughput, **post DeliveryExecutor** (`mailrs-delivery-executor` 1.0 group-commit, 2026-05-24) | **999 msg/s mean across 3 × 30s × 32 conns** (rounds: 1045 / 972 / 979). **3.4×** vs the immediately-prior 291 msg/s baseline (same hardware, same bench). **P50 32 ms** (vs 105 ms baseline = **3.3× faster**), **P99 41 ms** (vs 163 ms = **4.0× faster**), **P999 76 ms** (vs 199 ms = **2.6× faster**). All four UX axes — throughput, p50, p99, p999 — improve simultaneously; no axis regresses. The win comes from group-commit: 32 concurrent SMTP sessions delivering to the same Maildir path now share a single fsync per batch (max_batch=64, max_wait=10ms) via `mailrs-delivery-executor`'s mpsc → `Maildir::deliver_batch` pipeline, instead of each session driving its own per-message fsync. | `cargo build --profile release-debug -p mailrs-server --bench smtp_load && $CARGO_TARGET_DIR/release-debug/deps/smtp_load-* --duration 30 --conns 32 --warmup 5` |
 | SMTP receive throughput, **post pipelined DeliveryExecutor** (`mailrs-delivery-executor` 1.1, max_concurrent_flushes=2, 2026-05-24) | **1079 msg/s mean across 3 × 30s × 32 conns** (rounds: 1074 / 1073 / 1089). **+8%** vs the 1.0 serial-flush 999 msg/s. **P50 29 ms** (-9%), **P99 36 ms** (-12%), **P999 45 ms (-41%)** — tail latency is the headline win. Mechanism: while batch A's fsync is in flight on a `spawn_blocking` thread, batch B starts collecting concurrently; a `Semaphore`-bounded pipeline of 2 in-flight flushes hides disk-wait behind batch-collection latency without queuing unbounded fsyncs. Cumulative since the perf-axis kickoff (#127): **291 → 1079 msg/s = 3.71× throughput**, **P999 199 → 45 ms = 4.4× faster tail**. | Same reproduce command as the 1.0 row above; binary uses the new published `mailrs-delivery-executor` 1.1 default tuning. |
 
@@ -267,17 +267,20 @@ the criterion bench medians above instead.
 
 ### Cross-ecosystem competitor map (C / C++ / Go / Python / Zig)
 
-Per-stone competitor audit across 5 ecosystems (Rust competitors are
+Per-crate competitor audit across 5 ecosystems (Rust competitors are
 already covered in the head-to-head tables below). All entries verified
-2026-05-26 via GitHub / PyPI / pkg.go.dev / zigistry.dev. "—" means
+2026-05-26 via GitHub / PyPI / pkg.go.dev / zigistry.dev. This snapshot
+covers the 41 crates published as of 2026-05-25; `mailrs-mail-builder`
+and `mailrs-sieve-core` were added afterward and are not yet
+cross-language audited. "—" means
 no widely-used library found; "(monolith)" means the functionality
 exists only inside a full MTA/server, not as a consumable library.
 Verbose URLs intentionally elided here — full source list in
 [v4 round 18 commit message].
 
-#### Protocol parsers (12 stones)
+#### Protocol parsers (12 crates)
 
-| stone | C | C++ | Go | Python | Zig |
+| crate | C | C++ | Go | Python | Zig |
 |---|---|---|---|---|---|
 | smtp-proto | libetpan; Postfix/Sendmail (monolith) | vmime / Poco / mailio | emersion/go-smtp | aiosmtpd (server) / smtplib (client) | — |
 | smtp-codec | (folded into proto) | (folded) | (bundled in go-smtp) | — | — |
@@ -293,9 +296,9 @@ Verbose URLs intentionally elided here — full source list in
 | dav | Cyrus (monolith) | **KDE KDAV / KDAV2** | emersion/go-webdav | caldav (client); Radicale (server) | mail-os/mail (inline) |
 | sieve | Pigeonhole (Dovecot plugin) | KDE libksieve | foxcpp/go-sieve; emersion/go-sieve | sievelib | — |
 
-#### Email authentication (8 stones)
+#### Email authentication (8 crates)
 
-| stone | C | C++ | Go | Python | Zig |
+| crate | C | C++ | Go | Python | Zig |
 |---|---|---|---|---|---|
 | spf | libspf2 (stale 2013) | — (C dominates) | mileusna/spf; mox/spf | pyspf (stale 2020) | mail-os (inline) |
 | dkim | **OpenDKIM** (dormant since 2018 beta) | halon/libdkimpp (rare native C++) | emersion/go-msgauth; mox/dkim | **dkimpy** (DKIM+ARC+TLSRPT) | mail-os (inline) |
@@ -306,9 +309,9 @@ Verbose URLs intentionally elided here — full source list in
 | tls-rpt | sys4/libtlsrpt | halon-extras (mostly node) | mox/tlsrpt | dkimpy (sign); parsedmarc (ingest) | mail-os (inline) |
 | mta-sts | Snawoot/postfix-mta-sts-resolver (Python) | halon-extras | emersion/go-mta-sts (stale); mox/mtasts | postfix-mta-sts-resolver | mail-os (inline) |
 
-#### Infrastructure primitives (9 stones)
+#### Infrastructure primitives (9 crates)
 
-| stone | C | C++ | Go | Python | Zig |
+| crate | C | C++ | Go | Python | Zig |
 |---|---|---|---|---|---|
 | dnsbl | — (3-line DNS, everyone rolls own) | — | godnsbl (small) | — (use dnspython directly) | mail-os (inline) |
 | rate-limit | Postfix anvil (monolith) | **Facebook folly TokenBucket** | **golang.org/x/time/rate** (stdlib-ish) | **limits** (Redis/Memcached backed) | **minhqdao/zimit** (GCRA) |
@@ -320,9 +323,9 @@ Verbose URLs intentionally elided here — full source list in
 | acme | **uacme**; OpenBSD acme-client | jmccl/acme-lw | **certmagic; lego; acmez; autocert** (4 mature) | **certbot/acme** (the reference impl) | mail-os (inline) |
 | dns | **c-ares** (curl/Node); ldns; getdns | c-ares | **miekg/dns** (universal) | **dnspython** (canonical) | lun-4/zigdig (44⭐ "naive"); zig-dns (66⭐ stale) |
 
-#### Server building blocks (12 stones)
+#### Server building blocks (12 crates)
 
-| stone | C | C++ | Go | Python | Zig |
+| crate | C | C++ | Go | Python | Zig |
 |---|---|---|---|---|---|
 | smtp-client | libESMTP; libetpan | vmime/Poco/mailio | emersion/go-smtp; mox/smtpclient | smtplib / aiosmtplib | karlseguin/smtp_client.zig (TLS hole) |
 | outbound-queue | Postfix qmgr (monolith) | — | mox/queue; maddy/queue | Salmon; Mailman 3 | — |
@@ -338,14 +341,14 @@ Verbose URLs intentionally elided here — full source list in
 
 #### Where each ecosystem stacks up
 
-**Coverage by ecosystem (out of 41 stones, intelligence excluded — 40 measurable):**
+**Coverage by ecosystem (out of 41 crates, intelligence excluded — 40 measurable):**
 
-| Ecosystem | Direct stone-level competitor | Monolithic-only (no carve-out) | No competitor at all |
+| Ecosystem | Direct crate-level competitor | Monolithic-only (no carve-out) | No competitor at all |
 |---|---:|---:|---:|
 | **C** | ~22 (parsers + auth + several infra) | ~14 (Postfix/Cyrus/Dovecot/Sendmail internals) | ~4 (intelligence, tls-reload, several niches) |
 | **C++** | ~15 (KDE PIM dominates parser/storage) | ~10 (Cyrus/rspamd) | ~15 (huge auth + infra gap) |
 | **Go** | ~28 (Maddy + Mox + emersion + mileusna + acme cluster) | ~6 (mox/maddy internals) | ~6 (arf, arc-standalone, auth-guard, postmaster, etc.) |
-| **Python** | ~26 (stdlib email + dkimpy + Salmon + Mailman + certbot + nh3) | ~3 | ~11 (smtp/imap proto stones, JMAP server, anti-spam native) |
+| **Python** | ~26 (stdlib email + dkimpy + Salmon + Mailman + certbot + nh3) | ~3 | ~11 (smtp/imap proto crates, JMAP server, anti-spam native) |
 | **Zig** | **3** (zimit rate-limit, zigdig DNS, karlseguin/smtp_client) | ~18 (all bundled in 6⭐ mail-os/mail monorepo) | ~20 (totally absent) |
 | **Rust (us)** | 41 (full federated split) | 0 | 0 |
 
@@ -360,22 +363,22 @@ Verbose URLs intentionally elided here — full source list in
    GitHub org is the canonical pure-protocol-parser maintainer.
    Coverage is dense (~28 of 40) but most of Maddy's packages are
    `internal/` and therefore not re-usable as libraries — mailrs's
-   stone-federation model is structurally different.
-3. **Python wins on legacy depth.** stdlib `email` covers 4 stones in
+   crate-federation model is structurally different.
+3. **Python wins on legacy depth.** stdlib `email` covers 4 crates in
    one 25-year-old package; `icalendar` and `certbot/acme` are the
    reference implementations for the world. But everything is
    ≥20× slower than the Rust equivalents by GIL/interpreter overhead
    — comparison is structural, not unfair.
 4. **C++ email ecosystem ≈ KDE PIM.** KMime / KIMAP / KCalendarCore /
-   KDAV / libksieve cover most parser+storage stones. Outside KDE, only
+   KDAV / libksieve cover most parser+storage crates. Outside KDE, only
    vmime + Poco + mailio survive as full-featured email clients. Email
    auth in C++ is essentially absent (lone exception: halon/libdkimpp).
-5. **Zig is years behind.** Three real standalone stones exist (zimit,
+5. **Zig is years behind.** Three real standalone crates exist (zimit,
    zigdig, karlseguin/smtp_client). One 6-star monorepo (mail-os/mail,
-   alpha) bundles ~18 inline; 20 stones have **no Zig implementation
+   alpha) bundles ~18 inline; 20 crates have **no Zig implementation
    anywhere**. SRS, ARF, JMAP, Maildir, RFC 5322 are completely
    untouched by Zig.
-6. **mailrs's per-RFC stone-granularity has no direct analogue in
+6. **mailrs's per-RFC crate-granularity has no direct analogue in
    any ecosystem.** C/C++ ship monolithic MTAs or huge frameworks (KDE
    PIM); Go bundles into Maddy/Mox; Python has the stdlib `email` mega-
    module + DKIM/ARC/TLSRPT-bundled `dkimpy`. Only the Rust ecosystem
@@ -385,18 +388,18 @@ Sources verified by 5 parallel research agents 2026-05-26 against
 GitHub, PyPI, pkg.go.dev, zigistry.dev, and project websites. Full
 URL list lives in the v4-round-18 commit body.
 
-### Stone size — release `.rlib` per published crate
+### Crate size — release `.rlib` per published crate
 
-41 published stones, sorted by release-mode `.rlib` size
+41 published crates, sorted by release-mode `.rlib` size
 (`cargo build --workspace --release` → top-level `target/release/lib*.rlib`,
 which excludes upstream deps unlike `target/release/deps/`).
 
-| Bucket | Stones | Range |
+| Bucket | Crates | Range |
 |---|---|---:|
-| **Tiny** (≤50 KB, 9 stones) | imap_codec, rfc2231, srs, backoff, webhook_signature, rfc2047, smtp_codec, sieve, rfc5322 | 20–39 KB |
-| **Small** (50–110 KB, 11 stones) | arf, attachment_extract, auth_guard, clamav, shield, maildir, rate_limit, tls_reload, mime (97), delivery_executor, imap_format | 56–108 KB |
-| **Medium** (110–500 KB, 10 stones) | mta_sts, dnsbl, inbound, imap_proto, smtp_proto, postmaster, arc, ical, dav, clean | 117–496 KB |
-| **Large** (≥500 KB, 11 stones) | smtp_client (563), jmap (591), tls_rpt (678), dns (779), spf (930), dkim (1008), intelligence (1014), acme (1163), dmarc (1432), outbound_queue (1579), mailbox (1659) | 563–1659 KB |
+| **Tiny** (≤50 KB, 9 crates) | imap_codec, rfc2231, srs, backoff, webhook_signature, rfc2047, smtp_codec, sieve, rfc5322 | 20–39 KB |
+| **Small** (50–110 KB, 11 crates) | arf, attachment_extract, auth_guard, clamav, shield, maildir, rate_limit, tls_reload, mime (97), delivery_executor, imap_format | 56–108 KB |
+| **Medium** (110–500 KB, 10 crates) | mta_sts, dnsbl, inbound, imap_proto, smtp_proto, postmaster, arc, ical, dav, clean | 117–496 KB |
+| **Large** (≥500 KB, 11 crates) | smtp_client (563), jmap (591), tls_rpt (678), dns (779), spf (930), dkim (1008), intelligence (1014), acme (1163), dmarc (1432), outbound_queue (1579), mailbox (1659) | 563–1659 KB |
 
 Note: `mime` was 143 KB before the v4 round 13 single-pass header collect
 landed — the refactor removed 5 distinct `Message::header()` / `Message::body()`
@@ -445,7 +448,7 @@ plus the boxed include-domain Strings. The peak (616 B / 9 blocks) is
 the largest single record (`pathological_8` with 8 include strings)
 alive at one moment — under 1 KB per record.
 
-These are the two most-exercised stones (`mime` runs on every
+These are the two most-exercised crates (`mime` runs on every
 inbound message, `spf` runs on every accepted MAIL FROM). Across the
 two there's room for further reduction (e.g. inlining small Strings via
 `SmolStr` for `ContentType.type_` / `subtype` — a 2.0 break that would
@@ -461,10 +464,10 @@ The headline number is dragged down by `mailrs-server`'s web/admin/OIDC/RSVP
 handlers — those are framework-wiring code that
 [`testing.md`](.claude/rules/common/testing.md) explicitly puts in the
 **Skip** bucket ("glue code, framework wiring, dependency injection setup,
-trivial getters/setters"). Published stones look very different — sampled
+trivial getters/setters"). Published crates look very different — sampled
 from the cov report:
 
-| Stone | line cov |
+| Crate | line cov |
 |---|---:|
 | webhook-signature | 99.7 % |
 | smtp-client/response | 99.8 % |
@@ -478,9 +481,9 @@ from the cov report:
 | tls-rpt/record | 96.1 % |
 | spf/record | 85.1 % |
 
-Stones land at 85–99 % line coverage; everything below 80 % is server-side
+Crates land at 85–99 % line coverage; everything below 80 % is server-side
 framework wiring. The workspace 80 % bar from `testing.md` is satisfied for
-all 41 published stones individually, even though the workspace-wide rollup
+all 41 published crates individually, even though the workspace-wide rollup
 sits at 58.66 % because of the server binary.
 
 Reproduce: `cargo llvm-cov --workspace --tests --summary-only --ignore-run-fail`
@@ -1300,14 +1303,14 @@ typical 1-3 recipient messages the difference is below measurement
 noise; for 50+ recipient bulk-mail it should be observable but isn't
 gated by a benchmark yet.
 
-### v6 ckpt 3 — P2 stones measured (criterion `--quick`, busy laptop)
+### v6 ckpt 3 — P2 crates measured (criterion `--quick`, busy laptop)
 
 Quick-mode (10 samples) ballpark, run during the v6 ckpt 3 polish
-pass to confirm every P2 stone has a criterion bench producing
+pass to confirm every P2 crate has a criterion bench producing
 numbers. Use the per-crate sections above for the higher-confidence
 medians; these are regression-catch ballpark.
 
-| Stone | Bench | Median (`--quick`) |
+| Crate | Bench | Median (`--quick`) |
 |---|---|---:|
 | `mailrs-outbound-queue` | `dkim_sign/short` | **288 µs** (was 2.27 ms pre-v1.7.35; aws-lc-rs swap) |
 | `mailrs-outbound-queue` | `dkim_sign/long_8kb` | **309 µs** (was 2.71 ms pre-v1.7.35; aws-lc-rs swap) |
@@ -1350,7 +1353,7 @@ medians; these are regression-catch ballpark.
      measured. **8-9× speed-up**, full parity with mail-auth's
      pre-cutover throughput.
 - All other P2 benches are within reasonable ballpark for their
-  stone size; no further hot-path investigation triggered.
+  crate size; no further hot-path investigation triggered.
 
 Run:
 

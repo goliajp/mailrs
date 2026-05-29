@@ -1,12 +1,13 @@
 # External Dependency Audit — Status Ledger
 
-> "我们要做一轮 deps 审查，看有没有哪些有重写的可能"
-> — direction, 2026-05-23
+> "Let's run a dependency review and see which ones we could reasonably
+> reimplement in-house."
+> — project direction, 2026-05-23
 
-This document applies the **stone / cement lens** outward: each external
-crate we depend on is asked: *is there a clean mailrs stone hiding inside
-this dep?* — i.e. a focused, RFC-bounded reimplementation that would let
-us own the perf / API / shape end-to-end.
+This document asks of each external dependency: *is there a clean,
+RFC-bounded reimplementation hiding inside it* — one focused enough that
+we could own the performance / API / shape end-to-end as an in-house
+library crate?
 
 **Status (end of 2026-05-23): the four rewrite candidates identified in
 the original audit are all resolved.** What follows is the audited
@@ -18,10 +19,10 @@ state, not a fresh plan.
 
 Owned by Stalwart, used by mailrs for SPF / DKIM / DMARC verification.
 
-Resolution: three stones, each beating `mail-auth` on the realistic
-inputs we measured against it:
+Resolution: three in-house crates, each beating `mail-auth` on the
+realistic inputs we measured against it:
 
-| Stone | Version | Vs. mail-auth |
+| Crate | Version | Vs. mail-auth |
 |---|---|---|
 | `mailrs-spf` | 1.0.4 | wins complex (+14%) and pathological (+44%); loses simple by 13 ns (std `Ipv4Addr` cost) |
 | `mailrs-dkim` | 1.1.3 | wins both minimal (+12%) and realistic (+4%) since the byte-match dispatch + `h=` byte-iter rewrite |
@@ -36,7 +37,7 @@ DNS work. `mail-auth` becomes fully removable from the server once
 
 ### #2 — `mail-parser` → **replaced for the email-auth + lookup paths**
 
-| What we replaced | New stone | Win |
+| What we replaced | New crate | Win |
 |---|---|---|
 | Header lookup (Subject, From, Received, …) | `mailrs-rfc5322` 1.0.1 | 10-33× vs mail-parser on the same op |
 | Encoded-word decode (Subject / display name) | `mailrs-rfc2047` 1.1.2 | 4-14× vs mail-parser for single-field extraction |
@@ -47,7 +48,7 @@ DNS work. `mail-auth` becomes fully removable from the server once
 use in the server (per `cargo tree`) is only via the `mail-auth` chain,
 which is itself slated for removal once ARC lands.
 
-### #3 — `hickory-resolver` → **wrapper stone shipped (`mailrs-dns` 1.0)**
+### #3 — `hickory-resolver` → **wrapper crate shipped (`mailrs-dns` 1.0)**
 
 `hickory-resolver` is the right base; we shipped a thin wrapper
 exposing only the 5 query types email servers actually use (TXT, A,
@@ -67,8 +68,8 @@ if mailrs's Sieve usage outgrows the upstream shape.
 
 ## Don't rewrite — foundational or already optimal
 
-These deps are the stones underneath our stones. Reimplementing would
-be wasted effort or a security regression.
+These deps are the foundation our own crates build on. Reimplementing
+would be wasted effort or a security regression.
 
 | Dep | Why it stays |
 |---|---|
@@ -107,12 +108,12 @@ be wasted effort or a security regression.
 | `mail-builder` | Outbound MIME builder for DSN / report mails | Used in low-traffic paths (DSN, DMARC aggregate); not hot enough to justify |
 | `lettre` | We don't use it (we have `mailrs-smtp-client`) | No-op for us; listed only to mark "we considered it" |
 
-## Next round of stones (planned)
+## Next round of in-house crates (planned)
 
 These don't replace existing deps — they fill gaps in the Rust email
 ecosystem we'd benefit from owning end-to-end:
 
-| Planned stone | Boundary | Why | Status |
+| Planned crate | Boundary | Why | Status |
 |---|---|---|---|
 | `mailrs-arc` 1.0 | RFC 8617 — Authenticated Received Chain (DKIM/SPF/DMARC chained across forwarders) | Closes the email-auth quartet; reuses our `mailrs-dkim` canon + verify | ✅ Shipped — structural verify in 1.0, **crypto AMS/AS verify in 1.1** (RSA-SHA256 + Ed25519-SHA256, end-to-end roundtrip-tested with real RSA-2048 keypairs) |
 | `mailrs-mta-sts` 1.0 | RFC 8461 — MTA Strict Transport Security policy lookup + cache + decide | Currently embedded in `mailrs-postmaster` as a diagnostic only; lift to a real policy enforcer | ✅ Shipped 2026-05-23 — parsers + `enforce(&Policy, mx)` + Cache trait + `InMemoryCache` |
@@ -126,9 +127,9 @@ Apply the "is this rewrite-worth-it?" filter to each candidate:
 - [ ] Is the scope < 2000 LOC of bounded code (no open-ended scope creep)?
 - [ ] Can we measure the upstream's perf so the "did we improve" claim
       is honest, not vibes?
-- [ ] Does it line up with our existing stone family (so server
+- [ ] Does it line up with our existing crate family (so server
       adoption is clean, not a sideways port)?
 
-All ✅ → carve it out. The original four candidates all passed; the
-next two (`mailrs-arc`, `mailrs-mta-sts`) also pass, and both are now
-shipped.
+All ✅ → reimplement it in-house. The original four candidates all
+passed; the next two (`mailrs-arc`, `mailrs-mta-sts`) also pass, and
+both are now shipped.

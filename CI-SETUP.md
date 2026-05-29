@@ -89,6 +89,6 @@ fallback is one command:
 ./scripts/release.sh patch    # local cargo + zigbuild + ssh, same as v1-v3
 ```
 
-Document any CI breakage in `REFACTOR-V3.md` (or its successor) before
+Document any CI breakage in the internal dev-history notes before
 re-enabling. The legacy script depends on `SSH_KEY` + `SSH_HOST` env
 vars — make sure those are still exported in your shell.
