@@ -50,21 +50,11 @@ confidence-threshold = 0.8
 
 # Per-crate license exceptions. Each entry must be justified by a
 # legal-compliance reason in the comment.
-exceptions = [
-    # sieve-rs is AGPL-3.0-only. mailrs-sieve wraps it for RFC 5228
-    # evaluation in the inbound pipeline. AGPL infection means the
-    # mailrs-server binary that links sieve-rs (transitively) must
-    # itself comply with AGPL when distributed as a network service
-    # (§13 Remote Network Interaction). We satisfy this by publishing
-    # the full mailrs source under Apache-2.0 OR MIT at
-    # github.com/goliajp/mailrs and declaring server-side AGPL
-    # acceptance for the Sieve subsystem only.
-    #
-    # Long-term plan: replace sieve-rs with a mailrs-owned RFC 5228
-    # implementation (DEPS_AUDIT.md candidate #4) under permissive
-    # license. Tracked as v0.6 cold backlog: "rewrite Sieve as stone".
-    { allow = ["AGPL-3.0-only"], crate = "sieve-rs" },
-]
+#
+# sieve-rs (AGPL-3.0-only) was removed in v8 ckpt 6 — the inbound Sieve
+# path now routes through the mailrs-owned mailrs-sieve-core engine
+# (Apache-2.0 OR MIT). No AGPL anywhere in the tree.
+exceptions = []
 
 # `ring` license needs a clarify entry because the auto-detector trips
 # on its multi-file LICENSE format.

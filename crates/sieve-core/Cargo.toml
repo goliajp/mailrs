@@ -20,8 +20,4 @@ mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 thiserror = "2"
 
 [dev-dependencies]
-# Oracle for differential testing during the parity ramp-up
-# (v8 ckpt 4 — first slice). Once we hit ≥ 99 % differential
-# agreement (ckpt 5 trigger), the dep gets dropped.
-sieve-rs = "0.7"
 criterion = { workspace = true }

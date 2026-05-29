@@ -225,3 +225,12 @@ CREATE TABLE IF NOT EXISTS system_config (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_by TEXT NOT NULL DEFAULT ''
 );
+
+-- vacation auto-reply dedup state (RFC 5230 §4.6) — see migrate-037
+CREATE TABLE IF NOT EXISTS vacation_dedup (
+    recipient    TEXT NOT NULL,
+    sender       TEXT NOT NULL,
+    handle       TEXT NOT NULL,
+    last_sent_at BIGINT NOT NULL,
+    PRIMARY KEY (recipient, sender, handle)
+);

@@ -40,7 +40,7 @@ fn is_supported(cap: &str) -> bool {
 
 /// Validate that every extension used is `require`d and every
 /// `require` declares a supported capability.
-pub(crate) fn validate(commands: &[Command]) -> Result<(), EvalError> {
+pub fn validate(commands: &[Command]) -> Result<(), EvalError> {
     let declared = collect_required(commands)?;
     for cmd in commands {
         check_command(cmd, &declared)?;

@@ -1,8 +1,8 @@
 [package]
 name = "mailrs-sieve"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2024"
-description = "Clean delivery-action wrapper over Stalwart's `sieve-rs` engine (RFC 5228 Sieve email filtering). Translates the low-level event-loop API into a flat `SieveAction { Keep, FileInto, Discard, Redirect, Reject, Vacation }` enum the caller pattern-matches in its delivery loop. Includes `created_messages` tracking for vacation/notify auto-replies + envelope `From`/`To` injection."
+description = "Clean delivery-action wrapper over the native `mailrs-sieve-core` RFC 5228 Sieve engine (Apache-2.0 OR MIT, no AGPL). Flattens the engine's structured action stream into one `SieveAction { Keep, FileInto, Discard, Redirect, Reject, Vacation }` enum the caller pattern-matches in its delivery loop, with imap4flags carry-through and caller-owned vacation (engine emits parsed parameters; the caller builds + dedups the reply)."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"
 homepage = "https://github.com/goliajp/mailrs"
@@ -16,7 +16,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-sieve-rs = "0.7"
+mailrs-sieve-core = { path = "../sieve-core", version = "0.1" }
 
 [[bench]]
 name = "sieve"

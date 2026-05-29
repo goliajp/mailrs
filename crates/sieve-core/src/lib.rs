@@ -46,6 +46,7 @@ mod vacation;
 pub use ast::{
     Action, Argument, Command, Envelope, MatchType, Test, VacationAction, VacationPeriod,
 };
+pub use capabilities::validate;
 pub use eval::{EvalError, eval_script, eval_script_with_envelope};
 pub use lex::{Token, TokenizeError, tokenize};
 pub use parse::{ParseError, parse_script};
