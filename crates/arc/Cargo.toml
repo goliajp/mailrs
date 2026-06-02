@@ -24,6 +24,9 @@ hickory = ["mailrs-dkim/hickory"]
 [dependencies]
 async-trait = "0.1"
 base64 = "0.22"
+# SIMD byte scanner — replaces the byte-by-byte line + colon walks
+# in `chain::unfold_headers` (ARC verify hot path).
+memchr = "2"
 sha2 = { version = "0.10", features = ["oid"] }
 # Reuse DKIM canonicalization + crypto (AMS/AS share the algorithms);
 # the v3 bump tracks mailrs-dkim 2.0 → 3.0 where RsaSigningKey is the

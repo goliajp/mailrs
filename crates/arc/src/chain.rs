@@ -148,93 +148,109 @@ impl PartialSet {
 /// found, the whole buffer is treated as headers (unusual but legal
 /// for a header-only message).
 fn take_header_block(raw: &[u8]) -> &[u8] {
-    // Look for CRLF CRLF first; fall back to LF LF.
-    if let Some(pos) = find_subseq(raw, b"\r\n\r\n") {
-        &raw[..pos]
-    } else if let Some(pos) = find_subseq(raw, b"\n\n") {
-        &raw[..pos]
-    } else {
-        raw
-    }
-}
-
-fn find_subseq(hay: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() || hay.len() < needle.len() {
-        return None;
-    }
-    for i in 0..=(hay.len() - needle.len()) {
-        if &hay[i..i + needle.len()] == needle {
-            return Some(i);
+    // memchr-anchored body-separator scan. Scans for `\n` and at each
+    // candidate checks both `\r\n\r\n` (canonical) and `\n\n`
+    // (bare-LF MTAs) shapes in one pass. Replaces the prior two
+    // independent O(N·M) `find_subseq` walks (one per shape).
+    let mut search = 0;
+    while let Some(rel) = memchr::memchr(b'\n', &raw[search..]) {
+        let pos = search + rel;
+        if pos >= 3 && &raw[pos - 3..=pos] == b"\r\n\r\n" {
+            return &raw[..pos - 3];
         }
+        if pos >= 1 && raw[pos - 1] == b'\n' {
+            return &raw[..pos - 1];
+        }
+        search = pos + 1;
     }
-    None
+    raw
 }
 
 /// Iterator over `(name, unfolded_value)` headers from a header block.
 /// Continuation lines (CRLF + WSP) are joined back into the value, per
 /// RFC 5322 §2.2.3.
+///
+/// memchr-anchored single-pass walk. The previous implementation
+/// allocated a `Vec<Vec<u8>>` of line slices up front (one Vec per
+/// header line) plus a per-header `Vec<u8>` value buffer with a
+/// `Vec::remove(0)` shift-loop to skip leading WSP — O(n²) per
+/// continuation line + N+ allocations per call. ARC verify runs
+/// this once per inbound message that carries an ARC chain.
 fn unfold_headers(block: &[u8]) -> Vec<(String, String)> {
     let mut out = Vec::new();
-    let mut lines: Vec<Vec<u8>> = Vec::new();
-    let mut cur: Vec<u8> = Vec::new();
-
-    for &b in block {
-        if b == b'\n' {
-            // Trim trailing \r if present.
-            if cur.last() == Some(&b'\r') {
-                cur.pop();
+    let mut pos = 0;
+    while pos < block.len() {
+        // Find end-of-line via memchr `\n` (LF) — covers both \r\n and
+        // bare-LF. content_end excludes the optional preceding \r.
+        let (content_end, after_line) = match memchr::memchr(b'\n', &block[pos..]) {
+            Some(off) => {
+                let lf = pos + off;
+                let ce = if lf > pos && block[lf - 1] == b'\r' {
+                    lf - 1
+                } else {
+                    lf
+                };
+                (ce, lf + 1)
             }
-            lines.push(std::mem::take(&mut cur));
-        } else {
-            cur.push(b);
-        }
-    }
-    if !cur.is_empty() {
-        lines.push(cur);
-    }
-
-    let mut i = 0usize;
-    while i < lines.len() {
-        let line = &lines[i];
+            None => (block.len(), block.len()),
+        };
+        let line = &block[pos..content_end];
+        pos = after_line;
         if line.is_empty() {
-            i += 1;
             continue;
         }
-        // Find ':' separating name from value.
-        let Some(colon) = line.iter().position(|&c| c == b':') else {
-            i += 1;
+        // Find ':' separator via memchr.
+        let Some(colon) = memchr::memchr(b':', line) else {
             continue;
         };
         let name = std::str::from_utf8(&line[..colon])
             .unwrap_or_default()
             .trim()
             .to_string();
-        let mut value: Vec<u8> = line[colon + 1..].to_vec();
-        // Trim leading WSP after the colon — RFC 5322 says exactly one
-        // SP is canonical but in the wild it's "any amount".
-        while value
-            .first()
-            .map(|b| matches!(b, b' ' | b'\t'))
-            .unwrap_or(false)
+        // Skip leading WSP after the colon by adjusting the slice
+        // pointer — no allocation, no `Vec::remove(0)` shift.
+        let mut value_start = colon + 1;
+        while value_start < line.len()
+            && matches!(line[value_start], b' ' | b'\t')
         {
-            value.remove(0);
+            value_start += 1;
         }
-        // Pull in continuation lines.
-        i += 1;
-        while i < lines.len()
-            && lines[i]
-                .first()
-                .map(|b| matches!(b, b' ' | b'\t'))
-                .unwrap_or(false)
-        {
-            value.push(b' ');
-            // Skip leading WSP of the continuation line, then append.
-            let mut j = 0;
-            while j < lines[i].len() && matches!(lines[i][j], b' ' | b'\t') {
+        // Build the unfolded value. Common case: single-line header,
+        // no continuation — just convert the existing slice once.
+        let first_segment = &line[value_start..];
+        // Lookahead: continuation lines start with WSP. Walk forward
+        // and stitch them on.
+        let lookahead = &block[pos..];
+        if lookahead.is_empty() || !matches!(lookahead.first(), Some(b' ' | b'\t')) {
+            // No continuation — fast path, single allocation.
+            let value_str = String::from_utf8_lossy(first_segment).into_owned();
+            out.push((name, value_str));
+            continue;
+        }
+        let mut value = Vec::with_capacity(first_segment.len() + 64);
+        value.extend_from_slice(first_segment);
+        while pos < block.len() && matches!(block[pos], b' ' | b'\t') {
+            let (cont_end, cont_after) = match memchr::memchr(b'\n', &block[pos..]) {
+                Some(off) => {
+                    let lf = pos + off;
+                    let ce = if lf > pos && block[lf - 1] == b'\r' {
+                        lf - 1
+                    } else {
+                        lf
+                    };
+                    (ce, lf + 1)
+                }
+                None => (block.len(), block.len()),
+            };
+            // Skip leading WSP of the continuation, then append with
+            // a single SP separator.
+            let mut j = pos;
+            while j < cont_end && matches!(block[j], b' ' | b'\t') {
                 j += 1;
             }
-            value.extend_from_slice(&lines[i][j..]);
-            i += 1;
+            value.push(b' ');
+            value.extend_from_slice(&block[j..cont_end]);
+            pos = cont_after;
         }
         let value_str = String::from_utf8_lossy(&value).into_owned();
         out.push((name, value_str));
