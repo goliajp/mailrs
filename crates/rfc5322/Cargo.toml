@@ -16,9 +16,12 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-# No deps. RFC 5322 parsing is byte-level; this crate exists to NOT pull
-# in the full mail-parser tree-builder when callers only need a few
-# headers. Stay dep-light.
+# Stay dep-light. RFC 5322 parsing is byte-level; this crate exists to
+# NOT pull in the full mail-parser tree-builder when callers only need
+# a few headers. The one dep is `memchr`, which we use for SIMD-anchored
+# CRLF scans inside the header walker (the previous `.iter().position`
+# loop was the dominant cost per header line).
+memchr = "2"
 
 [dev-dependencies]
 mail-parser = "0.11"  # for comparison benches only

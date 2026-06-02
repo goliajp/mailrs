@@ -3359,6 +3359,7 @@ version = "1.0.1"
 dependencies = [
  "criterion",
  "mail-parser",
+ "memchr",
  "proptest",
 ]
 
