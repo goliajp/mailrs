@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-sieve-core"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Native RFC 5228 Sieve interpreter — tokenizer + parser + evaluator. Built from the spec, no AGPL dependencies. The internal engine the `mailrs-sieve` wrapper will route to once parity with `sieve-rs` is reached (v8 ckpt 6)."
 license = "Apache-2.0 OR MIT"

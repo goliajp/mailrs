@@ -16,7 +16,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-mailrs-sieve-core = { path = "../sieve-core", version = "0.1" }
+mailrs-sieve-core = { path = "../sieve-core", version = "0.2" }
 
 [[bench]]
 name = "sieve"
