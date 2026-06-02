@@ -1067,6 +1067,28 @@ copy side). Work in this ckpt was bench coverage + docs:
 - `PERFORMANCE.md` (this section) + `BUDGETS.md` populated with
   measured numbers
 
+**v4 round 2 — explored, rejected** (2026-06-02): tested
+replacing the line-mode `String::from_utf8_lossy(&line).into_owned()`
+with `String::from_utf8(line.to_vec())` + lossy fallback. Standalone
+probe showed 1.9-2.5× speed-up on the conversion step alone, but
+in the full `decode/line/...` context the result was *mixed*:
+
+| op | input | before | after | delta |
+|---|---|---:|---:|---:|
+| `decode/line/fetch_long` | 160 B | 107 ns | 70 ns | **−35 % ✓** |
+| `decode/line/login` | 22 B | 72 ns | 79 ns | **+10 % ✗** |
+
+Short commands (`NOOP`, `LOGIN`, `SELECT`) are the server's actual
+hot path (clients send them far more often than servers emit long
+FETCH responses), so the short-command +10 % regression
+outweighs the long-line −35 % win for the per-message accounting.
+Reverted. Recorded here so future v4 rounds don't re-explore.
+
+What would change the verdict: if a future profile shows long FETCH
+responses dominate the server's IMAP CPU budget (e.g. a workload
+shift to bulk `FETCH 1:* BODY[]`), revisit. The probe data is real
+— the trade-off is workload-dependent.
+
 Bench source: `crates/imap-codec/benches/imap_codec.rs`. Run
 `cargo bench -p mailrs-imap-codec`.
 
