@@ -60,11 +60,21 @@ AAAA, MX, PTR) with a uniform `Result<Vec<_>, DnsError>` shape
 trait. **Not blocking — each currently has its own minimal resolver
 trait that does the job.**
 
-### #4 — `sieve-rs` → **stays (large scope, lower ROI)**
+### #4 — `sieve-rs` → **fully replaced (v8 ckpt 6)**
 
-RFC 5228 Sieve eval is ~2000+ LOC of bounded but intricate spec work.
-The upstream crate is functional. Defer indefinitely; revisit only
-if mailrs's Sieve usage outgrows the upstream shape.
+Upstream `sieve-rs` was AGPL-licensed, which forced the same license
+on every workspace member that pulled it in. The rewrite splits the
+old shape in two:
+
+| Crate | Version | Role |
+|---|---|---|
+| `mailrs-sieve-core` | 0.2.0 | Native RFC 5228 interpreter — tokenizer + parser + evaluator. Spec-built, no AGPL. Supports envelope, imap4flags, subaddress, vacation (parsed parameters; caller owns reply construction + dedup). |
+| `mailrs-sieve` | 2.0.0 | Delivery-action wrapper — flattens the engine's structured action stream into one `SieveAction { Keep, FileInto, Discard, Redirect, Reject, Vacation }` enum the caller pattern-matches in its delivery loop. |
+
+**Status:** AGPL is fully gone from the workspace (`cargo deny check`
+licenses passes with `exceptions = []`; `cargo tree -i sieve-rs`
+returns nothing). Server runs the new engine in prod since v1.7.50
+(2026-06-02).
 
 ## Don't rewrite — foundational or already optimal
 
@@ -104,7 +114,6 @@ would be wasted effort or a security regression.
 
 | Dep | Why we'd consider it | Why we're not, yet |
 |---|---|---|
-| `sieve-rs` | Inbound filtering, ~2000 LOC of RFC 5228 + extensions | Functional; scope is high and demand inside mailrs is steady-state |
 | `mail-builder` | Outbound MIME builder for DSN / report mails | Used in low-traffic paths (DSN, DMARC aggregate); not hot enough to justify |
 | `lettre` | We don't use it (we have `mailrs-smtp-client`) | No-op for us; listed only to mark "we considered it" |
 
