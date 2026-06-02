@@ -14,20 +14,32 @@ extraction + calendar invite finding).
 Network / disk dominate inbound wall-clock time; the parser is the
 CPU piece.
 
-## Measured (criterion, M-series Mac, release)
+## Measured (criterion, M-series Mac, release; v4 ckpt 4, 2026-06-02)
+
+Standalone parse paths:
 
 | Operation | Median |
 |---|---:|
-| `parse` simple text/plain | ~170 ns |
-| `parse` multipart/alternative (2 parts) | ~830 ns |
-| `find_by_content_type("text/calendar")` (full parse + walk) | ~1.4 µs |
+| `parse` simple text/plain | **46 ns** |
+| `parse` multipart/alternative (2 parts) | **317 ns** |
+| `find_by_content_type("text/calendar")` (full parse + walk) | **611 ns** |
 
-vs `mail-parser` 0.11:
+vs `mail-parser` 0.11 on the realistic invite shape (3-run median):
 
-| Path | mailrs-mime | mail-parser |
-|---|---:|---:|
-| simple body_text | 207 ns | 194 ns |
-| invite-shape, first part lookup | 1.38 µs | 630 ns |
+| Path | mailrs-mime | mail-parser | Winner |
+|---|---:|---:|---|
+| simple body_text | **86 ns** | 210 ns | **mailrs 2.4×** |
+| invite, find text/calendar part | **619 ns** | 664 ns | **mailrs +7%** |
+
+Transfer-encoding decoders (base64 4 KB input):
+
+| Path | Median |
+|---|---:|
+| `decode_base64` clean (no WSP, fast-path) | ~2.5 µs |
+| `decode_base64` wrapped (RFC 2045 76-col WSP, strip path) | ~6.5 µs |
+
+The previous BUDGETS.md numbers (~170 ns simple / ~830 ns multipart /
+~1.4 µs find_calendar) were pre-v4-round-13 — kept in git history.
 
 ## Regression budgets
 
