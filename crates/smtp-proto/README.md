@@ -77,14 +77,16 @@ Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release 
 
 | Operation | Median | Notes |
 |---|---|---|
-| `parse_command("EHLO …")` | ~25 ns | zero-alloc, borrowed `&str` payload |
-| `parse_command("DATA\r\n")` | ~20 ns | shortest path, no payload |
-| `parse_command("AUTH PLAIN …")` | ~50 ns | base64 decoded into a borrowed slice |
-| `parse_command("RCPT TO:<…>")` | ~75 ns | with envelope address extraction |
-| `parse_command("MAIL FROM:<…> SIZE=…")` | ~110 ns | with envelope + extension params |
-| `is_valid("alice.smith+work@…")` | ~7-10 ns | typical mailbox address |
-| `split_address("alice@…")` | ~7-13 ns | local / domain split, no copy |
-| `format_ehlo_response(host, [6 caps])` | ~210 ns | full multi-line greeting, one allocation |
+| `parse_command("EHLO …")` | **6 ns** | zero-alloc, borrowed `&str` payload |
+| `parse_command("DATA\r\n")` | **4 ns** | shortest path, no payload |
+| `parse_command("AUTH PLAIN …")` | **11 ns** | base64 decoded into a borrowed slice |
+| `parse_command("RCPT TO:<…>")` | **32 ns** | with envelope address extraction |
+| `parse_command("MAIL FROM:<…> SIZE=…")` | **66 ns** | with envelope + extension params |
+| `is_valid("alice.smith+work@…")` | **6 ns** | typical mailbox address |
+| `split_address("alice@…")` | **7 ns** | local / domain split, no copy |
+| `format_ehlo_response(host, [6 caps])` | **38 ns** | full multi-line greeting, one allocation |
+| `unstuff_data` 1 KB body | **168 ns** | RFC 5321 §4.5.2 dot-stuffing removal; v4 round 1 memchr scan |
+| `unstuff_data` 100 KB body | **20.85 µs** | 4.9 GB/s throughput; per-inbound-message hot path |
 
 Re-run locally with `cargo bench -p mailrs-smtp-proto`. Numbers vary ±30% with system load — what matters is the order of magnitude (~20-200 ns per parse). See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets that gate CI.
 

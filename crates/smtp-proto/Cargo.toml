@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 base64 = "0.22"
+memchr = "2"
 
 [dev-dependencies]
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
