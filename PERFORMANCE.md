@@ -632,12 +632,23 @@ Status: every SPF input shape now matches or beats mail-auth.
 
 #### `mailrs-dkim` vs `mail-auth` 0.9 (DKIM-Signature header parse)
 
-3-run noise-controlled median (M-series Mac, release):
+3-run noise-controlled median (M-series Mac, release; re-measured
+v4 ckpt 8, 2026-06-03):
 
 | Input | mailrs-dkim | mail-auth | Winner |
 |---|---:|---:|---|
-| minimal (7 tags) | **121 ns** | 175 ns | **mailrs +31%** ✅ |
-| realistic (folded, 11 tags, 7 signed headers) | **374 ns** | 433 ns | **mailrs +14%** ✅ |
+| minimal (7 tags) | **147 ns** | 175 ns | **mailrs +19%** ✅ |
+| realistic (folded, 11 tags, 7 signed headers) | **448 ns** | 433 ns | **mail-auth +3%** (TIE) |
+
+**v4 ckpt 8 retraction (2026-06-03)**: the v4 round 16 numbers
+(`minimal 121 ns`, `realistic 374 ns`) were single-run quiet-CPU
+outliers — 3-run honest re-measure shows mailrs ~20-22% slower
+than that earlier claim on both shapes (mail-auth side stayed
+within noise). Lead margin: minimal +31% → +19%; realistic +14%
+→ essentially TIE (mail-auth marginally ahead, within noise).
+Structural advantage (CompactString for d/s/i/q tags, byte-level
+tag dispatch) is unchanged and still load-bearing; the absolute
+121 ns / 374 ns numbers are not reproducible.
 
 **v4 round 16 (2026-05-26 — DkimHeader 2.0 CompactString)**: bumped
 `mailrs-dkim` to **2.0.0**; switched the four `d=` / `s=` / `i=` / `q=`
@@ -645,16 +656,43 @@ tag fields from `String` to `compact_str::CompactString` (inline
 ≤24 bytes — real-world domains and selectors almost always fit).
 On minimal-shape DKIM (1 domain + 1 selector + default q), the
 hot path drops from ~6 String allocations to ~2 (just `b=` and
-`bh=` which transform via `strip_wsp`). Measured drop:
+`bh=` which transform via `strip_wsp`). v4 round 16 measured drop:
 
   Before (v1.5): 183 ns minimal / 480 ns realistic
-  After  (v2.0): 121 ns minimal / 374 ns realistic
-  Δ:             −34% minimal   / −22% realistic
+  After  (v2.0): 121 ns minimal / 374 ns realistic (← single-run)
+  ckpt 8 honest: 147 ns minimal / 448 ns realistic (3-run median)
 
-Lead over mail-auth jumped from **+11% → +31%** on minimal,
-**now also +14% on realistic** (mail-auth side measured in the
-same harness this round, where prior bench only captured
-mailrs's side).
+#### `mailrs-dkim::headers` — memchr-anchored header walk (v4 ckpt 8)
+
+The verify + sign hot path. `collect_signed_headers` runs once per
+outbound DKIM-sign; `find_header_value{,_in_raw}` runs once per
+verified `DKIM-Signature` and per `From:` lookup. Both are per-
+message ops; the byte scans they used to do were the only non-
+memchr scanners left in the crate.
+
+| Path | Median | Notes |
+|---|---:|---|
+| `collect_signed_headers/10 headers` | **986 ns** | was 1.05 µs; v4 ckpt 8 memchr2 + memchr scan **−6%** |
+| `collect_signed_headers/30 headers` | **2.11 µs** | was 2.35 µs; same **−10%** |
+| `collect_signed_headers/60 headers` | **3.72 µs** | was 4.27 µs; same **−13%** (alloc-bound on output, scan win small) |
+| `find_header_value/first hit (Return-Path)` | **15.7 ns** | was 20.3 ns; **−23% / 1.29×** |
+| `find_header_value/mid hit (Content-Type)` | **75.9 ns** | was 117 ns; **−35% / 1.54×** — typical-shape lookup |
+| `find_header_value/missing (full walk)` | **417 ns** | was 748 ns; **−44% / 1.79×** — pure scan, no alloc |
+
+**v4 ckpt 8** (2026-06-03): replaced 5 byte-by-byte `while ... != b'\n'`
+scans in `headers.rs` with `memchr::memchr` (for pure line-skip in
+`find_header_value{,_in_raw}` + folded-continuation walk in
+`collect_signed_headers`) and `memchr::memchr2(b':', b'\n', ...)`
+(for the per-line colon-and-LF scan that also tracks the first
+colon). The pure-scan paths (`find_header_value/missing`) get
+the cleanest 1.79× win; `collect_signed_headers` is alloc-bound on
+the output `String::from_utf8_lossy + .to_string()` per header so
+the scan win is partly absorbed.
+
+Bench coverage extended from 5 ops (parse + canon) to **11 ops** —
+3 `collect_signed_headers` shapes + 3 `find_header_value` shapes
+added. Previously this was a prod-hot-but-not-benched gap (same
+pattern as the section extractors in `imap-format` ckpt 7).
 
 Caveat: the 2.0 break changes pub field types
 (`String` → `CompactString`). Most call sites compile unchanged

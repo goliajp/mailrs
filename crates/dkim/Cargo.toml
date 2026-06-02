@@ -25,6 +25,9 @@ hickory = ["dep:hickory-resolver"]
 async-trait = "0.1"
 sha2 = { version = "0.10", features = ["oid"] }  # pinned + oid for AssociatedOid
 base64 = "0.22"
+# SIMD byte scanner — used in headers.rs hot scans (collect_signed_headers,
+# find_header_value_*). Per outbound DKIM-sign + per inbound verify.
+memchr = "2"
 # RSA primitives via aws-lc-rs (native AWS-LC bindings). ~3× faster
 # RSA-2048 sign vs the pure-Rust `rsa` crate it replaced in 3.0.
 # Pulled in by `rustls` in the workspace anyway, so no new dep tree

@@ -67,10 +67,11 @@ pub fn find_header_value_in_raw(headers: &[u8], name: &[u8]) -> Result<String, D
             }
             return Ok(String::from_utf8_lossy(&headers[value_start..j]).into_owned());
         }
-        while i < headers.len() && headers[i] != b'\n' {
-            i += 1;
+        // memchr-anchored LF scan — replaces the prior per-byte loop.
+        match memchr::memchr(b'\n', &headers[i..]) {
+            Some(off) => i += off + 1,
+            None => i = headers.len(),
         }
-        i += 1;
     }
     Err(DkimError::MissingHeader)
 }
@@ -111,10 +112,11 @@ pub fn find_all_header_values_in_raw(headers: &[u8], name: &[u8]) -> Vec<String>
                 return out;
             }
         }
-        while i < headers.len() && headers[i] != b'\n' {
-            i += 1;
+        // memchr-anchored LF scan — replaces the prior per-byte loop.
+        match memchr::memchr(b'\n', &headers[i..]) {
+            Some(off) => i += off + 1,
+            None => i = headers.len(),
         }
-        i += 1;
     }
     out
 }
@@ -153,10 +155,11 @@ pub fn find_header_value<'a>(headers: &'a [u8], name: &str) -> Option<&'a str> {
             }
             return std::str::from_utf8(&headers[value_start..j]).ok();
         }
-        while i < headers.len() && headers[i] != b'\n' {
-            i += 1;
+        // memchr-anchored LF scan — replaces the prior per-byte loop.
+        match memchr::memchr(b'\n', &headers[i..]) {
+            Some(off) => i += off + 1,
+            None => i = headers.len(),
         }
-        i += 1;
     }
     None
 }
@@ -184,11 +187,28 @@ pub fn collect_signed_headers(headers_raw: &[u8], names: &[String]) -> Vec<(Stri
         let line_start = i;
         let mut colon: Option<usize> = None;
         // Walk until end-of-line, noting first colon.
-        while i < headers_raw.len() && headers_raw[i] != b'\n' {
-            if headers_raw[i] == b':' && colon.is_none() {
-                colon = Some(i);
+        // memchr2-anchored: jump to the next ':' or '\n', whichever
+        // comes first. Record the first ':' as the colon position;
+        // a '\n' ends the line.
+        loop {
+            match memchr::memchr2(b':', b'\n', &headers_raw[i..]) {
+                Some(off) => {
+                    let pos = i + off;
+                    if headers_raw[pos] == b':' {
+                        if colon.is_none() {
+                            colon = Some(pos);
+                        }
+                        i = pos + 1;
+                    } else {
+                        i = pos;
+                        break;
+                    }
+                }
+                None => {
+                    i = headers_raw.len();
+                    break;
+                }
             }
-            i += 1;
         }
         // i is now at '\n' or end-of-buffer.
         let value_end_first = if i > line_start && headers_raw[i.saturating_sub(1)] == b'\r' {
@@ -204,8 +224,10 @@ pub fn collect_signed_headers(headers_raw: &[u8], names: &[String]) -> Vec<(Stri
             // Fold: consume continuation lines starting with WSP.
             while i < headers_raw.len() && matches!(headers_raw[i], b' ' | b'\t') {
                 // walk to next \n
-                while i < headers_raw.len() && headers_raw[i] != b'\n' {
-                    i += 1;
+                // memchr LF scan for the folded continuation line.
+                match memchr::memchr(b'\n', &headers_raw[i..]) {
+                    Some(off) => i += off,
+                    None => i = headers_raw.len(),
                 }
                 value_end = if i > line_start && headers_raw[i.saturating_sub(1)] == b'\r' {
                     i - 1
