@@ -70,6 +70,15 @@ pub struct ServerConfig {
     pub dkim_selector: Option<String>,
     pub dkim_domain: Option<String>,
     pub dkim_private_key_path: Option<PathBuf>,
+    /// Extra per-domain DKIM keys. Each entry is
+    /// `(signing_domain, selector, key_path)` — used when the outbound
+    /// message's `From:` header domain matches `signing_domain` (or
+    /// resolves to it via ancestor-suffix walk, e.g.
+    /// `postmaster@mail.example.com` → `example.com`). Parsed from the
+    /// `MAILRS_DKIM_KEYS` env var: comma-separated `domain:selector:path`
+    /// triples. Empty = single-domain mode (only the default
+    /// `dkim_*` fields above are used).
+    pub dkim_extra_keys: Vec<(String, String, PathBuf)>,
     // smuggling protection
     pub smuggle_protection: SmuggleProtection,
     // web frontend
@@ -150,6 +159,7 @@ impl Default for ServerConfig {
             dkim_selector: None,
             dkim_domain: None,
             dkim_private_key_path: None,
+            dkim_extra_keys: Vec::new(),
             smuggle_protection: SmuggleProtection::Permissive,
             web_static_dir: None,
             acme_email: None,

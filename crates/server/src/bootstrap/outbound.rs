@@ -86,17 +86,54 @@ pub(crate) fn build_delivery_worker(
     ) {
         match std::fs::read_to_string(key_path) {
             Ok(pem) => {
+                // Build the per-domain map from MAILRS_DKIM_KEYS. Each
+                // entry overrides the default `(selector, domain, key)`
+                // tuple when the outbound message's From: domain matches.
+                let mut extra_keys = std::collections::HashMap::new();
+                for (extra_domain, extra_selector, extra_path) in &cfg.dkim_extra_keys {
+                    match std::fs::read_to_string(extra_path) {
+                        Ok(extra_pem) => {
+                            extra_keys.insert(
+                                extra_domain.clone(),
+                                mailrs_outbound_queue::DkimDomainKey {
+                                    selector: extra_selector.clone(),
+                                    private_key_pem: extra_pem,
+                                    ..Default::default()
+                                },
+                            );
+                            tracing::info!(
+                                event = "subsystem_extra_key",
+                                subsystem = "dkim_signing",
+                                domain = %extra_domain,
+                                selector = %extra_selector,
+                                path = %extra_path.display()
+                            );
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                event = "subsystem_extra_key_failed",
+                                subsystem = "dkim_signing",
+                                domain = %extra_domain,
+                                path = %extra_path.display(),
+                                error = %e,
+                                "extra DKIM key unreadable — entry skipped"
+                            );
+                        }
+                    }
+                }
                 worker = worker.with_dkim(mailrs_outbound_queue::DkimSignConfig {
                     selector: selector.clone(),
                     domain: domain.clone(),
                     private_key_pem: pem,
+                    extra_keys,
                     ..Default::default()
                 });
                 tracing::info!(
                     event = "subsystem_started",
                     subsystem = "dkim_signing",
                     selector = %selector,
-                    domain = %domain
+                    domain = %domain,
+                    extra_domain_count = cfg.dkim_extra_keys.len(),
                 );
             }
             Err(e) => {

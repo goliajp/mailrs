@@ -161,7 +161,8 @@ impl ServerConfig {
         }
     }
 
-    /// DKIM outbound signing config (selector + d= domain + key).
+    /// DKIM outbound signing config (selector + d= domain + key, plus
+    /// optional multi-domain extras).
     pub(super) fn load_dkim_signing(&mut self) {
         set_opt_string_nonempty("MAILRS_DKIM_SELECTOR", &mut self.dkim_selector);
         set_opt_string_nonempty("MAILRS_DKIM_DOMAIN", &mut self.dkim_domain);
@@ -169,6 +170,40 @@ impl ServerConfig {
             && !v.is_empty()
         {
             self.dkim_private_key_path = Some(PathBuf::from(v));
+        }
+        // MAILRS_DKIM_KEYS=domain1:selector1:path1,domain2:selector2:path2
+        // — extras layered on top of the single-domain default above.
+        // Lookup at sign time is exact-match → ancestor-suffix walk →
+        // default. Empty / unset = single-domain mode unchanged.
+        if let Ok(v) = std::env::var("MAILRS_DKIM_KEYS")
+            && !v.is_empty()
+        {
+            self.dkim_extra_keys = v
+                .split(',')
+                .filter_map(|entry| {
+                    let parts: Vec<&str> = entry.trim().splitn(3, ':').collect();
+                    if parts.len() != 3 {
+                        tracing::warn!(
+                            event = "config_error",
+                            entry,
+                            "MAILRS_DKIM_KEYS entry skipped (expected domain:selector:path)"
+                        );
+                        return None;
+                    }
+                    let domain = parts[0].trim();
+                    let selector = parts[1].trim();
+                    let path = parts[2].trim();
+                    if domain.is_empty() || selector.is_empty() || path.is_empty() {
+                        tracing::warn!(
+                            event = "config_error",
+                            entry,
+                            "MAILRS_DKIM_KEYS entry skipped (empty field)"
+                        );
+                        return None;
+                    }
+                    Some((domain.to_string(), selector.to_string(), PathBuf::from(path)))
+                })
+                .collect();
         }
     }
 

@@ -1,5 +1,6 @@
 //! Outbound DKIM signing + ARC sealing, on the mailrs-* crates.
 
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use mailrs_arc::{
@@ -10,6 +11,35 @@ use mailrs_dkim::{
     Canon as DkimCanon, DkimSigningKey, HickoryDkimResolver, RsaSigningKey, SignOpts,
     sign as dkim_sign, verify_all,
 };
+
+/// One DKIM key bound to a single signing domain — used as a value
+/// in [`DkimSignConfig::extra_keys`] for multi-domain signing.
+///
+/// The PKCS#8 PEM is parsed into an `RsaSigningKey` lazily on first
+/// use and cached for the lifetime of this entry, same as the
+/// default key on `DkimSignConfig`.
+#[derive(Debug, Clone, Default)]
+pub struct DkimDomainKey {
+    /// DKIM selector — the label under `<selector>._domainkey.<this domain>`.
+    pub selector: String,
+    /// Private RSA key in PKCS#8 PEM form.
+    pub private_key_pem: String,
+    /// Lazy-parsed `RsaSigningKey`, shared across clones.
+    #[doc(hidden)]
+    pub parsed_key: Arc<OnceLock<Result<RsaSigningKey, String>>>,
+}
+
+impl DkimDomainKey {
+    fn rsa_key(&self) -> Result<&RsaSigningKey, String> {
+        let cached = self
+            .parsed_key
+            .get_or_init(|| load_rsa_key(&self.private_key_pem));
+        match cached {
+            Ok(k) => Ok(k),
+            Err(e) => Err(e.clone()),
+        }
+    }
+}
 
 /// DKIM signing configuration.
 ///
@@ -22,11 +52,22 @@ use mailrs_dkim::{
 /// **v3 (mailrs-dkim 3.0)**: `RsaSigningKey` wraps aws-lc-rs's
 /// `RsaKeyPair`, so per-sign cost dropped from ~1.5 ms (pure-Rust
 /// `rsa` crate) to ~0.5 ms.
+///
+/// **v4 (2026-06-03)**: added [`extra_keys`](Self::extra_keys) to
+/// support per-domain DKIM signing. [`sign`](Self::sign) parses the
+/// message's `From:` header and looks up the matching key by domain
+/// (exact match → ancestor-domain suffix walk → default). The
+/// pre-v4 single-domain config (just `selector` / `domain` /
+/// `private_key_pem`) keeps working unchanged — `extra_keys` empty
+/// = old behaviour.
 #[derive(Debug, Clone, Default)]
 pub struct DkimSignConfig {
     /// DKIM selector — the label under `<selector>._domainkey.<domain>`.
+    /// Used as the default when the message's From: domain doesn't
+    /// match any `extra_keys` entry.
     pub selector: String,
     /// Signing domain (matches the `d=` tag in the DKIM-Signature header).
+    /// Default `d=` when no `extra_keys` entry matches.
     pub domain: String,
     /// Private RSA key in PKCS#8 PEM form.
     pub private_key_pem: String,
@@ -39,12 +80,21 @@ pub struct DkimSignConfig {
     /// directly is not supported and the type may change.
     #[doc(hidden)]
     pub parsed_key: Arc<OnceLock<Result<RsaSigningKey, String>>>,
+    /// Extra DKIM keys keyed by signing domain, used when the
+    /// message's `From:` header domain matches an entry (exact match
+    /// first, then ancestor-suffix walk — e.g. `mail.example.com`
+    /// falls back to `example.com`). When no entry matches, signing
+    /// uses the default `selector`/`domain`/`private_key_pem` above.
+    ///
+    /// Keep `extra_keys.is_empty()` for the single-domain config.
+    pub extra_keys: HashMap<String, DkimDomainKey>,
 }
 
 impl DkimSignConfig {
-    /// Return a borrowed handle to the parsed RSA key, parsing the PEM
-    /// once on first call and caching the result (success OR error) so
-    /// every later call is a pointer-load.
+    /// Return a borrowed handle to the parsed RSA key (default key
+    /// only), parsing the PEM once on first call and caching the
+    /// result (success OR error) so every later call is a
+    /// pointer-load.
     fn rsa_key(&self) -> Result<&RsaSigningKey, String> {
         let cached = self
             .parsed_key
@@ -55,13 +105,74 @@ impl DkimSignConfig {
         }
     }
 
+    /// Look up the (`d=` domain, selector, RSA key) triple for a given
+    /// `From:` header domain. Lookup order:
+    ///
+    /// 1. **Exact match** in [`extra_keys`](Self::extra_keys).
+    /// 2. **Ancestor-suffix walk**: strip the leading label one at a
+    ///    time and try `extra_keys` (so `mail.example.com` falls back
+    ///    to `example.com`, useful for system mail like
+    ///    `postmaster@mail.<your-org>` signed with the parent-domain
+    ///    key — DMARC alignment under `adkim=r` accepts subdomain →
+    ///    parent-domain alignment).
+    /// 3. **Default**: the top-level `selector` / `domain` /
+    ///    `private_key_pem` on this config.
+    ///
+    /// Returns `(d_value, selector, parsed_rsa_key)` with `d_value`
+    /// being the matched key (or the default `domain` field).
+    fn key_for_from_domain(
+        &self,
+        from_domain: &str,
+    ) -> Result<(String, String, RsaSigningKey), String> {
+        // 1. exact match
+        if let Some(dk) = self.extra_keys.get(from_domain) {
+            return Ok((from_domain.to_string(), dk.selector.clone(), dk.rsa_key()?.clone()));
+        }
+        // 2. suffix walk — strip the leading label and try again.
+        //    The walk stops once there's only one label left (we never
+        //    match against a bare TLD).
+        let mut rest = from_domain;
+        while let Some(idx) = rest.find('.') {
+            let parent = &rest[idx + 1..];
+            // require at least one '.' remaining (so we don't match
+            // against a bare TLD like "com")
+            if !parent.contains('.') {
+                break;
+            }
+            if let Some(dk) = self.extra_keys.get(parent) {
+                return Ok((parent.to_string(), dk.selector.clone(), dk.rsa_key()?.clone()));
+            }
+            rest = parent;
+        }
+        // 3. default
+        Ok((
+            self.domain.clone(),
+            self.selector.clone(),
+            self.rsa_key()?.clone(),
+        ))
+    }
+
     /// Sign a message, prepending the DKIM-Signature header.
+    ///
+    /// Parses the message's `From:` header to determine the signing
+    /// domain via [`key_for_from_domain`](Self::key_for_from_domain).
+    /// If no `From:` header is present (or it's malformed enough that
+    /// no domain can be extracted), falls back to the default
+    /// `domain`/`selector`/`key` on this config.
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, String> {
-        let rsa = self.rsa_key()?;
-        let key = DkimSigningKey::Rsa(rsa.clone());
+        let from_domain = extract_from_domain(message);
+        let (d_value, selector, rsa) = match from_domain.as_deref() {
+            Some(d) => self.key_for_from_domain(d)?,
+            None => (
+                self.domain.clone(),
+                self.selector.clone(),
+                self.rsa_key()?.clone(),
+            ),
+        };
+        let key = DkimSigningKey::Rsa(rsa);
         let opts = SignOpts {
-            domain: self.domain.clone(),
-            selector: self.selector.clone(),
+            domain: d_value,
+            selector,
             signed_headers: ["From", "To", "Subject", "Date", "Message-ID"]
                 .iter()
                 .map(|&s| s.to_string())
@@ -80,6 +191,29 @@ impl DkimSignConfig {
         signed.extend_from_slice(message);
         Ok(signed)
     }
+}
+
+/// Extract the domain part of the message's `From:` header, if any.
+///
+/// Tolerates the three common shapes:
+/// - `alice@example.com`
+/// - `Alice <alice@example.com>`
+/// - `"Display Name" <alice@example.com>`
+///
+/// Returns `None` if no `From:` header exists, the header value
+/// contains no `@`, or the domain segment is empty.
+pub fn extract_from_domain(message: &[u8]) -> Option<String> {
+    let m = mailrs_rfc5322::Message::new(message);
+    let from_value = m.header("From")?;
+    let s = std::str::from_utf8(from_value).ok()?;
+    let at = s.rfind('@')?;
+    let after = &s[at + 1..];
+    // Walk forward until a terminator: '>', whitespace, comma, semicolon.
+    let end = after
+        .find(|c: char| c == '>' || c == ',' || c == ';' || c.is_whitespace())
+        .unwrap_or(after.len());
+    let domain = after[..end].trim().to_ascii_lowercase();
+    if domain.is_empty() { None } else { Some(domain) }
 }
 
 /// Extract domain from email address.
@@ -455,5 +589,217 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
     fn build_authres_starts_with_authserv_id() {
         let s = build_authres_body("mx.example.com", &[]);
         assert!(s.starts_with("mx.example.com"));
+    }
+
+    // ── multi-domain signing (v4 2026-06-03) ─────────────────
+
+    #[test]
+    fn extract_from_domain_bare_addr() {
+        let m = b"From: alice@example.com\r\n\r\nbody";
+        assert_eq!(extract_from_domain(m).as_deref(), Some("example.com"));
+    }
+
+    #[test]
+    fn extract_from_domain_angle_addr() {
+        let m = b"From: Alice <alice@example.com>\r\n\r\nbody";
+        assert_eq!(extract_from_domain(m).as_deref(), Some("example.com"));
+    }
+
+    #[test]
+    fn extract_from_domain_quoted_display_name() {
+        let m = b"From: \"Alice Liddell\" <alice@mail.example.com>\r\n\r\nbody";
+        assert_eq!(
+            extract_from_domain(m).as_deref(),
+            Some("mail.example.com")
+        );
+    }
+
+    #[test]
+    fn extract_from_domain_lowercases() {
+        let m = b"From: <alice@MAIL.EXAMPLE.com>\r\n\r\nbody";
+        assert_eq!(
+            extract_from_domain(m).as_deref(),
+            Some("mail.example.com")
+        );
+    }
+
+    #[test]
+    fn extract_from_domain_no_from_header() {
+        let m = b"To: bob@example.com\r\n\r\nbody";
+        assert!(extract_from_domain(m).is_none());
+    }
+
+    #[test]
+    fn extract_from_domain_no_at_sign() {
+        let m = b"From: garbage-no-at\r\n\r\nbody";
+        assert!(extract_from_domain(m).is_none());
+    }
+
+    #[test]
+    fn key_lookup_exact_match() {
+        let mut extra = HashMap::new();
+        extra.insert(
+            "other.com".to_string(),
+            DkimDomainKey {
+                selector: "k1".into(),
+                private_key_pem: TEST_RSA_KEY.into(),
+                ..Default::default()
+            },
+        );
+        let cfg = DkimSignConfig {
+            selector: "default".into(),
+            domain: "example.com".into(),
+            private_key_pem: TEST_RSA_KEY.into(),
+            extra_keys: extra,
+            ..Default::default()
+        };
+        let (d, sel, _) = cfg.key_for_from_domain("other.com").unwrap();
+        assert_eq!(d, "other.com");
+        assert_eq!(sel, "k1");
+    }
+
+    #[test]
+    fn key_lookup_suffix_walk() {
+        // From domain `mail.other.com` should resolve to the `other.com`
+        // entry via ancestor-suffix walk (strip leading `mail.` label).
+        let mut extra = HashMap::new();
+        extra.insert(
+            "other.com".to_string(),
+            DkimDomainKey {
+                selector: "suffix".into(),
+                private_key_pem: TEST_RSA_KEY.into(),
+                ..Default::default()
+            },
+        );
+        let cfg = DkimSignConfig {
+            selector: "default".into(),
+            domain: "example.com".into(),
+            private_key_pem: TEST_RSA_KEY.into(),
+            extra_keys: extra,
+            ..Default::default()
+        };
+        let (d, sel, _) = cfg.key_for_from_domain("mail.other.com").unwrap();
+        assert_eq!(d, "other.com");
+        assert_eq!(sel, "suffix");
+    }
+
+    #[test]
+    fn key_lookup_suffix_walk_two_levels() {
+        // a.b.org → b.org (still keep the entry).
+        let mut extra = HashMap::new();
+        extra.insert(
+            "b.org".to_string(),
+            DkimDomainKey {
+                selector: "borg".into(),
+                private_key_pem: TEST_RSA_KEY.into(),
+                ..Default::default()
+            },
+        );
+        let cfg = DkimSignConfig {
+            selector: "default".into(),
+            domain: "example.com".into(),
+            private_key_pem: TEST_RSA_KEY.into(),
+            extra_keys: extra,
+            ..Default::default()
+        };
+        let (d, sel, _) = cfg.key_for_from_domain("a.b.org").unwrap();
+        assert_eq!(d, "b.org");
+        assert_eq!(sel, "borg");
+    }
+
+    #[test]
+    fn key_lookup_default_fallback() {
+        // No extra-key match, even via suffix walk → use the default
+        // selector + domain + key.
+        let mut extra = HashMap::new();
+        extra.insert(
+            "other.com".to_string(),
+            DkimDomainKey {
+                selector: "other".into(),
+                private_key_pem: TEST_RSA_KEY.into(),
+                ..Default::default()
+            },
+        );
+        let cfg = DkimSignConfig {
+            selector: "default".into(),
+            domain: "example.com".into(),
+            private_key_pem: TEST_RSA_KEY.into(),
+            extra_keys: extra,
+            ..Default::default()
+        };
+        let (d, sel, _) = cfg.key_for_from_domain("unrelated.net").unwrap();
+        assert_eq!(d, "example.com");
+        assert_eq!(sel, "default");
+    }
+
+    #[test]
+    fn key_lookup_does_not_match_bare_tld() {
+        // Even if someone configures `extra_keys["com"]`, a From of
+        // `alice@something.com` must not pick it up via suffix walk —
+        // signing with d=com would be nonsense. The walk stops at a
+        // dot-less parent.
+        let mut extra = HashMap::new();
+        extra.insert(
+            "com".to_string(),
+            DkimDomainKey {
+                selector: "comkey".into(),
+                private_key_pem: TEST_RSA_KEY.into(),
+                ..Default::default()
+            },
+        );
+        let cfg = DkimSignConfig {
+            selector: "default".into(),
+            domain: "example.com".into(),
+            private_key_pem: TEST_RSA_KEY.into(),
+            extra_keys: extra,
+            ..Default::default()
+        };
+        let (d, sel, _) = cfg.key_for_from_domain("something.com").unwrap();
+        // suffix walk stops because `com` has no dot — fell back to default
+        assert_eq!(d, "example.com");
+        assert_eq!(sel, "default");
+    }
+
+    #[test]
+    fn sign_picks_d_from_from_header_via_extra_keys() {
+        // The point of the v4 multi-domain refactor: a message with
+        // `From: postmaster@mail.example.com` must end up signed with
+        // `d=example.com` when `extra_keys["example.com"]` exists,
+        // not with the default `d=otherdefault.com`.
+        let mut extra = HashMap::new();
+        extra.insert(
+            "example.com".to_string(),
+            DkimDomainKey {
+                selector: "mail".into(),
+                private_key_pem: TEST_RSA_KEY.into(),
+                ..Default::default()
+            },
+        );
+        let cfg = DkimSignConfig {
+            selector: "default".into(),
+            domain: "otherdefault.com".into(),
+            private_key_pem: TEST_RSA_KEY.into(),
+            extra_keys: extra,
+            ..Default::default()
+        };
+        let msg = b"From: postmaster@mail.example.com\r\n\
+                    To: r@example.com\r\n\
+                    Subject: hi\r\n\
+                    Date: Thu, 01 Jan 2026 00:00:00 +0000\r\n\
+                    Message-ID: <abc@mail.example.com>\r\n\
+                    \r\n\
+                    body\r\n";
+        let signed = cfg.sign(msg).unwrap();
+        let s = String::from_utf8_lossy(&signed);
+        assert!(
+            s.contains("d=example.com"),
+            "expected d=example.com (via suffix-walk lookup), got {}",
+            s.lines().next().unwrap_or("")
+        );
+        assert!(
+            !s.contains("d=otherdefault.com"),
+            "default domain should NOT have been used"
+        );
+        assert!(s.contains("s=mail"));
     }
 }

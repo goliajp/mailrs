@@ -3262,6 +3262,7 @@ dependencies = [
  "mailrs-backoff 1.0.0",
  "mailrs-dkim",
  "mailrs-mail-builder 1.0.0",
+ "mailrs-rfc5322 1.0.1",
  "mailrs-smtp-client",
  "metrics",
  "rcgen 0.14.8",
