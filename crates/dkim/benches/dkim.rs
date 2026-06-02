@@ -64,6 +64,80 @@ fn bench_canonicalize_header_relaxed(c: &mut Criterion) {
     });
 }
 
+/// Build a header block with N realistic inbound headers — Return-Path,
+/// Received, From, To, Subject, Date, Message-ID, MIME-Version,
+/// Content-Type, then N-9 more `X-Filler-N:` lines. Used to bench the
+/// per-DKIM-sign walk in `collect_signed_headers` and the per-verify
+/// `find_header_value_in_raw` lookup.
+fn build_header_block(n_filler: usize) -> Vec<u8> {
+    let mut h = Vec::with_capacity(512 + n_filler * 32);
+    h.extend_from_slice(
+        b"Return-Path: <alice@example.com>\r\n\
+          Received: from mta.example.com by mx.golia.jp;\r\n\
+          \tSun, 22 May 2026 10:00:00 +0900\r\n\
+          From: \"Alice\" <alice@example.com>\r\n\
+          To: <bob@golia.jp>\r\n\
+          Subject: DKIM bench message\r\n\
+          Date: Sun, 22 May 2026 09:55:00 +0900\r\n\
+          Message-ID: <abc-123@example.com>\r\n\
+          MIME-Version: 1.0\r\n\
+          Content-Type: text/plain; charset=utf-8\r\n",
+    );
+    for i in 0..n_filler {
+        let line = format!("X-Filler-{i}: value{i} for filler header\r\n");
+        h.extend_from_slice(line.as_bytes());
+    }
+    h
+}
+
+fn bench_collect_signed_headers(c: &mut Criterion) {
+    use mailrs_dkim::headers::collect_signed_headers;
+    // Standard DKIM `h=` list — the canonical 5 sign-mandatory + a
+    // few extras the canonical mailrs config asks for.
+    let names: Vec<String> = ["From", "To", "Subject", "Date", "Message-ID"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let mut group = c.benchmark_group("collect_signed_headers");
+    for &n_filler in &[0usize, 20, 50] {
+        let headers = build_header_block(n_filler);
+        group.bench_function(format!("n_headers_{}", 10 + n_filler), |b| {
+            b.iter(|| {
+                let r = collect_signed_headers(black_box(&headers), black_box(&names));
+                black_box(r);
+            });
+        });
+    }
+    group.finish();
+}
+
+fn bench_find_header_value(c: &mut Criterion) {
+    use mailrs_dkim::headers::find_header_value;
+    // First-header hit (Return-Path) vs deep-into-block hit
+    // (Content-Type, last "real" header before the X-Fillers).
+    let headers = build_header_block(50);
+    let mut group = c.benchmark_group("find_header_value");
+    group.bench_function("first_return_path", |b| {
+        b.iter(|| {
+            let r = find_header_value(black_box(&headers), "Return-Path");
+            black_box(r);
+        });
+    });
+    group.bench_function("mid_content_type", |b| {
+        b.iter(|| {
+            let r = find_header_value(black_box(&headers), "Content-Type");
+            black_box(r);
+        });
+    });
+    group.bench_function("missing", |b| {
+        b.iter(|| {
+            let r = find_header_value(black_box(&headers), "X-Does-Not-Exist");
+            black_box(r);
+        });
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_parse_minimal,
@@ -71,5 +145,7 @@ criterion_group!(
     bench_canonicalize_body_simple,
     bench_canonicalize_body_relaxed,
     bench_canonicalize_header_relaxed,
+    bench_collect_signed_headers,
+    bench_find_header_value,
 );
 criterion_main!(benches);
