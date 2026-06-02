@@ -62,6 +62,14 @@ services:
       MAILRS_DKIM_SELECTOR: mail
       MAILRS_DKIM_DOMAIN: golia.jp
       MAILRS_DKIM_PRIVATE_KEY: /dkim/golia.jp.key
+      # Per-domain DKIM keys: signed `d=` is picked from the message's
+      # From: header. Without this, system mail (postmaster@<hostname>,
+      # noreply@<hostname>) — From domain `mail.golia.ai` — would sign
+      # `d=golia.jp` (the default) and DMARC-align-fail in Gmail.
+      # All three domains share the same RSA key file here (their DKIM
+      # public-key TXT records publish the same key); a future change
+      # can split them into per-domain key files.
+      MAILRS_DKIM_KEYS: golia.ai:mail:/dkim/golia.jp.key,dadaya.jp:mail:/dkim/golia.jp.key
       # acme
       MAILRS_ACME_EMAIL: ${MAILRS_ACME_EMAIL:-}
       MAILRS_ACME_DOMAINS: ${MAILRS_ACME_DOMAINS:-}
