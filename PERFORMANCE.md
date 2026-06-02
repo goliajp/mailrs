@@ -1351,15 +1351,26 @@ public API).
 
 ### `mailrs-spf` — RFC 7208 SPF verifier (criterion, M-series Mac, release)
 
+Re-measured v4 ckpt 9 (2026-06-03), 3-run honest medians:
+
 | Path | Median |
 |---|---:|
-| `Record::parse` (simple `v=spf1 ip4 -all`) | **82 ns** |
-| `Record::parse` (complex 8-mechanism record) | **484 ns** |
-| `verify` pass path (no real DNS) | **244 ns** |
+| `Record::parse` (simple `v=spf1 ip4 -all`) | **46 ns** |
+| `Record::parse` (complex 8-mechanism record) | **244 ns** |
+| `verify` pass path (no real DNS) | **175 ns** |
 
 Run: `cargo bench -p mailrs-spf --bench spf`. Production `verify` is
 dominated by DNS round-trips (5-50 ms); the bench numbers above are
 the pure CPU portion.
+
+**v4 ckpt 9** (2026-06-03): Case A verified — `grep iter().position` /
+`.windows(N)` in src/ → 0 hits, hot scans already memchr-anchored
+since v3 cycle. The under-claim direction here is unusual: previous
+table (82 ns / 484 ns / 244 ns) was the v4-round-4 vintage; cumulative
+gains from rounds 12/13/20 (CompactString for domain fields, byte-level
+mechanism dispatch) dropped the real numbers another ~40-50% but the
+stone-level table wasn't refreshed. Vs-`mail-auth` comparison section
+was already up-to-date and unchanged.
 
 ### `mailrs-backoff` — exponential backoff with optional jitter (criterion, M-series Mac, release)
 
