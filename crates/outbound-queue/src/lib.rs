@@ -66,7 +66,7 @@ pub mod pg_store;
 #[cfg(feature = "pg")]
 pub mod worker;
 
-pub use dkim_sign::DkimSignConfig;
+pub use dkim_sign::{DkimDomainKey, DkimSignConfig};
 pub use queue::{QueueStatus, QueuedMessage};
 pub use retry::{retry_delay_secs, retry_delay_secs_jittered, should_bounce};
 pub use store::{

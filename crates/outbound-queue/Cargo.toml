@@ -43,6 +43,9 @@ rustls = { version = "0.23", default-features = false }
 mailrs-smtp-client = { path = "../smtp-client", version = "2" }
 mailrs-dkim = { path = "../dkim", version = "3" }
 mailrs-arc = { path = "../arc", version = "3" }
+# Used by DkimSignConfig::sign() to parse the message's From: header
+# and pick the right (d=, selector, key) tuple for multi-domain signing.
+mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 # Canonical RFC 5322 builder for DSN (multipart/report).
 # format_dsn now constructs messages via MessageBuilder so the
 # encoded-word + folding + CTE invariants stay consistent with the
