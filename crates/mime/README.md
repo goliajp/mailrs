@@ -97,26 +97,28 @@ whichever subset they need without the rest.
 
 ## Performance
 
-Measured (criterion, M-series Mac, release):
+Measured (criterion, M-series Mac, release; v4 ckpt 4, 2026-06-02):
 
 | Operation | Median |
 |---|---:|
-| `parse` simple text/plain | **173 ns** |
-| `parse` multipart/alternative (2 parts) | **831 ns** |
-| `find_by_content_type("text/calendar")` (full parse + walk) | **1.39 µs** |
+| `parse` simple text/plain | **46 ns** |
+| `parse` multipart/alternative (2 parts) | **317 ns** |
+| `find_by_content_type("text/calendar")` (full parse + walk) | **611 ns** |
 
-Compared to `mail-parser` 0.11 on the same inputs:
+Compared to `mail-parser` 0.11 on the same realistic invite shape
+(3-run noise-controlled median):
 
-| Path | mailrs-mime | mail-parser | ratio |
-|---|---:|---:|---:|
-| simple body_text | 207 ns | 194 ns | ~1.1× |
-| invite-shape, first part lookup | 1.38 µs | 630 ns | ~2.2× (mail-parser faster) |
+| Path | mailrs-mime | mail-parser | Winner |
+|---|---:|---:|---|
+| simple body_text | **86 ns** | 210 ns | **mailrs 2.4×** ✅ |
+| invite, find text/calendar part | **619 ns** | 664 ns | **mailrs +7%** ✅ |
 
-The simple case is close to a wash; the multipart walk path is
-where mail-parser's optimized internals still win. Future polish
-rounds may close that gap. v1.0 ships at shape parity — the data
-extracted is the same; perf is acceptable for inbound where parse
-cost is dwarfed by DNS / disk / DB calls.
+These are the post-`v4 round 17` numbers: `mailrs-mime` 2.0 swapped
+`ContentType.{type_, subtype}` from `String` to `compact_str::CompactString`
+(inline ≤24 bytes), zero-allocating the common MIME type tags.
+`v4 round 13` collapsed five redundant header scans into one.
+`v4 round 24` added a base64 fast-path that skips the WSP-strip
+copy on clean payloads.
 
 Reproduce: `cargo bench -p mailrs-mime --bench mime`.
 

@@ -685,12 +685,13 @@ Before the perf-batch (commit `8eba06c` and later) we were 4.1× / 3.6× slower 
 
 3-run noise-controlled median (criterion default 100-sample,
 each run a fresh `cargo bench` invocation; CI bands rejected
-when system load contaminates a single run):
+when system load contaminates a single run). Re-measured in
+v4 ckpt 4 (2026-06-02):
 
 | Input | mailrs-mime | mail-parser | Winner |
 |---|---:|---:|---|
-| simple `text/plain` body_text | **84 ns** | 194 ns | **mailrs +57%** ✅ |
-| find `text/calendar` part (apples-to-apples) | **539 ns** | 629 ns | **mailrs +15%** ✅ (was −28%, fully reversed) |
+| simple `text/plain` body_text | **86 ns** | 210 ns | **mailrs +59%** ✅ |
+| find `text/calendar` part (apples-to-apples) | **619 ns** | 664 ns | **mailrs +7%** ✅ (narrower than previously claimed +15% — see ckpt 4 note) |
 
 The find-calendar comparison is true apples-to-apples — both sides
 parse the message and walk parts looking for the `text/calendar`
@@ -763,14 +764,34 @@ to strip WSP before feeding base64. For payloads with no whitespace
 wrapping) this was pure waste — the entire encoded payload got
 copied byte-for-byte just to confirm there was nothing to remove.
 v2.0.1 probes WSP with memchr (SIMD-vectorised), and feeds the
-original slice straight to base64 when clean:
+original slice straight to base64 when clean.
 
-  decode_base64/clean_4k:    1.43 µs  (no WSP — fast-path)
-  decode_base64/wrapped_4k:  5.95 µs  (RFC 2045 76-col WSP — strip path)
+Honest 3-run medians re-measured in v4 ckpt 4 (2026-06-02):
 
-Clean payloads now run **4.2× faster than wrapped**, which means
-the fast-path eliminates ~76% of the old per-decode cost on
-real-world signatures and short inline attachments.
+  decode_base64/clean_4k:    ~2.5 µs   (no WSP — fast-path)
+  decode_base64/wrapped_4k:  ~6.5 µs   (RFC 2045 76-col WSP — strip path)
+
+The original v4 round 24 entry claimed `clean_4k: 1.43 µs` and a
+"4.2× faster than wrapped" ratio. That was a single-run measurement
+taken on a quiet system; re-measured across 3 fresh runs on the same
+hardware, clean_4k holds at ~2.5 µs (1.74× faster than wrapped, not
+4.2×). The structural win is real — the fast-path skips a full
+copy of the encoded body — but the over-claim is retracted. The
+fast-path still eliminates the per-byte strip cost; what was wrong
+was the absolute number.
+
+**v4 ckpt 4 (2026-06-02): mailrs-mime Case A verified.**
+- No exploitable hot path beyond what v4 rounds 13 / 17 / 24 already
+  shipped (single-pass header walk, CompactString for type/subtype,
+  Cow<[u8]> for body, base64 WSP fast-path).
+- `grep iter().position` / `windows(N)` in src/ → 0 hits. The 4 hot
+  paths all use `memchr` (boundary scan, line scan, header walk,
+  base64 WSP probe).
+- Numbers re-measured 3-run honest above. find_calendar lead
+  narrowed slightly (+15% → +7%) — likely because the v4 round 17
+  CompactString gain on `find_calendar` was measured against a
+  particular mail-parser version state and small re-build variance
+  has crept in. Still net win on every measured shape.
 
 #### `mailrs-rfc5322` vs `mail-parser` (header lookup, lazy)
 
