@@ -991,13 +991,27 @@ can drop in the binary and `scripts/run-all.sh` will pick it up.
 
 | Path | Median | Notes |
 |---|---:|---|
-| `parse_command/EHLO` | **11 ns** | was 22 ns; v4 round 2 killed `verb.to_ascii_uppercase()` heap alloc |
+| `parse_command/EHLO` | **6 ns** | was 22 ns; v4 round 2 killed `verb.to_ascii_uppercase()` heap alloc |
 | `parse_command/DATA` | **4 ns** | was 22 ns (and 16 ns vs smtp-codec 12 ns → loss); v4 round 2 = **−82%** |
-| `parse_command/RCPT_TO` | **53 ns** | was 70 ns; same verb-buffer change |
-| `parse_command/MAIL_FROM` | **94 ns** | was 103 ns; same |
-| `format_ehlo_response` | **35 ns** | was 307 ns; commit `19aa482` replaced `write!`-macro dispatch with direct `push_str` of `&str` segments for **−89%** measured (~9× faster) |
-| `address/is_valid_typical` | **10 ns** | |
-| `address/split_typical` | **12 ns** | |
+| `parse_command/RCPT_TO` | **32 ns** | was 70 ns; same verb-buffer change |
+| `parse_command/MAIL_FROM` | **66 ns** | was 103 ns; same |
+| `parse_command/AUTH_PLAIN` | **11 ns** | |
+| `format_ehlo_response` | **38 ns** | was 307 ns; commit `19aa482` replaced `write!`-macro dispatch with direct `push_str` of `&str` segments for **−89%** measured (~9× faster) |
+| `address/is_valid_typical` | **6 ns** | |
+| `address/split_typical` | **7 ns** | |
+| `unstuff_data/1024b` | **168 ns** | was 371 ns; v4 round 1 (ckpt 5, 2026-06-03) memchr scan **−55% / 2.2×** |
+| `unstuff_data/10240b` | **2.82 µs** | was 5.00 µs; same change **−44% / 1.8×** (3.6 GB/s) |
+| `unstuff_data/102400b` | **20.85 µs** | was 40.85 µs; same change **−49% / 2.0×** (4.9 GB/s) |
+
+**v4 round 1** (2026-06-03, ckpt 5): replaced the
+`iter().position(|b| b == b'\n')` line-scan in `unstuff_data` with
+`memchr::memchr`. `unstuff_data` is the SMTP DATA dot-stuffing
+remover — called once per inbound message body in
+`server::smtp_session::events::data`, so the win compounds across
+bulk inbound. ~2× across all measured sizes (1 KB / 10 KB / 100 KB).
+Other ops on this stone re-measured during ckpt 5 and were
+within ±5 % noise of their prior numbers (the verb-buffer wins
+from v4 round 2 are stable).
 
 ### `mailrs-smtp-codec` (criterion, `cargo bench -p mailrs-smtp-codec`)
 

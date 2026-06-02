@@ -26,7 +26,10 @@ pub fn unstuff_data(data: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(data.len());
     let mut start = 0;
     while start < data.len() {
-        let end = match data[start..].iter().position(|&b| b == b'\n') {
+        // memchr is SIMD-vectorised; the previous `.iter().position`
+        // scan was the per-line cost in the inbound DATA hot path
+        // (every message body line is scanned).
+        let end = match memchr::memchr(b'\n', &data[start..]) {
             Some(pos) => start + pos + 1,
             None => data.len(),
         };
