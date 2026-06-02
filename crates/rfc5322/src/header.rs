@@ -89,11 +89,9 @@ pub(crate) fn find_unfolded_line_end(bytes: &[u8], start: usize) -> Option<(usiz
     let mut i = start;
     while i < bytes.len() {
         // Locate the next LF (covers both \n and \r\n line endings).
-        let lf = bytes[i..].iter().position(|&b| b == b'\n');
-        let lf_abs = match lf {
-            Some(off) => i + off,
-            None => return None,
-        };
+        // memchr is SIMD-vectorised; the `.iter().position` it
+        // replaces was the dominant per-header-line cost.
+        let lf_abs = memchr::memchr(b'\n', &bytes[i..]).map(|off| i + off)?;
 
         // line content end (strip trailing \r if present)
         let mut content_end = lf_abs;
@@ -122,7 +120,7 @@ pub(crate) fn find_unfolded_line_end(bytes: &[u8], start: usize) -> Option<(usiz
 /// empty-line termination above; a malformed line here is just skipped.
 fn parse_header_line(bytes: &[u8], start: usize, line_end: usize) -> Option<Header<'_>> {
     let line = &bytes[start..line_end];
-    let colon = line.iter().position(|&b| b == b':')?;
+    let colon = memchr::memchr(b':', line)?;
     // Name is line[..colon]. RFC 5322 §3.6.8: name is printable ASCII
     // excluding colon; we don't validate (real-world messages
     // sometimes have spaces or other anomalies — let downstream decide).

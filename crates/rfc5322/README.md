@@ -84,24 +84,30 @@ Future MIME work goes in a separate crate.
 
 ## Performance
 
-**Measured** (criterion, M-series Mac, release, 100-sample median):
+**Measured** (criterion, M-series Mac, release, 100-sample median;
+v4 round 1, 2026-06-02):
 
 | Operation | body size | mailrs-rfc5322 | mail-parser 0.11 | speedup |
 |---|---:|---:|---:|---:|
-| Subject + From lookup | 1 KB | **212 ns** | 2383 ns | **11.2×** |
-| Subject + From lookup | 5 KB | **212 ns** | 3378 ns | **15.9×** |
-| Subject + From lookup | 20 KB | **212 ns** | 6901 ns | **32.5×** |
-| Target at end of 50 headers (worst case) | — | **393 ns** | n/a | n/a |
-| body offset locate | 1 KB | **249 ns** | 2387 ns | **9.6×** |
-| body offset locate | 5 KB | **247 ns** | 3337 ns | **13.5×** |
-| body offset locate | 20 KB | **248 ns** | 6855 ns | **27.6×** |
-| Received-chain walk (3 hops, 5 KB body) | — | **340 ns** | 3382 ns | **9.9×** |
+| Subject + From lookup | 1 KB | **83 ns** | 2629 ns | **31.7×** |
+| Subject + From lookup | 5 KB | **84 ns** | 3727 ns | **44.4×** |
+| Subject + From lookup | 20 KB | **84 ns** | 7682 ns | **91.5×** |
+| Target at end of 50 headers (worst case) | — | **436 ns** | n/a | n/a |
+| body offset locate | 1 KB | **104 ns** | 2554 ns | **24.6×** |
+| body offset locate | 5 KB | **105 ns** | 3654 ns | **34.7×** |
+| body offset locate | 20 KB | **105 ns** | 7674 ns | **73.0×** |
+| Received-chain walk (3 hops, 5 KB body) | — | **127 ns** | 3691 ns | **29.1×** |
 
 Note the **mailrs-rfc5322 numbers are constant in body size** —
-~280 ns for header lookup regardless of whether the body is 1 KB or
+~84 ns for header lookup regardless of whether the body is 1 KB or
 20 KB. That's because the scanner stops at the empty-line terminator
 separating headers from body. `mail-parser` builds the full Message
 tree on every parse, so it's linear in body size.
+
+**v4 round 1** swapped two `iter().position()` byte-scans for
+`memchr::memchr` in `header.rs` — header lookup dropped from 222 ns
+to 84 ns (−62 % / **2.6×**), and the speedup ratio vs mail-parser
+tripled (11-33× → 31-91×).
 
 Reproduce with `cargo bench -p mailrs-rfc5322 --bench parse`. Workspace
 [PERFORMANCE.md](../../PERFORMANCE.md) carries the same table; per the

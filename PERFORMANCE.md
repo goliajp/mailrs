@@ -778,11 +778,16 @@ mailrs-rfc5322 is pull-based: it scans for the requested header without parsing 
 
 | Body size | mailrs-rfc5322 (subject + from) | mail-parser (full parse) | Winner |
 |---|---:|---:|---|
-| 1 KB | 215 ns | 2.35 µs | **mailrs 11×** ✅ |
-| 5 KB | 213 ns | 3.30 µs | **mailrs 15×** ✅ |
-| 20 KB | 213 ns | 6.99 µs | **mailrs 33×** ✅ |
+| 1 KB | **83 ns** | 2.63 µs | **mailrs 32×** ✅ |
+| 5 KB | **84 ns** | 3.73 µs | **mailrs 44×** ✅ |
+| 20 KB | **84 ns** | 7.68 µs | **mailrs 91×** ✅ |
 
 This is the "lazy beats eager" payoff under load. If you only need 1-2 headers per message — which the SMTP frontline does — `mailrs-rfc5322` is the right tool. Use `mail-parser` when you need full-tree access in one shot.
+
+**v4 round 1** (2026-06-02) tripled the speedup ratio above by
+swapping two `iter().position()` byte-scans for `memchr::memchr` in
+the header scanner — see the detailed table below for the per-op
+breakdown.
 
 #### `mailrs-rfc2047` vs `mail-parser` (subject extraction)
 
@@ -1302,20 +1307,39 @@ Run: `cargo bench -p mailrs-rfc2047 --bench decode`.
 
 | Operation | body size | mailrs-rfc5322 | mail-parser 0.11 | speedup |
 |---|---:|---:|---:|---:|
-| Subject + From lookup | 1 KB | **212 ns** | 2383 ns | **11.2×** |
-| Subject + From lookup | 5 KB | **212 ns** | 3378 ns | **15.9×** |
-| Subject + From lookup | 20 KB | **212 ns** | 6901 ns | **32.5×** |
-| Target at end of 50 headers (worst case) | — | **393 ns** | n/a | n/a |
-| body offset locate | 1 KB | **249 ns** | 2387 ns | **9.6×** |
-| body offset locate | 5 KB | **247 ns** | 3337 ns | **13.5×** |
-| body offset locate | 20 KB | **248 ns** | 6855 ns | **27.6×** |
-| Received-chain walk (3 hops) | — | **340 ns** | 3382 ns | **9.9×** |
+| Subject + From lookup | 1 KB | **83 ns** | 2629 ns | **31.7×** |
+| Subject + From lookup | 5 KB | **84 ns** | 3727 ns | **44.4×** |
+| Subject + From lookup | 20 KB | **84 ns** | 7682 ns | **91.5×** |
+| Target at end of 50 headers (worst case) | — | **436 ns** | n/a | n/a |
+| body offset locate | 1 KB | **104 ns** | 2554 ns | **24.6×** |
+| body offset locate | 5 KB | **105 ns** | 3654 ns | **34.7×** |
+| body offset locate | 20 KB | **105 ns** | 7674 ns | **73.0×** |
+| Received-chain walk (3 hops) | — | **127 ns** | 3691 ns | **29.1×** |
 
 `mailrs-rfc5322` is **constant-time in body size** because the scanner
 stops at the header/body boundary. `mail-parser` is linear in body
 size because it builds the full Message tree. For an SMTP receive
 pipeline reading 2-5 headers per message, that's 6-7 µs/msg saved on
 20 KB messages — at 1000 msg/sec, **6-7 ms/sec of CPU freed.**
+
+**v4 round 1** (2026-06-02, ckpt 3): swapped two `iter().position()`
+byte-by-byte scans in `header.rs` for `memchr::memchr` —
+`find_unfolded_line_end` (per-header CRLF scan, dominant cost) and
+`parse_header_line` (per-line colon find). Wins:
+
+| Op | Before | After | Δ |
+|---|---:|---:|---:|
+| header lookup 1 KB body | 222 ns | 83 ns | **−63 % / 2.7×** |
+| header lookup 20 KB body | 223 ns | 84 ns | **−62 % / 2.7×** |
+| body locate 20 KB body | 228 ns | 105 ns | **−54 % / 2.2×** |
+| received-chain walk | 327 ns | 127 ns | **−61 % / 2.6×** |
+| worst-case (target at end of 50 short headers) | 451 ns | 436 ns | −3 % (noise; short headers, memchr setup ≈ scan benefit) |
+
+The speedup vs mail-parser tripled (11-33× → 31-91×) — mail-parser
+itself is unchanged, the ratio grew because mailrs's constant-time
+header walk got cheaper. Worst-case (50 short headers, 20-byte lines)
+sees only 3% change because SIMD memchr's per-call overhead
+amortises poorly on inputs near the SIMD vector width.
 
 Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
 

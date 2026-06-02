@@ -17,12 +17,12 @@ work here is hundreds of nanoseconds.
 
 ## Budgets
 
-| Path | Budget | Observed P95 (dev) | Headroom |
+| Path | Budget | Observed P95 (release, v4 round 1) | Headroom |
 |---|---:|---:|---:|
-| `Message::header` (Subject + From, single message) | 10 µs | ~280 ns (release) / ~3 µs (dev) | ~3× |
-| `Message::body` (first call, includes scan) | 10 µs | ~250 ns (release) | ~30× |
-| `Message::body` (cached call, post-memo) | 1 µs | ~5 ns (release) | ~200× |
-| `Message::header_all("Received")` (3 hops) | 20 µs | ~340 ns (release) | ~30× |
+| `Message::header` (Subject + From, single message) | 10 µs | **~85 ns** | ~120× |
+| `Message::body` (first call, includes scan) | 10 µs | **~105 ns** | ~95× |
+| `Message::body` (cached call, post-memo) | 1 µs | ~650 ps | ~1500× |
+| `Message::header_all("Received")` (3 hops) | 20 µs | **~127 ns** | ~160× |
 
 ## Comparative numbers (criterion, vs mail-parser 0.11)
 
@@ -32,13 +32,19 @@ Real measured medians on M-series Mac, release profile, 100-sample.
 
 | Operation | body size | mailrs-rfc5322 | mail-parser | speedup |
 |---|---:|---:|---:|---:|
-| header lookup (Subject + From) | 1 KB | 277 ns | 2383 ns | **8.6×** |
-| header lookup (Subject + From) | 5 KB | 281 ns | 3378 ns | **12.0×** |
-| header lookup (Subject + From) | 20 KB | 279 ns | 6901 ns | **24.7×** |
-| body locate | 1 KB | 249 ns | 2387 ns | **9.6×** |
-| body locate | 5 KB | 247 ns | 3337 ns | **13.5×** |
-| body locate | 20 KB | 248 ns | 6855 ns | **27.6×** |
-| received-chain walk (3 hops, 5 KB body) | — | 340 ns | 3382 ns | **9.9×** |
+| header lookup (Subject + From) | 1 KB | **83 ns** | 2629 ns | **31.7×** |
+| header lookup (Subject + From) | 5 KB | **84 ns** | 3727 ns | **44.4×** |
+| header lookup (Subject + From) | 20 KB | **84 ns** | 7682 ns | **91.5×** |
+| body locate | 1 KB | **104 ns** | 2554 ns | **24.6×** |
+| body locate | 5 KB | **105 ns** | 3654 ns | **34.7×** |
+| body locate | 20 KB | **105 ns** | 7674 ns | **73.0×** |
+| received-chain walk (3 hops, 5 KB body) | — | **127 ns** | 3691 ns | **29.1×** |
+
+**v4 round 1** (2026-06-02): swapped two `iter().position()` byte-by-byte
+scans in `header.rs` (LF in `find_unfolded_line_end`, colon in
+`parse_header_line`) for `memchr::memchr`. Header lookup dropped from
+222 ns → 84 ns (−62 % / **2.6×**); the speedup vs mail-parser tripled
+(11-33× → 31-91×).
 
 `mailrs-rfc5322` is **constant-time in body size** because the scanner
 stops at the empty-line terminator separating headers from body.
