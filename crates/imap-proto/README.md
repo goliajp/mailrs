@@ -68,17 +68,29 @@ See [`examples/parse_and_format.rs`](examples/parse_and_format.rs) for a longer 
 
 Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release profile. Medians from 100-sample runs.
 
+3-run honest medians, v4 ckpt 6 (2026-06-03):
+
 | Operation | Median | Notes |
 |---|---|---|
-| `parse_command("LOGIN alice secret\r\n")` | ~123 ns | with quoted-string args |
-| `parse_command("SELECT INBOX\r\n")` | ~58 ns | atom mailbox name |
-| `parse_command("FETCH 1:1000 (FLAGS BODY.PEEK[HEADER])\r\n")` | ~90 ns | typical IMAP client warm-up |
-| `parse_command(<UID SEARCH SINCE … NOT DELETED OR …>)` | ~155 ns | deeply nested search-key tree |
-| `parse_sequence_set("1,3,5,7,9,11")` | ~130 ns | 6 single uids |
-| `parse_sequence_set("1:100,200:300,400:500,*")` | ~108 ns | 3 ranges + special `*` |
-| `sequence_set_to_uids(<4001-element set>, max=10_000)` | ~3.0 µs | range expansion for FETCH/STORE |
-| `format_list("\\HasNoChildren", "/", "INBOX")` | ~67 ns | one untagged LIST line |
-| `format_fetch(uid=1, [4 items])` | ~420 ns | one untagged FETCH line with 4 sub-items |
+| `parse_command("LOGIN alice secret\r\n")` | **88 ns** | with quoted-string args |
+| `parse_command("SELECT INBOX\r\n")` | **56 ns** | atom mailbox name |
+| `parse_command("FETCH 1:1000 (FLAGS BODY.PEEK[HEADER])\r\n")` | **100 ns** | typical IMAP client warm-up |
+| `parse_command(<UID SEARCH SINCE … NOT DELETED OR …>)` | **164 ns** | deeply nested search-key tree |
+| `parse_sequence_set("1,3,5,7,9,11")` | **134 ns** | 6 single uids |
+| `parse_sequence_set("1:100,200:300,400:500,*")` | **110 ns** | 3 ranges + special `*` |
+| `sequence_set_to_uids(<~2000-element set>, max=10_000)` | **5.8 µs** | range expansion; bench name "n4001" is historical (real ~2002 elements); cost dominated by sort+dedup |
+| `format_list("\\HasNoChildren", "/", "INBOX")` | **80 ns** | one untagged LIST line |
+| `format_fetch(uid=1, [4 items])` | **430 ns** | one untagged FETCH line with 4 sub-items |
+
+vs `imap-codec` 2.0-alpha (Rust nom-based competitor; same 4 commands,
+3-run noise-controlled medians):
+
+| Command | mailrs-imap-proto | imap-codec | Winner |
+|---|---:|---:|---|
+| `A001 SELECT INBOX` | 59 ns | 61 ns | **TIE** |
+| `A002 FETCH 1:100 (FLAGS BODY[…])` | **104 ns** | 300 ns | **mailrs 2.87×** ✅ |
+| `A003 LOGIN alice@example.com password` | **96 ns** | 110 ns | **mailrs +15%** ✅ |
+| `A004 NOOP` | **32.5 ns** | 35.6 ns | **mailrs +10%** ✅ |
 
 Re-run locally with `cargo bench -p mailrs-imap-proto`. See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets.
 

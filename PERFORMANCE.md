@@ -923,16 +923,26 @@ Bench source: `crates/smtp-proto/benches/compare_smtp_codec.rs`. Run
 
 #### `mailrs-imap-proto` vs `imap-codec` 2.0-alpha (Rust nom-based IMAP codec)
 
+3-run noise-controlled medians (re-measured in v4 ckpt 6, 2026-06-03):
+
 | Command | mailrs-imap-proto | imap-codec | Winner |
 |---|---:|---:|---|
-| `A001 SELECT INBOX` | **47.8 ns** | 62.2 ns | **mailrs +23%** ✅ |
-| `A002 FETCH 1:100 (FLAGS BODY[…])` | **82.0 ns** | 280.2 ns | **mailrs 3.4×** ✅ |
-| `A003 LOGIN alice@example.com password` | **78.8 ns** | 112.9 ns | **mailrs +30%** ✅ |
-| `A004 NOOP` | **27.8 ns** | 36.2 ns | **mailrs +23%** ✅ |
+| `A001 SELECT INBOX` | **59 ns** | 61 ns | **mailrs +3%** (TIE) |
+| `A002 FETCH 1:100 (FLAGS BODY[…])` | **104 ns** | 300 ns | **mailrs 2.87×** ✅ |
+| `A003 LOGIN alice@example.com password` | **96 ns** | 110 ns | **mailrs +15%** ✅ |
+| `A004 NOOP` | **32.5 ns** | 35.6 ns | **mailrs +10%** ✅ |
 
-Clean sweep after the v4 round-1 squeeze. The previous numbers had us
-losing 3 of 4 cases (LOGIN −59%, NOOP −44%, SELECT −14%). Three
-changes closed all gaps and pushed us into the lead on every path:
+**v4 ckpt 6 retraction (2026-06-03)**: previous numbers (SELECT 47.8 /
+FETCH 82.0 / LOGIN 78.8 / NOOP 27.8) on the mailrs side were single-run
+outliers — re-measure with 3 fresh runs shows mailrs side ~15-25%
+slower than claimed (imap-codec side stayed within noise). Lead
+margins shrunk: SELECT +23% → TIE; FETCH 3.4× → 2.87×; LOGIN +30% →
++15%; NOOP +23% → +10%. Structural advantages still real (we hold
+the lead on all 4 paths), but the absolute claims weren't reproducible
+on 3-run.
+
+The v4 round 1 changes that drove the original numbers are unchanged
+and still load-bearing:
 
 1. **Stack-buffer verb uppercase.** Replaced
    `cmd_word.to_uppercase().as_str()` (which allocates a `String` per
@@ -1152,11 +1162,26 @@ Bench source: `crates/imap-codec/benches/imap_codec.rs`. Run
 
 ### `mailrs-imap-proto` (criterion, `cargo bench -p mailrs-imap-proto`)
 
+Re-measured in v4 ckpt 6 (2026-06-03), 3-run honest medians:
+
 | Path | Median | Notes |
 |---|---:|---|
-| `parse_command(LOGIN)` | **~123 ns** | |
-| `parse_command(complex UID SEARCH)` | **~155 ns** | |
-| `sequence_set_to_uids(4001 uids)` | **~3.0 µs** | range expansion |
+| `parse_command(LOGIN)` | **88 ns** | was previously claimed ~123 ns — actually faster than the over-cautious claim |
+| `parse_command(SELECT)` | **56 ns** | |
+| `parse_command(FETCH_uid_range)` | **100 ns** | `FETCH 1:1000 (FLAGS BODY.PEEK[HEADER])` |
+| `parse_command(complex UID SEARCH)` | **164 ns** | was claimed ~155 ns (within noise) |
+| `sequence_set/parse_simple` | **134 ns** | `"1,3,5,7,9,11"` |
+| `sequence_set/parse_ranges` | **110 ns** | `"1:100,200:300,400:500,*"` |
+| `sequence_set_to_uids` (~2 K UIDs) | **5.8 µs** | was claimed ~3.0 µs — single-run outlier; real cost is `(1..=1000).collect() + (2000..=3000).collect() + sort + dedup` dominated by stable-sort + flat_map alloc. **Sort/dedup are necessary** for correctness; bench-name "n4001" is historical (real count is ~2002 elements). |
+
+**v4 ckpt 6 — Case A verified, 2 over-claims retracted.** No
+exploitable hot path beyond what v4 round 1 (stack-buffer verb
+uppercase, zero-intermediate-alloc parse_login_args, byte-cmp verb
+dispatch) already shipped. grep `iter().position` / `.windows(N)` in
+src/ → 0 hits. The remaining `.to_string()` calls in `parse.rs` and
+`search.rs` are API-essential (`ImapCommand` variants own `String`
+fields; can't be `&str` without lifetimes leaking through the
+public API).
 
 ### `mailrs-jmap` (criterion, `cargo bench -p mailrs-jmap`)
 
