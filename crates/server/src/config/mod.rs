@@ -170,7 +170,7 @@ impl Default for ServerConfig {
             mta_sts_mx: vec![],
             mta_sts_max_age: 604800,
             mta_sts_id: chrono::Utc::now().format("%Y%m%d%H%M%S").to_string(),
-            spam_score_threshold: 5.0,
+            spam_score_threshold: 4.0,
             clamav_addr: None,
             llm_url: "https://devops.golia.jp/api/llm/complete".into(),
             llm_api_key: None,
@@ -798,7 +798,7 @@ mod tests {
     #[test]
     fn default_spam_score_threshold() {
         let cfg = ServerConfig::default();
-        assert!((cfg.spam_score_threshold - 5.0).abs() < f64::EPSILON);
+        assert!((cfg.spam_score_threshold - 4.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -1482,7 +1482,7 @@ mod tests {
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.rate_limit_capacity, 10);
         assert_eq!(cfg.greylist_delay_secs, 300);
-        assert!((cfg.spam_score_threshold - 5.0).abs() < f64::EPSILON);
+        assert!((cfg.spam_score_threshold - 4.0).abs() < f64::EPSILON);
         clear_mailrs_env();
     }
 

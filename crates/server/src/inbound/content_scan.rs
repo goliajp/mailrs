@@ -129,6 +129,142 @@ fn is_html_only(data: &[u8]) -> bool {
         && !contains_ignore_case(data, b"content-type: text/plain")
 }
 
+/// Extract the `Subject:` field's value bytes (after the colon and one
+/// optional whitespace, before the line's CR/LF). Returns `None` when
+/// no Subject is present or the value is empty after WSP-trim.
+fn extract_subject(data: &[u8]) -> Option<&[u8]> {
+    for line in iter_lines(data) {
+        if !line_starts_with_ignore_case(line, b"subject:") {
+            continue;
+        }
+        let rest = &line[8..];
+        // Skip one optional WSP after the colon (RFC 5322 §3.2.2).
+        let start = if rest.first().is_some_and(|&b| matches!(b, b' ' | b'\t')) {
+            1
+        } else {
+            0
+        };
+        // Trim trailing WSP.
+        let mut end = rest.len();
+        while end > start && matches!(rest[end - 1], b' ' | b'\t') {
+            end -= 1;
+        }
+        if start >= end {
+            return None;
+        }
+        return Some(&rest[start..end]);
+    }
+    None
+}
+
+/// Subject contains a URL (`http://` or `https://`). Subject lines
+/// are typically short and human-typed; URLs there are a strong
+/// phishing signal.
+fn url_in_subject(data: &[u8]) -> bool {
+    extract_subject(data)
+        .map(|s| {
+            memchr::memmem::find(s, b"http://").is_some()
+                || memchr::memmem::find(s, b"https://").is_some()
+        })
+        .unwrap_or(false)
+}
+
+/// Subject is >50% uppercase ASCII letters (≥6 alpha bytes total, to
+/// avoid `OK` / `RE:` / `FYI` false-positives). The "ALL-CAPS SHOUTING"
+/// shape correlates strongly with marketing / scam mail.
+fn shouty_subject(data: &[u8]) -> bool {
+    let Some(subject) = extract_subject(data) else {
+        return false;
+    };
+    let mut alpha_count = 0usize;
+    let mut upper_count = 0usize;
+    for &b in subject {
+        if b.is_ascii_alphabetic() {
+            alpha_count += 1;
+            if b.is_ascii_uppercase() {
+                upper_count += 1;
+            }
+        }
+    }
+    alpha_count >= 6 && upper_count * 2 > alpha_count
+}
+
+/// URL shortener anywhere in the message (covers `bit.ly`, `t.co`,
+/// `tinyurl.com`, `goo.gl`, `ow.ly`, `is.gd`, `buff.ly`, `lnkd.in`,
+/// `tinycc`, `tr.im`). Shorteners are heavily over-represented in
+/// phishing / link-laundering campaigns vs. canonical mail.
+fn has_shortener_url(data: &[u8]) -> bool {
+    const SHORTENERS: &[&[u8]] = &[
+        b"bit.ly/",
+        b"t.co/",
+        b"tinyurl.com/",
+        b"goo.gl/",
+        b"ow.ly/",
+        b"is.gd/",
+        b"buff.ly/",
+        b"lnkd.in/",
+        b"tinycc/",
+        b"tr.im/",
+    ];
+    SHORTENERS
+        .iter()
+        .any(|s| memchr::memmem::find(data, s).is_some())
+}
+
+/// "Money-and-urgency" co-occurrence: at least one currency symbol /
+/// code AND at least one urgency / prize / call-to-action keyword.
+/// The conjunction is important — receipts and invoices mention
+/// currency; spam mentions both currency AND "FREE / WIN / URGENT".
+fn money_urgency_pair(data: &[u8]) -> bool {
+    const CURRENCY: &[&[u8]] = &[b"$", b"\xe2\x82\xac", b"\xc2\xa3", b"\xc2\xa5", b"USD", b"EUR"];
+    const URGENCY: &[&[u8]] = &[
+        b"free",
+        b"winner",
+        b"won ",
+        b"prize",
+        b"urgent",
+        b"act now",
+        b"click here",
+        b"claim now",
+        b"cash bonus",
+        b"limited time",
+        b"100% free",
+        b"earn extra",
+    ];
+    let has_currency = CURRENCY
+        .iter()
+        .any(|c| memchr::memmem::find(data, c).is_some());
+    if !has_currency {
+        return false;
+    }
+    URGENCY.iter().any(|u| contains_ignore_case(data, u))
+}
+
+/// Body text (after the header / body separator) is dominated by
+/// uppercase ASCII letters (>30 % of alpha bytes, with ≥200 alpha
+/// bytes total so short normal replies don't trip it).
+fn shouty_body(data: &[u8]) -> bool {
+    let body_start = match memchr::memmem::find(data, b"\r\n\r\n") {
+        Some(p) => p + 4,
+        None => match memchr::memmem::find(data, b"\n\n") {
+            Some(p) => p + 2,
+            None => return false,
+        },
+    };
+    let body = &data[body_start..];
+    let mut alpha_count = 0usize;
+    let mut upper_count = 0usize;
+    for &b in body {
+        if b.is_ascii_alphabetic() {
+            alpha_count += 1;
+            if b.is_ascii_uppercase() {
+                upper_count += 1;
+            }
+        }
+    }
+    alpha_count >= 200 && upper_count * 10 > alpha_count * 3
+}
+
 /// evaluate all content rules and return total score + matched rule names
 pub fn evaluate_rules(data: &[u8]) -> (f64, Vec<String>) {
     let rules: Vec<ScoringRule> = vec![
@@ -148,9 +284,13 @@ pub fn evaluate_rules(data: &[u8]) -> (f64, Vec<String>) {
             check: is_html_only,
         },
         ScoringRule {
+            // Tightened from `> 10` to `> 5` in v4-period spam tune.
+            // Most legitimate inbound mail has ≤ 5 distinct URLs;
+            // marketing-newsletter shape (10+ links) is exactly what
+            // we want to flag along with html_only_no_text.
             name: "excessive_urls",
             score: 2.0,
-            check: |d| count_urls(d) > 10,
+            check: |d| count_urls(d) > 5,
         },
         ScoringRule {
             name: "suspicious_attachment",
@@ -166,6 +306,33 @@ pub fn evaluate_rules(data: &[u8]) -> (f64, Vec<String>) {
             name: "missing_message_id",
             score: 1.5,
             check: |d| !has_message_id(d),
+        },
+        // v4-period spam tune additions: capture the modern "well-formed
+        // spam" shape that the original 7-rule set let through.
+        ScoringRule {
+            name: "url_in_subject",
+            score: 1.5,
+            check: url_in_subject,
+        },
+        ScoringRule {
+            name: "shouty_subject",
+            score: 1.0,
+            check: shouty_subject,
+        },
+        ScoringRule {
+            name: "shortener_url",
+            score: 1.5,
+            check: has_shortener_url,
+        },
+        ScoringRule {
+            name: "money_urgency",
+            score: 2.0,
+            check: money_urgency_pair,
+        },
+        ScoringRule {
+            name: "shouty_body",
+            score: 1.0,
+            check: shouty_body,
         },
     ];
 
@@ -250,11 +417,14 @@ mod tests {
     }
 
     #[test]
-    fn url_boundary_10_no_trigger() {
+    fn url_boundary_5_no_trigger() {
+        // Threshold tightened to `> 5` in the v4-period spam tune
+        // (was `> 10`). 5 URLs is the new boundary that does NOT
+        // trigger `excessive_urls`.
         let mut data = String::from(
             "From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\n\r\n",
         );
-        for i in 0..10 {
+        for i in 0..5 {
             data.push_str(&format!("https://example{i}.com "));
         }
         let (_, rules) = evaluate_rules(data.as_bytes());
@@ -262,11 +432,11 @@ mod tests {
     }
 
     #[test]
-    fn url_boundary_11_triggers() {
+    fn url_boundary_6_triggers() {
         let mut data = String::from(
             "From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\n\r\n",
         );
-        for i in 0..11 {
+        for i in 0..6 {
             data.push_str(&format!("https://example{i}.com "));
         }
         let (_, rules) = evaluate_rules(data.as_bytes());
@@ -303,16 +473,50 @@ mod tests {
 
     #[test]
     fn all_rules_triggered_total_score() {
-        // missing_from(2) + empty_subject(1) + html_only(1.5) + excessive_urls(2) + suspicious_attachment(3) + missing_date(1) + missing_message_id(1.5) = 12.0
+        // Construct a worst-case message that hits 11 of the 12
+        // modern rules. `empty_subject` (1.0) and the
+        // `url_in_subject` (1.5) / `shouty_subject` (1.0) pair are
+        // mutually exclusive — a subject can't be both blank AND
+        // contain a URL — so 11/12 is the realistic maximum.
+        //
+        //   missing_from(2) + html_only(1.5) + excessive_urls(2)
+        //   + suspicious_attachment(3) + missing_date(1)
+        //   + missing_message_id(1.5) + url_in_subject(1.5)
+        //   + shouty_subject(1) + shortener_url(1.5)
+        //   + money_urgency(2) + shouty_body(1) = 18.0
+        //
+        // Subject contains a URL + is mostly uppercase (so
+        // url_in_subject + shouty_subject), the body has both a $
+        // amount + "FREE", a bit.ly link, plenty of caps and many
+        // https URLs, and the Content-Type is text/html only with a
+        // suspicious attachment.
         let mut data = String::from(
-            "Content-Type: text/html\r\nContent-Disposition: attachment; filename=\"malware.exe\"\r\n\r\n",
+            "Subject: WIN BIG FREE $$$ CASH PRIZE NOW http://spam.example/click\r\n\
+             Content-Type: text/html\r\n\
+             Content-Disposition: attachment; filename=\"malware.exe\"\r\n\
+             \r\n\
+             FREE CASH GIVEAWAY! YOU ARE A WINNER OF $1000000 USD! ACT NOW!\r\n\
+             VISIT bit.ly/abc TO CLAIM YOUR PRIZE TODAY! 100% FREE! \r\n",
         );
-        for i in 0..15 {
-            data.push_str(&format!("https://spam{i}.example.com "));
+        for i in 0..8 {
+            data.push_str(&format!("https://spam{i}.example.com\r\n"));
         }
+        // Pad body with enough ALL-CAPS content to reach the 200-alpha
+        // floor in `shouty_body` while keeping the upper-ratio dominant.
+        data.push_str(&"FREE FREE FREE WIN WIN WIN PRIZE PRIZE PRIZE NOW NOW NOW ".repeat(8));
         let (score, rules) = evaluate_rules(data.as_bytes());
-        assert_eq!(score, 12.0);
-        assert_eq!(rules.len(), 7);
+        assert!(
+            rules.len() >= 11,
+            "expected 11 mutually-compatible rules to trigger, got {}: {:?}",
+            rules.len(),
+            rules
+        );
+        assert!(score >= 18.0, "expected total score ≥ 18.0, got {score}");
+        // Confirm the mutually-exclusive pair: empty_subject is OUT
+        // when url_in_subject / shouty_subject are IN.
+        assert!(!rules.contains(&"empty_subject".to_string()));
+        assert!(rules.contains(&"url_in_subject".to_string()));
+        assert!(rules.contains(&"shouty_subject".to_string()));
     }
 
     #[test]
@@ -634,6 +838,8 @@ mod tests {
         assert!(rules.contains(&"html_only_no_text".to_string()));
         assert!(rules.contains(&"excessive_urls".to_string()));
         assert!(!rules.contains(&"missing_from".to_string()));
+        // Newsletter shape sits at 3.5, which is BELOW the new default
+        // threshold of 4.0 — newsletters stay in INBOX as designed.
     }
 
     #[test]
@@ -672,6 +878,139 @@ mod tests {
     fn single_byte_input() {
         let (score, _rules) = evaluate_rules(b"X");
         assert!(score > 0.0);
+    }
+
+    // --- v4-period spam tune: new rules unit tests ---
+
+    #[test]
+    fn url_in_subject_triggers_on_http_link() {
+        let data = b"From: a@b.com\r\nSubject: Check http://evil.example\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nbody";
+        let (_, rules) = evaluate_rules(data);
+        assert!(rules.contains(&"url_in_subject".to_string()));
+    }
+
+    #[test]
+    fn url_in_subject_no_trigger_on_clean_subject() {
+        let data = b"From: a@b.com\r\nSubject: Project update\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nhttp://x.com";
+        let (_, rules) = evaluate_rules(data);
+        assert!(!rules.contains(&"url_in_subject".to_string()));
+    }
+
+    #[test]
+    fn shouty_subject_triggers_on_all_caps() {
+        let data = b"From: a@b.com\r\nSubject: URGENT CASH PRIZE WINNER\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nbody";
+        let (_, rules) = evaluate_rules(data);
+        assert!(rules.contains(&"shouty_subject".to_string()));
+    }
+
+    #[test]
+    fn shouty_subject_no_trigger_on_short_acronyms() {
+        // "RE: OK" is normal — under the 6-alpha floor.
+        let data =
+            b"From: a@b.com\r\nSubject: RE: OK\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nbody";
+        let (_, rules) = evaluate_rules(data);
+        assert!(!rules.contains(&"shouty_subject".to_string()));
+    }
+
+    #[test]
+    fn shouty_subject_no_trigger_on_mixed_case() {
+        let data = b"From: a@b.com\r\nSubject: Quarterly Sales Report Q3 2024\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nbody";
+        let (_, rules) = evaluate_rules(data);
+        assert!(!rules.contains(&"shouty_subject".to_string()));
+    }
+
+    #[test]
+    fn shortener_url_bit_ly_triggers() {
+        let data = b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nVisit bit.ly/abc for details";
+        let (_, rules) = evaluate_rules(data);
+        assert!(rules.contains(&"shortener_url".to_string()));
+    }
+
+    #[test]
+    fn shortener_url_tinyurl_triggers() {
+        let data = b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\ngo to tinyurl.com/xyz now";
+        let (_, rules) = evaluate_rules(data);
+        assert!(rules.contains(&"shortener_url".to_string()));
+    }
+
+    #[test]
+    fn shortener_url_no_trigger_on_clean_url() {
+        let data = b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nhttps://example.com/path";
+        let (_, rules) = evaluate_rules(data);
+        assert!(!rules.contains(&"shortener_url".to_string()));
+    }
+
+    #[test]
+    fn money_urgency_triggers_on_dollar_plus_free() {
+        let data = b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nGet $1000 free today!";
+        let (_, rules) = evaluate_rules(data);
+        assert!(rules.contains(&"money_urgency".to_string()));
+    }
+
+    #[test]
+    fn money_urgency_triggers_on_euro_plus_winner() {
+        let data = "From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nYou are the WINNER of €500000!".as_bytes();
+        let (_, rules) = evaluate_rules(data);
+        assert!(rules.contains(&"money_urgency".to_string()));
+    }
+
+    #[test]
+    fn money_urgency_no_trigger_on_invoice() {
+        // Invoice has $ but no urgency keyword.
+        let data = b"From: billing@company.com\r\nSubject: Invoice 12345\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nAmount due: $123.45. Thank you.";
+        let (_, rules) = evaluate_rules(data);
+        assert!(!rules.contains(&"money_urgency".to_string()));
+    }
+
+    #[test]
+    fn money_urgency_no_trigger_on_urgency_without_currency() {
+        let data = b"From: a@b.com\r\nSubject: Urgent meeting\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nact now, the deadline is today";
+        let (_, rules) = evaluate_rules(data);
+        assert!(!rules.contains(&"money_urgency".to_string()));
+    }
+
+    #[test]
+    fn shouty_body_triggers_on_caps_dominant_body() {
+        // ≥200 alpha bytes, ≥30% upper. Use repeated FREE/WIN words.
+        let mut data = String::from(
+            "From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\n",
+        );
+        data.push_str(&"FREE FREE WIN WIN CASH PRIZE NOW URGENT ".repeat(15));
+        let (_, rules) = evaluate_rules(data.as_bytes());
+        assert!(rules.contains(&"shouty_body".to_string()));
+    }
+
+    #[test]
+    fn shouty_body_no_trigger_on_short_body() {
+        // Even though all-caps, body is under the 200-alpha floor.
+        let data = b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nTHANKS!";
+        let (_, rules) = evaluate_rules(data);
+        assert!(!rules.contains(&"shouty_body".to_string()));
+    }
+
+    #[test]
+    fn shouty_body_no_trigger_on_mixed_case_long_body() {
+        let mut data = String::from(
+            "From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\n",
+        );
+        // 200+ alpha bytes of mostly lowercase prose.
+        data.push_str(&"this is a normal long email body with regular sentences and the typical case usage you would see in inbound mail ".repeat(3));
+        let (_, rules) = evaluate_rules(data.as_bytes());
+        assert!(!rules.contains(&"shouty_body".to_string()));
+    }
+
+    #[test]
+    fn extract_subject_strips_one_optional_wsp() {
+        assert_eq!(
+            extract_subject(b"Subject: hello world\r\n").unwrap(),
+            b"hello world"
+        );
+        assert_eq!(
+            extract_subject(b"Subject:hello\r\n").unwrap(),
+            b"hello"
+        );
+        assert!(extract_subject(b"Subject:   \r\n").is_none());
+        assert!(extract_subject(b"From: a@b.com\r\n").is_none());
     }
 
     #[test]
