@@ -1372,6 +1372,46 @@ mechanism dispatch) dropped the real numbers another ~40-50% but the
 stone-level table wasn't refreshed. Vs-`mail-auth` comparison section
 was already up-to-date and unchanged.
 
+### `mailrs-arc` — RFC 8617 ARC verifier (criterion, M-series Mac, release)
+
+Re-measured v4 ckpt 10 (2026-06-03), 3-run honest medians:
+
+| Path | Median | Notes |
+|---|---:|---|
+| `parse/aar` | **27 ns** | ARC-Authentication-Results parse |
+| `parse/ams` | **541 ns** | ARC-Message-Signature parse |
+| `parse/as` | **277 ns** | ARC-Seal parse |
+| `chain/extract_two_hop` | **2.49 µs** | was 3.90 µs; v4 ckpt 10 memchr rewrite **−36 % / 1.57×** |
+
+**v4 ckpt 10** (2026-06-03): replaced two pre-v4 byte-by-byte
+scanners in `crates/arc/src/chain.rs`:
+
+1. **`unfold_headers` rewrite** — the prior implementation built a
+   `Vec<Vec<u8>>` of line slices upfront (one heap allocation per
+   header line), then per-header allocated a `Vec<u8>` value buffer
+   and called `Vec::remove(0)` in a loop to skip leading WSP
+   (O(n²) shifting per continuation). The memchr-anchored rewrite
+   walks `block` once with `memchr(\n)` to find line bounds, uses
+   `memchr(:)` to find the name/value separator, and advances slice
+   pointers instead of allocating + shifting. The common
+   single-line header case takes the no-continuation fast path and
+   does exactly one allocation (the value `String`).
+
+2. **`take_header_block` memchr-ified** — the prior `find_subseq`
+   helper was an O(N·M) `windows`-style walk run twice per call
+   (once for `\r\n\r\n`, once for `\n\n`). Replaced with a single
+   memchr(`\n`) scan that checks both shapes at each candidate
+   position.
+
+3. **Removed dead `find_subseq` helper** after take_header_block
+   migrated off it.
+
+`chain/extract_two_hop` covers both functions on a representative
+6-ARC-header + From shape — the prod hot path for every inbound
+message that carries an ARC chain (forwarded / mailing-list mail).
+40 lib tests pass; algorithm is bytewise-identical to the prior
+implementation (semantic-equivalent rewrite).
+
 ### `mailrs-backoff` — exponential backoff with optional jitter (criterion, M-series Mac, release)
 
 | Path | Median |

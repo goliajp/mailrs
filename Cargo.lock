@@ -2815,6 +2815,7 @@ dependencies = [
  "criterion",
  "ed25519-dalek",
  "mailrs-dkim",
+ "memchr",
  "rand 0.8.6",
  "rsa",
  "sha2 0.10.9",
