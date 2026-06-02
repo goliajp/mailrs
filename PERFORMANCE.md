@@ -12,6 +12,87 @@ honestly measured and which are still open. When in doubt, default to
 the latest column ("Measured?") here — not to whatever a commit message
 or marketing material says.
 
+## v4 baseline (2026-06-02, ckpt 0)
+
+Full-workspace `cargo bench --workspace` snapshot taken at commit
+`f76c8d4`. Serves as the diff anchor every subsequent v4 stone-ckpt
+will measure against. Per the v4 RFC
+(`.claude/rfcs/20260602-v4-perf-squeeze.md`), each stone-ckpt compares
+its post-optimization numbers to this baseline; drift > 10 % flags an
+investigation.
+
+**Environment fingerprint**
+
+- Host: `Mac16,11` (M4 Mac mini)
+- OS: macOS 26.5 (Darwin 25.5.0 arm64)
+- rustc: 1.96.0 (ac68faa20 2026-05-25)
+- samply: 0.13.1
+- git HEAD: `f76c8d4`
+- Profile: `release` (workspace default — fat LTO + cgu=1)
+
+**Raw artifacts** (local-only, `.claude/` gitignored): full log saved
+at `/tmp/v4-baseline-20260602-1926.log` (380 KB, 6939 lines, 309
+criterion rows across 38 stones); per-stone JSON dump at
+`/tmp/v4-baseline-per-stone.json`.
+
+**Per-stone bench inventory at baseline**
+
+309 criterion bench rows total across **38 stones**; 5 stones (`acme`,
+`dns`, `tls-reload`, `mail-builder`, `sieve-core`) have no `benches/`
+dir at baseline — they enter v4 in Case C and will earn one before
+their stone-ckpt closes. The "first bench" column below is the lead
+row in each stone's bench output (often, though not always, the
+hottest path); the full per-stone bench list lives in the JSON dump.
+
+| stone | benches | first bench | median |
+|---|---:|---|---|
+| `mailrs-arc` | 4 | parse/aar | 27.062 ns |
+| `mailrs-arf` | 2 | parse/hotmail_fbl_sample | 1.3305 µs |
+| `mailrs-attachment-extract` | 2 | extraction_method/text_plain | 18.891 ns |
+| `mailrs-auth-guard` | 6 | check/empty_map_success_path | 44.877 ns |
+| `mailrs-backoff` | 12 | base_delay/attempt_3 | 1.7064 ns |
+| `mailrs-clamav` | 6 | parse_response/clean | 9.9098 ns |
+| `mailrs-clean` | 8 | clean_email_html/short_60b | 10.514 µs |
+| `mailrs-dav` | 21 | etag_of | 53.299 ns |
+| `mailrs-delivery-executor` | 1 | DeliveryExecutor::spawn | 554.52 ns |
+| `mailrs-dkim` | 9 | parse/minimal/mailrs_dkim | 143.12 ns |
+| `mailrs-dmarc` | 4 | generate_xml/n10 | 12.794 µs |
+| `mailrs-dnsbl` | 6 | reverse_ipv4 | 46.139 ns |
+| `mailrs-ical` | 11 | parse/simple_vevent/mailrs_ical | 1.5513 µs |
+| `mailrs-imap-codec` | 1 | ImapCodec::decode/LOGIN | 70.059 ns |
+| `mailrs-imap-format` | 3 | format_imap_flags/seen+answered | 19.738 ns |
+| `mailrs-imap-proto` | 17 | parse/select/mailrs_imap_proto | 57.608 ns |
+| `mailrs-inbound` | 11 | decision/make_delivery_decision_accept | 33.740 ns |
+| `mailrs-intelligence` | 3 | extract_structured_data/short_single_event | 687.11 ns |
+| `mailrs-jmap` | 23 | dispatch_mailbox_get | 3.6408 µs |
+| `mailrs-mailbox` | 15 | insert_message/first_insert | 288.09 ns |
+| `mailrs-maildir` | 13 | deliver_loop/n=1 | 4.6378 ms |
+| `mailrs-mime` | 9 | parse/simple_text_plain | 46.207 ns |
+| `mailrs-mta-sts` | 8 | parse/sts_record | 75.903 ns |
+| `mailrs-outbound-queue` | 4 | dkim_sign/short | 287.73 µs |
+| `mailrs-postmaster` | 1 | extract_bimi_logo_url | 39.775 ns |
+| `mailrs-rate-limit` | 11 | hot_allowed/mailrs_rate_limit | 12.651 ns |
+| `mailrs-rfc2047` | 11 | decode/ascii_passthrough | 21.539 ns |
+| `mailrs-rfc2231` | 7 | encode/ascii_legacy_quoted | 23.428 ns |
+| `mailrs-rfc5322` | 17 | header_lookup_subject_and_from/mailrs_rfc5322/1 | 221.92 ns |
+| `mailrs-shield` | 7 | dnsbl/reverse_ipv4 | 47.342 ns |
+| `mailrs-sieve` | 2 | compile_sieve/typical | 1.1839 µs |
+| `mailrs-smtp-client` | 9 | parse_response/short | 23.605 ns |
+| `mailrs-smtp-codec` | 2 | has_smuggle_sequence/safe | 2.5840 ns |
+| `mailrs-smtp-proto` | 16 | parse/ehlo/mailrs_smtp_proto | 6.6309 ns |
+| `mailrs-spf` | 9 | parse/simple/mailrs_spf | 45.819 ns |
+| `mailrs-srs` | 4 | rewrite/ascii_sender | 190.37 ns |
+| `mailrs-tls-rpt` | 5 | parse/record_single | 194.09 ns |
+| `mailrs-webhook-signature` | 9 | sign/short_payload_23_bytes | 260.56 ns |
+
+**Stones missing baseline (Case C — `benches/` absent)**:
+`mailrs-acme`, `mailrs-dns`, `mailrs-tls-reload`, `mailrs-mail-builder`,
+`mailrs-sieve-core`. These will receive their first bench at their
+respective stone-ckpts.
+
+**Reproduce**: `env -u TMPDIR cargo bench --workspace` from workspace
+root. Total wall-clock ≈ 50 minutes on Mac16,11.
+
 ## Measured
 
 ### E2E inbound throughput with PG (the real bottleneck)
