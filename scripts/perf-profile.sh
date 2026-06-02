@@ -49,10 +49,16 @@ else
 fi
 
 # Locate the freshly-built bench binary. Criterion compiles each
-# bench file into target/release/deps/<bench>-<hash>.
-BENCH_GLOB="${BENCH:-*}"
-BENCH_BIN=$(find "$CARGO_TARGET/release/deps" -maxdepth 1 -type f -name "${BENCH_GLOB//-/_}-*" \
-  ! -name "*.d" ! -name "*.rmeta" ! -name "*.o" -mmin -10 \
+# bench file `benches/foo.rs` into target/release/deps/foo-<hash>.
+# When BENCH is unspecified, default to the crate short-name in
+# snake_case (e.g. crate `smtp-codec` → bench bin `smtp_codec-<hash>`).
+# `mailrs_<name>-<hash>` is the unittest runner, NOT the bench bin.
+BENCH_GLOB="${BENCH:-${CRATE//-/_}}"
+BENCH_BIN=$(find "$CARGO_TARGET/release/deps" -maxdepth 1 -type f -perm -u+x \
+  -name "${BENCH_GLOB//-/_}-*" \
+  ! -name "*.d" ! -name "*.rmeta" ! -name "*.o" ! -name "*.rlib" ! -name "*.dylib" \
+  ! -name "lib*" ! -name "mailrs_*" \
+  -mmin -60 \
   | head -1)
 if [ -z "$BENCH_BIN" ]; then
   echo "error: no recently-built bench binary found for $BENCH_GLOB"
@@ -62,7 +68,7 @@ echo "==> bench: $BENCH_BIN"
 
 # 1. raw criterion run for baseline numbers
 echo "==> criterion baseline"
-"$BENCH_BIN" --bench --quick 2>&1 | tee "$OUT_DIR/bench.out"
+"$BENCH_BIN" --bench 2>&1 | tee "$OUT_DIR/bench.out"
 
 # 2. samply profile — capture call-tree
 echo "==> samply record"
@@ -72,13 +78,13 @@ if ! command -v samply >/dev/null 2>&1; then
 fi
 samply record --save-only -o "$OUT_DIR/profile.json" -- "$BENCH_BIN" --bench
 
-# 3. top self-time table (samply supports a text summary)
-echo "==> top 50 self-time functions"
-samply load --no-open "$OUT_DIR/profile.json" 2>&1 | head -60 > "$OUT_DIR/summary.txt" || true
+# samply 0.13+ no longer emits a text summary from `samply load` —
+# it always starts a web server. Skip the auto-summary step; the
+# perf-squeeze loop opens the profile in profiler.firefox.com directly.
 
 echo ""
 echo "==> done. artifacts in $OUT_DIR"
 ls -la "$OUT_DIR"
 echo ""
-echo "==> open profile.json in profiler.firefox.com:"
+echo "==> open the profile in profiler.firefox.com (will start a web server):"
 echo "    samply load $OUT_DIR/profile.json"

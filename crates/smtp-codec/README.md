@@ -103,4 +103,23 @@ or **MIT** ([LICENSE-MIT](./LICENSE-MIT)) at your option.
 
 ## Performance
 
-Criterion benches: `cargo bench -p mailrs-smtp-codec`. Per-bench medians + regression budgets are documented in [`BUDGETS.md`](BUDGETS.md) (this crate) and the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).
+**Label: first-in-Rust on SMTP-smuggling-aware framing.** No other
+published Rust crate combines line framing, DATA-mode dot-terminator
+detection, and smuggle protection in one Tokio codec (`tokio_util`'s
+`LinesCodec` is generic; stalwart's `smtp-codec` is a parser).
+
+Headline numbers (criterion, M-series Mac, release):
+
+| Op | 100 KB body | Throughput |
+|---|---:|---:|
+| `decode/data/permissive` (default mode) | 52.1 µs | 2.0 GB/s |
+| `decode/data/strict` | 39.9 µs | 2.6 GB/s |
+| `decode/data/off` | 15.7 µs | 6.5 GB/s |
+| `has_smuggle_sequence` | 907 ns | 113 GB/s |
+| `normalize_line_endings` | 18.8 µs | 5.5 GB/s |
+
+**v4 round 1** (2026-06-02): memchr-anchored rewrites of all three
+scanners gave 2-31× speed-ups on real-payload shapes. Full table +
+methodology in the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).
+Regression budgets in [`BUDGETS.md`](BUDGETS.md). Run
+`cargo bench -p mailrs-smtp-codec` to reproduce.

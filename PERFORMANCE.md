@@ -973,6 +973,57 @@ can drop in the binary and `scripts/run-all.sh` will pick it up.
 | `address/is_valid_typical` | **10 ns** | |
 | `address/split_typical` | **12 ns** | |
 
+### `mailrs-smtp-codec` (criterion, `cargo bench -p mailrs-smtp-codec`)
+
+Tokio `Decoder` / `Encoder` for the RFC 5321 SMTP wire format —
+switches between line-oriented command mode (CRLF-terminated,
+≤1024 octets) and DATA mode (raw bytes until `CRLF.CRLF`). The
+two helpers `has_smuggle_sequence` and `normalize_line_endings`
+are the cost centres in DATA mode and run on every accepted
+message body in Strict and Permissive smuggle-protection modes
+respectively.
+
+**Label: first-in-Rust** — no other Rust crate implements
+SMTP-smuggling-aware framing as a published primitive
+(`tokio_util::codec::LinesCodec` does generic `\n` line framing
+without smuggle awareness; stalwart's `smtp-codec` is a parser,
+not a Tokio codec).
+
+| Path | Median | Throughput | Notes |
+|---|---:|---:|---|
+| `has_smuggle_sequence/safe` (10 B) | **3.96 ns** | — | tiny-input regression (+25% vs naive loop) — memchr setup cost dominates; not a prod shape |
+| `has_smuggle_sequence/clean_1024b` | **12.7 ns** | 81 GB/s | was 316 ns; v4 round 1 memchr-anchored scan **−96 % / 25× faster** |
+| `has_smuggle_sequence/clean_10240b` | **95 ns** | 108 GB/s | was 2.9 µs; **−97 % / 30×** |
+| `has_smuggle_sequence/clean_102400b` | **907 ns** | 113 GB/s | was 28.5 µs; **−97 % / 31×** — close to memchr SIMD ceiling |
+| `normalize_line_endings/lf_only` (12 B) | **55 ns** | — | unchanged — alloc-bound on tiny input |
+| `normalize_line_endings/bare_lf_1024b` | **152 ns** | 6.7 GB/s | was 701 ns; v4 round 1 memchr2 + chunked extend **−78 %** |
+| `normalize_line_endings/bare_lf_10240b` | **3.56 µs** | 2.9 GB/s | was 8.86 µs; **−60 %** |
+| `normalize_line_endings/bare_lf_102400b` | **18.8 µs** | 5.5 GB/s | was 67.9 µs; **−72 % / 3.6×** |
+| `decode/command/ehlo` | **78 ns** | — | `BytesMut::split_to` + UTF-8 lossy decode dominate |
+| `decode/command/mail_from` | **80 ns** | — | longest of the 4 commands measured |
+| `decode/command/data` | **64 ns** | — | shortest — 6-byte frame |
+| `decode/data/permissive_1024b` | **389 ns** | 2.6 GB/s | was 963 ns; **−60 %** |
+| `decode/data/strict_1024b` | **303 ns** | 3.4 GB/s | was 873 ns; **−65 %** |
+| `decode/data/off_1024b` | **93 ns** | 11 GB/s | was 408 ns; **−77 %** — `find_data_terminator` memchr-anchored |
+| `decode/data/permissive_102400b` | **52.1 µs** | 2.0 GB/s | was 104 µs; **−50 %** — per-message hot path on Permissive default |
+| `decode/data/strict_102400b` | **39.9 µs** | 2.6 GB/s | was 93.6 µs; **−57 %** |
+| `decode/data/off_102400b` | **15.7 µs** | 6.5 GB/s | was 46.4 µs; **−69 % / 3×** |
+
+**v4 round 1** (2026-06-02, ckpt 1): rewrote three byte-by-byte
+scanners as memchr-anchored helpers.
+- `has_smuggle_sequence`: anchor on `\n` then verify the local
+  smuggle shape — LF is rare so SIMD memchr prunes >99 % of
+  bytes on clean inputs.
+- `normalize_line_endings`: `memchr2(b'\r', b'\n', ...)` for the
+  next line-ending, then `extend_from_slice` on the clean run
+  between anchors (memcpy under the hood instead of one
+  `push()` per byte).
+- `find_data_terminator`: anchor on `.` (the rarest byte in
+  `\r\n.\r\n`) instead of `windows(5)` byte-by-byte.
+
+Bench source: `crates/smtp-codec/benches/smtp_codec.rs`. Run
+`cargo bench -p mailrs-smtp-codec`.
+
 ### `mailrs-imap-format` (criterion, `cargo bench -p mailrs-imap-format`)
 
 | Path | Median | Notes |
