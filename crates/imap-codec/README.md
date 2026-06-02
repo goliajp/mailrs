@@ -95,4 +95,26 @@ or **MIT** ([LICENSE-MIT](./LICENSE-MIT)) at your option.
 
 ## Performance
 
-Criterion benches: `cargo bench -p mailrs-imap-codec`. Per-bench medians + regression budgets are documented in [`BUDGETS.md`](BUDGETS.md) (this crate) and the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).
+**Label: first-in-Rust on literal-aware IMAP framing.** No other
+published Rust crate combines CRLF line framing and byte-counted
+literal payloads as a Tokio codec (`tokio_util::LinesCodec` is
+generic; stalwart's `imap-codec` is a command/response parser).
+
+Headline numbers (criterion, M-series Mac, release):
+
+| Op | Input | Median | Throughput |
+|---|---|---:|---:|
+| `decode/line/login` | 22 B | 72 ns | — |
+| `decode/line/fetch_long` | 160 B | 107 ns | 1.5 GB/s |
+| `decode/literal/1024b` | 1 KB | 87.5 ns | 12 GB/s |
+| `decode/literal/102400b` | 100 KB | 13.2 µs | 7.7 GB/s |
+| `encode/long_140b` | 140 B | 39.4 ns | — |
+
+**v4 round 1** (2026-06-02, Case A): no exploitable hot path —
+the line scanner is already memchr-anchored (added during v3
+cycle), the literal path is `BytesMut::split_to + to_vec`
+(memcpy bound). All ops sit within ~30 % of the hardware floor.
+
+Full table + methodology in workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).
+Regression budgets in [`BUDGETS.md`](BUDGETS.md). Run
+`cargo bench -p mailrs-imap-codec` to reproduce.

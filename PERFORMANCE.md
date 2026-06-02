@@ -1024,6 +1024,52 @@ scanners as memchr-anchored helpers.
 Bench source: `crates/smtp-codec/benches/smtp_codec.rs`. Run
 `cargo bench -p mailrs-smtp-codec`.
 
+### `mailrs-imap-codec` (criterion, `cargo bench -p mailrs-imap-codec`)
+
+Tokio `Decoder` / `Encoder` for the RFC 9051 IMAP wire format —
+switches between line mode (CRLF-terminated commands and
+responses) and literal mode (raw byte-counted payloads as
+declared by the `{N}` marker, used for APPEND, FETCH BODY[…],
+passwords with special chars). Stateful: caller toggles literal
+mode by calling `expect_literal(size)` after parsing the marker
+from the protocol layer above.
+
+**Label: first-in-Rust** on literal-aware IMAP framing —
+`tokio_util::codec::LinesCodec` does only generic `\n` line
+framing, and `imap-codec` (stalwart's crate) is a command /
+response parser, not a Tokio codec. Nothing else combines line
+framing + byte-counted literals as a published primitive.
+
+| Path | Input | Median | Throughput | Notes |
+|---|---|---:|---:|---|
+| `decode/line/noop` | 11 B (`A001 NOOP\r\n`) | **65 ns** | — | short command, alloc-bound |
+| `decode/line/login` | 22 B (`a001 LOGIN user pass\r\n`) | **72 ns** | — | matches the v4 baseline LOGIN row (70 ns) |
+| `decode/line/select` | 19 B (`a002 SELECT INBOX\r\n`) | **67 ns** | — | |
+| `decode/line/fetch_long` | 160 B (FETCH response with BODY metadata) | **107 ns** | 1.5 GB/s | line scaling reaches SIMD memchr floor |
+| `decode/line/bare_cr_skip` | 24 B with 5 embedded bare `\r` | **76 ns** | — | exercises the memchr restart loop (RFC 9051 requires bare CR to be skipped) |
+| `decode/literal/32b` | 32 B + CRLF | **62 ns** | — | minimal literal overhead |
+| `decode/literal/1024b` | 1 KB + CRLF | **87.5 ns** | 12 GB/s | `BytesMut::split_to` + `to_vec` — single memcpy |
+| `decode/literal/102400b` | 100 KB + CRLF | **13.2 µs** | **7.7 GB/s** | **memcpy ceiling** — split_to is zero-copy share, to_vec is the bound |
+| `encode/short_12b` | 12 B | **38 ns** | — | one `extend_from_slice` to `BytesMut` |
+| `encode/long_140b` | 140 B | **39.4 ns** | — | encode does not scale with payload — `BytesMut::extend_from_slice` is memcpy bound, dominated by setup overhead |
+
+**v4 round 1** (2026-06-02, ckpt 2): **Case A** — no exploitable
+hot path. The line scanner already uses `memchr` (added during
+v3 cycle); the literal path is a thin wrapper over
+`BytesMut::split_to`. All public ops sit within ~30 % of the
+hardware floor (memchr SIMD on the scan side, memcpy on the
+copy side). Work in this ckpt was bench coverage + docs:
+
+- bench coverage expanded from 1 op (`LOGIN`) to **10 ops**
+  across line / literal / bare-CR-skip / encode dimensions
+- `perf_gate.rs` adds a literal-decode budget (100 KB payload,
+  100 µs gate, ~7× headroom)
+- `PERFORMANCE.md` (this section) + `BUDGETS.md` populated with
+  measured numbers
+
+Bench source: `crates/imap-codec/benches/imap_codec.rs`. Run
+`cargo bench -p mailrs-imap-codec`.
+
 ### `mailrs-imap-format` (criterion, `cargo bench -p mailrs-imap-format`)
 
 | Path | Median | Notes |
