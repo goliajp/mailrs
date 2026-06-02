@@ -3066,6 +3066,7 @@ version = "1.0.0"
 dependencies = [
  "chrono",
  "criterion",
+ "memchr",
 ]
 
 [[package]]
