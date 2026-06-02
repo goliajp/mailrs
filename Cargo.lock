@@ -3538,6 +3538,7 @@ version = "1.0.1"
 dependencies = [
  "bytes",
  "criterion",
+ "memchr",
  "tokio-util",
 ]
 
