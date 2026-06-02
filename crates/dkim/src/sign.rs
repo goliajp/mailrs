@@ -223,7 +223,8 @@ pub fn sign(
     // occurrence exists are SKIPPED — not emitted as a null header.
     // Matches OpenDKIM + stalwart/mail-auth convention; an emitted
     // `from:\r\n` would corrupt the hash on the verify side.
-    let collected = crate::headers::collect_signed_headers(headers_region, &opts.signed_headers);
+    let collected =
+        crate::headers::collect_signed_headers_borrowed(headers_region, &opts.signed_headers);
     for (name, value_opt) in &collected {
         let Some(value) = value_opt else { continue };
         let canon_name = name.to_ascii_lowercase();

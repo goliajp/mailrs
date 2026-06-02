@@ -5,11 +5,11 @@ use base64::Engine as _;
 use sha2::{Digest, Sha256};
 
 use crate::canon::{canonicalize_body, canonicalize_header};
-use crate::crypto::{extract_public_key, verify_signature};
+use crate::crypto::verify_signature;
 use crate::error::{DkimError, DkimResult};
 use crate::header::DkimHeader;
 use crate::headers::{
-    body_offset_minus_blank, clear_b_value, collect_signed_headers,
+    body_offset_minus_blank, clear_b_value, collect_signed_headers_borrowed,
     find_all_header_values_in_raw, find_body_offset, find_header_value_in_raw,
 };
 use crate::resolver::DkimResolver;
@@ -161,20 +161,12 @@ async fn verify_one<R: DkimResolver + ?Sized>(
         return Err(DkimError::BodyHashMismatch);
     }
 
-    // 4. Fetch + parse public key.
-    let pubkey_domain = format!("{}._domainkey.{}", header.selector, header.domain);
-    let txts = resolver.lookup_txt(&pubkey_domain).await?;
-    if txts.is_empty() {
-        return Err(DkimError::DnsPermError(format!(
-            "no TXT at {pubkey_domain}"
-        )));
-    }
-    // Pick the first record containing `p=` (most have only one).
-    let key_txt = txts
-        .iter()
-        .find(|s| s.contains("p="))
-        .ok_or_else(|| DkimError::InvalidKey("no p= tag in TXT".into()))?;
-    let key_bytes = extract_public_key(key_txt)?;
+    // 4. Fetch + parse public key. Goes through `lookup_public_key`
+    //    so cached resolvers (`CachedDkimResolver`) can short-circuit
+    //    the TXT-scan + base64 decode on hit.
+    let key_bytes = resolver
+        .lookup_public_key(&header.selector, &header.domain)
+        .await?;
 
     // 5. Compute the canonicalized signed-header block (per RFC 6376
     //    §3.7, the signed headers are emitted in the order listed by
@@ -189,7 +181,7 @@ async fn verify_one<R: DkimResolver + ?Sized>(
     // value, which would not match a valid header field"; in
     // practice both OpenDKIM and stalwart/mail-auth omit the null
     // entry from the hash input rather than emit "name:\r\n".
-    let collected = collect_signed_headers(signed_headers_raw, &header.signed_headers);
+    let collected = collect_signed_headers_borrowed(signed_headers_raw, &header.signed_headers);
     for (name, value_opt) in &collected {
         let Some(value) = value_opt else { continue };
         let canon = canonicalize_header(name, value, header.canon_header);

@@ -685,14 +685,73 @@ scans in `headers.rs` with `memchr::memchr` (for pure line-skip in
 `collect_signed_headers`) and `memchr::memchr2(b':', b'\n', ...)`
 (for the per-line colon-and-LF scan that also tracks the first
 colon). The pure-scan paths (`find_header_value/missing`) get
-the cleanest 1.79× win; `collect_signed_headers` is alloc-bound on
-the output `String::from_utf8_lossy + .to_string()` per header so
-the scan win is partly absorbed.
+the cleanest 1.79× win; `collect_signed_headers` was alloc-bound
+on the output `String::from_utf8_lossy + .to_string()` per header
+so the scan win there was partly absorbed (resolved in ckpt 8.1
+below).
 
-Bench coverage extended from 5 ops (parse + canon) to **11 ops** —
-3 `collect_signed_headers` shapes + 3 `find_header_value` shapes
-added. Previously this was a prod-hot-but-not-benched gap (same
-pattern as the section extractors in `imap-format` ckpt 7).
+**v4 ckpt 8.1** (2026-06-03): three layered improvements after the
+ckpt 8 memchr base shipped:
+
+1. **canon.rs `relax_body` memchr-anchored chunked extend** —
+   replaced the upfront `Vec<&[u8]>` line split + per-byte WSP
+   collapse loop with a `memchr(\n)` line walk + `memchr2(' ',
+   '\t')` next-WSP anchor + `extend_from_slice` for the clean
+   runs between WSP anchors. Wins (3-run median):
+
+   - `canon_body/relaxed` (~40 B input): 369 ns → **111 ns** (3.3×)
+   - `canon_body/relaxed/1kb`: 3.10 µs → **1.20 µs** (2.6×)
+   - `canon_body/relaxed/5kb`: 10.97 µs → **8.88 µs** (1.24×)
+   - `canon_body/relaxed/50kb`: 87.4 µs → **61.7 µs** (1.42×)
+
+   Big inputs are memcpy-bound (the `extend_from_slice` is the
+   floor), small inputs were dominated by per-line `Vec` setup so
+   they get the biggest relative win.
+
+2. **`CachedDkimResolver<R>` — parsed-key cache** in
+   `crates/dkim/src/resolver.rs`. Wraps any `DkimResolver` and
+   caches the post-`extract_public_key` byte string per
+   `(selector, domain)` with a 5-minute TTL and 512-entry
+   capacity. Adds a default-impl `lookup_public_key()` method on
+   the `DkimResolver` trait so the verifier hot path
+   (`verifier::verify_one`) calls the resolver once for the
+   already-extracted bytes; cached resolvers short-circuit. On a
+   hit the per-message cost drops from `lookup_txt + base64
+   decode + DER strip + (aws-lc-rs ASN.1 parse during verify)` to
+   `Arc::clone`. Inbound traffic to mailrs is heavily skewed
+   toward a handful of high-volume senders (Gmail, Microsoft,
+   mailing-list forwarders) so the steady-state hit rate is
+   expected to be very high — practical win is hot-path latency,
+   not throughput peak. **No breaking change** — the default
+   trait method preserves existing `DkimResolver` implementations.
+
+3. **`collect_signed_headers_borrowed` — zero-alloc occurrence walk**.
+   New `pub fn` that returns `Vec<(&str, Option<&str>)>` borrowing
+   into `headers_raw` (values) and `names` (names). Internal
+   callers (`sign::sign` + `verifier::verify_one`) switched to
+   the borrowed variant. Old `pub fn collect_signed_headers` →
+   `Vec<(String, Option<String>)>` is kept as a thin wrapper for
+   downstream API stability — also benefits because the walk no
+   longer per-occurrence String-clones. Wins (3-run median):
+
+   | n_headers | owned (wrapper) | borrowed (hot path) | vs ckpt 8 owned |
+   |---|---:|---:|---:|
+   | 10 | 449 ns | **231 ns** | 4.3× vs 986 ns (ckpt 8) |
+   | 30 | 779 ns | **561 ns** | 3.8× vs 2.11 µs |
+   | 60 | 1.35 µs | **1.08 µs** | 3.4× vs 3.72 µs |
+
+   Bench coverage: 11 ops → 17 ops (canon_body 3 sizes added;
+   collect_signed_headers split owned vs borrowed × 3 sizes).
+
+Combined ckpt 8 + 8.1 effect on the per-DKIM-sign hot path:
+- header walk (`collect_signed_headers_borrowed/60`): 3.72 µs →
+  **1.08 µs** (3.4×) — the alloc-bound floor from ckpt 8 was
+  resolved by Phase C borrowed API
+- body canon (`canon_body/relaxed/5kb`): 10.97 µs → **8.88 µs**
+  (1.24×) — memcpy-bound at the floor
+- public-key verify lookup (`CachedDkimResolver` hit): ~10-100 µs
+  → `Arc::clone` — order-of-magnitude on hit rate, prod-realistic
+  drop given the few-senders-dominate inbound shape
 
 Caveat: the 2.0 break changes pub field types
 (`String` → `CompactString`). Most call sites compile unchanged

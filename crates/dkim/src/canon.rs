@@ -85,63 +85,71 @@ pub fn canonicalize_header(name: &str, value: &str, canon: Canon) -> Vec<u8> {
 /// Apply relaxed body canon transforms PER LINE: WSP run → single SP,
 /// strip trailing WSP. Then trailing-CRLF collapse is applied
 /// separately by [`canonicalize_body`].
+///
+/// memchr-anchored: scans for `\n` to delimit lines and for `' '|'\t'`
+/// to find the next WSP run inside a line, copying the run-between
+/// clean spans in bulk via `extend_from_slice` (memcpy). Replaces the
+/// previous nested per-byte loop + `Vec<&[u8]>` allocation that
+/// `split_lines_keep_crlf` did upfront.
 fn relax_body(input: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(input.len());
-    // Split on LF (preserving CRLF intent). We iterate byte-by-byte.
-    let lines: Vec<&[u8]> = split_lines_keep_crlf(input);
-    for line in lines {
-        // Strip trailing CRLF for processing
-        let (content, had_crlf) = strip_trailing_crlf(line);
-        // Collapse WSP runs, strip trailing WSP
-        let mut prev_wsp = false;
-        let mut buf = Vec::with_capacity(content.len());
-        for &b in content {
-            if b == b' ' || b == b'\t' {
-                if !prev_wsp {
-                    buf.push(b' ');
-                    prev_wsp = true;
+    let mut pos = 0;
+    while pos < input.len() {
+        // Find the line end (LF). content_end is the byte after the
+        // last content byte (excludes any \r\n or \n terminator).
+        let lf_opt = memchr::memchr(b'\n', &input[pos..]).map(|o| pos + o);
+        let (content_end, after_line, had_crlf) = match lf_opt {
+            Some(lf) => {
+                let ce = if lf > pos && input[lf - 1] == b'\r' {
+                    lf - 1
+                } else {
+                    lf
+                };
+                (ce, lf + 1, true)
+            }
+            None => (input.len(), input.len(), false),
+        };
+
+        // Collapse WSP runs to a single space. Walk the content using
+        // memchr2 to anchor on the next WSP, copying the clean run
+        // before it as one memcpy.
+        let line_start_in_out = out.len();
+        let mut cur = pos;
+        while cur < content_end {
+            match memchr::memchr2(b' ', b'\t', &input[cur..content_end]) {
+                None => {
+                    out.extend_from_slice(&input[cur..content_end]);
+                    break;
                 }
-            } else {
-                buf.push(b);
-                prev_wsp = false;
+                Some(off) => {
+                    let wsp_pos = cur + off;
+                    out.extend_from_slice(&input[cur..wsp_pos]);
+                    out.push(b' ');
+                    // Skip the WSP run.
+                    let mut next = wsp_pos + 1;
+                    while next < content_end && matches!(input[next], b' ' | b'\t') {
+                        next += 1;
+                    }
+                    cur = next;
+                }
             }
         }
-        while matches!(buf.last(), Some(b' ') | Some(b'\t')) {
-            buf.pop();
+
+        // Strip trailing WSP from this line's region in `out`.
+        while out.len() > line_start_in_out
+            && matches!(out[out.len() - 1], b' ' | b'\t')
+        {
+            out.pop();
         }
-        out.extend_from_slice(&buf);
+
+        // Emit CRLF if the input line had any line terminator (\r\n
+        // or bare \n).
         if had_crlf {
             out.extend_from_slice(b"\r\n");
         }
+        pos = after_line;
     }
     out
-}
-
-fn split_lines_keep_crlf(input: &[u8]) -> Vec<&[u8]> {
-    let mut out = Vec::new();
-    let mut start = 0;
-    let mut i = 0;
-    while i < input.len() {
-        if input[i] == b'\n' {
-            out.push(&input[start..=i]);
-            start = i + 1;
-        }
-        i += 1;
-    }
-    if start < input.len() {
-        out.push(&input[start..]);
-    }
-    out
-}
-
-fn strip_trailing_crlf(line: &[u8]) -> (&[u8], bool) {
-    if line.ends_with(b"\r\n") {
-        (&line[..line.len() - 2], true)
-    } else if line.ends_with(b"\n") {
-        (&line[..line.len() - 1], true)
-    } else {
-        (line, false)
-    }
 }
 
 /// Drop trailing empty lines, ensure exactly one terminating CRLF.

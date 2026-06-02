@@ -179,9 +179,38 @@ pub fn find_header_value<'a>(headers: &'a [u8], name: &str) -> Option<&'a str> {
 /// always return the same header for both `h=` entries and miscompute
 /// the signed-header block.
 pub fn collect_signed_headers(headers_raw: &[u8], names: &[String]) -> Vec<(String, Option<String>)> {
-    // 1. Walk headers top-down, recording (lowercase name, value-slice)
-    //    for each header line (including folded continuations).
-    let mut occurrences: Vec<(String, String)> = Vec::new();
+    // Thin owned-result wrapper over the borrowing implementation
+    // for external API stability — internal call sites (`sign::sign`,
+    // `verifier::verify_one`) call `collect_signed_headers_borrowed`
+    // directly to skip the per-occurrence String clones.
+    collect_signed_headers_borrowed(headers_raw, names)
+        .into_iter()
+        .map(|(n, v)| (n.to_string(), v.map(|s| s.to_string())))
+        .collect()
+}
+
+/// Zero-alloc-per-occurrence variant of [`collect_signed_headers`]:
+/// the returned slices borrow from `headers_raw` (values) and from
+/// `names` (the returned names mirror what the caller asked for, so
+/// they live as long as `names`).
+///
+/// This is the actual hot-path implementation; the owned variant is
+/// kept as a thin wrapper for downstream API stability.
+///
+/// Behaviour identical to [`collect_signed_headers`] including the
+/// RFC 6376 §5.4.2 bottom-up consumption: repeated `h=From:From`
+/// entries each consume one fresh occurrence, and an entry with no
+/// matching unconsumed occurrence returns `None` (the caller MUST
+/// skip it from the hash input — emitting a null `name:\r\n` would
+/// corrupt the signature on the verify side).
+pub fn collect_signed_headers_borrowed<'a, 'n>(
+    headers_raw: &'a [u8],
+    names: &'n [String],
+) -> Vec<(&'n str, Option<&'a str>)> {
+    // 1. Walk headers top-down, recording (name_slice, value_slice)
+    //    per occurrence as byte ranges into `headers_raw`. Pointer +
+    //    length only — no String allocation, no copy.
+    let mut occurrences: Vec<(&'a [u8], &'a [u8])> = Vec::with_capacity(32);
     let mut i = 0;
     while i < headers_raw.len() {
         let line_start = i;
@@ -238,32 +267,30 @@ pub fn collect_signed_headers(headers_raw: &[u8], names: &[String]) -> Vec<(Stri
                     i += 1;
                 }
             }
-            let name = std::str::from_utf8(&headers_raw[line_start..colon_pos])
-                .unwrap_or("")
-                .to_ascii_lowercase();
-            let value = std::str::from_utf8(&headers_raw[colon_pos + 1..value_end])
-                .unwrap_or("")
-                .to_string();
-            occurrences.push((name, value));
+            let name_bytes = &headers_raw[line_start..colon_pos];
+            let value_bytes = &headers_raw[colon_pos + 1..value_end];
+            occurrences.push((name_bytes, value_bytes));
         }
         // Lines without a colon (e.g. accidental whitespace lines) get skipped.
     }
 
     // 2. For each requested name (in h= order), consume the next
-    //    unconsumed bottom-up occurrence.
+    //    unconsumed bottom-up occurrence. Comparison is byte-level
+    //    case-insensitive — avoids the `to_ascii_lowercase()` String
+    //    allocation per requested name + per occurrence.
     let mut consumed = vec![false; occurrences.len()];
     let mut result = Vec::with_capacity(names.len());
     for name in names {
-        let name_lower = name.to_ascii_lowercase();
-        let mut found: Option<String> = None;
+        let name_bytes = name.as_bytes();
+        let mut found_value: Option<&'a str> = None;
         for idx in (0..occurrences.len()).rev() {
-            if !consumed[idx] && occurrences[idx].0 == name_lower {
+            if !consumed[idx] && occurrences[idx].0.eq_ignore_ascii_case(name_bytes) {
                 consumed[idx] = true;
-                found = Some(occurrences[idx].1.clone());
+                found_value = std::str::from_utf8(occurrences[idx].1).ok();
                 break;
             }
         }
-        result.push((name.clone(), found));
+        result.push((name.as_str(), found_value));
     }
     result
 }

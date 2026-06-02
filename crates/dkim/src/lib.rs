@@ -23,7 +23,7 @@ pub mod verifier;
 pub use crypto::RsaSigningKey;
 pub use error::{DkimError, DkimResult};
 pub use header::{Algorithm, Canon, DkimHeader};
-pub use resolver::DkimResolver;
+pub use resolver::{CachedDkimResolver, DkimResolver};
 pub use sign::{DkimSigningKey, SignOpts, sign};
 pub use verifier::{SignatureOutput, verify, verify_all};
 
