@@ -47,6 +47,28 @@ fn bench_canonicalize_body_relaxed(c: &mut Criterion) {
             black_box(r)
         });
     });
+
+    // Larger-input shapes: every outbound DKIM sign runs body canon
+    // over the full message body. The win above (40 B input) is
+    // dominated by Vec setup; this is the realistic shape.
+    let mut group = c.benchmark_group("canon_body/relaxed");
+    for &kb in &[1usize, 5, 50] {
+        let mut payload = Vec::with_capacity(kb * 1024);
+        while payload.len() < kb * 1024 {
+            payload.extend_from_slice(
+                b"This is  a body  line\twith\tsome    interior wsp  \r\n",
+            );
+        }
+        payload.truncate(kb * 1024);
+        group.throughput(criterion::Throughput::Bytes(payload.len() as u64));
+        group.bench_function(format!("{}kb", kb), |b| {
+            b.iter(|| {
+                let r = canonicalize_body(black_box(&payload), Canon::Relaxed, None);
+                black_box(r);
+            });
+        });
+    }
+    group.finish();
 }
 
 fn bench_canonicalize_header_relaxed(c: &mut Criterion) {
@@ -91,7 +113,7 @@ fn build_header_block(n_filler: usize) -> Vec<u8> {
 }
 
 fn bench_collect_signed_headers(c: &mut Criterion) {
-    use mailrs_dkim::headers::collect_signed_headers;
+    use mailrs_dkim::headers::{collect_signed_headers, collect_signed_headers_borrowed};
     // Standard DKIM `h=` list — the canonical 5 sign-mandatory + a
     // few extras the canonical mailrs config asks for.
     let names: Vec<String> = ["From", "To", "Subject", "Date", "Message-ID"]
@@ -101,9 +123,20 @@ fn bench_collect_signed_headers(c: &mut Criterion) {
     let mut group = c.benchmark_group("collect_signed_headers");
     for &n_filler in &[0usize, 20, 50] {
         let headers = build_header_block(n_filler);
-        group.bench_function(format!("n_headers_{}", 10 + n_filler), |b| {
+        // Owned variant (back-compat wrapper)
+        group.bench_function(format!("owned/n_headers_{}", 10 + n_filler), |b| {
             b.iter(|| {
                 let r = collect_signed_headers(black_box(&headers), black_box(&names));
+                black_box(r);
+            });
+        });
+        // Borrowed variant (zero-alloc, internal hot path)
+        group.bench_function(format!("borrowed/n_headers_{}", 10 + n_filler), |b| {
+            b.iter(|| {
+                let r = collect_signed_headers_borrowed(
+                    black_box(&headers),
+                    black_box(&names),
+                );
                 black_box(r);
             });
         });
