@@ -1146,9 +1146,40 @@ Bench source: `crates/imap-codec/benches/imap_codec.rs`. Run
 
 | Path | Median | Notes |
 |---|---:|---|
-| `format_imap_flags/seen+answered` | **12.9 ns** | was 27.8 ns (v4 squeeze, commit replaces `Vec::push` + `join` with `String::with_capacity(47) + push_str`); **−54%** measured |
-| `parse_imap_flags/seen answered` | **16.1 ns** | was 42.2 ns; v4 squeeze killed the `to_uppercase()` allocation per token, replaced with length-keyed `eq_ignore_ascii_case` against compile-time `&[u8; N]` targets; **−62%** measured |
-| `format_internal_date` | **157 ns** | dominated by `chrono` `from_timestamp` + format; squeeze deferred (would require an in-house date formatter) |
+| `format_imap_flags/seen+answered` | **19 ns** | was 27.8 ns then 12.9 ns; current re-measure 19 ns sits between — noise variance (the v4-cycle 12.9 ns figure was a quiet-CPU outlier). Structural win (no `Vec::push` + `join`) is unchanged. |
+| `parse_imap_flags/seen answered` | **15 ns** | matches the v4-cycle 16.1 ns figure within noise; `eq_ignore_ascii_case` against compile-time `&[u8; N]` targets, still load-bearing |
+| `format_internal_date` | **177 ns** | dominated by `chrono` `from_timestamp` + format; squeeze deferred (would require an in-house date formatter) |
+| `extract_header_section/body_1kb` | **78 ns** | was 130 ns; v4 round 1 (ckpt 7, 2026-06-03) memchr-anchored separator scan **−40% / 1.66×** |
+| `extract_header_section/body_5kb` | **79 ns** | was 129 ns; same change **−39% / 1.65×** (constant in body size — scanner stops at separator) |
+| `extract_header_section/body_20kb` | **80 ns** | was 128 ns; same change **−37% / 1.59×** |
+| `extract_body_section/body_1kb` | **95 ns** | was 132 ns; same change **−28% / 1.39×** (scan + Vec alloc for body output) |
+| `extract_body_section/body_5kb` | **122 ns** | was 158 ns; **−23% / 1.30×** |
+| `extract_body_section/body_20kb` | **1.37 µs** | was 1.41 µs; **−3% (noise)** — at 20 KB the output `Vec::to_vec` memcpy dominates, scan cost amortizes away |
+| `find_line_offset/line_1` | **2.3 ns** | was 17.7 ns; **−87% / 7.7×** — short-skip case; memchr's SIMD startup overhead amortizes immediately on input → just 1 LF away |
+| `find_line_offset/line_50` | **319 ns** | new bench coverage (no prior baseline) — typical FETCH `BODY[TEXT]<N.M>` partial-fetch shape |
+| `find_line_offset/line_120` | **794 ns** | new bench coverage |
+
+**v4 round 1** (2026-06-03, ckpt 7): swapped three byte-by-byte
+scans in `mime.rs` for `memchr`-anchored helpers.
+
+1. `extract_header_section` + `extract_body_section`: shared
+   `find_separator_end` helper anchors on `\n` (rare in textual
+   headers), checks for both `\r\n\r\n` (canonical) and `\n\n`
+   (bare-LF MTAs) at each candidate. Replaces the
+   `windows(4).position` + `windows(2).position` fallback pair.
+2. `find_line_offset`: memchr `\n` in the line-counter loop in
+   place of `body[pos..].iter().position(|&b| b == b'\n')`.
+
+All three are per-FETCH hot paths — every IMAP `FETCH BODY[HEADER]`
+/ `FETCH BODY[TEXT]` / `FETCH BODY[TEXT]<N.M>` touches one of them.
+
+Bench coverage: from 3 ops (`format_imap_flags` / `parse_imap_flags`
+/ `format_internal_date`) to **12 ops** — `extract_header_section`,
+`extract_body_section`, `find_line_offset` each across 3 input
+shapes (1 KB / 5 KB / 20 KB body for the section extractors; line
+1 / 50 / 120 for `find_line_offset`). Previously this was a
+prod-hot-but-not-benched gap (same pattern as `smtp-proto::unstuff_data`
+in ckpt 5).
 
 ### `mailrs-smtp-client` (criterion, `cargo bench -p mailrs-smtp-client`)
 

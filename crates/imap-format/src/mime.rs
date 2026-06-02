@@ -37,25 +37,46 @@ pub fn extract_header_fields(data: &[u8], fields: &[String]) -> Vec<u8> {
     result
 }
 
+/// Find the end of the header section: returns the byte offset
+/// **after** the last byte of the header/body separator (so the
+/// header occupies `[..end]` and the body occupies `[end..]`).
+///
+/// Recognises `\r\n\r\n` (canonical) and `\n\n` (bare-LF MTAs).
+/// Anchors on `\n` via memchr — LF is rare in textual headers so
+/// the SIMD scan jumps over the bulk of the input. Replaces the
+/// previous `windows(4).position` / `windows(2).position` scans
+/// (per-byte loop) and is the hot path for every IMAP
+/// `FETCH BODY[HEADER]` / `FETCH BODY[TEXT]`.
+fn find_separator_end(data: &[u8]) -> Option<usize> {
+    let mut search = 0;
+    while let Some(rel) = memchr::memchr(b'\n', &data[search..]) {
+        let pos = search + rel;
+        // CRLF CRLF — pos is the second LF, [pos-3..=pos] == \r\n\r\n
+        if pos >= 3 && &data[pos - 3..=pos] == b"\r\n\r\n" {
+            return Some(pos + 1);
+        }
+        // LF LF — pos is the second LF, previous byte also LF
+        if pos >= 1 && data[pos - 1] == b'\n' {
+            return Some(pos + 1);
+        }
+        search = pos + 1;
+    }
+    None
+}
+
 /// extract header section from raw message (up to \r\n\r\n)
 pub fn extract_header_section(data: &[u8]) -> Vec<u8> {
-    if let Some(pos) = data.windows(4).position(|w| w == b"\r\n\r\n") {
-        data[..pos + 4].to_vec()
-    } else if let Some(pos) = data.windows(2).position(|w| w == b"\n\n") {
-        data[..pos + 2].to_vec()
-    } else {
-        data.to_vec()
+    match find_separator_end(data) {
+        Some(end) => data[..end].to_vec(),
+        None => data.to_vec(),
     }
 }
 
 /// extract body section from raw message (after \r\n\r\n)
 pub fn extract_body_section(data: &[u8]) -> Vec<u8> {
-    if let Some(pos) = data.windows(4).position(|w| w == b"\r\n\r\n") {
-        data[pos + 4..].to_vec()
-    } else if let Some(pos) = data.windows(2).position(|w| w == b"\n\n") {
-        data[pos + 2..].to_vec()
-    } else {
-        Vec::new()
+    match find_separator_end(data) {
+        Some(end) => data[end..].to_vec(),
+        None => Vec::new(),
     }
 }
 
@@ -281,7 +302,10 @@ pub fn split_mime_parts<'a>(body: &'a [u8], boundary: &str) -> Vec<&'a [u8]> {
     parts
 }
 
-/// find byte offset of line number in body
+/// find byte offset of line number in body. Each LF advances the
+/// line counter; the returned offset is the byte immediately after
+/// the LF (i.e. the first byte of the next line). memchr replaces
+/// the previous byte-by-byte `iter().position` scan.
 pub fn find_line_offset(body: &[u8], target_line: usize) -> Option<usize> {
     let mut line_num = 0;
     let mut pos = 0;
@@ -289,10 +313,9 @@ pub fn find_line_offset(body: &[u8], target_line: usize) -> Option<usize> {
         if line_num == target_line {
             return Some(pos);
         }
-        if let Some(nl) = body[pos..].iter().position(|&b| b == b'\n') {
-            pos = pos + nl + 1;
-        } else {
-            pos = body.len();
+        match memchr::memchr(b'\n', &body[pos..]) {
+            Some(nl) => pos = pos + nl + 1,
+            None => pos = body.len(),
         }
         line_num += 1;
     }
