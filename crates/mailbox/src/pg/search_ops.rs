@@ -20,9 +20,9 @@ impl PgMailboxStore {
         let (user_filter, user_binds) = build_user_filter(user, domains, param_idx);
         param_idx += user_binds.len() as u32;
 
-        // two query params: raw query for tsvector, %pattern% for ILIKE
-        let tsquery_idx = param_idx;
-        param_idx += 1;
+        // one query param: %pattern% for ILIKE (tsvector branch dropped in
+        // Phase D-pre #1 — SPG has no tsvector type; PG fallback search keeps
+        // working via trigram + ILIKE, just without ts_rank relevance order)
         let pattern_idx = param_idx;
         param_idx += 1;
         let limit_idx = param_idx;
@@ -34,31 +34,23 @@ impl PgMailboxStore {
             String::new()
         };
 
-        // perf (perfs/topic-06): the previous shape was one big WHERE-clause
-        // OR-chain across 5 ILIKE columns + tsvector + EXISTS. PG can't
-        // combine that into a BitmapOr so it fell back to scanning every
-        // row of the user's messages — 575 ms on the lihao@golia.jp mailbox.
+        // perf (perfs/topic-06): previous shape was a huge WHERE OR-chain
+        // across 5 ILIKE columns + tsvector + EXISTS. PG can't BitmapOr that
+        // so it seq-scanned every row of the user's mailbox — 575 ms on
+        // lihao@golia.jp.
         //
-        // two changes make it use every available index:
-        //   1. a CTE with one branch per column, joined by UNION. each
-        //      branch matches a single index (idx_messages_search_vector
-        //      gin tsvector, idx_messages_*_trgm gin trigram, the
-        //      attachment_content seq scan).
-        //   2. each ILIKE branch repeats the partial index's WHERE
-        //      condition (`subject IS NOT NULL AND subject != ''` etc.)
-        //      so PG can prove the row qualifies for the partial index
-        //      and uses Bitmap Index Scan instead of Seq Scan.
-        // result on prod: 575 ms -> 45 ms (-92%) for q=invoice.
-        // hit any message in a thread → surface the whole thread. The first
-        // CTE finds the matching message ids; the second walks those threads
-        // back out so the GROUP BY at the bottom of the query sees every
-        // message in the thread (not just the matched one). Without this,
-        // search results showed a thread with message_count=1 / snippet from
-        // only the matched message and the user lost the conversation context.
+        // CTE with one branch per column joined by UNION lets each branch
+        // hit its own index (idx_messages_*_trgm trigram, attachment_content
+        // seq scan). Each ILIKE branch repeats the partial index's WHERE
+        // (`subject IS NOT NULL AND subject != ''` etc.) so PG proves the
+        // row qualifies for the partial index → Bitmap Index Scan.
+        //
+        // Phase D-pre #1 dropped the `search_vector @@` branch; remaining
+        // branches still hit BitmapOr-mergeable trigram indices. Prod search
+        // primary path is Meilisearch; PG path is fallback only.
         let search_filter = format!(
             "WITH matched AS (
-               SELECT id FROM messages WHERE search_vector @@ plainto_tsquery('simple', ${tsquery_idx})
-               UNION SELECT id FROM messages WHERE subject IS NOT NULL AND subject != '' AND subject ILIKE ${pattern_idx}
+               SELECT id FROM messages WHERE subject IS NOT NULL AND subject != '' AND subject ILIKE ${pattern_idx}
                UNION SELECT id FROM messages WHERE sender IS NOT NULL AND sender != '' AND sender ILIKE ${pattern_idx}
                UNION SELECT id FROM messages WHERE recipients IS NOT NULL AND recipients != '' AND recipients ILIKE ${pattern_idx}
                UNION SELECT id FROM messages WHERE text_body IS NOT NULL AND text_body != '' AND text_body ILIKE ${pattern_idx}
@@ -72,12 +64,8 @@ impl PgMailboxStore {
              )"
         );
 
-        // order by relevance (ts_rank) when tsvector matches, else by date
-        let order_expr = format!(
-            "MAX(CASE WHEN m.search_vector @@ plainto_tsquery('simple', ${tsquery_idx}) \
-             THEN ts_rank(m.search_vector, plainto_tsquery('simple', ${tsquery_idx})) ELSE 0 END) DESC, \
-             MAX(m.internal_date) DESC"
-        );
+        // Relevance order via ts_rank is gone with tsvector; date-only order.
+        let order_expr = "MAX(m.internal_date) DESC".to_string();
 
         let sql = format!(
             "{search_filter}
@@ -147,7 +135,8 @@ impl PgMailboxStore {
             q = q.bind(b);
         }
 
-        q = q.bind(query).bind(&pattern).bind(limit as i64);
+        // tsquery bind dropped — only pattern + limit remain after Phase D-pre #1
+        q = q.bind(&pattern).bind(limit as i64);
 
         if let Some(cat) = category {
             q = q.bind(cat);

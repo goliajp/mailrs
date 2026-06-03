@@ -113,9 +113,13 @@ impl PgMailboxStore {
         if let Some(t) = text
             && !t.is_empty()
         {
+            // PG search is the fallback path (main is Meilisearch). Earlier
+            // shape had a `search_vector @@ plainto_tsquery(...)` branch but
+            // tsvector is dropped in the SPG migration (Phase D-pre #1) — SPG
+            // has no tsvector type. Trigram + ILIKE on subject/sender keeps
+            // both PG and SPG fallback path identical.
             conditions.push(format!(
-                "(m.search_vector @@ plainto_tsquery('simple', ${param_idx}) \
-                     OR m.subject ILIKE ${param_idx} OR m.sender ILIKE ${param_idx})"
+                "(m.subject ILIKE ${param_idx} OR m.sender ILIKE ${param_idx})"
             ));
             text_bind = Some(format!(
                 "%{}%",
