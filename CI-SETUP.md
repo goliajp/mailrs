@@ -40,12 +40,15 @@ Three checkpoints, each one explicit Go/No-Go.
 
 ### v5.0 → v5.1 — workflows land + dry-run
 
-- [ ] `.github/workflows/test.yml` runs on every PR + push (green)
-- [ ] `.github/workflows/release.yml` triggers on a dry-run tag
-      (`vX.Y.Z-rc1`, gate via `prerelease: true`)
-- [ ] Manual `docker pull ghcr.io/<org>/mailrs:<rc-tag>` works from a
+- [x] `.github/workflows/test.yml` runs on every PR + push (green) — first
+      green at commit `564f1fe` (2026-05-25); after v4 fmt-drift fix at
+      `8d43db0` (2026-06-03) the gate is clean again
+- [x] `.github/workflows/release.yml` triggers on a dry-run tag — every
+      `v1.7.x` push since v1.7.32 triggers it; latest 7 runs (v1.7.81-87)
+      all green
+- [x] Manual `docker pull ghcr.io/goliajp/mailrs:<tag>` works from a
       clean machine
-- [ ] **No prod cutover yet.** `scripts/release.sh` keeps deploying.
+- [x] **No prod cutover yet.** `scripts/release.sh` keeps deploying.
 
 ### v5.1 → v5.2 — prod runs CI image side-by-side
 
@@ -65,6 +68,39 @@ Three checkpoints, each one explicit Go/No-Go.
 - [ ] After 3 release cycles with zero rollbacks: retire
       `scripts/release.sh` (rename to `scripts/release-legacy.sh`,
       keep one cycle for archival, then delete)
+
+## `release.sh --ci` mode (added 2026-06-03)
+
+`scripts/release.sh --ci` skips the local `scripts/deploy.sh` call and
+goes straight to `commit + tag + push`. CI (`release.yml`) then runs
+its own test + web gate and pushes the ghcr image. The intent is to
+become the default ship command once v5.2 → v5.3 prod flip lands.
+
+**Today's caveat**: `--ci` does **not update prod**. The push of tag
+`v$VERSION` produces a green CI run + fresh ghcr image, but
+`mail.golia.ai` keeps running whatever was last deployed via plain
+`scripts/release.sh`. To bring prod forward after a `--ci` release:
+
+```bash
+ssh "$SSH_HOST" "docker pull ghcr.io/goliajp/mailrs:$VERSION \
+                 && docker compose -f docker-compose.prod.yml up -d"
+```
+
+Or use the no-arg `scripts/release.sh` for a single-step ship that
+keeps prod in lock-step with the local tag.
+
+Flag combinations:
+
+| Invocation | Local test | Local deploy | Tag + push |
+|---|---|---|---|
+| `release.sh` (no flag) | yes | ssh upload + restart | yes |
+| `release.sh --web-only` | web only | web assets only | yes |
+| `release.sh --ci` | yes | **skipped** | yes (CI builds image) |
+| `release.sh --ci --web-only` | — | — | **error** (mutually exclusive) |
+
+`--ci` is meant for the shadow-run / pre-cutover period — use it when
+you want CI to gate + publish the image but don't want to touch prod
+state on the local machine.
 
 ## Anti-footguns
 
