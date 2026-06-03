@@ -29,7 +29,7 @@ RUN bun run build
 FROM debian:trixie-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl \
+    ca-certificates curl libcap2-bin \
     && rm -rf /var/lib/apt/lists/*
 
 # run as non-root user with EXPLICIT UID/GID 10001 so prod can chown
@@ -42,6 +42,13 @@ RUN groupadd -r -g 10001 mailrs && useradd -r -u 10001 -g mailrs -d /data -s /sb
 
 COPY --from=rust-builder /usr/local/bin/mailrs-server /usr/local/bin/mailrs-server
 COPY --from=web-builder /build/dist /opt/mailrs/web
+
+# Grant the binary capability to bind privileged ports (< 1024) so it
+# can listen on 25 / 110 / 143 / 465 / 587 / 993 / 995 while running as
+# the non-root mailrs user. Without this, mailrs's bind fallback shifts
+# every privileged listener to <port+1000> (e.g. SMTP 25 → 1025) and
+# external mail traffic stops landing. Discovered in v1.7.91 cutover.
+RUN setcap 'cap_net_bind_service=+ep' /usr/local/bin/mailrs-server
 
 # create data directories with correct ownership
 RUN mkdir -p /data/maildir /data/acme /certs && chown -R mailrs:mailrs /data
