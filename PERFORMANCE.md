@@ -1719,6 +1719,23 @@ amortises poorly on inputs near the SIMD vector width.
 
 Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
 
+### `mailrs-attachment-extract` (criterion, `cargo bench -p mailrs-attachment-extract`)
+
+3-run honest medians, v4 ckpt 22 (2026-06-03):
+
+| Path | Median | Notes |
+|---|---:|---|
+| `extraction_method/text_plain` | **18.9 ns** | Content-Type byte-match dispatch; was claimed 27 ns — real is ~30 % faster |
+| `extraction_method/application_pdf` | **24.3 ns** | same dispatch path; was claimed 45 ns — real is ~46 % faster |
+
+**v4 ckpt 22** (2026-06-03): Case A verified — `grep iter().position` /
+`.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The crate is a single 346-line `lib.rs` whose only
+job is dispatching by `Content-Type` to the right extractor crate
+(`pdf-extract` / `tesseract` / `html2text` / etc.). The benched
+ops are pure dispatch lookup at the criterion noise floor; actual
+extraction wall-clock is delegated work and not in scope here.
+
 ### `mailrs-intelligence` (criterion, `cargo bench -p mailrs-intelligence`)
 
 3-run honest medians, v4 ckpt 21 (2026-06-03):
