@@ -1356,14 +1356,27 @@ batch-fsync optimization already gives the structural win at scale.
 
 ### `mailrs-mailbox` (criterion, `cargo bench -p mailrs-mailbox`)
 
+Re-measured v4 ckpt 14 (2026-06-03), 3-run honest medians:
+
 | Path | Median | Notes |
 |---|---:|---|
-| `add_flags` hot path | **~55 ns** | DashMap entry update |
-| `extract_message_id(short header)` | **54 ns** | was ~150 ns; v4 squeeze replaced `String::from_utf8_lossy(data).lines()` with a byte-level memchr scan that stops at the first blank line — skips full UTF-8 validation + avoids cloning the whole message; **−64%** measured |
-| `extract_message_id(long real-world header)` | **123 ns** | 20+ header lines, still bounded by line count not body length |
-| `extract_in_reply_to(short / long)` | **61 / 133 ns** | same path as message_id |
-| `normalize_message_id` | **~8 ns** | `<…>` strip |
-| `query_messages text-match 1k msg` | **~120 µs** | fixture-impl (clones full Message rows — PG impl pushes work into SQL; see README §"Performance") |
+| `add_flags` hot path | **52 ns** | DashMap entry update |
+| `extract_message_id(short header)` | **59 ns** | was ~150 ns pre-v4; memchr-anchored byte-level header walk replaced `from_utf8_lossy(data).lines()` |
+| `extract_message_id(long header)` | **123 ns** | 20+ header lines; bounded by header count not body length |
+| `mailbox_status` (1k messages) | **468 ns** | fixture-impl walks DashMap; PG impl pushes into SQL |
+| `insert_message/first_insert` | **288 ns** | fixture insert + DashMap update |
+| `insert_message/into_1k_mailbox` | **63 µs** | fixture cost — clones Message rows |
+| `query_messages/by_mailbox_first_50` | **164 µs** | fixture cost — see PG comparison in README |
+| `query_messages/text_match_1k` | **150 µs** | same — fixture-only; PG impl pushes search into SQL `WHERE` clause |
+
+**v4 ckpt 14** (2026-06-03): Case A verified — `grep iter().position` /
+`.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The crate is 7k LOC but ~90 % of it is the PG impl
+(7 `pg_*` submodules) — those are SQL queries and bind clauses, no
+memchr territory. The remaining hot path is `threading::extract_header_value`
+which has been memchr-anchored since the original v4 squeeze cycle.
+Numbers in this table re-confirmed 3-run; the prior `~55 ns` and
+`~120 µs` rounded values match 3-run honest within noise.
 
 ### `mailrs-rate-limit` (criterion, `cargo bench -p mailrs-rate-limit`)
 
