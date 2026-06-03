@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-intelligence"
-version = "1.0.2"
+version = "2.0.0"
 edition = "2024"
 description = "LLM-powered email analysis primitives: structured extraction, importance scoring, spam classification, and embeddings — with a pluggable LlmProvider trait and an OpenAI-compatible reference implementation."
 license = "Apache-2.0 OR MIT"
@@ -16,13 +16,13 @@ readme = "README.md"
 workspace = true
 
 [features]
-default = ["http", "redis-cache"]
+default = ["http", "kevy-cache"]
 # Enable the OpenAI-compatible HTTP provider (wraps reqwest). Most users
 # want this — disable only if you're plugging in your own LlmProvider impl.
 http = ["dep:reqwest"]
-# Enable the Redis-backed SpamCache reference implementation. Disable if
+# Enable the Kevy-backed SpamCache reference implementation. Disable if
 # you're plugging in your own SpamCache or running without a cache.
-redis-cache = ["dep:redis"]
+kevy-cache = ["dep:redis"]
 
 [dependencies]
 async-trait = "0.1"
@@ -35,7 +35,7 @@ tracing = "0.1"
 # http feature
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"], optional = true }
 
-# redis-cache feature
+# kevy-cache feature
 redis = { workspace = true, optional = true }
 
 [dev-dependencies]

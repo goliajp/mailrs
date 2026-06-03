@@ -1,5 +1,12 @@
 # Changelog — mailrs-mta-sts
 
+## 2.0.1 — 2026-06-03
+
+Documentation-only sync: README + `Cache` trait doc mention the in-house
+RESP-compatible KV store kevy (<https://github.com/goliajp/kevy>) as the
+default reference, replacing earlier Valkey/Redis examples. No API change;
+this is a patch so the published doc matches the mailrs ecosystem.
+
 ## 1.0.0 — 2026-05-23
 
 Initial stable release. RFC 8461 MTA-STS parsers + decision logic,

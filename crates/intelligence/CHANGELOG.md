@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-03
+
+### Changed (BREAKING)
+- Feature flag `redis-cache` renamed to `kevy-cache`. Update your `Cargo.toml`:
+  `mailrs-intelligence = { version = "2", features = ["kevy-cache"] }`.
+- Public struct `RedisSpamCache` renamed to `KevySpamCache`. Update imports:
+  `use mailrs_intelligence::spam::KevySpamCache;`.
+- Module `spam::redis_impl` renamed to `spam::kevy_impl` (re-exports still
+  flat at `spam::KevySpamCache`).
+- Documentation refers to kevy (<https://github.com/goliajp/kevy>); RESP
+  wire protocol is unchanged so `redis://` URLs still work.
+
 ## [1.0.2] - 2026-05-22
 
 ### Added

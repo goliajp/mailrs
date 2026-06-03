@@ -50,7 +50,7 @@
 //!
 //! - `http` (default) — enables [`OpenAiCompatibleProvider`], the reqwest-backed
 //!   reference [`LlmProvider`].
-//! - `redis-cache` (default) — enables [`spam::RedisSpamCache`], a Redis-backed
+//! - `kevy-cache` (default) — enables [`spam::KevySpamCache`], a Kevy-backed
 //!   [`spam::SpamCache`] implementation. Disable if you cache yourself or run
 //!   without a cache.
 //!

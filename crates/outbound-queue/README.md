@@ -14,7 +14,7 @@ Extracted from [mailrs] so any Rust MTA project can reuse the parts that are act
 ## Highlights
 
 - **Trait-pluggable store** — [`QueueStore`] + [`Notifier`] decouple delivery state from any particular backend. An [`InMemoryQueueStore`] ships in-box for tests + pilots.
-- **Postgres reference** — [`PgQueueStore`] + [`RedisNotifier`] (behind the default `pg` feature) target the schema mailrs uses, so a real production-grade queue is one constructor call away.
+- **Postgres reference** — [`PgQueueStore`] + [`KevyNotifier`] (behind the default `pg` feature) target the schema mailrs uses, so a real production-grade queue is one constructor call away.
 - **Pure primitives, no DB required** — `dkim_sign`, `dsn`, `mta_sts`, and `retry` are pure logic. Disable the `pg` feature and they all still compile and work.
 - **ARC sealing for forwarded mail** — `dkim_sign::arc_seal_message` adds an ARC chain alongside DKIM so downstream filters can trust the forwarding hop ([RFC 8617]).
 - **Bundled delivery worker** — [`DeliveryWorker`] runs the poll-and-deliver loop over MX records (with DANE TLSA enforcement via [`mailrs-smtp-client`]). PG-only in v1.0.0; a generic worker over the trait surface is planned for v2.
@@ -40,7 +40,7 @@ let id = store
     .await?;
 println!("queued message #{id}");
 
-// … or run the bundled worker (Postgres + Redis-backed) to drain the queue
+// … or run the bundled worker (Postgres + Kevy-backed) to drain the queue
 let resolver = mailrs_smtp_client::TokioResolver::builder_tokio()?.build()?;
 let worker = DeliveryWorker::new(WorkerConfig::default(), pool, resolver, "smtp.example.org".into());
 let (_tx, rx) = tokio::sync::watch::channel(false);
@@ -54,7 +54,7 @@ See [`examples/in_memory_queue.rs`](examples/in_memory_queue.rs) for a no-DB exa
 
 | Feature | Default | What it enables |
 |---------|---------|-----------------|
-| `pg`    | on      | `PgQueueStore`, `RedisNotifier`, and the bundled `DeliveryWorker`. Pulls in `sqlx` (Postgres) and `redis`. |
+| `pg`    | on      | `PgQueueStore`, `KevyNotifier`, and the bundled `DeliveryWorker`. Pulls in `sqlx` (Postgres) and `redis`. |
 
 Disable `pg` for a trait-only build:
 
@@ -74,7 +74,7 @@ In that mode you get `QueueStore` + `Notifier` + `InMemoryQueueStore` + `InMemor
 | `dsn`        | yes    | RFC 3464 / 6533 Delivery Status Notification generation. |
 | `mta_sts`    | yes    | RFC 8461 MTA-STS policy lookup. |
 | `retry`      | yes    | Backoff schedule + bounce decision. |
-| `pg_store`   | `pg`   | `PgQueueStore` + `RedisNotifier`. |
+| `pg_store`   | `pg`   | `PgQueueStore` + `KevyNotifier`. |
 | `worker`     | `pg`   | `DeliveryWorker` poll-and-deliver loop. |
 
 ## Two paths through the API

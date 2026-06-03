@@ -1,4 +1,4 @@
-//! Postgres / Redis-backed implementations of [`QueueStore`] and [`Notifier`].
+//! Postgres / Kevy-backed implementations of [`QueueStore`] and [`Notifier`].
 //!
 //! Enabled by the `pg` feature (on by default). The SQL schema this store
 //! targets is published in the [mailrs] repo (`scripts/init-schema.sql` —
@@ -166,11 +166,11 @@ impl QueueStore for PgQueueStore {
 
 /// Redis pub/sub-backed [`Notifier`] using the `queue:notify` channel.
 #[derive(Debug, Clone)]
-pub struct RedisNotifier {
+pub struct KevyNotifier {
     url: String,
 }
 
-impl RedisNotifier {
+impl KevyNotifier {
     /// Build a notifier from a connection URL (e.g.
     /// `redis://127.0.0.1:6379`). Subscribers run on a background tokio task
     /// that this struct spawns when [`wait`](Notifier::wait) is first called.
@@ -180,7 +180,7 @@ impl RedisNotifier {
 }
 
 #[async_trait::async_trait]
-impl Notifier for RedisNotifier {
+impl Notifier for KevyNotifier {
     async fn notify(&self) {
         let Ok(client) = redis::Client::open(self.url.as_str()) else {
             return;

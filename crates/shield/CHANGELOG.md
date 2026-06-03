@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-03
+
+### Changed (BREAKING)
+- Feature flag `redis-store` renamed to `kevy-store`. Update your `Cargo.toml`:
+  `mailrs-shield = { version = "2", features = ["kevy-store"] }`.
+- Internal `GreylistDb` field/parameter rename `valkey` → `kevy`. The public
+  `GreylistDb::new(conn: redis::aio::ConnectionManager, ...)` signature still
+  takes a `redis::aio::ConnectionManager` (RESP wire protocol unchanged);
+  only the parameter binding name changed, so callers using positional
+  arguments are unaffected.
+- Documentation refers to the in-house RESP-compatible KV store kevy
+  (<https://github.com/goliajp/kevy>) instead of Valkey/Redis. The
+  `redis://` URL scheme stays because it identifies the wire protocol,
+  not the backend product.
+
 ## [1.0.2] - 2026-05-22
 
 ### Added

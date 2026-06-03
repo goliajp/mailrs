@@ -3117,26 +3117,10 @@ dependencies = [
 
 [[package]]
 name = "mailrs-intelligence"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "criterion",
- "redis",
- "reqwest 0.13.3",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "mailrs-intelligence"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70f52f0d609bd1c5a09ad85bb9c26e2bb35cb0fc91695575e2608768b579d959"
-dependencies = [
- "async-trait",
  "redis",
  "reqwest 0.13.3",
  "serde",
@@ -3246,7 +3230,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-mta-sts"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "async-trait",
  "compact_str",
@@ -3256,7 +3240,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3310,7 +3294,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-rate-limit"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "async-trait",
  "criterion",
@@ -3418,7 +3402,7 @@ dependencies = [
  "mailrs-imap-format 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-imap-proto 1.0.3",
  "mailrs-inbound 1.0.5",
- "mailrs-intelligence 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-intelligence",
  "mailrs-jmap 1.1.1",
  "mailrs-mail-builder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox",
@@ -3430,7 +3414,7 @@ dependencies = [
  "mailrs-rfc2047 1.1.1",
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc5322 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-shield 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-shield",
  "mailrs-sieve",
  "mailrs-smtp-client",
  "mailrs-smtp-codec 1.0.0",
@@ -3476,7 +3460,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-shield"
-version = "1.0.4"
+version = "2.0.0"
 dependencies = [
  "criterion",
  "hickory-resolver",
@@ -3484,18 +3468,6 @@ dependencies = [
  "redis",
  "sqlx",
  "tokio",
-]
-
-[[package]]
-name = "mailrs-shield"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18cc2df9216233754d761e46bebc3e511bbd83b8a11eaee8a567cb545b466aad"
-dependencies = [
- "hickory-resolver",
- "mailrs-dnsbl 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "redis",
- "sqlx",
 ]
 
 [[package]]
