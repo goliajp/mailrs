@@ -1,5 +1,7 @@
--- mailrs PG schema
-CREATE EXTENSION IF NOT EXISTS vector;
+-- mailrs PG/SPG schema (dual-target since Phase D-pre #4)
+-- `CREATE EXTENSION vector` lives in scripts/pg-extensions.sql, mounted as
+-- /docker-entrypoint-initdb.d/00-pg-extensions.sql for the PG image only.
+-- SPG ships VECTOR(N) builtin (no extension system) and rejects CREATE EXTENSION.
 
 CREATE TABLE domains (
     name TEXT PRIMARY KEY,
@@ -111,7 +113,7 @@ CREATE TABLE dmarc_results (
 CREATE INDEX idx_dmarc_date ON dmarc_results(report_date);
 
 CREATE TABLE greylist_triplets (
-    key TEXT PRIMARY KEY,
+    triplet TEXT PRIMARY KEY,
     first_seen BIGINT NOT NULL,
     last_seen BIGINT NOT NULL
 );
@@ -166,7 +168,7 @@ CREATE TABLE email_analysis (
 );
 CREATE INDEX idx_ea_category ON email_analysis(category);
 CREATE INDEX idx_ea_embedding ON email_analysis
-    USING ivfflat (embedding vector_cosine_ops) WITH (lists = 20);
+    USING hnsw (embedding vector_cosine_ops);
 
 CREATE TABLE IF NOT EXISTS reactions (
     id BIGSERIAL PRIMARY KEY,
@@ -219,7 +221,7 @@ CREATE INDEX IF NOT EXISTS idx_webhook_outbox_pending ON webhook_outbox(status, 
 
 -- system config: runtime-editable configuration
 CREATE TABLE IF NOT EXISTS system_config (
-    key TEXT PRIMARY KEY,
+    config_key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     value_type TEXT NOT NULL DEFAULT 'string',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

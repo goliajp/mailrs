@@ -10,6 +10,7 @@ services:
       - "5432:5432"
     volumes:
       - pg-data:/var/lib/postgresql/data
+      - ./scripts/pg-extensions.sql:/docker-entrypoint-initdb.d/00-pg-extensions.sql:ro
       - ./scripts/init-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mailrs -d mailrs"]

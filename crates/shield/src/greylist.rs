@@ -145,9 +145,9 @@ mod kevy_impl {
             if let Some(ref pool) = self.pg {
                 let now_i64 = now as i64;
                 let _ = sqlx::query(
-                    "INSERT INTO greylist_triplets (key, first_seen, last_seen)
+                    "INSERT INTO greylist_triplets (triplet, first_seen, last_seen)
                      VALUES ($1, $2, $3)
-                     ON CONFLICT (key) DO UPDATE SET last_seen = $3",
+                     ON CONFLICT (triplet) DO UPDATE SET last_seen = $3",
                 )
                 .bind(key)
                 .bind(first_seen.unwrap_or(now) as i64)
