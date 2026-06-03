@@ -165,6 +165,7 @@ if [ "$WEB_ONLY" = false ]; then
     $SCP "$DEPLOY_DIR/docker-compose.yml" "$SSH_HOST:$REMOTE_DIR/docker-compose.yml"
   fi
   $SCP scripts/init-schema.sql "$SSH_HOST:$REMOTE_DIR/init-schema.sql"
+  $SCP scripts/pg-extensions.sql "$SSH_HOST:$REMOTE_DIR/pg-extensions.sql"
 
   # upload .env
   echo "==> uploading .env"
