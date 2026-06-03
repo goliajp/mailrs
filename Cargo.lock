@@ -2827,6 +2827,7 @@ name = "mailrs-arf"
 version = "1.0.0"
 dependencies = [
  "criterion",
+ "memchr",
 ]
 
 [[package]]
@@ -3337,6 +3338,7 @@ dependencies = [
  "criterion",
  "encoding_rs",
  "mail-parser",
+ "memchr",
  "proptest",
 ]
 

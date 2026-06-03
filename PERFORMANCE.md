@@ -1764,6 +1764,23 @@ Run: `cargo bench -p mailrs-auth-guard --bench guard`. The success
 path (`check` → `Allowed`) is the hot one — every legitimate login
 goes through it, two DashMap reads + no allocation.
 
+### `mailrs-arf` — RFC 5965 ARF parser (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `parse/hotmail_fbl_sample` | **~1.26 µs** |
+| `is_arf/no_marker_short` | **~26 ns** |
+
+**v4 ckpt 29** (2026-06-03): Case B — replaced
+`message.windows(MARKER.len()).any(|w| w == MARKER)` in
+`is_arf()` (cold-path FBL identification) with
+`memchr::memmem::find(message, MARKER).is_some()`. The 15-byte
+needle (`feedback-report`) is exactly where memmem's Two-Way SIMD
+wins over a per-byte sliding window. The hot-path full parse
+(`parse_arf`) is unchanged at 1.26 µs.
+
+Run: `cargo bench -p mailrs-arf --bench arf`.
+
 ### `mailrs-rfc2047` — encoded-word decoder (criterion, M-series Mac, release)
 
 | Path | Median | Notes |
@@ -1782,6 +1799,16 @@ goes through it, two DashMap reads + no allocation.
 | UTF-8 Base64 encoded | 439 ns | **110 ns** | **4.0×** |
 
 Run: `cargo bench -p mailrs-rfc2047 --bench decode`.
+
+**v4 ckpt 29** (2026-06-03): Case B — replaced
+`input.as_bytes().windows(2).any(|w| w == b"=?")` in `encode()`
+with `memchr::memmem::find(input, b"=?").is_none()`. Bench fixture
+(short ASCII) sits at the same ~21 ns floor before/after — both
+`windows(2).any` and `memmem::find` are effectively at the
+1-cmp-per-byte floor for inputs this short. The change is shipped
+for codebase-wide scan-pattern consistency and as a guard for
+longer-subject inputs in production (encode() runs on every
+outbound non-ASCII header).
 
 ### `mailrs-rfc5322` vs `mail-parser` — comparative bench
 

@@ -16,6 +16,8 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
+# SIMD memmem for the `feedback-report` cold-path identification scan.
+memchr = "2"
 
 [dev-dependencies]
 criterion = { workspace = true }

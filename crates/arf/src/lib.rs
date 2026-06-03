@@ -172,7 +172,7 @@ pub fn parse(message: &[u8]) -> Option<Report> {
 /// FBL message sizes (< 16 KB).
 fn is_arf(message: &[u8]) -> bool {
     const MARKER: &[u8] = b"feedback-report";
-    message.windows(MARKER.len()).any(|w| w == MARKER)
+    memchr::memmem::find(message, MARKER).is_some()
 }
 
 /// Strip RFC 5322 `<addr>` angle brackets + lowercase. Used for
