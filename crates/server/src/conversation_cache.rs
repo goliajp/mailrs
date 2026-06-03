@@ -21,8 +21,7 @@
 //   - SMTP inbound delivery → bust_user once at end of inbound pipeline.
 //   - 30s list TTL caps staleness even if a write path forgets to bust.
 
-use redis::AsyncCommands;
-use redis::aio::ConnectionManager;
+use crate::kevy_store::KevyStore;
 
 const PREFIX_LIST: &str = "mailrs:list";
 const PREFIX_THREAD: &str = "mailrs:thread";
@@ -116,52 +115,38 @@ fn domains_part(domains: Option<&[String]>) -> String {
     }
 }
 
-/// Get a cached JSON response body. None on miss / connection error.
-pub async fn get_json(kevy: &ConnectionManager, key: &str) -> Option<String> {
-    let mut conn = kevy.clone();
-    conn.get(key).await.ok()
+/// Get a cached JSON response body. None on miss / decode error.
+pub fn get_json(kevy: &KevyStore, key: &str) -> Option<String> {
+    let bytes = kevy.get(key.as_bytes()).ok()??;
+    String::from_utf8(bytes).ok()
 }
 
 /// Store a JSON response body with TTL. Best-effort; errors are swallowed
 /// because the cache is purely accelerative — a write failure just means
 /// the next read goes to PG.
-pub async fn set_json(kevy: &ConnectionManager, key: &str, body: &str, ttl_secs: u64) {
-    let mut conn = kevy.clone();
-    let _: Result<(), _> = conn.set_ex::<_, _, ()>(key, body, ttl_secs).await;
+pub fn set_json(kevy: &KevyStore, key: &str, body: &str, ttl_secs: u64) {
+    let _ = kevy.set_with_ttl(
+        key.as_bytes(),
+        body.as_bytes(),
+        std::time::Duration::from_secs(ttl_secs),
+    );
 }
 
-/// Invalidate every cached read for a user. Walks the keyspace in batches
-/// via SCAN+DEL rather than the latency-cliff KEYS command.
-pub async fn bust_user(kevy: &ConnectionManager, user: &str) {
+/// Invalidate every cached read for a user. Uses the embed store's
+/// collect_keys (Redis KEYS-style glob) to gather matching keys, then
+/// batch DEL them. collect_keys is O(n) over the keyspace but kevy is
+/// in-process so it's microseconds for typical mailrs key counts.
+pub fn bust_user(kevy: &KevyStore, user: &str) {
     let patterns = [
         format!("{}:{}:*", PREFIX_LIST, user),
         format!("{}:{}:*", PREFIX_CATS, user),
         format!("{}:{}:*", PREFIX_ACTION, user),
     ];
-    let mut conn = kevy.clone();
     for pat in &patterns {
-        let mut cursor: u64 = 0;
-        loop {
-            let res: redis::RedisResult<(u64, Vec<String>)> = redis::cmd("SCAN")
-                .arg(cursor)
-                .arg("MATCH")
-                .arg(pat)
-                .arg("COUNT")
-                .arg(200)
-                .query_async(&mut conn)
-                .await;
-            let (next, keys) = match res {
-                Ok(v) => v,
-                Err(_) => break,
-            };
-            if !keys.is_empty() {
-                let _: redis::RedisResult<()> =
-                    redis::cmd("DEL").arg(&keys).query_async(&mut conn).await;
-            }
-            if next == 0 {
-                break;
-            }
-            cursor = next;
+        let keys: Vec<Vec<u8>> = kevy.with(|inner| inner.collect_keys(Some(pat.as_bytes()), None));
+        if !keys.is_empty() {
+            let refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
+            let _ = kevy.del(&refs);
         }
     }
 }
@@ -169,10 +154,10 @@ pub async fn bust_user(kevy: &ConnectionManager, user: &str) {
 /// Bust list-level caches + a specific thread. Use this after any
 /// per-thread mutation (read/unread/star/etc) so the list refreshes its
 /// aggregate counts and the thread refetches with the new flags.
-pub async fn bust_thread(kevy: &ConnectionManager, user: &str, thread_id: &str) {
-    let mut conn = kevy.clone();
-    let _: redis::RedisResult<()> = conn.del::<_, ()>(thread_key(user, thread_id)).await;
-    bust_user(kevy, user).await;
+pub fn bust_thread(kevy: &KevyStore, user: &str, thread_id: &str) {
+    let tk = thread_key(user, thread_id);
+    let _ = kevy.del(&[tk.as_bytes()]);
+    bust_user(kevy, user);
 }
 
 #[cfg(test)]

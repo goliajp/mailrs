@@ -24,11 +24,9 @@ pub(crate) async fn get_bimi_logo(
 
     // check kevy cache
     let cache_key = format!("bimi:{domain}");
-    if let Some(mut conn) = state.kevy.clone()
-        && let Ok(Some(cached)) = redis::cmd("GET")
-            .arg(&cache_key)
-            .query_async::<Option<String>>(&mut conn)
-            .await
+    if let Some(ref store) = state.kevy_embed
+        && let Ok(Some(bytes)) = store.get(cache_key.as_bytes())
+        && let Ok(cached) = String::from_utf8(bytes)
     {
         if cached.is_empty() {
             return (StatusCode::OK, Json(serde_json::json!({"logo_url": null})));
@@ -50,15 +48,13 @@ pub(crate) async fn get_bimi_logo(
     let logo_url = mailrs_postmaster::lookup_bimi_logo(&pm_resolver, &domain).await;
 
     // cache result (24h), empty string = negative cache
-    if let Some(mut conn) = state.kevy.clone() {
+    if let Some(ref store) = state.kevy_embed {
         let val = logo_url.as_deref().unwrap_or("");
-        let _: std::result::Result<(), _> = redis::cmd("SET")
-            .arg(&cache_key)
-            .arg(val)
-            .arg("EX")
-            .arg(86400u64)
-            .query_async(&mut conn)
-            .await;
+        let _ = store.set_with_ttl(
+            cache_key.as_bytes(),
+            val.as_bytes(),
+            std::time::Duration::from_secs(86400),
+        );
     }
 
     match logo_url {

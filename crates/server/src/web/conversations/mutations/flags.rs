@@ -30,9 +30,9 @@ pub(crate) async fn star_thread(
 
     let result = mb_store.star_thread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref kevy) = state.kevy
+        && let Some(ref kevy) = state.kevy_embed
     {
-        conversation_cache::bust_thread(kevy, &user, &thread_id).await;
+        conversation_cache::bust_thread(kevy, &user, &thread_id);
     }
     match result {
         Ok(_) => Json(ApiResult {
@@ -66,9 +66,9 @@ pub(crate) async fn unstar_thread(
 
     let result = mb_store.unstar_thread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref kevy) = state.kevy
+        && let Some(ref kevy) = state.kevy_embed
     {
-        conversation_cache::bust_thread(kevy, &user, &thread_id).await;
+        conversation_cache::bust_thread(kevy, &user, &thread_id);
     }
     match result {
         Ok(_) => Json(ApiResult {
@@ -102,9 +102,9 @@ pub(crate) async fn pin_thread(
 
     let result = mb_store.pin_thread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref kevy) = state.kevy
+        && let Some(ref kevy) = state.kevy_embed
     {
-        conversation_cache::bust_thread(kevy, &user, &thread_id).await;
+        conversation_cache::bust_thread(kevy, &user, &thread_id);
     }
     match result {
         Ok(_) => Json(ApiResult {
@@ -138,9 +138,9 @@ pub(crate) async fn unpin_thread(
 
     let result = mb_store.unpin_thread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref kevy) = state.kevy
+        && let Some(ref kevy) = state.kevy_embed
     {
-        conversation_cache::bust_thread(kevy, &user, &thread_id).await;
+        conversation_cache::bust_thread(kevy, &user, &thread_id);
     }
     match result {
         Ok(_) => Json(ApiResult {

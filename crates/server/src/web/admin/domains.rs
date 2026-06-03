@@ -166,23 +166,17 @@ pub(crate) async fn get_rbl_status(
         return resp.into_response();
     }
 
-    let Some(ref kevy) = state.kevy else {
+    let Some(ref store) = state.kevy_embed else {
         return Json(serde_json::json!({"error": "kevy not available"})).into_response();
     };
 
-    // scan for rbl:status:* keys
-    let keys: Vec<String> = redis::cmd("KEYS")
-        .arg("rbl:status:*")
-        .query_async(&mut kevy.clone())
-        .await
-        .unwrap_or_default();
+    // scan for rbl:status:* keys via the embed store
+    let keys: Vec<Vec<u8>> = store.with(|inner| inner.collect_keys(Some(b"rbl:status:*"), None));
 
     let mut reports = Vec::new();
     for key in &keys {
-        if let Ok(json) = redis::cmd("GET")
-            .arg(key)
-            .query_async::<String>(&mut kevy.clone())
-            .await
+        if let Ok(Some(bytes)) = store.get(key)
+            && let Ok(json) = String::from_utf8(bytes)
             && let Ok(report) = serde_json::from_str::<serde_json::Value>(&json)
         {
             reports.push(report);
