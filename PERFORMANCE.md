@@ -1719,6 +1719,29 @@ amortises poorly on inputs near the SIMD vector width.
 
 Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
 
+### `mailrs-sieve` (criterion, `cargo bench -p mailrs-sieve`)
+
+3-run honest medians, v4 ckpt 23 (2026-06-03):
+
+| Path | Median | Notes |
+|---|---:|---|
+| `compile_sieve/typical` | **1.18 µs** | was claimed 2.1 µs — real is **1.78× faster** since the v8 ckpt 6 swap to mailrs-sieve-core 0.2 |
+| `evaluate_sieve/typical` | **1.48 µs** | was claimed 3.5 µs — real is **2.36× faster** since the engine swap |
+
+**v4 ckpt 23** (2026-06-03): Case A verified — `grep iter().position` /
+`.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The crate is a 1.7k LOC `lib.rs` whose only job
+is wrapping `mailrs-sieve-core` 0.2 behind a stable
+`SieveAction { Keep, FileInto, Discard, Redirect, Reject, Vacation }`
+enum (the v8 ckpt 6 swap from sieve-rs to mailrs-sieve-core). All
+parser / evaluator hot paths live in `mailrs-sieve-core` (handled
+in ckpt 25).
+
+The big drop (2.1 µs → 1.18 µs compile, 3.5 µs → 1.48 µs evaluate)
+reflects the v8 ckpt 6 engine swap: mailrs-sieve-core is the
+spec-built byte-level interpreter that replaced the AGPL `sieve-rs`
+parser tree. The wrapper itself is just enum-shape mapping.
+
 ### `mailrs-attachment-extract` (criterion, `cargo bench -p mailrs-attachment-extract`)
 
 3-run honest medians, v4 ckpt 22 (2026-06-03):
