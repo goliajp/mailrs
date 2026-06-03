@@ -5,7 +5,7 @@
 //! delivery throughput + per-call latency percentiles + sqlx pool stats.
 //!
 //! Excluded by design: SPF/DKIM/DMARC verify (no DNS), greylist/DNSBL
-//! shield, sieve, Valkey cache. Those have their own micro-benches; this
+//! shield, sieve, Kevy cache. Those have their own micro-benches; this
 //! harness measures the PG-anchored persistence cost the user observes
 //! once a message has been accepted.
 //!

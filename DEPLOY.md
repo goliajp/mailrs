@@ -37,7 +37,7 @@ Expected response shape:
   "status": "healthy" | "degraded" | "unhealthy",
   "level": 0 | 1 | 2 | 3,
   "pg": true | false,
-  "valkey": true | false,
+  "kevy": true | false,
   "uptime_secs": N,
   "version": "X.Y.Z",
   ...
@@ -45,7 +45,7 @@ Expected response shape:
 ```
 
 Deploy treats `healthy` + `degraded` as ok (degraded usually means PG /
-Valkey transiently unavailable but server still serves auth + read).
+Kevy transiently unavailable but server still serves auth + read).
 
 ## Environment knobs
 

@@ -103,7 +103,7 @@ pub struct WebState {
     pub mta_sts_id: String,
     pub health: Option<HealthState>,
     pub pg_pool: Option<sqlx::PgPool>,
-    pub valkey: Option<redis::aio::ConnectionManager>,
+    pub kevy: Option<redis::aio::ConnectionManager>,
     pub llm_config: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     pub resolver: Option<Arc<hickory_resolver::TokioResolver>>,
     pub dkim_selector: Option<String>,
@@ -175,7 +175,7 @@ impl WebState {
             mta_sts_id: String::new(),
             health: None,
             pg_pool: None,
-            valkey: None,
+            kevy: None,
             llm_config: None,
             resolver: None,
             dkim_selector: None,
@@ -297,8 +297,8 @@ impl WebState {
         self
     }
 
-    pub fn with_valkey(mut self, conn: redis::aio::ConnectionManager) -> Self {
-        self.valkey = Some(conn);
+    pub fn with_kevy(mut self, conn: redis::aio::ConnectionManager) -> Self {
+        self.kevy = Some(conn);
         self
     }
 

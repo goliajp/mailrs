@@ -1,4 +1,4 @@
-//! Ephemeral Valkey/Redis container for `RedisNotifier` integration tests.
+//! Ephemeral Kevy/Redis container for `RedisNotifier` integration tests.
 //!
 //! Same pattern as `pg.rs` — one container per call, handle held alive
 //! by the caller so dropping it stops the container.

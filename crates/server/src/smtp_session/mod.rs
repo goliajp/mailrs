@@ -49,7 +49,7 @@ pub struct ConnectionContext {
     pub smuggle_protection: SmuggleProtection,
     pub auth_guard: Arc<AuthGuard>,
     pub domain_store: Option<Arc<DomainStore>>,
-    pub valkey: Option<redis::aio::ConnectionManager>,
+    pub kevy: Option<redis::aio::ConnectionManager>,
     pub srs_secret: Option<String>,
     pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
     pub inbound_pipeline: mailrs_inbound::Pipeline,

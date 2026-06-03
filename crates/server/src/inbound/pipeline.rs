@@ -34,7 +34,7 @@ pub fn build_inbound_pipeline(
     dmarc_report_store: Option<Arc<DmarcReportStore>>,
     clamav_addr: Option<String>,
     llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
-    valkey: Option<redis::aio::ConnectionManager>,
+    kevy: Option<redis::aio::ConnectionManager>,
     spam_score_threshold: f64,
 ) -> mailrs_inbound::Pipeline {
     let mut builder = mailrs_inbound::Pipeline::builder().spam_threshold(spam_score_threshold);
@@ -53,7 +53,7 @@ pub fn build_inbound_pipeline(
     }
     builder = builder.add(ContentScanStage::new());
     if let Some(provider) = llm_provider {
-        builder = builder.add(AiScoringStage::new(provider, valkey, spam_score_threshold));
+        builder = builder.add(AiScoringStage::new(provider, kevy, spam_score_threshold));
     }
 
     builder.build()

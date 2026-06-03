@@ -76,7 +76,7 @@ async fn check_ip(resolver: &TokioResolver, ip: &IpAddr) -> Vec<RblResult> {
 pub fn start(
     resolver: Arc<TokioResolver>,
     hostname: String,
-    valkey: Option<redis::aio::ConnectionManager>,
+    kevy: Option<redis::aio::ConnectionManager>,
 ) {
     tokio::spawn(async move {
         // initial delay to let services start
@@ -125,8 +125,8 @@ pub fn start(
                     );
                 }
 
-                // store result in valkey
-                if let Some(ref valkey) = valkey
+                // store result in kevy
+                if let Some(ref kevy) = kevy
                     && let Ok(json) = serde_json::to_string(&report)
                 {
                     let key = format!("rbl:status:{ip}");
@@ -135,7 +135,7 @@ pub fn start(
                         .arg(&json)
                         .arg("EX")
                         .arg(7200i64) // 2 hour TTL
-                        .query_async::<()>(&mut valkey.clone())
+                        .query_async::<()>(&mut kevy.clone())
                         .await;
                 }
             }

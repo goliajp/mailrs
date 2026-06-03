@@ -19,8 +19,8 @@
 //! What this does NOT bench
 //! ------------------------
 //! The real `mailrs-server` inbound pipeline (SPF/DKIM/DMARC/sieve/PG/
-//! Valkey writes). Those need a full integration environment (Postgres,
-//! Valkey, DNS) and produce variance much larger than the LTO delta we
+//! Kevy writes). Those need a full integration environment (Postgres,
+//! Kevy, DNS) and produce variance much larger than the LTO delta we
 //! are trying to detect. Treat the numbers from this bench as a *lower
 //! bound* on the LTO impact — the real server has more cross-crate
 //! inline opportunities in its hot path.
@@ -31,12 +31,12 @@
 //!   `cargo bench -p mailrs-inbound` (criterion suites
 //!   `decision` + `pipeline`). Covers `Pipeline::run` overhead with
 //!   N no-op stages and `make_delivery_decision` /
-//!   `format_auth_results_header` hot paths in isolation, no PG/Valkey.
-//! - **PG / Valkey end-to-end** — intentionally NOT a criterion bench.
+//!   `format_auth_results_header` hot paths in isolation, no PG/Kevy.
+//! - **PG / Kevy end-to-end** — intentionally NOT a criterion bench.
 //!   Per-call variance from network + WAL fsync swamps the CPU-side
 //!   regressions a microbench is supposed to catch. Use the integration
 //!   harness in `crates/server/tests/` against a docker-compose'd
-//!   Postgres + Valkey instead, and gate on throughput in CI rather
+//!   Postgres + Kevy instead, and gate on throughput in CI rather
 //!   than as a criterion benchmark.
 //!
 //! Running

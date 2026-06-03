@@ -14,7 +14,7 @@ use mailrs_inbound::{ReceiveContext, Stage, StageOutcome};
 /// `ctx.ptr_score`.
 pub struct AiScoringStage {
     provider: Arc<dyn mailrs_intelligence::provider::LlmProvider>,
-    valkey: Option<redis::aio::ConnectionManager>,
+    kevy: Option<redis::aio::ConnectionManager>,
     spam_threshold: f64,
 }
 
@@ -24,12 +24,12 @@ impl AiScoringStage {
     /// from the same config source at startup to keep them in sync.
     pub fn new(
         provider: Arc<dyn mailrs_intelligence::provider::LlmProvider>,
-        valkey: Option<redis::aio::ConnectionManager>,
+        kevy: Option<redis::aio::ConnectionManager>,
         spam_threshold: f64,
     ) -> Self {
         Self {
             provider,
-            valkey,
+            kevy,
             spam_threshold,
         }
     }
@@ -50,7 +50,7 @@ impl Stage for AiScoringStage {
         let subject = extract_header(&ctx.message, "Subject").unwrap_or_default();
         let body_preview = extract_body_preview(&ctx.message, 500);
         let cache = self
-            .valkey
+            .kevy
             .clone()
             .map(mailrs_intelligence::spam::RedisSpamCache::new);
         let cache_ref: Option<&dyn mailrs_intelligence::spam::SpamCache> = cache

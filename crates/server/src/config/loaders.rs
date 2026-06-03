@@ -116,10 +116,10 @@ impl ServerConfig {
         set_opt_path("MAILRS_USERS_FILE", &mut self.users_file);
     }
 
-    /// PostgreSQL + Valkey URLs.
+    /// PostgreSQL + Kevy URLs.
     pub(super) fn load_storage(&mut self) {
         set_opt_string("MAILRS_PG_URL", &mut self.pg_url);
-        set_opt_string("MAILRS_VALKEY_URL", &mut self.valkey_url);
+        set_opt_string("MAILRS_KEVY_URL", &mut self.kevy_url);
     }
 
     /// Manual TLS cert + key paths (vs ACME auto-issued).

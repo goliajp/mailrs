@@ -11,7 +11,7 @@ use crate::health::HealthState;
 //   groups, apps, email_groups, encryption. Each submodule
 //   attaches `impl DomainStore` blocks for its entity group;
 //   mod.rs owns the struct + types + constructor + cache + the
-//   pg() / valkey accessor helpers used by every handler.
+//   pg() / kevy accessor helpers used by every handler.
 
 mod accounts;
 mod aliases;
@@ -31,7 +31,7 @@ pub(super) const CACHE_TTL_SECS: u64 = 300;
 
 pub struct DomainStore {
     pub(super) pg: Option<PgPool>,
-    pub(super) valkey: Option<redis::aio::ConnectionManager>,
+    pub(super) kevy: Option<redis::aio::ConnectionManager>,
     pub(super) health: HealthState,
     // process-level cache for L3 degradation
     pub(super) account_cache: DashMap<String, CachedAccount>,
@@ -117,12 +117,12 @@ impl From<sqlx::Error> for StoreError {
 impl DomainStore {
     pub fn new(
         pg: Option<PgPool>,
-        valkey: Option<redis::aio::ConnectionManager>,
+        kevy: Option<redis::aio::ConnectionManager>,
         health: HealthState,
     ) -> Self {
         Self {
             pg,
-            valkey,
+            kevy,
             health,
             account_cache: DashMap::new(),
         }
@@ -154,10 +154,10 @@ impl DomainStore {
 
     // --- TOTP 2FA ---
 
-    // --- Valkey cache helpers ---
+    // --- Kevy cache helpers ---
 
-    async fn valkey_get<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
-        let mut conn = self.valkey.clone()?;
+    async fn kevy_get<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
+        let mut conn = self.kevy.clone()?;
         let val: Option<String> = redis::cmd("GET")
             .arg(key)
             .query_async(&mut conn)
@@ -166,8 +166,8 @@ impl DomainStore {
         val.and_then(|s| serde_json::from_str(&s).ok())
     }
 
-    async fn valkey_set(&self, key: &str, val: &impl serde::Serialize, ttl_secs: u64) {
-        if let Some(mut conn) = self.valkey.clone()
+    async fn kevy_set(&self, key: &str, val: &impl serde::Serialize, ttl_secs: u64) {
+        if let Some(mut conn) = self.kevy.clone()
             && let Ok(json) = serde_json::to_string(val)
         {
             let _: std::result::Result<(), _> = redis::cmd("SET")
@@ -180,8 +180,8 @@ impl DomainStore {
         }
     }
 
-    async fn valkey_del(&self, key: &str) {
-        if let Some(mut conn) = self.valkey.clone() {
+    async fn kevy_del(&self, key: &str) {
+        if let Some(mut conn) = self.kevy.clone() {
             let _: std::result::Result<(), _> =
                 redis::cmd("DEL").arg(key).query_async(&mut conn).await;
         }
@@ -230,7 +230,7 @@ pub struct App {
     pub created_at: i64,
 }
 
-// --- cached resolution for valkey ---
+// --- cached resolution for kevy ---
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct CachedResolution {
@@ -274,7 +274,7 @@ impl From<&ResolvedRecipient> for CachedResolution {
     }
 }
 
-// serde for CachedAccount (valkey)
+// serde for CachedAccount (kevy)
 impl serde::Serialize for CachedAccount {
     fn serialize<S: serde::Serializer>(
         &self,
@@ -306,7 +306,7 @@ impl<'de> serde::Deserialize<'de> for CachedAccount {
     }
 }
 
-// Account needs Deserialize for valkey cache
+// Account needs Deserialize for kevy cache
 impl<'de> serde::Deserialize<'de> for Account {
     fn deserialize<D: serde::Deserializer<'de>>(
         deserializer: D,
@@ -362,7 +362,7 @@ mod tests {
         }
     }
 
-    // helper to build a DomainStore without PG/Valkey
+    // helper to build a DomainStore without PG/Kevy
     fn make_store() -> DomainStore {
         DomainStore::new(None, None, HealthState::new())
     }

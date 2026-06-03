@@ -150,9 +150,9 @@ pub(crate) fn spawn_dmarc_aggregate_task(
 pub(crate) fn spawn_rbl_monitor(
     resolver: &Option<Arc<hickory_resolver::TokioResolver>>,
     hostname: &str,
-    valkey_conn: &Option<redis::aio::ConnectionManager>,
+    kevy_conn: &Option<redis::aio::ConnectionManager>,
 ) {
     let Some(resolver) = resolver else { return };
-    rbl_monitor::start(resolver.clone(), hostname.to_string(), valkey_conn.clone());
+    rbl_monitor::start(resolver.clone(), hostname.to_string(), kevy_conn.clone());
     tracing::info!(event = "subsystem_started", subsystem = "rbl_monitor");
 }

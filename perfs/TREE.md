@@ -118,7 +118,7 @@ mail.golia.ai (production, v1.4.21)
 | # | title | severity | scope |
 |---|---|---|---|
 | [01](topics/01-conversations-slow.md) | `/api/conversations` TTFB residual ~260 ms | low | mostly fixed (fix-a v1.4.21 + fix-c v1.4.25); fix-d snapshot still open |
-| ~~[02](topics/02-mail-stats-slow.md)~~ | `/api/mail/stats` 175→12 ms TTFB (-93% on cache hit) | resolved | fixed in v1.4.26 (valkey cache) |
+| ~~[02](topics/02-mail-stats-slow.md)~~ | `/api/mail/stats` 175→12 ms TTFB (-93% on cache hit) | resolved | fixed in v1.4.26 (kevy cache) |
 | [04](topics/04-mail-page-weight.md) | /mail content weight; eng-layer image lazy/tracker strip done | low | engineering done v1.4.30; auto-open UX still product |
 | ~~[03](topics/03-login-bundle-bloat.md)~~ | cold-cache JS preload 1.56 MB→600 KB; FCP −30 to −43% | resolved | fixed in v1.4.24 |
 | ~~[05](topics/05-cls-dashboard-admin.md)~~ | dashboard CLS 0.443→0.002, admin 0.223→0.000 | resolved | fixed in v1.4.23 |

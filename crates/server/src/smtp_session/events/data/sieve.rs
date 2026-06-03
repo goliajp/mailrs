@@ -84,7 +84,7 @@ pub(super) async fn apply_sieve_actions(
 }
 
 /// Enqueue an outbound copy for sieve Redirect/Vacation actions.
-/// Side effect: also notifies the outbound dispatcher via valkey.
+/// Side effect: also notifies the outbound dispatcher via kevy.
 async fn enqueue_sieve_outbound(
     _rcpt: &str,
     from: &str,
@@ -98,7 +98,7 @@ async fn enqueue_sieve_outbound(
     let now = chrono::Utc::now().timestamp();
     let domain = to.split_once('@').map(|(_, d)| d).unwrap_or("unknown");
     let _ = mailrs_outbound_queue::queue::enqueue(pool, from, to, domain, body, None, now).await;
-    if let Some(ref vk) = ctx.valkey {
+    if let Some(ref vk) = ctx.kevy {
         mailrs_outbound_queue::queue::notify(&mut vk.clone()).await;
     }
 }

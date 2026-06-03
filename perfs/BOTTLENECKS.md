@@ -34,7 +34,7 @@ These are user-perceived on every visit and have a known low-risk fix.
 
 ### ~~B5 · `/api/mail/stats` 174 ms TTFB / 0.5 KB~~ → topic-02 → **fixed in v1.4.26**
 ~~Tiny payload, big TTFB → server-side computation. Almost certainly an unindexed `COUNT(*)` over `messages` for total/unread, plus a maildir walk for `storage_bytes`.~~
-**Result:** EXPLAIN'd it; root cause is `count_unseen` 107 ms (the SubPlan/NOT EXISTS pattern) — but the same fix-a/fix-c shape that worked on `list_conversations` *makes it slower* here, the planner already chose its best plan. Right answer: stop running it on every dashboard tick. Cached `MailStats` JSON in valkey for 30 s. **TTFB on warm cache 175 → 12 ms (−93%).** Cache miss path unchanged. Dashboard is no longer gated by stats.
+**Result:** EXPLAIN'd it; root cause is `count_unseen` 107 ms (the SubPlan/NOT EXISTS pattern) — but the same fix-a/fix-c shape that worked on `list_conversations` *makes it slower* here, the planner already chose its best plan. Right answer: stop running it on every dashboard tick. Cached `MailStats` JSON in kevy for 30 s. **TTFB on warm cache 175 → 12 ms (−93%).** Cache miss path unchanged. Dashboard is no longer gated by stats.
 
 ### ~~B6 · `/login` preloads 875 KB unused JS~~ → topic-03 → **fixed in v1.4.24**
 ~~`<link rel=modulepreload>` of `editor.js` (376 KB), `markdown.js` (313 KB), `l4-molecules.js` (185 KB).~~
@@ -111,7 +111,7 @@ Plus two UI bug fixes that were caught along the way (v1.4.26):
 | v1.4.23 | topic-05 / B1 + B7 (dashboard + admin CLS) |
 | v1.4.24 | topic-03 / B6 (lazy Chat/Dashboard, drop manualChunks) |
 | v1.4.25 | topic-01 fix-c / B4 (LEFT JOIN email_analysis) |
-| v1.4.26 | topic-02 / B5 (mail/stats valkey cache) + 2 UI bugs |
+| v1.4.26 | topic-02 / B5 (mail/stats kevy cache) + 2 UI bugs |
 | v1.4.27 | topic-06 / B2 (search ASCII rewrite) |
 | v1.4.28–29 | topic-06 (CJK via meilisearch) |
 | v1.4.30 | topic-04 / B8 (image lazy + tracker pixel strip) |

@@ -21,13 +21,13 @@ use mailrs_mailbox::PgMailboxStore;
 pub(crate) async fn init_system_config_store(
     cfg: &config::ServerConfig,
     pg_pool: &Option<sqlx::PgPool>,
-    valkey_conn: &Option<redis::aio::ConnectionManager>,
+    kevy_conn: &Option<redis::aio::ConnectionManager>,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) -> Arc<system_config::SystemConfigStore> {
     let env_defaults = system_config::RuntimeConfig::from_server_config(cfg);
     let store = Arc::new(system_config::SystemConfigStore::new(
         pg_pool.clone(),
-        valkey_conn.clone(),
+        kevy_conn.clone(),
         env_defaults,
     ));
     if pg_pool.is_some()

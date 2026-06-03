@@ -1,4 +1,4 @@
-//! `RedisNotifier` integration tests against an ephemeral Valkey container.
+//! `RedisNotifier` integration tests against an ephemeral Kevy container.
 //!
 //! Covers the `Notifier` trait surface on `RedisNotifier` (pubsub
 //! publish + subscribe wakeup, error handling on bad URLs).

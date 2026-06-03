@@ -21,7 +21,7 @@ pub(crate) struct ApiKeyRecord {
     pub app_id: Option<i64>,
 }
 
-/// lightweight struct cached in Valkey for fast auth lookups
+/// lightweight struct cached in Kevy for fast auth lookups
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct CachedApiKey {
     pub key_hash: String,
@@ -174,28 +174,28 @@ pub(crate) async fn update_last_used(pool: &PgPool, id: i64) {
         .await;
 }
 
-// --- Valkey cache helpers ---
+// --- Kevy cache helpers ---
 
 const CACHE_TTL_SECS: u64 = 300;
 
-/// get a cached API key from Valkey
+/// get a cached API key from Kevy
 pub(crate) async fn cache_get(
-    valkey: &redis::aio::ConnectionManager,
+    kevy: &redis::aio::ConnectionManager,
     prefix: &str,
 ) -> Option<CachedApiKey> {
     let key = format!("apikey:{prefix}");
     let data: Option<String> = redis::cmd("GET")
         .arg(&key)
-        .query_async(&mut valkey.clone())
+        .query_async(&mut kevy.clone())
         .await
         .ok()?;
 
     data.and_then(|s| serde_json::from_str(&s).ok())
 }
 
-/// cache an API key in Valkey with TTL
+/// cache an API key in Kevy with TTL
 pub(crate) async fn cache_set(
-    valkey: &redis::aio::ConnectionManager,
+    kevy: &redis::aio::ConnectionManager,
     prefix: &str,
     cached: &CachedApiKey,
 ) {
@@ -206,17 +206,17 @@ pub(crate) async fn cache_set(
             .arg(&json)
             .arg("EX")
             .arg(CACHE_TTL_SECS)
-            .query_async(&mut valkey.clone())
+            .query_async(&mut kevy.clone())
             .await;
     }
 }
 
-/// remove a cached API key from Valkey
-pub(crate) async fn cache_delete(valkey: &redis::aio::ConnectionManager, prefix: &str) {
+/// remove a cached API key from Kevy
+pub(crate) async fn cache_delete(kevy: &redis::aio::ConnectionManager, prefix: &str) {
     let key = format!("apikey:{prefix}");
     let _: Result<(), _> = redis::cmd("DEL")
         .arg(&key)
-        .query_async(&mut valkey.clone())
+        .query_async(&mut kevy.clone())
         .await;
 }
 

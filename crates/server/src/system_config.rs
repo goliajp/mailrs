@@ -193,12 +193,12 @@ struct ConfigRow {
 
 // -- SystemConfigStore --
 
-const VALKEY_KEY: &str = "syscfg:all";
+const KEVY_KEY: &str = "syscfg:all";
 const RELOAD_INTERVAL: Duration = Duration::from_secs(60);
 
 pub struct SystemConfigStore {
     pg: Option<PgPool>,
-    valkey: Option<redis::aio::ConnectionManager>,
+    kevy: Option<redis::aio::ConnectionManager>,
     current: ArcSwap<RuntimeConfig>,
     env_defaults: RuntimeConfig,
     /// db rows cache for metadata (updated_at, updated_by, which keys are in db)
@@ -209,12 +209,12 @@ pub struct SystemConfigStore {
 impl SystemConfigStore {
     pub fn new(
         pg: Option<PgPool>,
-        valkey: Option<redis::aio::ConnectionManager>,
+        kevy: Option<redis::aio::ConnectionManager>,
         env_defaults: RuntimeConfig,
     ) -> Self {
         Self {
             pg,
-            valkey,
+            kevy,
             current: ArcSwap::new(Arc::new(env_defaults.clone())),
             env_defaults,
             db_keys: std::sync::RwLock::new(std::collections::HashMap::new()),
@@ -285,7 +285,7 @@ impl SystemConfigStore {
         .await
         .map_err(|e| format!("database error: {e}"))?;
 
-        self.valkey_del(VALKEY_KEY).await;
+        self.kevy_del(KEVY_KEY).await;
         self.load_from_db()
             .await
             .map_err(|e| format!("reload error: {e}"))?;
@@ -305,7 +305,7 @@ impl SystemConfigStore {
             .await
             .map_err(|e| format!("database error: {e}"))?;
 
-        self.valkey_del(VALKEY_KEY).await;
+        self.kevy_del(KEVY_KEY).await;
         self.load_from_db()
             .await
             .map_err(|e| format!("reload error: {e}"))?;
@@ -360,10 +360,10 @@ impl SystemConfigStore {
             .collect()
     }
 
-    // -- valkey helpers --
+    // -- kevy helpers --
 
-    async fn valkey_del(&self, key: &str) {
-        if let Some(mut conn) = self.valkey.clone() {
+    async fn kevy_del(&self, key: &str) {
+        if let Some(mut conn) = self.kevy.clone() {
             let _: std::result::Result<(), _> =
                 redis::cmd("DEL").arg(key).query_async(&mut conn).await;
         }

@@ -44,10 +44,10 @@ impl DomainStore {
         // invalidate process cache
         self.account_cache.retain(|_, v| v.account.domain != name);
 
-        // invalidate Valkey cache for all affected accounts
+        // invalidate Kevy cache for all affected accounts
         for (addr,) in &addresses {
-            self.valkey_del(&format!("acct:{addr}")).await;
-            self.valkey_del(&format!("rcpt:{addr}")).await;
+            self.kevy_del(&format!("acct:{addr}")).await;
+            self.kevy_del(&format!("rcpt:{addr}")).await;
         }
 
         Ok(res.rows_affected() > 0)

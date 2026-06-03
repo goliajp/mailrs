@@ -39,7 +39,7 @@ pub(crate) mod system_config;
 mod tls;
 mod totp;
 mod users;
-mod valkey_store;
+mod kevy_store;
 mod web;
 
 use bootstrap::*;
@@ -99,7 +99,7 @@ async fn main() {
         "mailrs starting"
     );
 
-    // PG + Valkey connections (optional, graceful degradation)
+    // PG + Kevy connections (optional, graceful degradation)
     let pg_pool = match &cfg.pg_url {
         Some(url) => match pg::create_pool(url).await {
             Ok(pool) => {
@@ -114,14 +114,14 @@ async fn main() {
         None => None,
     };
 
-    let valkey_conn = match &cfg.valkey_url {
-        Some(url) => match valkey_store::create_connection(url).await {
+    let kevy_conn = match &cfg.kevy_url {
+        Some(url) => match kevy_store::create_connection(url).await {
             Ok(conn) => {
-                tracing::info!("valkey connected");
+                tracing::info!("kevy connected");
                 Some(conn)
             }
             Err(e) => {
-                tracing::warn!(error = %e, "valkey connection failed, running in degraded mode");
+                tracing::warn!(error = %e, "kevy connection failed, running in degraded mode");
                 None
             }
         },
@@ -129,10 +129,10 @@ async fn main() {
     };
 
     let health_state = health::HealthState::new();
-    if let (Some(pg), Some(vk)) = (&pg_pool, &valkey_conn) {
+    if let (Some(pg), Some(vk)) = (&pg_pool, &kevy_conn) {
         health::spawn_health_checker(pg.clone(), vk.clone(), health_state.clone());
         health_state.set_pg(true);
-        health_state.set_valkey(true);
+        health_state.set_kevy(true);
     }
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
@@ -146,7 +146,7 @@ async fn main() {
 
     let event_bus = EventBus::new(1024);
 
-    spawn_cache_bust_task(&valkey_conn, &event_bus);
+    spawn_cache_bust_task(&kevy_conn, &event_bus);
 
     let rate_limiter = Arc::new(RateLimiter::new(TokenBucketConfig {
         capacity: cfg.rate_limit_capacity,
@@ -175,8 +175,8 @@ async fn main() {
         mailrs_shield::ptr::check_ptr_record(r, &cfg.hostname).await;
     }
 
-    // greylisting (Valkey primary + PG cold backup)
-    let greylist_db = valkey_conn.as_ref().map(|vk| {
+    // greylisting (Kevy primary + PG cold backup)
+    let greylist_db = kevy_conn.as_ref().map(|vk| {
         let db = GreylistDb::new(vk.clone());
         let db = if let Some(ref pool) = pg_pool {
             db.with_pg(pool.clone())
@@ -198,11 +198,11 @@ async fn main() {
         .as_ref()
         .map(|pool| Arc::new(PgMailboxStore::new(pool.clone())));
 
-    // domain store (PG + Valkey + process cache)
+    // domain store (PG + Kevy + process cache)
     let domain_store = if pg_pool.is_some() {
         let ds = Arc::new(domain_store::DomainStore::new(
             pg_pool.clone(),
-            valkey_conn.clone(),
+            kevy_conn.clone(),
             health_state.clone(),
         ));
         ds.preload_accounts().await;
@@ -279,7 +279,7 @@ async fn main() {
     });
 
     let system_config_store =
-        init_system_config_store(&cfg, &pg_pool, &valkey_conn, shutdown_rx.clone()).await;
+        init_system_config_store(&cfg, &pg_pool, &kevy_conn, shutdown_rx.clone()).await;
 
     let web_state = Arc::new(build_web_state(WebStateInputs {
         cfg: &cfg,
@@ -287,7 +287,7 @@ async fn main() {
         auth_guard: auth_guard.clone(),
         health_state: health_state.clone(),
         pg_pool: &pg_pool,
-        valkey_conn: &valkey_conn,
+        kevy_conn: &kevy_conn,
         outbound_queue: &outbound_queue,
         mailbox_store: &mailbox_store,
         domain_store: &domain_store,
@@ -321,7 +321,7 @@ async fn main() {
         &dmarc_report_store,
         &cfg,
         &llm_provider,
-        &valkey_conn,
+        &kevy_conn,
     );
 
     let ctx = Arc::new(ConnectionContext {
@@ -342,7 +342,7 @@ async fn main() {
         smuggle_protection: cfg.smuggle_protection,
         auth_guard: auth_guard.clone(),
         domain_store: domain_store.clone(),
-        valkey: valkey_conn.clone(),
+        kevy: kevy_conn.clone(),
         srs_secret: cfg.srs_secret.clone(),
         ldap_config: ldap_config.clone(),
         inbound_pipeline,
@@ -410,7 +410,7 @@ async fn main() {
         shutdown_rx.clone(),
     );
 
-    spawn_rbl_monitor(&ctx.resolver, &cfg.hostname, &valkey_conn);
+    spawn_rbl_monitor(&ctx.resolver, &cfg.hostname, &kevy_conn);
 
     // keep main alive
     tokio::signal::ctrl_c()
