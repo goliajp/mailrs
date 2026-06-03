@@ -69,7 +69,18 @@ pub fn lint(raw: &[u8]) -> Result<(), LintError> {
 }
 
 fn find_header_terminator(raw: &[u8]) -> Option<usize> {
-    raw.windows(4).position(|w| w == b"\r\n\r\n")
+    // memchr-anchored: scan for `\n` and check `\r\n\r\n` shape at
+    // each candidate. Replaces the prior O(N·4) `windows(4)`
+    // byte-by-byte walk.
+    let mut search = 0;
+    while let Some(rel) = memchr::memchr(b'\n', &raw[search..]) {
+        let pos = search + rel;
+        if pos >= 3 && &raw[pos - 3..=pos] == b"\r\n\r\n" {
+            return Some(pos - 3);
+        }
+        search = pos + 1;
+    }
+    None
 }
 
 fn check_header_block(headers: &[u8]) -> Result<(), LintError> {

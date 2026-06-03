@@ -115,10 +115,9 @@ fn pick_non_colliding_boundary(parts: &[PartBytes]) -> String {
 }
 
 fn contains_subslice(haystack: &[u8], needle: &[u8]) -> bool {
-    if needle.is_empty() || needle.len() > haystack.len() {
-        return false;
-    }
-    haystack.windows(needle.len()).any(|w| w == needle)
+    // memchr's memmem (Two-Way SIMD) — replaces the O(N·M)
+    // `windows().any()` walk used to detect boundary collisions.
+    memchr::memmem::find(haystack, needle).is_some()
 }
 
 #[cfg(test)]
