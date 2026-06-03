@@ -204,13 +204,8 @@ pub(crate) async fn get_thread_messages(
     if let Some(ref kevy) = state.kevy
         && let Ok(json) = serde_json::to_string(&result)
     {
-        conversation_cache::set_json(
-            kevy,
-            &cache_key,
-            &json,
-            conversation_cache::TTL_THREAD_SECS,
-        )
-        .await;
+        conversation_cache::set_json(kevy, &cache_key, &json, conversation_cache::TTL_THREAD_SECS)
+            .await;
     }
     Json(result).into_response()
 }

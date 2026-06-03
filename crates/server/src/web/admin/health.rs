@@ -167,10 +167,7 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
     let _ = writeln!(body, "# HELP mailrs_health_pg_up PostgreSQL availability");
     let _ = writeln!(body, "# TYPE mailrs_health_pg_up gauge");
     let _ = writeln!(body, "mailrs_health_pg_up {}", if pg_up { 1 } else { 0 });
-    let _ = writeln!(
-        body,
-        "# HELP mailrs_health_kevy_up Kevy/Redis availability"
-    );
+    let _ = writeln!(body, "# HELP mailrs_health_kevy_up Kevy/Redis availability");
     let _ = writeln!(body, "# TYPE mailrs_health_kevy_up gauge");
     let _ = writeln!(
         body,
