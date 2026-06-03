@@ -88,7 +88,9 @@ hottest path); the full per-stone bench list lives in the JSON dump.
 **Stones missing baseline (Case C — `benches/` absent)**:
 `mailrs-acme`, `mailrs-dns`, `mailrs-tls-reload`, `mailrs-mail-builder`,
 `mailrs-sieve-core`. These will receive their first bench at their
-respective stone-ckpts.
+respective stone-ckpts. Update: `mail-builder` (v4 ckpt 24) and
+`sieve-core` (v4 ckpt 25) now have benches. `acme` / `dns` /
+`tls-reload` remain bench-less by design — see ckpt 26 below.
 
 **Reproduce**: `env -u TMPDIR cargo bench --workspace` from workspace
 root. Total wall-clock ≈ 50 minutes on Mac16,11.
@@ -1718,6 +1720,36 @@ sees only 3% change because SIMD memchr's per-call overhead
 amortises poorly on inputs near the SIMD vector width.
 
 Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
+
+### `mailrs-acme`, `mailrs-dns`, `mailrs-tls-reload` (no benches by design)
+
+**v4 ckpt 26** (2026-06-03): Case A verified for all three —
+no exploitable local hot path, so no `benches/` directory is added.
+
+* `mailrs-acme` (561 LOC) — Let's Encrypt ACME v2 client. Wall-clock
+  is dominated by network round-trips to the ACME directory
+  (`load_or_create_account` + `provision_cert`) and challenge-server
+  socket I/O (`spawn_challenge_server`). The local-CPU work is
+  PEM parse for `cert_days_remaining` and a rustls `ServerConfig`
+  build (`build_server_config`) — sub-microsecond, dwarfed by the
+  network step that always follows. No `iter().position` /
+  `.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+  src/.
+* `mailrs-dns` (192 LOC) — a thin wrapper over `hickory-resolver`
+  exposing a `DnsResolver` trait. There is no local parser hot
+  path; every call goes straight to hickory which handles
+  packet parsing in C/Rust SIMD as appropriate. The wrapper is
+  ~30 lines of glue per resolver method.
+* `mailrs-tls-reload` (291 LOC) — hot-reloads the rustls
+  `ServerConfig` via `arc-swap`. The hot path is a single
+  `arc_swap::ArcSwap::load()` (4-5 ns Arc clone). The slow path
+  is filesystem read of the cert + key on inotify event — bounded
+  by disk I/O, not parsing.
+
+None of the three have `iter().position` / `.windows(N)` /
+`push_str(&format!(...))` / `String::replace` in src/. Confirming
+Case A: any bench we wrote here would measure the I/O harness, not
+the stone.
 
 ### `mailrs-mail-builder` (criterion, `cargo bench -p mailrs-mail-builder`)
 
