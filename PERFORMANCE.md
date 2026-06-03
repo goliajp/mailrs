@@ -957,12 +957,26 @@ Clean sweep on parse. Note: `icalendar` has serializer / builder APIs we don't b
 
 #### `mailrs-rate-limit` vs `governor` 0.10 (DashMap-backed)
 
-3-run noise-controlled median:
+3-run noise-controlled median (re-measured v4 ckpt 12, 2026-06-03):
 
 | Input | mailrs-rate-limit | governor | Winner |
 |---|---:|---:|---|
-| hot key, allowed | **17.1 ns** | 18.8 ns | **mailrs +9%** ✅ |
-| cold key first-touch | **210 ns** | 222 ns | **mailrs +5-6%** ✅ |
+| hot key, allowed | **12.6 ns** | 13.8 ns | **mailrs +9%** ✅ |
+| cold key first-touch | **155 ns** | 151 ns | **TIE** (−3 % noise) |
+
+**v4 ckpt 12 honest re-measure (2026-06-03)**: hot path lead +9 %
+preserved; cold path is now essentially TIE. The prior table
+(`mailrs 210 ns / governor 222 ns / +5-6 % lead`) was a single-run
+measurement; 3-run on the same hardware shows both sides ~50 ns
+faster than that number (rustc / DashMap / quanta minor upgrades
+since 2026-05) but the cold lead narrowed inside noise. Hot
+allowed remained at exactly the same ratio.
+
+Structural advantages (GCRA TAT-in-AtomicU64, lock-free
+compare_exchange_weak update, quanta clock, pre-computed
+nanos_per_token) are unchanged. Cold path remains tied because
+first-touch is dominated by DashMap shard lock acquisition +
+allocation, which both sides share.
 
 Caught up. The earlier 2.2× governor lead came from three sources, all of them governor's open-source homework that we hadn't done:
 
@@ -1332,14 +1346,24 @@ public API).
 
 ### `mailrs-rate-limit` (criterion, `cargo bench -p mailrs-rate-limit`)
 
+Re-measured v4 ckpt 12 (2026-06-03), 3-run honest medians:
+
 | Path | Median | Notes |
 |---|---:|---|
-| `evaluate_bucket/allowed` (pure math) | **1.7 ns** | f64 arithmetic, no I/O |
-| `evaluate_bucket/denied_no_refill` | **1.6 ns** | |
-| `check_hot_key/sync` | **33 ns** | bypass async trait |
-| `check_hot_key/async` | **84 ns** | through `RateLimitStore` trait |
-| `check_cold_key/first_touch` | **~140 ns** | DashMap insert path |
-| `cleanup_stale(10k)` | **~100 µs** | batch scan + retain |
+| `evaluate_bucket/allowed` (pure math) | **1.55 ns** | GCRA TAT integer arithmetic, no I/O |
+| `evaluate_bucket/denied_no_refill` | **1.57 ns** | |
+| `check_hot_key/sync` | **12.9 ns** | bypass async trait; was claimed ~33 ns — under-claim retracted, real is 2.5× faster |
+| `check_hot_key/async` | **64 ns** | through `RateLimitStore` trait; was claimed ~84 ns — under-claim retracted |
+| `check_cold_key/first_touch` | **~150 ns** | DashMap insert path |
+| `cleanup_stale(10k)` | **~145 µs** | batch scan + retain (was ~100 µs in v4-round-N claim; current 3-run honest) |
+
+**v4 ckpt 12** (2026-06-03): Case A verified — grep `iter().position` /
+`.windows(N)` / `push_str(&format!(...))` in src/ → 0 hits. The
+crate has no string parsing (token-bucket math + DashMap only) so
+none of the memchr / write!() patterns from earlier ckpts apply.
+Stone-level numbers re-measured 3-run honest; the prior table was
+v4-round-N vintage and under-claimed (real numbers are ~2× faster
+than the table reported, similar to the spf under-claim in ckpt 9).
 
 ### `mailrs-shield` (criterion, `cargo bench -p mailrs-shield`)
 
