@@ -1333,6 +1333,27 @@ public API).
 | `dispatch Email/query` | **~2.4 µs** | single dispatch w/ in-memory store |
 | `dispatch_request multi-call back-ref` | **~10.4 µs** | full JMAP `Request` with `#ref` |
 
+### `mailrs-maildir` — Maildir delivery + flag parsing (criterion, M-series Mac, release)
+
+Re-measured v4 ckpt 13 (2026-06-03), 3-run honest medians:
+
+| Path | Median | Notes |
+|---|---:|---|
+| `parse_flags/empty` | **1.74 ns** | byte-iter scan over the cur/new entry suffix — already at noise floor |
+| `parse_flags/seen_only` | **1.74 ns** | |
+| `parse_flags/all_standard` | **1.75 ns** | |
+| `deliver_loop/n=1` | **4.6 ms** | fs syscall bound (open + write + fsync + rename) — the floor is the filesystem, not the parser |
+| `deliver_loop/n=8` | **39 ms** | per-message loop overhead linear in N |
+| `deliver_batch/n=8` | **11.4 ms** | 8 messages batched in one fsync, **3.4× faster than loop** — the prior batch-fsync win still load-bearing |
+| `deliver_batch/n=64` | **15.8 ms** | batch overhead amortizes — 20× per-message savings over deliver_loop at scale |
+
+**v4 ckpt 13** (2026-06-03): Case A verified — `grep iter().position` /
+`.windows(N)` / `push_str(&format!(...))` in src/ → 0 hits. The
+crate is a 433-line single-file `lib.rs` with no string parsing
+beyond the trivial Maildir flag-suffix walk (already at ns-noise
+floor); the deliver hot path is fs-syscall bound and the existing
+batch-fsync optimization already gives the structural win at scale.
+
 ### `mailrs-mailbox` (criterion, `cargo bench -p mailrs-mailbox`)
 
 | Path | Median | Notes |
