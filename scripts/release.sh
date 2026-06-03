@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# usage: ./scripts/release.sh [--web-only] [patch|minor|major|<version>]
+# usage: ./scripts/release.sh [--web-only] [--ci] [patch|minor|major|<version>]
 # --web-only: skip Rust tests and cross-compilation, only deploy web assets
+# --ci:       skip local deploy; commit + tag + push so CI takes over
+#             (`release.yml` builds + pushes ghcr image; remote prod still
+#             needs to pull the image — see CI-SETUP.md / ROADMAP v5 L2 #4).
 # runs tests, bumps version, deploys, then tags and pushes only on success.
 # if deploy fails, the local version bump is rolled back so the working tree
 # stays clean and the next attempt starts from the same base.
@@ -10,13 +13,21 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 WEB_ONLY=false
+CI_MODE=false
 BUMP="patch"
 for arg in "$@"; do
   case "$arg" in
     --web-only) WEB_ONLY=true ;;
+    --ci)       CI_MODE=true ;;
     *) BUMP="$arg" ;;
   esac
 done
+
+if [ "$CI_MODE" = true ] && [ "$WEB_ONLY" = true ]; then
+  echo "error: --ci and --web-only are mutually exclusive"
+  echo "  --web-only deploys web assets locally; --ci skips local deploy entirely"
+  exit 1
+fi
 
 CURRENT=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
@@ -77,7 +88,11 @@ echo "==> syncing Cargo.lock"
 cargo metadata --format-version 1 > /dev/null
 echo ""
 
-# 4. deploy — if this fails, rollback the local bump before exiting
+# 4. deploy — if this fails, rollback the local bump before exiting.
+#    --ci mode skips local deploy entirely; commit + push happen unconditionally
+#    and CI (`release.yml`) builds + pushes the ghcr image. Remote prod is NOT
+#    updated by --ci mode until ROADMAP v5 L2 #4 (prod docker-compose pulls
+#    ghcr image) lands.
 rollback_bump() {
   local rc=$?
   if [ "$rc" -ne 0 ]; then
@@ -89,17 +104,22 @@ rollback_bump() {
   fi
   return $rc
 }
-trap rollback_bump EXIT
 
-echo "==> deploying"
-if [ "$WEB_ONLY" = true ]; then
-  "$ROOT/scripts/deploy.sh" --web-only
+if [ "$CI_MODE" = false ]; then
+  trap rollback_bump EXIT
+
+  echo "==> deploying"
+  if [ "$WEB_ONLY" = true ]; then
+    "$ROOT/scripts/deploy.sh" --web-only
+  else
+    "$ROOT/scripts/deploy.sh"
+  fi
+
+  # deploy succeeded — disarm the rollback trap and persist the bump
+  trap - EXIT
 else
-  "$ROOT/scripts/deploy.sh"
+  echo "==> --ci mode: skipping local deploy (CI release.yml will build + push ghcr image)"
 fi
-
-# 5. deploy succeeded — disarm the rollback trap and persist the bump
-trap - EXIT
 
 echo ""
 echo "==> committing version bump"
@@ -113,4 +133,11 @@ echo "==> pushing to origin"
 git push && git push --tags
 
 echo ""
-echo "==> released v$VERSION"
+if [ "$CI_MODE" = true ]; then
+  echo "==> released v$VERSION (tag pushed; CI release.yml takes over)"
+  echo "    watch: gh run watch \$(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[0].databaseId')"
+  echo "    NOTE: remote prod is NOT auto-updated yet. To deploy manually after CI green:"
+  echo "      ssh \$SSH_HOST 'docker pull ghcr.io/goliajp/mailrs:$VERSION && docker compose -f docker-compose.prod.yml up -d'"
+else
+  echo "==> released v$VERSION"
+fi
