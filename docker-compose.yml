@@ -89,6 +89,10 @@ services:
       MAILRS_MAILDIR: /data/maildir
       MAILRS_PG_URL: postgres://mailrs:${MAILRS_PG_PASSWORD:-mailrs}@postgres:5432/mailrs
       MAILRS_KEVY_URL: redis://kevy:6379
+      # In-process embed kevy store (Phase B v1.7.94+). AOF + snapshot
+      # persistence on the mailrs-data volume; survives container restart.
+      # Network kevy stays alive for the as-yet-unmigrated stones.
+      MAILRS_KEVY_DATA_DIR: /data/kevy
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
       MAILRS_LOCAL_DOMAINS: ${MAILRS_LOCAL_DOMAINS:-example.com}
       MAILRS_TLS_CERT: /certs/fullchain.pem
