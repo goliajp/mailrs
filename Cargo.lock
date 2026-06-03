@@ -3180,6 +3180,7 @@ dependencies = [
  "mailrs-mime",
  "mailrs-rfc2047 1.1.2",
  "mailrs-rfc5322 1.0.1",
+ "memchr",
  "proptest",
  "reqwest 0.12.28",
  "serde",

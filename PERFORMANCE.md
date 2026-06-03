@@ -1719,6 +1719,45 @@ amortises poorly on inputs near the SIMD vector width.
 
 Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
 
+### `mailrs-mail-builder` (criterion, `cargo bench -p mailrs-mail-builder`)
+
+3-run honest medians, v4 ckpt 24 (2026-06-03):
+
+| Path | Before (windows-walk) | After (memchr/memmem) | Win |
+|---|---:|---:|---:|
+| `build/short_plain` | 1.45 µs | 1.48 µs | noise (no scan touched) |
+| `build/plain_plus_html` | 4.59 µs | 3.79 µs | **−17 %** |
+| `build/with_16k_attachment` | 56.7 µs | 29.0 µs | **−49 % (1.95×)** |
+| `lint/short_plain` | 160 ns | 133 ns | **−17 %** |
+| `lint/plain_plus_html` | 577 ns | 459 ns | **−20 %** |
+| `lint/with_16k_attachment` | 7.92 µs | 6.87 µs | **−13 %** |
+| `envelope/alternative_small` | 2.63 µs | 922 ns | **−65 % (2.85×)** |
+| `envelope/mixed_with_16k_attachment` | 26.6 µs | 5.13 µs | **−81 % (5.19×)** |
+
+**v4 ckpt 24** (2026-06-03): Case B — two `windows()`-style byte
+walks rewritten to memchr-anchored / memmem scans:
+
+* `strict::find_header_terminator` — the `\r\n\r\n` body-separator
+  scan that runs on every `lint()` call. Was `raw.windows(4).position(|w| w == b"\r\n\r\n")`;
+  is now `memchr(b'\n')` + 4-byte shape check, the same pattern shipped
+  in `mailrs-arc` ckpt 10 `take_header_block`.
+* `multipart::contains_subslice` — the boundary-collision scan that
+  runs on every part inside `multipart_envelope`. Was
+  `haystack.windows(needle.len()).any(|w| w == needle)`; is now
+  `memchr::memmem::find(haystack, needle).is_some()` (Two-Way SIMD).
+
+The collision-scan rewrite is the big-ticket win: a 16 KiB attachment
+no longer walks 16 384 four-byte windows per boundary candidate,
+yielding a 5.19× speed-up on the realistic mixed-MIME outbound path
+(DSN / bounce reports + attached message bodies). The lint-side win
+(13–20 %) is smaller because the scan is amortised across the entire
+body-line-length check that follows.
+
+Stone was Case C before — no `benches/` existed. Added
+`benches/mail_builder.rs` covering the three realistic outbound
+shapes (short plain, plain+html alt, mixed with 16 KiB attachment).
+Run: `cargo bench -p mailrs-mail-builder --bench mail_builder`.
+
 ### `mailrs-sieve` (criterion, `cargo bench -p mailrs-sieve`)
 
 3-run honest medians, v4 ckpt 23 (2026-06-03):

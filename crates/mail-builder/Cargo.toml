@@ -21,6 +21,10 @@ workspace = true
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 base64 = "0.22"
 chrono = { workspace = true }
+# SIMD byte scanner — replaces the windows()-style search loops in
+# strict.rs (header-terminator scan) and multipart.rs (boundary
+# collision check).
+memchr = "2"
 
 [dev-dependencies]
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
@@ -34,3 +38,7 @@ testcontainers = "0.27"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { workspace = true }
+
+[[bench]]
+name = "mail_builder"
+harness = false

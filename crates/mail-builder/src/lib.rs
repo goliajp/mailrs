@@ -57,5 +57,5 @@ mod strict;
 
 pub use builder::{Attachment, MessageBuilder};
 pub use encode::{ContentTransferEncoding, choose_cte};
-pub use multipart::{generate_boundary, multipart_envelope};
+pub use multipart::{PartBytes, generate_boundary, multipart_envelope};
 pub use strict::{LintError, lint};
