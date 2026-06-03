@@ -1302,13 +1302,29 @@ in ckpt 5).
 
 ### `mailrs-smtp-client` (criterion, `cargo bench -p mailrs-smtp-client`)
 
+Re-measured v4 ckpt 16 (2026-06-03), 3-run honest medians:
+
 | Path | Median | Notes |
 |---|---:|---|
 | `sort_mx_records(20)` | **12 ns** | MX priority sort |
-| `parse_response(short)` | **27 ns** | was 30 ns; v4 round 5 unrolled 3-digit byte code parse |
-| `parse_response(10-line EHLO)` | **257 ns** | was 290 ns; same change + Vec::with_capacity(8) for typical 4-12-line EHLO |
+| `parse_response/short` | **24 ns** | was 27 ns; matches baseline within noise. v4 round 5 unrolled 3-digit byte code parse still load-bearing |
+| `parse_response/long_ehlo_10_lines` | **181 ns** | was 257 ns; numbers improved further (likely rustc / stdlib `lines()` improvement) |
 | `dot_stuff(5 KB no dots)` | **~1.4 µs** | passthrough fast-path |
 | `dot_stuff(5 KB with dots)` | **~1.6 µs** | allocates new Vec to escape |
+
+**v4 ckpt 16** (2026-06-03): Case A verified — `grep iter().position` /
+`.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The crate is 3k LOC across 6 files but ~2.3k of
+those are I/O-bound code paths (mx.rs MX resolver / dane.rs DANE
+TLSA verification / connection.rs TCP+TLS connection / tls_outcome.rs)
+— async I/O dominates, no memchr territory. The remaining byte-level
+hot path is `parse_response` (response.rs) which already uses stdlib
+`str::lines()` (internally memchr-based) plus an inlined `parse_code3`
+byte-level fast path for the 3-digit SMTP reply code.
+
+**P1 round complete with this ckpt: 9 stones (dkim through smtp-client)
+swept; 5 brought structural wins (memchr / write!() / pre-size / etc.),
+4 verified as Case A with honest re-measure.**
 
 ### `mailrs-imap-proto` (criterion, `cargo bench -p mailrs-imap-proto`)
 
