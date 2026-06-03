@@ -119,34 +119,85 @@ rollback_bump() {
   return $rc
 }
 
-if [ "$CI_MODE" = false ]; then
+# --ghcr mode has a chicken-and-egg: deploy needs the ghcr image, but the
+# image is only built when the tag is pushed. So in --ghcr we commit + tag
+# + push FIRST (triggering release.yml), wait for the multi-arch build to
+# finish, then deploy from the freshly-published image. Legacy and --ci
+# modes keep the original ordering (deploy → commit → push for legacy;
+# commit → push only for --ci).
+if [ "$GHCR_MODE" = true ]; then
+  echo "==> --ghcr mode: commit + tag + push first to trigger release.yml"
+  git add Cargo.toml Cargo.lock web/package.json
+  git commit -m "chore: bump version to $VERSION"
+  git tag "v$VERSION"
+  git push && git push --tags
+
+  echo "==> waiting for release.yml multi-arch build to publish ghcr.io/goliajp/mailrs:$VERSION"
+  echo "    (this typically takes 15-25 min; sleeping 30s between polls)"
+  # Give the tag-push webhook time to register a workflow run
+  sleep 15
+  RUN_ID=""
+  for _ in $(seq 1 10); do
+    RUN_ID=$(gh run list --workflow=release.yml --branch "v$VERSION" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")
+    [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ] && break
+    sleep 5
+  done
+  if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+    echo "error: could not find release.yml run for tag v$VERSION" >&2
+    exit 1
+  fi
+  echo "    watching run $RUN_ID"
+  # poll until completed (timeout 50 min)
+  for i in $(seq 1 100); do
+    STATUS=$(gh run view "$RUN_ID" --json status -q .status 2>/dev/null || echo "")
+    [ "$STATUS" = "completed" ] && break
+    sleep 30
+  done
+  CONCLUSION=$(gh run view "$RUN_ID" --json conclusion -q .conclusion 2>/dev/null || echo "unknown")
+  if [ "$CONCLUSION" != "success" ]; then
+    echo "error: release.yml run $RUN_ID concluded $CONCLUSION — image may not be in ghcr" >&2
+    echo "       fix the CI failure, then run: ./scripts/deploy.sh --ghcr" >&2
+    exit 1
+  fi
+  echo "==> release.yml succeeded — image is in ghcr"
+
+  echo "==> deploying ghcr image to prod"
+  "$ROOT/scripts/deploy.sh" --ghcr
+elif [ "$CI_MODE" = true ]; then
+  echo "==> --ci mode: skipping local deploy (CI release.yml will build + push ghcr image)"
+  echo ""
+  echo "==> committing version bump"
+  git add Cargo.toml Cargo.lock web/package.json
+  git commit -m "chore: bump version to $VERSION"
+  echo "==> tagging v$VERSION"
+  git tag "v$VERSION"
+  echo "==> pushing to origin"
+  git push && git push --tags
+else
+  # legacy build-from-source path
   trap rollback_bump EXIT
 
   echo "==> deploying"
   if [ "$WEB_ONLY" = true ]; then
     "$ROOT/scripts/deploy.sh" --web-only
-  elif [ "$GHCR_MODE" = true ]; then
-    "$ROOT/scripts/deploy.sh" --ghcr
   else
     "$ROOT/scripts/deploy.sh"
   fi
 
   # deploy succeeded — disarm the rollback trap and persist the bump
   trap - EXIT
-else
-  echo "==> --ci mode: skipping local deploy (CI release.yml will build + push ghcr image)"
+
+  echo ""
+  echo "==> committing version bump"
+  git add Cargo.toml Cargo.lock web/package.json
+  git commit -m "chore: bump version to $VERSION"
+
+  echo "==> tagging v$VERSION"
+  git tag "v$VERSION"
+
+  echo "==> pushing to origin"
+  git push && git push --tags
 fi
-
-echo ""
-echo "==> committing version bump"
-git add Cargo.toml Cargo.lock web/package.json
-git commit -m "chore: bump version to $VERSION"
-
-echo "==> tagging v$VERSION"
-git tag "v$VERSION"
-
-echo "==> pushing to origin"
-git push && git push --tags
 
 echo ""
 if [ "$CI_MODE" = true ]; then
