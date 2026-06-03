@@ -47,6 +47,25 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: pre-pull testcontainer images (retry against Docker Hub flake)
+        # Integration tests in mailbox / outbound-queue / mail-builder spin
+        # up real `pgvector/pgvector:pg18` + `axllent/mailpit:latest`
+        # containers via testcontainers. Docker Hub registry sporadically
+        # times out pulls (e.g. 2026-06-03 04:27 UTC outage killed the
+        # b6335f6 run). Pre-pull with retry so the test step finds the
+        # images already local and never hits the Hub.
+        run: |
+          set -e
+          for img in pgvector/pgvector:pg18 axllent/mailpit:latest; do
+            ok=0
+            for i in 1 2 3 4 5; do
+              if docker pull "$img"; then ok=1; break; fi
+              echo "::warning::docker pull $img attempt $i failed, retrying in 15s"
+              sleep 15
+            done
+            [ "$ok" = 1 ] || { echo "::error::docker pull $img failed after 5 attempts"; exit 1; }
+          done
+
       - name: cargo test --workspace (skip perf_gates — CI runners are too noisy)
         # Each *_under_budget test asserts wall-clock under a fixed
         # budget tuned for M-series Mac at idle. GH Actions ubuntu

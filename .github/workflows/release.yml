@@ -47,6 +47,21 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: pre-pull testcontainer images (retry against Docker Hub flake)
+        # Mirror of test.yml — see comment there for the 2026-06-03
+        # registry-1.docker.io timeout incident that motivated this.
+        run: |
+          set -e
+          for img in pgvector/pgvector:pg18 axllent/mailpit:latest; do
+            ok=0
+            for i in 1 2 3 4 5; do
+              if docker pull "$img"; then ok=1; break; fi
+              echo "::warning::docker pull $img attempt $i failed, retrying in 15s"
+              sleep 15
+            done
+            [ "$ok" = 1 ] || { echo "::error::docker pull $img failed after 5 attempts"; exit 1; }
+          done
+
       - name: cargo test --workspace (skip perf_gates — CI noise)
         # See test.yml comment — *_under_budget budgets are M-series-
         # calibrated, ubuntu CI runners are too slow + variable.
