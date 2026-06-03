@@ -36,14 +36,18 @@ services:
     restart: unless-stopped
 
   kevy:
-    # See docker-compose.yml comment — no in-image CLI for healthcheck.
-    # mailrs retries connect; depends_on below uses service_started.
     container_name: mailrs-kevy
-    image: goliakk/kevy:1.0.2
+    image: goliakk/kevy:1.0.4
     ports:
       - "6379:6379"
     volumes:
       - kevy-data:/data
+    healthcheck:
+      test: ["CMD", "kevy-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
     restart: unless-stopped
 
   chromium:
@@ -98,7 +102,7 @@ services:
       postgres:
         condition: service_healthy
       kevy:
-        condition: service_started
+        condition: service_healthy
     environment:
       MAILRS_HOSTNAME: ${MAILRS_HOSTNAME:-mx.example.com}
       MAILRS_MAILDIR: /data/maildir

@@ -20,18 +20,18 @@ services:
     restart: unless-stopped
 
   kevy:
-    # goliakk/kevy ships only the server binary (entrypoint `kevy`, no
-    # CLI tool). RESP wire is fully compatible (PING → +PONG, INFO
-    # advertises redis_version 7.4.0), but there's no in-image client
-    # to script a healthcheck against. mailrs's redis-crate connector
-    # has retry-on-startup logic, so omit the compose healthcheck and
-    # let depends_on default to service_started.
     container_name: mailrs-kevy
-    image: goliakk/kevy:1.0.2
+    image: goliakk/kevy:1.0.4
     ports:
       - "6379:6379"
     volumes:
       - kevy-data:/data
+    healthcheck:
+      test: ["CMD", "kevy-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
     restart: unless-stopped
 
   chromium:
