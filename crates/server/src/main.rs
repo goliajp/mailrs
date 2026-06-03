@@ -31,6 +31,7 @@ mod reputation;
 mod search_index;
 
 mod bootstrap;
+mod kevy_store;
 mod mcp;
 mod oidc_jwt;
 mod oidc_store;
@@ -39,7 +40,6 @@ pub(crate) mod system_config;
 mod tls;
 mod totp;
 mod users;
-mod kevy_store;
 mod web;
 
 use bootstrap::*;
