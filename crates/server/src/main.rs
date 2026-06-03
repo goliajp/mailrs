@@ -128,11 +128,12 @@ async fn main() {
         None => None,
     };
 
-    // kevy embedded store — parallel path for cement code that wants the
-    // in-process Arc<Store> (the migration target). Currently unused by
-    // the network-path subsystems; future commits migrate them over and
-    // eventually drop the network `kevy_conn` entirely.
-    let _kevy_embedded_store: Option<kevy_store::KevyStore> =
+    // kevy embedded store — in-process Arc<Store>, persistent if
+    // cfg.kevy_data_dir is set. Health check exercises this path
+    // (see health::spawn_health_checker). Network kevy_conn above is
+    // still consumed by stones (shield greylist / intelligence spam
+    // cache / outbound-queue notifier) until Phase C migrates them.
+    let kevy_embedded_store: Option<kevy_store::KevyStore> =
         match kevy_store::open_store(cfg.kevy_data_dir.as_deref()) {
             Ok(store) => {
                 tracing::info!(
@@ -148,8 +149,8 @@ async fn main() {
         };
 
     let health_state = health::HealthState::new();
-    if let (Some(pg), Some(vk)) = (&pg_pool, &kevy_conn) {
-        health::spawn_health_checker(pg.clone(), vk.clone(), health_state.clone());
+    if let (Some(pg), Some(embed)) = (&pg_pool, &kevy_embedded_store) {
+        health::spawn_health_checker(pg.clone(), embed.clone(), health_state.clone());
         health_state.set_pg(true);
         health_state.set_kevy(true);
     }
@@ -298,7 +299,7 @@ async fn main() {
     });
 
     let system_config_store =
-        init_system_config_store(&cfg, &pg_pool, &kevy_conn, shutdown_rx.clone()).await;
+        init_system_config_store(&cfg, &pg_pool, &kevy_embedded_store, shutdown_rx.clone()).await;
 
     let web_state = Arc::new(build_web_state(WebStateInputs {
         cfg: &cfg,
@@ -429,7 +430,7 @@ async fn main() {
         shutdown_rx.clone(),
     );
 
-    spawn_rbl_monitor(&ctx.resolver, &cfg.hostname, &kevy_conn);
+    spawn_rbl_monitor(&ctx.resolver, &cfg.hostname, &kevy_embedded_store);
 
     // keep main alive
     tokio::signal::ctrl_c()

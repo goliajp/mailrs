@@ -76,7 +76,7 @@ async fn check_ip(resolver: &TokioResolver, ip: &IpAddr) -> Vec<RblResult> {
 pub fn start(
     resolver: Arc<TokioResolver>,
     hostname: String,
-    kevy: Option<redis::aio::ConnectionManager>,
+    kevy: Option<crate::kevy_store::KevyStore>,
 ) {
     tokio::spawn(async move {
         // initial delay to let services start
@@ -126,17 +126,15 @@ pub fn start(
                 }
 
                 // store result in kevy
-                if let Some(ref kevy) = kevy
+                if let Some(ref store) = kevy
                     && let Ok(json) = serde_json::to_string(&report)
                 {
                     let key = format!("rbl:status:{ip}");
-                    let _ = redis::cmd("SET")
-                        .arg(&key)
-                        .arg(&json)
-                        .arg("EX")
-                        .arg(7200i64) // 2 hour TTL
-                        .query_async::<()>(&mut kevy.clone())
-                        .await;
+                    let _ = store.set_with_ttl(
+                        key.as_bytes(),
+                        json.as_bytes(),
+                        Duration::from_secs(7200), // 2 hour TTL
+                    );
                 }
             }
         }
