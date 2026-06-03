@@ -63,7 +63,7 @@ pub(crate) fn spawn_outbound_delivery(
 }
 
 /// Construct the outbound `DeliveryWorker` with the per-config
-/// Valkey URL and DKIM signing key (if configured). Pure
+/// Kevy URL and DKIM signing key (if configured). Pure
 /// construction — no spawning.
 pub(crate) fn build_delivery_worker(
     pool: &sqlx::PgPool,
@@ -76,8 +76,8 @@ pub(crate) fn build_delivery_worker(
         (**resolver).clone(),
         cfg.hostname.clone(),
     );
-    if let Some(ref url) = cfg.valkey_url {
-        worker = worker.with_valkey(url.clone());
+    if let Some(ref url) = cfg.kevy_url {
+        worker = worker.with_kevy(url.clone());
     }
     if let (Some(selector), Some(domain), Some(key_path)) = (
         &cfg.dkim_selector,

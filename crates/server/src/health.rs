@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Instant;
 
 pub const PG_UP: u8 = 0x01;
-pub const VALKEY_UP: u8 = 0x02;
+pub const KEVY_UP: u8 = 0x02;
 
 #[derive(Clone)]
 pub struct HealthState {
@@ -32,11 +32,11 @@ impl HealthState {
         }
     }
 
-    pub fn set_valkey(&self, up: bool) {
+    pub fn set_kevy(&self, up: bool) {
         if up {
-            self.flags.fetch_or(VALKEY_UP, Ordering::Relaxed);
+            self.flags.fetch_or(KEVY_UP, Ordering::Relaxed);
         } else {
-            self.flags.fetch_and(!VALKEY_UP, Ordering::Relaxed);
+            self.flags.fetch_and(!KEVY_UP, Ordering::Relaxed);
         }
     }
 
@@ -44,13 +44,13 @@ impl HealthState {
         self.flags.load(Ordering::Relaxed) & PG_UP != 0
     }
 
-    pub fn valkey_up(&self) -> bool {
-        self.flags.load(Ordering::Relaxed) & VALKEY_UP != 0
+    pub fn kevy_up(&self) -> bool {
+        self.flags.load(Ordering::Relaxed) & KEVY_UP != 0
     }
 
     pub fn level(&self) -> u8 {
         let f = self.flags.load(Ordering::Relaxed);
-        match (f & PG_UP != 0, f & VALKEY_UP != 0) {
+        match (f & PG_UP != 0, f & KEVY_UP != 0) {
             (true, true) => 0,
             (false, true) => 1,
             (true, false) => 2,
@@ -82,7 +82,7 @@ mod tests {
     fn health_state_initial() {
         let hs = HealthState::new();
         assert!(!hs.pg_up());
-        assert!(!hs.valkey_up());
+        assert!(!hs.kevy_up());
         assert_eq!(hs.level(), 3);
         assert_eq!(hs.status_label(), "unhealthy");
         assert!(!hs.is_ready());
@@ -93,18 +93,18 @@ mod tests {
         let hs = HealthState::new();
         hs.set_pg(true);
         assert!(hs.pg_up());
-        assert!(!hs.valkey_up());
+        assert!(!hs.kevy_up());
         assert_eq!(hs.level(), 2);
         assert_eq!(hs.status_label(), "degraded");
         assert!(hs.is_ready());
     }
 
     #[test]
-    fn health_state_valkey_only() {
+    fn health_state_kevy_only() {
         let hs = HealthState::new();
-        hs.set_valkey(true);
+        hs.set_kevy(true);
         assert!(!hs.pg_up());
-        assert!(hs.valkey_up());
+        assert!(hs.kevy_up());
         assert_eq!(hs.level(), 1);
         assert_eq!(hs.status_label(), "degraded");
         assert!(!hs.is_ready());
@@ -114,7 +114,7 @@ mod tests {
     fn health_state_both_up() {
         let hs = HealthState::new();
         hs.set_pg(true);
-        hs.set_valkey(true);
+        hs.set_kevy(true);
         assert_eq!(hs.level(), 0);
         assert_eq!(hs.status_label(), "healthy");
         assert!(hs.is_ready());
@@ -132,7 +132,7 @@ mod tests {
 
 pub fn spawn_health_checker(
     pg: sqlx::PgPool,
-    valkey: redis::aio::ConnectionManager,
+    kevy: redis::aio::ConnectionManager,
     state: HealthState,
 ) {
     tokio::spawn(async move {
@@ -144,15 +144,15 @@ pub fn spawn_health_checker(
             let pg_ok = sqlx::query("SELECT 1").execute(&pg).await.is_ok();
             state.set_pg(pg_ok);
 
-            // ping Valkey
-            let valkey_ok = {
-                let mut conn = valkey.clone();
+            // ping Kevy
+            let kevy_ok = {
+                let mut conn = kevy.clone();
                 redis::cmd("PING")
                     .query_async::<String>(&mut conn)
                     .await
                     .is_ok()
             };
-            state.set_valkey(valkey_ok);
+            state.set_kevy(kevy_ok);
         }
     });
 }

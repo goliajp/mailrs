@@ -174,9 +174,9 @@ pub(super) async fn revoke_api_key(
 
     match api_key_store::revoke_api_key(pool, id, &auth_user.address).await {
         Ok(Some(prefix)) => {
-            // evict from Valkey cache
-            if let Some(ref valkey) = state.valkey {
-                api_key_store::cache_delete(valkey, &prefix).await;
+            // evict from Kevy cache
+            if let Some(ref kevy) = state.kevy {
+                api_key_store::cache_delete(kevy, &prefix).await;
             }
             (StatusCode::OK, Json(serde_json::json!({"success": true})))
         }
@@ -226,7 +226,7 @@ mod tests {
 
     // --- auth logic tests ---
 
-    /// helper to test verify logic without hitting DB/Valkey
+    /// helper to test verify logic without hitting DB/Kevy
     fn verify_api_key_logic(
         token: &str,
         cached: Option<&CachedApiKey>,

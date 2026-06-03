@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-//! Subscribe to `SmtpEvent::NewMessage` and bust Valkey caches.
+//! Subscribe to `SmtpEvent::NewMessage` and bust Kevy caches.
 
 use std::sync::Arc;
 
@@ -15,19 +15,19 @@ use crate::{
 };
 use mailrs_mailbox::PgMailboxStore;
 
-/// Subscribe to `SmtpEvent::NewMessage` and drop the Valkey cache
+/// Subscribe to `SmtpEvent::NewMessage` and drop the Kevy cache
 /// for the recipient's conversation list / categories /
 /// action-count + the affected thread. Server + frontend caches
 /// stay coherent: WS NewMessage triggers RQ invalidate on the
 /// client; this task does the equivalent for the server cache so
 /// the next read goes back to PG and picks up the new message.
 ///
-/// No-op when Valkey isn't configured (no cache to bust).
+/// No-op when Kevy isn't configured (no cache to bust).
 pub(crate) fn spawn_cache_bust_task(
-    valkey_conn: &Option<redis::aio::ConnectionManager>,
+    kevy_conn: &Option<redis::aio::ConnectionManager>,
     event_bus: &EventBus,
 ) {
-    let Some(vk) = valkey_conn else { return };
+    let Some(vk) = kevy_conn else { return };
     let vk = vk.clone();
     let mut rx = event_bus.subscribe();
     tokio::spawn(async move {

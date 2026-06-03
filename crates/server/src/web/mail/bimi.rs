@@ -1,4 +1,4 @@
-//! BIMI logo lookup endpoint (with 24h Valkey cache).
+//! BIMI logo lookup endpoint (with 24h Kevy cache).
 
 use std::sync::Arc;
 
@@ -9,7 +9,7 @@ use axum::response::IntoResponse;
 
 use super::WebState;
 
-/// look up BIMI logo URL for a domain (cached in Valkey for 24h)
+/// look up BIMI logo URL for a domain (cached in Kevy for 24h)
 pub(crate) async fn get_bimi_logo(
     Path(domain): Path<String>,
     State(state): State<Arc<WebState>>,
@@ -22,9 +22,9 @@ pub(crate) async fn get_bimi_logo(
         );
     }
 
-    // check valkey cache
+    // check kevy cache
     let cache_key = format!("bimi:{domain}");
-    if let Some(mut conn) = state.valkey.clone()
+    if let Some(mut conn) = state.kevy.clone()
         && let Ok(Some(cached)) = redis::cmd("GET")
             .arg(&cache_key)
             .query_async::<Option<String>>(&mut conn)
@@ -50,7 +50,7 @@ pub(crate) async fn get_bimi_logo(
     let logo_url = mailrs_postmaster::lookup_bimi_logo(&pm_resolver, &domain).await;
 
     // cache result (24h), empty string = negative cache
-    if let Some(mut conn) = state.valkey.clone() {
+    if let Some(mut conn) = state.kevy.clone() {
         let val = logo_url.as_deref().unwrap_or("");
         let _: std::result::Result<(), _> = redis::cmd("SET")
             .arg(&cache_key)

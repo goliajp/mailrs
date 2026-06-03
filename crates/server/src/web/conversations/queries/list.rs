@@ -44,8 +44,8 @@ pub(crate) async fn get_conversations(
         q.starred,
         q.section.as_deref(),
     );
-    if let Some(ref valkey) = state.valkey
-        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await
+    if let Some(ref kevy) = state.kevy
+        && let Some(cached) = conversation_cache::get_json(kevy, &cache_key).await
     {
         return cached_json_response(cached);
     }
@@ -67,10 +67,10 @@ pub(crate) async fn get_conversations(
         .unwrap_or_default();
 
     let response = convos_to_response(convos);
-    if let Some(ref valkey) = state.valkey
+    if let Some(ref kevy) = state.kevy
         && let Ok(json) = serde_json::to_string(&response)
     {
-        conversation_cache::set_json(valkey, &cache_key, &json, conversation_cache::TTL_LIST_SECS)
+        conversation_cache::set_json(kevy, &cache_key, &json, conversation_cache::TTL_LIST_SECS)
             .await;
     }
     Json(response).into_response()
@@ -205,10 +205,10 @@ pub(crate) async fn batch_conversations(
 
     // batch ops can touch many threads at once — bust the whole user's
     // cache rather than per-thread (which would SCAN/DEL many times).
-    if let Some(ref valkey) = state.valkey {
-        conversation_cache::bust_user(valkey, &user).await;
+    if let Some(ref kevy) = state.kevy {
+        conversation_cache::bust_user(kevy, &user).await;
         for tid in &req.thread_ids {
-            let mut conn = valkey.clone();
+            let mut conn = kevy.clone();
             let _: Result<(), _> = redis::AsyncCommands::del::<_, ()>(
                 &mut conn,
                 conversation_cache::thread_key(&user, tid),

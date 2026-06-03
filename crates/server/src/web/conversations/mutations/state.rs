@@ -41,9 +41,9 @@ pub(crate) async fn mark_thread_read(
         .mark_thread_read(user, &thread_id, domains.as_deref())
         .await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey
+        && let Some(ref kevy) = state.kevy
     {
-        conversation_cache::bust_thread(valkey, user, &thread_id).await;
+        conversation_cache::bust_thread(kevy, user, &thread_id).await;
     }
     match result {
         Ok(count) => Json(ApiResult {
@@ -78,9 +78,9 @@ pub(crate) async fn mark_thread_unread(
 
     let result = mb_store.mark_thread_unread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey
+        && let Some(ref kevy) = state.kevy
     {
-        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        conversation_cache::bust_thread(kevy, &user, &thread_id).await;
     }
     match result {
         Ok(_) => Json(ApiResult {
@@ -138,8 +138,8 @@ pub(crate) async fn delete_thread(
     }
 
     // bust caches: delete is high-impact, drop everything user-scoped
-    if let Some(ref valkey) = state.valkey {
-        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+    if let Some(ref kevy) = state.kevy {
+        conversation_cache::bust_thread(kevy, &user, &thread_id).await;
     }
 
     Json(ApiResult {
@@ -168,9 +168,9 @@ pub(crate) async fn archive_thread(
 
     let result = mb_store.archive_thread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey
+        && let Some(ref kevy) = state.kevy
     {
-        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        conversation_cache::bust_thread(kevy, &user, &thread_id).await;
     }
     match result {
         Ok(_) => Json(ApiResult {
@@ -204,9 +204,9 @@ pub(crate) async fn unarchive_thread(
 
     let result = mb_store.unarchive_thread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey
+        && let Some(ref kevy) = state.kevy
     {
-        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        conversation_cache::bust_thread(kevy, &user, &thread_id).await;
     }
     match result {
         Ok(_) => Json(ApiResult {
@@ -251,9 +251,9 @@ pub(crate) async fn snooze_thread(
 
     let result = mb_store.snooze_thread(&user, &thread_id, until).await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey
+        && let Some(ref kevy) = state.kevy
     {
-        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        conversation_cache::bust_thread(kevy, &user, &thread_id).await;
     }
     match result {
         Ok(()) => Json(ApiResult {
@@ -287,9 +287,9 @@ pub(crate) async fn unsnooze_thread(
 
     let result = mb_store.unsnooze_thread(&user, &thread_id).await;
     if result.is_ok()
-        && let Some(ref valkey) = state.valkey
+        && let Some(ref kevy) = state.kevy
     {
-        conversation_cache::bust_thread(valkey, &user, &thread_id).await;
+        conversation_cache::bust_thread(kevy, &user, &thread_id).await;
     }
     match result {
         Ok(()) => Json(ApiResult {

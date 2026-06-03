@@ -49,8 +49,8 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
         .map(|ds| ds.cache_size())
         .unwrap_or(0) as u64;
 
-    let (pg_up, valkey_up) = match &state.health {
-        Some(h) => (h.pg_up(), h.valkey_up()),
+    let (pg_up, kevy_up) = match &state.health {
+        Some(h) => (h.pg_up(), h.kevy_up()),
         None => (false, false),
     };
 
@@ -169,13 +169,13 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
     let _ = writeln!(body, "mailrs_health_pg_up {}", if pg_up { 1 } else { 0 });
     let _ = writeln!(
         body,
-        "# HELP mailrs_health_valkey_up Valkey/Redis availability"
+        "# HELP mailrs_health_kevy_up Kevy/Redis availability"
     );
-    let _ = writeln!(body, "# TYPE mailrs_health_valkey_up gauge");
+    let _ = writeln!(body, "# TYPE mailrs_health_kevy_up gauge");
     let _ = writeln!(
         body,
-        "mailrs_health_valkey_up {}",
-        if valkey_up { 1 } else { 0 }
+        "mailrs_health_kevy_up {}",
+        if kevy_up { 1 } else { 0 }
     );
 
     // suppression list count
@@ -193,18 +193,18 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
     }
 
     // RBL listing status
-    if let Some(ref valkey) = state.valkey {
+    if let Some(ref kevy) = state.kevy {
         let rbl_listed: i64 = {
             let keys: Vec<String> = redis::cmd("KEYS")
                 .arg("rbl:status:*")
-                .query_async(&mut valkey.clone())
+                .query_async(&mut kevy.clone())
                 .await
                 .unwrap_or_default();
             let mut listed = 0i64;
             for key in &keys {
                 if let Ok(json) = redis::cmd("GET")
                     .arg(key)
-                    .query_async::<String>(&mut valkey.clone())
+                    .query_async::<String>(&mut kevy.clone())
                     .await
                     && json.contains("\"any_listed\":true")
                 {
@@ -285,12 +285,12 @@ pub(crate) async fn get_status(State(state): State<Arc<WebState>>) -> impl IntoR
 }
 
 pub(crate) async fn get_health(State(state): State<Arc<WebState>>) -> impl IntoResponse {
-    let (status_label, level, pg, valkey, uptime) = match &state.health {
+    let (status_label, level, pg, kevy, uptime) = match &state.health {
         Some(h) => (
             h.status_label(),
             h.level(),
             h.pg_up(),
-            h.valkey_up(),
+            h.kevy_up(),
             h.uptime_secs(),
         ),
         None => (
@@ -307,7 +307,7 @@ pub(crate) async fn get_health(State(state): State<Arc<WebState>>) -> impl IntoR
             "status": status_label,
             "level": level,
             "pg": pg,
-            "valkey": valkey,
+            "kevy": kevy,
             "uptime_secs": uptime,
             "version": env!("CARGO_PKG_VERSION"),
             "active_sessions": state.sessions.len(),

@@ -166,14 +166,14 @@ pub(crate) async fn get_rbl_status(
         return resp.into_response();
     }
 
-    let Some(ref valkey) = state.valkey else {
-        return Json(serde_json::json!({"error": "valkey not available"})).into_response();
+    let Some(ref kevy) = state.kevy else {
+        return Json(serde_json::json!({"error": "kevy not available"})).into_response();
     };
 
     // scan for rbl:status:* keys
     let keys: Vec<String> = redis::cmd("KEYS")
         .arg("rbl:status:*")
-        .query_async(&mut valkey.clone())
+        .query_async(&mut kevy.clone())
         .await
         .unwrap_or_default();
 
@@ -181,7 +181,7 @@ pub(crate) async fn get_rbl_status(
     for key in &keys {
         if let Ok(json) = redis::cmd("GET")
             .arg(key)
-            .query_async::<String>(&mut valkey.clone())
+            .query_async::<String>(&mut kevy.clone())
             .await
             && let Ok(report) = serde_json::from_str::<serde_json::Value>(&json)
         {

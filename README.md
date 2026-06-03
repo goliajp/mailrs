@@ -85,7 +85,7 @@ React 19 + TypeScript + Vite + Tailwind CSS 4 + Jotai for state management. Real
 |-------------|-----------------------------------------------|
 | Server      | Rust, Tokio, Axum                             |
 | Database    | PostgreSQL 18 (pgvector)                      |
-| Cache       | Valkey / Redis                                |
+| Cache       | Kevy / Redis                                |
 | Storage     | Maildir                                       |
 | Frontend    | React 19, Vite 7, Tailwind CSS 4, Bun         |
 | Auth        | PostgreSQL accounts + Argon2, TOTP 2FA, LDAP  |
@@ -123,7 +123,7 @@ export MAILRS_LOCAL_DOMAINS=example.com
 docker compose up -d
 ```
 
-This starts PostgreSQL (with pgvector), Valkey, and the mailrs server. Ports exposed:
+This starts PostgreSQL (with pgvector), Kevy, and the mailrs server. Ports exposed:
 
 | Port | Service         |
 |------|-----------------|
@@ -139,11 +139,11 @@ This starts PostgreSQL (with pgvector), Valkey, and the mailrs server. Ports exp
 
 ### Local Development
 
-Prerequisites: PostgreSQL and Valkey running locally.
+Prerequisites: PostgreSQL and Kevy running locally.
 
 ```bash
 # start dependencies
-docker compose up postgres valkey -d
+docker compose up postgres kevy -d
 
 # run the full dev stack (SMTP + IMAP + Web API + Vite dev server)
 ./scripts/dev.sh
@@ -168,14 +168,14 @@ All configuration is via `MAILRS_*` environment variables. Key settings:
 | `MAILRS_HOSTNAME`       | Server hostname (MX record)        |
 | `MAILRS_LOCAL_DOMAINS`  | Comma-separated local domains      |
 | `MAILRS_PG_URL`         | PostgreSQL connection URL           |
-| `MAILRS_VALKEY_URL`     | Valkey/Redis connection URL         |
+| `MAILRS_KEVY_URL`     | Kevy/Redis connection URL         |
 | `MAILRS_MAILDIR`        | Maildir storage path               |
 | `MAILRS_USERS_FILE`     | Path to `users.toml`               |
 | `MAILRS_DKIM_*`         | DKIM signing configuration         |
 | `MAILRS_ACME_*`         | Let's Encrypt ACME settings        |
 | `MAILRS_TLS_CERT/KEY`   | TLS certificate and key paths      |
 
-PostgreSQL and Valkey are optional — the server starts in degraded mode if either is unavailable.
+PostgreSQL and Kevy are optional — the server starts in degraded mode if either is unavailable.
 
 ## License
 

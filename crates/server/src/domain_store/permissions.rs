@@ -10,10 +10,10 @@ impl DomainStore {
     ) -> Result<crate::permission::EffectivePermissions> {
         use crate::permission::{AccountGroup, GroupInfo, compute_effective_permissions};
 
-        // try valkey cache
+        // try kevy cache
         let cache_key = format!("perms:{address}");
         if let Some(cached) = self
-            .valkey_get::<crate::permission::EffectivePermissions>(&cache_key)
+            .kevy_get::<crate::permission::EffectivePermissions>(&cache_key)
             .await
         {
             return Ok(cached);
@@ -104,14 +104,14 @@ impl DomainStore {
             .with_send_as(send_as);
 
         // cache
-        self.valkey_set(&cache_key, &perms, CACHE_TTL_SECS).await;
+        self.kevy_set(&cache_key, &perms, CACHE_TTL_SECS).await;
 
         Ok(perms)
     }
 
     /// invalidate permission cache for an account
     pub async fn invalidate_permissions(&self, address: &str) {
-        self.valkey_del(&format!("perms:{address}")).await;
+        self.kevy_del(&format!("perms:{address}")).await;
     }
 
     /// invalidate permission cache for all members of a group
@@ -124,7 +124,7 @@ impl DomainStore {
                 .await
                 .unwrap_or_default();
         for (addr,) in members {
-            self.valkey_del(&format!("perms:{addr}")).await;
+            self.kevy_del(&format!("perms:{addr}")).await;
         }
     }
 }

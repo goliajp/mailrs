@@ -78,7 +78,7 @@ pub(super) async fn enqueue_remote_rcpts(
         }
     }
     if enqueue_ok {
-        if let Some(ref vk) = ctx.valkey {
+        if let Some(ref vk) = ctx.kevy {
             mailrs_outbound_queue::queue::notify(&mut vk.clone()).await;
         }
         ctx.event_bus.emit(SmtpEvent::MessageQueued {

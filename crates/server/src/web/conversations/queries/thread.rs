@@ -36,8 +36,8 @@ pub(crate) async fn get_thread_messages(
     // Cache lookup before doing the message + maildir parse work (which can
     // be heavy for big HTML threads with attachments).
     let cache_key = conversation_cache::thread_key(user, &thread_id);
-    if let Some(ref valkey) = state.valkey
-        && let Some(cached) = conversation_cache::get_json(valkey, &cache_key).await
+    if let Some(ref kevy) = state.kevy
+        && let Some(cached) = conversation_cache::get_json(kevy, &cache_key).await
     {
         return cached_json_response(cached);
     }
@@ -201,11 +201,11 @@ pub(crate) async fn get_thread_messages(
         });
     }
 
-    if let Some(ref valkey) = state.valkey
+    if let Some(ref kevy) = state.kevy
         && let Ok(json) = serde_json::to_string(&result)
     {
         conversation_cache::set_json(
-            valkey,
+            kevy,
             &cache_key,
             &json,
             conversation_cache::TTL_THREAD_SECS,

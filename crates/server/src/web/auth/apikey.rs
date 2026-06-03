@@ -28,9 +28,9 @@ pub(super) async fn verify_api_key(
     }
     let prefix = parts[1];
 
-    // try Valkey cache first
-    let cached = if let Some(ref valkey) = state.valkey {
-        api_key_store::cache_get(valkey, prefix).await
+    // try Kevy cache first
+    let cached = if let Some(ref kevy) = state.kevy {
+        api_key_store::cache_get(kevy, prefix).await
     } else {
         None
     };
@@ -63,8 +63,8 @@ pub(super) async fn verify_api_key(
             };
 
             // populate cache
-            if let Some(ref valkey) = state.valkey {
-                api_key_store::cache_set(valkey, prefix, &entry).await;
+            if let Some(ref kevy) = state.kevy {
+                api_key_store::cache_set(kevy, prefix, &entry).await;
             }
 
             entry

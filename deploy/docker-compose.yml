@@ -11,11 +11,11 @@ services:
       - ./init-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     restart: unless-stopped
 
-  valkey:
-    container_name: mailrs-valkey
-    image: valkey/valkey:9.1-alpine
+  kevy:
+    container_name: mailrs-kevy
+    image: goliakk/kevy:1.0.2
     volumes:
-      - valkey-data:/data
+      - kevy-data:/data
     restart: unless-stopped
 
   chromium:
@@ -50,7 +50,7 @@ services:
       MAILRS_HOSTNAME: ${MAILRS_HOSTNAME:-mail.golia.ai}
       MAILRS_MAILDIR: /data/maildir
       MAILRS_PG_URL: postgres://mailrs:${MAILRS_PG_PASSWORD:-mailrs}@postgres:5432/mailrs
-      MAILRS_VALKEY_URL: redis://valkey:6379
+      MAILRS_KEVY_URL: redis://kevy:6379
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
       MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com
       # tls
@@ -95,7 +95,7 @@ services:
       - ./dkim:/dkim:ro
     depends_on:
       - postgres
-      - valkey
+      - kevy
       - chromium
       - meilisearch
     restart: unless-stopped
@@ -103,5 +103,5 @@ services:
 volumes:
   mailrs-data:
   pg-data:
-  valkey-data:
+  kevy-data:
   meili-data:

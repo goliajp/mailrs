@@ -70,7 +70,7 @@ pub struct Bucket {
 /// 4. Always update `last_refill` to `now`.
 ///
 /// Backends should call this CAS-style if their storage permits
-/// (Redis: WATCH/MULTI/EXEC, Valkey: Lua, in-process: a single
+/// (Redis: WATCH/MULTI/EXEC, Kevy: Lua, in-process: a single
 /// DashMap entry lock).
 pub fn evaluate_bucket(
     state: Bucket,

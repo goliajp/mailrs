@@ -47,7 +47,7 @@ these fire:
 
 - Hot-path code changes — `evaluate_bucket`, `InMemoryRateLimitStore`
   internals (DashMap layout, key allocation strategy).
-- A new `RateLimitStore` impl is added in this crate (e.g. a Valkey
+- A new `RateLimitStore` impl is added in this crate (e.g. a Kevy
   / Redis backend in 1.1.0).
 - The CI runner changes class (we move from x86 to arm, switch to a
   GitHub-hosted runner, etc).

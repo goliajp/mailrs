@@ -25,7 +25,7 @@ quotas-as-types. This crate aims at a different niche:
   per-endpoint, per-tenant — all from one store, picked at the
   call site. No type-parameter gymnastics.
 - **Pluggable backend.** The trait surface is three methods. Wire
-  your own Redis / Valkey / DynamoDB impl in ~80 lines.
+  your own Redis / Kevy / DynamoDB impl in ~80 lines.
 - **Unix-second time in the trait boundary.** Portable across
   processes, languages, and clocks. Backends that prefer monotonic
   clocks internally (the bundled in-memory impl does) convert at
@@ -147,7 +147,7 @@ impl RateLimitStore for RedisRateLimitStore {
 
 ## What's NOT in the box (intentionally)
 
-- **No backends beyond in-memory.** Bring your own Redis, Valkey,
+- **No backends beyond in-memory.** Bring your own Redis, Kevy,
   DynamoDB, memcached impl. The trait is three methods.
 - **No sliding-window log algorithm.** Token bucket only. If you
   need sliding window, implement your own

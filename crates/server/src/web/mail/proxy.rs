@@ -176,13 +176,13 @@ pub(crate) async fn proxy_image(
         return transparent_png();
     }
 
-    // check valkey cache first
-    if let Some(ref valkey) = state.valkey {
+    // check kevy cache first
+    if let Some(ref kevy) = state.kevy {
         let cache_key = format!("imgproxy:{}", url);
         {
             if let Ok(cached) = redis::cmd("GET")
                 .arg(&cache_key)
-                .query_async::<Vec<u8>>(&mut valkey.clone())
+                .query_async::<Vec<u8>>(&mut kevy.clone())
                 .await
                 && !cached.is_empty()
             {
@@ -271,8 +271,8 @@ pub(crate) async fn proxy_image(
         }
     };
 
-    // cache in valkey (1 hour TTL)
-    if let Some(ref valkey) = state.valkey {
+    // cache in kevy (1 hour TTL)
+    if let Some(ref kevy) = state.kevy {
         let cache_key = format!("imgproxy:{}", url);
         let ct_bytes = content_type.as_bytes();
         if ct_bytes.len() < 256 {
@@ -285,7 +285,7 @@ pub(crate) async fn proxy_image(
                 .arg(&packed)
                 .arg("EX")
                 .arg(3600i64)
-                .query_async::<()>(&mut valkey.clone())
+                .query_async::<()>(&mut kevy.clone())
                 .await;
         }
     }
@@ -366,12 +366,12 @@ pub(crate) async fn proxy_link(
             .into_response();
     }
 
-    // check valkey blocklist cache
-    if let Some(ref valkey) = state.valkey {
+    // check kevy blocklist cache
+    if let Some(ref kevy) = state.kevy {
         let cache_key = format!("linkblock:{}", url);
         if let Ok(blocked) = redis::cmd("GET")
             .arg(&cache_key)
-            .query_async::<Option<String>>(&mut valkey.clone())
+            .query_async::<Option<String>>(&mut kevy.clone())
             .await
             && blocked.as_deref() == Some("1")
         {
@@ -381,21 +381,21 @@ pub(crate) async fn proxy_link(
 
     if is_url_blocked(url) {
         // cache the block decision
-        if let Some(ref valkey) = state.valkey {
+        if let Some(ref kevy) = state.kevy {
             let cache_key = format!("linkblock:{}", url);
             let _ = redis::cmd("SET")
                 .arg(&cache_key)
                 .arg("1")
                 .arg("EX")
                 .arg(86400i64)
-                .query_async::<()>(&mut valkey.clone())
+                .query_async::<()>(&mut kevy.clone())
                 .await;
         }
         return link_warning_page(url).into_response();
     }
 
-    // record click (fire-and-forget to valkey)
-    if let Some(ref valkey) = state.valkey {
+    // record click (fire-and-forget to kevy)
+    if let Some(ref kevy) = state.kevy {
         let host = url
             .strip_prefix("https://")
             .or_else(|| url.strip_prefix("http://"))
@@ -404,7 +404,7 @@ pub(crate) async fn proxy_link(
         let counter_key = format!("linkclick:{host}");
         let _ = redis::cmd("INCR")
             .arg(&counter_key)
-            .query_async::<i64>(&mut valkey.clone())
+            .query_async::<i64>(&mut kevy.clone())
             .await;
     }
 

@@ -54,7 +54,7 @@ impl DomainStore {
         .fetch_one(pool)
         .await?;
         // invalidate recipient cache
-        self.valkey_del(&format!("rcpt:{source}")).await;
+        self.kevy_del(&format!("rcpt:{source}")).await;
         Ok(row.0)
     }
 
@@ -73,7 +73,7 @@ impl DomainStore {
             .await?;
 
         if let Some((source_addr,)) = source {
-            self.valkey_del(&format!("rcpt:{source_addr}")).await;
+            self.kevy_del(&format!("rcpt:{source_addr}")).await;
         }
         Ok(res.rows_affected() > 0)
     }
@@ -81,9 +81,9 @@ impl DomainStore {
     /// resolve a recipient address to local account, forward, or reject
     /// resolution order: exact account → exact alias → catch-all → Reject
     pub async fn resolve_recipient(&self, address: &str) -> ResolvedRecipient {
-        // try valkey cache
+        // try kevy cache
         let cache_key = format!("rcpt:{address}");
-        if let Some(cached) = self.valkey_get::<CachedResolution>(&cache_key).await {
+        if let Some(cached) = self.kevy_get::<CachedResolution>(&cache_key).await {
             return cached.into();
         }
 
@@ -91,7 +91,7 @@ impl DomainStore {
 
         // cache the result
         let cacheable: CachedResolution = (&result).into();
-        self.valkey_set(&cache_key, &cacheable, 300).await;
+        self.kevy_set(&cache_key, &cacheable, 300).await;
 
         result
     }

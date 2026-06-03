@@ -114,7 +114,7 @@ pub struct ServerConfig {
     pub srs_secret: Option<String>,
     // storage backends
     pub pg_url: Option<String>,
-    pub valkey_url: Option<String>,
+    pub kevy_url: Option<String>,
     // Meilisearch
     pub meili_url: Option<String>,
     pub meili_key: Option<String>,
@@ -185,7 +185,7 @@ impl Default for ServerConfig {
             auth_max_lockout_secs: 86400,
             srs_secret: None,
             pg_url: None,
-            valkey_url: None,
+            kevy_url: None,
             meili_url: None,
             meili_key: None,
             chrome_cdp_url: None,
@@ -247,10 +247,10 @@ impl ServerConfig {
             warnings.push("MTA-STS mode set but no MX hosts — policy will be invalid".into());
         }
 
-        if let Some(ref url) = self.valkey_url
-            && let Err(e) = crate::valkey_store::validate_url(url)
+        if let Some(ref url) = self.kevy_url
+            && let Err(e) = crate::kevy_store::validate_url(url)
         {
-            warnings.push(format!("MAILRS_VALKEY_URL is invalid: {e}"));
+            warnings.push(format!("MAILRS_KEVY_URL is invalid: {e}"));
         }
 
         if self.ldap_url.is_some()
@@ -643,46 +643,46 @@ mod tests {
     }
 
     // =====================================================================
-    // validate — valkey url
+    // validate — kevy url
     // =====================================================================
 
     #[test]
-    fn validate_warns_on_invalid_valkey_url() {
+    fn validate_warns_on_invalid_kevy_url() {
         let cfg = ServerConfig {
             hostname: "mx.example.com".into(),
             local_domains: vec!["example.com".into()],
             acme_email: Some("admin@example.com".into()),
-            valkey_url: Some("not-a-valid-url".into()),
+            kevy_url: Some("not-a-valid-url".into()),
             ..ServerConfig::default()
         };
         let warnings = cfg.validate();
-        assert!(warnings.iter().any(|w| w.contains("MAILRS_VALKEY_URL")));
+        assert!(warnings.iter().any(|w| w.contains("MAILRS_KEVY_URL")));
     }
 
     #[test]
-    fn validate_no_valkey_warning_for_valid_url() {
+    fn validate_no_kevy_warning_for_valid_url() {
         let cfg = ServerConfig {
             hostname: "mx.example.com".into(),
             local_domains: vec!["example.com".into()],
             acme_email: Some("admin@example.com".into()),
-            valkey_url: Some("redis://localhost:6379".into()),
+            kevy_url: Some("redis://localhost:6379".into()),
             ..ServerConfig::default()
         };
         let warnings = cfg.validate();
-        assert!(!warnings.iter().any(|w| w.contains("MAILRS_VALKEY_URL")));
+        assert!(!warnings.iter().any(|w| w.contains("MAILRS_KEVY_URL")));
     }
 
     #[test]
-    fn validate_no_valkey_warning_when_none() {
+    fn validate_no_kevy_warning_when_none() {
         let cfg = ServerConfig {
             hostname: "mx.example.com".into(),
             local_domains: vec!["example.com".into()],
             acme_email: Some("admin@example.com".into()),
-            valkey_url: None,
+            kevy_url: None,
             ..ServerConfig::default()
         };
         let warnings = cfg.validate();
-        assert!(!warnings.iter().any(|w| w.contains("MAILRS_VALKEY_URL")));
+        assert!(!warnings.iter().any(|w| w.contains("MAILRS_KEVY_URL")));
     }
 
     // =====================================================================
@@ -722,7 +722,7 @@ mod tests {
             dkim_private_key_path: None,
             mta_sts_mode: Some("enforce".into()),
             mta_sts_mx: vec![],
-            valkey_url: Some("garbage".into()),
+            kevy_url: Some("garbage".into()),
             ..ServerConfig::default()
         };
         let warnings = cfg.validate();
@@ -731,7 +731,7 @@ mod tests {
         assert!(warnings.iter().any(|w| w.contains("No TLS configured")));
         assert!(warnings.iter().any(|w| w.contains("DKIM")));
         assert!(warnings.iter().any(|w| w.contains("MTA-STS")));
-        assert!(warnings.iter().any(|w| w.contains("MAILRS_VALKEY_URL")));
+        assert!(warnings.iter().any(|w| w.contains("MAILRS_KEVY_URL")));
         assert_eq!(warnings.len(), 6);
     }
 
@@ -841,7 +841,7 @@ mod tests {
         assert!(cfg.mta_sts_mode.is_none());
         assert!(cfg.clamav_addr.is_none());
         assert!(cfg.pg_url.is_none());
-        assert!(cfg.valkey_url.is_none());
+        assert!(cfg.kevy_url.is_none());
     }
 
     #[test]
@@ -1612,12 +1612,12 @@ mod tests {
     }
 
     #[test]
-    fn from_env_valkey_url() {
+    fn from_env_kevy_url() {
         let _lock = ENV_LOCK.lock().unwrap();
         clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_VALKEY_URL", "redis://localhost:6379") };
+        unsafe { std::env::set_var("MAILRS_KEVY_URL", "redis://localhost:6379") };
         let cfg = ServerConfig::from_env();
-        assert_eq!(cfg.valkey_url, Some("redis://localhost:6379".into()));
+        assert_eq!(cfg.kevy_url, Some("redis://localhost:6379".into()));
         clear_mailrs_env();
     }
 
@@ -1681,7 +1681,7 @@ mod tests {
         unsafe { std::env::set_var("MAILRS_DKIM_DOMAIN", "prod.com") };
         unsafe { std::env::set_var("MAILRS_DKIM_PRIVATE_KEY", "/dkim/key.pem") };
         unsafe { std::env::set_var("MAILRS_PG_URL", "postgres://localhost/mail") };
-        unsafe { std::env::set_var("MAILRS_VALKEY_URL", "redis://localhost:6379") };
+        unsafe { std::env::set_var("MAILRS_KEVY_URL", "redis://localhost:6379") };
 
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.hostname, "mx.prod.com");
@@ -1704,7 +1704,7 @@ mod tests {
             Some(PathBuf::from("/dkim/key.pem"))
         );
         assert_eq!(cfg.pg_url, Some("postgres://localhost/mail".into()));
-        assert_eq!(cfg.valkey_url, Some("redis://localhost:6379".into()));
+        assert_eq!(cfg.kevy_url, Some("redis://localhost:6379".into()));
 
         clear_mailrs_env();
     }

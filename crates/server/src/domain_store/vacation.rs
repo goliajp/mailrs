@@ -1,6 +1,6 @@
 //! Vacation auto-reply dedup state (RFC 5230 §4.6).
 //!
-//! Correctness over speed: no Valkey / process cache here — the dedup
+//! Correctness over speed: no Kevy / process cache here — the dedup
 //! check must hit PG so concurrent inbound deliveries can't both slip
 //! a reply through. The window is enforced at query time by comparing
 //! `last_sent_at` against `now`.

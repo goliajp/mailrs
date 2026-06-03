@@ -190,7 +190,7 @@ pub(crate) async fn deliver_message_ex(
                 {
                     errors.push(format!("{rcpt}: {e}"));
                 } else {
-                    if let Some(ref vk) = state.valkey {
+                    if let Some(ref vk) = state.kevy {
                         // Bust the recipient's conversation caches so the
                         // newly-delivered local message shows up on their
                         // next thread/list fetch — without this, the cached
@@ -245,7 +245,7 @@ pub(crate) async fn deliver_message_ex(
             };
             if let Err(e) = enqueue_result {
                 errors.push(format!("{rcpt}: {e}"));
-            } else if let Some(ref vk) = state.valkey {
+            } else if let Some(ref vk) = state.kevy {
                 mailrs_outbound_queue::queue::notify(&mut vk.clone()).await;
             }
         } else {
@@ -276,13 +276,13 @@ pub(crate) async fn deliver_message_ex(
         // mailbox-store-assigned thread_id which we don't have in this
         // scope yet; the wider bust is acceptable here because send is
         // a comparatively rare operation.
-        if let Some(ref vk) = state.valkey {
+        if let Some(ref vk) = state.kevy {
             crate::conversation_cache::bust_user(&vk.clone(), from).await;
         }
         // And the missing other half: fire NewMessage on the bus so
         // the sender's own IMAP IDLE / WS / JMAP push subscribers
         // refresh their list right away. The previous code paths only
-        // busted Valkey, which the frontend only consults on the next
+        // busted Kevy, which the frontend only consults on the next
         // explicit fetch — so a sent message sat invisible until the
         // user manually refreshed (the symptom: "Sent shows up after a
         // few minutes"). Emit the same shape the SMTP inbound pipeline

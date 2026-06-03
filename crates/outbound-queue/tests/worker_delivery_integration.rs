@@ -462,7 +462,7 @@ async fn delivery_worker_run_drains_pending_via_full_pipeline() {
         r,
         "client.test".to_string(),
     )
-    .with_valkey("redis://127.0.0.1:1".to_string());
+    .with_kevy("redis://127.0.0.1:1".to_string());
 
     let (tx, rx) = tokio::sync::watch::channel(false);
     let run_handle = tokio::spawn(async move {

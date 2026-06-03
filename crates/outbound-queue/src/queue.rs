@@ -134,8 +134,8 @@ pub async fn enqueue_ex(
 
 /// notify the delivery worker that new messages are queued
 #[cfg(feature = "pg")]
-pub async fn notify(valkey: &mut redis::aio::ConnectionManager) {
-    let _: Result<i32, _> = valkey.publish("queue:notify", "1").await;
+pub async fn notify(kevy: &mut redis::aio::ConnectionManager) {
+    let _: Result<i32, _> = kevy.publish("queue:notify", "1").await;
 }
 
 /// recover messages stuck in inflight status for more than 10 minutes

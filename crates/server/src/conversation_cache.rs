@@ -1,4 +1,4 @@
-// Cache-aside Valkey layer for the hot conversation read endpoints.
+// Cache-aside Kevy layer for the hot conversation read endpoints.
 //
 // Keys are segmented per user so a single invalidation scoped to that
 // user is cheap (SCAN/DEL only touches their keys).
@@ -117,28 +117,28 @@ fn domains_part(domains: Option<&[String]>) -> String {
 }
 
 /// Get a cached JSON response body. None on miss / connection error.
-pub async fn get_json(valkey: &ConnectionManager, key: &str) -> Option<String> {
-    let mut conn = valkey.clone();
+pub async fn get_json(kevy: &ConnectionManager, key: &str) -> Option<String> {
+    let mut conn = kevy.clone();
     conn.get(key).await.ok()
 }
 
 /// Store a JSON response body with TTL. Best-effort; errors are swallowed
 /// because the cache is purely accelerative — a write failure just means
 /// the next read goes to PG.
-pub async fn set_json(valkey: &ConnectionManager, key: &str, body: &str, ttl_secs: u64) {
-    let mut conn = valkey.clone();
+pub async fn set_json(kevy: &ConnectionManager, key: &str, body: &str, ttl_secs: u64) {
+    let mut conn = kevy.clone();
     let _: Result<(), _> = conn.set_ex::<_, _, ()>(key, body, ttl_secs).await;
 }
 
 /// Invalidate every cached read for a user. Walks the keyspace in batches
 /// via SCAN+DEL rather than the latency-cliff KEYS command.
-pub async fn bust_user(valkey: &ConnectionManager, user: &str) {
+pub async fn bust_user(kevy: &ConnectionManager, user: &str) {
     let patterns = [
         format!("{}:{}:*", PREFIX_LIST, user),
         format!("{}:{}:*", PREFIX_CATS, user),
         format!("{}:{}:*", PREFIX_ACTION, user),
     ];
-    let mut conn = valkey.clone();
+    let mut conn = kevy.clone();
     for pat in &patterns {
         let mut cursor: u64 = 0;
         loop {
@@ -169,10 +169,10 @@ pub async fn bust_user(valkey: &ConnectionManager, user: &str) {
 /// Bust list-level caches + a specific thread. Use this after any
 /// per-thread mutation (read/unread/star/etc) so the list refreshes its
 /// aggregate counts and the thread refetches with the new flags.
-pub async fn bust_thread(valkey: &ConnectionManager, user: &str, thread_id: &str) {
-    let mut conn = valkey.clone();
+pub async fn bust_thread(kevy: &ConnectionManager, user: &str, thread_id: &str) {
+    let mut conn = kevy.clone();
     let _: redis::RedisResult<()> = conn.del::<_, ()>(thread_key(user, thread_id)).await;
-    bust_user(valkey, user).await;
+    bust_user(kevy, user).await;
 }
 
 #[cfg(test)]

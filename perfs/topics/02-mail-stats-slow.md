@@ -64,7 +64,7 @@ trying to make it faster.
 
 ## Decision
 
-Cache the entire `MailStats` JSON in valkey for 30 s. The dashboard
+Cache the entire `MailStats` JSON in kevy for 30 s. The dashboard
 refreshes mail/stats every 60 s, so a 30 s TTL absorbs the loop and
 any tab-focus refetches without user-perceptible staleness.
 
@@ -73,7 +73,7 @@ any tab-focus refetches without user-perceptible staleness.
 - only the simple single-user case is cached; the rare cross-domain
   view (`?domains=…`) skips cache to avoid per-key invalidation work
 - cache key `mail:stats:v1:{user}`, TTL 30 s
-- silently falls back to recompute on cache miss / valkey error
+- silently falls back to recompute on cache miss / kevy error
 - `MailStats` and `CategoryCount` gain `Deserialize`
 
 Released as v1.4.26 on 2026-04-20.

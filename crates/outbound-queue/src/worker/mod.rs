@@ -27,7 +27,7 @@ pub use smtp::{TlsPolicy, try_deliver_via_mx, try_deliver_via_mx_with_tls};
 /// Delivery worker configuration.
 #[derive(Debug, Clone)]
 pub struct WorkerConfig {
-    /// Polling cadence when no Valkey notify wakeup is available.
+    /// Polling cadence when no Kevy notify wakeup is available.
     pub poll_interval_secs: u64,
     /// Max queue rows fetched per poll tick.
     pub batch_size: u32,
@@ -73,7 +73,7 @@ pub struct DeliveryWorker {
     /// expect. Used by ARC sealing for the verify-then-seal flow.
     dkim_resolver: Arc<HickoryDkimResolver>,
     event_sender: Option<DeliveryEventSender>,
-    valkey_url: Option<String>,
+    kevy_url: Option<String>,
 }
 
 impl DeliveryWorker {
@@ -94,7 +94,7 @@ impl DeliveryWorker {
             dkim: None,
             dkim_resolver,
             event_sender: None,
-            valkey_url: None,
+            kevy_url: None,
         }
     }
 
@@ -110,9 +110,9 @@ impl DeliveryWorker {
         self
     }
 
-    /// Set the Valkey URL to subscribe to `queue:notify` for fast wakeup.
-    pub fn with_valkey(mut self, url: String) -> Self {
-        self.valkey_url = Some(url);
+    /// Set the Kevy URL to subscribe to `queue:notify` for fast wakeup.
+    pub fn with_kevy(mut self, url: String) -> Self {
+        self.kevy_url = Some(url);
         self
     }
 
@@ -123,8 +123,8 @@ impl DeliveryWorker {
             self.config.poll_interval_secs
         );
 
-        // try to subscribe to Valkey queue:notify for fast wakeup
-        let mut notify_rx = self.spawn_valkey_listener();
+        // try to subscribe to Kevy queue:notify for fast wakeup
+        let mut notify_rx = self.spawn_kevy_listener();
 
         loop {
             tokio::select! {
@@ -144,8 +144,8 @@ impl DeliveryWorker {
         }
     }
 
-    fn spawn_valkey_listener(&self) -> Option<tokio::sync::mpsc::Receiver<()>> {
-        let url = self.valkey_url.as_ref()?;
+    fn spawn_kevy_listener(&self) -> Option<tokio::sync::mpsc::Receiver<()>> {
+        let url = self.kevy_url.as_ref()?;
         let (tx, rx) = tokio::sync::mpsc::channel(16);
         let url = url.clone();
         tokio::spawn(async move {
@@ -165,11 +165,11 @@ impl DeliveryWorker {
                             }
                         }
                         Err(e) => {
-                            tracing::warn!("valkey pubsub connect failed: {e}");
+                            tracing::warn!("kevy pubsub connect failed: {e}");
                         }
                     },
                     Err(e) => {
-                        tracing::warn!("valkey client create failed: {e}");
+                        tracing::warn!("kevy client create failed: {e}");
                     }
                 }
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
@@ -318,7 +318,7 @@ impl DeliveryWorker {
     }
 }
 
-/// wait for a Valkey notify signal, or never resolve if no listener
+/// wait for a Kevy notify signal, or never resolve if no listener
 async fn wait_for_notify(rx: &mut Option<tokio::sync::mpsc::Receiver<()>>) {
     match rx {
         Some(r) => {
