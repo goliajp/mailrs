@@ -1566,6 +1566,13 @@ Run: `cargo bench -p mailrs-backoff --bench backoff`. Generic
 exponential-backoff primitive with AWS-style jitter taxonomy
 (None/Equal/Full); zero runtime deps, caller supplies seed.
 
+**v4 ckpt 28** (2026-06-03): Case A verified — re-measured 1.6 ns
+base_delay / 4.6 ns delay/none_jitter / 7.1 ns delay/equal_jitter
+/ 6.8 ns delay/full_jitter / 641 ps should_give_up. Numbers drifted
+~5× FASTER than the v3 claim (was 8 / 23 / 31 ns) because rand
+upgrades simplified the hot path. The entire stone is u64 arithmetic
++ one rand call — no exploitable scan / alloc surface.
+
 ### `mailrs-clamav` — ClamAV TCP INSTREAM client (criterion, M-series Mac, release)
 
 CPU portion only — `scan` itself is network-bound (10-30 ms for a
@@ -1647,6 +1654,20 @@ src/ → 0 hits. The report-building paths walk a `Vec<Result>` and
 fold success/failure counters; `serialize_json` rides serde_json.
 Run: `cargo bench -p mailrs-tls-rpt --bench tls_rpt`.
 
+### `mailrs-delivery-executor` — group-commit Maildir flusher (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `DeliveryExecutor::spawn` | **~518 ns** |
+
+**v4 ckpt 28** (2026-06-03): Case A verified — `spawn` constructs
+the mpsc channel + background task, which is bounded by tokio's
+task spawn cost (~500 ns). The interesting numbers for this stone
+are the **end-to-end SMTP throughput** rows in the §"E2E inbound"
+table (291 → 1079 msg/s, 3.71×) — that's the real-world test of
+the group-commit pipeline. No exploitable scan / alloc in src/.
+Run: `cargo bench -p mailrs-delivery-executor --bench delivery_executor`.
+
 ### `mailrs-webhook-signature` — HMAC-SHA256 webhook signing (criterion, M-series Mac, release)
 
 | Path | Median |
@@ -1666,6 +1687,13 @@ Constant-time HMAC compare via `hmac::Mac::verify_slice`. Generic
 GitHub/Stripe-style webhook auth primitive; pairs with any HTTP
 outbox.
 
+**v4 ckpt 28** (2026-06-03): Case A verified — re-measured 161 ns
+sign/short, 543 ns sign/1kb, 38.25 µs sign/100kb, 243 ns
+verify/correct, 233-234 ns verify/wrong-secret-constant-time. The
+short-payload sign drifted ~2× FASTER than the v3 ~420 ns claim
+(aws-lc-rs SHA256 SIMD path). No exploitable surface — entire
+stone is one HMAC + one constant-time compare.
+
 ### `mailrs-rfc2231` — MIME parameter encode + decode (criterion, M-series Mac, release)
 
 | Path | Median |
@@ -1680,6 +1708,13 @@ outbox.
 
 Run: `cargo bench -p mailrs-rfc2231 --bench params`. Pairs with
 mailrs-rfc2047 to cover the full MIME header encoding suite.
+
+**v4 ckpt 28** (2026-06-03): Case A verified — re-measured 22 ns
+encode/ascii, 89 ns encode/japanese, 250 ns encode/long-japanese,
+5.6 ns decode/legacy-quoted, 6.8 ns decode/bareword, 72 ns
+decode/utf8-extended. No `iter().position` / `.windows(N)` /
+`push_str(&format!(...))` / `String::replace` in src/. Already
+at the SIMD floor for parameter encode/decode work.
 
 ### `mailrs-srs` — Sender Rewriting Scheme (criterion, M-series Mac, release)
 
@@ -1696,7 +1731,25 @@ success and wrong-secret paths is from the success path additionally
 allocating the recovered "local@domain" String; the actual byte
 comparison is constant-time.
 
+**v4 ckpt 28** (2026-06-03): Case A verified — re-measured 188 ns
+rewrite/ascii, 223 ns reverse/success, 135 ns reverse/wrong-secret,
+11 ns reverse/malformed. Slightly faster than v3 claims; same
+shape (success path slowest due to the recovered-string alloc,
+malformed fastest due to format-prefix early-exit). No
+exploitable scan / alloc surface beyond the necessary HMAC + utf8.
+
 ### `mailrs-auth-guard` — failed-auth tracker (criterion, M-series Mac, release)
+
+**v4 ckpt 28** (2026-06-03): Case A verified — `check/locked_out`
+44 ns, `check/under_threshold` 39-48 ns, `record_failure` 130 ns,
+`record_success` 74 ns, `cleanup_expired` 67 ns. No
+`iter().position` / `.windows(N)` / `push_str(&format!(...))` /
+`String::replace` in src/. The stone is a `DashMap<IpAddr,
+LockoutState>` with monotonic-clock comparisons; already at the
+DashMap insert/lookup floor. Run: `cargo bench -p mailrs-auth-guard
+--bench guard`.
+
+
 
 | Path | Median |
 |---|---:|
