@@ -35,11 +35,7 @@ pub(super) fn corpus() -> Vec<CorpusRow> {
             r#"require ["fileinto"]; fileinto "Junk"; keep;"#,
             msg_spam,
         ),
-        (
-            "discard_alone",
-            "discard;",
-            msg_spam,
-        ),
+        ("discard_alone", "discard;", msg_spam),
         (
             "stop_inside_else_branch",
             r#"if header :is "Subject" "no-match" { keep; }
@@ -137,11 +133,7 @@ pub(super) fn corpus() -> Vec<CorpusRow> {
             msg_spam,
         ),
         // --- CC. trivial scripts ---
-        (
-            "empty_script_implicit_keep",
-            "",
-            msg_spam,
-        ),
+        ("empty_script_implicit_keep", "", msg_spam),
         (
             "comment_only_script",
             "# this script does nothing useful\n",

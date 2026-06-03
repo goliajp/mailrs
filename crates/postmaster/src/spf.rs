@@ -96,8 +96,10 @@ mod tests {
 
     #[tokio::test]
     async fn spf_including_hostname_yields_pass() {
-        let r = MockResolver::new()
-            .with_txt("example.com", vec!["v=spf1 mx a:mail.example.com -all".into()]);
+        let r = MockResolver::new().with_txt(
+            "example.com",
+            vec!["v=spf1 mx a:mail.example.com -all".into()],
+        );
         let res = check_spf(&r, "example.com", "mail.example.com").await;
         assert!(matches!(res.status, Status::Pass));
         assert!(res.message.contains("strict"));

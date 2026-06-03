@@ -7,9 +7,9 @@
 //! signature this crate produces is unusable.
 
 use base64::Engine as _;
+use mailrs_dkim::RsaSigningKey;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
 use rsa::{RsaPrivateKey, RsaPublicKey};
-use mailrs_dkim::RsaSigningKey;
 
 use mailrs_dkim::{Canon, DkimResolver, DkimResult, DkimSigningKey, SignOpts, sign, verify_all};
 

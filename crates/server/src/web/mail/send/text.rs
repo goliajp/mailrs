@@ -280,8 +280,8 @@ async fn extract_full_forward_by_id(
         return empty;
     };
 
-    let Some(raw) = message_util::read_message_raw(&state.maildir_root, user, &meta.maildir_id)
-        .await
+    let Some(raw) =
+        message_util::read_message_raw(&state.maildir_root, user, &meta.maildir_id).await
     else {
         tracing::warn!(
             event = "forward_raw_not_found",

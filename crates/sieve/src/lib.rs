@@ -257,7 +257,11 @@ mod tests {
     fn implicit_keep_no_actions() {
         let compiled = compile_sieve("if false { discard; }").unwrap();
         let actions = evaluate_sieve(&compiled, MSG);
-        assert!(actions.iter().any(|a| matches!(a, SieveAction::Keep { .. })));
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, SieveAction::Keep { .. }))
+        );
     }
 
     #[test]
@@ -296,7 +300,11 @@ mod tests {
                 .iter()
                 .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "Archive"))
         );
-        assert!(actions.iter().any(|a| matches!(a, SieveAction::Keep { .. })));
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, SieveAction::Keep { .. }))
+        );
     }
 
     #[test]
@@ -306,7 +314,11 @@ mod tests {
         if let Ok(compiled) = compiled {
             let actions = evaluate_sieve(&compiled, MSG);
             assert!(!actions.is_empty());
-            assert!(actions.iter().any(|a| matches!(a, SieveAction::Keep { .. })));
+            assert!(
+                actions
+                    .iter()
+                    .any(|a| matches!(a, SieveAction::Keep { .. }))
+            );
         }
     }
 
@@ -315,7 +327,11 @@ mod tests {
         let compiled = compile_sieve("   \n\n  ");
         if let Ok(compiled) = compiled {
             let actions = evaluate_sieve(&compiled, MSG);
-            assert!(actions.iter().any(|a| matches!(a, SieveAction::Keep { .. })));
+            assert!(
+                actions
+                    .iter()
+                    .any(|a| matches!(a, SieveAction::Keep { .. }))
+            );
         }
     }
 
@@ -348,7 +364,11 @@ mod tests {
         "#;
         let compiled = compile_sieve(script).unwrap();
         let actions = evaluate_sieve(&compiled, MSG);
-        assert!(actions.iter().any(|a| matches!(a, SieveAction::Keep { .. })));
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, SieveAction::Keep { .. }))
+        );
         assert!(
             !actions
                 .iter()
@@ -435,9 +455,9 @@ mod tests {
         let compiled = compile_sieve(script).unwrap();
         let actions = evaluate_sieve(&compiled, MSG);
         assert!(
-            actions
-                .iter()
-                .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "HasSubject"))
+            actions.iter().any(
+                |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "HasSubject")
+            )
         );
     }
 
@@ -554,9 +574,9 @@ mod tests {
         let compiled = compile_sieve(script).unwrap();
         let actions = evaluate_sieve(&compiled, MSG);
         assert!(
-            actions
-                .iter()
-                .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "FromSender"))
+            actions.iter().any(
+                |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "FromSender")
+            )
         );
     }
 
@@ -582,7 +602,11 @@ mod tests {
         let minimal = b"From: a@b.c\r\n\r\n";
         let compiled = compile_sieve("keep;").unwrap();
         let actions = evaluate_sieve(&compiled, minimal);
-        assert!(actions.iter().any(|a| matches!(a, SieveAction::Keep { .. })));
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, SieveAction::Keep { .. }))
+        );
     }
 
     #[test]
@@ -594,7 +618,10 @@ mod tests {
 
     #[test]
     fn sieve_action_debug_clone() {
-        let action = SieveAction::FileInto { mailbox: "test".to_string(), flags: vec![] };
+        let action = SieveAction::FileInto {
+            mailbox: "test".to_string(),
+            flags: vec![],
+        };
         let cloned = action.clone();
         // verify Debug is implemented
         let debug_str = format!("{:?}", cloned);
@@ -723,9 +750,9 @@ mod tests {
         let compiled = compile_sieve(script).unwrap();
         let actions = evaluate_sieve(&compiled, MSG);
         assert!(
-            actions
-                .iter()
-                .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "NestedLogic"))
+            actions.iter().any(
+                |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "NestedLogic")
+            )
         );
     }
 
@@ -802,11 +829,9 @@ mod tests {
         "#;
         let compiled = compile_sieve(script).unwrap();
         let actions = evaluate_sieve(&compiled, MSG);
-        assert!(
-            !actions
-                .iter()
-                .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "ShouldNotMatch"))
-        );
+        assert!(!actions.iter().any(
+            |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "ShouldNotMatch")
+        ));
     }
 
     #[test]
@@ -1142,11 +1167,9 @@ mod tests {
         match compile_sieve(script) {
             Ok(compiled) => {
                 let actions = evaluate_sieve(&compiled, MSG);
-                assert!(
-                    actions
-                        .iter()
-                        .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "Regex"))
-                );
+                assert!(actions.iter().any(
+                    |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "Regex")
+                ));
             }
             Err(_) => {
                 // regex not supported by this sieve implementation, that's ok
@@ -1165,11 +1188,9 @@ mod tests {
         match compile_sieve(script) {
             Ok(compiled) => {
                 let actions = evaluate_sieve(&compiled, MSG);
-                assert!(
-                    actions
-                        .iter()
-                        .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "RegexDomain"))
-                );
+                assert!(actions.iter().any(
+                    |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "RegexDomain")
+                ));
             }
             Err(_) => {
                 // regex not supported
@@ -1188,11 +1209,9 @@ mod tests {
         match compile_sieve(script) {
             Ok(compiled) => {
                 let actions = evaluate_sieve(&compiled, MSG);
-                assert!(
-                    !actions
-                        .iter()
-                        .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "Numbers"))
-                );
+                assert!(!actions.iter().any(
+                    |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "Numbers")
+                ));
             }
             Err(_) => {
                 // regex not supported
@@ -1278,7 +1297,11 @@ mod tests {
                 .iter()
                 .any(|a| matches!(a, SieveAction::Redirect(a) if a == "copy@example.com"))
         );
-        assert!(actions.iter().any(|a| matches!(a, SieveAction::Keep { .. })));
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, SieveAction::Keep { .. }))
+        );
     }
 
     #[test]
@@ -1326,11 +1349,9 @@ mod tests {
                 .iter()
                 .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "Matched"))
         );
-        assert!(
-            !actions
-                .iter()
-                .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "ShouldNotReach"))
-        );
+        assert!(!actions.iter().any(
+            |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "ShouldNotReach")
+        ));
     }
 
     // --- invalid script error handling ---
@@ -1361,7 +1382,11 @@ mod tests {
         let result = compile_sieve("require \"nonexistent_extension_xyz\";");
         if let Ok(compiled) = result {
             let actions = evaluate_sieve(&compiled, MSG);
-            assert!(actions.iter().any(|a| matches!(a, SieveAction::Keep { .. })));
+            assert!(
+                actions
+                    .iter()
+                    .any(|a| matches!(a, SieveAction::Keep { .. }))
+            );
         }
     }
 
@@ -1427,9 +1452,9 @@ mod tests {
         let compiled = compile_sieve(script).unwrap();
         let actions = evaluate_sieve(&compiled, MSG);
         assert!(
-            actions
-                .iter()
-                .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "DomainMatch"))
+            actions.iter().any(
+                |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "DomainMatch")
+            )
         );
     }
 
@@ -1444,9 +1469,9 @@ mod tests {
         let compiled = compile_sieve(script).unwrap();
         let actions = evaluate_sieve(&compiled, MSG);
         assert!(
-            !actions
-                .iter()
-                .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "WrongDomain"))
+            !actions.iter().any(
+                |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "WrongDomain")
+            )
         );
     }
 
@@ -1546,11 +1571,9 @@ mod tests {
         "#;
         let compiled = compile_sieve(script).unwrap();
         let actions = evaluate_sieve(&compiled, msg);
-        assert!(
-            actions
-                .iter()
-                .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "ComplexHeaders"))
-        );
+        assert!(actions.iter().any(
+            |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "ComplexHeaders")
+        ));
     }
 
     // --- case sensitivity ---
@@ -1567,11 +1590,9 @@ mod tests {
         let compiled = compile_sieve(script).unwrap();
         let actions = evaluate_sieve(&compiled, MSG);
         // "test" should match "Test" case-insensitively
-        assert!(
-            actions
-                .iter()
-                .any(|a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "CaseInsensitive"))
-        );
+        assert!(actions.iter().any(
+            |a| matches!(a, SieveAction::FileInto { mailbox: f, .. } if f == "CaseInsensitive")
+        ));
     }
 
     #[test]

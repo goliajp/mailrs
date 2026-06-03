@@ -43,15 +43,35 @@ pub(super) fn parse_sort_criteria(criteria: &str) -> Vec<SortCriterion> {
     // `eq_ignore_ascii_case` so the parser stays alloc-free.
     fn classify(tok: &str, reverse: bool) -> Option<SortCriterion> {
         if tok.eq_ignore_ascii_case("ARRIVAL") {
-            Some(if reverse { SortCriterion::ReverseArrival } else { SortCriterion::Arrival })
+            Some(if reverse {
+                SortCriterion::ReverseArrival
+            } else {
+                SortCriterion::Arrival
+            })
         } else if tok.eq_ignore_ascii_case("DATE") {
-            Some(if reverse { SortCriterion::ReverseDate } else { SortCriterion::Date })
+            Some(if reverse {
+                SortCriterion::ReverseDate
+            } else {
+                SortCriterion::Date
+            })
         } else if tok.eq_ignore_ascii_case("FROM") {
-            Some(if reverse { SortCriterion::ReverseFrom } else { SortCriterion::From })
+            Some(if reverse {
+                SortCriterion::ReverseFrom
+            } else {
+                SortCriterion::From
+            })
         } else if tok.eq_ignore_ascii_case("SUBJECT") {
-            Some(if reverse { SortCriterion::ReverseSubject } else { SortCriterion::Subject })
+            Some(if reverse {
+                SortCriterion::ReverseSubject
+            } else {
+                SortCriterion::Subject
+            })
         } else if tok.eq_ignore_ascii_case("SIZE") || tok.eq_ignore_ascii_case("RFC822.SIZE") {
-            Some(if reverse { SortCriterion::ReverseSize } else { SortCriterion::Size })
+            Some(if reverse {
+                SortCriterion::ReverseSize
+            } else {
+                SortCriterion::Size
+            })
         } else {
             None
         }

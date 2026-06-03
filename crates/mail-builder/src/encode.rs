@@ -239,7 +239,10 @@ mod tests {
     #[test]
     fn cte_long_ascii_line_is_qp() {
         let body = format!("{}\r\n", "x".repeat(120));
-        assert_eq!(choose_cte(body.as_bytes()), ContentTransferEncoding::QuotedPrintable);
+        assert_eq!(
+            choose_cte(body.as_bytes()),
+            ContentTransferEncoding::QuotedPrintable
+        );
     }
 
     #[test]
@@ -326,7 +329,10 @@ mod tests {
         // continuation lines start with a single SP (folding WSP)
         let parts: Vec<&str> = out.split("\r\n").collect();
         for p in &parts[1..] {
-            assert!(p.starts_with(' '), "continuation must start with WSP: {p:?}");
+            assert!(
+                p.starts_with(' '),
+                "continuation must start with WSP: {p:?}"
+            );
         }
     }
 

@@ -248,8 +248,8 @@ mod tests {
 
     #[test]
     fn missing_reason_rejected() {
-        let err = parse_vacation_args(&[Argument::Tag("days".into()), Argument::Number(7)])
-            .unwrap_err();
+        let err =
+            parse_vacation_args(&[Argument::Tag("days".into()), Argument::Number(7)]).unwrap_err();
         assert_eq!(err, VacationParseError::MissingReason);
     }
 
@@ -305,7 +305,11 @@ body\r\n";
         // RFC 5230 §3: vacation does NOT cancel the implicit keep.
         let script = r#"require ["vacation"]; vacation "I am on holiday";"#;
         let actions = eval_script(script, MSG).unwrap();
-        assert_eq!(actions.len(), 2, "expected [Vacation, Keep], got {actions:?}");
+        assert_eq!(
+            actions.len(),
+            2,
+            "expected [Vacation, Keep], got {actions:?}"
+        );
         match &actions[0] {
             Action::Vacation(va) => {
                 assert_eq!(va.reason, "I am on holiday");
@@ -342,6 +346,12 @@ body\r\n";
         let actions = eval_script(script, MSG).unwrap();
         assert_eq!(actions.len(), 2);
         assert!(matches!(actions[0], Action::Vacation(_)));
-        assert_eq!(actions[1], Action::FileInto { mailbox: "Sent".into(), flags: vec![] });
+        assert_eq!(
+            actions[1],
+            Action::FileInto {
+                mailbox: "Sent".into(),
+                flags: vec![]
+            }
+        );
     }
 }

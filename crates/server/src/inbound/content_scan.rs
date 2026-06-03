@@ -216,7 +216,14 @@ fn has_shortener_url(data: &[u8]) -> bool {
 /// The conjunction is important — receipts and invoices mention
 /// currency; spam mentions both currency AND "FREE / WIN / URGENT".
 fn money_urgency_pair(data: &[u8]) -> bool {
-    const CURRENCY: &[&[u8]] = &[b"$", b"\xe2\x82\xac", b"\xc2\xa3", b"\xc2\xa5", b"USD", b"EUR"];
+    const CURRENCY: &[&[u8]] = &[
+        b"$",
+        b"\xe2\x82\xac",
+        b"\xc2\xa3",
+        b"\xc2\xa5",
+        b"USD",
+        b"EUR",
+    ];
     const URGENCY: &[&[u8]] = &[
         b"free",
         b"winner",
@@ -972,9 +979,8 @@ mod tests {
     #[test]
     fn shouty_body_triggers_on_caps_dominant_body() {
         // ≥200 alpha bytes, ≥30% upper. Use repeated FREE/WIN words.
-        let mut data = String::from(
-            "From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\n",
-        );
+        let mut data =
+            String::from("From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\n");
         data.push_str(&"FREE FREE WIN WIN CASH PRIZE NOW URGENT ".repeat(15));
         let (_, rules) = evaluate_rules(data.as_bytes());
         assert!(rules.contains(&"shouty_body".to_string()));
@@ -983,16 +989,16 @@ mod tests {
     #[test]
     fn shouty_body_no_trigger_on_short_body() {
         // Even though all-caps, body is under the 200-alpha floor.
-        let data = b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nTHANKS!";
+        let data =
+            b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nTHANKS!";
         let (_, rules) = evaluate_rules(data);
         assert!(!rules.contains(&"shouty_body".to_string()));
     }
 
     #[test]
     fn shouty_body_no_trigger_on_mixed_case_long_body() {
-        let mut data = String::from(
-            "From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\n",
-        );
+        let mut data =
+            String::from("From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\n");
         // 200+ alpha bytes of mostly lowercase prose.
         data.push_str(&"this is a normal long email body with regular sentences and the typical case usage you would see in inbound mail ".repeat(3));
         let (_, rules) = evaluate_rules(data.as_bytes());
@@ -1005,10 +1011,7 @@ mod tests {
             extract_subject(b"Subject: hello world\r\n").unwrap(),
             b"hello world"
         );
-        assert_eq!(
-            extract_subject(b"Subject:hello\r\n").unwrap(),
-            b"hello"
-        );
+        assert_eq!(extract_subject(b"Subject:hello\r\n").unwrap(), b"hello");
         assert!(extract_subject(b"Subject:   \r\n").is_none());
         assert!(extract_subject(b"From: a@b.com\r\n").is_none());
     }

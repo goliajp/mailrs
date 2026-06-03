@@ -228,11 +228,7 @@ pub fn sign(
     for (name, value_opt) in &collected {
         let Some(value) = value_opt else { continue };
         let canon_name = name.to_ascii_lowercase();
-        signed_block.extend_from_slice(&canonicalize_header(
-            &canon_name,
-            value,
-            opts.canon_header,
-        ));
+        signed_block.extend_from_slice(&canonicalize_header(&canon_name, value, opts.canon_header));
     }
     // Append the DKIM-Signature header value itself with b= empty.
     // canonicalize_header takes a name + value; the value here is the

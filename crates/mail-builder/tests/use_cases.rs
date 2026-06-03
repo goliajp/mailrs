@@ -61,7 +61,11 @@ fn dsn_shaped_message_builds_and_parses() {
         "Delivery Status Notification (Failure)"
     );
     let raw_to = parsed.header("To").unwrap_or(b"");
-    assert!(std::str::from_utf8(raw_to).unwrap().contains("alice@example.com"));
+    assert!(
+        std::str::from_utf8(raw_to)
+            .unwrap()
+            .contains("alice@example.com")
+    );
     assert!(parsed.body_offset().is_some(), "body separator present");
 }
 
@@ -115,10 +119,12 @@ fn dmarc_report_message_builds_and_parses() {
     assert!(s.contains(needle), "base64 prefix of report missing");
 
     let parsed = Message::new(&msg);
-    assert!(parsed
-        .header_str("Subject")
-        .unwrap_or("")
-        .starts_with("Report domain: golia.jp"));
+    assert!(
+        parsed
+            .header_str("Subject")
+            .unwrap_or("")
+            .starts_with("Report domain: golia.jp")
+    );
 }
 
 #[test]

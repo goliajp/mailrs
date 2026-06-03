@@ -151,7 +151,11 @@ mod hickory {
 
         async fn tlsa_lookup(&self, qname: &str) -> Result<Vec<String>, ResolverError> {
             match self.0.lookup(qname, RecordType::TLSA).await {
-                Ok(records) => Ok(records.answers().iter().map(|r| format!("{}", r.data)).collect()),
+                Ok(records) => Ok(records
+                    .answers()
+                    .iter()
+                    .map(|r| format!("{}", r.data))
+                    .collect()),
                 Err(e) => Err(map_err(e, qname)),
             }
         }
@@ -183,19 +187,31 @@ impl MockResolver {
 
     /// Seed a TXT response.
     pub fn with_txt(self, qname: impl Into<String>, records: Vec<String>) -> Self {
-        self.state.lock().unwrap().txt.insert(qname.into(), Ok(records));
+        self.state
+            .lock()
+            .unwrap()
+            .txt
+            .insert(qname.into(), Ok(records));
         self
     }
 
     /// Seed a TXT error.
     pub fn with_txt_err(self, qname: impl Into<String>, err: ResolverError) -> Self {
-        self.state.lock().unwrap().txt.insert(qname.into(), Err(err));
+        self.state
+            .lock()
+            .unwrap()
+            .txt
+            .insert(qname.into(), Err(err));
         self
     }
 
     /// Seed an MX response.
     pub fn with_mx(self, qname: impl Into<String>, records: Vec<MxRecord>) -> Self {
-        self.state.lock().unwrap().mx.insert(qname.into(), Ok(records));
+        self.state
+            .lock()
+            .unwrap()
+            .mx
+            .insert(qname.into(), Ok(records));
         self
     }
 
@@ -225,7 +241,11 @@ impl MockResolver {
 
     /// Seed a TLSA response.
     pub fn with_tlsa(self, qname: impl Into<String>, records: Vec<String>) -> Self {
-        self.state.lock().unwrap().tlsa.insert(qname.into(), Ok(records));
+        self.state
+            .lock()
+            .unwrap()
+            .tlsa
+            .insert(qname.into(), Ok(records));
         self
     }
 }

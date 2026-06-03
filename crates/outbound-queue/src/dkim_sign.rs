@@ -126,7 +126,11 @@ impl DkimSignConfig {
     ) -> Result<(String, String, RsaSigningKey), String> {
         // 1. exact match
         if let Some(dk) = self.extra_keys.get(from_domain) {
-            return Ok((from_domain.to_string(), dk.selector.clone(), dk.rsa_key()?.clone()));
+            return Ok((
+                from_domain.to_string(),
+                dk.selector.clone(),
+                dk.rsa_key()?.clone(),
+            ));
         }
         // 2. suffix walk — strip the leading label and try again.
         //    The walk stops once there's only one label left (we never
@@ -140,7 +144,11 @@ impl DkimSignConfig {
                 break;
             }
             if let Some(dk) = self.extra_keys.get(parent) {
-                return Ok((parent.to_string(), dk.selector.clone(), dk.rsa_key()?.clone()));
+                return Ok((
+                    parent.to_string(),
+                    dk.selector.clone(),
+                    dk.rsa_key()?.clone(),
+                ));
             }
             rest = parent;
         }
@@ -184,8 +192,8 @@ impl DkimSignConfig {
             expiration: None,
             body_length: None,
         };
-        let header = dkim_sign(message, &key, &opts)
-            .map_err(|e| format!("DKIM signing failed: {e}"))?;
+        let header =
+            dkim_sign(message, &key, &opts).map_err(|e| format!("DKIM signing failed: {e}"))?;
         let mut signed = Vec::with_capacity(header.len() + message.len());
         signed.extend_from_slice(header.as_bytes());
         signed.extend_from_slice(message);
@@ -213,7 +221,11 @@ pub fn extract_from_domain(message: &[u8]) -> Option<String> {
         .find(|c: char| c == '>' || c == ',' || c == ';' || c.is_whitespace())
         .unwrap_or(after.len());
     let domain = after[..end].trim().to_ascii_lowercase();
-    if domain.is_empty() { None } else { Some(domain) }
+    if domain.is_empty() {
+        None
+    } else {
+        Some(domain)
+    }
 }
 
 /// Extract domain from email address.
@@ -233,8 +245,8 @@ pub async fn arc_seal_message(
 
     // 2. Extract + verify the prior ARC chain (if any). `cv=` on the
     //    new seal mirrors the verdict.
-    let prior_chain = ArcChain::extract(message)
-        .map_err(|e| format!("ARC chain extract failed: {e}"))?;
+    let prior_chain =
+        ArcChain::extract(message).map_err(|e| format!("ARC chain extract failed: {e}"))?;
     let cv = match prior_chain.as_ref() {
         None => ArcSealCv::None,
         Some(chain) => {
@@ -259,10 +271,17 @@ pub async fn arc_seal_message(
     let opts = SealOpts {
         domain: dkim_config.domain.clone(),
         selector: dkim_config.selector.clone(),
-        signed_headers: ["From", "To", "Subject", "Date", "Message-ID", "DKIM-Signature"]
-            .iter()
-            .map(|&s| s.to_string())
-            .collect(),
+        signed_headers: [
+            "From",
+            "To",
+            "Subject",
+            "Date",
+            "Message-ID",
+            "DKIM-Signature",
+        ]
+        .iter()
+        .map(|&s| s.to_string())
+        .collect(),
         canon_header: ArcCanon::Relaxed,
         canon_body: ArcCanon::Relaxed,
         cv,
@@ -283,10 +302,7 @@ fn load_rsa_key(pem: &str) -> Result<RsaSigningKey, String> {
     RsaSigningKey::from_pkcs8_pem(pem).map_err(|e| format!("failed to parse DKIM key: {e}"))
 }
 
-fn build_authres_body(
-    authserv_id: &str,
-    outputs: &[mailrs_dkim::SignatureOutput],
-) -> String {
+fn build_authres_body(authserv_id: &str, outputs: &[mailrs_dkim::SignatureOutput]) -> String {
     use std::fmt::Write as _;
     let mut s = String::with_capacity(64);
     s.push_str(authserv_id);
@@ -611,19 +627,13 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
     #[test]
     fn extract_from_domain_quoted_display_name() {
         let m = b"From: \"Alice Liddell\" <alice@mail.example.com>\r\n\r\nbody";
-        assert_eq!(
-            extract_from_domain(m).as_deref(),
-            Some("mail.example.com")
-        );
+        assert_eq!(extract_from_domain(m).as_deref(), Some("mail.example.com"));
     }
 
     #[test]
     fn extract_from_domain_lowercases() {
         let m = b"From: <alice@MAIL.EXAMPLE.com>\r\n\r\nbody";
-        assert_eq!(
-            extract_from_domain(m).as_deref(),
-            Some("mail.example.com")
-        );
+        assert_eq!(extract_from_domain(m).as_deref(), Some("mail.example.com"));
     }
 
     #[test]

@@ -39,9 +39,7 @@ pub enum EvalError {
     /// "implementations MUST treat scripts which contain capability
     /// declarations not satisfied by the implementation as
     /// containing a syntax error").
-    #[error(
-        "missing capability for {feature:?}: script must `require [\"{capability}\"]`"
-    )]
+    #[error("missing capability for {feature:?}: script must `require [\"{capability}\"]`")]
     MissingCapability {
         /// Identifier of the unrequired feature (command / test /
         /// `:tag`).
@@ -326,12 +324,18 @@ hello world\r\n";
 
     #[test]
     fn implicit_keep_on_empty_script() {
-        assert_eq!(eval_script("", MSG).unwrap(), vec![Action::Keep { flags: vec![] }]);
+        assert_eq!(
+            eval_script("", MSG).unwrap(),
+            vec![Action::Keep { flags: vec![] }]
+        );
     }
 
     #[test]
     fn explicit_keep() {
-        assert_eq!(eval_script("keep;", MSG).unwrap(), vec![Action::Keep { flags: vec![] }]);
+        assert_eq!(
+            eval_script("keep;", MSG).unwrap(),
+            vec![Action::Keep { flags: vec![] }]
+        );
     }
 
     #[test]
@@ -344,7 +348,10 @@ hello world\r\n";
         let script = r#"require ["fileinto"]; fileinto "Junk";"#;
         assert_eq!(
             eval_script(script, MSG).unwrap(),
-            vec![Action::FileInto { mailbox: "Junk".into(), flags: vec![] }]
+            vec![Action::FileInto {
+                mailbox: "Junk".into(),
+                flags: vec![]
+            }]
         );
     }
 
@@ -357,7 +364,10 @@ hello world\r\n";
     #[test]
     fn header_is_no_match_falls_through_to_keep() {
         let script = r#"if header :is "Subject" "newsletter" { discard; }"#;
-        assert_eq!(eval_script(script, MSG).unwrap(), vec![Action::Keep { flags: vec![] }]);
+        assert_eq!(
+            eval_script(script, MSG).unwrap(),
+            vec![Action::Keep { flags: vec![] }]
+        );
     }
 
     #[test]
@@ -366,7 +376,10 @@ hello world\r\n";
                         if header :contains "Subject" "offer" { fileinto "Ads"; }"#;
         assert_eq!(
             eval_script(script, MSG).unwrap(),
-            vec![Action::FileInto { mailbox: "Ads".into(), flags: vec![] }]
+            vec![Action::FileInto {
+                mailbox: "Ads".into(),
+                flags: vec![]
+            }]
         );
     }
 
@@ -385,7 +398,10 @@ hello world\r\n";
     #[test]
     fn exists_test_missing() {
         let script = r#"if exists "X-Spam-Score" { discard; }"#;
-        assert_eq!(eval_script(script, MSG).unwrap(), vec![Action::Keep { flags: vec![] }]);
+        assert_eq!(
+            eval_script(script, MSG).unwrap(),
+            vec![Action::Keep { flags: vec![] }]
+        );
     }
 
     #[test]
@@ -441,7 +457,10 @@ hello world\r\n";
             else { keep; }"#;
         assert_eq!(
             eval_script(script, MSG).unwrap(),
-            vec![Action::FileInto { mailbox: "Spam".into(), flags: vec![] }]
+            vec![Action::FileInto {
+                mailbox: "Spam".into(),
+                flags: vec![]
+            }]
         );
     }
 
@@ -450,7 +469,10 @@ hello world\r\n";
         let script = r#"
             if header :is "Subject" "no-match" { discard; }
             else { keep; }"#;
-        assert_eq!(eval_script(script, MSG).unwrap(), vec![Action::Keep { flags: vec![] }]);
+        assert_eq!(
+            eval_script(script, MSG).unwrap(),
+            vec![Action::Keep { flags: vec![] }]
+        );
     }
 
     #[test]
@@ -465,7 +487,10 @@ hello world\r\n";
                         if address :domain "To" "dest.com" { fileinto "Sent"; }"#;
         assert_eq!(
             eval_script(script, MSG).unwrap(),
-            vec![Action::FileInto { mailbox: "Sent".into(), flags: vec![] }]
+            vec![Action::FileInto {
+                mailbox: "Sent".into(),
+                flags: vec![]
+            }]
         );
     }
 
@@ -521,8 +546,7 @@ hello world\r\n";
 
     #[test]
     fn require_out_of_order_errors() {
-        let err =
-            eval_script(r#"keep; require ["fileinto"];"#, MSG).unwrap_err();
+        let err = eval_script(r#"keep; require ["fileinto"];"#, MSG).unwrap_err();
         assert!(matches!(err, EvalError::RequireOutOfOrder), "got {err:?}");
     }
 }

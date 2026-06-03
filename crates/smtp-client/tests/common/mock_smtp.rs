@@ -258,7 +258,8 @@ async fn handle_starttls(tcp: TcpStream) -> std::io::Result<()> {
         let upper = line.trim_end_matches(['\r', '\n']).to_uppercase();
 
         if upper.starts_with("EHLO") || upper.starts_with("HELO") {
-            wh.write_all(b"250-mock.test tls\r\n250 PIPELINING\r\n").await?;
+            wh.write_all(b"250-mock.test tls\r\n250 PIPELINING\r\n")
+                .await?;
         } else if upper.starts_with("MAIL FROM") {
             wh.write_all(b"250 OK\r\n").await?;
             after_mail = true;

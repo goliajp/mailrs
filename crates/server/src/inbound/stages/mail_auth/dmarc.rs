@@ -67,9 +67,7 @@ impl MailAuthStage {
 
                     return StageOutcome::Decide(DeliveryDecision::Reject {
                         code: 550,
-                        message: format!(
-                            "5.7.1 DMARC policy reject for domain {mail_from_domain}"
-                        ),
+                        message: format!("5.7.1 DMARC policy reject for domain {mail_from_domain}"),
                     });
                 }
                 PolicyAction::Quarantine => {

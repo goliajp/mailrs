@@ -136,9 +136,7 @@ fn relax_body(input: &[u8]) -> Vec<u8> {
         }
 
         // Strip trailing WSP from this line's region in `out`.
-        while out.len() > line_start_in_out
-            && matches!(out[out.len() - 1], b' ' | b'\t')
-        {
+        while out.len() > line_start_in_out && matches!(out[out.len() - 1], b' ' | b'\t') {
             out.pop();
         }
 

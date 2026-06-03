@@ -55,9 +55,7 @@ fn bench_canonicalize_body_relaxed(c: &mut Criterion) {
     for &kb in &[1usize, 5, 50] {
         let mut payload = Vec::with_capacity(kb * 1024);
         while payload.len() < kb * 1024 {
-            payload.extend_from_slice(
-                b"This is  a body  line\twith\tsome    interior wsp  \r\n",
-            );
+            payload.extend_from_slice(b"This is  a body  line\twith\tsome    interior wsp  \r\n");
         }
         payload.truncate(kb * 1024);
         group.throughput(criterion::Throughput::Bytes(payload.len() as u64));
@@ -133,10 +131,7 @@ fn bench_collect_signed_headers(c: &mut Criterion) {
         // Borrowed variant (zero-alloc, internal hot path)
         group.bench_function(format!("borrowed/n_headers_{}", 10 + n_filler), |b| {
             b.iter(|| {
-                let r = collect_signed_headers_borrowed(
-                    black_box(&headers),
-                    black_box(&names),
-                );
+                let r = collect_signed_headers_borrowed(black_box(&headers), black_box(&names));
                 black_box(r);
             });
         });

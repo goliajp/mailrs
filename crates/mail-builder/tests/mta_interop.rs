@@ -16,9 +16,9 @@
 use std::time::Duration;
 
 use mailrs_mail_builder::{Attachment, MessageBuilder};
+use testcontainers::GenericImage;
 use testcontainers::core::{ContainerPort, IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
-use testcontainers::GenericImage;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
@@ -27,8 +27,8 @@ const MAILPIT_HTTP_PORT: u16 = 8025;
 
 async fn start_mailpit() -> (
     testcontainers::ContainerAsync<GenericImage>,
-    String,  // SMTP host:port
-    String,  // HTTP base URL
+    String, // SMTP host:port
+    String, // HTTP base URL
 ) {
     let image = GenericImage::new("axllent/mailpit", "latest")
         .with_exposed_port(MAILPIT_SMTP_PORT.tcp())
@@ -60,26 +60,39 @@ async fn start_mailpit() -> (
 
 /// Send `message_bytes` via SMTP to `smtp_addr` (host:port). Reads
 /// each response code and bubbles a non-2xx as Err.
-async fn smtp_submit(smtp_addr: &str, sender: &str, recipient: &str, body: &[u8]) -> std::io::Result<()> {
+async fn smtp_submit(
+    smtp_addr: &str,
+    sender: &str,
+    recipient: &str,
+    body: &[u8],
+) -> std::io::Result<()> {
     let stream = TcpStream::connect(smtp_addr).await?;
     let (rh, mut wh) = stream.into_split();
     let mut reader = BufReader::new(rh);
 
-    async fn expect_2xx(reader: &mut BufReader<tokio::net::tcp::OwnedReadHalf>) -> std::io::Result<()> {
+    async fn expect_2xx(
+        reader: &mut BufReader<tokio::net::tcp::OwnedReadHalf>,
+    ) -> std::io::Result<()> {
         // SMTP replies are multi-line: every line starts with the code,
         // continuation lines use a hyphen after the code, terminator uses space.
         loop {
             let mut line = String::new();
             let n = reader.read_line(&mut line).await?;
             if n == 0 {
-                return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "smtp closed"));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "smtp closed",
+                ));
             }
             if line.len() < 4 {
                 continue;
             }
             let code = &line[..3];
             if !code.starts_with('2') {
-                return Err(std::io::Error::other(format!("smtp reply: {}", line.trim_end())));
+                return Err(std::io::Error::other(format!(
+                    "smtp reply: {}",
+                    line.trim_end()
+                )));
             }
             if line.as_bytes()[3] == b' ' {
                 return Ok(());
@@ -95,11 +108,13 @@ async fn smtp_submit(smtp_addr: &str, sender: &str, recipient: &str, body: &[u8]
     expect_2xx(&mut reader).await?;
 
     // MAIL FROM
-    wh.write_all(format!("MAIL FROM:<{sender}>\r\n").as_bytes()).await?;
+    wh.write_all(format!("MAIL FROM:<{sender}>\r\n").as_bytes())
+        .await?;
     expect_2xx(&mut reader).await?;
 
     // RCPT TO
-    wh.write_all(format!("RCPT TO:<{recipient}>\r\n").as_bytes()).await?;
+    wh.write_all(format!("RCPT TO:<{recipient}>\r\n").as_bytes())
+        .await?;
     expect_2xx(&mut reader).await?;
 
     // DATA
@@ -109,7 +124,10 @@ async fn smtp_submit(smtp_addr: &str, sender: &str, recipient: &str, body: &[u8]
         let mut line = String::new();
         reader.read_line(&mut line).await?;
         if !line.starts_with("354") {
-            return Err(std::io::Error::other(format!("expected 354, got: {}", line.trim_end())));
+            return Err(std::io::Error::other(format!(
+                "expected 354, got: {}",
+                line.trim_end()
+            )));
         }
     }
 
@@ -154,7 +172,14 @@ async fn fetch_latest_raw(http_base: &str) -> Vec<u8> {
         .expect("client");
     let mut id = String::new();
     for _ in 0..20 {
-        let resp: ListResp = client.get(&list_url).send().await.unwrap().json().await.unwrap();
+        let resp: ListResp = client
+            .get(&list_url)
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
         if let Some(latest) = resp.messages.first() {
             id = latest.id.clone();
             break;
@@ -164,7 +189,14 @@ async fn fetch_latest_raw(http_base: &str) -> Vec<u8> {
     assert!(!id.is_empty(), "Mailpit never showed a stored message");
 
     let raw_url = format!("{http_base}/api/v1/message/{id}/raw");
-    let bytes = client.get(&raw_url).send().await.unwrap().bytes().await.unwrap();
+    let bytes = client
+        .get(&raw_url)
+        .send()
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
     bytes.to_vec()
 }
 
@@ -244,7 +276,11 @@ fn cases() -> Vec<InteropCase> {
                     .to("bob@example.com")
                     .subject("mixed")
                     .text_body("body\r\n")
-                    .attachment(Attachment::new("doc.pdf", "application/pdf", vec![0x25, 0x50, 0x44, 0x46]))
+                    .attachment(Attachment::new(
+                        "doc.pdf",
+                        "application/pdf",
+                        vec![0x25, 0x50, 0x44, 0x46],
+                    ))
                     .date("Wed, 27 May 2026 12:00:00 +0000")
                     .build()
             },

@@ -159,11 +159,7 @@ pub(super) fn corpus() -> Vec<CorpusRow> {
             msg_quotedname,
         ),
         // size :over 0 — true for any non-empty body
-        (
-            "size_over_zero",
-            "if size :over 0 { discard; }",
-            msg_spam,
-        ),
+        ("size_over_zero", "if size :over 0 { discard; }", msg_spam),
         // folded header unfolds before :contains
         (
             "folded_header_contains_continuation",

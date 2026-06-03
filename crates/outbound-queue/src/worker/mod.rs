@@ -14,9 +14,9 @@ use hickory_resolver::TokioResolver;
 use mailrs_dkim::HickoryDkimResolver;
 use sqlx::PgPool;
 
+use crate::DeliveryEventSender;
 use crate::dkim_sign::{self, DkimSignConfig};
 use crate::queue::{self, QueuedMessage};
-use crate::{DeliveryEventSender};
 
 mod delivery;
 mod smtp;

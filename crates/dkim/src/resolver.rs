@@ -91,11 +91,7 @@ impl<R: DkimResolver> CachedDkimResolver<R> {
     }
 
     /// Construct with explicit TTL and capacity.
-    pub fn with_ttl_and_capacity(
-        inner: R,
-        ttl: std::time::Duration,
-        max_entries: usize,
-    ) -> Self {
+    pub fn with_ttl_and_capacity(inner: R, ttl: std::time::Duration, max_entries: usize) -> Self {
         Self {
             inner,
             cache: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
@@ -202,8 +198,14 @@ mod cache_tests {
         let inner = fixture();
         let cached = CachedDkimResolver::new(inner);
 
-        let first = cached.lookup_public_key("mail", "example.com").await.unwrap();
-        let second = cached.lookup_public_key("mail", "example.com").await.unwrap();
+        let first = cached
+            .lookup_public_key("mail", "example.com")
+            .await
+            .unwrap();
+        let second = cached
+            .lookup_public_key("mail", "example.com")
+            .await
+            .unwrap();
         assert_eq!(*first, *second);
         // Inner should have been touched exactly once.
         assert_eq!(cached.inner.calls.load(Ordering::SeqCst), 1);
@@ -228,9 +230,15 @@ mod cache_tests {
             std::time::Duration::from_millis(20),
             128,
         );
-        cached.lookup_public_key("mail", "example.com").await.unwrap();
+        cached
+            .lookup_public_key("mail", "example.com")
+            .await
+            .unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(30)).await;
-        cached.lookup_public_key("mail", "example.com").await.unwrap();
+        cached
+            .lookup_public_key("mail", "example.com")
+            .await
+            .unwrap();
         assert_eq!(cached.inner.calls.load(Ordering::SeqCst), 2);
     }
 
@@ -238,9 +246,15 @@ mod cache_tests {
     async fn invalidate_clears_entries() {
         let inner = fixture();
         let cached = CachedDkimResolver::new(inner);
-        cached.lookup_public_key("mail", "example.com").await.unwrap();
+        cached
+            .lookup_public_key("mail", "example.com")
+            .await
+            .unwrap();
         cached.invalidate();
-        cached.lookup_public_key("mail", "example.com").await.unwrap();
+        cached
+            .lookup_public_key("mail", "example.com")
+            .await
+            .unwrap();
         assert_eq!(cached.inner.calls.load(Ordering::SeqCst), 2);
     }
 
@@ -260,11 +274,8 @@ mod cache_tests {
     #[tokio::test]
     async fn capacity_evicts_on_overflow() {
         let inner = fixture();
-        let cached = CachedDkimResolver::with_ttl_and_capacity(
-            inner,
-            std::time::Duration::from_secs(60),
-            2,
-        );
+        let cached =
+            CachedDkimResolver::with_ttl_and_capacity(inner, std::time::Duration::from_secs(60), 2);
         cached.lookup_public_key("a", "x.com").await.unwrap();
         cached.lookup_public_key("b", "x.com").await.unwrap();
         cached.lookup_public_key("c", "x.com").await.unwrap(); // forces eviction

@@ -30,11 +30,7 @@ struct AttachmentSpec {
 
 fn ascii_text() -> impl Strategy<Value = String> {
     // a few sentence-ish ASCII strings
-    proptest::collection::vec(
-        "[a-zA-Z0-9 .,;:!?-]{1,40}",
-        1usize..6,
-    )
-    .prop_map(|v| v.join("\n"))
+    proptest::collection::vec("[a-zA-Z0-9 .,;:!?-]{1,40}", 1usize..6).prop_map(|v| v.join("\n"))
 }
 
 fn maybe_utf8_text() -> impl Strategy<Value = String> {
@@ -95,20 +91,23 @@ fn build_from_shape(shape: &BodyShape) -> Vec<u8> {
         .subject("diff_parse")
         .date("Wed, 27 May 2026 12:00:00 +0000")
         .message_id("<diff@example.com>");
-    b = match shape {
-        BodyShape::TextOnly(t) => b.text_body(t.clone()),
-        BodyShape::HtmlOnly(h) => b.html_body(h.clone()),
-        BodyShape::TextPlusHtml(t, h) => b.text_body(t.clone()).html_body(h.clone()),
-        BodyShape::TextPlusAttachment(t, a) => b.text_body(t.clone()).attachment(Attachment::new(
-            a.name.clone(),
-            a.ct.clone(),
-            a.data.clone(),
-        )),
-        BodyShape::TextPlusHtmlPlusAttachment(t, h, a) => b
-            .text_body(t.clone())
-            .html_body(h.clone())
-            .attachment(Attachment::new(a.name.clone(), a.ct.clone(), a.data.clone())),
-    };
+    b =
+        match shape {
+            BodyShape::TextOnly(t) => b.text_body(t.clone()),
+            BodyShape::HtmlOnly(h) => b.html_body(h.clone()),
+            BodyShape::TextPlusHtml(t, h) => b.text_body(t.clone()).html_body(h.clone()),
+            BodyShape::TextPlusAttachment(t, a) => b.text_body(t.clone()).attachment(
+                Attachment::new(a.name.clone(), a.ct.clone(), a.data.clone()),
+            ),
+            BodyShape::TextPlusHtmlPlusAttachment(t, h, a) => b
+                .text_body(t.clone())
+                .html_body(h.clone())
+                .attachment(Attachment::new(
+                    a.name.clone(),
+                    a.ct.clone(),
+                    a.data.clone(),
+                )),
+        };
     b.build()
 }
 
@@ -137,7 +136,9 @@ fn collect_mailrs(part: &mailrs_mime::part::Part<'_>, out: &mut Vec<(String, Vec
 /// decoded_body_bytes)` list — same DFS order.
 fn flatten_mail_parser(msg: &[u8]) -> Vec<(String, Vec<u8>)> {
     use mail_parser::{MessageParser, MimeHeaders, PartType};
-    let parsed = MessageParser::default().parse(msg).expect("mail-parser parse");
+    let parsed = MessageParser::default()
+        .parse(msg)
+        .expect("mail-parser parse");
     let mut out = Vec::new();
     for part in parsed.parts.iter() {
         match &part.body {

@@ -186,11 +186,7 @@ body\r\n";
                keep;"#,
             msg_spam,
         ),
-        (
-            "comment_after_last_action",
-            r#"keep; /* fin */"#,
-            msg_spam,
-        ),
+        ("comment_after_last_action", r#"keep; /* fin */"#, msg_spam),
         // --- NN. Sieve syntax edges — moved to slice4_g ---
     ]
 }

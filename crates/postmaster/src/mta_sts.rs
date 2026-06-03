@@ -123,16 +123,17 @@ mod tests {
 
     #[tokio::test]
     async fn valid_record_yields_pass() {
-        let r = MockResolver::new()
-            .with_txt("_mta-sts.example.com", vec!["v=STSv1; id=20260527T0001".into()]);
+        let r = MockResolver::new().with_txt(
+            "_mta-sts.example.com",
+            vec!["v=STSv1; id=20260527T0001".into()],
+        );
         let res = check_mta_sts_record(&r, "example.com").await;
         assert!(matches!(res.status, Status::Pass));
     }
 
     #[tokio::test]
     async fn unrelated_txt_filtered_out() {
-        let r = MockResolver::new()
-            .with_txt("_mta-sts.example.com", vec!["something else".into()]);
+        let r = MockResolver::new().with_txt("_mta-sts.example.com", vec!["something else".into()]);
         let res = check_mta_sts_record(&r, "example.com").await;
         assert!(matches!(res.status, Status::Warn));
     }

@@ -229,8 +229,16 @@ mod tests {
 
     #[test]
     fn contains_substring() {
-        assert!(match_string(MatchType::Contains, "spam offer here", "OFFER"));
-        assert!(!match_string(MatchType::Contains, "spam offer", "newsletter"));
+        assert!(match_string(
+            MatchType::Contains,
+            "spam offer here",
+            "OFFER"
+        ));
+        assert!(!match_string(
+            MatchType::Contains,
+            "spam offer",
+            "newsletter"
+        ));
     }
 
     #[test]

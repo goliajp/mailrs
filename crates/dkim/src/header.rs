@@ -208,8 +208,7 @@ impl DkimHeader {
         let domain = domain.ok_or_else(|| DkimError::MissingTag("d".into()))?;
         let selector = selector.ok_or_else(|| DkimError::MissingTag("s".into()))?;
         let signed_headers = signed_headers.ok_or_else(|| DkimError::MissingTag("h".into()))?;
-        let query_method =
-            query_method.unwrap_or_else(|| CompactString::const_new("dns/txt"));
+        let query_method = query_method.unwrap_or_else(|| CompactString::const_new("dns/txt"));
         if !query_method.eq_ignore_ascii_case("dns/txt") {
             return Err(DkimError::UnsupportedAlgorithm(format!("q={query_method}")));
         }

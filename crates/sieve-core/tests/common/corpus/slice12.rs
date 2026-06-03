@@ -38,11 +38,7 @@ pub(super) fn corpus() -> Vec<CorpusRow> {
                else { keep; }"#,
             msg_clean,
         ),
-        (
-            "size_over_small",
-            "if size :over 1 { discard; }",
-            msg_spam,
-        ),
+        ("size_over_small", "if size :over 1 { discard; }", msg_spam),
         (
             "size_under_huge",
             "if size :under 100K { discard; }",

@@ -430,7 +430,9 @@ pub fn format_report_email(
         .subject(format!(
             "Report domain: {org_domain} Submitter: {from} Report-ID: <{report_id}>",
         ))
-        .text_body(format!("DMARC aggregate report for {org_domain} ({date})\r\n"))
+        .text_body(format!(
+            "DMARC aggregate report for {org_domain} ({date})\r\n"
+        ))
         .attachment(Attachment::new(filename, "application/gzip", gz))
         .build()
 }
@@ -905,15 +907,23 @@ mod tests {
         // value.
         let unfold = email_str.replace("\r\n ", " ").replace("\r\n\t", " ");
         let needle = "boundary=\"";
-        let start = unfold.find(needle).expect("no boundary= on outer Content-Type")
+        let start = unfold
+            .find(needle)
+            .expect("no boundary= on outer Content-Type")
             + needle.len();
         let end = unfold[start..].find('"').unwrap() + start;
         let boundary = &unfold[start..end];
         assert!(!boundary.is_empty());
         let open = format!("--{boundary}");
         let close = format!("--{boundary}--");
-        assert!(email_str.contains(&open), "no opening boundary line {open:?}");
-        assert!(email_str.contains(&close), "no closing boundary line {close:?}");
+        assert!(
+            email_str.contains(&open),
+            "no opening boundary line {open:?}"
+        );
+        assert!(
+            email_str.contains(&close),
+            "no closing boundary line {close:?}"
+        );
     }
 
     #[test]

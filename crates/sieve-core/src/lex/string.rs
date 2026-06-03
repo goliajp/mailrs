@@ -74,10 +74,13 @@ pub(super) fn scan_multiline(bytes: &[u8], start: usize) -> Result<(String, usiz
             return Err(TokenizeError::UnterminatedMultiline(start));
         }
         // dot-stuffing terminator: ".\r\n" or ".\n" on its own line
-        if bytes[i] == b'.'
-            && (bytes[i..].starts_with(b".\r\n") || bytes[i..].starts_with(b".\n"))
+        if bytes[i] == b'.' && (bytes[i..].starts_with(b".\r\n") || bytes[i..].starts_with(b".\n"))
         {
-            let advance = if bytes[i..].starts_with(b".\r\n") { 3 } else { 2 };
+            let advance = if bytes[i..].starts_with(b".\r\n") {
+                3
+            } else {
+                2
+            };
             return Ok((s, i + advance));
         }
         // dot-stuffed line ("..") becomes a single dot
@@ -94,9 +97,9 @@ pub(super) fn scan_multiline(bytes: &[u8], start: usize) -> Result<(String, usiz
 fn utf8_char_len(first_byte: u8) -> usize {
     if first_byte < 0xC0 {
         1 // ASCII (< 0x80) and continuation bytes (0x80-0xBF) both
-          // advance one byte — the latter shouldn't appear at the
-          // start of a code point in valid UTF-8, but we stay
-          // forgiving rather than panic.
+    // advance one byte — the latter shouldn't appear at the
+    // start of a code point in valid UTF-8, but we stay
+    // forgiving rather than panic.
     } else if first_byte < 0xE0 {
         2
     } else if first_byte < 0xF0 {

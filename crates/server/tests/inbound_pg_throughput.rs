@@ -30,12 +30,12 @@
 //!
 //! Output: a single `BASELINE_RESULT=` line so callers can `grep` it.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-use mailrs_mailbox::pg::IndexRecord;
 use mailrs_mailbox::PgMailboxStore;
+use mailrs_mailbox::pg::IndexRecord;
 use sqlx::postgres::PgPoolOptions;
 
 const SAMPLE_MESSAGE: &[u8] = b"From: sender@example.com\r\n\
@@ -94,13 +94,11 @@ async fn ensure_test_user(pool: &sqlx::PgPool, user: &str, n_mailboxes: u32) {
     .execute(pool)
     .await
     .unwrap();
-    sqlx::query(
-        "UPDATE mailboxes SET uidnext = 1, highest_modseq = 0 WHERE user_address = $1",
-    )
-    .bind(user)
-    .execute(pool)
-    .await
-    .unwrap();
+    sqlx::query("UPDATE mailboxes SET uidnext = 1, highest_modseq = 0 WHERE user_address = $1")
+        .bind(user)
+        .execute(pool)
+        .await
+        .unwrap();
     let _ = local;
 }
 
@@ -173,7 +171,14 @@ async fn baseline_inbound_delivery() {
 
                     let t0 = Instant::now();
                     let r = store
-                        .append_message(&user_owned, &mb, &maildir_root, body.as_bytes(), 0, now_unix)
+                        .append_message(
+                            &user_owned,
+                            &mb,
+                            &maildir_root,
+                            body.as_bytes(),
+                            0,
+                            now_unix,
+                        )
                         .await;
                     let dt_us = t0.elapsed().as_micros() as u64;
                     if r.is_ok() {
@@ -188,8 +193,7 @@ async fn baseline_inbound_delivery() {
                 // → 1 tx, 1 fsync, K rows).
                 let (local, domain) = user_owned.split_once('@').expect("user");
                 let user_md_dir = format!("{}/{}/{}", maildir_root, domain, local);
-                let md = mailrs_maildir::Maildir::create(&user_md_dir)
-                    .expect("maildir create");
+                let md = mailrs_maildir::Maildir::create(&user_md_dir).expect("maildir create");
                 loop {
                     // claim up to `batch_size` indices atomically
                     let start = counter.fetch_add(batch_size, Ordering::Relaxed);

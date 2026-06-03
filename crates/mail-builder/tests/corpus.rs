@@ -20,7 +20,10 @@ fn fixed_date() -> &'static str {
 /// stated header subset matches.
 fn assert_parses_with_headers(msg: &[u8], expected: &[(&str, &str)]) {
     let parsed = Message::new(msg);
-    assert!(parsed.body_offset().is_some(), "message has no body separator");
+    assert!(
+        parsed.body_offset().is_some(),
+        "message has no body separator"
+    );
     for (name, want_contains) in expected {
         let got = parsed.header_str(name).unwrap_or_default();
         let unfold = got.replace("\r\n ", " ").replace("\r\n\t", " ");
@@ -33,7 +36,11 @@ fn assert_parses_with_headers(msg: &[u8], expected: &[(&str, &str)]) {
 
 fn assert_mime_multipart(msg: &[u8], expected_type: &str, expected_children: usize) {
     let p = mailrs_mime::part::parse(msg);
-    assert!(p.content_type.is_multipart(), "expected multipart, got {}", p.content_type.mime_type());
+    assert!(
+        p.content_type.is_multipart(),
+        "expected multipart, got {}",
+        p.content_type.mime_type()
+    );
     assert_eq!(
         p.content_type.mime_type(),
         expected_type,
@@ -171,7 +178,11 @@ fn binary_body_uses_base64() {
         .from("a@x")
         .to("b@y")
         .subject("binary")
-        .attachment(Attachment::new("binary.bin", "application/octet-stream", body))
+        .attachment(Attachment::new(
+            "binary.bin",
+            "application/octet-stream",
+            body,
+        ))
         .date(fixed_date())
         .build();
     let s = std::str::from_utf8(&msg).unwrap();
@@ -329,7 +340,11 @@ fn multipart_mixed_text_plus_attachment() {
         .to("b@y")
         .subject("s")
         .text_body("body")
-        .attachment(Attachment::new("a.bin", "application/octet-stream", vec![1, 2, 3]))
+        .attachment(Attachment::new(
+            "a.bin",
+            "application/octet-stream",
+            vec![1, 2, 3],
+        ))
         .date(fixed_date())
         .build();
     assert_mime_multipart(&msg, "multipart/mixed", 2);
@@ -342,9 +357,21 @@ fn multipart_mixed_with_multiple_attachments() {
         .to("b@y")
         .subject("s")
         .text_body("body")
-        .attachment(Attachment::new("a.bin", "application/octet-stream", vec![1, 2, 3]))
-        .attachment(Attachment::new("b.bin", "application/octet-stream", vec![4, 5, 6]))
-        .attachment(Attachment::new("c.bin", "application/octet-stream", vec![7, 8, 9]))
+        .attachment(Attachment::new(
+            "a.bin",
+            "application/octet-stream",
+            vec![1, 2, 3],
+        ))
+        .attachment(Attachment::new(
+            "b.bin",
+            "application/octet-stream",
+            vec![4, 5, 6],
+        ))
+        .attachment(Attachment::new(
+            "c.bin",
+            "application/octet-stream",
+            vec![7, 8, 9],
+        ))
         .date(fixed_date())
         .build();
     // 1 body + 3 attachments
@@ -360,7 +387,11 @@ fn multipart_mixed_text_plus_html_plus_attachment_is_nested() {
         .subject("s")
         .text_body("plain")
         .html_body("<p>html</p>")
-        .attachment(Attachment::new("a.bin", "application/octet-stream", vec![1, 2, 3]))
+        .attachment(Attachment::new(
+            "a.bin",
+            "application/octet-stream",
+            vec![1, 2, 3],
+        ))
         .date(fixed_date())
         .build();
     let outer = mailrs_mime::part::parse(&msg);
@@ -402,7 +433,11 @@ fn attachment_non_ascii_filename_is_quoted_literal() {
         .to("b@y")
         .subject("s")
         .text_body("body")
-        .attachment(Attachment::new("文書.pdf", "application/pdf", vec![1, 2, 3]))
+        .attachment(Attachment::new(
+            "文書.pdf",
+            "application/pdf",
+            vec![1, 2, 3],
+        ))
         .date(fixed_date())
         .build();
     let s = std::str::from_utf8(&msg).unwrap();
@@ -416,7 +451,11 @@ fn attachment_filename_with_quotes_is_stripped() {
         .to("b@y")
         .subject("s")
         .text_body("body")
-        .attachment(Attachment::new("evil\"file.pdf", "application/pdf", vec![1, 2, 3]))
+        .attachment(Attachment::new(
+            "evil\"file.pdf",
+            "application/pdf",
+            vec![1, 2, 3],
+        ))
         .date(fixed_date())
         .build();
     let s = std::str::from_utf8(&msg).unwrap();
@@ -431,7 +470,11 @@ fn attachment_empty_data_still_valid() {
         .to("b@y")
         .subject("s")
         .text_body("body")
-        .attachment(Attachment::new("empty.bin", "application/octet-stream", vec![]))
+        .attachment(Attachment::new(
+            "empty.bin",
+            "application/octet-stream",
+            vec![],
+        ))
         .date(fixed_date())
         .build();
     assert_mime_multipart(&msg, "multipart/mixed", 2);
@@ -463,7 +506,11 @@ fn attachment_large_base64_wraps_at_76() {
         if line.starts_with("--") || line.is_empty() {
             break;
         }
-        assert!(line.len() <= 76, "base64 line over 76: {line:?} (len {})", line.len());
+        assert!(
+            line.len() <= 76,
+            "base64 line over 76: {line:?} (len {})",
+            line.len()
+        );
     }
 }
 
@@ -480,14 +527,21 @@ fn boundary_does_not_collide_with_body_hint() {
         .to("b@y")
         .subject("s")
         .text_body(std::str::from_utf8(suspicious).unwrap())
-        .attachment(Attachment::new("a.bin", "application/octet-stream", vec![1, 2, 3]))
+        .attachment(Attachment::new(
+            "a.bin",
+            "application/octet-stream",
+            vec![1, 2, 3],
+        ))
         .date(fixed_date())
         .build();
     let s = std::str::from_utf8(&msg).unwrap();
     // the bogus marker is preserved in the body
     assert!(s.contains("--mailrs_attack_marker"));
     // but the actual envelope boundary is different
-    let ct_line = s.lines().find(|l| l.starts_with("Content-Type: multipart/")).unwrap();
+    let ct_line = s
+        .lines()
+        .find(|l| l.starts_with("Content-Type: multipart/"))
+        .unwrap();
     let boundary_start = ct_line.find("boundary=\"").unwrap() + "boundary=\"".len();
     let actual_boundary = &ct_line[boundary_start..ct_line.rfind('"').unwrap()];
     assert!(!actual_boundary.contains("attack_marker"));

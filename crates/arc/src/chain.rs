@@ -210,9 +210,7 @@ fn unfold_headers(block: &[u8]) -> Vec<(String, String)> {
         // Skip leading WSP after the colon by adjusting the slice
         // pointer — no allocation, no `Vec::remove(0)` shift.
         let mut value_start = colon + 1;
-        while value_start < line.len()
-            && matches!(line[value_start], b' ' | b'\t')
-        {
+        while value_start < line.len() && matches!(line[value_start], b' ' | b'\t') {
             value_start += 1;
         }
         // Build the unfolded value. Common case: single-line header,
