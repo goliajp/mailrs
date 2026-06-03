@@ -1356,8 +1356,22 @@ public API).
 | Path | Median | Notes |
 |---|---:|---|
 | `keywords_to_flags` | **~5.6 ns** | bitmask conversion |
-| `dispatch Email/query` | **~2.4 µs** | single dispatch w/ in-memory store |
-| `dispatch_request multi-call back-ref` | **~10.4 µs** | full JMAP `Request` with `#ref` |
+| `dispatch_mailbox_get` | **3.58 µs** | re-measured v4 ckpt 30 |
+| `dispatch_mailbox_query` | **478 ns** | re-measured v4 ckpt 30 |
+| `dispatch_email_query` | **4.22 µs** | re-measured v4 ckpt 30 |
+| `dispatch_thread_get` | **4.25 µs** | re-measured v4 ckpt 30 |
+| `dispatch_request multi-call back-ref` | **15.1 µs** | re-measured v4 ckpt 30 (was claimed 10.4 µs) |
+
+**v4 ckpt 30** (2026-06-03): Case A verified — `grep iter().position`
+/ `.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The 2886-LOC crate is a JMAP/RPC dispatcher whose
+hot path is `serde_json::Value` walking + in-memory store lookups
+— alloc-heavy (122 sites) but every alloc serves the RPC contract
+(cloning JSON Values out of `Request` into per-call args). No
+exploitable byte-walk surface. The multi-call back-ref number
+drifted ~50 % slower than the v3 claim; investigating suggests
+this is from serde_json walking a deeper request graph in the
+updated bench fixture — not a regression in our code.
 
 ### `mailrs-maildir` — Maildir delivery + flag parsing (criterion, M-series Mac, release)
 
