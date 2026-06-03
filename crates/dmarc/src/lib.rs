@@ -284,25 +284,26 @@ pub fn generate_dmarc_report_xml(
         *agg.entry(key).or_insert(0) += 1;
     }
 
-    let mut xml = String::new();
+    // Pre-size the output: each record is ~600 bytes of XML; the
+    // fixed header is ~400 bytes. Avoids `String` growth-doubling
+    // re-allocations on the per-record loop.
+    use std::fmt::Write as _;
+    let mut xml = String::with_capacity(512 + agg.len() * 600);
     xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n");
     xml.push_str("<feedback>\n");
 
     xml.push_str("  <report_metadata>\n");
-    xml.push_str(&format!(
-        "    <org_name>{}</org_name>\n",
-        escape_xml(org_name)
-    ));
-    xml.push_str(&format!("    <email>{}</email>\n", escape_xml(email)));
-    xml.push_str(&format!("    <report_id>{report_id}</report_id>\n"));
+    let _ = writeln!(xml, "    <org_name>{}</org_name>", XmlEscape(org_name));
+    let _ = writeln!(xml, "    <email>{}</email>", XmlEscape(email));
+    let _ = writeln!(xml, "    <report_id>{report_id}</report_id>");
     xml.push_str("    <date_range>\n");
-    xml.push_str(&format!("      <begin>{begin_ts}</begin>\n"));
-    xml.push_str(&format!("      <end>{end_ts}</end>\n"));
+    let _ = writeln!(xml, "      <begin>{begin_ts}</begin>");
+    let _ = writeln!(xml, "      <end>{end_ts}</end>");
     xml.push_str("    </date_range>\n");
     xml.push_str("  </report_metadata>\n");
 
     xml.push_str("  <policy_published>\n");
-    xml.push_str(&format!("    <domain>{}</domain>\n", escape_xml(domain)));
+    let _ = writeln!(xml, "    <domain>{}</domain>", XmlEscape(domain));
     xml.push_str("    <adkim>r</adkim>\n");
     xml.push_str("    <aspf>r</aspf>\n");
     xml.push_str("    <p>none</p>\n");
@@ -317,37 +318,41 @@ pub fn generate_dmarc_report_xml(
         let count = agg[key];
         xml.push_str("  <record>\n");
         xml.push_str("    <row>\n");
-        xml.push_str(&format!("      <source_ip>{}</source_ip>\n", key.source_ip));
-        xml.push_str(&format!("      <count>{count}</count>\n"));
+        let _ = writeln!(xml, "      <source_ip>{}</source_ip>", key.source_ip);
+        let _ = writeln!(xml, "      <count>{count}</count>");
         xml.push_str("      <policy_evaluated>\n");
-        xml.push_str(&format!(
-            "        <disposition>{}</disposition>\n",
+        let _ = writeln!(
+            xml,
+            "        <disposition>{}</disposition>",
             key.disposition
-        ));
-        xml.push_str(&format!("        <dkim>{}</dkim>\n", key.dkim_result));
-        xml.push_str(&format!("        <spf>{}</spf>\n", key.spf_result));
+        );
+        let _ = writeln!(xml, "        <dkim>{}</dkim>", key.dkim_result);
+        let _ = writeln!(xml, "        <spf>{}</spf>", key.spf_result);
         xml.push_str("      </policy_evaluated>\n");
         xml.push_str("    </row>\n");
         xml.push_str("    <identifiers>\n");
-        xml.push_str(&format!(
-            "      <header_from>{}</header_from>\n",
-            escape_xml(&key.from_domain)
-        ));
+        let _ = writeln!(
+            xml,
+            "      <header_from>{}</header_from>",
+            XmlEscape(&key.from_domain)
+        );
         xml.push_str("    </identifiers>\n");
         xml.push_str("    <auth_results>\n");
         xml.push_str("      <spf>\n");
-        xml.push_str(&format!(
-            "        <domain>{}</domain>\n",
-            escape_xml(&key.from_domain)
-        ));
-        xml.push_str(&format!("        <result>{}</result>\n", key.spf_result));
+        let _ = writeln!(
+            xml,
+            "        <domain>{}</domain>",
+            XmlEscape(&key.from_domain)
+        );
+        let _ = writeln!(xml, "        <result>{}</result>", key.spf_result);
         xml.push_str("      </spf>\n");
         xml.push_str("      <dkim>\n");
-        xml.push_str(&format!(
-            "        <domain>{}</domain>\n",
-            escape_xml(&key.from_domain)
-        ));
-        xml.push_str(&format!("        <result>{}</result>\n", key.dkim_result));
+        let _ = writeln!(
+            xml,
+            "        <domain>{}</domain>",
+            XmlEscape(&key.from_domain)
+        );
+        let _ = writeln!(xml, "        <result>{}</result>", key.dkim_result);
         xml.push_str("      </dkim>\n");
         xml.push_str("    </auth_results>\n");
         xml.push_str("  </record>\n");
@@ -357,11 +362,48 @@ pub fn generate_dmarc_report_xml(
     xml
 }
 
+/// Newtype wrapper that escapes XML special chars (`& < > "`) when
+/// rendered via `{}`. Used inside `write!()` calls in
+/// [`generate_dmarc_report_xml`] so the escape runs directly into
+/// the destination `String` instead of allocating an intermediate
+/// per call site.
+struct XmlEscape<'a>(&'a str);
+
+impl std::fmt::Display for XmlEscape<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Fast path: input has no special characters → write as-is
+        // in one call. Most DMARC report fields (domains, IPs,
+        // result enums) hit this path.
+        if !self
+            .0
+            .bytes()
+            .any(|b| matches!(b, b'&' | b'<' | b'>' | b'"'))
+        {
+            return f.write_str(self.0);
+        }
+        // Slow path: byte-iter, escaping the four XML special chars.
+        for c in self.0.chars() {
+            match c {
+                '&' => f.write_str("&amp;")?,
+                '<' => f.write_str("&lt;")?,
+                '>' => f.write_str("&gt;")?,
+                '"' => f.write_str("&quot;")?,
+                _ => std::fmt::Write::write_char(f, c)?,
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 fn escape_xml(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
+    // Test-only helper that wraps [`XmlEscape`] to produce an owned
+    // `String`. Prod XML emission goes through `write!(... XmlEscape(...))`
+    // directly to skip this intermediate allocation.
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(s.len() + 8);
+    let _ = write!(out, "{}", XmlEscape(s));
+    out
 }
 
 fn gzip_compress(data: &[u8]) -> Vec<u8> {
