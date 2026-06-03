@@ -2508,18 +2508,18 @@ dependencies = [
 
 [[package]]
 name = "kevy-bytes"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19abfd053dd1804be68ed1b8ef2881e49a59281cc24798bd2e6639574c36722a"
+checksum = "479e0074d6c70eee11dfb26987e08d76c0eacf1b85973b84bdbc2652242dad45"
 dependencies = [
  "kevy-hash",
 ]
 
 [[package]]
 name = "kevy-embedded"
-version = "1.1.1"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dc181bba72e7141292d66b1bfc0cc20dbdadcd38c9284442c3af444fb32d177"
+checksum = "e33e9e30c83b680f87964554669325a34083752fc48293df6402adeec4d2d7a5"
 dependencies = [
  "kevy-persist",
  "kevy-store",
@@ -2527,21 +2527,21 @@ dependencies = [
 
 [[package]]
 name = "kevy-hash"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f6c4ef08c9987f96bfc7915201cf4d3c1a8686b1bc96be9964fd12b25964105"
+checksum = "ad0dd7655be69670b730c08e9299b9642d400966bc5676cceb4d4012061a2600"
 
 [[package]]
 name = "kevy-madvise"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c28d66c1790487eb115c015a1d15697382faf140737fbbf5d7b3bc77059bd8ef"
+checksum = "fb1dcf5eba0ca37a930165c1ea92921c6e7c5b8971b99ab74799e5cf029361c5"
 
 [[package]]
 name = "kevy-map"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99ab7babf347fcba3ff72995675470dae295218b06e1862df2c169eb639d6f17"
+checksum = "24d0a9527247aad84d95f5722ad3440aafec37283909ac998100b4c23cf0a691"
 dependencies = [
  "kevy-hash",
  "kevy-madvise",
@@ -2549,9 +2549,9 @@ dependencies = [
 
 [[package]]
 name = "kevy-persist"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e2042364f8c6e892a5cce09fccab2cbb74837b565891680d498bb69ee9caddd"
+checksum = "f851caefde434517df79f6e627f6c4c1f9ee7e98d57caff883c996199096105a"
 dependencies = [
  "kevy-resp",
  "kevy-store",
@@ -2559,15 +2559,15 @@ dependencies = [
 
 [[package]]
 name = "kevy-resp"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c56ccca21588bc18b0916cb6619f07f779f630483d198d2325a86f367a0dbec6"
+checksum = "c4f6f2a5272856b616351a4ad3eca5f54ac2c597b1a02b7e5b18d072dbb9aa6a"
 
 [[package]]
 name = "kevy-store"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c33693d3565ae4d37dd5d63aa2695720928aa5ea5b1833f9dee071b2384feb5d"
+checksum = "90d5e01e1ca99da43008c234f0f9265c9127d3171c4dc744882130b74ab38a56"
 dependencies = [
  "kevy-bytes",
  "kevy-hash",
