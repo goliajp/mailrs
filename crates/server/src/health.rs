@@ -132,7 +132,7 @@ mod tests {
 
 pub fn spawn_health_checker(
     pg: sqlx::PgPool,
-    kevy: redis::aio::ConnectionManager,
+    kevy: crate::kevy_store::KevyStore,
     state: HealthState,
 ) {
     tokio::spawn(async move {
@@ -144,14 +144,13 @@ pub fn spawn_health_checker(
             let pg_ok = sqlx::query("SELECT 1").execute(&pg).await.is_ok();
             state.set_pg(pg_ok);
 
-            // ping Kevy
-            let kevy_ok = {
-                let mut conn = kevy.clone();
-                redis::cmd("PING")
-                    .query_async::<String>(&mut conn)
-                    .await
-                    .is_ok()
-            };
+            // exercise the embed store — set + read a probe key. This
+            // catches a poisoned mutex or AOF write failure but is O(1)
+            // because the store is in-process Arc<Store>.
+            let kevy_ok = kevy
+                .set(b"_health_probe", b"ok")
+                .and_then(|_| kevy.get(b"_health_probe"))
+                .is_ok();
             state.set_kevy(kevy_ok);
         }
     });

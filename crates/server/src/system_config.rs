@@ -198,7 +198,7 @@ const RELOAD_INTERVAL: Duration = Duration::from_secs(60);
 
 pub struct SystemConfigStore {
     pg: Option<PgPool>,
-    kevy: Option<redis::aio::ConnectionManager>,
+    kevy: Option<crate::kevy_store::KevyStore>,
     current: ArcSwap<RuntimeConfig>,
     env_defaults: RuntimeConfig,
     /// db rows cache for metadata (updated_at, updated_by, which keys are in db)
@@ -209,7 +209,7 @@ pub struct SystemConfigStore {
 impl SystemConfigStore {
     pub fn new(
         pg: Option<PgPool>,
-        kevy: Option<redis::aio::ConnectionManager>,
+        kevy: Option<crate::kevy_store::KevyStore>,
         env_defaults: RuntimeConfig,
     ) -> Self {
         Self {
@@ -285,7 +285,7 @@ impl SystemConfigStore {
         .await
         .map_err(|e| format!("database error: {e}"))?;
 
-        self.kevy_del(KEVY_KEY).await;
+        self.kevy_del(KEVY_KEY);
         self.load_from_db()
             .await
             .map_err(|e| format!("reload error: {e}"))?;
@@ -305,7 +305,7 @@ impl SystemConfigStore {
             .await
             .map_err(|e| format!("database error: {e}"))?;
 
-        self.kevy_del(KEVY_KEY).await;
+        self.kevy_del(KEVY_KEY);
         self.load_from_db()
             .await
             .map_err(|e| format!("reload error: {e}"))?;
@@ -362,10 +362,9 @@ impl SystemConfigStore {
 
     // -- kevy helpers --
 
-    async fn kevy_del(&self, key: &str) {
-        if let Some(mut conn) = self.kevy.clone() {
-            let _: std::result::Result<(), _> =
-                redis::cmd("DEL").arg(key).query_async(&mut conn).await;
+    fn kevy_del(&self, key: &str) {
+        if let Some(ref store) = self.kevy {
+            let _ = store.del(&[key.as_bytes()]);
         }
     }
 }
