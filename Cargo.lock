@@ -3510,6 +3510,7 @@ version = "0.2.0"
 dependencies = [
  "criterion",
  "mailrs-rfc5322 1.0.1",
+ "memchr",
  "thiserror",
 ]
 
