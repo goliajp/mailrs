@@ -116,11 +116,18 @@ impl ServerConfig {
         set_opt_path("MAILRS_USERS_FILE", &mut self.users_file);
     }
 
-    /// PostgreSQL + Kevy URLs.
+    /// PostgreSQL URL + kevy embedded persistence directory.
     pub(super) fn load_storage(&mut self) {
         set_opt_string("MAILRS_PG_URL", &mut self.pg_url);
-        set_opt_string("MAILRS_KEVY_URL", &mut self.kevy_url);
         set_opt_path("MAILRS_KEVY_DATA_DIR", &mut self.kevy_data_dir);
+        // MAILRS_KEVY_URL is no longer honored (Phase C: in-process only).
+        // Warn loudly if operators still have it set in their env.
+        if std::env::var("MAILRS_KEVY_URL").is_ok() {
+            tracing::warn!(
+                "MAILRS_KEVY_URL is no longer honored — kevy now runs in-process. \
+                 Remove the var and rely on MAILRS_KEVY_DATA_DIR for persistence."
+            );
+        }
     }
 
     /// Manual TLS cert + key paths (vs ACME auto-issued).

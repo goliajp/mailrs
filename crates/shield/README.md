@@ -43,22 +43,22 @@ assert_eq!(evaluate_triplet(Some(1000), 1100, &cfg), GreylistDecision::TooEarly)
 assert_eq!(evaluate_triplet(Some(1000), 1400, &cfg), GreylistDecision::Accept);
 ```
 
-The optional `kevy-store` feature (on by default) ships a `GreylistDb` that combines Redis (hot cache) + Postgres (cold backup) behind a single `check()` call:
+The optional `kevy-store` feature (on by default) ships a `GreylistDb` that combines kevy (hot in-process cache) + Postgres (cold backup) behind a single `check()` call:
 
 ```rust,no_run
 # #[cfg(feature = "kevy-store")]
-# async fn _ex() -> Result<(), Box<dyn std::error::Error>> {
+# fn _ex() -> Result<(), Box<dyn std::error::Error>> {
+# tokio_test::block_on(async {
 use mailrs_shield::greylist::{GreylistConfig, GreylistDb, triplet_key};
 
-let cm = redis::aio::ConnectionManager::new(
-    redis::Client::open("redis://localhost")?
-).await?;
-let db = GreylistDb::new(cm);
+let store = kevy_embedded::Store::open(kevy_embedded::Config::default())?;
+let db = GreylistDb::new(store);
 let cfg = GreylistConfig::default();
 let key = triplet_key("192.0.2.1", "alice@example.com", "bob@example.com");
 let now = 1700000000;
 let decision = db.check(&key, now, &cfg).await;
-# Ok(())
+# Ok::<(), Box<dyn std::error::Error>>(())
+# })
 # }
 ```
 
@@ -96,7 +96,7 @@ Microbenchmarks for the pure helpers (no live resolver hits) live in [`benches/o
 | `ptr::ptr_score_from_names(match)` | ~85 ns | scans the candidate names for the EHLO domain |
 | `ptr::ptr_score_from_names(no match)` | ~200 ns | runs the full FCrDNS scoring fallback |
 
-Live-resolver paths (`check_client_ptr`, `dnsbl::check`, `greylist::GreylistDb::is_allowed`) aren't bench-able offline; production latency is dominated by DNS / Redis round-trips, not the pure helpers above.
+Live-resolver paths (`check_client_ptr`, `dnsbl::check`, `greylist::GreylistDb::check`) aren't bench-able offline; production latency is dominated by DNS round-trips on the resolver paths. The `GreylistDb` store path now runs in-process against `kevy_embedded::Store`, so the only network hop left on that path is the optional Postgres cold backup.
 
 Run with `cargo bench -p mailrs-shield`. See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets.
 
@@ -104,7 +104,7 @@ Run with `cargo bench -p mailrs-shield`. See [`tests/perf_gate.rs`](tests/perf_g
 
 | Flag | Default | What it enables |
 |------|---------|-----------------|
-| `kevy-store` | yes | `greylist::GreylistDb` (Redis + optional PG cold backup) |
+| `kevy-store` | yes | `greylist::GreylistDb` (in-process kevy + optional PG cold backup) |
 
 Disable both default features (`default-features = false`) if you're plugging in your own backends.
 

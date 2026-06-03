@@ -22,7 +22,7 @@ pub(crate) fn build_inbound_pipeline_with_shadows(
     dmarc_report_store: &Option<Arc<dmarc_report::DmarcReportStore>>,
     cfg: &config::ServerConfig,
     llm_provider: &Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
-    kevy_conn: &Option<redis::aio::ConnectionManager>,
+    kevy_embed: &Option<crate::kevy_store::KevyStore>,
 ) -> mailrs_inbound::Pipeline {
     let mail_auth_resolvers = if cfg.antispam_enabled {
         resolver.as_ref().map(|r| {
@@ -47,7 +47,7 @@ pub(crate) fn build_inbound_pipeline_with_shadows(
         dmarc_report_store.clone(),
         cfg.clamav_addr.clone(),
         llm_provider.clone(),
-        kevy_conn.clone(),
+        kevy_embed.clone(),
         cfg.spam_score_threshold,
     )
 }

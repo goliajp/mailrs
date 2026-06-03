@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-03
+
+### Changed (BREAKING)
+- `KevySpamCache::new(conn: redis::aio::ConnectionManager)` →
+  `KevySpamCache::new(store: kevy_embedded::Store)`. The cache now runs
+  directly against the in-process kevy `Store` — no RESP wire, no
+  network hop. `Store: Clone` so callers typically pass a clone of the
+  shared cement-owned store.
+- Feature `kevy-cache` now pulls `kevy-embedded` instead of `redis`. No
+  more `redis` transitive dependency.
+
+### Migration
+```toml
+# before
+mailrs-intelligence = "2"
+redis = "1"
+# after
+mailrs-intelligence = "3"
+kevy-embedded = "1.1"
+```
+```rust
+// before
+let cm = redis::aio::ConnectionManager::new(redis::Client::open("redis://…")?).await?;
+let cache = KevySpamCache::new(cm);
+// after
+let store = kevy_embedded::Store::open(kevy_embedded::Config::default())?;
+let cache = KevySpamCache::new(store);
+```
+
 ## [2.0.0] - 2026-06-03
 
 ### Changed (BREAKING)

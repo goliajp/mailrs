@@ -1,8 +1,8 @@
 [package]
 name = "mailrs-shield"
-version = "2.0.0"
+version = "3.0.0"
 edition = "2024"
-description = "SMTP anti-spam primitives: DNS blocklist (DNSBL) queries, greylisting policy with optional Redis store, and PTR / forward-confirmed reverse DNS (FCrDNS) checks."
+description = "SMTP anti-spam primitives: DNS blocklist (DNSBL) queries, greylisting policy with optional in-process kevy store, and PTR / forward-confirmed reverse DNS (FCrDNS) checks."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"
 homepage = "https://github.com/goliajp/mailrs"
@@ -17,16 +17,16 @@ workspace = true
 
 [features]
 default = ["kevy-store"]
-# Enable the Kevy-backed greylist store (with optional Postgres
+# Enable the kevy-backed greylist store (with optional Postgres
 # pass-through). Disable if you're plugging in your own store.
-kevy-store = ["dep:redis", "dep:sqlx"]
+kevy-store = ["dep:kevy-embedded", "dep:sqlx"]
 
 [dependencies]
 mailrs-dnsbl = "1"
 hickory-resolver = "0.26"
 
 # kevy-store feature
-redis = { workspace = true, optional = true }
+kevy-embedded = { workspace = true, optional = true }
 sqlx = { workspace = true, optional = true }
 
 [dev-dependencies]

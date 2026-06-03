@@ -3,6 +3,5 @@
 // aggregate, so silence the dead-code lint at the helper-module root.
 #![allow(dead_code)]
 
-pub mod kevy;
 pub mod mock_smtp;
 pub mod pg;

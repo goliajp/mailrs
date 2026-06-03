@@ -116,12 +116,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arcstr"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03918c3dbd7701a85c6b9887732e2921175f26c350b4563841d0958c21d57e6d"
-
-[[package]]
 name = "argon2"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -186,17 +180,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "xattr",
-]
-
-[[package]]
-name = "async-lock"
-version = "3.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "290f7f2596bd5b78a9fec8088ccd89180d7f9f55b94b0576823bbbdc72ee8311"
-dependencies = [
- "event-listener",
- "event-listener-strategy",
- "pin-project-lite",
 ]
 
 [[package]]
@@ -347,15 +330,6 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
-]
-
-[[package]]
-name = "backon"
-version = "1.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cffb0e931875b666fc4fcb20fee52e9bbd1ef836fd9e9e04ec21555f9f85f7ef"
-dependencies = [
- "fastrand",
 ]
 
 [[package]]
@@ -833,11 +807,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd"
 dependencies = [
  "bytes",
- "futures-core",
  "memchr",
- "pin-project-lite",
- "tokio",
- "tokio-util",
 ]
 
 [[package]]
@@ -1357,16 +1327,6 @@ checksum = "e13b66accf52311f30a0db42147dadea9850cb48cd070028831ae5f5d4b856ab"
 dependencies = [
  "concurrent-queue",
  "parking",
- "pin-project-lite",
-]
-
-[[package]]
-name = "event-listener-strategy"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
-dependencies = [
- "event-listener",
  "pin-project-lite",
 ]
 
@@ -2557,9 +2517,9 @@ dependencies = [
 
 [[package]]
 name = "kevy-embedded"
-version = "1.0.4"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "249fd6569c7d14faecbd6b091cf282ec70b540325c66a266748f259ccb7822c0"
+checksum = "440db9b8468baa96833746bc3cc10390856e60739f22fcc2415f73f55dd7eb39"
 dependencies = [
  "kevy-persist",
  "kevy-store",
@@ -3185,11 +3145,11 @@ dependencies = [
 
 [[package]]
 name = "mailrs-intelligence"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "async-trait",
  "criterion",
- "redis",
+ "kevy-embedded",
  "reqwest 0.13.3",
  "serde",
  "serde_json",
@@ -3308,13 +3268,14 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "3.0.0"
+version = "4.0.0"
 dependencies = [
  "async-trait",
  "chrono",
  "criterion",
  "futures-util",
  "hickory-resolver",
+ "kevy-embedded",
  "mailrs-arc",
  "mailrs-backoff 1.0.0",
  "mailrs-dkim",
@@ -3323,7 +3284,6 @@ dependencies = [
  "mailrs-smtp-client",
  "metrics",
  "rcgen 0.14.8",
- "redis",
  "rustls",
  "rustls-pki-types",
  "sqlx",
@@ -3500,7 +3460,6 @@ dependencies = [
  "password-hash",
  "pdf-extract",
  "rand_core 0.6.4",
- "redis",
  "reqwest 0.13.3",
  "rmcp",
  "rrule",
@@ -3529,12 +3488,12 @@ dependencies = [
 
 [[package]]
 name = "mailrs-shield"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "criterion",
  "hickory-resolver",
+ "kevy-embedded",
  "mailrs-dnsbl 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "redis",
  "sqlx",
  "tokio",
 ]
@@ -4761,34 +4720,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "redis"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72d32a1ac9123f0d84fda64bfc02a271d9868483162dd2d9099b5c362ece064c"
-dependencies = [
- "arc-swap",
- "arcstr",
- "async-lock",
- "backon",
- "bytes",
- "cfg-if",
- "combine",
- "futures-channel",
- "futures-util",
- "itoa",
- "num-bigint",
- "percent-encoding",
- "pin-project-lite",
- "ryu",
- "sha1_smol",
- "socket2",
- "tokio",
- "tokio-util",
- "url",
- "xxhash-rust",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5415,12 +5346,6 @@ dependencies = [
  "cpufeatures 0.2.17",
  "digest 0.10.7",
 ]
-
-[[package]]
-name = "sha1_smol"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
 
 [[package]]
 name = "sha2"
@@ -7307,12 +7232,6 @@ dependencies = [
  "libc",
  "rustix",
 ]
-
-[[package]]
-name = "xxhash-rust"
-version = "0.8.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
 
 [[package]]
 name = "yasna"

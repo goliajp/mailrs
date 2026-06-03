@@ -27,6 +27,7 @@ use mailrs_mailbox::PgMailboxStore;
 pub(crate) fn spawn_outbound_delivery(
     outbound_queue: Option<&sqlx::PgPool>,
     resolver: Option<&Arc<hickory_resolver::TokioResolver>>,
+    kevy: Option<&crate::kevy_store::KevyStore>,
     cfg: &config::ServerConfig,
     event_bus: EventBus,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,
@@ -42,7 +43,7 @@ pub(crate) fn spawn_outbound_delivery(
         return;
     };
 
-    let mut worker = build_delivery_worker(pool, resolver, cfg);
+    let mut worker = build_delivery_worker(pool, resolver, kevy, cfg);
     let tls_rpt_obs = Arc::new(outbound_tls_rpt::TlsRptObserver::new(
         outbound_tls_rpt::PgTlsRptStore::new(pool.clone()).into_arc(),
     ));
@@ -62,12 +63,13 @@ pub(crate) fn spawn_outbound_delivery(
     tracing::info!("delivery worker started");
 }
 
-/// Construct the outbound `DeliveryWorker` with the per-config
-/// Kevy URL and DKIM signing key (if configured). Pure
-/// construction — no spawning.
+/// Construct the outbound `DeliveryWorker` with the shared in-process
+/// kevy [`Store`] (for `queue:notify` wakeup) and DKIM signing key (if
+/// configured). Pure construction — no spawning.
 pub(crate) fn build_delivery_worker(
     pool: &sqlx::PgPool,
     resolver: &Arc<hickory_resolver::TokioResolver>,
+    kevy: Option<&crate::kevy_store::KevyStore>,
     cfg: &config::ServerConfig,
 ) -> mailrs_outbound_queue::DeliveryWorker {
     let mut worker = mailrs_outbound_queue::DeliveryWorker::new(
@@ -76,8 +78,8 @@ pub(crate) fn build_delivery_worker(
         (**resolver).clone(),
         cfg.hostname.clone(),
     );
-    if let Some(ref url) = cfg.kevy_url {
-        worker = worker.with_kevy(url.clone());
+    if let Some(store) = kevy {
+        worker = worker.with_kevy(store.as_ref().clone());
     }
     if let (Some(selector), Some(domain), Some(key_path)) = (
         &cfg.dkim_selector,

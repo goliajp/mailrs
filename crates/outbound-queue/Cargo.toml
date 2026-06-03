@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-outbound-queue"
-version = "3.0.0"
+version = "4.0.0"
 edition = "2024"
 description = "Outbound mail queue primitives: DKIM signing, DSN generation, MTA-STS lookup, retry/backoff, with a pluggable store trait and a Postgres reference implementation."
 license = "Apache-2.0 OR MIT"
@@ -17,10 +17,10 @@ workspace = true
 
 [features]
 default = ["pg"]
-# Enable the Postgres + Redis reference implementation of QueueStore /
-# Notifier and the bundled DeliveryWorker that depends on them. Disable
-# this feature if you're plugging in your own store backend.
-pg = ["dep:sqlx", "dep:redis"]
+# Enable the Postgres + in-process kevy reference implementation of
+# QueueStore / Notifier and the bundled DeliveryWorker that depends on
+# them. Disable this feature if you're plugging in your own store backend.
+pg = ["dep:sqlx", "dep:kevy-embedded"]
 
 [dependencies]
 async-trait = "0.1"
@@ -54,7 +54,7 @@ mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 
 # pg feature
 sqlx = { workspace = true, optional = true }
-redis = { workspace = true, optional = true }
+kevy-embedded = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
@@ -63,7 +63,7 @@ criterion = { version = "0.8", default-features = false, features = ["cargo_benc
 # feature paths (queue.rs SQL, pg_store.rs trait wiring) run against
 # the actual db, not a mock. Required serially — see tests/common/pg.rs.
 testcontainers = "0.27"
-testcontainers-modules = { version = "0.15", features = ["postgres", "redis"] }
+testcontainers-modules = { version = "0.15", features = ["postgres"] }
 sqlx = { workspace = true }
 # Mirrors smtp-client/tests/common/mock_smtp.rs deps so the same mock
 # can serve worker-integration tests end-to-end (worker → smtp-client →

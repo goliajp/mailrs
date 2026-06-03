@@ -16,7 +16,7 @@
 //!
 //! | Feature | Default | Includes |
 //! |---------|---------|----------|
-//! | `pg`    | on      | [`PgQueueStore`] + [`KevyNotifier`] + the bundled [`DeliveryWorker`] that consumes them. Pulls in `sqlx` and `redis`. |
+//! | `pg`    | on      | [`PgQueueStore`] + [`KevyNotifier`] + the bundled [`DeliveryWorker`] that consumes them. Pulls in `sqlx` and `kevy-embedded`. |
 //!
 //! Disable the `pg` feature if you want only the traits + pure primitives:
 //!
