@@ -39,7 +39,7 @@ pub fn encode(input: &str) -> Cow<'_, str> {
     // borrowed (decoding the unchanged output would interpret the
     // literal `=?` as an encoded-word start and corrupt the payload —
     // found via fuzz, see CHANGELOG 1.1.2).
-    if input.is_ascii() && !input.as_bytes().windows(2).any(|w| w == b"=?") {
+    if input.is_ascii() && memchr::memmem::find(input.as_bytes(), b"=?").is_none() {
         return Cow::Borrowed(input);
     }
     let encoded = B64.encode(input.as_bytes());
