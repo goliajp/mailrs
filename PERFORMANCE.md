@@ -1583,6 +1583,13 @@ Run: `cargo bench -p mailrs-clamav --bench clamav`. Extracted from
 server's content_scan.rs; server re-exports `scan_clamav` +
 `parse_clamav_response` for back-compat with existing call sites.
 
+**v4 ckpt 27** (2026-06-03): Case A verified — `parse_response`
+numbers stable (clean: 8.95 ns / virus-short: 57.5 ns / virus-long:
+77.5 ns / error: 49.3 ns / empty: 15.1 ns). `grep iter().position`
+/ `.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The `scan` path is network-bound (TCP INSTREAM to
+clamd); local parse is at the per-byte memcmp floor.
+
 ### `mailrs-dnsbl` — RFC 5782 DNSBL primitive (criterion, M-series Mac, release)
 
 | Path | Median |
@@ -1597,6 +1604,48 @@ server's content_scan.rs; server re-exports `scan_clamav` +
 Run: `cargo bench -p mailrs-dnsbl --bench dnsbl`. Carved out of
 `mailrs-shield` for users who only need DNSBL — same code, own crate.
 `mailrs-shield` 1.0.4 re-exports the public surface unchanged.
+
+**v4 ckpt 27** (2026-06-03): Case A verified — `reverse_ipv4`
+47.4 ns, `dnsbl_query` 23.3 ns, `interpret_spamhaus` 1.08-1.23 ns,
+`DnsblCache` roundtrip 8.6 ns, `DnsblResult` eq 720 ps. All within
+noise of the v3 numbers. `grep iter().position` / `.windows(N)` /
+`push_str(&format!(...))` / `String::replace` in src/ → 0 hits.
+The `check_dnsbl` path is network-bound (parallel A/AAAA queries);
+local steps are at the SIMD floor.
+
+### `mailrs-mta-sts` — RFC 8461 STS policy parse + MX matcher (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `parse/sts_record` | **~76 ns** |
+| `parse/policy` | **~382 ns** |
+| `mx_matches/literal` | **~44 ns** |
+| `mx_matches/wildcard_match` | **~92 ns** |
+| `mx_matches/wildcard_no_match` | **~89 ns** |
+| `enforce/3_mx_first_match` | **~44 ns** |
+| `enforce/3_mx_last_match` | **~219 ns** |
+
+**v4 ckpt 27** (2026-06-03): Case A verified — `grep iter().position`
+/ `.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. Stone is text-record parse + MX glob matcher; both
+already SIMD-floor by virtue of being byte-comparison-bound.
+Run: `cargo bench -p mailrs-mta-sts --bench mta_sts`.
+
+### `mailrs-tls-rpt` — RFC 8460 SMTP TLS reporting (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `parse/record_single` | **~202 ns** |
+| `parse/record_multi` | **~312 ns** |
+| `report/build_100_success` | **~3.46 µs** |
+| `report/build_mixed_100` | **~13.9 µs** |
+| `report/serialize_json` | **~708 ns** |
+
+**v4 ckpt 27** (2026-06-03): Case A verified — `grep iter().position`
+/ `.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The report-building paths walk a `Vec<Result>` and
+fold success/failure counters; `serialize_json` rides serde_json.
+Run: `cargo bench -p mailrs-tls-rpt --bench tls_rpt`.
 
 ### `mailrs-webhook-signature` — HMAC-SHA256 webhook signing (criterion, M-series Mac, release)
 
