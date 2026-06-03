@@ -12,10 +12,7 @@ impl DomainStore {
 
         // try kevy cache
         let cache_key = format!("perms:{address}");
-        if let Some(cached) = self
-            .kevy_get::<crate::permission::EffectivePermissions>(&cache_key)
-            .await
-        {
+        if let Some(cached) = self.kevy_get::<crate::permission::EffectivePermissions>(&cache_key) {
             return Ok(cached);
         }
 
@@ -104,14 +101,14 @@ impl DomainStore {
             .with_send_as(send_as);
 
         // cache
-        self.kevy_set(&cache_key, &perms, CACHE_TTL_SECS).await;
+        self.kevy_set(&cache_key, &perms, CACHE_TTL_SECS);
 
         Ok(perms)
     }
 
     /// invalidate permission cache for an account
     pub async fn invalidate_permissions(&self, address: &str) {
-        self.kevy_del(&format!("perms:{address}")).await;
+        self.kevy_del(&format!("perms:{address}"));
     }
 
     /// invalidate permission cache for all members of a group
@@ -124,7 +121,7 @@ impl DomainStore {
                 .await
                 .unwrap_or_default();
         for (addr,) in members {
-            self.kevy_del(&format!("perms:{addr}")).await;
+            self.kevy_del(&format!("perms:{addr}"));
         }
     }
 }

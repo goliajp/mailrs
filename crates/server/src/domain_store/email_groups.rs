@@ -57,7 +57,7 @@ impl DomainStore {
         .fetch_one(pool)
         .await?;
         // invalidate recipient cache for this address
-        self.kevy_del(&format!("rcpt:{address}")).await;
+        self.kevy_del(&format!("rcpt:{address}"));
         Ok(id)
     }
 
@@ -70,7 +70,7 @@ impl DomainStore {
         .fetch_optional(pool)
         .await?;
         if let Some((ref address,)) = addr {
-            self.kevy_del(&format!("rcpt:{address}")).await;
+            self.kevy_del(&format!("rcpt:{address}"));
         }
         Ok(addr.map(|(a,)| a))
     }
@@ -103,7 +103,7 @@ impl DomainStore {
             .fetch_optional(pool)
             .await?;
         if let Some((ref address,)) = addr {
-            self.kevy_del(&format!("rcpt:{address}")).await;
+            self.kevy_del(&format!("rcpt:{address}"));
         }
         self.invalidate_permissions(member).await;
         Ok(())
@@ -124,7 +124,7 @@ impl DomainStore {
             .fetch_optional(pool)
             .await?;
         if let Some((ref address,)) = addr {
-            self.kevy_del(&format!("rcpt:{address}")).await;
+            self.kevy_del(&format!("rcpt:{address}"));
         }
         self.invalidate_permissions(member).await;
         Ok(res.rows_affected() > 0)

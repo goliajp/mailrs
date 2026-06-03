@@ -126,8 +126,8 @@ impl DomainStore {
                 cached_at: Instant::now(),
             },
         );
-        self.kevy_del(&format!("acct:{address}")).await;
-        self.kevy_del(&format!("rcpt:{address}")).await;
+        self.kevy_del(&format!("acct:{address}"));
+        self.kevy_del(&format!("rcpt:{address}"));
 
         Ok(())
     }
@@ -147,7 +147,7 @@ impl DomainStore {
         if rows > 0 {
             // invalidate caches
             self.account_cache.remove(address);
-            self.kevy_del(&format!("acct:{address}")).await;
+            self.kevy_del(&format!("acct:{address}"));
         }
         Ok(rows > 0)
     }
@@ -155,7 +155,7 @@ impl DomainStore {
     pub async fn get_account_with_hash(&self, address: &str) -> Result<Option<(Account, String)>> {
         // try kevy cache
         let cache_key = format!("acct:{address}");
-        if let Some(cached) = self.kevy_get::<CachedAccount>(&cache_key).await {
+        if let Some(cached) = self.kevy_get::<CachedAccount>(&cache_key) {
             return Ok(Some((cached.account, cached.password_hash)));
         }
 
@@ -196,7 +196,7 @@ impl DomainStore {
                     cached_at: Instant::now(),
                 };
                 // backfill caches
-                self.kevy_set(&cache_key, &cached, 300).await;
+                self.kevy_set(&cache_key, &cached, 300);
                 self.account_cache.insert(address.to_string(), cached);
                 return Ok(Some((account, hash)));
             }
@@ -222,8 +222,8 @@ impl DomainStore {
             .execute(pool)
             .await?;
         self.account_cache.remove(address);
-        self.kevy_del(&format!("acct:{address}")).await;
-        self.kevy_del(&format!("rcpt:{address}")).await;
+        self.kevy_del(&format!("acct:{address}"));
+        self.kevy_del(&format!("rcpt:{address}"));
         Ok(res.rows_affected() > 0)
     }
 
@@ -245,7 +245,7 @@ impl DomainStore {
         if let Some(mut entry) = self.account_cache.get_mut(address) {
             entry.account.quota_bytes = quota_bytes;
         }
-        self.kevy_del(&format!("acct:{address}")).await;
+        self.kevy_del(&format!("acct:{address}"));
         Ok(res.rows_affected() > 0)
     }
 
@@ -260,7 +260,7 @@ impl DomainStore {
         if let Some(mut entry) = self.account_cache.get_mut(address) {
             entry.account.recovery_email = recovery_email.to_string();
         }
-        self.kevy_del(&format!("acct:{address}")).await;
+        self.kevy_del(&format!("acct:{address}"));
         Ok(res.rows_affected() > 0)
     }
 }
