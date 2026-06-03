@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# usage: ./scripts/release.sh [--web-only] [--ci] [patch|minor|major|<version>]
+# usage: ./scripts/release.sh [--web-only|--ci|--ghcr] [patch|minor|major|<version>]
 # --web-only: skip Rust tests and cross-compilation, only deploy web assets
 # --ci:       skip local deploy; commit + tag + push so CI takes over
 #             (`release.yml` builds + pushes ghcr image; remote prod still
 #             needs to pull the image — see CI-SETUP.md / ROADMAP v5 L2 #4).
+# --ghcr:     deploy via ghcr-pull instead of local cargo zigbuild. Requires
+#             the target version's ghcr image to be published already
+#             (release.yml runs on tag push; for a fresh version use --ci
+#             first to publish, then run again with --ghcr). The standard
+#             local path stays the rollback fallback until v5 closes.
 # runs tests, bumps version, deploys, then tags and pushes only on success.
 # if deploy fails, the local version bump is rolled back so the working tree
 # stays clean and the next attempt starts from the same base.
@@ -14,18 +19,27 @@ cd "$ROOT"
 
 WEB_ONLY=false
 CI_MODE=false
+GHCR_MODE=false
 BUMP="patch"
 for arg in "$@"; do
   case "$arg" in
     --web-only) WEB_ONLY=true ;;
     --ci)       CI_MODE=true ;;
+    --ghcr)     GHCR_MODE=true ;;
     *) BUMP="$arg" ;;
   esac
 done
 
-if [ "$CI_MODE" = true ] && [ "$WEB_ONLY" = true ]; then
-  echo "error: --ci and --web-only are mutually exclusive"
-  echo "  --web-only deploys web assets locally; --ci skips local deploy entirely"
+# at most one of --ci / --ghcr / --web-only
+mode_count=0
+[ "$CI_MODE" = true ]    && mode_count=$((mode_count + 1))
+[ "$GHCR_MODE" = true ]  && mode_count=$((mode_count + 1))
+[ "$WEB_ONLY" = true ]   && mode_count=$((mode_count + 1))
+if [ "$mode_count" -gt 1 ]; then
+  echo "error: --ci, --ghcr, and --web-only are mutually exclusive"
+  echo "  --web-only: web assets only, local deploy"
+  echo "  --ci:       skip local deploy; CI builds + pushes image"
+  echo "  --ghcr:     local deploy via ghcr-pull (no cargo zigbuild)"
   exit 1
 fi
 
@@ -111,6 +125,8 @@ if [ "$CI_MODE" = false ]; then
   echo "==> deploying"
   if [ "$WEB_ONLY" = true ]; then
     "$ROOT/scripts/deploy.sh" --web-only
+  elif [ "$GHCR_MODE" = true ]; then
+    "$ROOT/scripts/deploy.sh" --ghcr
   else
     "$ROOT/scripts/deploy.sh"
   fi

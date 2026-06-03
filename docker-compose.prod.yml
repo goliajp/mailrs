@@ -88,6 +88,13 @@ services:
     # specific version in .env so rollback is one variable edit away.
     image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
     pull_policy: always
+    # The root Dockerfile sets `USER mailrs` (non-root) for defense-in-
+    # depth, but prod's /apps/mailrs/certs/privkey.pem is root-owned
+    # mode 600 — the in-image `mailrs` user gets PermissionDenied on the
+    # cert bind mount. Override to UID 0 to match the legacy
+    # deploy/Dockerfile behaviour. Long-term fix is to chown certs to a
+    # known UID on the host and drop this override.
+    user: "0:0"
     ports:
       - "25:25"
       - "110:110"
