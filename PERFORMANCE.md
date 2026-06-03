@@ -1721,12 +1721,30 @@ Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
 
 ### `mailrs-clean` (criterion, `cargo bench -p mailrs-clean`)
 
+Re-measured v4 ckpt 19 (2026-06-03), 3-run honest medians:
+
 | Path | Median | Notes |
 |---|---:|---|
-| `clean_email_html(60 B short)` | **10.8 µs** | constant-overhead floor |
-| `clean_email_html(500 B marketing)` | **28 µs** | small marketing |
-| `clean_email_html(5 KB marketing)` | **188 µs** | was ~336 µs; v4 round 6 fused 5 single-tag scans into one + killed quadratic comment loop; **−44%** measured |
-| `clean_email_html(50 KB worst-case)` | **2.42 ms** | was ~2.5 ms; **~20 MB/s** throughput (large messages dominated by html2text final stage) |
+| `clean_email_html/short_60b` | **10.5 µs** | constant-overhead floor (html2text setup) |
+| `clean_email_html/marketing_500b` | **30 µs** | small marketing — was claimed 28 µs, drift +7 % (noise) |
+| `clean_email_html/marketing_5kb` | **144 µs** | was claimed 188 µs; real number is 23 % faster — cumulative rustc / html2text improvements since v4 round 6 measurement |
+| `clean_email_html/marketing_50kb` | **1.67 ms** | was claimed 2.42 ms; real is 31 % faster — same drift direction, large-input gains tracked memcpy-floor improvements |
+| `sender_heuristics/detect_bulk_sender_yes` | **27 ns** | regex-free byte scan |
+| `sender_heuristics/is_automated_sender_yes` | **31 ns** | same path |
+| `split_quoted_content` | **285 ns** | quote-line walk |
+
+**v4 ckpt 19** (2026-06-03): Case A verified — `grep iter().position`
+/ `.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The crate is 1k LOC across 4 files; `html.rs` has
+11 `memchr::memmem::find_iter` / `memchr::memchr` call sites
+already (single-tag fast-paths + boundary scans). The v4 round 6
+win (fused 5 single-tag scans + killed the quadratic comment
+loop) is still load-bearing.
+
+The "previous claim" column shifted slightly faster on 3-run honest
+re-measure — likely a mix of rustc / `html2text` minor releases
+and noise across the 6 weeks since the prior measurement. No
+over-claim retract needed (faster is fine).
 
 ### Server-internal (`mailrs-server`, gated `#[test]` bench)
 
