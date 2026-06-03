@@ -7,7 +7,10 @@ type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 // --- OAuth Client ---
 
-#[derive(Debug, sqlx::FromRow)]
+// Phase D-pre #2: redirect_uris stored as comma-separated TEXT (SPG has no
+// array type). The Rust API keeps Vec<String>; encode/decode happens at the
+// store boundary via a manual FromRow.
+#[derive(Debug)]
 #[allow(dead_code)]
 pub(crate) struct OAuthClient {
     pub client_id: String,
@@ -19,6 +22,40 @@ pub(crate) struct OAuthClient {
     pub active: bool,
     pub created_by: String,
     pub created_at: DateTime<Utc>,
+}
+
+fn decode_uris_csv(s: &str) -> Vec<String> {
+    s.split(',')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(String::from)
+        .collect()
+}
+
+fn encode_uris_csv(uris: &[String]) -> String {
+    uris.iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for OAuthClient {
+    fn from_row(row: &'r sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+        let csv: String = row.try_get("redirect_uris")?;
+        Ok(Self {
+            client_id: row.try_get("client_id")?,
+            secret_hash: row.try_get("secret_hash")?,
+            name: row.try_get("name")?,
+            redirect_uris: decode_uris_csv(&csv),
+            scopes: row.try_get("scopes")?,
+            trusted: row.try_get("trusted")?,
+            active: row.try_get("active")?,
+            created_by: row.try_get("created_by")?,
+            created_at: row.try_get("created_at")?,
+        })
+    }
 }
 
 /// create a new OAuth client; returns (client_id, plaintext_secret)
@@ -38,6 +75,8 @@ pub(crate) async fn create_client(
 
     let secret_hash = hash_secret(&secret)?;
 
+    let redirect_uris_csv = encode_uris_csv(redirect_uris);
+
     sqlx::query(
         "INSERT INTO oauth_clients (client_id, secret_hash, name, redirect_uris, scopes, trusted, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7)",
@@ -45,7 +84,7 @@ pub(crate) async fn create_client(
     .bind(&client_id)
     .bind(&secret_hash)
     .bind(name)
-    .bind(redirect_uris)
+    .bind(&redirect_uris_csv)
     .bind(scopes)
     .bind(trusted)
     .bind(created_by)
