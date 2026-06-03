@@ -1425,11 +1425,25 @@ than the table reported, similar to the spf under-claim in ckpt 9).
 
 ### `mailrs-shield` (criterion, `cargo bench -p mailrs-shield`)
 
+Re-measured v4 ckpt 18 (2026-06-03), 3-run honest medians:
+
 | Path | Median | Notes |
 |---|---:|---|
-| `interpret_spamhaus` | **~700 ps** | bit interpretation of A-record octets |
-| `ptr_score_from_names(match)` | **~85 ns** | FCrDNS score eval |
-| `triplet_key` | **~25 ns** | was 120 ns; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity` + `push_str` for **−82%** measured (~5× faster). Called per inbound message on the greylist hot path. |
+| `dnsbl/reverse_ipv4` | **47 ns** | reverse IPv4 octet string build for DNSBL query |
+| `dnsbl/interpret_spamhaus` | **524 ps** | bit-interpretation of Spamhaus A-record octets |
+| `greylist/evaluate_first_seen` | **479 ps** | first-touch decision |
+| `greylist/evaluate_retry` | **677 ps** | retry-window comparison |
+| `greylist/triplet_key` | **25 ns** | was 120 ns pre-v4; commit `d0c5941` replaced `format!` with pre-sized `String::with_capacity + push_str` (5× faster). Per inbound message on the greylist hot path |
+| `ptr_score_from_names(match)` | **75 ns** | FCrDNS score eval |
+| `ptr_score_from_names(no match)` | **205 ns** | DNS-mismatch slow path (extra HashSet ops) |
+
+**v4 ckpt 18** (2026-06-03): Case A verified — `grep iter().position` /
+`.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The crate is 548 LOC across 4 files (lib / dnsbl /
+ptr / greylist); all hot ops are at picosecond-to-100ns range
+(interpret_spamhaus and greylist/evaluate at ~500 ps are essentially
+at the criterion measurement floor). The v4-period `triplet_key`
+optimisation is durable. Numbers re-confirmed against baseline.
 
 ### `mailrs-spf` — RFC 7208 SPF verifier (criterion, M-series Mac, release)
 
