@@ -1719,6 +1719,24 @@ amortises poorly on inputs near the SIMD vector width.
 
 Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
 
+### `mailrs-postmaster` (criterion, `cargo bench -p mailrs-postmaster`)
+
+3-run honest medians, v4 ckpt 20 (2026-06-03):
+
+| Path | Median | Notes |
+|---|---:|---|
+| `extract_bimi_logo_url` | **40 ns** | BIMI TXT-record URL extraction; was claimed 44 ns — slight under-claim, real is ~10 % faster |
+
+**v4 ckpt 20** (2026-06-03): Case A verified — `grep iter().position` /
+`.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The crate is 2.3k LOC across 11 files but ~95 % of
+that is async DNS-bound diagnostic checks (mx / dkim / dmarc / dane /
+mta_sts / ptr / spf / tlsrpt / bimi / resolver) — production
+wall-clock is dominated by DNS round-trips (5-50 ms), not the CPU
+portion of any check. The single benched op (`extract_bimi_logo_url`)
+is a 40 ns regex-free string extraction at the criterion noise
+floor.
+
 ### `mailrs-clean` (criterion, `cargo bench -p mailrs-clean`)
 
 Re-measured v4 ckpt 19 (2026-06-03), 3-run honest medians:
