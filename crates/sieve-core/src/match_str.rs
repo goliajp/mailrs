@@ -117,10 +117,17 @@ fn glob_match_ci(haystack: &[u8], pattern: &[u8]) -> bool {
         }
     }
 
-    // If the pattern's tail wasn't anchored we already covered everything
-    // we needed; if it WAS anchored, the must_anchor_end branch above
-    // already pushed cursor to haystack.len().
-    true
+    // When the pattern's tail is anchored (no trailing `*`) the
+    // last chunk must consume the haystack right to its end. The
+    // must_anchor_end branch above pushes cursor to haystack.len()
+    // for multi-chunk patterns, but a single-chunk pattern that is
+    // both prefix- AND suffix-anchored only fires must_anchor_start,
+    // so re-check here.
+    if is_anchored_end {
+        cursor == haystack.len()
+    } else {
+        true
+    }
 }
 
 /// Equal-length comparison treating `?` in `chunk` as a wildcard
