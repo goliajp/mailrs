@@ -12,6 +12,41 @@ honestly measured and which are still open. When in doubt, default to
 the latest column ("Measured?") here — not to whatever a commit message
 or marketing material says.
 
+## v4 closed (2026-06-03, ckpt 44)
+
+All 43 stones spot-checked or optimized. **31 ckpts shipped** between
+2026-06-02 (ckpt 0 baseline, v1.7.51) and 2026-06-03 (ckpt 44 closeout,
+v1.7.87). Headline wins:
+
+| Stone | Win | Mechanism |
+|---|---|---|
+| `mail-builder` | **5.19× envelope w/ 16k attachment** | memmem-anchored boundary-collision scan |
+| `sieve-core` | **−17 % evaluate/heavy**, −21 % tokenize | zero-alloc match_string + memchr lex comments |
+| `arc` | **1.57× chain-extract** | memchr unfold_headers + take_header_block |
+| `dmarc` | **1.94× XML report build** | XmlEscape Display + write!() rewrite |
+| `dkim` | **3.4-4.3× collect_signed_headers** at 60 headers | borrowed slice API |
+| `imap-format` | **2-31×** common scans | memchr find_separator_end / find_line_offset |
+| `smtp-codec` | **2-31×** common scans | memchr has_smuggle_sequence / unstuff_data |
+| `dav` + `ical` | 18 alloc-kill sites | push_str(&format!()) → write!() |
+| 22 other stones | Case A verified | no exploitable scan / alloc surface, numbers ≤ noise vs claim |
+
+Two structural deviations from v3 numbers worth noting (drift
+**faster**, not regression):
+
+* `mailrs-backoff` is ~5× faster than the v3 claim (rand upgrade
+  simplified the jitter hot path).
+* `mailrs-webhook-signature` sign/short is ~2× faster (aws-lc-rs SHA256
+  SIMD now active).
+
+**NOT measured** section (above) re-audited clean — v4 added no new
+unverified claims; every "ckpt N (2026-06-03)" entry below carries
+a reproducible `cargo bench ...` command.
+
+The v4 baseline section is preserved verbatim below for diff
+reference. The 43 stones tag map to **31 ckpts** because related
+Case A verifies were bundled per the RFC's P3 guidance ("绝大多数 case
+A — spot-check 即可，不深挖").
+
 ## v4 baseline (2026-06-02, ckpt 0)
 
 Full-workspace `cargo bench --workspace` snapshot taken at commit
