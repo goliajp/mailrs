@@ -2547,6 +2547,74 @@ dependencies = [
 ]
 
 [[package]]
+name = "kevy-bytes"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ddf67ccd2b83dc277bab16f668351f55c5e1452c7c1ff913106c2ddde4c1add"
+dependencies = [
+ "kevy-hash",
+]
+
+[[package]]
+name = "kevy-embedded"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "249fd6569c7d14faecbd6b091cf282ec70b540325c66a266748f259ccb7822c0"
+dependencies = [
+ "kevy-persist",
+ "kevy-store",
+]
+
+[[package]]
+name = "kevy-hash"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3de37acd362c6fd5518266dba8f486c8af2b9fd0722f272fdc8ee5ef5e55a358"
+
+[[package]]
+name = "kevy-madvise"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93184f3ebf5690b9369ee9108379f72b473bbcf7e917a51aec44caa89da5e773"
+
+[[package]]
+name = "kevy-map"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca6b69a4f1c4fe2d6637e8ba81c4eb034bc1a260918e56ab2b9ec2886dc26555"
+dependencies = [
+ "kevy-hash",
+ "kevy-madvise",
+]
+
+[[package]]
+name = "kevy-persist"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a9237161011eaebd34fb297b09f5d7a73b3477d92770cfdfb0879c11778620c"
+dependencies = [
+ "kevy-resp",
+ "kevy-store",
+]
+
+[[package]]
+name = "kevy-resp"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1e3247a3c65315ba13ff0c9b43732f07fca2549b22970a1c8aa8dda5ea1406f"
+
+[[package]]
+name = "kevy-store"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "265d3dc4107556deb88b8e932dd6fccbf1941491b60fa226ca554cd098c47665"
+dependencies = [
+ "kevy-bytes",
+ "kevy-hash",
+ "kevy-map",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3384,6 +3452,7 @@ dependencies = [
  "image",
  "instant-acme",
  "jsonwebtoken",
+ "kevy-embedded",
  "ldap3",
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-arc",

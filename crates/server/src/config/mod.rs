@@ -114,7 +114,13 @@ pub struct ServerConfig {
     pub srs_secret: Option<String>,
     // storage backends
     pub pg_url: Option<String>,
+    /// Network kevy connection URL (legacy path, e.g. `redis://kevy:6379`).
+    /// Will be dropped when [`Self::kevy_data_dir`] migration completes.
     pub kevy_url: Option<String>,
+    /// Persistence directory for the in-process kevy embedded store.
+    /// `None` keeps kevy memory-only (lost on restart). The directory is
+    /// created if missing; kevy writes `aof-0.aof` + `dump-0.rdb` here.
+    pub kevy_data_dir: Option<std::path::PathBuf>,
     // Meilisearch
     pub meili_url: Option<String>,
     pub meili_key: Option<String>,
@@ -186,6 +192,7 @@ impl Default for ServerConfig {
             srs_secret: None,
             pg_url: None,
             kevy_url: None,
+            kevy_data_dir: None,
             meili_url: None,
             meili_key: None,
             chrome_cdp_url: None,
@@ -251,6 +258,16 @@ impl ServerConfig {
             && let Err(e) = crate::kevy_store::validate_url(url)
         {
             warnings.push(format!("MAILRS_KEVY_URL is invalid: {e}"));
+        }
+
+        if let Some(ref dir) = self.kevy_data_dir
+            && dir.exists()
+            && !dir.is_dir()
+        {
+            warnings.push(format!(
+                "MAILRS_KEVY_DATA_DIR points to a non-directory: {}",
+                dir.display()
+            ));
         }
 
         if self.ldap_url.is_some()
