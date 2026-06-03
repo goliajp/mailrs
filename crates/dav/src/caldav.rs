@@ -8,6 +8,8 @@
 //! The auth / routing decisions (which user, which URL pattern) belong to the
 //! wrapper; this module assumes those have already been made.
 
+use std::fmt::Write;
+
 use crate::error::DavError;
 use crate::parse::extract_multiget_uids;
 use crate::store::CalendarStore;
@@ -46,7 +48,8 @@ pub async fn calendar_home_propfind(
         for cal in &calendars {
             let encoded_name = urlencode(&cal.name);
             let href = format!("/dav/calendars/{user}/{encoded_name}/");
-            responses.push_str(&format!(
+            let _ = write!(
+                responses,
                 "<D:response>\n\
                  <D:href>{href}</D:href>\n\
                  <D:propstat>\n<D:prop>\n\
@@ -65,7 +68,7 @@ pub async fn calendar_home_propfind(
                 xml_escape(&cal.name),
                 xml_escape(&cal.description),
                 xml_escape(&cal.color),
-            ));
+            );
         }
     }
 
@@ -102,7 +105,8 @@ pub async fn calendar_propfind(
             .map_err(|e| DavError::ServerError(e.to_string()))?;
         for ev in &events {
             let event_href = format!("/dav/calendars/{user}/{calendar}/{}.ics", ev.uid);
-            responses.push_str(&format!(
+            let _ = write!(
+                responses,
                 "<D:response>\n\
                  <D:href>{}</D:href>\n\
                  <D:propstat>\n<D:prop>\n\
@@ -112,7 +116,7 @@ pub async fn calendar_propfind(
                  </D:response>\n",
                 xml_escape(&event_href),
                 ev.etag,
-            ));
+            );
         }
     }
 
@@ -156,7 +160,8 @@ pub async fn calendar_report(
     let mut responses = String::new();
     for ev in &filtered {
         let event_href = format!("/dav/calendars/{user}/{calendar}/{}.ics", ev.uid);
-        responses.push_str(&format!(
+        let _ = write!(
+            responses,
             "<D:response>\n\
              <D:href>{}</D:href>\n\
              <D:propstat>\n<D:prop>\n\
@@ -167,7 +172,7 @@ pub async fn calendar_report(
             xml_escape(&event_href),
             ev.etag,
             xml_escape(&ev.icalendar),
-        ));
+        );
     }
     Ok(multistatus(&responses))
 }
@@ -272,7 +277,7 @@ fn urlencode(s: &str) -> String {
                 out.push(b as char);
             }
             _ => {
-                out.push_str(&format!("%{b:02X}"));
+                let _ = write!(out, "%{b:02X}");
             }
         }
     }

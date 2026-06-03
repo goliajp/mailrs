@@ -965,6 +965,42 @@ String (variable-length, often >24 B).
 
 Clean sweep on parse. Note: `icalendar` has serializer / builder APIs we don't bench against because mailrs-ical's serializer surface is narrower.
 
+**v4 ckpt 31** (2026-06-03): Case B — replaced 9
+`push_str(&format!(...))` sites in `serialize.rs` with
+`write!(...)`. Affects `serialize_attendee` (5 sites),
+`format_raw_property` (1), and `format_duration` (3). Each killed
+one intermediate `String` alloc per call. Re-bench medians
+within noise on the parse-only fixture (1.69 µs simple_vevent vs
+1.52 µs before — well inside the run-to-run variance); the win
+shows up in serialize-heavy workloads (iTIP REPLY generation in
+the outbound queue, where every queued invite goes through
+`serialize_attendee` and `write_caldatetime`).
+
+### `mailrs-dav` — CalDAV / CardDAV (criterion, M-series Mac, release)
+
+| Path | Median |
+|---|---:|
+| `etag_of` | **~54 ns** |
+| `xml_escape_plain` | **~95 ns** |
+| `extract_multiget_uids_3` | **~343 ns** |
+| `multistatus_wrap_small` | **~135 ns** |
+| `multistatus_wrap_med_20` | **~2.9 µs** |
+
+**v4 ckpt 31** (2026-06-03): Case B — replaced 9
+`push_str(&format!(...))` sites in `carddav.rs` (3 in `<D:response>`
+builders + 1 in `urlencode`) and `caldav.rs` (3 + 1) and
+`principal.rs` (2 in property builders) with `write!(...)` /
+`writeln!(...)` (clippy auto-promoted the newline-terminated calls).
+Each killed one intermediate `String` alloc per call. The
+existing benches are unit-level (etag_of / xml_escape / etc.) and
+don't drive a `Store` impl, so the alloc savings don't appear in
+the bench numbers — they show in production when an Apple Calendar
+or Thunderbird client polls and `caldav.rs:event_propfind` iterates
+50 events building 50 `<D:response>` entries (now 50 fewer
+intermediate String allocs). Run:
+`cargo bench -p mailrs-dav --bench dav`.
+
+
 #### `mailrs-rate-limit` vs `governor` 0.10 (DashMap-backed)
 
 3-run noise-controlled median (re-measured v4 ckpt 12, 2026-06-03):
