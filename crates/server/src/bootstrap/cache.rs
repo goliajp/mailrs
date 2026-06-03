@@ -24,11 +24,11 @@ use mailrs_mailbox::PgMailboxStore;
 ///
 /// No-op when Kevy isn't configured (no cache to bust).
 pub(crate) fn spawn_cache_bust_task(
-    kevy_conn: &Option<redis::aio::ConnectionManager>,
+    kevy_store: &Option<crate::kevy_store::KevyStore>,
     event_bus: &EventBus,
 ) {
-    let Some(vk) = kevy_conn else { return };
-    let vk = vk.clone();
+    let Some(store) = kevy_store else { return };
+    let store = store.clone();
     let mut rx = event_bus.subscribe();
     tokio::spawn(async move {
         loop {
@@ -38,7 +38,7 @@ pub(crate) fn spawn_cache_bust_task(
                         user, thread_id, ..
                     } = &env.event
                     {
-                        conversation_cache::bust_thread(&vk, user, thread_id).await;
+                        conversation_cache::bust_thread(&store, user, thread_id);
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => break,

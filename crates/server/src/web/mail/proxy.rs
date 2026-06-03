@@ -177,30 +177,25 @@ pub(crate) async fn proxy_image(
     }
 
     // check kevy cache first
-    if let Some(ref kevy) = state.kevy {
+    if let Some(ref store) = state.kevy_embed {
         let cache_key = format!("imgproxy:{}", url);
+        if let Ok(Some(cached)) = store.get(cache_key.as_bytes())
+            && !cached.is_empty()
         {
-            if let Ok(cached) = redis::cmd("GET")
-                .arg(&cache_key)
-                .query_async::<Vec<u8>>(&mut kevy.clone())
-                .await
-                && !cached.is_empty()
-            {
-                // first byte stores content-type length, then content-type, then image data
-                let ct_len = cached[0] as usize;
-                if cached.len() > 1 + ct_len {
-                    let ct = String::from_utf8_lossy(&cached[1..1 + ct_len]).to_string();
-                    let body = cached[1 + ct_len..].to_vec();
-                    return (
-                        StatusCode::OK,
-                        [
-                            (header::CONTENT_TYPE, ct),
-                            (header::CACHE_CONTROL, "public, max-age=86400".to_string()),
-                        ],
-                        body,
-                    )
-                        .into_response();
-                }
+            // first byte stores content-type length, then content-type, then image data
+            let ct_len = cached[0] as usize;
+            if cached.len() > 1 + ct_len {
+                let ct = String::from_utf8_lossy(&cached[1..1 + ct_len]).to_string();
+                let body = cached[1 + ct_len..].to_vec();
+                return (
+                    StatusCode::OK,
+                    [
+                        (header::CONTENT_TYPE, ct),
+                        (header::CACHE_CONTROL, "public, max-age=86400".to_string()),
+                    ],
+                    body,
+                )
+                    .into_response();
             }
         }
     }
@@ -272,7 +267,7 @@ pub(crate) async fn proxy_image(
     };
 
     // cache in kevy (1 hour TTL)
-    if let Some(ref kevy) = state.kevy {
+    if let Some(ref store) = state.kevy_embed {
         let cache_key = format!("imgproxy:{}", url);
         let ct_bytes = content_type.as_bytes();
         if ct_bytes.len() < 256 {
@@ -280,13 +275,11 @@ pub(crate) async fn proxy_image(
             packed.push(ct_bytes.len() as u8);
             packed.extend_from_slice(ct_bytes);
             packed.extend_from_slice(&body);
-            let _ = redis::cmd("SET")
-                .arg(&cache_key)
-                .arg(&packed)
-                .arg("EX")
-                .arg(3600i64)
-                .query_async::<()>(&mut kevy.clone())
-                .await;
+            let _ = store.set_with_ttl(
+                cache_key.as_bytes(),
+                &packed,
+                std::time::Duration::from_secs(3600),
+            );
         }
     }
 
@@ -367,13 +360,10 @@ pub(crate) async fn proxy_link(
     }
 
     // check kevy blocklist cache
-    if let Some(ref kevy) = state.kevy {
+    if let Some(ref store) = state.kevy_embed {
         let cache_key = format!("linkblock:{}", url);
-        if let Ok(blocked) = redis::cmd("GET")
-            .arg(&cache_key)
-            .query_async::<Option<String>>(&mut kevy.clone())
-            .await
-            && blocked.as_deref() == Some("1")
+        if let Ok(Some(bytes)) = store.get(cache_key.as_bytes())
+            && bytes.as_slice() == b"1"
         {
             return link_warning_page(url).into_response();
         }
@@ -381,31 +371,26 @@ pub(crate) async fn proxy_link(
 
     if is_url_blocked(url) {
         // cache the block decision
-        if let Some(ref kevy) = state.kevy {
+        if let Some(ref store) = state.kevy_embed {
             let cache_key = format!("linkblock:{}", url);
-            let _ = redis::cmd("SET")
-                .arg(&cache_key)
-                .arg("1")
-                .arg("EX")
-                .arg(86400i64)
-                .query_async::<()>(&mut kevy.clone())
-                .await;
+            let _ = store.set_with_ttl(
+                cache_key.as_bytes(),
+                b"1",
+                std::time::Duration::from_secs(86400),
+            );
         }
         return link_warning_page(url).into_response();
     }
 
     // record click (fire-and-forget to kevy)
-    if let Some(ref kevy) = state.kevy {
+    if let Some(ref store) = state.kevy_embed {
         let host = url
             .strip_prefix("https://")
             .or_else(|| url.strip_prefix("http://"))
             .and_then(|s| s.split('/').next())
             .unwrap_or("unknown");
         let counter_key = format!("linkclick:{host}");
-        let _ = redis::cmd("INCR")
-            .arg(&counter_key)
-            .query_async::<i64>(&mut kevy.clone())
-            .await;
+        let _ = store.incr(counter_key.as_bytes());
     }
 
     // safe — redirect

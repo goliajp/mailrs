@@ -190,26 +190,21 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
     }
 
     // RBL listing status
-    if let Some(ref kevy) = state.kevy {
-        let rbl_listed: i64 = {
-            let keys: Vec<String> = redis::cmd("KEYS")
-                .arg("rbl:status:*")
-                .query_async(&mut kevy.clone())
-                .await
-                .unwrap_or_default();
-            let mut listed = 0i64;
-            for key in &keys {
-                if let Ok(json) = redis::cmd("GET")
-                    .arg(key)
-                    .query_async::<String>(&mut kevy.clone())
-                    .await
-                    && json.contains("\"any_listed\":true")
-                {
-                    listed += 1;
-                }
+    if let Some(ref store) = state.kevy_embed {
+        // collect every rbl:status:* key, count those whose JSON value
+        // has any_listed:true. kevy-store's collect_keys takes a glob-
+        // style pattern matching Redis KEYS semantics.
+        let keys: Vec<Vec<u8>> =
+            store.with(|inner| inner.collect_keys(Some(b"rbl:status:*"), None));
+        let mut rbl_listed: i64 = 0;
+        for key in &keys {
+            if let Ok(Some(bytes)) = store.get(key)
+                && let Ok(json) = String::from_utf8(bytes)
+                && json.contains("\"any_listed\":true")
+            {
+                rbl_listed += 1;
             }
-            listed
-        };
+        }
         let _ = writeln!(
             body,
             "# HELP mailrs_rbl_listed IPs currently listed on RBLs"

@@ -166,7 +166,7 @@ async fn main() {
 
     let event_bus = EventBus::new(1024);
 
-    spawn_cache_bust_task(&kevy_conn, &event_bus);
+    spawn_cache_bust_task(&kevy_embedded_store, &event_bus);
 
     let rate_limiter = Arc::new(RateLimiter::new(TokenBucketConfig {
         capacity: cfg.rate_limit_capacity,

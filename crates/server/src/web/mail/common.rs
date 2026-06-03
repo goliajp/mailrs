@@ -190,12 +190,12 @@ pub(crate) async fn deliver_message_ex(
                 {
                     errors.push(format!("{rcpt}: {e}"));
                 } else {
-                    if let Some(ref vk) = state.kevy {
+                    if let Some(ref vk) = state.kevy_embed {
                         // Bust the recipient's conversation caches so the
                         // newly-delivered local message shows up on their
                         // next thread/list fetch — without this, the cached
                         // thread list silently misses the message until TTL.
-                        crate::conversation_cache::bust_user(&vk.clone(), rcpt).await;
+                        crate::conversation_cache::bust_user(vk, rcpt);
                     }
                     // Fire the same NewMessage event the SMTP inbound
                     // pipeline emits, so the recipient's IMAP IDLE / WS /
@@ -246,6 +246,8 @@ pub(crate) async fn deliver_message_ex(
             if let Err(e) = enqueue_result {
                 errors.push(format!("{rcpt}: {e}"));
             } else if let Some(ref vk) = state.kevy {
+                // outbound-queue stone still expects ConnectionManager
+                // (network kevy); Phase C migrates it to embed Notifier.
                 mailrs_outbound_queue::queue::notify(&mut vk.clone()).await;
             }
         } else {
@@ -276,8 +278,8 @@ pub(crate) async fn deliver_message_ex(
         // mailbox-store-assigned thread_id which we don't have in this
         // scope yet; the wider bust is acceptable here because send is
         // a comparatively rare operation.
-        if let Some(ref vk) = state.kevy {
-            crate::conversation_cache::bust_user(&vk.clone(), from).await;
+        if let Some(ref vk) = state.kevy_embed {
+            crate::conversation_cache::bust_user(vk, from);
         }
         // And the missing other half: fire NewMessage on the bus so
         // the sender's own IMAP IDLE / WS / JMAP push subscribers

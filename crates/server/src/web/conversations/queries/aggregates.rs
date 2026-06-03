@@ -26,8 +26,8 @@ pub(crate) async fn get_conversation_categories(
 
     let domains = validate_domains(dq.domains.as_deref(), permissions);
     let cache_key = conversation_cache::categories_key(user, domains.as_deref());
-    if let Some(ref kevy) = state.kevy
-        && let Some(cached) = conversation_cache::get_json(kevy, &cache_key).await
+    if let Some(ref kevy) = state.kevy_embed
+        && let Some(cached) = conversation_cache::get_json(kevy, &cache_key)
     {
         return cached_json_response(cached);
     }
@@ -42,11 +42,10 @@ pub(crate) async fn get_conversation_categories(
         .map(|(category, count)| CategoryCount { category, count })
         .collect();
 
-    if let Some(ref kevy) = state.kevy
+    if let Some(ref kevy) = state.kevy_embed
         && let Ok(json) = serde_json::to_string(&result)
     {
-        conversation_cache::set_json(kevy, &cache_key, &json, conversation_cache::TTL_CATS_SECS)
-            .await;
+        conversation_cache::set_json(kevy, &cache_key, &json, conversation_cache::TTL_CATS_SECS);
     }
     Json(result).into_response()
 }
@@ -66,8 +65,8 @@ pub(crate) async fn get_action_count(
 
     let domains = validate_domains(dq.domains.as_deref(), permissions);
     let cache_key = conversation_cache::action_count_key(user, domains.as_deref());
-    if let Some(ref kevy) = state.kevy
-        && let Some(cached) = conversation_cache::get_json(kevy, &cache_key).await
+    if let Some(ref kevy) = state.kevy_embed
+        && let Some(cached) = conversation_cache::get_json(kevy, &cache_key)
     {
         return cached_json_response(cached);
     }
@@ -78,11 +77,10 @@ pub(crate) async fn get_action_count(
         .unwrap_or(0);
 
     let body = serde_json::json!({"count": count});
-    if let Some(ref kevy) = state.kevy
+    if let Some(ref kevy) = state.kevy_embed
         && let Ok(json) = serde_json::to_string(&body)
     {
-        conversation_cache::set_json(kevy, &cache_key, &json, conversation_cache::TTL_ACTION_SECS)
-            .await;
+        conversation_cache::set_json(kevy, &cache_key, &json, conversation_cache::TTL_ACTION_SECS);
     }
     Json(body).into_response()
 }
@@ -138,13 +136,12 @@ pub(crate) async fn get_mail_stats(
         None
     };
 
-    if let (Some(key), Some(kevy)) = (&cache_key, &state.kevy) {
-        use redis::AsyncCommands;
-        if let Ok(json) = kevy.clone().get::<_, String>(key.as_str()).await
-            && let Ok(parsed) = serde_json::from_str::<MailStats>(&json)
-        {
-            return Json(parsed);
-        }
+    if let (Some(key), Some(store)) = (&cache_key, &state.kevy_embed)
+        && let Ok(Some(bytes)) = store.get(key.as_bytes())
+        && let Ok(json) = String::from_utf8(bytes)
+        && let Ok(parsed) = serde_json::from_str::<MailStats>(&json)
+    {
+        return Json(parsed);
     }
 
     let total = mb_store.count_messages(user).await;
@@ -167,14 +164,14 @@ pub(crate) async fn get_mail_stats(
         categories,
     };
 
-    if let (Some(key), Some(kevy)) = (&cache_key, &state.kevy)
+    if let (Some(key), Some(store)) = (&cache_key, &state.kevy_embed)
         && let Ok(json) = serde_json::to_string(&stats)
     {
-        use redis::AsyncCommands;
-        let _: redis::RedisResult<()> = kevy
-            .clone()
-            .set_ex(key.as_str(), json, MAIL_STATS_TTL_SECS)
-            .await;
+        let _ = store.set_with_ttl(
+            key.as_bytes(),
+            json.as_bytes(),
+            std::time::Duration::from_secs(MAIL_STATS_TTL_SECS),
+        );
     }
 
     Json(stats)
