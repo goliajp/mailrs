@@ -1,21 +1,21 @@
-//! `RedisNotifier` integration tests against an ephemeral Kevy container.
+//! `KevyNotifier` integration tests against an ephemeral Kevy container.
 //!
-//! Covers the `Notifier` trait surface on `RedisNotifier` (pubsub
+//! Covers the `Notifier` trait surface on `KevyNotifier` (pubsub
 //! publish + subscribe wakeup, error handling on bad URLs).
 
 mod common;
 
 use std::time::Duration;
 
-use common::redis::start_redis;
-use mailrs_outbound_queue::pg_store::RedisNotifier;
+use common::kevy::start_kevy;
+use mailrs_outbound_queue::pg_store::KevyNotifier;
 use mailrs_outbound_queue::store::Notifier;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn notifier_publish_wakes_subscriber() {
-    let (_container, url) = start_redis().await;
-    let publisher = RedisNotifier::new(url.clone());
-    let subscriber = RedisNotifier::new(url);
+    let (_container, url) = start_kevy().await;
+    let publisher = KevyNotifier::new(url.clone());
+    let subscriber = KevyNotifier::new(url);
 
     // Spawn the subscribe first so it's listening when the publish lands.
     let h = tokio::spawn(async move {
@@ -32,8 +32,8 @@ async fn notifier_publish_wakes_subscriber() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn notifier_clone_yields_same_target() {
-    let (_container, url) = start_redis().await;
-    let n = RedisNotifier::new(url);
+    let (_container, url) = start_kevy().await;
+    let n = KevyNotifier::new(url);
     let cloned = n.clone();
     let h = tokio::spawn(async move {
         tokio::time::timeout(Duration::from_secs(5), cloned.wait())

@@ -1,4 +1,4 @@
-//! Ephemeral Kevy/Redis container for `RedisNotifier` integration tests.
+//! Ephemeral Kevy/Redis container for `KevyNotifier` integration tests.
 //!
 //! Same pattern as `pg.rs` — one container per call, handle held alive
 //! by the caller so dropping it stops the container.
@@ -8,8 +8,8 @@ use testcontainers_modules::redis::Redis;
 use testcontainers_modules::testcontainers::runners::AsyncRunner;
 
 /// Spin a fresh Redis container, return its handle plus the
-/// `redis://host:port` URL ready to hand to `RedisNotifier::new(...)`.
-pub async fn start_redis() -> (ContainerAsync<Redis>, String) {
+/// `redis://host:port` URL ready to hand to `KevyNotifier::new(...)`.
+pub async fn start_kevy() -> (ContainerAsync<Redis>, String) {
     let container = Redis::default()
         .start()
         .await

@@ -16,7 +16,7 @@
 //!
 //! | Feature | Default | Includes |
 //! |---------|---------|----------|
-//! | `pg`    | on      | [`PgQueueStore`] + [`RedisNotifier`] + the bundled [`DeliveryWorker`] that consumes them. Pulls in `sqlx` and `redis`. |
+//! | `pg`    | on      | [`PgQueueStore`] + [`KevyNotifier`] + the bundled [`DeliveryWorker`] that consumes them. Pulls in `sqlx` and `redis`. |
 //!
 //! Disable the `pg` feature if you want only the traits + pure primitives:
 //!
@@ -74,7 +74,7 @@ pub use store::{
 };
 
 #[cfg(feature = "pg")]
-pub use pg_store::{PgQueueStore, RedisNotifier};
+pub use pg_store::{KevyNotifier, PgQueueStore};
 #[cfg(feature = "pg")]
 pub use worker::{DeliveryWorker, WorkerConfig, group_by_domain};
 

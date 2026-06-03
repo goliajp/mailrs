@@ -52,7 +52,7 @@ impl Stage for AiScoringStage {
         let cache = self
             .kevy
             .clone()
-            .map(mailrs_intelligence::spam::RedisSpamCache::new);
+            .map(mailrs_intelligence::spam::KevySpamCache::new);
         let cache_ref: Option<&dyn mailrs_intelligence::spam::SpamCache> = cache
             .as_ref()
             .map(|c| c as &dyn mailrs_intelligence::spam::SpamCache);

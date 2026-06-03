@@ -15,7 +15,7 @@ Extracted from [mailrs] so any Rust project that needs to classify, summarize, o
 - **OpenAI-compatible reference impl** — `OpenAiCompatibleProvider` wraps `reqwest` and works against any service speaking the standard `{system, messages, temperature}` shape (self-hosted vLLM, llama.cpp servers, etc.).
 - **Five primitives, one shape** — full email analysis (`analyze::analyze_email`), spam classification with optional cache (`spam::classify`), structured-data extraction from JSON-LD (`structured::extract_structured_data`), heuristic importance scoring (`importance::calculate_importance`), and embeddings via the provider's `embed` method.
 - **No-LLM modules** — `importance` and `structured` are pure heuristics — they don't need a provider, network, or async runtime.
-- **Optional Redis cache** — `RedisSpamCache` is included behind the default `redis-cache` feature, but `SpamCache` is a trait so you can plug in whatever store you have.
+- **Optional Redis cache** — `KevySpamCache` is included behind the default `kevy-cache` feature, but `SpamCache` is a trait so you can plug in whatever store you have.
 
 ## Quick start
 
@@ -63,7 +63,7 @@ println!("importance={} score={:.2}", level.as_str(), score);
 | Flag | Default | What it enables |
 |------|---------|-----------------|
 | `http`        | yes | `OpenAiCompatibleProvider` (reqwest + rustls). Disable if you supply your own `LlmProvider`. |
-| `redis-cache` | yes | `RedisSpamCache` for `spam::classify`. Disable if you cache yourself or run without a cache. |
+| `kevy-cache` | yes | `KevySpamCache` for `spam::classify`. Disable if you cache yourself or run without a cache. |
 
 Disable both default features (`default-features = false`) if you're plugging in your own backends:
 

@@ -115,7 +115,7 @@ pub trait Cache: Send + Sync {
 Two reasons it exists:
 
 1. The reference `InMemoryCache` is a `tokio::sync::RwLock<HashMap>`, sufficient
-   for a single-process MTA. Plugging in Redis/Valkey/Memcached/sled is a
+   for a single-process MTA. Plugging in Redis/Kevy/Memcached/sled is a
    matter of impl'ing this trait.
 2. Tests for the enforce path don't need a real HTTP fetcher — they can fill
    the cache directly.

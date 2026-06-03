@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-03
+
+### Changed (BREAKING)
+- Public struct `RedisNotifier` renamed to `KevyNotifier`. Update imports:
+  `use mailrs_outbound_queue::KevyNotifier;` (and the path re-export at
+  `pg_store::KevyNotifier`).
+- Documentation refers to kevy (<https://github.com/goliajp/kevy>); the
+  `redis://` URL scheme stays because it's the RESP wire identifier, not
+  a backend name. `KevyNotifier::new(url: "redis://kevy:6379")` is the
+  drop-in replacement for `RedisNotifier::new(...)`.
+- Integration test fixtures renamed for consistency: file
+  `tests/redis_notifier_integration.rs` → `tests/kevy_notifier_integration.rs`,
+  helper `tests/common/redis.rs` → `tests/common/kevy.rs`, function
+  `start_redis()` → `start_kevy()`. `testcontainers_modules::redis::Redis`
+  remains because that's a third-party API.
+
 ## [1.1.1] - 2026-05-23
 
 ### Added

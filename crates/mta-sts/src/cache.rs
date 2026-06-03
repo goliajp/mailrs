@@ -38,7 +38,7 @@ pub struct CachedPolicy {
 
 /// Pluggable cache for parsed STS policies.
 ///
-/// Implementors decide storage (memory, Valkey, etc.). The trait is
+/// Implementors decide storage (memory, Kevy, etc.). The trait is
 /// intentionally small — `get`, `put`, `delete` — so it composes with
 /// any KV store.
 #[async_trait]

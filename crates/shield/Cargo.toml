@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-shield"
-version = "1.0.4"
+version = "2.0.0"
 edition = "2024"
 description = "SMTP anti-spam primitives: DNS blocklist (DNSBL) queries, greylisting policy with optional Redis store, and PTR / forward-confirmed reverse DNS (FCrDNS) checks."
 license = "Apache-2.0 OR MIT"
@@ -16,16 +16,16 @@ readme = "README.md"
 workspace = true
 
 [features]
-default = ["redis-store"]
-# Enable the Redis-backed greylist store (with optional Postgres
+default = ["kevy-store"]
+# Enable the Kevy-backed greylist store (with optional Postgres
 # pass-through). Disable if you're plugging in your own store.
-redis-store = ["dep:redis", "dep:sqlx"]
+kevy-store = ["dep:redis", "dep:sqlx"]
 
 [dependencies]
 mailrs-dnsbl = "1"
 hickory-resolver = "0.26"
 
-# redis-store feature
+# kevy-store feature
 redis = { workspace = true, optional = true }
 sqlx = { workspace = true, optional = true }
 

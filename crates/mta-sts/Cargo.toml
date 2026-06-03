@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-mta-sts"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2024"
 description = "RFC 8461 MTA Strict Transport Security (MTA-STS) — policy + STS record parsers, MX pattern matching, enforce(policy, mx) decision, plus a Cache trait + in-memory reference impl. Pure: no HTTP / DNS — bring your own resolver and HTTPS client and feed the parsed bytes in."
 license = "Apache-2.0 OR MIT"

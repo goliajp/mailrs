@@ -4,8 +4,8 @@
 //! and consults the optional [`SpamCache`] before calling the provider.
 //! On cache miss, the result is written back with a 24-hour TTL.
 //!
-//! A Redis-backed [`SpamCache`] implementation ([`RedisSpamCache`]) is
-//! available under the default `redis-cache` feature.
+//! A Kevy-backed [`SpamCache`] implementation ([`KevySpamCache`]) is
+//! available under the default `kevy-cache` feature.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -108,35 +108,35 @@ fn parse_ai_response(text: &str) -> Option<AiSpamResult> {
     })
 }
 
-#[cfg(feature = "redis-cache")]
-pub use redis_impl::RedisSpamCache;
+#[cfg(feature = "kevy-cache")]
+pub use kevy_impl::KevySpamCache;
 
-#[cfg(feature = "redis-cache")]
-mod redis_impl {
+#[cfg(feature = "kevy-cache")]
+mod kevy_impl {
     use super::SpamCache;
     use async_trait::async_trait;
     use redis::AsyncCommands;
 
-    /// Redis-backed [`SpamCache`] using a shared [`redis::aio::ConnectionManager`].
+    /// Kevy-backed [`SpamCache`] using a shared [`redis::aio::ConnectionManager`].
     ///
     /// The cache silently ignores all Redis errors — a missing/failed
     /// cache lookup always falls through to the provider, and a failed
     /// `set` just loses one cache entry. Both situations are recoverable
     /// without breaking classification.
     #[derive(Debug, Clone)]
-    pub struct RedisSpamCache {
+    pub struct KevySpamCache {
         conn: redis::aio::ConnectionManager,
     }
 
-    impl RedisSpamCache {
-        /// Construct a Redis-backed spam-classification cache.
+    impl KevySpamCache {
+        /// Construct a Kevy-backed spam-classification cache.
         pub fn new(conn: redis::aio::ConnectionManager) -> Self {
             Self { conn }
         }
     }
 
     #[async_trait]
-    impl SpamCache for RedisSpamCache {
+    impl SpamCache for KevySpamCache {
         async fn get(&self, key: &str) -> Option<String> {
             let mut conn = self.conn.clone();
             conn.get::<_, Option<String>>(key).await.ok().flatten()

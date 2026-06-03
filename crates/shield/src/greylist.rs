@@ -1,4 +1,4 @@
-//! Greylisting policy + an optional Redis-backed store.
+//! Greylisting policy + an optional Kevy-backed store.
 //!
 //! The policy is pure (no I/O): you call [`evaluate_triplet`](crate::greylist::evaluate_triplet) with the
 //! first-seen timestamp and the current time, and it tells you whether
@@ -73,29 +73,29 @@ pub fn triplet_key(client_ip: &str, sender: &str, recipient: &str) -> String {
     out
 }
 
-#[cfg(feature = "redis-store")]
-pub use redis_impl::GreylistDb;
+#[cfg(feature = "kevy-store")]
+pub use kevy_impl::GreylistDb;
 
-#[cfg(feature = "redis-store")]
-mod redis_impl {
+#[cfg(feature = "kevy-store")]
+mod kevy_impl {
     use redis::AsyncCommands;
 
     use super::{GreylistConfig, GreylistDecision, evaluate_triplet};
 
-    /// Redis-backed greylisting store with an optional Postgres cold-backup.
+    /// Kevy-backed greylisting store with an optional Postgres cold-backup.
     ///
     /// First-seen timestamps live in Redis with a TTL equal to `pass_ttl_secs`;
     /// the optional PG pool is written best-effort for durability across
     /// Redis restarts.
     pub struct GreylistDb {
-        valkey: redis::aio::ConnectionManager,
+        kevy: redis::aio::ConnectionManager,
         pg: Option<sqlx::PgPool>,
     }
 
     impl GreylistDb {
         /// Construct a Redis-only greylisting store from a [`redis::aio::ConnectionManager`].
-        pub fn new(valkey: redis::aio::ConnectionManager) -> Self {
-            Self { valkey, pg: None }
+        pub fn new(kevy: redis::aio::ConnectionManager) -> Self {
+            Self { kevy, pg: None }
         }
 
         /// Attach a Postgres pool for best-effort durability across Redis
@@ -113,7 +113,7 @@ mod redis_impl {
             now: u64,
             config: &GreylistConfig,
         ) -> GreylistDecision {
-            let mut conn = self.valkey.clone();
+            let mut conn = self.kevy.clone();
             let vk_key = format!("gl:{key}");
 
             let first_seen: Option<u64> = conn.get(&vk_key).await.ok().flatten();

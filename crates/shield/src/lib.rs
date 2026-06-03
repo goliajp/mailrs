@@ -10,8 +10,8 @@
 //!   for an inbound client IP, with an in-process TTL cache.
 //! - [`greylist`] — temporary 4xx-defer policy ([Harris 2003] / RFC
 //!   6647): unknown sender triplets get one initial defer; legitimate
-//!   senders retry, spammers don't. Comes with an optional Redis-backed
-//!   store ([`greylist::GreylistDb`]) behind the default `redis-store`
+//!   senders retry, spammers don't. Comes with an optional Kevy-backed
+//!   store ([`greylist::GreylistDb`]) behind the default `kevy-store`
 //!   feature.
 //! - [`ptr`] — forward-confirmed reverse DNS (FCrDNS) score for an
 //!   inbound client: 0.0 if PTR → forward roundtrip matches the EHLO
@@ -19,7 +19,7 @@
 //!
 //! ## Feature flags
 //!
-//! - `redis-store` (default) — enables the Redis-backed
+//! - `kevy-store` (default) — enables the Kevy-backed
 //!   [`greylist::GreylistDb`] store (with optional Postgres cold backup).
 //!   Disable to plug in your own store.
 //!
@@ -27,7 +27,7 @@
 
 /// DNSBL reverse-IP scoring helpers (Spamhaus + generic lookup interpretation).
 pub mod dnsbl;
-/// RFC 5321-style greylisting: defer-on-first-seen with optional Postgres + Valkey storage.
+/// RFC 5321-style greylisting: defer-on-first-seen with optional Postgres + Kevy storage.
 pub mod greylist;
 /// Forward-confirmed reverse DNS scoring (FCrDNS) for sender-IP reputation.
 pub mod ptr;

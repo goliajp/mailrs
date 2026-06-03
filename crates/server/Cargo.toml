@@ -46,16 +46,16 @@ mailrs-imap-codec = "1"
 mailrs-imap-format = "1"
 mailrs-attachment-extract = "1"
 mailrs-sieve = { path = "../sieve", version = "2" }
-mailrs-outbound-queue = { path = "../outbound-queue", version = "2" }
+mailrs-outbound-queue = { path = "../outbound-queue", version = "3" }
 mailrs-imap-proto = "1"
 mailrs-ical = { path = "../ical", version = "2" }
-mailrs-intelligence = "1"
+mailrs-intelligence = { path = "../intelligence", version = "2" }
 mailrs-mailbox = { path = "../mailbox", version = "1" }
 mailrs-jmap = "1"
 mailrs-dav = "1"
 async-trait = "0.1"
 mailrs-postmaster = { path = "../postmaster", version = "1" }
-mailrs-shield = "1"
+mailrs-shield = { path = "../shield", version = "2" }
 mailrs-clean = "1"
 mailrs-dmarc = { path = "../dmarc", version = "2" }
 mailrs-inbound = "1"

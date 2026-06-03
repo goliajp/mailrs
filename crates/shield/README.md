@@ -43,10 +43,10 @@ assert_eq!(evaluate_triplet(Some(1000), 1100, &cfg), GreylistDecision::TooEarly)
 assert_eq!(evaluate_triplet(Some(1000), 1400, &cfg), GreylistDecision::Accept);
 ```
 
-The optional `redis-store` feature (on by default) ships a `GreylistDb` that combines Redis (hot cache) + Postgres (cold backup) behind a single `check()` call:
+The optional `kevy-store` feature (on by default) ships a `GreylistDb` that combines Redis (hot cache) + Postgres (cold backup) behind a single `check()` call:
 
 ```rust,no_run
-# #[cfg(feature = "redis-store")]
+# #[cfg(feature = "kevy-store")]
 # async fn _ex() -> Result<(), Box<dyn std::error::Error>> {
 use mailrs_shield::greylist::{GreylistConfig, GreylistDb, triplet_key};
 
@@ -104,7 +104,7 @@ Run with `cargo bench -p mailrs-shield`. See [`tests/perf_gate.rs`](tests/perf_g
 
 | Flag | Default | What it enables |
 |------|---------|-----------------|
-| `redis-store` | yes | `greylist::GreylistDb` (Redis + optional PG cold backup) |
+| `kevy-store` | yes | `greylist::GreylistDb` (Redis + optional PG cold backup) |
 
 Disable both default features (`default-features = false`) if you're plugging in your own backends.
 
