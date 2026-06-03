@@ -1372,6 +1372,47 @@ mechanism dispatch) dropped the real numbers another ~40-50% but the
 stone-level table wasn't refreshed. Vs-`mail-auth` comparison section
 was already up-to-date and unchanged.
 
+### `mailrs-dmarc` — RFC 7489 DMARC verifier + aggregate report (criterion, M-series Mac, release)
+
+3-run honest medians, v4 ckpt 11 (2026-06-03):
+
+| Path | Median | Notes |
+|---|---:|---|
+| `generate_xml/n10` | **7.74 µs** | was 13.2 µs; v4 ckpt 11 `write!()` rewrite **−41 % / 1.71×** |
+| `generate_xml/n500` | **275 µs** | was 533 µs; same change **−48 % / 1.94×** (linear scaling) |
+| `format_report_email` | **83 µs** | unchanged — already on `mailrs-mail-builder` since v8 ckpt 3 |
+| `extract_rua_typical` | **70 ns** | tag-list scan via stdlib `split(';')` (stdlib uses memchr internally for `char` patterns) — already optimal |
+
+**v4 ckpt 11** (2026-06-03): two anti-patterns in
+`generate_dmarc_report_xml`:
+
+1. **`push_str(&format!(...))` cascade** — every record emitted via
+   ~15 `xml.push_str(&format!(...))` calls. Each one allocates a
+   throwaway intermediate `String` from the `format!` macro just
+   to memcpy it into `xml` and drop. Replaced with `write!(xml,
+   ...)` macros that format directly into the destination — no
+   intermediate allocation. Pre-sized the destination
+   `String::with_capacity(512 + n_records * 600)` so the growth-
+   doubling re-allocs are gone too.
+
+2. **`escape_xml` 4×`String::replace` chain** — `s.replace('&', ...).
+   replace('<', ...).replace('>', ...).replace('"', ...)` allocates
+   4 intermediate `String`s per field, even when no escape is
+   needed (which is the typical case — domains, IPs, result enums
+   are all in the safe character set). Replaced with an
+   `XmlEscape(&str)` newtype that implements `Display`: fast path
+   `f.write_str(self.0)` when no special chars are present, slow
+   path char-iter with escape on the fly. The old `escape_xml`
+   function is kept `#[cfg(test)]` only so the 4 existing escape
+   tests don't need to change.
+
+Combined effect on the per-report XML emission: 1.71× on small
+records, 1.94× on large reports where the per-record cost
+dominates. `format_report_email` (gzip + multipart build via
+`mailrs-mail-builder`) is unchanged since the `format_dmarc_report_xml`
+output already feeds into the existing builder path that was
+optimized in v8 ckpt 3.
+
 ### `mailrs-arc` — RFC 8617 ARC verifier (criterion, M-series Mac, release)
 
 Re-measured v4 ckpt 10 (2026-06-03), 3-run honest medians:
