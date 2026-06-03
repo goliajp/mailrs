@@ -84,7 +84,7 @@ full benchmark ledger.
 | `mailrs-outbound-queue` | Outbound queue: DKIM signing, DSN generation, MTA-STS lookup, retry/backoff, pluggable store |
 | `mailrs-delivery-executor` | Group-commit delivery executor on top of `mailrs-maildir` batch delivery |
 | `mailrs-inbound` | Composable SMTP receive pipeline — Stage trait + early-reject executor + RFC 8601 results |
-| `mailrs-shield` | SMTP anti-spam: DNSBL queries, greylisting (optional Redis), PTR/FCrDNS |
+| `mailrs-shield` | SMTP anti-spam: DNSBL queries, greylisting (optional in-process kevy), PTR/FCrDNS |
 | `mailrs-postmaster` | Email-domain DNS health checks: MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, BIMI, DANE, PTR |
 | `mailrs-intelligence` | LLM-powered email analysis: extraction, importance scoring, spam classification, embeddings |
 | `mailrs-clean` | Email content cleanup: HTML sanitization, tracking-pixel detection, quoted-reply splitting |
@@ -98,7 +98,7 @@ full benchmark ledger.
 - **inbound/pipeline** — multi-stage acceptance: rate limit → PTR → DNSBL → greylist → SPF/DKIM/DMARC → content scan → Sieve → delivery
 - **web** — REST API + WebSocket endpoints (Axum)
 - **config** — all configuration via `MAILRS_*` environment variables
-- **domain_store** — domain/account/alias resolution (PostgreSQL + Kevy + in-process cache)
+- **domain_store** — domain/account/alias resolution (PostgreSQL + in-process kevy `Store` + DashMap cache)
 - **event_bus** — Tokio broadcast channel connecting SMTP / IMAP / web in real time
 - **users** — auth via PostgreSQL accounts (Argon2), with LDAP fallback
 - **acme / tls** — Let's Encrypt automation + hot-reloadable TLS certificates
@@ -108,4 +108,5 @@ full benchmark ledger.
 - Workspace dependencies are declared in the root `Cargo.toml` and referenced with `workspace = true`.
 - Crate names are prefixed `mailrs-`; directory names are not (`crates/smtp-proto` → `mailrs-smtp-proto`).
 - Configuration is environment-variable driven (`MAILRS_*`).
-- PostgreSQL and Kevy are optional — the server starts in degraded mode if either is unavailable.
+- PostgreSQL is optional — the server starts in degraded mode if unavailable.
+- Kevy runs **in-process via `kevy_embedded::Store`** (v9 Phase C, v1.7.95+). No network kevy / valkey / redis container in the stack. AOF + snapshot persistence at `MAILRS_KEVY_DATA_DIR` (default `/data/kevy`); `Store::publish` / `Store::subscribe` carry the `queue:notify` pub/sub between cement and the `mailrs-outbound-queue` delivery worker. Stones (`mailrs-shield` / `mailrs-intelligence` / `mailrs-outbound-queue`) all take `kevy_embedded::Store` directly, no RPC. See `kvdb.md` rule for the full backend history.
