@@ -222,7 +222,7 @@ async fn main() {
     let domain_store = if pg_pool.is_some() {
         let ds = Arc::new(domain_store::DomainStore::new(
             pg_pool.clone(),
-            kevy_conn.clone(),
+            kevy_embedded_store.clone(),
             health_state.clone(),
         ));
         ds.preload_accounts().await;

@@ -31,7 +31,7 @@ pub(super) const CACHE_TTL_SECS: u64 = 300;
 
 pub struct DomainStore {
     pub(super) pg: Option<PgPool>,
-    pub(super) kevy: Option<redis::aio::ConnectionManager>,
+    pub(super) kevy: Option<crate::kevy_store::KevyStore>,
     pub(super) health: HealthState,
     // process-level cache for L3 degradation
     pub(super) account_cache: DashMap<String, CachedAccount>,
@@ -117,7 +117,7 @@ impl From<sqlx::Error> for StoreError {
 impl DomainStore {
     pub fn new(
         pg: Option<PgPool>,
-        kevy: Option<redis::aio::ConnectionManager>,
+        kevy: Option<crate::kevy_store::KevyStore>,
         health: HealthState,
     ) -> Self {
         Self {
@@ -154,36 +154,30 @@ impl DomainStore {
 
     // --- TOTP 2FA ---
 
-    // --- Kevy cache helpers ---
+    // --- Kevy cache helpers (in-process embed store) ---
 
-    async fn kevy_get<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
-        let mut conn = self.kevy.clone()?;
-        let val: Option<String> = redis::cmd("GET")
-            .arg(key)
-            .query_async(&mut conn)
-            .await
-            .ok()?;
-        val.and_then(|s| serde_json::from_str(&s).ok())
+    fn kevy_get<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
+        let store = self.kevy.as_ref()?;
+        let bytes = store.get(key.as_bytes()).ok()??;
+        let s = String::from_utf8(bytes).ok()?;
+        serde_json::from_str(&s).ok()
     }
 
-    async fn kevy_set(&self, key: &str, val: &impl serde::Serialize, ttl_secs: u64) {
-        if let Some(mut conn) = self.kevy.clone()
+    fn kevy_set(&self, key: &str, val: &impl serde::Serialize, ttl_secs: u64) {
+        if let Some(ref store) = self.kevy
             && let Ok(json) = serde_json::to_string(val)
         {
-            let _: std::result::Result<(), _> = redis::cmd("SET")
-                .arg(key)
-                .arg(&json)
-                .arg("EX")
-                .arg(ttl_secs)
-                .query_async(&mut conn)
-                .await;
+            let _ = store.set_with_ttl(
+                key.as_bytes(),
+                json.as_bytes(),
+                std::time::Duration::from_secs(ttl_secs),
+            );
         }
     }
 
-    async fn kevy_del(&self, key: &str) {
-        if let Some(mut conn) = self.kevy.clone() {
-            let _: std::result::Result<(), _> =
-                redis::cmd("DEL").arg(key).query_async(&mut conn).await;
+    fn kevy_del(&self, key: &str) {
+        if let Some(ref store) = self.kevy {
+            let _ = store.del(&[key.as_bytes()]);
         }
     }
 

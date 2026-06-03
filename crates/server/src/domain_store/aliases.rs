@@ -54,7 +54,7 @@ impl DomainStore {
         .fetch_one(pool)
         .await?;
         // invalidate recipient cache
-        self.kevy_del(&format!("rcpt:{source}")).await;
+        self.kevy_del(&format!("rcpt:{source}"));
         Ok(row.0)
     }
 
@@ -73,7 +73,7 @@ impl DomainStore {
             .await?;
 
         if let Some((source_addr,)) = source {
-            self.kevy_del(&format!("rcpt:{source_addr}")).await;
+            self.kevy_del(&format!("rcpt:{source_addr}"));
         }
         Ok(res.rows_affected() > 0)
     }
@@ -83,7 +83,7 @@ impl DomainStore {
     pub async fn resolve_recipient(&self, address: &str) -> ResolvedRecipient {
         // try kevy cache
         let cache_key = format!("rcpt:{address}");
-        if let Some(cached) = self.kevy_get::<CachedResolution>(&cache_key).await {
+        if let Some(cached) = self.kevy_get::<CachedResolution>(&cache_key) {
             return cached.into();
         }
 
@@ -91,7 +91,7 @@ impl DomainStore {
 
         // cache the result
         let cacheable: CachedResolution = (&result).into();
-        self.kevy_set(&cache_key, &cacheable, 300).await;
+        self.kevy_set(&cache_key, &cacheable, 300);
 
         result
     }

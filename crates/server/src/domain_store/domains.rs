@@ -46,8 +46,8 @@ impl DomainStore {
 
         // invalidate Kevy cache for all affected accounts
         for (addr,) in &addresses {
-            self.kevy_del(&format!("acct:{addr}")).await;
-            self.kevy_del(&format!("rcpt:{addr}")).await;
+            self.kevy_del(&format!("acct:{addr}"));
+            self.kevy_del(&format!("rcpt:{addr}"));
         }
 
         Ok(res.rows_affected() > 0)
