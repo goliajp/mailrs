@@ -190,6 +190,18 @@ if [ "$WEB_ONLY" = false ]; then
 fi
 
 if [ "$GHCR_MODE" = true ]; then
+  # Align host-bind-mounted secrets + the named data volume to the image's
+  # mailrs UID 10001 BEFORE starting the new container. The chown is
+  # atomic (Linux metadata flip, file descriptors stay valid), so even if
+  # the current mailrs container is mid-write the running process keeps
+  # access. We stop mailrs first anyway to avoid any new writes landing
+  # as root-owned files between the chown and the new container start.
+  echo "==> aligning prod file ownership to image UID 10001 (cert + /data volume)"
+  $SSH "cd $REMOTE_DIR && docker compose stop mailrs 2>/dev/null || true"
+  $SSH "chown -R 10001:10001 $REMOTE_DIR/certs/ 2>/dev/null || true"
+  $SSH "docker run --rm -v mailrs_mailrs-data:/data alpine chown -R 10001:10001 /data" || \
+    { echo "error: failed to chown /data volume" >&2; exit 1; }
+
   echo "==> pulling ghcr.io/goliajp/mailrs:$VERSION and restarting"
   $SSH "cd $REMOTE_DIR && docker pull ghcr.io/goliajp/mailrs:$VERSION && docker compose up -d --remove-orphans"
 else
