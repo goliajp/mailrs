@@ -18,6 +18,12 @@ use testcontainers::{
     runners::AsyncRunner,
 };
 
+// Phase D-pre #4 split: CREATE EXTENSION vector now lives in pg-extensions.sql
+// (PG-only; SPG rejects CREATE EXTENSION). On the prod docker-compose path the
+// two files are mounted as 00-/01- under /docker-entrypoint-initdb.d so the
+// extension lands before the schema. testcontainers-rs has no entrypoint-initdb
+// equivalent, so we apply both files manually here in PG-first order.
+const PG_EXTENSIONS_SQL: &str = include_str!("../../../../scripts/pg-extensions.sql");
 const SCHEMA_SQL: &str = include_str!("../../../../scripts/init-schema.sql");
 
 /// Spin up a Postgres + pgvector container, apply `init-schema.sql`, and
@@ -45,6 +51,11 @@ pub async fn setup_pg() -> (ContainerAsync<GenericImage>, PgPool) {
     // Initial container readiness is signaled by the stderr message, but the
     // listener can still race the first connection attempt. Retry briefly.
     let pool = loop_connect(&url, std::time::Duration::from_secs(10)).await;
+
+    sqlx::raw_sql(PG_EXTENSIONS_SQL)
+        .execute(&pool)
+        .await
+        .expect("apply pg-extensions.sql");
 
     sqlx::raw_sql(SCHEMA_SQL)
         .execute(&pool)
