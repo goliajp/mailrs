@@ -51,8 +51,8 @@ pub(crate) async fn mcp_auth_middleware(
     let prefix = parts[1];
 
     // try kevy cache first
-    let cached = if let Some(ref kevy) = state.kevy {
-        api_key_store::cache_get(kevy, prefix).await
+    let cached = if let Some(ref kevy) = state.kevy_embed {
+        api_key_store::cache_get(kevy, prefix)
     } else {
         None
     };
@@ -92,8 +92,8 @@ pub(crate) async fn mcp_auth_middleware(
             };
 
             // populate cache
-            if let Some(ref kevy) = state.kevy {
-                api_key_store::cache_set(kevy, prefix, &entry).await;
+            if let Some(ref kevy) = state.kevy_embed {
+                api_key_store::cache_set(kevy, prefix, &entry);
             }
 
             entry
