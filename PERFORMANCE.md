@@ -319,6 +319,14 @@ directly:
 Run: `cargo bench -p mailrs-inbound --bench pipeline` (the bench file
 ships in `crates/inbound/benches/pipeline.rs`).
 
+**v4 ckpt 15** (2026-06-03): Case A verified — `grep iter().position` /
+`.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The crate is 1.6k LOC across 6 files (decision /
+auth_header / pipeline / stage / context / lib) with no string
+parsing surface. Numbers re-confirmed against 3-run baseline;
+matched within ±5 %. The big v4-round-7 win (build_auth_header
+11× / build_junk_reason 2.4×) is durable and still load-bearing.
+
 ### Other crate-level perf gates (regression-catch only)
 
 Each crate's `tests/perf_gate.rs` documents a budget per gated path and
