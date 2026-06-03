@@ -1719,6 +1719,33 @@ amortises poorly on inputs near the SIMD vector width.
 
 Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
 
+### `mailrs-intelligence` (criterion, `cargo bench -p mailrs-intelligence`)
+
+3-run honest medians, v4 ckpt 21 (2026-06-03):
+
+| Path | Median | Notes |
+|---|---:|---|
+| `extract_structured_data/short_single_event` | **687 ns** | regex-free byte-scan for event / order patterns in body text |
+| `extract_structured_data/long_with_flight_and_order` | **4.75 µs** | was claimed 9.3 µs — real is **1.96× faster** than the candidates-table number (cumulative rustc / regex / pattern improvements) |
+| `calculate_importance` | **2.93 ns** | was claimed 7.4 ns — at the criterion noise floor; integer-only score combination |
+
+**v4 ckpt 21** (2026-06-03): Case A verified — `grep iter().position` /
+`.windows(N)` / `push_str(&format!(...))` / `String::replace` in
+src/ → 0 hits. The crate is 2.3k LOC across 7 files; the
+prod-relevant code paths are LLM-bound (`openai_compatible.rs`
+client + `provider.rs` trait) and the non-LLM heuristic extractors
+(`structured.rs` byte-pattern scans for flight numbers / order
+IDs / dates / `calculate_importance` integer score combo). The
+extractors are at the sub-µs / single-digit-ns range — fine on a
+per-message hot path. LLM call latency dominates total wall-clock
+when AI scoring is enabled.
+
+`extract_structured_data/long_with_flight_and_order` drifted from
+9.3 µs claim to 4.75 µs real — a 1.96× improvement on the same
+binary. Likely a rustc-driven regex / pattern improvement (the
+underlying regex / `regex_lite` paths have benefited from work
+landed in the 6 weeks since the original measurement).
+
 ### `mailrs-postmaster` (criterion, `cargo bench -p mailrs-postmaster`)
 
 3-run honest medians, v4 ckpt 20 (2026-06-03):
