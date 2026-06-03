@@ -245,10 +245,10 @@ pub(crate) async fn deliver_message_ex(
             };
             if let Err(e) = enqueue_result {
                 errors.push(format!("{rcpt}: {e}"));
-            } else if let Some(ref vk) = state.kevy {
-                // outbound-queue stone still expects ConnectionManager
-                // (network kevy); Phase C migrates it to embed Notifier.
-                mailrs_outbound_queue::queue::notify(&mut vk.clone()).await;
+            } else if let Some(ref store) = state.kevy_embed {
+                // in-process kevy notify — sync publish to the shared bus,
+                // wakes the DeliveryWorker's Subscription::recv listener.
+                mailrs_outbound_queue::queue::notify(store.as_ref());
             }
         } else {
             errors.push(format!("{rcpt}: outbound queue not configured"));

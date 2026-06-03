@@ -6,7 +6,7 @@
 //!
 //! [mailrs]: https://github.com/goliajp/mailrs
 
-use redis::AsyncCommands;
+use kevy_embedded::{PubsubFrame, Store};
 use sqlx::PgPool;
 
 use crate::queue;
@@ -164,52 +164,53 @@ impl QueueStore for PgQueueStore {
     }
 }
 
-/// Redis pub/sub-backed [`Notifier`] using the `queue:notify` channel.
-#[derive(Debug, Clone)]
+/// In-process pub/sub-backed [`Notifier`] using the `queue:notify` channel
+/// on an [`kevy_embedded::Store`].
+///
+/// Producer side publishes synchronously (microsecond) so `notify()` does
+/// not block the tokio runtime in any meaningful way. The consumer side
+/// (`wait()`) wraps the sync `Subscription::recv` in `spawn_blocking` so
+/// the dispatcher stays cooperative; ack frames are filtered out so the
+/// caller only sees real publish events.
+#[derive(Clone)]
 pub struct KevyNotifier {
-    url: String,
+    store: Store,
+}
+
+impl std::fmt::Debug for KevyNotifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KevyNotifier").finish_non_exhaustive()
+    }
 }
 
 impl KevyNotifier {
-    /// Build a notifier from a connection URL (e.g.
-    /// `redis://127.0.0.1:6379`). Subscribers run on a background tokio task
-    /// that this struct spawns when [`wait`](Notifier::wait) is first called.
-    pub fn new(url: impl Into<String>) -> Self {
-        Self { url: url.into() }
+    /// Build a notifier on top of an in-process [`Store`]. `Store: Clone`
+    /// so callers typically pass a clone of the shared cement-owned store.
+    pub fn new(store: Store) -> Self {
+        Self { store }
     }
 }
 
 #[async_trait::async_trait]
 impl Notifier for KevyNotifier {
     async fn notify(&self) {
-        let Ok(client) = redis::Client::open(self.url.as_str()) else {
-            return;
-        };
-        let Ok(mut conn) = client.get_connection_manager().await else {
-            return;
-        };
-        let _: Result<i32, _> = conn.publish("queue:notify", "1").await;
+        let _ = self.store.publish(b"queue:notify", b"1");
     }
 
     async fn wait(&self) {
-        // Each call opens a fresh pubsub connection. Callers typically await
-        // wait() inside a select! arm with a poll-interval sleep, so a short
-        // connection lifetime is fine — even if pubsub setup fails or returns
-        // immediately, the next poll loop will start a new wait().
-        let Ok(client) = redis::Client::open(self.url.as_str()) else {
-            std::future::pending::<()>().await;
-            return;
-        };
-        let Ok(mut pubsub) = client.get_async_pubsub().await else {
-            std::future::pending::<()>().await;
-            return;
-        };
-        if pubsub.subscribe("queue:notify").await.is_err() {
-            std::future::pending::<()>().await;
-            return;
-        }
-        use futures_util::StreamExt;
-        let mut stream = pubsub.on_message();
-        let _ = stream.next().await;
+        let store = self.store.clone();
+        let _ = tokio::task::spawn_blocking(move || {
+            // Subscription is !Sync (internal mpsc::Receiver), so it's
+            // constructed and consumed entirely inside this blocking task.
+            let sub = store.subscribe(&[b"queue:notify"]);
+            loop {
+                match sub.recv() {
+                    Ok(PubsubFrame::Message { .. } | PubsubFrame::Pmessage { .. }) => break,
+                    Ok(_) => continue, // Subscribe/Unsubscribe acks — ignore
+                    Err(_) => break,   // bus dropped
+                }
+            }
+        })
+        .await;
     }
 }

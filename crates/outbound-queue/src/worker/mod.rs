@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use hickory_resolver::TokioResolver;
+use kevy_embedded::{PubsubFrame, Store};
 use mailrs_dkim::HickoryDkimResolver;
 use sqlx::PgPool;
 
@@ -73,7 +74,7 @@ pub struct DeliveryWorker {
     /// expect. Used by ARC sealing for the verify-then-seal flow.
     dkim_resolver: Arc<HickoryDkimResolver>,
     event_sender: Option<DeliveryEventSender>,
-    kevy_url: Option<String>,
+    kevy_store: Option<Store>,
 }
 
 impl DeliveryWorker {
@@ -94,7 +95,7 @@ impl DeliveryWorker {
             dkim: None,
             dkim_resolver,
             event_sender: None,
-            kevy_url: None,
+            kevy_store: None,
         }
     }
 
@@ -110,9 +111,11 @@ impl DeliveryWorker {
         self
     }
 
-    /// Set the Kevy URL to subscribe to `queue:notify` for fast wakeup.
-    pub fn with_kevy(mut self, url: String) -> Self {
-        self.kevy_url = Some(url);
+    /// Attach an in-process kevy [`Store`] to subscribe to `queue:notify`
+    /// for fast wakeup. `Store: Clone` so callers typically pass a clone of
+    /// the shared cement-owned store.
+    pub fn with_kevy(mut self, store: Store) -> Self {
+        self.kevy_store = Some(store);
         self
     }
 
@@ -145,34 +148,21 @@ impl DeliveryWorker {
     }
 
     fn spawn_kevy_listener(&self) -> Option<tokio::sync::mpsc::Receiver<()>> {
-        let url = self.kevy_url.as_ref()?;
+        let store = self.kevy_store.as_ref()?.clone();
         let (tx, rx) = tokio::sync::mpsc::channel(16);
-        let url = url.clone();
-        tokio::spawn(async move {
-            loop {
-                match redis::Client::open(url.as_str()) {
-                    Ok(client) => match client.get_async_pubsub().await {
-                        Ok(mut pubsub) => {
-                            if pubsub.subscribe("queue:notify").await.is_err() {
-                                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                                continue;
-                            }
-                            tracing::info!("delivery worker subscribed to queue:notify");
-                            use futures_util::StreamExt;
-                            let mut stream = pubsub.on_message();
-                            while let Some(_msg) = stream.next().await {
-                                let _ = tx.try_send(());
-                            }
-                        }
-                        Err(e) => {
-                            tracing::warn!("kevy pubsub connect failed: {e}");
-                        }
-                    },
-                    Err(e) => {
-                        tracing::warn!("kevy client create failed: {e}");
-                    }
+        // Dedicated OS thread blocks on the sync `Subscription::recv` for
+        // the worker's lifetime — small + long-lived, so we avoid the
+        // tokio blocking-pool slot.
+        std::thread::spawn(move || {
+            let sub = store.subscribe(&[b"queue:notify"]);
+            tracing::info!("delivery worker subscribed to queue:notify");
+            while let Ok(frame) = sub.recv() {
+                if matches!(
+                    frame,
+                    PubsubFrame::Message { .. } | PubsubFrame::Pmessage { .. }
+                ) {
+                    let _ = tx.blocking_send(());
                 }
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
         });
         Some(rx)

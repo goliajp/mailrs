@@ -57,11 +57,11 @@ async-trait = "0.1"
 
 # Storage + cache.
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "macros", "chrono"] }
-redis = { version = "1", features = ["tokio-comp", "connection-manager"] }
-# kevy-embedded — in-process RESP-compatible KV store (zero crates.io deps,
-# AOF + snapshot persistence, ~10x faster than network kevy). Replaces the
-# network kevy/redis container path inside mailrs-server cement.
-kevy-embedded = "1.0.4"
+# kevy-embedded — in-process RESP-compatible KV store with AOF + snapshot
+# persistence + native pub/sub bus. Zero network hop, ~10× faster than
+# the network kevy/redis container path. The only kvdb backend mailrs
+# ships with after Phase C (v1.7.95+); the `redis` crate dep is gone.
+kevy-embedded = "1.1"
 
 # Serialization.
 serde = { version = "1", features = ["derive"] }

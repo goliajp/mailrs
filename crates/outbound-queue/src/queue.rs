@@ -1,5 +1,5 @@
 #[cfg(feature = "pg")]
-use redis::AsyncCommands;
+use kevy_embedded::Store;
 #[cfg(feature = "pg")]
 use sqlx::PgPool;
 
@@ -132,10 +132,11 @@ pub async fn enqueue_ex(
     Ok(row.0)
 }
 
-/// notify the delivery worker that new messages are queued
+/// notify the delivery worker that new messages are queued via the
+/// in-process kevy `queue:notify` channel.
 #[cfg(feature = "pg")]
-pub async fn notify(kevy: &mut redis::aio::ConnectionManager) {
-    let _: Result<i32, _> = kevy.publish("queue:notify", "1").await;
+pub fn notify(kevy: &Store) {
+    let _ = kevy.publish(b"queue:notify", b"1");
 }
 
 /// recover messages stuck in inflight status for more than 10 minutes

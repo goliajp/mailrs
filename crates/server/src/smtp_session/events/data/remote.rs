@@ -78,8 +78,8 @@ pub(super) async fn enqueue_remote_rcpts(
         }
     }
     if enqueue_ok {
-        if let Some(ref vk) = ctx.kevy {
-            mailrs_outbound_queue::queue::notify(&mut vk.clone()).await;
+        if let Some(ref store) = ctx.kevy {
+            mailrs_outbound_queue::queue::notify(store.as_ref());
         }
         ctx.event_bus.emit(SmtpEvent::MessageQueued {
             id: conn_id,

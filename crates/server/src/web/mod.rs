@@ -103,9 +103,7 @@ pub struct WebState {
     pub mta_sts_id: String,
     pub health: Option<HealthState>,
     pub pg_pool: Option<sqlx::PgPool>,
-    pub kevy: Option<redis::aio::ConnectionManager>,
-    /// In-process embed kevy store. Migration target — subsystems flip
-    /// from `kevy` to this as they're ported off network kevy.
+    /// In-process embed kevy store — the only kevy handle in WebState.
     pub kevy_embed: Option<crate::kevy_store::KevyStore>,
     pub llm_config: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     pub resolver: Option<Arc<hickory_resolver::TokioResolver>>,
@@ -178,7 +176,6 @@ impl WebState {
             mta_sts_id: String::new(),
             health: None,
             pg_pool: None,
-            kevy: None,
             kevy_embed: None,
             llm_config: None,
             resolver: None,
@@ -298,11 +295,6 @@ impl WebState {
 
     pub fn with_pg(mut self, pool: sqlx::PgPool) -> Self {
         self.pg_pool = Some(pool);
-        self
-    }
-
-    pub fn with_kevy(mut self, conn: redis::aio::ConnectionManager) -> Self {
-        self.kevy = Some(conn);
         self
     }
 

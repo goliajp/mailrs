@@ -114,31 +114,17 @@ async fn main() {
         None => None,
     };
 
-    let kevy_conn = match &cfg.kevy_url {
-        Some(url) => match kevy_store::create_connection(url).await {
-            Ok(conn) => {
-                tracing::info!("kevy connected");
-                Some(conn)
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, "kevy connection failed, running in degraded mode");
-                None
-            }
-        },
-        None => None,
-    };
-
     // kevy embedded store — in-process Arc<Store>, persistent if
     // cfg.kevy_data_dir is set. Health check exercises this path
-    // (see health::spawn_health_checker). Network kevy_conn above is
-    // still consumed by stones (shield greylist / intelligence spam
-    // cache / outbound-queue notifier) until Phase C migrates them.
+    // (see health::spawn_health_checker). Phase C: only the in-process
+    // store remains — every stone (shield greylist / intelligence spam
+    // cache / outbound-queue notifier) now takes the same Store handle.
     let kevy_embedded_store: Option<kevy_store::KevyStore> =
         match kevy_store::open_store(cfg.kevy_data_dir.as_deref()) {
             Ok(store) => {
                 tracing::info!(
                     persist_dir = ?cfg.kevy_data_dir,
-                    "kevy embedded store opened (parallel to network kevy)"
+                    "kevy embedded store opened"
                 );
                 Some(store)
             }
@@ -195,9 +181,9 @@ async fn main() {
         mailrs_shield::ptr::check_ptr_record(r, &cfg.hostname).await;
     }
 
-    // greylisting (Kevy primary + PG cold backup)
-    let greylist_db = kevy_conn.as_ref().map(|vk| {
-        let db = GreylistDb::new(vk.clone());
+    // greylisting (in-process kevy primary + PG cold backup)
+    let greylist_db = kevy_embedded_store.as_ref().map(|store| {
+        let db = GreylistDb::new(store.as_ref().clone());
         let db = if let Some(ref pool) = pg_pool {
             db.with_pg(pool.clone())
         } else {
@@ -307,7 +293,6 @@ async fn main() {
         auth_guard: auth_guard.clone(),
         health_state: health_state.clone(),
         pg_pool: &pg_pool,
-        kevy_conn: &kevy_conn,
         kevy_embed: &kevy_embedded_store,
         outbound_queue: &outbound_queue,
         mailbox_store: &mailbox_store,
@@ -342,7 +327,7 @@ async fn main() {
         &dmarc_report_store,
         &cfg,
         &llm_provider,
-        &kevy_conn,
+        &kevy_embedded_store,
     );
 
     let ctx = Arc::new(ConnectionContext {
@@ -363,7 +348,7 @@ async fn main() {
         smuggle_protection: cfg.smuggle_protection,
         auth_guard: auth_guard.clone(),
         domain_store: domain_store.clone(),
-        kevy: kevy_conn.clone(),
+        kevy: kevy_embedded_store.clone(),
         srs_secret: cfg.srs_secret.clone(),
         ldap_config: ldap_config.clone(),
         inbound_pipeline,
@@ -411,6 +396,7 @@ async fn main() {
     spawn_outbound_delivery(
         outbound_queue.as_ref(),
         ctx.resolver.as_ref(),
+        kevy_embedded_store.as_ref(),
         &cfg,
         event_bus.clone(),
         shutdown_rx.clone(),

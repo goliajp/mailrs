@@ -15,7 +15,7 @@ Extracted from [mailrs] so any Rust project that needs to classify, summarize, o
 - **OpenAI-compatible reference impl** — `OpenAiCompatibleProvider` wraps `reqwest` and works against any service speaking the standard `{system, messages, temperature}` shape (self-hosted vLLM, llama.cpp servers, etc.).
 - **Five primitives, one shape** — full email analysis (`analyze::analyze_email`), spam classification with optional cache (`spam::classify`), structured-data extraction from JSON-LD (`structured::extract_structured_data`), heuristic importance scoring (`importance::calculate_importance`), and embeddings via the provider's `embed` method.
 - **No-LLM modules** — `importance` and `structured` are pure heuristics — they don't need a provider, network, or async runtime.
-- **Optional Redis cache** — `KevySpamCache` is included behind the default `kevy-cache` feature, but `SpamCache` is a trait so you can plug in whatever store you have.
+- **Optional in-process kevy cache** — `KevySpamCache` is included behind the default `kevy-cache` feature, but `SpamCache` is a trait so you can plug in whatever store you have. Backed by `kevy_embedded::Store` — no network hop, no RESP serialization.
 
 ## Quick start
 

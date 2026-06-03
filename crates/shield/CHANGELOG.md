@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-03
+
+### Changed (BREAKING)
+- `GreylistDb::new(conn: redis::aio::ConnectionManager)` →
+  `GreylistDb::new(kevy: kevy_embedded::Store)`. The store is now driven
+  directly through the in-process kevy [`Store`] handle, dropping the
+  RESP wire entirely. `Store: Clone` so callers typically pass a clone
+  of the shared cement-owned store.
+- Feature `kevy-store` now pulls `kevy-embedded` instead of `redis`. No
+  more `redis` transitive dependency.
+- All store ops (`get` / `set_with_ttl` / `expire`) switched to the
+  sync `kevy_embedded::Store` surface; the public `check(..) -> async`
+  signature is unchanged so the only break is the constructor.
+
+### Migration
+```toml
+# before
+mailrs-shield = "2"
+redis = "1"
+# after
+mailrs-shield = "3"
+kevy-embedded = "1.1"
+```
+```rust
+// before
+let cm = redis::aio::ConnectionManager::new(redis::Client::open("redis://…")?).await?;
+let db = GreylistDb::new(cm);
+// after
+let store = kevy_embedded::Store::open(kevy_embedded::Config::default())?;
+let db = GreylistDb::new(store);
+```
+
 ## [2.0.0] - 2026-06-03
 
 ### Changed (BREAKING)

@@ -34,7 +34,7 @@ pub fn build_inbound_pipeline(
     dmarc_report_store: Option<Arc<DmarcReportStore>>,
     clamav_addr: Option<String>,
     llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
-    kevy: Option<redis::aio::ConnectionManager>,
+    kevy: Option<crate::kevy_store::KevyStore>,
     spam_score_threshold: f64,
 ) -> mailrs_inbound::Pipeline {
     let mut builder = mailrs_inbound::Pipeline::builder().spam_threshold(spam_score_threshold);

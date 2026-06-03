@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-06-03
+
+### Changed (BREAKING)
+- `KevyNotifier::new(url: impl Into<String>)` →
+  `KevyNotifier::new(store: kevy_embedded::Store)`. The notifier now drives
+  the in-process kevy bus directly — no RESP wire, no network hop. `Store:
+  Clone` so callers typically pass a clone of the shared cement-owned store.
+- `queue::notify` is now sync and takes `&kevy_embedded::Store` instead of
+  `&mut redis::aio::ConnectionManager`.
+- `DeliveryWorker::with_kevy(url: String)` →
+  `DeliveryWorker::with_kevy(store: kevy_embedded::Store)`.
+- Feature `pg` now pulls `kevy-embedded` instead of `redis`. No more
+  `redis` transitive dependency.
+- Worker's kevy `queue:notify` listener moved from an async `redis::aio`
+  pubsub stream to a dedicated OS thread blocking on
+  `kevy_embedded::Subscription::recv` — same wakeup semantics, no tokio
+  blocking-pool slot consumed.
+
+### Migration
+```toml
+# before
+mailrs-outbound-queue = "3"
+redis = "1"
+# after
+mailrs-outbound-queue = "4"
+kevy-embedded = "1.1"
+```
+```rust
+// before
+let notifier = KevyNotifier::new("redis://kevy:6379");
+let worker = DeliveryWorker::new(...).with_kevy("redis://kevy:6379".into());
+// after
+let store = kevy_embedded::Store::open(kevy_embedded::Config::default())?;
+let notifier = KevyNotifier::new(store.clone());
+let worker = DeliveryWorker::new(...).with_kevy(store);
+```
+
 ## [3.0.0] - 2026-06-03
 
 ### Changed (BREAKING)

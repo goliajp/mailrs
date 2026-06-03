@@ -113,38 +113,55 @@ pub use kevy_impl::KevySpamCache;
 
 #[cfg(feature = "kevy-cache")]
 mod kevy_impl {
-    use super::SpamCache;
-    use async_trait::async_trait;
-    use redis::AsyncCommands;
+    use std::time::Duration;
 
-    /// Kevy-backed [`SpamCache`] using a shared [`redis::aio::ConnectionManager`].
+    use async_trait::async_trait;
+    use kevy_embedded::Store;
+
+    use super::SpamCache;
+
+    /// Kevy-backed [`SpamCache`] using an in-process [`kevy_embedded::Store`].
     ///
-    /// The cache silently ignores all Redis errors — a missing/failed
-    /// cache lookup always falls through to the provider, and a failed
-    /// `set` just loses one cache entry. Both situations are recoverable
+    /// The cache silently ignores all store errors — a missing/failed
+    /// lookup always falls through to the provider, and a failed `set`
+    /// just loses one cache entry. Both situations are recoverable
     /// without breaking classification.
-    #[derive(Debug, Clone)]
+    #[derive(Clone)]
     pub struct KevySpamCache {
-        conn: redis::aio::ConnectionManager,
+        store: Store,
+    }
+
+    impl std::fmt::Debug for KevySpamCache {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("KevySpamCache").finish_non_exhaustive()
+        }
     }
 
     impl KevySpamCache {
-        /// Construct a Kevy-backed spam-classification cache.
-        pub fn new(conn: redis::aio::ConnectionManager) -> Self {
-            Self { conn }
+        /// Construct a Kevy-backed spam-classification cache from an
+        /// in-process [`Store`] handle (callers typically pass a clone of
+        /// the shared cement-owned store).
+        pub fn new(store: Store) -> Self {
+            Self { store }
         }
     }
 
     #[async_trait]
     impl SpamCache for KevySpamCache {
         async fn get(&self, key: &str) -> Option<String> {
-            let mut conn = self.conn.clone();
-            conn.get::<_, Option<String>>(key).await.ok().flatten()
+            self.store
+                .get(key.as_bytes())
+                .ok()
+                .flatten()
+                .and_then(|bytes| String::from_utf8(bytes).ok())
         }
 
         async fn set(&self, key: &str, value: &str, ttl_secs: u64) {
-            let mut conn = self.conn.clone();
-            let _: Result<(), _> = conn.set_ex(key, value, ttl_secs).await;
+            let _ = self.store.set_with_ttl(
+                key.as_bytes(),
+                value.as_bytes(),
+                Duration::from_secs(ttl_secs),
+            );
         }
     }
 }

@@ -98,8 +98,8 @@ async fn enqueue_sieve_outbound(
     let now = chrono::Utc::now().timestamp();
     let domain = to.split_once('@').map(|(_, d)| d).unwrap_or("unknown");
     let _ = mailrs_outbound_queue::queue::enqueue(pool, from, to, domain, body, None, now).await;
-    if let Some(ref vk) = ctx.kevy {
-        mailrs_outbound_queue::queue::notify(&mut vk.clone()).await;
+    if let Some(ref store) = ctx.kevy {
+        mailrs_outbound_queue::queue::notify(store.as_ref());
     }
 }
 

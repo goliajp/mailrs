@@ -78,27 +78,31 @@ pub use kevy_impl::GreylistDb;
 
 #[cfg(feature = "kevy-store")]
 mod kevy_impl {
-    use redis::AsyncCommands;
+    use std::time::Duration;
+
+    use kevy_embedded::Store;
 
     use super::{GreylistConfig, GreylistDecision, evaluate_triplet};
 
     /// Kevy-backed greylisting store with an optional Postgres cold-backup.
     ///
-    /// First-seen timestamps live in Redis with a TTL equal to `pass_ttl_secs`;
-    /// the optional PG pool is written best-effort for durability across
-    /// Redis restarts.
+    /// First-seen timestamps live in the in-process kevy [`Store`] with a TTL
+    /// equal to `pass_ttl_secs`; the optional PG pool is written best-effort
+    /// for durability across restarts.
     pub struct GreylistDb {
-        kevy: redis::aio::ConnectionManager,
+        kevy: Store,
         pg: Option<sqlx::PgPool>,
     }
 
     impl GreylistDb {
-        /// Construct a Redis-only greylisting store from a [`redis::aio::ConnectionManager`].
-        pub fn new(kevy: redis::aio::ConnectionManager) -> Self {
+        /// Construct a kevy-only greylisting store from an in-process
+        /// [`kevy_embedded::Store`] handle. `Store` is `Clone`, so callers
+        /// typically pass a clone of the shared cement-owned store.
+        pub fn new(kevy: Store) -> Self {
             Self { kevy, pg: None }
         }
 
-        /// Attach a Postgres pool for best-effort durability across Redis
+        /// Attach a Postgres pool for best-effort durability across kevy
         /// restarts (writes are best-effort; failures don't propagate).
         pub fn with_pg(mut self, pool: sqlx::PgPool) -> Self {
             self.pg = Some(pool);
@@ -113,21 +117,27 @@ mod kevy_impl {
             now: u64,
             config: &GreylistConfig,
         ) -> GreylistDecision {
-            let mut conn = self.kevy.clone();
             let vk_key = format!("gl:{key}");
+            let ttl = Duration::from_secs(config.pass_ttl_secs);
 
-            let first_seen: Option<u64> = conn.get(&vk_key).await.ok().flatten();
+            let first_seen: Option<u64> = self
+                .kevy
+                .get(vk_key.as_bytes())
+                .ok()
+                .flatten()
+                .and_then(|bytes| std::str::from_utf8(&bytes).ok()?.parse().ok());
 
             let decision = evaluate_triplet(first_seen, now, config);
 
             match decision {
                 GreylistDecision::Defer => {
                     // first time — set with TTL = pass_ttl
-                    let _: Result<(), _> = conn.set_ex(&vk_key, now, config.pass_ttl_secs).await;
+                    let value = now.to_string();
+                    let _ = self.kevy.set_with_ttl(vk_key.as_bytes(), value.as_bytes(), ttl);
                 }
                 GreylistDecision::TooEarly | GreylistDecision::Accept => {
-                    // update TTL to keep entry alive
-                    let _: Result<(), _> = conn.expire(&vk_key, config.pass_ttl_secs as i64).await;
+                    // refresh TTL to keep entry alive
+                    let _ = self.kevy.expire(vk_key.as_bytes(), ttl);
                 }
             }
 
