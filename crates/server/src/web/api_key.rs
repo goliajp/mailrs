@@ -175,8 +175,8 @@ pub(super) async fn revoke_api_key(
     match api_key_store::revoke_api_key(pool, id, &auth_user.address).await {
         Ok(Some(prefix)) => {
             // evict from Kevy cache
-            if let Some(ref kevy) = state.kevy {
-                api_key_store::cache_delete(kevy, &prefix).await;
+            if let Some(ref kevy) = state.kevy_embed {
+                api_key_store::cache_delete(kevy, &prefix);
             }
             (StatusCode::OK, Json(serde_json::json!({"success": true})))
         }

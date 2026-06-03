@@ -104,6 +104,9 @@ pub struct WebState {
     pub health: Option<HealthState>,
     pub pg_pool: Option<sqlx::PgPool>,
     pub kevy: Option<redis::aio::ConnectionManager>,
+    /// In-process embed kevy store. Migration target — subsystems flip
+    /// from `kevy` to this as they're ported off network kevy.
+    pub kevy_embed: Option<crate::kevy_store::KevyStore>,
     pub llm_config: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     pub resolver: Option<Arc<hickory_resolver::TokioResolver>>,
     pub dkim_selector: Option<String>,
@@ -176,6 +179,7 @@ impl WebState {
             health: None,
             pg_pool: None,
             kevy: None,
+            kevy_embed: None,
             llm_config: None,
             resolver: None,
             dkim_selector: None,

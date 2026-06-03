@@ -179,45 +179,29 @@ pub(crate) async fn update_last_used(pool: &PgPool, id: i64) {
 const CACHE_TTL_SECS: u64 = 300;
 
 /// get a cached API key from Kevy
-pub(crate) async fn cache_get(
-    kevy: &redis::aio::ConnectionManager,
-    prefix: &str,
-) -> Option<CachedApiKey> {
+pub(crate) fn cache_get(kevy: &crate::kevy_store::KevyStore, prefix: &str) -> Option<CachedApiKey> {
     let key = format!("apikey:{prefix}");
-    let data: Option<String> = redis::cmd("GET")
-        .arg(&key)
-        .query_async(&mut kevy.clone())
-        .await
-        .ok()?;
-
-    data.and_then(|s| serde_json::from_str(&s).ok())
+    let bytes = kevy.get(key.as_bytes()).ok()??;
+    let s = String::from_utf8(bytes).ok()?;
+    serde_json::from_str(&s).ok()
 }
 
 /// cache an API key in Kevy with TTL
-pub(crate) async fn cache_set(
-    kevy: &redis::aio::ConnectionManager,
-    prefix: &str,
-    cached: &CachedApiKey,
-) {
+pub(crate) fn cache_set(kevy: &crate::kevy_store::KevyStore, prefix: &str, cached: &CachedApiKey) {
     let key = format!("apikey:{prefix}");
     if let Ok(json) = serde_json::to_string(cached) {
-        let _: Result<(), _> = redis::cmd("SET")
-            .arg(&key)
-            .arg(&json)
-            .arg("EX")
-            .arg(CACHE_TTL_SECS)
-            .query_async(&mut kevy.clone())
-            .await;
+        let _ = kevy.set_with_ttl(
+            key.as_bytes(),
+            json.as_bytes(),
+            std::time::Duration::from_secs(CACHE_TTL_SECS),
+        );
     }
 }
 
 /// remove a cached API key from Kevy
-pub(crate) async fn cache_delete(kevy: &redis::aio::ConnectionManager, prefix: &str) {
+pub(crate) fn cache_delete(kevy: &crate::kevy_store::KevyStore, prefix: &str) {
     let key = format!("apikey:{prefix}");
-    let _: Result<(), _> = redis::cmd("DEL")
-        .arg(&key)
-        .query_async(&mut kevy.clone())
-        .await;
+    let _ = kevy.del(&[key.as_bytes()]);
 }
 
 #[cfg(test)]

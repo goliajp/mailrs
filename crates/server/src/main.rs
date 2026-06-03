@@ -308,6 +308,7 @@ async fn main() {
         health_state: health_state.clone(),
         pg_pool: &pg_pool,
         kevy_conn: &kevy_conn,
+        kevy_embed: &kevy_embedded_store,
         outbound_queue: &outbound_queue,
         mailbox_store: &mailbox_store,
         domain_store: &domain_store,

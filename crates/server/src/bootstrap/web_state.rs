@@ -26,6 +26,7 @@ pub(crate) struct WebStateInputs<'a> {
     pub(crate) health_state: health::HealthState,
     pub(crate) pg_pool: &'a Option<sqlx::PgPool>,
     pub(crate) kevy_conn: &'a Option<redis::aio::ConnectionManager>,
+    pub(crate) kevy_embed: &'a Option<crate::kevy_store::KevyStore>,
     pub(crate) outbound_queue: &'a Option<sqlx::PgPool>,
     pub(crate) mailbox_store: &'a Option<Arc<PgMailboxStore>>,
     pub(crate) domain_store: &'a Option<Arc<domain_store::DomainStore>>,
@@ -66,6 +67,9 @@ pub(crate) fn build_web_state(i: WebStateInputs<'_>) -> WebState {
     }
     if let Some(vk) = i.kevy_conn {
         ws = ws.with_kevy(vk.clone());
+    }
+    if let Some(store) = i.kevy_embed {
+        ws.kevy_embed = Some(store.clone());
     }
     if let Some(q) = i.outbound_queue {
         ws = ws.with_queue(q.clone());
