@@ -35,15 +35,21 @@ pub fn principal_propfind(user: &str, request_body: &str) -> Result<DavResponse,
         props.push_str("<D:resourcetype><D:collection/></D:resourcetype>\n");
     }
     if wants_displayname || empty {
-        props.push_str(&format!(
-            "<D:displayname>{}</D:displayname>\n",
+        use std::fmt::Write;
+        let _ = writeln!(
+            props,
+            "<D:displayname>{}</D:displayname>",
             xml_escape(user)
-        ));
+        );
     }
-    props.push_str(&format!(
-        "<C:calendar-home-set><D:href>{cal_home}</D:href></C:calendar-home-set>\n\
-         <CR:addressbook-home-set><D:href>{card_home}</D:href></CR:addressbook-home-set>\n"
-    ));
+    {
+        use std::fmt::Write;
+        let _ = write!(
+            props,
+            "<C:calendar-home-set><D:href>{cal_home}</D:href></C:calendar-home-set>\n\
+             <CR:addressbook-home-set><D:href>{card_home}</D:href></CR:addressbook-home-set>\n"
+        );
+    }
     props.push_str("<D:principal-URL><D:href>/dav/</D:href></D:principal-URL>\n");
     props.push_str(
         "<D:supported-report-set>\

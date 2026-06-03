@@ -3,6 +3,8 @@
 //! Same shape as [`crate::caldav`] — `&dyn AddressBookStore` in, [`DavResponse`]
 //! out, no axum / sqlx leaking through.
 
+use std::fmt::Write;
+
 use crate::error::DavError;
 use crate::parse::extract_multiget_uids;
 use crate::store::AddressBookStore;
@@ -38,7 +40,8 @@ pub async fn addressbook_home_propfind(
         for b in &books {
             let encoded_name = urlencode(&b.name);
             let href = format!("/dav/contacts/{user}/{encoded_name}/");
-            responses.push_str(&format!(
+            let _ = write!(
+                responses,
                 "<D:response>\n\
                  <D:href>{href}</D:href>\n\
                  <D:propstat>\n<D:prop>\n\
@@ -52,7 +55,7 @@ pub async fn addressbook_home_propfind(
                  </D:response>\n",
                 xml_escape(&b.name),
                 xml_escape(&b.description),
-            ));
+            );
         }
     }
 
@@ -85,7 +88,8 @@ pub async fn addressbook_propfind(
             .map_err(|e| DavError::ServerError(e.to_string()))?;
         for c in &contacts {
             let contact_href = format!("/dav/contacts/{user}/{book}/{}.vcf", c.uid);
-            responses.push_str(&format!(
+            let _ = write!(
+                responses,
                 "<D:response>\n\
                  <D:href>{}</D:href>\n\
                  <D:propstat>\n<D:prop>\n\
@@ -95,7 +99,7 @@ pub async fn addressbook_propfind(
                  </D:response>\n",
                 xml_escape(&contact_href),
                 c.etag,
-            ));
+            );
         }
     }
 
@@ -134,7 +138,8 @@ pub async fn addressbook_report(
     let mut responses = String::new();
     for c in &filtered {
         let contact_href = format!("/dav/contacts/{user}/{book}/{}.vcf", c.uid);
-        responses.push_str(&format!(
+        let _ = write!(
+            responses,
             "<D:response>\n\
              <D:href>{}</D:href>\n\
              <D:propstat>\n<D:prop>\n\
@@ -145,7 +150,7 @@ pub async fn addressbook_report(
             xml_escape(&contact_href),
             c.etag,
             xml_escape(&c.vcard),
-        ));
+        );
     }
     Ok(multistatus(&responses))
 }
@@ -240,7 +245,7 @@ fn urlencode(s: &str) -> String {
                 out.push(b as char);
             }
             _ => {
-                out.push_str(&format!("%{b:02X}"));
+                let _ = write!(out, "%{b:02X}");
             }
         }
     }

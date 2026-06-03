@@ -16,6 +16,8 @@
 //! Round-trip property: `parse → serialize → parse` yields the same
 //! [`ParsedInvite`] (verified in `tests.rs`).
 
+use std::fmt::Write;
+
 use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, Timelike, Utc};
 
 use super::{
@@ -144,11 +146,11 @@ fn serialize_person(prop_name: &str, p: &Person) -> String {
 fn serialize_attendee(a: &Attendee) -> String {
     let mut header = String::from("ATTENDEE");
     if let Some(cn) = &a.cn {
-        header.push_str(&format!(";CN={}", quote_param_if_needed(cn)));
+        let _ = write!(header, ";CN={}", quote_param_if_needed(cn));
     }
-    header.push_str(&format!(";PARTSTAT={}", partstat_str(a.partstat)));
-    header.push_str(&format!(";ROLE={}", role_str(a.role)));
-    header.push_str(&format!(";RSVP={}", if a.rsvp { "TRUE" } else { "FALSE" }));
+    let _ = write!(header, ";PARTSTAT={}", partstat_str(a.partstat));
+    let _ = write!(header, ";ROLE={}", role_str(a.role));
+    let _ = write!(header, ";RSVP={}", if a.rsvp { "TRUE" } else { "FALSE" });
     format!("{header}:mailto:{}", a.email)
 }
 
@@ -209,7 +211,7 @@ fn format_raw_property(p: &RawProperty) -> String {
     let mut s = String::with_capacity(p.name.len() + p.value.len() + 8);
     s.push_str(&p.name);
     for (n, v) in &p.params {
-        s.push_str(&format!(";{n}={}", quote_param_if_needed(v)));
+        let _ = write!(s, ";{n}={}", quote_param_if_needed(v));
     }
     s.push(':');
     s.push_str(&p.value);
@@ -263,18 +265,18 @@ fn format_duration(d: &chrono::Duration) -> String {
     let secs = secs - minutes * 60;
     let mut s = format!("{sign}P");
     if days > 0 {
-        s.push_str(&format!("{days}D"));
+        let _ = write!(s, "{days}D");
     }
     if hours > 0 || minutes > 0 || secs > 0 {
         s.push('T');
         if hours > 0 {
-            s.push_str(&format!("{hours}H"));
+            let _ = write!(s, "{hours}H");
         }
         if minutes > 0 {
-            s.push_str(&format!("{minutes}M"));
+            let _ = write!(s, "{minutes}M");
         }
         if secs > 0 {
-            s.push_str(&format!("{secs}S"));
+            let _ = write!(s, "{secs}S");
         }
     }
     if s == "P" {
