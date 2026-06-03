@@ -90,7 +90,9 @@ fn bench_find_line_offset(c: &mut Criterion) {
     let body = {
         let mut v = Vec::with_capacity(10_240);
         for _ in 0..130 {
-            v.extend_from_slice(b"This is a typical inbound message body line, ASCII text only.\r\n");
+            v.extend_from_slice(
+                b"This is a typical inbound message body line, ASCII text only.\r\n",
+            );
         }
         v
     };

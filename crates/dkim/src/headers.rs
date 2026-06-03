@@ -178,7 +178,10 @@ pub fn find_header_value<'a>(headers: &'a [u8], name: &str) -> Option<&'a str> {
 /// injection attacks). A naive top-down `find_header_value` would
 /// always return the same header for both `h=` entries and miscompute
 /// the signed-header block.
-pub fn collect_signed_headers(headers_raw: &[u8], names: &[String]) -> Vec<(String, Option<String>)> {
+pub fn collect_signed_headers(
+    headers_raw: &[u8],
+    names: &[String],
+) -> Vec<(String, Option<String>)> {
     // Thin owned-result wrapper over the borrowing implementation
     // for external API stability — internal call sites (`sign::sign`,
     // `verifier::verify_one`) call `collect_signed_headers_borrowed`

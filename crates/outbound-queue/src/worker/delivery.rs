@@ -11,12 +11,7 @@ use crate::retry::{retry_delay_secs, should_bounce};
 use crate::{DeliveryEvent, DeliveryEventSender};
 
 /// generate DSN bounce and enqueue it back to the original sender
-pub(super) async fn enqueue_dsn(
-    pool: &PgPool,
-    hostname: &str,
-    msg: &QueuedMessage,
-    error: &str,
-) {
+pub(super) async fn enqueue_dsn(pool: &PgPool, hostname: &str, msg: &QueuedMessage, error: &str) {
     if msg.sender.is_empty() || msg.sender == "<>" {
         return; // don't bounce bounces
     }

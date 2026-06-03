@@ -274,4 +274,3 @@ max_age: 86400
         assert_eq!(p.mx, vec![compact_str::CompactString::new("real.example")]);
     }
 }
-

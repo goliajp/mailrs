@@ -348,7 +348,11 @@ fn collect_mime_headers(raw: &[u8]) -> MimeHeaders<'_> {
         let _ = try_dispatch(line, b"Content-Type", &mut out.content_type)
             || try_dispatch(line, b"Content-Disposition", &mut out.disposition)
             || try_dispatch(line, b"Content-ID", &mut out.content_id)
-            || try_dispatch(line, b"Content-Transfer-Encoding", &mut out.transfer_encoding);
+            || try_dispatch(
+                line,
+                b"Content-Transfer-Encoding",
+                &mut out.transfer_encoding,
+            );
     }
     out
 }

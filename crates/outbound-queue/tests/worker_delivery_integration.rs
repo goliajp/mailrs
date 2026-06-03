@@ -15,15 +15,17 @@ mod common;
 
 use std::sync::Arc;
 
-use common::mock_smtp::{Behavior, ensure_crypto_provider, skip_verify_client_config, spawn_mock_smtp};
+use common::mock_smtp::{
+    Behavior, ensure_crypto_provider, skip_verify_client_config, spawn_mock_smtp,
+};
 use common::pg::start_pg;
+use mailrs_outbound_queue::PgQueueStore;
 use mailrs_outbound_queue::queue::{self, QueueStatus};
+use mailrs_outbound_queue::store::QueueStore;
 use mailrs_outbound_queue::worker::{
     DeliveryWorker, TlsPolicy, WorkerConfig, deliver_domain_static, try_deliver_via_mx,
     try_deliver_via_mx_with_tls,
 };
-use mailrs_outbound_queue::PgQueueStore;
-use mailrs_outbound_queue::store::QueueStore;
 use mailrs_smtp_client::TokioResolver;
 
 fn resolver() -> TokioResolver {
@@ -39,9 +41,18 @@ async fn try_deliver_via_mx_happy_path() {
     let mock = spawn_mock_smtp(Behavior::AcceptNoStarttls).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"Subject: hi\r\n\r\nbody\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"Subject: hi\r\n\r\nbody\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
 
     let r = resolver();
@@ -64,9 +75,18 @@ async fn try_deliver_via_mx_5xx_after_rcpt_returns_err() {
     let mock = spawn_mock_smtp(Behavior::Reject5xxAfterRcpt).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
 
     let r = resolver();
@@ -131,9 +151,18 @@ async fn try_deliver_via_mx_starttls_rejected_falls_back_to_plain() {
     let mock = spawn_mock_smtp(Behavior::StarttlsHandshakeFail).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
 
     let r = resolver();
@@ -166,9 +195,18 @@ async fn deliver_domain_static_happy_marks_delivered() {
     let mock = spawn_mock_smtp(Behavior::AcceptNoStarttls).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@127.0.0.1", "127.0.0.1", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@127.0.0.1",
+        "127.0.0.1",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     let claimed = queue::claim_for_delivery(&pool, 0, 10).await.unwrap();
     assert_eq!(claimed.len(), 1);
 
@@ -190,7 +228,11 @@ async fn deliver_domain_static_happy_marks_delivered() {
     .await;
 
     let after = queue::get_message(&pool, id).await.unwrap().unwrap();
-    assert_eq!(after.status, QueueStatus::Delivered, "happy path marks delivered");
+    assert_eq!(
+        after.status,
+        QueueStatus::Delivered,
+        "happy path marks delivered"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -199,9 +241,18 @@ async fn deliver_domain_static_5xx_marks_failed_for_retry() {
     let mock = spawn_mock_smtp(Behavior::Reject5xxAfterRcpt).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@127.0.0.1", "127.0.0.1", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@127.0.0.1",
+        "127.0.0.1",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     let claimed = queue::claim_for_delivery(&pool, 0, 10).await.unwrap();
 
     let r = resolver();
@@ -233,9 +284,18 @@ async fn deliver_domain_static_5xx_at_max_attempts_bounces() {
     let mock = spawn_mock_smtp(Behavior::Reject5xxAfterMail).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@127.0.0.1", "127.0.0.1", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@127.0.0.1",
+        "127.0.0.1",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     // Bump attempts to max_attempts so the next failure bounces.
     sqlx::query("UPDATE outbound_queue SET attempts = max_attempts WHERE id = $1")
         .bind(id)
@@ -258,7 +318,11 @@ async fn deliver_domain_static_5xx_at_max_attempts_bounces() {
     .await;
 
     let after = queue::get_message(&pool, id).await.unwrap().unwrap();
-    assert_eq!(after.status, QueueStatus::Bounced, "max attempts reached → bounced");
+    assert_eq!(
+        after.status,
+        QueueStatus::Bounced,
+        "max attempts reached → bounced"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -267,9 +331,18 @@ async fn try_deliver_via_mx_ehlo_rejected_returns_err() {
     let mock = spawn_mock_smtp(Behavior::EhloRejected).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
 
     let r = resolver();
@@ -292,9 +365,18 @@ async fn try_deliver_via_mx_starttls_rejected_falls_through_to_delivery() {
     let mock = spawn_mock_smtp(Behavior::StarttlsRejected).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
 
     let r = resolver();
@@ -354,9 +436,18 @@ async fn delivery_worker_run_drains_pending_via_full_pipeline() {
     // mark_failed. The mock is held open simply to keep its port
     // bound and prove the listener machinery itself works.
     let _ = mock;
-    queue::enqueue_ex(&pool, "s@example.com", "r@127.0.0.1", "127.0.0.1", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@127.0.0.1",
+        "127.0.0.1",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
 
     let r = resolver();
     let worker = DeliveryWorker::new(
@@ -399,9 +490,18 @@ async fn try_deliver_via_mx_starttls_success_full_deliver() {
     let mock = spawn_mock_smtp(Behavior::StarttlsAccept).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"Subject: hi\r\n\r\nbody\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"Subject: hi\r\n\r\nbody\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
 
     let r = resolver();
@@ -418,7 +518,10 @@ async fn try_deliver_via_mx_starttls_success_full_deliver() {
         None,
     )
     .await;
-    assert!(result.is_ok(), "STARTTLS-success path must complete deliver: {result:?}");
+    assert!(
+        result.is_ok(),
+        "STARTTLS-success path must complete deliver: {result:?}"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -427,9 +530,18 @@ async fn try_deliver_via_mx_require_policy_rejected_starttls_returns_err() {
     let mock = spawn_mock_smtp(Behavior::StarttlsRejected).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
 
     let r = resolver();
@@ -447,7 +559,10 @@ async fn try_deliver_via_mx_require_policy_rejected_starttls_returns_err() {
         None,
     )
     .await;
-    assert!(result.is_err(), "Require policy + STARTTLS rejected must be Err");
+    assert!(
+        result.is_err(),
+        "Require policy + STARTTLS rejected must be Err"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -456,9 +571,18 @@ async fn try_deliver_via_mx_require_policy_handshake_fail_returns_err() {
     let mock = spawn_mock_smtp(Behavior::StarttlsHandshakeFail).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
 
     let r = resolver();
@@ -488,9 +612,18 @@ async fn try_deliver_via_mx_require_policy_no_starttls_returns_err() {
     let mock = spawn_mock_smtp(Behavior::AcceptNoStarttls).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
 
     let r = resolver();
@@ -518,9 +651,18 @@ async fn deliver_domain_static_suppressed_recipient_is_skipped() {
     let mock = spawn_mock_smtp(Behavior::AcceptNoStarttls).await;
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "blocked@127.0.0.1", "127.0.0.1", b"body\r\n", None, 0, false)
-        .await
-        .unwrap();
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "blocked@127.0.0.1",
+        "127.0.0.1",
+        b"body\r\n",
+        None,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
     queue::add_suppression(&pool, "blocked@127.0.0.1", "previous 550", Some(550))
         .await
         .unwrap();
@@ -540,6 +682,10 @@ async fn deliver_domain_static_suppressed_recipient_is_skipped() {
     .await;
 
     let after = queue::get_message(&pool, id).await.unwrap().unwrap();
-    assert_eq!(after.status, QueueStatus::Bounced, "suppressed recipient is bounced before MX resolve");
+    assert_eq!(
+        after.status,
+        QueueStatus::Bounced,
+        "suppressed recipient is bounced before MX resolve"
+    );
     assert!(after.last_error.as_deref().unwrap().contains("suppressed"));
 }

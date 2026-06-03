@@ -22,12 +22,18 @@ fn ours_matches_golden() {
     let mut i = 0;
     for (label, script, msg) in corpus() {
         let got = format!("{label}\t{:?}", ours(script, msg));
-        assert_eq!(got, golden[i], "corpus row {i} ({label}) drifted from golden");
+        assert_eq!(
+            got, golden[i],
+            "corpus row {i} ({label}) drifted from golden"
+        );
         i += 1;
     }
     for (label, script, msg, env) in envelope_corpus() {
         let got = format!("{label}\t{:?}", ours_with_envelope(script, msg, env));
-        assert_eq!(got, golden[i], "envelope row {i} ({label}) drifted from golden");
+        assert_eq!(
+            got, golden[i],
+            "envelope row {i} ({label}) drifted from golden"
+        );
         i += 1;
     }
     assert_eq!(i, golden.len(), "corpus size != golden line count");

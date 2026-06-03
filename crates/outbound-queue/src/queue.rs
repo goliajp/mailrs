@@ -496,9 +496,9 @@ pub async fn list_recent(pool: &PgPool, limit: i32) -> Result<Vec<QueuedMessage>
 
 mod suppression;
 
+pub use suppression::is_hard_bounce;
 #[cfg(feature = "pg")]
 pub use suppression::{add_suppression, is_suppressed, list_suppressions, remove_suppression};
-pub use suppression::is_hard_bounce;
 
 #[cfg(test)]
 mod tests {

@@ -434,9 +434,7 @@ fn parse_addr_and_prefix(value: &str, default: u8) -> Result<(&str, u8), SpfErro
 }
 
 /// Parse the optional `:domain/prefix4//prefix6` suffix on `a` and `mx`.
-fn parse_a_mx_value(
-    value: Option<&str>,
-) -> Result<(Option<CompactString>, u8, u8), SpfError> {
+fn parse_a_mx_value(value: Option<&str>) -> Result<(Option<CompactString>, u8, u8), SpfError> {
     let Some(v) = value else {
         return Ok((None, 32, 128));
     };

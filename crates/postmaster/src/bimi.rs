@@ -103,8 +103,10 @@ mod tests {
 
     #[tokio::test]
     async fn bimi_record_without_logo_yields_warn() {
-        let r = MockResolver::new()
-            .with_txt("default._bimi.example.com", vec!["v=BIMI1; a=https://example.com/cert.pem".into()]);
+        let r = MockResolver::new().with_txt(
+            "default._bimi.example.com",
+            vec!["v=BIMI1; a=https://example.com/cert.pem".into()],
+        );
         let res = check_bimi(&r, "example.com").await;
         assert!(matches!(res.status, Status::Warn));
     }

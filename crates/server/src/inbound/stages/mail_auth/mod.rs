@@ -142,12 +142,11 @@ impl Stage for MailAuthStage {
             }
         };
 
-        let spf_input = (spf_result == mailrs_spf::SpfResult::Pass).then(|| {
-            mailrs_dmarc::SpfResult {
+        let spf_input =
+            (spf_result == mailrs_spf::SpfResult::Pass).then(|| mailrs_dmarc::SpfResult {
                 domain: mail_from_domain.clone().into(),
                 pass: true,
-            }
-        });
+            });
         let dkim_input = dkim_outputs
             .iter()
             .filter_map(|o| {
@@ -170,7 +169,8 @@ impl Stage for MailAuthStage {
         };
         let outcome = mailrs_dmarc::evaluate(&policy, &input);
 
-        self.apply_dmarc_policy(ctx, &outcome, &mail_from_domain).await
+        self.apply_dmarc_policy(ctx, &outcome, &mail_from_domain)
+            .await
     }
 }
 

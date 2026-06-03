@@ -9,9 +9,9 @@
 //! unusable.
 
 use base64::Engine as _;
+use mailrs_dkim::RsaSigningKey;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
 use rsa::{RsaPrivateKey, RsaPublicKey};
-use mailrs_dkim::RsaSigningKey;
 
 fn into_signer(priv_key: &RsaPrivateKey) -> RsaSigningKey {
     let der = priv_key.to_pkcs8_der().unwrap();

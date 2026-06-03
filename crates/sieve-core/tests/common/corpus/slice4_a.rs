@@ -43,16 +43,8 @@ pub(super) fn corpus() -> Vec<CorpusRow> {
             "if size :over 1K { discard; }",
             msg_spam,
         ),
-        (
-            "size_under_1m",
-            "if size :under 1M { discard; }",
-            msg_spam,
-        ),
-        (
-            "size_under_2g",
-            "if size :under 2G { discard; }",
-            msg_spam,
-        ),
+        ("size_under_1m", "if size :under 1M { discard; }", msg_spam),
+        ("size_under_2g", "if size :under 2G { discard; }", msg_spam),
         // --- D. elsif chains (long) ---
         (
             "elsif_5_levels_first_match",

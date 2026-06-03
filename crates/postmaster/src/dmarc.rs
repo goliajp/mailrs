@@ -62,8 +62,10 @@ mod tests {
 
     #[tokio::test]
     async fn p_reject_yields_pass() {
-        let r = MockResolver::new()
-            .with_txt("_dmarc.example.com", vec!["v=DMARC1; p=reject; rua=mailto:r@x".into()]);
+        let r = MockResolver::new().with_txt(
+            "_dmarc.example.com",
+            vec!["v=DMARC1; p=reject; rua=mailto:r@x".into()],
+        );
         let res = check_dmarc(&r, "example.com").await;
         assert!(matches!(res.status, Status::Pass));
         assert!(res.message.contains("reject"));
@@ -80,8 +82,7 @@ mod tests {
 
     #[tokio::test]
     async fn p_none_yields_warn() {
-        let r = MockResolver::new()
-            .with_txt("_dmarc.example.com", vec!["v=DMARC1; p=none".into()]);
+        let r = MockResolver::new().with_txt("_dmarc.example.com", vec!["v=DMARC1; p=none".into()]);
         let res = check_dmarc(&r, "example.com").await;
         assert!(matches!(res.status, Status::Warn));
     }
@@ -89,8 +90,10 @@ mod tests {
     #[tokio::test]
     async fn malformed_policy_yields_warn() {
         // No p= tag at all — falls through to "policy not recognized"
-        let r = MockResolver::new()
-            .with_txt("_dmarc.example.com", vec!["v=DMARC1; rua=mailto:r@x".into()]);
+        let r = MockResolver::new().with_txt(
+            "_dmarc.example.com",
+            vec!["v=DMARC1; rua=mailto:r@x".into()],
+        );
         let res = check_dmarc(&r, "example.com").await;
         assert!(matches!(res.status, Status::Warn));
         assert!(res.message.contains("not recognized"));
@@ -98,8 +101,7 @@ mod tests {
 
     #[tokio::test]
     async fn non_dmarc_txt_filtered_out() {
-        let r = MockResolver::new()
-            .with_txt("_dmarc.example.com", vec!["something else".into()]);
+        let r = MockResolver::new().with_txt("_dmarc.example.com", vec!["something else".into()]);
         let res = check_dmarc(&r, "example.com").await;
         assert!(matches!(res.status, Status::Fail));
     }

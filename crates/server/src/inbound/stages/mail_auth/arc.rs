@@ -17,4 +17,3 @@ pub(super) async fn run_arc(resolver: &HickoryDkimResolver, raw_message: &[u8]) 
         _ => "fail".into(),
     }
 }
-

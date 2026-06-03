@@ -54,7 +54,10 @@ async fn enqueue_scheduled_uses_future_next_retry() {
 
     // dequeue at created_at sees nothing — next_retry is in the future
     let early = store.dequeue(created, 10).await.unwrap();
-    assert!(early.is_empty(), "scheduled message is invisible before its time");
+    assert!(
+        early.is_empty(),
+        "scheduled message is invisible before its time"
+    );
 
     // dequeue at scheduled_at returns it
     let on_time = store.dequeue(scheduled, 10).await.unwrap();
@@ -87,9 +90,15 @@ async fn mark_bounced_is_terminal() {
     let (_c, pool) = start_pg().await;
     let store = PgQueueStore::new(pool);
 
-    let id = store.enqueue("s@x", "r@y", "y", b"raw", None, 0, false).await.unwrap();
+    let id = store
+        .enqueue("s@x", "r@y", "y", b"raw", None, 0, false)
+        .await
+        .unwrap();
     store.mark_inflight(id, 5).await.unwrap();
-    store.mark_bounced(id, "550 user unknown", 10).await.unwrap();
+    store
+        .mark_bounced(id, "550 user unknown", 10)
+        .await
+        .unwrap();
 
     let row = store.get_message(id).await.unwrap().unwrap();
     assert_eq!(row.status, QueueStatus::Bounced);
@@ -102,19 +111,24 @@ async fn queue_stats_groups_by_status() {
     let (_c, pool) = start_pg().await;
     let store = PgQueueStore::new(pool);
 
-    let p1 = store.enqueue("s@x", "r1@y", "y", b"", None, 0, false).await.unwrap();
-    let _p2 = store.enqueue("s@x", "r2@y", "y", b"", None, 0, false).await.unwrap();
-    let p3 = store.enqueue("s@x", "r3@y", "y", b"", None, 0, false).await.unwrap();
+    let p1 = store
+        .enqueue("s@x", "r1@y", "y", b"", None, 0, false)
+        .await
+        .unwrap();
+    let _p2 = store
+        .enqueue("s@x", "r2@y", "y", b"", None, 0, false)
+        .await
+        .unwrap();
+    let p3 = store
+        .enqueue("s@x", "r3@y", "y", b"", None, 0, false)
+        .await
+        .unwrap();
     store.mark_inflight(p1, 1).await.unwrap();
     store.mark_inflight(p3, 1).await.unwrap();
     store.mark_delivered(p3, 2).await.unwrap();
 
-    let stats: std::collections::HashMap<String, i64> = store
-        .queue_stats()
-        .await
-        .unwrap()
-        .into_iter()
-        .collect();
+    let stats: std::collections::HashMap<String, i64> =
+        store.queue_stats().await.unwrap().into_iter().collect();
     assert_eq!(stats.get("pending").copied().unwrap_or(0), 1);
     assert_eq!(stats.get("inflight").copied().unwrap_or(0), 1);
     assert_eq!(stats.get("delivered").copied().unwrap_or(0), 1);
@@ -125,13 +139,26 @@ async fn list_recent_orders_newest_first() {
     let (_c, pool) = start_pg().await;
     let store = PgQueueStore::new(pool);
 
-    let a = store.enqueue("s@x", "r@y", "y", b"a", None, 100, false).await.unwrap();
-    let b = store.enqueue("s@x", "r@y", "y", b"b", None, 200, false).await.unwrap();
-    let c = store.enqueue("s@x", "r@y", "y", b"c", None, 300, false).await.unwrap();
+    let a = store
+        .enqueue("s@x", "r@y", "y", b"a", None, 100, false)
+        .await
+        .unwrap();
+    let b = store
+        .enqueue("s@x", "r@y", "y", b"b", None, 200, false)
+        .await
+        .unwrap();
+    let c = store
+        .enqueue("s@x", "r@y", "y", b"c", None, 300, false)
+        .await
+        .unwrap();
 
     let recent = store.list_recent(10).await.unwrap();
     let ids: Vec<i64> = recent.iter().map(|m| m.id).collect();
-    assert_eq!(ids, vec![c, b, a], "list_recent is newest-first by created_at");
+    assert_eq!(
+        ids,
+        vec![c, b, a],
+        "list_recent is newest-first by created_at"
+    );
 
     let limited = store.list_recent(2).await.unwrap();
     assert_eq!(limited.len(), 2, "list_recent honours limit");
@@ -142,18 +169,33 @@ async fn cancel_pending_removes_only_pending() {
     let (_c, pool) = start_pg().await;
     let store = PgQueueStore::new(pool);
 
-    let pending = store.enqueue("s@x", "r@y", "y", b"", None, 0, false).await.unwrap();
-    let inflight = store.enqueue("s@x", "r@y", "y", b"", None, 0, false).await.unwrap();
+    let pending = store
+        .enqueue("s@x", "r@y", "y", b"", None, 0, false)
+        .await
+        .unwrap();
+    let inflight = store
+        .enqueue("s@x", "r@y", "y", b"", None, 0, false)
+        .await
+        .unwrap();
     store.mark_inflight(inflight, 1).await.unwrap();
 
-    assert!(store.cancel_pending(pending).await.unwrap(), "pending row cancelled");
-    assert!(store.get_message(pending).await.unwrap().is_none(), "pending row removed");
+    assert!(
+        store.cancel_pending(pending).await.unwrap(),
+        "pending row cancelled"
+    );
+    assert!(
+        store.get_message(pending).await.unwrap().is_none(),
+        "pending row removed"
+    );
 
     assert!(
         !store.cancel_pending(inflight).await.unwrap(),
         "cancel_pending refuses non-pending rows"
     );
-    assert!(store.get_message(inflight).await.unwrap().is_some(), "inflight row kept");
+    assert!(
+        store.get_message(inflight).await.unwrap().is_some(),
+        "inflight row kept"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -187,7 +229,11 @@ async fn cancel_pending_by_message_id_scopes_to_sender() {
 
     let all = store.list_recent(10).await.unwrap();
     let senders: Vec<&str> = all.iter().map(|m| m.sender.as_str()).collect();
-    assert_eq!(senders, vec!["you@x"], "only the matching-sender row was removed");
+    assert_eq!(
+        senders,
+        vec!["you@x"],
+        "only the matching-sender row was removed"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -195,19 +241,31 @@ async fn retry_message_resets_bounced_to_pending() {
     let (_c, pool) = start_pg().await;
     let store = PgQueueStore::new(pool);
 
-    let id = store.enqueue("s@x", "r@y", "y", b"", None, 0, false).await.unwrap();
+    let id = store
+        .enqueue("s@x", "r@y", "y", b"", None, 0, false)
+        .await
+        .unwrap();
     store.mark_inflight(id, 1).await.unwrap();
     store.mark_bounced(id, "550 nope", 2).await.unwrap();
 
-    assert!(store.retry_message(id, 100).await.unwrap(), "bounced → pending");
+    assert!(
+        store.retry_message(id, 100).await.unwrap(),
+        "bounced → pending"
+    );
     let row = store.get_message(id).await.unwrap().unwrap();
     assert_eq!(row.status, QueueStatus::Pending);
     assert_eq!(row.next_retry, 100);
 
     // delivered rows are NOT eligible for retry
-    let d = store.enqueue("s@x", "r@y", "y", b"", None, 0, false).await.unwrap();
+    let d = store
+        .enqueue("s@x", "r@y", "y", b"", None, 0, false)
+        .await
+        .unwrap();
     store.mark_delivered(d, 5).await.unwrap();
-    assert!(!store.retry_message(d, 200).await.unwrap(), "delivered rows refuse retry");
+    assert!(
+        !store.retry_message(d, 200).await.unwrap(),
+        "delivered rows refuse retry"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -229,7 +287,10 @@ async fn suppression_crud_via_trait() {
         .await
         .unwrap();
 
-    store.add_suppression("b@x", "complaint", None).await.unwrap();
+    store
+        .add_suppression("b@x", "complaint", None)
+        .await
+        .unwrap();
     let listed = store.list_suppressions(100).await.unwrap();
     let emails: Vec<&str> = listed.iter().map(|(e, _, _, _)| e.as_str()).collect();
     assert!(emails.contains(&"a@x"));
@@ -241,7 +302,10 @@ async fn suppression_crud_via_trait() {
     // remove + idempotent re-remove
     assert!(store.remove_suppression("a@x").await.unwrap());
     assert!(!store.is_suppressed("a@x").await);
-    assert!(!store.remove_suppression("a@x").await.unwrap(), "second remove is a no-op");
+    assert!(
+        !store.remove_suppression("a@x").await.unwrap(),
+        "second remove is a no-op"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -249,17 +313,27 @@ async fn dequeue_legacy_returns_only_pending_due() {
     let (_c, pool) = start_pg().await;
     let store = PgQueueStore::new(pool);
 
-    let now_due = store.enqueue("s@x", "r@y", "y", b"", None, 100, false).await.unwrap();
+    let now_due = store
+        .enqueue("s@x", "r@y", "y", b"", None, 100, false)
+        .await
+        .unwrap();
     let _future = store
         .enqueue_scheduled("s@x", "r@y", "y", b"", None, 100, 5_000)
         .await
         .unwrap();
-    let inflight = store.enqueue("s@x", "r@y", "y", b"", None, 100, false).await.unwrap();
+    let inflight = store
+        .enqueue("s@x", "r@y", "y", b"", None, 100, false)
+        .await
+        .unwrap();
     store.mark_inflight(inflight, 101).await.unwrap();
 
     // legacy dequeue at t=200: only the immediately-due pending row
     let due = store.dequeue(200, 10).await.unwrap();
     assert_eq!(due.len(), 1);
     assert_eq!(due[0].id, now_due);
-    assert_eq!(due[0].status, QueueStatus::Pending, "legacy dequeue does NOT transition status");
+    assert_eq!(
+        due[0].status,
+        QueueStatus::Pending,
+        "legacy dequeue does NOT transition status"
+    );
 }

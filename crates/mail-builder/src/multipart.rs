@@ -111,7 +111,10 @@ fn pick_non_colliding_boundary(parts: &[PartBytes]) -> String {
     }
     // Practically unreachable; fall through to a longer entropy
     // boundary so we never panic.
-    format!("mailrs_fallback_{:016x}", quick_rng() as u64 | ((quick_rng() as u64) << 32))
+    format!(
+        "mailrs_fallback_{:016x}",
+        quick_rng() as u64 | ((quick_rng() as u64) << 32)
+    )
 }
 
 fn contains_subslice(haystack: &[u8], needle: &[u8]) -> bool {
@@ -132,7 +135,10 @@ mod tests {
         // No characters that would cause issues inside the
         // multipart-boundary header value.
         for c in b.chars() {
-            assert!(c.is_ascii_alphanumeric() || c == '_', "bad char in boundary: {c:?}");
+            assert!(
+                c.is_ascii_alphanumeric() || c == '_',
+                "bad char in boundary: {c:?}"
+            );
         }
     }
 
@@ -174,12 +180,10 @@ mod tests {
         // construct a part whose body contains every possible
         // mailrs boundary prefix — collision must be detected and
         // a fresh boundary picked
-        let parts = vec![
-            PartBytes {
-                headers: b"Content-Type: text/plain\r\n".to_vec(),
-                body: b"--mailrs_should_not_collide\r\nbody continues\r\n".to_vec(),
-            },
-        ];
+        let parts = vec![PartBytes {
+            headers: b"Content-Type: text/plain\r\n".to_vec(),
+            body: b"--mailrs_should_not_collide\r\nbody continues\r\n".to_vec(),
+        }];
         let (boundary, bytes) = multipart_envelope(&parts);
         // body's bogus boundary is preserved unchanged
         let s = std::str::from_utf8(&bytes).unwrap();

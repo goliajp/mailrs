@@ -223,8 +223,7 @@ mod tests {
 
     #[test]
     fn envelope_test_without_require_rejected() {
-        let err =
-            validate_src(r#"if envelope :is "from" "x@y.com" { discard; }"#).unwrap_err();
+        let err = validate_src(r#"if envelope :is "from" "x@y.com" { discard; }"#).unwrap_err();
         assert!(
             matches!(
                 err,
@@ -236,10 +235,8 @@ mod tests {
 
     #[test]
     fn flags_tag_without_require_rejected() {
-        let err = validate_src(
-            r#"require ["fileinto"]; fileinto :flags "\\Seen" "Inbox";"#,
-        )
-        .unwrap_err();
+        let err =
+            validate_src(r#"require ["fileinto"]; fileinto :flags "\\Seen" "Inbox";"#).unwrap_err();
         assert!(
             matches!(
                 err,
@@ -292,10 +289,8 @@ mod tests {
 
     #[test]
     fn require_inside_if_block_rejected() {
-        let err = validate_src(
-            r#"if exists "Subject" { require ["fileinto"]; fileinto "X"; }"#,
-        )
-        .unwrap_err();
+        let err = validate_src(r#"if exists "Subject" { require ["fileinto"]; fileinto "X"; }"#)
+            .unwrap_err();
         // The require inside the if-block fires the recursive
         // command check first (we already saw the if at top-level,
         // saw_non_require=true). But the inside-require is reached
@@ -313,10 +308,7 @@ mod tests {
 
     #[test]
     fn nested_fileinto_in_if_block_caught() {
-        let err = validate_src(
-            r#"if exists "Subject" { fileinto "X"; }"#,
-        )
-        .unwrap_err();
+        let err = validate_src(r#"if exists "Subject" { fileinto "X"; }"#).unwrap_err();
         assert!(
             matches!(
                 err,
@@ -328,10 +320,9 @@ mod tests {
 
     #[test]
     fn nested_envelope_in_anyof_caught() {
-        let err = validate_src(
-            r#"if anyof(exists "From", envelope :is "from" "x@y") { discard; }"#,
-        )
-        .unwrap_err();
+        let err =
+            validate_src(r#"if anyof(exists "From", envelope :is "from" "x@y") { discard; }"#)
+                .unwrap_err();
         assert!(
             matches!(
                 err,
@@ -369,10 +360,7 @@ mod tests {
 
     #[test]
     fn user_tag_without_require_rejected() {
-        let err = validate_src(
-            r#"if address :user "From" "alice" { discard; }"#,
-        )
-        .unwrap_err();
+        let err = validate_src(r#"if address :user "From" "alice" { discard; }"#).unwrap_err();
         assert!(
             matches!(
                 err,
@@ -385,10 +373,7 @@ mod tests {
 
     #[test]
     fn detail_tag_without_require_rejected() {
-        let err = validate_src(
-            r#"if address :detail "From" "work" { discard; }"#,
-        )
-        .unwrap_err();
+        let err = validate_src(r#"if address :detail "From" "work" { discard; }"#).unwrap_err();
         assert!(
             matches!(
                 err,

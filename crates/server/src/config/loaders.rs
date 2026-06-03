@@ -201,7 +201,11 @@ impl ServerConfig {
                         );
                         return None;
                     }
-                    Some((domain.to_string(), selector.to_string(), PathBuf::from(path)))
+                    Some((
+                        domain.to_string(),
+                        selector.to_string(),
+                        PathBuf::from(path),
+                    ))
                 })
                 .collect();
         }

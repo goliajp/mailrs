@@ -18,12 +18,11 @@
 
 use std::sync::Arc;
 
-use base64::Engine as _;
 use aws_lc_rs::rand::SystemRandom;
 use aws_lc_rs::signature::{
-    RSA_PKCS1_SHA256, RSA_PKCS1_1024_8192_SHA256_FOR_LEGACY_USE_ONLY, RsaKeyPair,
-    UnparsedPublicKey,
+    RSA_PKCS1_1024_8192_SHA256_FOR_LEGACY_USE_ONLY, RSA_PKCS1_SHA256, RsaKeyPair, UnparsedPublicKey,
 };
+use base64::Engine as _;
 use rustls_pki_types::pem::PemObject;
 
 use crate::error::DkimError;
@@ -222,10 +221,8 @@ pub fn verify_signature(
             // raw input if the strip doesn't match (some signers
             // publish bare RSAPublicKey already).
             let key = try_strip_rsa_prefix(key_bytes).unwrap_or(key_bytes);
-            let public = UnparsedPublicKey::new(
-                &RSA_PKCS1_1024_8192_SHA256_FOR_LEGACY_USE_ONLY,
-                key,
-            );
+            let public =
+                UnparsedPublicKey::new(&RSA_PKCS1_1024_8192_SHA256_FOR_LEGACY_USE_ONLY, key);
             public
                 .verify(signed_data, sig_bytes)
                 .map_err(|_| DkimError::SignatureMismatch)

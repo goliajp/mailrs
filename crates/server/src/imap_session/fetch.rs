@@ -318,9 +318,8 @@ impl ImapSession {
             let md = mailrs_maildir::Maildir::open(&base_clone);
             for entries in [md.scan_cur(), md.scan_new()] {
                 if let Ok(entries) = entries
-                    && let Some(entry) = entries
-                        .into_iter()
-                        .find(|e| e.id.to_string() == maildir_id)
+                    && let Some(entry) =
+                        entries.into_iter().find(|e| e.id.to_string() == maildir_id)
                 {
                     return entry.path.to_str().map(str::to_string);
                 }

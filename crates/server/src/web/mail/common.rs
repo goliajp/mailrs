@@ -207,13 +207,15 @@ pub(crate) async fn deliver_message_ex(
                     // matches, and we don't have it cheaply at this
                     // point. Per-message `bust_user` above covers the
                     // wider cache.
-                    state.event_bus.emit(crate::event_bus::SmtpEvent::NewMessage {
-                        user: rcpt.clone(),
-                        thread_id: String::new(),
-                        sender: send_from_display.clone(),
-                        subject: send_subject.clone(),
-                        snippet: send_snippet.clone(),
-                    });
+                    state
+                        .event_bus
+                        .emit(crate::event_bus::SmtpEvent::NewMessage {
+                            user: rcpt.clone(),
+                            thread_id: String::new(),
+                            sender: send_from_display.clone(),
+                            subject: send_subject.clone(),
+                            snippet: send_snippet.clone(),
+                        });
                 }
             }
         } else if let Some(ref pool) = state.outbound_queue {
@@ -286,13 +288,15 @@ pub(crate) async fn deliver_message_ex(
         // few minutes"). Emit the same shape the SMTP inbound pipeline
         // uses (`smtp_session/events/data/mod.rs`).
         if sent_ok {
-            state.event_bus.emit(crate::event_bus::SmtpEvent::NewMessage {
-                user: from.to_string(),
-                thread_id: String::new(),
-                sender: send_from_display.clone(),
-                subject: send_subject.clone(),
-                snippet: send_snippet.clone(),
-            });
+            state
+                .event_bus
+                .emit(crate::event_bus::SmtpEvent::NewMessage {
+                    user: from.to_string(),
+                    thread_id: String::new(),
+                    sender: send_from_display.clone(),
+                    subject: send_subject.clone(),
+                    snippet: send_snippet.clone(),
+                });
         }
     }
 

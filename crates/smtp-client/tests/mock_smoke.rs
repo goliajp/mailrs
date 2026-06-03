@@ -16,7 +16,10 @@ async fn mock_accepts_connect_ehlo_quit() {
     let resp = conn.ehlo("client.test").await.expect("ehlo");
     assert_eq!(resp.code, 250);
     let body = resp.message();
-    assert!(body.contains("STARTTLS"), "EHLO advertises STARTTLS: {body}");
+    assert!(
+        body.contains("STARTTLS"),
+        "EHLO advertises STARTTLS: {body}"
+    );
 
     conn.quit().await.expect("quit");
 }

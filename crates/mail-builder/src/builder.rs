@@ -24,7 +24,11 @@ pub struct Attachment {
 
 impl Attachment {
     /// Construct an attachment.
-    pub fn new(filename: impl Into<String>, content_type: impl Into<String>, data: impl Into<Vec<u8>>) -> Self {
+    pub fn new(
+        filename: impl Into<String>,
+        content_type: impl Into<String>,
+        data: impl Into<Vec<u8>>,
+    ) -> Self {
         Self {
             filename: filename.into(),
             content_type: content_type.into(),
@@ -78,7 +82,11 @@ impl Address {
             let display = trimmed[..open].trim().trim_matches('"').to_string();
             let email = trimmed[open + 1..trimmed.len() - 1].trim().to_string();
             return Self {
-                display: if display.is_empty() { None } else { Some(display) },
+                display: if display.is_empty() {
+                    None
+                } else {
+                    Some(display)
+                },
                 email,
             };
         }
@@ -229,7 +237,11 @@ impl MessageBuilder {
             return Err(LintError::BadMessageId(mid.clone()));
         }
         for att in &self.attachments {
-            if att.filename.bytes().any(|b| b == b'\r' || b == b'\n' || b == 0) {
+            if att
+                .filename
+                .bytes()
+                .any(|b| b == b'\r' || b == b'\n' || b == 0)
+            {
                 return Err(LintError::BadAttachmentFilename(att.filename.clone()));
             }
         }
@@ -264,7 +276,9 @@ impl MessageBuilder {
         }
         let date_str = match &self.date {
             Some(d) => d.clone(),
-            None => chrono::Utc::now().format("%a, %d %b %Y %H:%M:%S +0000").to_string(),
+            None => chrono::Utc::now()
+                .format("%a, %d %b %Y %H:%M:%S +0000")
+                .to_string(),
         };
         push_header(&mut out, "Date", &date_str);
         if let Some(mid) = &self.message_id {
@@ -370,7 +384,11 @@ impl fmt::Display for MessageBuilder {
 }
 
 fn render_address_list(addrs: &[Address]) -> String {
-    addrs.iter().map(Address::render).collect::<Vec<_>>().join(", ")
+    addrs
+        .iter()
+        .map(Address::render)
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn text_part_bytes(body: &[u8]) -> PartBytes {
@@ -380,7 +398,10 @@ fn text_part_bytes(body: &[u8]) -> PartBytes {
     push_header(&mut headers, "Content-Transfer-Encoding", cte.as_str());
     let mut body_bytes = Vec::new();
     write_encoded_body(&mut body_bytes, body, cte);
-    PartBytes { headers, body: body_bytes }
+    PartBytes {
+        headers,
+        body: body_bytes,
+    }
 }
 
 fn html_part_bytes(body: &[u8]) -> PartBytes {
@@ -390,7 +411,10 @@ fn html_part_bytes(body: &[u8]) -> PartBytes {
     push_header(&mut headers, "Content-Transfer-Encoding", cte.as_str());
     let mut body_bytes = Vec::new();
     write_encoded_body(&mut body_bytes, body, cte);
-    PartBytes { headers, body: body_bytes }
+    PartBytes {
+        headers,
+        body: body_bytes,
+    }
 }
 
 fn attachment_part_bytes(att: &Attachment) -> PartBytes {
@@ -576,7 +600,11 @@ mod tests {
             .to("b@y")
             .subject("s")
             .text_body("hello")
-            .attachment(Attachment::new("doc.pdf", "application/pdf", vec![0xFF, 0xD8, 0xFF, 0xE0]))
+            .attachment(Attachment::new(
+                "doc.pdf",
+                "application/pdf",
+                vec![0xFF, 0xD8, 0xFF, 0xE0],
+            ))
             .date("Wed, 27 May 2026 12:00:00 +0000")
             .build();
         let s = std::str::from_utf8(&msg).unwrap();
@@ -644,7 +672,11 @@ mod tests {
             .to("b@y")
             .subject("s")
             .text_body("body")
-            .attachment(Attachment::new("a.bin", "application/octet-stream", vec![1]))
+            .attachment(Attachment::new(
+                "a.bin",
+                "application/octet-stream",
+                vec![1],
+            ))
             .date("Wed, 27 May 2026 12:00:00 +0000")
             .build();
         let s = std::str::from_utf8(&msg).unwrap();

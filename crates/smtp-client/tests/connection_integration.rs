@@ -128,12 +128,8 @@ async fn close_mid_data_returns_unexpected_eof() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn greeting_timeout_when_server_hangs() {
     let mock = spawn_mock_smtp(Behavior::HangAfterConnect).await;
-    let result = SmtpConnection::connect_with_timeout(
-        "127.0.0.1",
-        mock.addr.port(),
-        &fast_timeouts(),
-    )
-    .await;
+    let result =
+        SmtpConnection::connect_with_timeout("127.0.0.1", mock.addr.port(), &fast_timeouts()).await;
     match result {
         Ok(_) => panic!("hung greeting must NOT succeed"),
         Err(e) => assert_eq!(e.kind(), std::io::ErrorKind::TimedOut),

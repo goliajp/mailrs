@@ -117,8 +117,7 @@ pub(crate) async fn check_domain_handler(
             Json(serde_json::json!({"error": "DNS resolver not available"})),
         );
     };
-    let pm_resolver =
-        mailrs_postmaster::HickoryPostmasterResolver::new((**resolver).clone());
+    let pm_resolver = mailrs_postmaster::HickoryPostmasterResolver::new((**resolver).clone());
     let report = mailrs_postmaster::check_domain(
         &pm_resolver,
         &name,

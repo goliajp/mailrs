@@ -404,7 +404,6 @@ pub(super) fn html_to_clean_text(html: &str) -> String {
 // caller needs single-tag stripping; otherwise rely on the bulk
 // scanner. Removed to avoid dead-code accumulation.
 
-
 fn extract_attr<'a>(tag: &'a str, attr: &str) -> Option<&'a str> {
     let search = format!("{attr}=\"");
     if let Some(start) = tag.find(&search) {

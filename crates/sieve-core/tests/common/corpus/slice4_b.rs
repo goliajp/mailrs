@@ -110,10 +110,6 @@ pub(super) fn corpus() -> Vec<CorpusRow> {
             msg_spam,
         ),
         // --- O. stop short-circuit edge ---
-        (
-            "stop_at_top_level_before_keep",
-            "stop; keep;",
-            msg_spam,
-        ),
+        ("stop_at_top_level_before_keep", "stop; keep;", msg_spam),
     ]
 }

@@ -47,11 +47,7 @@ Subject: short\r\n\
             msg_spam,
         ),
         // --- Q. Number edges ---
-        (
-            "size_under_one",
-            "if size :under 1 { discard; }",
-            msg_spam,
-        ),
+        ("size_under_one", "if size :under 1 { discard; }", msg_spam),
         (
             "size_over_huge",
             "if size :over 9999999999 { discard; }",

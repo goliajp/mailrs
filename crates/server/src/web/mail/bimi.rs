@@ -46,8 +46,7 @@ pub(crate) async fn get_bimi_logo(
             Json(serde_json::json!({"error": "DNS resolver not available"})),
         );
     };
-    let pm_resolver =
-        mailrs_postmaster::HickoryPostmasterResolver::new((**resolver).clone());
+    let pm_resolver = mailrs_postmaster::HickoryPostmasterResolver::new((**resolver).clone());
     let logo_url = mailrs_postmaster::lookup_bimi_logo(&pm_resolver, &domain).await;
 
     // cache result (24h), empty string = negative cache

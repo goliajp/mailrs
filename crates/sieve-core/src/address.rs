@@ -120,10 +120,7 @@ mod tests {
     fn part_user_distinct_from_localpart() {
         // RFC 5233 §5.1 — :user no longer aliases to :localpart;
         // it produces the local-part minus +detail.
-        assert_eq!(
-            address_part_from_tags(&["user".into()]),
-            AddressPart::User,
-        );
+        assert_eq!(address_part_from_tags(&["user".into()]), AddressPart::User,);
     }
 
     #[test]
@@ -208,7 +205,10 @@ mod tests {
 
     #[test]
     fn extract_bare_addr() {
-        assert_eq!(extract_addresses("alice@example.com"), vec!["alice@example.com"]);
+        assert_eq!(
+            extract_addresses("alice@example.com"),
+            vec!["alice@example.com"]
+        );
     }
 
     #[test]

@@ -20,19 +20,40 @@ use mailrs_outbound_queue::queue::{self, QueueStatus};
 async fn claim_for_delivery_then_mark_delivered() {
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"raw", None, 0, false)
-        .await
-        .expect("enqueue");
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"raw",
+        None,
+        0,
+        false,
+    )
+    .await
+    .expect("enqueue");
 
-    let claimed = queue::claim_for_delivery(&pool, 0, 10).await.expect("claim");
+    let claimed = queue::claim_for_delivery(&pool, 0, 10)
+        .await
+        .expect("claim");
     assert_eq!(claimed.len(), 1, "exactly one row claimed");
     assert_eq!(claimed[0].id, id);
-    assert_eq!(claimed[0].status, QueueStatus::InFlight, "claim atomically transitions to inflight");
+    assert_eq!(
+        claimed[0].status,
+        QueueStatus::InFlight,
+        "claim atomically transitions to inflight"
+    );
 
     let after_claim = queue::get_message(&pool, id).await.unwrap().unwrap();
-    assert_eq!(after_claim.status, QueueStatus::InFlight, "row persisted as inflight");
+    assert_eq!(
+        after_claim.status,
+        QueueStatus::InFlight,
+        "row persisted as inflight"
+    );
 
-    queue::mark_delivered(&pool, id, 100).await.expect("mark_delivered");
+    queue::mark_delivered(&pool, id, 100)
+        .await
+        .expect("mark_delivered");
     let after_deliver = queue::get_message(&pool, id).await.unwrap().unwrap();
     assert_eq!(after_deliver.status, QueueStatus::Delivered);
     assert_eq!(after_deliver.updated_at, 100);
@@ -45,14 +66,27 @@ async fn claim_for_delivery_then_mark_delivered() {
 async fn second_claim_after_inflight_returns_empty() {
     let (_c, pool) = start_pg().await;
 
-    queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"raw", None, 0, false)
-        .await
-        .expect("enqueue");
+    queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"raw",
+        None,
+        0,
+        false,
+    )
+    .await
+    .expect("enqueue");
 
-    let first = queue::claim_for_delivery(&pool, 0, 10).await.expect("first claim");
+    let first = queue::claim_for_delivery(&pool, 0, 10)
+        .await
+        .expect("first claim");
     assert_eq!(first.len(), 1);
 
-    let second = queue::claim_for_delivery(&pool, 0, 10).await.expect("second claim");
+    let second = queue::claim_for_delivery(&pool, 0, 10)
+        .await
+        .expect("second claim");
     assert!(second.is_empty(), "inflight rows are not re-claimed");
 }
 
@@ -66,16 +100,29 @@ async fn crash_recovery_via_stale_inflight() {
     // Stale-threshold math: recover_stale_inflight uses `now - 600` —
     // anything with updated_at < that line is recovered. Set t0=0 so
     // the claim writes updated_at=0, then run recovery at t=700.
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"raw", None, 0, false)
-        .await
-        .expect("enqueue");
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"raw",
+        None,
+        0,
+        false,
+    )
+    .await
+    .expect("enqueue");
 
-    let claimed = queue::claim_for_delivery(&pool, 0, 10).await.expect("claim");
+    let claimed = queue::claim_for_delivery(&pool, 0, 10)
+        .await
+        .expect("claim");
     assert_eq!(claimed.len(), 1);
     // simulate "worker crashed": no mark_delivered / mark_failed call
 
     // 10 minutes + 100s past the claim time
-    let recovered = queue::recover_stale_inflight(&pool, 700).await.expect("recover");
+    let recovered = queue::recover_stale_inflight(&pool, 700)
+        .await
+        .expect("recover");
     assert_eq!(recovered, 1, "stale inflight is recovered");
 
     let after = queue::get_message(&pool, id).await.unwrap().unwrap();
@@ -83,7 +130,9 @@ async fn crash_recovery_via_stale_inflight() {
     assert_eq!(after.updated_at, 700);
 
     // re-claim with now=700 picks it up
-    let reclaimed = queue::claim_for_delivery(&pool, 700, 10).await.expect("re-claim");
+    let reclaimed = queue::claim_for_delivery(&pool, 700, 10)
+        .await
+        .expect("re-claim");
     assert_eq!(reclaimed.len(), 1);
     assert_eq!(reclaimed[0].id, id);
 }
@@ -95,17 +144,33 @@ async fn crash_recovery_via_stale_inflight() {
 async fn recover_stale_inflight_leaves_fresh_rows_alone() {
     let (_c, pool) = start_pg().await;
 
-    queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"raw", None, 500, false)
+    queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"raw",
+        None,
+        500,
+        false,
+    )
+    .await
+    .expect("enqueue");
+    let claimed = queue::claim_for_delivery(&pool, 500, 10)
         .await
-        .expect("enqueue");
-    let claimed = queue::claim_for_delivery(&pool, 500, 10).await.expect("claim");
+        .expect("claim");
     assert_eq!(claimed.len(), 1);
 
     // only 100s after claim — well under the 600s threshold
-    let recovered = queue::recover_stale_inflight(&pool, 600).await.expect("recover");
+    let recovered = queue::recover_stale_inflight(&pool, 600)
+        .await
+        .expect("recover");
     assert_eq!(recovered, 0, "fresh inflight is not touched");
 
-    let still_inflight = queue::get_message(&pool, claimed[0].id).await.unwrap().unwrap();
+    let still_inflight = queue::get_message(&pool, claimed[0].id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(still_inflight.status, QueueStatus::InFlight);
 }
 
@@ -138,8 +203,16 @@ async fn two_workers_no_double_claim() {
     let pool_a = pool.clone();
     let pool_b = pool.clone();
     let (a, b) = tokio::join!(
-        async move { queue::claim_for_delivery(&pool_a, 0, 100).await.expect("claim a") },
-        async move { queue::claim_for_delivery(&pool_b, 0, 100).await.expect("claim b") },
+        async move {
+            queue::claim_for_delivery(&pool_a, 0, 100)
+                .await
+                .expect("claim a")
+        },
+        async move {
+            queue::claim_for_delivery(&pool_b, 0, 100)
+                .await
+                .expect("claim b")
+        },
     );
 
     let mut ids_a: Vec<i64> = a.iter().map(|m| m.id).collect();
@@ -155,7 +228,10 @@ async fn two_workers_no_double_claim() {
     // union covers everything
     let mut union: Vec<i64> = ids_a.iter().copied().chain(ids_b.iter().copied()).collect();
     union.sort();
-    assert_eq!(union, expected, "every pending id ended up in exactly one worker");
+    assert_eq!(
+        union, expected,
+        "every pending id ended up in exactly one worker"
+    );
 
     // all 10 are now inflight
     let still_pending = queue::dequeue(&pool, 0, 100).await.expect("dequeue");
@@ -172,17 +248,32 @@ async fn two_workers_no_double_claim() {
 async fn mark_failed_increments_attempts_and_reschedules() {
     let (_c, pool) = start_pg().await;
 
-    let id = queue::enqueue_ex(&pool, "s@example.com", "r@dest.com", "dest.com", b"raw", None, 0, false)
+    let id = queue::enqueue_ex(
+        &pool,
+        "s@example.com",
+        "r@dest.com",
+        "dest.com",
+        b"raw",
+        None,
+        0,
+        false,
+    )
+    .await
+    .expect("enqueue");
+    queue::claim_for_delivery(&pool, 0, 10)
         .await
-        .expect("enqueue");
-    queue::claim_for_delivery(&pool, 0, 10).await.expect("claim");
+        .expect("claim");
 
     queue::mark_failed(&pool, id, "451 try again later", 600, 10)
         .await
         .expect("mark_failed");
 
     let row = queue::get_message(&pool, id).await.unwrap().unwrap();
-    assert_eq!(row.status, QueueStatus::Pending, "failed → pending for retry");
+    assert_eq!(
+        row.status,
+        QueueStatus::Pending,
+        "failed → pending for retry"
+    );
     assert_eq!(row.attempts, 1);
     assert_eq!(row.last_error.as_deref(), Some("451 try again later"));
     assert_eq!(row.next_retry, 600);

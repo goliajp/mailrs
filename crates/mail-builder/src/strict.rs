@@ -168,7 +168,10 @@ mod tests {
     fn display_format_is_human_readable() {
         let e = LintError::MissingFrom;
         assert_eq!(e.to_string(), "missing From: header");
-        let e = LintError::BodyLineTooLong { line_no: 5, len: 1200 };
+        let e = LintError::BodyLineTooLong {
+            line_no: 5,
+            len: 1200,
+        };
         assert!(e.to_string().contains("line 5"));
         assert!(e.to_string().contains("1200"));
     }

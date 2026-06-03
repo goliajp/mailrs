@@ -40,7 +40,11 @@ fn build_with_attachment() -> Vec<u8> {
         .to("bob@example.com")
         .subject("with 16 KiB attachment")
         .text_body("see attached\r\n")
-        .attachment(Attachment::new("data.bin", "application/octet-stream", blob))
+        .attachment(Attachment::new(
+            "data.bin",
+            "application/octet-stream",
+            blob,
+        ))
         .build()
 }
 
@@ -115,11 +119,15 @@ fn bench_envelope(c: &mut Criterion) {
     // 16k attachment cover the realistic outbound shapes.
     let alt_parts = vec![
         PartBytes {
-            headers: b"Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n".to_vec(),
+            headers:
+                b"Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n"
+                    .to_vec(),
             body: b"plain version of the message body\r\n".repeat(20),
         },
         PartBytes {
-            headers: b"Content-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n".to_vec(),
+            headers:
+                b"Content-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n"
+                    .to_vec(),
             body: b"<p>html version of the message body</p>\r\n".repeat(20),
         },
     ];

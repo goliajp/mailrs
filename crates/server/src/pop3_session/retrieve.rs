@@ -25,8 +25,7 @@ impl Pop3Session {
             return vec!["-ERR message deleted\r\n".into()];
         }
 
-        let raw =
-            message_util::read_message_raw(&self.maildir_root, username, &m.maildir_id).await;
+        let raw = message_util::read_message_raw(&self.maildir_root, username, &m.maildir_id).await;
         match raw {
             Some(data) => {
                 let mut resp = vec![format!("+OK {} octets\r\n", data.len())];
@@ -70,8 +69,7 @@ impl Pop3Session {
             return vec!["-ERR message deleted\r\n".into()];
         }
 
-        let raw =
-            message_util::read_message_raw(&self.maildir_root, username, &m.maildir_id).await;
+        let raw = message_util::read_message_raw(&self.maildir_root, username, &m.maildir_id).await;
         match raw {
             Some(data) => {
                 let text = String::from_utf8_lossy(&data);

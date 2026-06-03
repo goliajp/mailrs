@@ -49,7 +49,9 @@ pub fn format_dsn(
     );
 
     let mut b = MessageBuilder::new()
-        .from(format!("Mail Delivery System <mailer-daemon@{reporting_mta}>"))
+        .from(format!(
+            "Mail Delivery System <mailer-daemon@{reporting_mta}>"
+        ))
         .to(sender)
         .subject("Delivery Status Notification (Failure)")
         .header("Auto-Submitted", "auto-replied")

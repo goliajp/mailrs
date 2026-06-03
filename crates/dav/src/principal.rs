@@ -36,11 +36,7 @@ pub fn principal_propfind(user: &str, request_body: &str) -> Result<DavResponse,
     }
     if wants_displayname || empty {
         use std::fmt::Write;
-        let _ = writeln!(
-            props,
-            "<D:displayname>{}</D:displayname>",
-            xml_escape(user)
-        );
+        let _ = writeln!(props, "<D:displayname>{}</D:displayname>", xml_escape(user));
     }
     {
         use std::fmt::Write;

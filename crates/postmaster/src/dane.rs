@@ -103,12 +103,24 @@ mod tests {
             .with_mx(
                 "example.com",
                 vec![
-                    MxRecord { preference: 30, exchange: "third.example.com".into() },
-                    MxRecord { preference: 10, exchange: "primary.example.com".into() },
-                    MxRecord { preference: 20, exchange: "second.example.com".into() },
+                    MxRecord {
+                        preference: 30,
+                        exchange: "third.example.com".into(),
+                    },
+                    MxRecord {
+                        preference: 10,
+                        exchange: "primary.example.com".into(),
+                    },
+                    MxRecord {
+                        preference: 20,
+                        exchange: "second.example.com".into(),
+                    },
                 ],
             )
-            .with_tlsa("_25._tcp.primary.example.com", vec!["3 1 1 deadbeef".into()]);
+            .with_tlsa(
+                "_25._tcp.primary.example.com",
+                vec!["3 1 1 deadbeef".into()],
+            );
         let res = check_dane(&r, "example.com").await;
         assert!(matches!(res.status, Status::Pass));
         assert_eq!(res.details, vec!["3 1 1 deadbeef"]);

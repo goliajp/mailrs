@@ -104,8 +104,8 @@ pub(crate) async fn get_message(
     let mailboxes = mb_store.list_mailboxes(&user).await.unwrap_or_default();
     for mb in &mailboxes {
         if let Ok(Some(msg)) = mb_store.get_message(mb.id, uid).await {
-            let raw = message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id)
-                .await;
+            let raw =
+                message_util::read_message_raw(&state.maildir_root, &user, &msg.maildir_id).await;
             let parsed = raw
                 .as_deref()
                 .map(message_util::parse_message)

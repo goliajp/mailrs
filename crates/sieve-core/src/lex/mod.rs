@@ -210,7 +210,9 @@ pub fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
             if i == id_start {
                 return Err(TokenizeError::BadTag(id_start - 1));
             }
-            let id = std::str::from_utf8(&bytes[id_start..i]).unwrap_or("").to_string();
+            let id = std::str::from_utf8(&bytes[id_start..i])
+                .unwrap_or("")
+                .to_string();
             out.push(Token::Tag(id));
             continue;
         }
@@ -253,7 +255,9 @@ pub fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
             while i < bytes.len() && is_ident_byte(bytes[i]) {
                 i += 1;
             }
-            let id = std::str::from_utf8(&bytes[start..i]).unwrap_or("").to_string();
+            let id = std::str::from_utf8(&bytes[start..i])
+                .unwrap_or("")
+                .to_string();
             out.push(Token::Identifier(id));
             continue;
         }
@@ -294,10 +298,10 @@ mod tests {
     #[test]
     fn line_comment() {
         assert!(lex("# this is a comment\n").is_empty());
-        assert_eq!(lex("# comment\nkeep;"), vec![
-            Token::Identifier("keep".into()),
-            Token::Semicolon,
-        ]);
+        assert_eq!(
+            lex("# comment\nkeep;"),
+            vec![Token::Identifier("keep".into()), Token::Semicolon,]
+        );
     }
 
     #[test]
@@ -316,20 +320,26 @@ mod tests {
     #[test]
     fn identifiers() {
         assert_eq!(lex("require"), vec![Token::Identifier("require".into())]);
-        assert_eq!(lex("if elsif else"), vec![
-            Token::Identifier("if".into()),
-            Token::Identifier("elsif".into()),
-            Token::Identifier("else".into()),
-        ]);
+        assert_eq!(
+            lex("if elsif else"),
+            vec![
+                Token::Identifier("if".into()),
+                Token::Identifier("elsif".into()),
+                Token::Identifier("else".into()),
+            ]
+        );
     }
 
     #[test]
     fn tags() {
-        assert_eq!(lex(":is :contains :matches"), vec![
-            Token::Tag("is".into()),
-            Token::Tag("contains".into()),
-            Token::Tag("matches".into()),
-        ]);
+        assert_eq!(
+            lex(":is :contains :matches"),
+            vec![
+                Token::Tag("is".into()),
+                Token::Tag("contains".into()),
+                Token::Tag("matches".into()),
+            ]
+        );
     }
 
     #[test]
@@ -370,21 +380,27 @@ mod tests {
 
     #[test]
     fn numbers_plain() {
-        assert_eq!(lex("0 1 100 9999"), vec![
-            Token::Number(0),
-            Token::Number(1),
-            Token::Number(100),
-            Token::Number(9999),
-        ]);
+        assert_eq!(
+            lex("0 1 100 9999"),
+            vec![
+                Token::Number(0),
+                Token::Number(1),
+                Token::Number(100),
+                Token::Number(9999),
+            ]
+        );
     }
 
     #[test]
     fn numbers_with_suffix() {
-        assert_eq!(lex("1K 1M 1G"), vec![
-            Token::Number(1024),
-            Token::Number(1024 * 1024),
-            Token::Number(1024 * 1024 * 1024),
-        ]);
+        assert_eq!(
+            lex("1K 1M 1G"),
+            vec![
+                Token::Number(1024),
+                Token::Number(1024 * 1024),
+                Token::Number(1024 * 1024 * 1024),
+            ]
+        );
     }
 
     #[test]
@@ -397,55 +413,64 @@ mod tests {
 
     #[test]
     fn punctuation() {
-        assert_eq!(lex("{}[](),;"), vec![
-            Token::LBrace,
-            Token::RBrace,
-            Token::LBracket,
-            Token::RBracket,
-            Token::LParen,
-            Token::RParen,
-            Token::Comma,
-            Token::Semicolon,
-        ]);
+        assert_eq!(
+            lex("{}[](),;"),
+            vec![
+                Token::LBrace,
+                Token::RBrace,
+                Token::LBracket,
+                Token::RBracket,
+                Token::LParen,
+                Token::RParen,
+                Token::Comma,
+                Token::Semicolon,
+            ]
+        );
     }
 
     #[test]
     fn full_keep_script() {
-        assert_eq!(lex("keep;"), vec![
-            Token::Identifier("keep".into()),
-            Token::Semicolon,
-        ]);
+        assert_eq!(
+            lex("keep;"),
+            vec![Token::Identifier("keep".into()), Token::Semicolon,]
+        );
     }
 
     #[test]
     fn header_test_script() {
         let src = r#"if header :is "Subject" "spam" { discard; }"#;
         let toks = lex(src);
-        assert_eq!(toks, vec![
-            Token::Identifier("if".into()),
-            Token::Identifier("header".into()),
-            Token::Tag("is".into()),
-            Token::String("Subject".into()),
-            Token::String("spam".into()),
-            Token::LBrace,
-            Token::Identifier("discard".into()),
-            Token::Semicolon,
-            Token::RBrace,
-        ]);
+        assert_eq!(
+            toks,
+            vec![
+                Token::Identifier("if".into()),
+                Token::Identifier("header".into()),
+                Token::Tag("is".into()),
+                Token::String("Subject".into()),
+                Token::String("spam".into()),
+                Token::LBrace,
+                Token::Identifier("discard".into()),
+                Token::Semicolon,
+                Token::RBrace,
+            ]
+        );
     }
 
     #[test]
     fn require_with_list() {
         let src = r#"require ["fileinto", "envelope"];"#;
         let toks = lex(src);
-        assert_eq!(toks, vec![
-            Token::Identifier("require".into()),
-            Token::LBracket,
-            Token::String("fileinto".into()),
-            Token::Comma,
-            Token::String("envelope".into()),
-            Token::RBracket,
-            Token::Semicolon,
-        ]);
+        assert_eq!(
+            toks,
+            vec![
+                Token::Identifier("require".into()),
+                Token::LBracket,
+                Token::String("fileinto".into()),
+                Token::Comma,
+                Token::String("envelope".into()),
+                Token::RBracket,
+                Token::Semicolon,
+            ]
+        );
     }
 }

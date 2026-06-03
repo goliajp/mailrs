@@ -21,7 +21,8 @@ pub(crate) fn classify_email(
     // pre-concatenating them — saves a body-sized String alloc per
     // email (text bodies can be 100s of KB) while preserving the
     // "needle hit anywhere" semantics.
-    let contains_any = |s: &str| sender_lc.contains(s) || subject_lc.contains(s) || text_lc.contains(s);
+    let contains_any =
+        |s: &str| sender_lc.contains(s) || subject_lc.contains(s) || text_lc.contains(s);
 
     let mut score: i32 = 0;
 
@@ -81,10 +82,7 @@ pub(crate) fn classify_email(
         "タイムセール",
         "お得",
     ];
-    let marketing_count = marketing_signals
-        .iter()
-        .filter(|s| contains_any(s))
-        .count();
+    let marketing_count = marketing_signals.iter().filter(|s| contains_any(s)).count();
 
     // spam signals
     let spam_signals = [

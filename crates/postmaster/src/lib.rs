@@ -32,9 +32,9 @@
 
 use serde::Serialize;
 
-pub use resolver::{MockResolver, MxRecord, PostmasterResolver, ResolverError};
 #[cfg(feature = "hickory")]
 pub use resolver::HickoryPostmasterResolver;
+pub use resolver::{MockResolver, MxRecord, PostmasterResolver, ResolverError};
 
 /// Full domain-health report returned by [`check_domain`].
 #[derive(Debug, Clone, Serialize)]

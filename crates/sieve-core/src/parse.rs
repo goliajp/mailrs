@@ -118,10 +118,7 @@ impl Parser {
     /// identifier is a known test name.
     fn parse_argument_or_test(&mut self, parent: &str) -> Result<Argument, ParseError> {
         // For control-flow commands the next token MUST be a test.
-        let starts_test = matches!(
-            parent,
-            "if" | "elsif" | "while"
-        );
+        let starts_test = matches!(parent, "if" | "elsif" | "while");
         if starts_test {
             return Ok(Argument::Test(self.parse_test()?));
         }
