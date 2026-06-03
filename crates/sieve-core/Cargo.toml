@@ -18,6 +18,15 @@ workspace = true
 [dependencies]
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 thiserror = "2"
+# SIMD byte scanner — used for zero-alloc case-insensitive
+# substring search in match_str.rs (the evaluator hot path:
+# every header/address/envelope test runs through it) and for
+# the line / block-comment skip in the lexer.
+memchr = "2"
 
 [dev-dependencies]
 criterion = { workspace = true }
+
+[[bench]]
+name = "sieve_core"
+harness = false

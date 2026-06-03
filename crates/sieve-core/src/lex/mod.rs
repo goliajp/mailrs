@@ -108,27 +108,33 @@ pub fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
             continue;
         }
 
-        // line comment
+        // line comment — jump to the next LF via SIMD memchr.
         if b == b'#' {
-            while i < bytes.len() && bytes[i] != b'\n' {
-                i += 1;
+            match memchr::memchr(b'\n', &bytes[i..]) {
+                Some(rel) => i += rel,
+                None => i = bytes.len(),
             }
             continue;
         }
 
-        // block comment /* ... */
+        // block comment /* ... */ — memchr to `*` then check for `/`.
         if b == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'*' {
             let start = i;
             i += 2;
             loop {
-                if i + 1 >= bytes.len() {
+                let rel = match memchr::memchr(b'*', &bytes[i..]) {
+                    Some(r) => r,
+                    None => return Err(TokenizeError::UnterminatedComment(start)),
+                };
+                let star_pos = i + rel;
+                if star_pos + 1 >= bytes.len() {
                     return Err(TokenizeError::UnterminatedComment(start));
                 }
-                if bytes[i] == b'*' && bytes[i + 1] == b'/' {
-                    i += 2;
+                if bytes[star_pos + 1] == b'/' {
+                    i = star_pos + 2;
                     break;
                 }
-                i += 1;
+                i = star_pos + 1;
             }
             continue;
         }

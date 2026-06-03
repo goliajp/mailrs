@@ -1758,6 +1758,55 @@ Stone was Case C before — no `benches/` existed. Added
 shapes (short plain, plain+html alt, mixed with 16 KiB attachment).
 Run: `cargo bench -p mailrs-mail-builder --bench mail_builder`.
 
+### `mailrs-sieve-core` (criterion, `cargo bench -p mailrs-sieve-core`)
+
+3-run honest medians, v4 ckpt 25 (2026-06-03):
+
+| Path | Before | After | Win |
+|---|---:|---:|---:|
+| `tokenize/typical` | 1.78 µs | 1.41 µs | **−21 %** |
+| `tokenize/heavy` | 2.08 µs | 2.02 µs | noise |
+| `compile/typical` | 2.89 µs | 2.86 µs | noise |
+| `compile/heavy` | 4.25 µs | 4.04 µs | **−5 %** |
+| `evaluate/typical` | 3.60 µs | 3.56 µs | noise |
+| `evaluate/heavy` | 7.18 µs | 5.93 µs | **−17 %** |
+
+**v4 ckpt 25** (2026-06-03): Case B+C — three rewrites land in this
+stone, the actual engine behind the `mailrs-sieve` wrapper.
+
+* `match_str::match_string` was the evaluator hot path's biggest
+  alloc source: every `header` / `address` / `envelope` / `hasflag`
+  test produced **two fresh `String`s** (`haystack.to_ascii_lowercase()`
+  + `needle.to_ascii_lowercase()`) before comparing. v4 ckpt 25
+  drops both allocations: `MatchType::Is` goes through
+  `[u8]::eq_ignore_ascii_case`, and `:contains` / `:matches` use a
+  `memchr2`-anchored case-insensitive substring search (jumps to
+  each candidate via the lowercase + uppercase variant of the
+  needle's first byte, then verifies with `eq_ignore_ascii_case`).
+* `match_str::glob_match` (`:matches`) was a recursive
+  byte-by-byte backtracker — exponential on patterns like
+  `*a*b*c*`. The rewrite splits the pattern on `*`, drives each
+  literal chunk through `memchr2` + `eq_ignore_ascii_case`, and
+  only falls back to one-byte-at-a-time scanning when a chunk
+  contains `?` (and even then, anchors on the first non-`?` byte
+  via `memchr2`).
+* Lexer line-comment (`# ...`) and block-comment (`/* ... */`)
+  skip loops now use `memchr(b'\n')` / `memchr(b'*')` instead of
+  byte-by-byte index walks.
+
+The 21 % tokenize win is the line-comment memchr; the 17 %
+evaluate-heavy win is the alloc-free match path. The
+production effect is bigger than these benches show because
+real inbound messages are 10-50 KiB (not the 150 B fixture) and
+real Sieve scripts test more rules — every saved `String` alloc
+scales with the script × header count.
+
+Stone was Case C before — no `benches/` existed. Added
+`benches/sieve_core.rs` covering tokenize / compile / evaluate
+on a "typical" 3-rule script + a "heavy" 5-rule script with
+multi-needle string-lists and `:matches` patterns.
+Run: `cargo bench -p mailrs-sieve-core --bench sieve_core`.
+
 ### `mailrs-sieve` (criterion, `cargo bench -p mailrs-sieve`)
 
 3-run honest medians, v4 ckpt 23 (2026-06-03):
