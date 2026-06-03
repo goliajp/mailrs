@@ -128,6 +128,25 @@ async fn main() {
         None => None,
     };
 
+    // kevy embedded store — parallel path for cement code that wants the
+    // in-process Arc<Store> (the migration target). Currently unused by
+    // the network-path subsystems; future commits migrate them over and
+    // eventually drop the network `kevy_conn` entirely.
+    let _kevy_embedded_store: Option<kevy_store::KevyStore> =
+        match kevy_store::open_store(cfg.kevy_data_dir.as_deref()) {
+            Ok(store) => {
+                tracing::info!(
+                    persist_dir = ?cfg.kevy_data_dir,
+                    "kevy embedded store opened (parallel to network kevy)"
+                );
+                Some(store)
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "kevy embedded store open failed");
+                None
+            }
+        };
+
     let health_state = health::HealthState::new();
     if let (Some(pg), Some(vk)) = (&pg_pool, &kevy_conn) {
         health::spawn_health_checker(pg.clone(), vk.clone(), health_state.clone());

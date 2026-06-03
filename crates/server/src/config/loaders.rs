@@ -120,6 +120,7 @@ impl ServerConfig {
     pub(super) fn load_storage(&mut self) {
         set_opt_string("MAILRS_PG_URL", &mut self.pg_url);
         set_opt_string("MAILRS_KEVY_URL", &mut self.kevy_url);
+        set_opt_path("MAILRS_KEVY_DATA_DIR", &mut self.kevy_data_dir);
     }
 
     /// Manual TLS cert + key paths (vs ACME auto-issued).
