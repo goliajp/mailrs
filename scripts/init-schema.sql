@@ -85,7 +85,7 @@ CREATE TABLE outbound_queue (
     sender TEXT NOT NULL,
     recipient TEXT NOT NULL,
     domain TEXT NOT NULL,
-    message_data BYTEA NOT NULL,
+    message_data TEXT NOT NULL,  -- base64-encoded payload (Phase D-pre #3)
     status TEXT NOT NULL DEFAULT 'pending',
     attempts INTEGER NOT NULL DEFAULT 0,
     max_attempts INTEGER NOT NULL DEFAULT 8,
