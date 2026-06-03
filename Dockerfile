@@ -32,8 +32,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
-# run as non-root user
-RUN groupadd -r mailrs && useradd -r -g mailrs -d /data -s /sbin/nologin mailrs
+# run as non-root user with EXPLICIT UID/GID 10001 so prod can chown
+# host-bind-mounted secrets (certs, ACME) to a stable id. Without the
+# explicit `-u/-g`, `useradd -r` picks the next free system uid (typically
+# 999 on a stock debian:trixie-slim), which can shift between base-image
+# versions and silently break bind-mount permissions. See
+# .claude/memory/ghcr-cert-perm-trap.md for the v1.7.89 incident.
+RUN groupadd -r -g 10001 mailrs && useradd -r -u 10001 -g mailrs -d /data -s /sbin/nologin mailrs
 
 COPY --from=rust-builder /usr/local/bin/mailrs-server /usr/local/bin/mailrs-server
 COPY --from=web-builder /build/dist /opt/mailrs/web
@@ -50,7 +55,7 @@ ENV MAILRS_HOSTNAME=mx.mailrs.local \
     MAILRS_IMAP_PORT=143 \
     MAILRS_WEB_PORT=3100 \
     MAILRS_PG_URL=postgres://mailrs:mailrs@postgres:5432/mailrs \
-    MAILRS_VALKEY_URL=redis://valkey:6379 \
+    MAILRS_KEVY_URL=redis://kevy:6379 \
     MAILRS_WEB_STATIC_DIR=/opt/mailrs/web \
     MAILRS_ACME_DIR=/data/acme
 
