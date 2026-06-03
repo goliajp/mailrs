@@ -287,6 +287,7 @@ fn build_authres_body(
     authserv_id: &str,
     outputs: &[mailrs_dkim::SignatureOutput],
 ) -> String {
+    use std::fmt::Write as _;
     let mut s = String::with_capacity(64);
     s.push_str(authserv_id);
     if outputs.is_empty() {
@@ -296,10 +297,12 @@ fn build_authres_body(
     for o in outputs {
         let verdict = if o.is_pass() { "pass" } else { "fail" };
         let d = o.domain();
+        // write! avoids the per-iter intermediate String alloc the
+        // previous push_str(&format!(...)) pair was paying.
         if d.is_empty() {
-            s.push_str(&format!("; dkim={verdict}"));
+            let _ = write!(s, "; dkim={verdict}");
         } else {
-            s.push_str(&format!("; dkim={verdict} header.d={d}"));
+            let _ = write!(s, "; dkim={verdict} header.d={d}");
         }
     }
     s
