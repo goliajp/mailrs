@@ -1,67 +1,95 @@
-const CACHE_NAME = 'mailrs-v1'
-const SHELL_ASSETS = [
-  '/',
-  '/icon.svg',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/offline.html',
-]
+// CACHE_NAME bump (v1 -> v2) on 2026-06-04 is intentional: it forces every
+// existing client to drop the old mailrs-v1 cache during activate, which
+// was holding a stale index.html that referenced JS bundle hashes the new
+// server doesn't serve (caused white-screen + "text/html is not a valid
+// JavaScript MIME type" after the v1.7.99 deploy).
+const CACHE_NAME = 'mailrs-v2'
+const SHELL_ASSETS = ['/icon.svg', '/icon-192.png', '/icon-512.png', '/offline.html']
 
-// install: cache app shell assets
+// install: cache static shell assets ONLY (no index.html — see fetch handler)
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS))
-  )
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS)))
   self.skipWaiting()
 })
 
-// activate: clean old caches
+// activate: clean old caches, take over from any existing SW immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    Promise.all([
+      caches.keys().then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))),
+      ),
+      self.clients.claim(),
+    ]),
   )
-  self.clients.claim()
 })
 
-// fetch: network-first for API, cache-first for shell
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url)
+  const req = event.request
+  if (req.method !== 'GET') return
 
-  // never cache non-GET requests
-  if (event.request.method !== 'GET') return
+  const url = new URL(req.url)
 
-  // API routes: network first, fall back to cache
-  if (url.pathname.startsWith('/api/')) {
+  // navigation requests (top-level HTML): ALWAYS network-first.
+  // Falling back to a cached index.html that points at deleted JS hashes
+  // is what caused the post-deploy white screen — never again.
+  if (req.mode === 'navigate' || req.destination === 'document') {
     event.respondWith(
-      fetch(event.request)
-        .then((res) => {
-          const clone = res.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
-          return res
-        })
-        .catch(() => caches.match(event.request))
+      fetch(req).catch(() => caches.match('/offline.html').then((r) => r ?? new Response('', { status: 503 }))),
     )
     return
   }
 
-  // app shell: cache first, fall back to network, then offline page
+  // hashed asset files under /assets/* are immutable per Vite build.
+  // Use cache-first against the runtime cache to absorb repeat hits, but
+  // ALWAYS fall back to network on miss (no fabricated 404).
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        if (cached) return cached
+        return fetch(req).then((res) => {
+          if (res.ok) {
+            const clone = res.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone))
+          }
+          return res
+        })
+      }),
+    )
+    return
+  }
+
+  // API routes: network-first, briefly cache last-good response to soften
+  // transient outages. The SW cache is NOT meant as the source of truth —
+  // TanStack Query is.
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const clone = res.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone))
+          }
+          return res
+        })
+        .catch(() => caches.match(req).then((r) => r ?? new Response('', { status: 503 }))),
+    )
+    return
+  }
+
+  // Everything else (icons, manifest, root-level static): cache-first.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    caches.match(req).then((cached) => {
       if (cached) return cached
-      return fetch(event.request).catch(() => {
-        // for navigation requests, serve offline page
-        if (event.request.mode === 'navigate') {
-          return caches.match('/offline.html')
-        }
+      return fetch(req).catch(() => {
+        if (req.mode === 'navigate') return caches.match('/offline.html')
         return new Response('', { status: 408 })
       })
-    })
+    }),
   )
 })
 
-// push notifications (preserved from original)
+// push notifications (preserved)
 self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : { title: 'New Email', body: 'You have a new message' }
   event.waitUntil(
@@ -70,7 +98,7 @@ self.addEventListener('push', (event) => {
       icon: '/icon.svg',
       badge: '/icon.svg',
       tag: data.tag || 'mailrs-notification',
-    })
+    }),
   )
 })
 
