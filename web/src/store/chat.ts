@@ -26,8 +26,10 @@ export const sortOrderAtom = atom<SortOrder>('newest')
 export const batchModeAtom = atom(false)
 export const selectedThreadIdsAtom = atom<Set<string>>(new Set<string>())
 
-// mailbox folder filter (null = INBOX default, 'Sent' = sent folder)
-export type MailFolder = 'Drafts' | 'Sent' | 'Trash' | null
+// mailbox folder filter (null = INBOX default)
+// Junk is the physical Junk mailbox (set by sieve rule or "mark spam" action),
+// distinct from the AI-derived "Spam" category filter (categoryFilter='spam').
+export type MailFolder = 'Drafts' | 'Junk' | 'Sent' | 'Trash' | null
 export const folderAtom = atom<MailFolder>(null)
 
 // archived view toggle
