@@ -78,7 +78,12 @@ export function Chat() {
       const urlCat = searchParams.get('cat')
       if (urlThread) setSelectedThreadId(urlThread)
       if (urlView) setMobileView(urlView)
-      if (urlFolder === 'Drafts' || urlFolder === 'Sent' || urlFolder === 'Trash') {
+      if (
+        urlFolder === 'Drafts' ||
+        urlFolder === 'Sent' ||
+        urlFolder === 'Trash' ||
+        urlFolder === 'Junk'
+      ) {
         setFolder(urlFolder)
       }
       if (urlTab === 'unread' || urlTab === 'starred' || urlTab === 'attachment') {

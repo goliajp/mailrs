@@ -317,6 +317,8 @@ const ConversationItem = memo(function ConversationItem({
 })
 
 // unified tab bar
+// Spam = AI-derived category filter (categoryFilter='spam', see classify.rs).
+// Junk = physical Junk mailbox (mb.name='Junk'), populated by sieve / "mark spam" action.
 const VIEW_TABS: { label: string; value: string }[] = [
   { label: 'All', value: 'all' },
   { label: 'Unread', value: 'unread' },
@@ -324,6 +326,7 @@ const VIEW_TABS: { label: string; value: string }[] = [
   { label: 'Sent', value: 'sent' },
   { label: 'Action', value: 'action' },
   { label: 'Spam', value: 'spam' },
+  { label: 'Junk', value: 'junk' },
 ]
 
 function FilterBar() {
@@ -359,11 +362,13 @@ function FilterBar() {
       ? 'spam'
       : folder === 'Sent'
         ? 'sent'
-        : section === 'action'
-          ? 'action'
-          : quickFilter !== 'all'
-            ? quickFilter
-            : 'all'
+        : folder === 'Junk'
+          ? 'junk'
+          : section === 'action'
+            ? 'action'
+            : quickFilter !== 'all'
+              ? quickFilter
+              : 'all'
 
   // chips behave like Gmail tabs: clicking the active one is a no-op,
   // users clear filters by clicking All
@@ -377,6 +382,8 @@ function FilterBar() {
       setActiveCategory('spam')
     } else if (tab === 'sent') {
       setFolder('Sent')
+    } else if (tab === 'junk') {
+      setFolder('Junk')
     } else if (tab === 'action') {
       setSection('action')
     } else if (tab === 'unread') {
@@ -1303,9 +1310,11 @@ function VirtualConversationList({
                   ? 'No drafts'
                   : folder === 'Trash'
                     ? 'Trash is empty'
-                    : showArchived
-                      ? 'No archived conversations'
-                      : 'All caught up!'}
+                    : folder === 'Junk'
+                      ? 'No junk mail'
+                      : showArchived
+                        ? 'No archived conversations'
+                        : 'All caught up!'}
           </p>
           <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : ''}</p>
         </div>
