@@ -239,10 +239,11 @@ CREATE TABLE tls_rpt_events (
 CREATE INDEX tls_rpt_events_recorded_at_idx ON tls_rpt_events(recorded_at_unix);
 
 -- =============================================================================
--- people / contacts
+-- people / email_contacts (NB: the CardDAV vCard `contacts` table is separate
+-- and lives in the dav block below; see migrate-023 for prod-PG history.)
 -- =============================================================================
 
-CREATE TABLE contacts (
+CREATE TABLE email_contacts (
     id BIGSERIAL PRIMARY KEY,
     user_address TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -264,8 +265,8 @@ CREATE TABLE contacts (
     relationship_score REAL NOT NULL DEFAULT 0.0,
     UNIQUE(user_address, email)
 );
-CREATE INDEX idx_contacts_user_score ON contacts(user_address, relationship_score DESC);
-CREATE INDEX idx_contacts_user_email ON contacts(user_address, email);
+CREATE INDEX idx_email_contacts_user_score ON email_contacts(user_address, relationship_score DESC);
+CREATE INDEX idx_email_contacts_user_email ON email_contacts(user_address, email);
 
 CREATE TABLE sender_feedback (
     id BIGSERIAL PRIMARY KEY,
@@ -618,6 +619,24 @@ CREATE TABLE address_books (
     description TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- CardDAV vCard objects. Distinct from `email_contacts` above (the per-user
+-- message-derived contact stats). Both used to share the `contacts` name
+-- until migrate-042; see migrate-042 prelude for history.
+CREATE TABLE contacts (
+    id BIGSERIAL PRIMARY KEY,
+    address_book_id BIGINT NOT NULL REFERENCES address_books(id) ON DELETE CASCADE,
+    uid TEXT NOT NULL,
+    etag TEXT NOT NULL,
+    vcard TEXT NOT NULL,
+    fn_name TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(address_book_id, uid)
+);
+CREATE INDEX idx_contacts_book ON contacts(address_book_id);
+CREATE INDEX idx_contacts_uid ON contacts(uid);
 
 CREATE TABLE external_calendar_feeds (
     id BIGSERIAL PRIMARY KEY,
