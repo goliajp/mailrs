@@ -127,7 +127,17 @@ export function useMarkReadMutation() {
       )
       return { snapshots }
     },
-    onSettled: () => invalidateMail(),
+    // The optimistic patch IS the truth: server-side mark_thread_read writes
+    // unread_count=0 and busts the kevy list cache; the client's optimistic
+    // value matches server state byte-for-byte. Invalidating the conversations
+    // query just forces a refetch that races against in-flight server
+    // processing (between POST 200 and kevy bust + PG commit settle) and can
+    // briefly overwrite the patch with stale list data, making the row flip
+    // back to unread for ~100-500 ms — exactly the "mark-as-read doesn't
+    // stick when I click fast" user complaint.
+    // categories / actionCount ARE server-computed aggregates that the client
+    // cannot derive locally; they still need invalidation.
+    onSettled: () => invalidateMailAggregatesOnly(),
   })
 }
 
@@ -147,7 +157,10 @@ export function useMarkUnreadMutation() {
       )
       return { snapshots }
     },
-    onSettled: () => invalidateMail(),
+    // Same as useMarkReadMutation: optimistic patch matches server state;
+    // skip the conversations refetch that would race against in-flight
+    // server processing.
+    onSettled: () => invalidateMailAggregatesOnly(),
   })
 }
 
@@ -291,6 +304,16 @@ async function cancelConversationFetches() {
 // content actually does change.
 function invalidateMail() {
   queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
+  queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
+  queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
+}
+
+// Invalidates only the small server-computed aggregates (categories +
+// actionCount) — leaves the conversations list cache alone. Used by
+// mark-read / mark-unread, where the optimistic patch already matches
+// what the server returns; a list refetch races against the post-POST
+// processing window and can flip the row back to unread for 100-500 ms.
+function invalidateMailAggregatesOnly() {
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
 }
