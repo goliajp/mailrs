@@ -80,7 +80,7 @@ services:
       MAILRS_LLM_URL: "${MAILRS_LLM_URL:-}"
       MAILRS_LLM_API_KEY: "${MAILRS_LLM_API_KEY:-}"
       # anti-spam
-      MAILRS_ANTISPAM_ENABLED: "${MAILRS_ANTISPAM_ENABLED:-false}"
+      MAILRS_ANTISPAM_ENABLED: "${MAILRS_ANTISPAM_ENABLED:-true}"
       # chrome cdp
       MAILRS_CHROME_CDP_URL: ws://chromium:9222
       # webhook
