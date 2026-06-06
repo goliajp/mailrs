@@ -32,6 +32,11 @@ services:
   mailrs:
     container_name: mailrs
     build: .
+    # Force public resolvers so outbound MX/STARTTLS lookups don't hit a
+    # host resolver that leaks Tailscale MagicDNS suffixes (INC-2026-06-03).
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "25:25"
       - "587:587"
