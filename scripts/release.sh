@@ -74,8 +74,11 @@ fi
 echo "==> running web check"
 (cd web && bun run check)
 echo ""
-echo "==> running web tests with coverage"
-(cd web && bun run test:coverage)
+echo "==> running web tests"
+# bun runtime's node:inspector lacks the v8 Coverage API that
+# @vitest/coverage-v8 needs (https://github.com/oven-sh/bun/issues/…).
+# Run plain `vitest run` until the web rewrite resolves this.
+(cd web && bun run test)
 echo ""
 
 # 2. require fully clean working tree — bump.sh is about to touch Cargo.toml,
