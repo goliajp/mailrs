@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-shield"
-version = "3.0.0"
+version = "3.1.0"
 edition = "2024"
 description = "SMTP anti-spam primitives: DNS blocklist (DNSBL) queries, greylisting policy with optional in-process kevy store, and PTR / forward-confirmed reverse DNS (FCrDNS) checks."
 license = "Apache-2.0 OR MIT"
