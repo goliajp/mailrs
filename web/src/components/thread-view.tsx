@@ -148,16 +148,37 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // empty state, no flicker.
   const threadQuery = useThreadQuery(selectedId, selectedDomains)
   const loadingThread = threadQuery.isPending && !!selectedId
+  // Tracks which threadId the currently-displayed messages belong to, so we
+  // can detect "user switched threads while the previous thread's body is
+  // still on screen" and clear the stale body before the new one paints.
+  // Test seed paths never set this ref (they bypass the bridge below), so
+  // they're never subject to the eager clear.
+  const messagesOwnerRef = useRef<null | string>(null)
+
   useEffect(() => {
     const data = threadQuery.data
-    if (!data || !selectedId) return
-    setMessages(data)
-    setSelectedMsgIdx(data.length > 0 ? data.length - 1 : null)
-    if (typeof contentScrollRef.current?.scrollTo === 'function') {
-      contentScrollRef.current.scrollTo(0, 0)
+    if (!selectedId) return
+    if (data) {
+      setMessages(data)
+      messagesOwnerRef.current = selectedId
+      setSelectedMsgIdx(data.length > 0 ? data.length - 1 : null)
+      if (typeof contentScrollRef.current?.scrollTo === 'function') {
+        contentScrollRef.current.scrollTo(0, 0)
+      }
+      if (typeof bottomRef.current?.scrollIntoView === 'function') {
+        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
+      }
+      return
     }
-    if (typeof bottomRef.current?.scrollIntoView === 'function') {
-      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
+    // No data yet for selectedId. If the messages currently on screen belong
+    // to a different (previous) thread, clear them so the spinner overlay
+    // isn't sitting on top of the wrong email. Previously this branch was an
+    // early return, which produced the user-reported "open a mail and the
+    // spinner just hangs over the wrong body for 1-2 s" experience.
+    if (messagesOwnerRef.current !== null && messagesOwnerRef.current !== selectedId) {
+      setMessages([])
+      setSelectedMsgIdx(null)
+      messagesOwnerRef.current = null
     }
   }, [threadQuery.data, selectedId, setMessages])
   // Fallback for paths that seed `threadMessagesAtom` directly (mobile-mail,
@@ -516,7 +537,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
         {/* email body area */}
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
-          {loadingThread && messages.length > 0 && (
+          {loadingThread && (
             <div className="bg-bg/80 absolute inset-0 z-10 flex items-center justify-center">
               <div className="border-border border-t-accent h-5 w-5 animate-spin rounded-full border-2" />
             </div>
