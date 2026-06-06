@@ -28,13 +28,25 @@ pub(crate) async fn init_tls_state(
 ) -> Option<tls::TlsState> {
     match cfg.tls_mode() {
         TlsMode::Acme => {
-            let email = cfg
-                .acme_email
-                .as_ref()
-                .expect("MAILRS_ACME_EMAIL must be set when TLS mode is ACME");
+            // ACME path is best-effort at startup: if anything fails (missing
+            // email/domains, LE rate-limit, network timeout, challenge port
+            // conflict) we log loudly and start without TLS rather than crash
+            // the whole server. Manual cert is already preferred by tls_mode()
+            // so when ACME is selected there's no manual fallback to try.
+            // v1.7.99 incident: LE 429 during the 13h hostname-drift window
+            // panicked startup repeatedly until ACME was disabled manually.
+            let Some(email) = cfg.acme_email.as_ref() else {
+                tracing::warn!(
+                    "tls_mode = Acme but MAILRS_ACME_EMAIL not set; starting without TLS"
+                );
+                return None;
+            };
             let domains = &cfg.acme_domains;
             if domains.is_empty() {
-                panic!("MAILRS_ACME_EMAIL is set but MAILRS_ACME_DOMAINS is empty");
+                tracing::warn!(
+                    "MAILRS_ACME_EMAIL is set but MAILRS_ACME_DOMAINS is empty; starting without TLS"
+                );
+                return None;
             }
 
             // challenge tokens shared between ACME init and challenge server
@@ -47,7 +59,7 @@ pub(crate) async fn init_tls_state(
                 shutdown_rx.clone(),
             );
 
-            let (tls, account) = acme::init(
+            let (tls, account) = match acme::init(
                 email,
                 domains,
                 &cfg.acme_dir,
@@ -55,7 +67,17 @@ pub(crate) async fn init_tls_state(
                 &challenge_tokens,
             )
             .await
-            .expect("failed to initialize ACME");
+            {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "ACME init failed; starting without TLS — check MAILRS_ACME_EMAIL/DOMAINS \
+                         and Let's Encrypt reachability/rate-limit"
+                    );
+                    return None;
+                }
+            };
 
             acme::spawn_renewal_task(
                 account,

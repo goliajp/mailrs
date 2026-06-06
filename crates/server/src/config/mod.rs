@@ -297,10 +297,15 @@ impl ServerConfig {
     }
 
     pub fn tls_mode(&self) -> TlsMode {
-        if self.acme_email.is_some() {
-            TlsMode::Acme
-        } else if self.has_tls() {
+        // Manual cert wins over ACME: if both MAILRS_TLS_CERT/KEY and
+        // MAILRS_ACME_EMAIL are set, the operator is telling us they have
+        // a real cert; treat ACME as a fallback for when no manual cert
+        // exists. v1.7.99 incident: ACME init panicked on LE rate-limit
+        // while a perfectly good manual cert was sitting next to it.
+        if self.has_tls() {
             TlsMode::Manual
+        } else if self.acme_email.is_some() {
+            TlsMode::Acme
         } else {
             TlsMode::None
         }
@@ -367,14 +372,17 @@ mod tests {
     }
 
     #[test]
-    fn tls_mode_acme_takes_precedence_over_manual() {
+    fn tls_mode_manual_takes_precedence_over_acme() {
+        // v1.7.99 incident — both manual cert and acme email were set;
+        // the old priority chose ACME, which panicked on LE rate-limit
+        // and crashed startup while the manual cert was perfectly valid.
         let cfg = ServerConfig {
             tls_cert: Some(PathBuf::from("/etc/ssl/cert.pem")),
             tls_key: Some(PathBuf::from("/etc/ssl/key.pem")),
             acme_email: Some("admin@example.com".into()),
             ..ServerConfig::default()
         };
-        assert_eq!(cfg.tls_mode(), TlsMode::Acme);
+        assert_eq!(cfg.tls_mode(), TlsMode::Manual);
     }
 
     #[test]
