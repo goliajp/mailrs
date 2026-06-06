@@ -118,7 +118,12 @@ CREATE TABLE greylist_triplets (
     last_seen BIGINT NOT NULL
 );
 
-CREATE TABLE contacts (
+-- email_contacts: per-user senders/recipients extracted from message traffic.
+-- Distinct from the CardDAV "contacts" table created in migrate-023, which
+-- holds vCard objects keyed by address_book_id. Keeping these two as separate
+-- names avoids the `CREATE TABLE IF NOT EXISTS` silent-skip that hid migrate-023's
+-- contacts behind this one for several releases.
+CREATE TABLE email_contacts (
     id              BIGSERIAL PRIMARY KEY,
     user_address    TEXT NOT NULL,
     email           TEXT NOT NULL,
@@ -140,8 +145,8 @@ CREATE TABLE contacts (
     relationship_score REAL NOT NULL DEFAULT 0.0,
     UNIQUE(user_address, email)
 );
-CREATE INDEX idx_contacts_user_score ON contacts(user_address, relationship_score DESC);
-CREATE INDEX idx_contacts_user_email ON contacts(user_address, email);
+CREATE INDEX idx_email_contacts_user_score ON email_contacts(user_address, relationship_score DESC);
+CREATE INDEX idx_email_contacts_user_email ON email_contacts(user_address, email);
 
 CREATE TABLE sender_feedback (
     id              BIGSERIAL PRIMARY KEY,

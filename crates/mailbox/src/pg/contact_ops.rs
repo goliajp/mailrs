@@ -32,14 +32,14 @@ impl PgMailboxStore {
     ) -> Result<(), sqlx::Error> {
         let email = normalize_email(sender_email);
         sqlx::query(
-            "INSERT INTO contacts (user_address, email, display_name, first_seen, last_seen, received_count, is_mailing_list, is_automated)
+            "INSERT INTO email_contacts (user_address, email, display_name, first_seen, last_seen, received_count, is_mailing_list, is_automated)
              VALUES ($1, $2, $3, now(), now(), 1, $4, $5)
              ON CONFLICT (user_address, email) DO UPDATE SET
-               display_name = CASE WHEN EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE contacts.display_name END,
+               display_name = CASE WHEN EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE email_contacts.display_name END,
                last_seen = now(),
-               received_count = contacts.received_count + 1,
-               is_mailing_list = contacts.is_mailing_list OR EXCLUDED.is_mailing_list,
-               is_automated = contacts.is_automated OR EXCLUDED.is_automated",
+               received_count = email_contacts.received_count + 1,
+               is_mailing_list = email_contacts.is_mailing_list OR EXCLUDED.is_mailing_list,
+               is_automated = email_contacts.is_automated OR EXCLUDED.is_automated",
         )
         .bind(user)
         .bind(&email)
@@ -61,12 +61,12 @@ impl PgMailboxStore {
     ) -> Result<(), sqlx::Error> {
         let email = normalize_email(recipient_email);
         sqlx::query(
-            "INSERT INTO contacts (user_address, email, display_name, first_seen, last_seen, sent_count, is_mutual)
+            "INSERT INTO email_contacts (user_address, email, display_name, first_seen, last_seen, sent_count, is_mutual)
              VALUES ($1, $2, $3, now(), now(), 1, true)
              ON CONFLICT (user_address, email) DO UPDATE SET
-               display_name = CASE WHEN EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE contacts.display_name END,
+               display_name = CASE WHEN EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE email_contacts.display_name END,
                last_seen = now(),
-               sent_count = contacts.sent_count + 1,
+               sent_count = email_contacts.sent_count + 1,
                is_mutual = true",
         )
         .bind(user)
@@ -82,7 +82,7 @@ impl PgMailboxStore {
     pub async fn mark_contact_mutual(&self, user: &str, email: &str) -> Result<(), sqlx::Error> {
         let email = normalize_email(email);
         sqlx::query(
-            "UPDATE contacts SET is_mutual = true, reply_count = reply_count + 1
+            "UPDATE email_contacts SET is_mutual = true, reply_count = reply_count + 1
              WHERE user_address = $1 AND email = $2",
         )
         .bind(user)
@@ -102,7 +102,7 @@ impl PgMailboxStore {
         let email = normalize_email(sender_email);
         let row = sqlx::query_as::<_, (bool, bool, bool, bool, f32, i32, i32)>(
             "SELECT is_mutual, is_mailing_list, is_vip, is_blocked, importance_bias, received_count, sent_count
-             FROM contacts WHERE user_address = $1 AND email = $2",
+             FROM email_contacts WHERE user_address = $1 AND email = $2",
         )
         .bind(user)
         .bind(&email)
@@ -128,7 +128,7 @@ impl PgMailboxStore {
     ) -> Result<bool, sqlx::Error> {
         let email = normalize_email(recipient_email);
         let row = sqlx::query_as::<_, (i64,)>(
-            "SELECT COUNT(*) FROM contacts
+            "SELECT COUNT(*) FROM email_contacts
              WHERE user_address = $1 AND email = $2 AND sent_count > 0",
         )
         .bind(user)
@@ -168,7 +168,7 @@ impl PgMailboxStore {
 
         if bias_delta.abs() > f32::EPSILON {
             sqlx::query(
-                "UPDATE contacts SET importance_bias = LEAST(1.0, GREATEST(-1.0, importance_bias + $3))
+                "UPDATE email_contacts SET importance_bias = LEAST(1.0, GREATEST(-1.0, importance_bias + $3))
                  WHERE user_address = $1 AND email = $2",
             )
             .bind(user)

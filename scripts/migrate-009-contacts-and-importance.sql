@@ -1,5 +1,6 @@
--- P1: contacts table
-CREATE TABLE IF NOT EXISTS contacts (
+-- P1: email_contacts table (renamed from `contacts` in migrate-042 to free
+-- the `contacts` name for the CardDAV table created by migrate-023).
+CREATE TABLE IF NOT EXISTS email_contacts (
     id              BIGSERIAL PRIMARY KEY,
     user_address    TEXT NOT NULL,
     email           TEXT NOT NULL,
@@ -32,8 +33,8 @@ CREATE TABLE IF NOT EXISTS contacts (
 
     UNIQUE(user_address, email)
 );
-CREATE INDEX IF NOT EXISTS idx_contacts_user_score ON contacts(user_address, relationship_score DESC);
-CREATE INDEX IF NOT EXISTS idx_contacts_user_email ON contacts(user_address, email);
+CREATE INDEX IF NOT EXISTS idx_email_contacts_user_score ON email_contacts(user_address, relationship_score DESC);
+CREATE INDEX IF NOT EXISTS idx_email_contacts_user_email ON email_contacts(user_address, email);
 
 -- P2+P4: messages table extensions
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS html_body TEXT;
