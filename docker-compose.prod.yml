@@ -79,6 +79,11 @@ services:
     # id. deploy.sh --ghcr chowns /apps/mailrs/certs and the mailrs-data
     # docker volume to 10001:10001 right before docker compose up -d, so
     # this service has no `user:` override anymore.
+    # Force public resolvers so outbound MX/STARTTLS lookups don't hit a
+    # host resolver that leaks Tailscale MagicDNS suffixes (INC-2026-06-03).
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "25:25"
       - "110:110"
