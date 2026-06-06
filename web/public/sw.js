@@ -1,9 +1,9 @@
-// CACHE_NAME bump (v1 -> v2) on 2026-06-04 is intentional: it forces every
-// existing client to drop the old mailrs-v1 cache during activate, which
-// was holding a stale index.html that referenced JS bundle hashes the new
-// server doesn't serve (caused white-screen + "text/html is not a valid
-// JavaScript MIME type" after the v1.7.99 deploy).
-const CACHE_NAME = 'mailrs-v2'
+// CACHE_NAME is rewritten by the `sw-cache-bump` Vite plugin at build time
+// to `mailrs-v<package.json#version>` so every release naturally invalidates
+// the previous SW cache (no more stale index.html → wrong JS bundle hashes
+// → white-screen, the v1.7.99 incident class). The literal below is only
+// what dev mode and unit tests see.
+const CACHE_NAME = 'mailrs-dev'
 const SHELL_ASSETS = ['/icon.svg', '/icon-192.png', '/icon-512.png', '/offline.html']
 
 // install: cache static shell assets ONLY (no index.html — see fetch handler)
