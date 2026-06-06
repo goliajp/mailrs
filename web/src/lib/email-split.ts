@@ -4,24 +4,37 @@ export type EmailParts = {
   signature: null | string
 }
 
+type SplitResult = { isHtml: boolean; parts: EmailParts }
+
 // detect "On ... wrote:" attribution line
 const ATTRIBUTION_RE = /^.{0,200}\bwrote:\s*$/
 
 // detect Outlook-style original message separator
 const OUTLOOK_SEP_RE = /^-{4,}\s*Original Message\s*-{4,}$/i
 
-export function splitEmail(
-  textBody: null | string,
-  htmlBody: null | string
-): { isHtml: boolean; parts: EmailParts } {
+// Module-level LRU. `splitHtmlEmail` constructs a fresh DOMParser document
+// and walks it for signature / quoted-block selectors — for newsletter-sized
+// bodies that's 50-200 ms per call. MessageBubble's useMemo is component-
+// scoped, so unmounting (every thread switch) threw away the memoization.
+// Keying on the raw body identity here makes thread-switch-back free.
+// The cache map is declared here next to the type it stores; the get/put
+// helpers it backs are defined below the public `splitEmail` to satisfy
+// module-export ordering rules.
+const MAX_CACHE_ENTRIES = 100
+const splitCache = new Map<string, SplitResult>()
+
+export function splitEmail(textBody: null | string, htmlBody: null | string): SplitResult {
+  const cacheKey = htmlBody ? `h:${htmlBody}` : `t:${textBody ?? ''}`
+  const cached = cacheGet(cacheKey)
+  if (cached) return cached
+  let result: SplitResult
   try {
-    if (htmlBody) {
-      return { isHtml: true, parts: splitHtmlEmail(htmlBody) }
-    }
-    return { isHtml: false, parts: splitTextEmail(textBody ?? '') }
+    result = htmlBody
+      ? { isHtml: true, parts: splitHtmlEmail(htmlBody) }
+      : { isHtml: false, parts: splitTextEmail(textBody ?? '') }
   } catch {
     // fallback: return as-is
-    return {
+    result = {
       isHtml: !!htmlBody,
       parts: {
         body: htmlBody ?? textBody ?? '',
@@ -30,6 +43,8 @@ export function splitEmail(
       },
     }
   }
+  cachePut(cacheKey, result)
+  return result
 }
 
 export function splitHtmlEmail(html: string): EmailParts {
@@ -223,4 +238,22 @@ export function splitTextEmail(text: string): EmailParts {
   const body = bodyLines.join('\n').trimEnd()
 
   return { body, quoted, signature }
+}
+
+function cacheGet(key: string): SplitResult | undefined {
+  const hit = splitCache.get(key)
+  if (hit === undefined) return undefined
+  // refresh recency
+  splitCache.delete(key)
+  splitCache.set(key, hit)
+  return hit
+}
+
+function cachePut(key: string, value: SplitResult): void {
+  splitCache.set(key, value)
+  while (splitCache.size > MAX_CACHE_ENTRIES) {
+    const oldest = splitCache.keys().next().value
+    if (oldest === undefined) break
+    splitCache.delete(oldest)
+  }
 }
