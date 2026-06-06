@@ -111,6 +111,16 @@ mod kevy_impl {
 
         /// Look up the triplet `key`, update its first-seen entry as needed,
         /// and return the resulting [`GreylistDecision`].
+        ///
+        /// Read order: kevy (hot, sub-ms) → PG (cold backup, ~5 ms RTT).
+        /// On kevy miss with a PG pool attached we cold-load the
+        /// `first_seen` value from PG and warm the kevy entry, so a single
+        /// PG read suffices to bring a triplet back to hot. This is the
+        /// post-INC-2026-06-03 warmup path: when kevy AOF was reset every
+        /// genuine known sender was hitting "first seen → Defer" and the
+        /// system was 451-deferring everyone for ~5 minutes. With cold
+        /// load any sender ever recorded in `greylist_triplets` is
+        /// indistinguishable from a hot-cached one after one query.
         pub async fn check(
             &self,
             key: &str,
@@ -120,18 +130,50 @@ mod kevy_impl {
             let vk_key = format!("gl:{key}");
             let ttl = Duration::from_secs(config.pass_ttl_secs);
 
-            let first_seen: Option<u64> = self
+            // 1) hot path — read from kevy
+            let mut first_seen: Option<u64> = self
                 .kevy
                 .get(vk_key.as_bytes())
                 .ok()
                 .flatten()
                 .and_then(|bytes| std::str::from_utf8(&bytes).ok()?.parse().ok());
 
+            // 2) kevy miss + PG configured → cold-load from PG and warm kevy.
+            //    This is best-effort: PG read failures fall through to
+            //    `first_seen = None` (the genuine new-sender path), which
+            //    matches pre-warmup behaviour — never worse than before.
+            if first_seen.is_none()
+                && let Some(ref pool) = self.pg
+            {
+                let row: Option<(i64, i64)> = sqlx::query_as(
+                    "SELECT first_seen, last_seen FROM greylist_triplets WHERE triplet = $1",
+                )
+                .bind(key)
+                .fetch_optional(pool)
+                .await
+                .ok()
+                .flatten();
+                if let Some((fs, _ls)) = row {
+                    let fs_u64 = fs.max(0) as u64;
+                    first_seen = Some(fs_u64);
+                    // warm kevy so subsequent checks skip the PG round-trip.
+                    // value is the historical first_seen, not `now`, so the
+                    // delay window is computed correctly even right after
+                    // warmup.
+                    let warm_value = fs_u64.to_string();
+                    let _ = self.kevy.set_with_ttl(
+                        vk_key.as_bytes(),
+                        warm_value.as_bytes(),
+                        ttl,
+                    );
+                }
+            }
+
             let decision = evaluate_triplet(first_seen, now, config);
 
             match decision {
                 GreylistDecision::Defer => {
-                    // first time — set with TTL = pass_ttl
+                    // first time anywhere — set with TTL = pass_ttl
                     let value = now.to_string();
                     let _ = self.kevy.set_with_ttl(vk_key.as_bytes(), value.as_bytes(), ttl);
                 }
