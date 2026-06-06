@@ -54,7 +54,7 @@ export function useArchiveMutation() {
       )
       return { snapshots }
     },
-    onSettled: (_d, _e, { threadId }) => invalidateMail(threadId),
+    onSettled: () => invalidateMail(),
   })
 }
 
@@ -127,7 +127,7 @@ export function useMarkReadMutation() {
       )
       return { snapshots }
     },
-    onSettled: (_d, _e, { threadId }) => invalidateMail(threadId),
+    onSettled: () => invalidateMail(),
   })
 }
 
@@ -147,7 +147,7 @@ export function useMarkUnreadMutation() {
       )
       return { snapshots }
     },
-    onSettled: (_d, _e, { threadId }) => invalidateMail(threadId),
+    onSettled: () => invalidateMail(),
   })
 }
 
@@ -165,7 +165,7 @@ export function usePinMutation() {
       )
       return { snapshots }
     },
-    onSettled: (_d, _e, { threadId }) => invalidateMail(threadId),
+    onSettled: () => invalidateMail(),
   })
 }
 
@@ -200,7 +200,7 @@ export function useStarMutation() {
       )
       return { snapshots }
     },
-    onSettled: (_d, _e, { threadId }) => invalidateMail(threadId),
+    onSettled: () => invalidateMail(),
   })
 }
 
@@ -220,7 +220,7 @@ export function useUnarchiveMutation() {
       )
       return { snapshots }
     },
-    onSettled: (_d, _e, { threadId }) => invalidateMail(threadId),
+    onSettled: () => invalidateMail(),
   })
 }
 
@@ -238,7 +238,7 @@ export function useUnpinMutation() {
       )
       return { snapshots }
     },
-    onSettled: (_d, _e, { threadId }) => invalidateMail(threadId),
+    onSettled: () => invalidateMail(),
   })
 }
 
@@ -265,7 +265,7 @@ export function useUnstarMutation() {
       )
       return { snapshots }
     },
-    onSettled: (_d, _e, { threadId }) => invalidateMail(threadId),
+    onSettled: () => invalidateMail(),
   })
 }
 
@@ -277,13 +277,22 @@ async function cancelConversationFetches() {
 
 // ---- batch operations ----
 
-function invalidateMail(threadId?: null | string) {
+// Invalidates ONLY list-shape queries — never the thread query.
+//
+// Read/unread/star/pin/archive/etc. don't change the message content of a
+// thread; the thread's html_body / text_body / attachments / message
+// metadata are identical pre- and post-mutation. Invalidating the thread
+// query forced a refetch that returned byte-identical data, which then
+// fed the HtmlFrame `srcDoc` through DOMPurify + proxyExternalUrls +
+// injectCjkFonts + stripTrackingPixels a second time (50-300ms each
+// iteration on newsletter bodies) and made every mark-as-read feel like
+// the email was reloading. Thread cache invalidation lives in
+// `use-mail-events.ts` (NewMessage WebSocket event) where the thread
+// content actually does change.
+function invalidateMail() {
   queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
-  if (threadId) {
-    queryClient.invalidateQueries({ queryKey: mailKeys.thread(threadId) }).catch(() => {})
-  }
 }
 
 function patchConversations(

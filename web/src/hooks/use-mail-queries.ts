@@ -59,10 +59,16 @@ export function useThreadQuery(threadId: null | string, domains: string[]) {
       const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
       return fetchJson<ThreadMessage[]>(`/conversations/${encodeURIComponent(threadId ?? '')}${q}`)
     },
-    // threads change less often than the list; longer fresh window cuts
-    // chatter when user clicks between the same few threads repeatedly.
+    // Thread content is mutation-invariant from the client's point of view —
+    // mark-read / star / pin / archive all act on list-shape flags only, not
+    // on the message body / attachments / headers. The only thing that can
+    // change a thread's content is an inbound message landing on that thread,
+    // and that flows through the NewMessage WebSocket event in
+    // use-mail-events.ts which explicitly invalidates this query.
+    // staleTime: Infinity here means clicking back to a previously-opened
+    // thread renders instantly from cache, no refetch, no spinner.
     queryKey: mailKeys.thread(threadId),
-    staleTime: 5 * 60 * 1000,
+    staleTime: Infinity,
   })
 }
 

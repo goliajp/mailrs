@@ -93,6 +93,21 @@ emailPurifier.addHook('afterSanitizeAttributes', (node) => {
   }
 })
 
+// Sanitize is the hot path that made every thread switch feel 200-300 ms
+// slower than it should: DOMPurify + 3 regex transforms run on every mount.
+// React's useMemo cache is component-scoped — unmounting the MessageBubble
+// (which happens on every thread switch) throws away the memoized result,
+// so revisiting a thread re-paid the full sanitize cost. The LRU is
+// declared here next to the DOMPurify instance it depends on; the
+// `cachedSanitize` function it backs is defined below `HtmlFrame` to
+// satisfy module-export ordering rules.
+//
+// Memory budget: MAX_CACHE_ENTRIES × ~2× the raw html length (raw key + sanitized
+// value, both retained). 50 × ~80 KB = ~4 MB worst case for newsletter bodies,
+// which is cheaper than re-running sanitize on every thread switch.
+const MAX_CACHE_ENTRIES = 50
+const sanitizeCache = new Map<string, string>()
+
 // render html email inside a sandboxed iframe for full css isolation.
 // CSS containment + isolation on the wrapper guarantee the email's layout
 // can never bleed into the surrounding app. wide content is fitted via
@@ -110,11 +125,12 @@ export function HtmlFrame({ html, maxHeight }: { html: string; maxHeight?: strin
   // Defer html so clicking a new thread commits the iframe shell at
   // user-input priority and the heavy sanitize + regex passes
   // (DOMPurify + proxyExternalUrls + injectCjkFonts + stripTrackingPixels,
-  // 50-300ms on newsletter bodies) run at transition priority in a
-  // later frame, instead of freezing the click commit.
+  // 50-300ms on newsletter bodies on the first paint per unique body)
+  // run at transition priority in a later frame. Repeat renders of the
+  // same body hit the module-level LRU and skip the heavy pass entirely.
   const deferredHtml = useDeferredValue(html)
   const srcdoc = useMemo(() => {
-    const sanitized = sanitizeEmail(deferredHtml)
+    const sanitized = cachedSanitize(deferredHtml)
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer">
 <style>
@@ -211,6 +227,24 @@ export function HtmlFrame({ html, maxHeight }: { html: string; maxHeight?: strin
       />
     </div>
   )
+}
+
+function cachedSanitize(html: string): string {
+  const hit = sanitizeCache.get(html)
+  if (hit !== undefined) {
+    // refresh recency: re-insert so LRU eviction skips us
+    sanitizeCache.delete(html)
+    sanitizeCache.set(html, hit)
+    return hit
+  }
+  const sanitized = sanitizeEmail(html)
+  sanitizeCache.set(html, sanitized)
+  while (sanitizeCache.size > MAX_CACHE_ENTRIES) {
+    const oldest = sanitizeCache.keys().next().value
+    if (oldest === undefined) break
+    sanitizeCache.delete(oldest)
+  }
+  return sanitized
 }
 
 function sanitizeEmail(html: string): string {
