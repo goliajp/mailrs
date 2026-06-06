@@ -17,7 +17,9 @@ set -euo pipefail
 
 OUT="${1:-/tmp/prod-data.sql}"
 SSH_HOST="${SSH_HOST:-root@t02.golia.jp}"
+SSH_KEY="${SSH_KEY:-$HOME/keys/aws.pem}"
 REMOTE_DIR="${REMOTE_DIR:-/apps/mailrs}"
+SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no"
 
 # pg_dump flags:
 #   --data-only            : schema is owned by init-schema + migrate-*.sql; don't dump it
@@ -27,7 +29,7 @@ REMOTE_DIR="${REMOTE_DIR:-/apps/mailrs}"
 PG_DUMP_FLAGS="--data-only --inserts --on-conflict-do-nothing --no-owner --no-privileges"
 
 echo "==> pulling fresh pg_dump from $SSH_HOST"
-ssh "$SSH_HOST" "cd $REMOTE_DIR && docker compose exec -T postgres \
+ssh $SSH_OPTS "$SSH_HOST" "cd $REMOTE_DIR && docker compose exec -T postgres \
   pg_dump -U mailrs -d mailrs $PG_DUMP_FLAGS" > "$OUT"
 
 bytes=$(wc -c < "$OUT")
