@@ -1,8 +1,32 @@
+import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
+
+function swCacheBump(): Plugin {
+  return {
+    name: 'sw-cache-bump',
+    apply: 'build',
+    closeBundle() {
+      const pkg = JSON.parse(
+        readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf-8'),
+      ) as { version: string }
+      const swPath = resolve(import.meta.dirname, 'dist/sw.js')
+      const src = readFileSync(swPath, 'utf-8')
+      const next = src.replace(
+        /const CACHE_NAME = '[^']*'/,
+        `const CACHE_NAME = 'mailrs-v${pkg.version}'`,
+      )
+      if (next === src) {
+        throw new Error('sw-cache-bump: CACHE_NAME line not found in dist/sw.js')
+      }
+      writeFileSync(swPath, next)
+    },
+  }
+}
 
 export default defineConfig({
   test: {
@@ -42,7 +66,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), swCacheBump()],
   resolve: {
     alias: { '@': resolve(import.meta.dirname, 'src') },
   },
