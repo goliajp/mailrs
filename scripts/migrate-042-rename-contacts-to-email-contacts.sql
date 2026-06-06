@@ -17,29 +17,63 @@
 --     engine: rename the legacy table to `email_contacts`, then materialise
 --     the CardDAV `contacts` properly.
 --
--- Idempotent: detects the legacy shape (user_address column) before doing
--- anything. Re-running on an already-converted database is a no-op.
+-- The first v1.7.106 version of this migration assumed `email_contacts`
+-- would not already exist on prod-upgrade. That was wrong: deploy.sh runs
+-- migrate-009 (now also using the new `email_contacts` name) BEFORE
+-- migrate-042, so by the time we get here `email_contacts` exists as an
+-- empty side-effect table. We detect and drop that empty side-effect
+-- before renaming.
+--
+-- Idempotent across both paths:
+--   * fresh build  : contacts is CardDAV-shaped (or absent), skip the rename
+--   * legacy prod  : contacts is email-stats-shaped (user_address column);
+--                    email_contacts might exist as an empty side-effect
+--                    from migrate-009 — drop it (with safety check), then
+--                    rename and let CardDAV contacts get materialised below
+--   * re-run       : everything already done — both branches no-op
 
 DO $$
+DECLARE
+    has_user_address BOOLEAN;
+    ec_exists BOOLEAN;
+    ec_rows BIGINT := 0;
 BEGIN
-    IF EXISTS (
+    SELECT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'contacts'
           AND column_name = 'user_address'
-    ) AND NOT EXISTS (
-        SELECT 1 FROM information_schema.tables
-        WHERE table_name = 'email_contacts'
-    ) THEN
-        ALTER TABLE contacts RENAME TO email_contacts;
-        ALTER INDEX IF EXISTS idx_contacts_user_score RENAME TO idx_email_contacts_user_score;
-        ALTER INDEX IF EXISTS idx_contacts_user_email RENAME TO idx_email_contacts_user_email;
+    ) INTO has_user_address;
+
+    IF NOT has_user_address THEN
+        -- contacts is already CardDAV-shaped (or absent). Nothing to do
+        -- in this branch — the CREATE TABLE IF NOT EXISTS below covers
+        -- the absent case.
+        RETURN;
     END IF;
+
+    -- legacy prod path. May have a side-effect empty email_contacts from
+    -- the new migrate-009 having run earlier in this same deploy.
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'email_contacts'
+    ) INTO ec_exists;
+
+    IF ec_exists THEN
+        SELECT count(*) INTO ec_rows FROM email_contacts;
+        IF ec_rows <> 0 THEN
+            RAISE EXCEPTION 'migrate-042: email_contacts already has % rows alongside legacy contacts; refusing to clobber. Manual rescue required.', ec_rows;
+        END IF;
+        DROP TABLE email_contacts;
+    END IF;
+
+    ALTER TABLE contacts RENAME TO email_contacts;
+    ALTER INDEX IF EXISTS idx_contacts_user_score RENAME TO idx_email_contacts_user_score;
+    ALTER INDEX IF EXISTS idx_contacts_user_email RENAME TO idx_email_contacts_user_email;
 END $$;
 
--- Now `contacts` is free; build the CardDAV table mirroring migrate-023's
--- definition. CREATE TABLE IF NOT EXISTS so re-runs are safe and a
--- previously-correctly-built CardDAV contacts (e.g. fresh SPG via
--- init-schema-spg.sql) is left alone.
+-- Now `contacts` is free (or already CardDAV); build the CardDAV table
+-- mirroring migrate-023's definition. CREATE TABLE IF NOT EXISTS so re-runs
+-- are safe and a previously-correctly-built CardDAV contacts (e.g. fresh
+-- SPG via init-schema-spg.sql) is left alone.
 CREATE TABLE IF NOT EXISTS contacts (
     id BIGSERIAL PRIMARY KEY,
     address_book_id BIGINT NOT NULL REFERENCES address_books(id) ON DELETE CASCADE,
