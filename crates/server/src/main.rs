@@ -31,6 +31,7 @@ mod reputation;
 mod search_index;
 
 mod bootstrap;
+mod greylist_backfill;
 mod kevy_store;
 mod mcp;
 mod oidc_jwt;
@@ -181,21 +182,42 @@ async fn main() {
         mailrs_shield::ptr::check_ptr_record(r, &cfg.hostname).await;
     }
 
-    // greylisting (in-process kevy primary + PG cold backup)
-    let greylist_db = kevy_embedded_store.as_ref().map(|store| {
-        let db = GreylistDb::new(store.as_ref().clone());
-        let db = if let Some(ref pool) = pg_pool {
-            db.with_pg(pool.clone())
-        } else {
-            db
-        };
-        Arc::new(db)
-    });
-
+    // greylisting (in-process kevy only; kevy AOF is durable).
+    //
+    // Until v1.7.108 we wired GreylistDb.with_pg(pool) so every hot-path
+    // check mirrored to the PG `greylist_triplets` table — a belt-and-
+    // suspenders durability hedge from the pre-AOF era. kevy-embedded
+    // 1.1.6 ships forward-compat AOF persistence, so the mirror is no
+    // longer earning its cost (one PG INSERT per inbound check is
+    // measurable at SMTP-peak load).
+    //
+    // We still want the historical reputation in PG — months of
+    // legitimate-sender first_seen timestamps — so on startup we
+    // backfill the table into kevy once (idempotent via a sentinel
+    // key). After that the hot path is pure kevy and the PG table
+    // is read-only / archival.
     let greylist_config = GreylistConfig {
         initial_delay_secs: cfg.greylist_delay_secs,
         ..Default::default()
     };
+
+    if let (Some(store), Some(pool)) = (kevy_embedded_store.as_ref(), pg_pool.as_ref()) {
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        greylist_backfill::backfill_from_pg_best_effort(
+            pool,
+            store.as_ref(),
+            greylist_config.pass_ttl_secs,
+            now_secs,
+        )
+        .await;
+    }
+
+    let greylist_db = kevy_embedded_store
+        .as_ref()
+        .map(|store| Arc::new(GreylistDb::new(store.as_ref().clone())));
 
     let auth_guard = init_auth_guard(&cfg);
 
