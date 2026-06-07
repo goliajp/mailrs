@@ -4,8 +4,8 @@ import { useState } from 'react'
 
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
+import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
-import { queryClient } from '@/lib/query-client'
 import { adminKeys } from '@/lib/query-keys'
 
 type ApiResult = {
@@ -39,11 +39,11 @@ type CreatedKey = {
 export function AdminApps() {
   const { data: apps = [] } = useQuery({
     queryKey: adminKeys.apps(),
-    queryFn: () => fetchJson<AppInfo[]>('/admin/apps'),
+    queryFn: ({ signal }) => fetchJson<AppInfo[]>('/admin/apps', signal),
   })
   const { data: permissions = [] } = useQuery({
     queryKey: adminKeys.permissions(),
-    queryFn: () => fetchJson<string[]>('/admin/permissions'),
+    queryFn: ({ signal }) => fetchJson<string[]>('/admin/permissions', signal),
   })
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ description: '', name: '' })
@@ -52,55 +52,57 @@ export function AdminApps() {
   const [deleteTarget, setDeleteTarget] = useState<null | string>(null)
   const [expandedAppId, setExpandedAppId] = useState<null | string>(null)
   const [editScopes, setEditScopes] = useState<Set<string>>(new Set())
-  const [savingScopes, setSavingScopes] = useState(false)
 
-  const invalidateApps = () => queryClient.invalidateQueries({ queryKey: adminKeys.apps() })
+  const addApp = useAdminMutation({
+    invalidateKey: adminKeys.apps(),
+    mutationFn: (vars: { description: string; name: string; scopes: string }) =>
+      postJson<CreateAppResponse>('/admin/apps', vars),
+    successMsg: (vars) => `App "${vars.name}" created`,
+  })
 
-  const handleAdd = async () => {
+  const deleteApp = useAdminMutation({
+    invalidateKey: adminKeys.apps(),
+    successMsg: 'App deleted',
+    mutationFn: (appId: string) => deleteJson<ApiResult>(`/admin/apps/${appId}`),
+  })
+
+  const saveScopes = useAdminMutation({
+    invalidateKey: adminKeys.apps(),
+    successMsg: 'Scopes updated',
+    mutationFn: (vars: { appId: string; scopes: string }) =>
+      putJson<ApiResult>(`/admin/apps/${vars.appId}/scopes`, { scopes: vars.scopes }),
+  })
+
+  const savingScopes = saveScopes.isPending
+
+  const handleAdd = () => {
     if (!form.name.trim()) return
-    try {
-      const result = await postJson<CreateAppResponse>('/admin/apps', {
+    addApp.mutate(
+      {
         description: form.description.trim(),
         name: form.name.trim(),
         scopes: Array.from(selectedScopes).join(','),
-      })
-      toast.success(`App "${form.name.trim()}" created`)
-      setCreatedKey(result.api_key)
-      setForm({ description: '', name: '' })
-      setSelectedScopes(new Set())
-      setAdding(false)
-      invalidateApps()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to create app')
-    }
+      },
+      {
+        onSuccess: (result) => {
+          setCreatedKey(result.api_key)
+          setForm({ description: '', name: '' })
+          setSelectedScopes(new Set())
+          setAdding(false)
+        },
+      }
+    )
   }
 
-  const handleDelete = async (appId: string) => {
-    try {
-      await deleteJson<ApiResult>(`/admin/apps/${appId}`)
-      toast.success('App deleted')
-      setDeleteTarget(null)
-      invalidateApps()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete app')
-      setDeleteTarget(null)
-    }
+  const handleDelete = (appId: string) => {
+    deleteApp.mutate(appId, { onSettled: () => setDeleteTarget(null) })
   }
 
-  const handleSaveScopes = async (appId: string) => {
-    setSavingScopes(true)
-    try {
-      await putJson<ApiResult>(`/admin/apps/${appId}/scopes`, {
-        scopes: Array.from(editScopes).join(','),
-      })
-      toast.success('Scopes updated')
-      setExpandedAppId(null)
-      invalidateApps()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update scopes')
-    } finally {
-      setSavingScopes(false)
-    }
+  const handleSaveScopes = (appId: string) => {
+    saveScopes.mutate(
+      { appId, scopes: Array.from(editScopes).join(',') },
+      { onSuccess: () => setExpandedAppId(null) }
+    )
   }
 
   const toggleScope = (scope: string, set: Set<string>, setter: (s: Set<string>) => void) => {

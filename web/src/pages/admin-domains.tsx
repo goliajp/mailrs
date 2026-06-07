@@ -1,6 +1,5 @@
 import type { DomainCheckReport, DomainInfo } from '@/lib/types'
 
-import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { Fragment, useState } from 'react'
 
@@ -8,14 +7,14 @@ import { Copyable } from '@/components/copy-button'
 import { DomainHealthCard } from '@/components/domain-health-card'
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
+import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
-import { queryClient } from '@/lib/query-client'
 import { adminKeys } from '@/lib/query-keys'
 
 export function AdminDomains() {
   const { data: domains = [] } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: () => fetchJson<DomainInfo[]>('/admin/domains'),
+    queryFn: ({ signal }) => fetchJson<DomainInfo[]>('/admin/domains', signal),
   })
   const [adding, setAdding] = useState(false)
   const [newDomain, setNewDomain] = useState('')
@@ -23,31 +22,33 @@ export function AdminDomains() {
   const [deleteTarget, setDeleteTarget] = useState<null | string>(null)
   const [reports, setReports] = useState<Record<string, DomainCheckReport>>({})
 
-  const invalidateDomains = () => queryClient.invalidateQueries({ queryKey: adminKeys.domains() })
+  const addDomain = useAdminMutation({
+    invalidateKey: adminKeys.domains(),
+    mutationFn: (name: string) => postJson('/admin/domains', { name }),
+    successMsg: (name) => `Domain "${name}" added`,
+  })
 
-  const handleAdd = async () => {
-    if (!newDomain.trim()) return
-    try {
-      await postJson('/admin/domains', { name: newDomain.trim() })
-      toast.success(`Domain "${newDomain.trim()}" added`)
-      setNewDomain('')
-      setAdding(false)
-      invalidateDomains()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to add domain')
-    }
+  const deleteDomain = useAdminMutation({
+    invalidateKey: adminKeys.domains(),
+    mutationFn: (name: string) => deleteJson(`/admin/domains/${encodeURIComponent(name)}`),
+    successMsg: (name) => `Domain "${name}" removed`,
+  })
+
+  const handleAdd = () => {
+    const name = newDomain.trim()
+    if (!name) return
+    addDomain.mutate(name, {
+      onSuccess: () => {
+        setNewDomain('')
+        setAdding(false)
+      },
+    })
   }
 
-  const handleDelete = async (name: string) => {
-    try {
-      await deleteJson(`/admin/domains/${encodeURIComponent(name)}`)
-      toast.success(`Domain "${name}" removed`)
-      setDeleteTarget(null)
-      invalidateDomains()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to remove domain')
-      setDeleteTarget(null)
-    }
+  const handleDelete = (name: string) => {
+    deleteDomain.mutate(name, {
+      onSettled: () => setDeleteTarget(null),
+    })
   }
 
   const handleCheck = async (name: string) => {

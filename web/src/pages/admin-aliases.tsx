@@ -1,68 +1,68 @@
 import type { AliasInfo, DomainInfo } from '@/lib/types'
 
-import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
+import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
-import { queryClient } from '@/lib/query-client'
 import { adminKeys } from '@/lib/query-keys'
+
+const EMPTY_FORM = {
+  alias_type: 'alias',
+  domain: '',
+  source_address: '',
+  target_address: '',
+}
+
+type AliasForm = typeof EMPTY_FORM
 
 export function AdminAliases() {
   const { data: aliases = [] } = useQuery({
     queryKey: adminKeys.aliases(),
-    queryFn: () => fetchJson<AliasInfo[]>('/admin/aliases'),
+    queryFn: ({ signal }) => fetchJson<AliasInfo[]>('/admin/aliases', signal),
   })
   const { data: domains = [] } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: () => fetchJson<DomainInfo[]>('/admin/domains'),
+    queryFn: ({ signal }) => fetchJson<DomainInfo[]>('/admin/domains', signal),
   })
   const [adding, setAdding] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
-  const [form, setForm] = useState({
-    alias_type: 'alias',
-    domain: '',
-    source_address: '',
-    target_address: '',
+  const [form, setForm] = useState<AliasForm>(EMPTY_FORM)
+
+  const addAlias = useAdminMutation({
+    invalidateKey: adminKeys.aliases(),
+    mutationFn: (f: AliasForm) =>
+      postJson('/admin/aliases', {
+        alias_type: f.alias_type,
+        domain: f.domain,
+        source_address: f.source_address.trim(),
+        target_address: f.target_address.trim(),
+      }),
+    successMsg: (f) => `Alias "${f.source_address.trim()}" added`,
   })
 
-  const invalidateAliases = () => queryClient.invalidateQueries({ queryKey: adminKeys.aliases() })
+  const deleteAlias = useAdminMutation({
+    invalidateKey: adminKeys.aliases(),
+    successMsg: 'Alias removed',
+    mutationFn: (id: number) => deleteJson(`/admin/aliases/${id}`),
+  })
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!form.source_address.trim() || !form.target_address.trim() || !form.domain) return
-    try {
-      await postJson('/admin/aliases', {
-        alias_type: form.alias_type,
-        domain: form.domain,
-        source_address: form.source_address.trim(),
-        target_address: form.target_address.trim(),
-      })
-      toast.success(`Alias "${form.source_address.trim()}" added`)
-      setForm({
-        alias_type: 'alias',
-        domain: '',
-        source_address: '',
-        target_address: '',
-      })
-      setAdding(false)
-      invalidateAliases()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to add alias')
-    }
+    addAlias.mutate(form, {
+      onSuccess: () => {
+        setForm(EMPTY_FORM)
+        setAdding(false)
+      },
+    })
   }
 
-  const handleDelete = async (id: number) => {
-    try {
-      await deleteJson(`/admin/aliases/${id}`)
-      toast.success('Alias removed')
-      setDeleteTarget(null)
-      invalidateAliases()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to remove alias')
-      setDeleteTarget(null)
-    }
+  const handleDelete = (id: number) => {
+    deleteAlias.mutate(id, {
+      onSettled: () => setDeleteTarget(null),
+    })
   }
 
   return (
