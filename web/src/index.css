@@ -34,6 +34,34 @@ body {
   background: var(--gds-bg);
   color: var(--gds-fg);
   overscroll-behavior: contain;
+  /* Kill the grey flash when tapping anything on iOS / Android Chromium;
+     we replace it with active: states on the elements that actually need
+     a tap affordance. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Tap targets get the fast-tap pathway. Browsers technically default to
+   this since the 300ms-delay era ended but stating it explicitly keeps
+   weird embedded WebViews honest. */
+button,
+[role='button'],
+a {
+  touch-action: manipulation;
+}
+
+/* iOS Safari zooms the viewport when focus lands on an input whose
+   computed font-size is below 16px. Our chrome uses text-sm (14px)
+   pervasively for density; on phones, bump just the focusable input
+   surfaces back to 16px so the keyboard appearing doesn't yank the layout
+   in 8% wider. Desktop UI density is preserved.
+   Inputs that opt-out explicitly (e.g. inline cells) can use the
+   `no-mobile-zoom-fix` class. */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not(.no-mobile-zoom-fix),
+  select:not(.no-mobile-zoom-fix),
+  textarea:not(.no-mobile-zoom-fix) {
+    font-size: 16px;
+  }
 }
 
 ::-webkit-scrollbar {

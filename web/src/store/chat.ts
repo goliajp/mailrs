@@ -46,6 +46,13 @@ export const importanceSectionAtom = atom<ImportanceSection>(null)
 export type QuickFilter = 'all' | 'attachment' | 'starred' | 'unread'
 export const quickFilterAtom = atom<QuickFilter>('all')
 
+// Threads marked-as-read while the user is sitting on the 'unread' filter.
+// They stay visible in the list until the user leaves the unread filter (or
+// the chat unmounts), so context isn't yanked out from under them. Gmail
+// behaviour. The set is intentionally local to the running session — never
+// persisted, never synced to other tabs.
+export const stickyUnreadIdsAtom = atom<Set<string>>(new Set<string>())
+
 // keyboard shortcuts dialog
 export const shortcutsDialogOpenAtom = atom(false)
 

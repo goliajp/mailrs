@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react'
 import { playNotificationSound } from '@/lib/notification-sound'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
+import { getNotificationSupport, safeStorage } from '@/lib/safe-storage'
 import { connectionStatusAtom, selectedThreadIdAtom } from '@/store/chat'
 import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 
@@ -80,7 +81,7 @@ export function useMailEvents(user: string) {
       if (pingTimer.current) clearInterval(pingTimer.current)
 
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const token = localStorage.getItem('mailrs_auth')
+      const token = safeStorage.getItem('mailrs_auth')
       const parsed = token ? JSON.parse(token) : null
       const tokenParam = parsed?.token ? `?token=${encodeURIComponent(parsed.token)}` : ''
       const ws = new WebSocket(`${proto}//${location.host}/api/events${tokenParam}`)
@@ -127,15 +128,15 @@ export function useMailEvents(user: string) {
 
               if (notificationsRef.current) {
                 if (soundRef.current) playNotificationSound()
-                if (
-                  typeof Notification !== 'undefined' &&
-                  Notification.permission === 'granted' &&
-                  document.hidden
-                ) {
-                  new Notification(msg.sender, {
-                    body: msg.subject || msg.snippet,
-                    tag: msg.thread_id,
-                  })
+                if (getNotificationSupport() === 'granted' && document.hidden) {
+                  try {
+                    new Notification(msg.sender, {
+                      body: msg.subject || msg.snippet,
+                      tag: msg.thread_id,
+                    })
+                  } catch {
+                    // some sandboxed contexts allow permission but throw on construction
+                  }
                 }
               }
             }

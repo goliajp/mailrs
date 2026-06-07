@@ -11,7 +11,7 @@ import {
 } from '@goliapkg/gds'
 import { useAtomValue } from 'jotai'
 import { getDefaultStore } from 'jotai'
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 
 import { AppSidebar } from '@/components/app-sidebar'
@@ -20,19 +20,29 @@ import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { MobileShell } from '@/components/mobile-shell'
 import { MPane } from '@/layouts/pane'
+import { lazyWithReload } from '@/lib/lazy'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 import { authAtom } from '@/store/auth'
 import { connectionStatusAtom, unreadCountAtom } from '@/store/chat'
 
 // every authenticated page is lazy so the entry chunk is just the shell +
-// auth gate. cuts cold-load JS preload by ~875 KB on /login (perfs/topic-03).
-const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
-const Chat = lazy(() => import('@/pages/chat').then((m) => ({ default: m.Chat })))
-const Dashboard = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.Dashboard })))
-const Playground = lazy(() => import('@/pages/playground').then((m) => ({ default: m.Playground })))
-const Protocol = lazy(() => import('@/pages/protocol').then((m) => ({ default: m.Protocol })))
-const Settings = lazy(() => import('@/pages/settings').then((m) => ({ default: m.Settings })))
+// auth gate. cuts cold-load JS preload by ~875 KB on /login.
+// lazyWithReload auto-reloads on stale-chunk failures from rapid deploys.
+const Admin = lazyWithReload(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
+const Chat = lazyWithReload(() => import('@/pages/chat').then((m) => ({ default: m.Chat })))
+const Dashboard = lazyWithReload(() =>
+  import('@/pages/dashboard').then((m) => ({ default: m.Dashboard }))
+)
+const Playground = lazyWithReload(() =>
+  import('@/pages/playground').then((m) => ({ default: m.Playground }))
+)
+const Protocol = lazyWithReload(() =>
+  import('@/pages/protocol').then((m) => ({ default: m.Protocol }))
+)
+const Settings = lazyWithReload(() =>
+  import('@/pages/settings').then((m) => ({ default: m.Settings }))
+)
 
 // apply zinc-neutral preset before first render — no effect race conditions
 initMailrsTheme()
@@ -52,9 +62,11 @@ export function App() {
         <Route element={<ResetPassword />} path="/reset-password" />
         <Route
           element={
-            <Suspense fallback={<LoadingFallback />}>
-              <Playground />
-            </Suspense>
+            <ErrorBoundary level="route">
+              <Suspense fallback={<LoadingFallback />}>
+                <Playground />
+              </Suspense>
+            </ErrorBoundary>
           }
           path="/playground"
         />
@@ -62,9 +74,11 @@ export function App() {
           element={
             <AuthShell>
               <PagePane>
-                <Suspense fallback={<LoadingFallback />}>
-                  <Protocol />
-                </Suspense>
+                <ErrorBoundary level="route">
+                  <Suspense fallback={<LoadingFallback />}>
+                    <Protocol />
+                  </Suspense>
+                </ErrorBoundary>
               </PagePane>
             </AuthShell>
           }
@@ -74,9 +88,11 @@ export function App() {
           element={
             <AuthShell>
               <PagePane>
-                <Suspense fallback={<LoadingFallback />}>
-                  <Admin />
-                </Suspense>
+                <ErrorBoundary level="route">
+                  <Suspense fallback={<LoadingFallback />}>
+                    <Admin />
+                  </Suspense>
+                </ErrorBoundary>
               </PagePane>
             </AuthShell>
           }
@@ -86,9 +102,11 @@ export function App() {
           element={
             <AuthShell>
               <PagePane>
-                <Suspense fallback={<LoadingFallback />}>
-                  <Settings />
-                </Suspense>
+                <ErrorBoundary level="route">
+                  <Suspense fallback={<LoadingFallback />}>
+                    <Settings />
+                  </Suspense>
+                </ErrorBoundary>
               </PagePane>
             </AuthShell>
           }
@@ -97,9 +115,11 @@ export function App() {
         <Route
           element={
             <AuthShell>
-              <Suspense fallback={<LoadingFallback />}>
-                <Chat />
-              </Suspense>
+              <ErrorBoundary level="route">
+                <Suspense fallback={<LoadingFallback />}>
+                  <Chat />
+                </Suspense>
+              </ErrorBoundary>
             </AuthShell>
           }
           path="/mail/*"
@@ -108,12 +128,14 @@ export function App() {
           element={
             <AuthShell>
               <PagePane>
-                {/* dashboard-shaped fallback during the lazy chunk fetch
-                    so the user doesn't see a generic spinner give way to
-                    a structured page — the shell stays the whole time */}
-                <Suspense fallback={<DashboardShellSkeleton />}>
-                  <Dashboard />
-                </Suspense>
+                <ErrorBoundary level="route">
+                  {/* dashboard-shaped fallback during the lazy chunk fetch
+                      so the user doesn't see a generic spinner give way to
+                      a structured page — the shell stays the whole time */}
+                  <Suspense fallback={<DashboardShellSkeleton />}>
+                    <Dashboard />
+                  </Suspense>
+                </ErrorBoundary>
               </PagePane>
             </AuthShell>
           }

@@ -206,14 +206,16 @@ describe('ReplyBox', () => {
     expect(sendButton).toBeDefined()
   })
 
-  it('renders add block button', () => {
+  it('renders add block button', async () => {
     render(
       <Wrapper store={store}>
         <ReplyBox {...defaultProps} />
       </Wrapper>
     )
 
-    expect(screen.getByText('Add block')).toBeDefined()
+    // StructuredCompose is lazy-loaded (TipTap bundle is 700 kB); wait for
+    // the Suspense fallback to resolve before asserting against its DOM.
+    expect(await screen.findByText('Add block')).toBeDefined()
   })
 
   it('highlights forward mode button when forward is active', () => {

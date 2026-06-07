@@ -59,6 +59,7 @@ import {
   showArchivedAtom,
   type SortOrder,
   sortOrderAtom,
+  stickyUnreadIdsAtom,
   visibleConversationIdsAtom,
 } from '@/store/chat'
 
@@ -856,6 +857,23 @@ export function ConversationList({
   const importanceSection = useAtomValue(importanceSectionAtom)
   const quickFilter = useAtomValue(quickFilterAtom)
   const folder = useAtomValue(folderAtom)
+  const [stickyUnread, setStickyUnread] = useAtom(stickyUnreadIdsAtom)
+
+  // Reset the "keep visible until next visit" set whenever the user
+  // navigates AWAY from the unread filter — the set was scoped to the
+  // current unread session. We also clear it on unmount via the cleanup
+  // returned below so leaving /mail entirely starts a fresh session.
+  useEffect(() => {
+    if (quickFilter !== 'unread' && stickyUnread.size > 0) {
+      setStickyUnread(new Set())
+    }
+  }, [quickFilter, stickyUnread, setStickyUnread])
+  useEffect(
+    () => () => {
+      setStickyUnread(new Set())
+    },
+    [setStickyUnread]
+  )
 
   // apply client-side filtering + sort
   const sortedConversations = useMemo(() => {
@@ -866,7 +884,11 @@ export function ConversationList({
 
     // quick filter
     if (quickFilter === 'unread') {
-      visible = visible.filter((c) => c.unread_count > 0)
+      // Gmail-style: a thread marked-read while the user is sitting on this
+      // filter stays visible until they leave the filter (the row should
+      // never just vanish under the cursor). stickyUnread is cleared by the
+      // useEffect above when quickFilter flips off 'unread'.
+      visible = visible.filter((c) => c.unread_count > 0 || stickyUnread.has(c.thread_id))
     } else if (quickFilter === 'starred') {
       visible = visible.filter((c) => c.flagged)
     }
@@ -894,7 +916,7 @@ export function ConversationList({
       unpinned.sort((a, b) => b.unread_count - a.unread_count || b.last_date - a.last_date)
     }
     return [...pinned, ...unpinned]
-  }, [conversations, sortOrder, showArchived, importanceSection, quickFilter])
+  }, [conversations, sortOrder, showArchived, importanceSection, quickFilter, stickyUnread])
 
   // sync visible conversation ids to store for keyboard nav. Compare order
   // before writing to avoid replacing the atom (and re-rendering every

@@ -1,13 +1,14 @@
 import type { AttachmentInfo } from '@/lib/types'
 
 import { File } from 'lucide-react'
-import { lazy, memo, Suspense, useCallback, useDeferredValue, useMemo, useState } from 'react'
+import { memo, Suspense, useCallback, useDeferredValue, useMemo, useState } from 'react'
 
 import { HtmlFrame } from '@/components/html-frame'
 import { MobileModal } from '@/components/mobile-modal'
 import { RenderPreview } from '@/components/render-preview'
 import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
+import { lazyWithReload as lazy } from '@/lib/lazy'
 import { getToken } from '@/store/auth'
 
 // react-markdown + remark-gfm + rehype-highlight together drag in roughly

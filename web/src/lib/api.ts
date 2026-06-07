@@ -1,3 +1,4 @@
+import { safeStorage } from '@/lib/safe-storage'
 import { getToken } from '@/store/auth'
 
 const API_BASE = '/api'
@@ -56,7 +57,7 @@ export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blo
     signal,
   })
   if (res.status === 401) {
-    localStorage.removeItem('mailrs_auth')
+    safeStorage.removeItem('mailrs_auth')
     window.location.href = '/login'
     throw new Error('unauthorized')
   }
@@ -163,7 +164,7 @@ function authHeaders(): Record<string, string> {
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
-    localStorage.removeItem('mailrs_auth')
+    safeStorage.removeItem('mailrs_auth')
     window.location.href = '/login'
     throw new Error('unauthorized')
   }

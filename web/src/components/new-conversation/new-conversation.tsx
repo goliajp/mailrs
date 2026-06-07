@@ -1,15 +1,16 @@
 import type { TemplateInfo } from './types'
+import type { StructuredComposeHandle } from '@/components/structured-compose'
 
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 
-import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
+import { lazyWithReload } from '@/lib/lazy'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { authAtom, getToken } from '@/store/auth'
@@ -18,6 +19,12 @@ import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
 import { ActionBar } from './action-bar'
 import { AddressFields } from './address-fields'
+
+// Defer TipTap until the user actually opens the composer. Saves ~700 kB
+// off the chat-list / dashboard chunk for users who never compose.
+const StructuredCompose = lazyWithReload(() =>
+  import('@/components/structured-compose').then((m) => ({ default: m.StructuredCompose }))
+)
 
 type PolishResult = { message?: string; polished?: string; success: boolean }
 type SendResult = { message?: string; message_id?: string; success: boolean }
@@ -285,28 +292,30 @@ export function NewConversation() {
 
       {/* block-based composer */}
       <div className="min-h-0 flex-1">
-        <StructuredCompose
-          disabled={sending}
-          mode={isReply ? 'reply' : 'new'}
-          onSubmit={send}
-          placeholder={isReply ? 'Type a reply...' : 'Write your message...'}
-          quotedHeader={
-            replySource
-              ? `On ${formatFullDate(replySource.internalDate)}, ${replySource.sender} wrote:\n\n`
-              : undefined
-          }
-          quotedHeaderHtml={
-            replySource
-              ? `<p style="color:#888">On ${escapeHtml(formatFullDate(replySource.internalDate))}, ${escapeHtml(replySource.sender)} wrote:</p>`
-              : undefined
-          }
-          quotedHtml={
-            replySource ? (replySource.htmlBody ?? replySource.textBody ?? undefined) : undefined
-          }
-          ref={composeRef}
-          signature={signature}
-          signatureEnabled={signatureEnabled}
-        />
+        <Suspense fallback={<ComposerSkeleton />}>
+          <StructuredCompose
+            disabled={sending}
+            mode={isReply ? 'reply' : 'new'}
+            onSubmit={send}
+            placeholder={isReply ? 'Type a reply...' : 'Write your message...'}
+            quotedHeader={
+              replySource
+                ? `On ${formatFullDate(replySource.internalDate)}, ${replySource.sender} wrote:\n\n`
+                : undefined
+            }
+            quotedHeaderHtml={
+              replySource
+                ? `<p style="color:#888">On ${escapeHtml(formatFullDate(replySource.internalDate))}, ${escapeHtml(replySource.sender)} wrote:</p>`
+                : undefined
+            }
+            quotedHtml={
+              replySource ? (replySource.htmlBody ?? replySource.textBody ?? undefined) : undefined
+            }
+            ref={composeRef}
+            signature={signature}
+            signatureEnabled={signatureEnabled}
+          />
+        </Suspense>
       </div>
 
       <ActionBar
@@ -326,6 +335,16 @@ export function NewConversation() {
         showSchedulePicker={showSchedulePicker}
         templates={templates}
       />
+    </div>
+  )
+}
+
+function ComposerSkeleton() {
+  return (
+    <div aria-busy="true" className="flex h-full flex-col gap-2 p-4">
+      <div className="bg-bg-secondary h-4 w-3/4 animate-pulse rounded" />
+      <div className="bg-bg-secondary h-4 w-1/2 animate-pulse rounded" />
+      <div className="bg-bg-secondary mt-2 h-24 w-full animate-pulse rounded" />
     </div>
   )
 }

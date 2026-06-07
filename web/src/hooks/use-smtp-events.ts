@@ -2,9 +2,11 @@ import type { ConnectionInfo, ConversationLine, ServerStatus, SmtpEvent } from '
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { safeStorage } from '@/lib/safe-storage'
+
 function getWsUrl() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const token = localStorage.getItem('mailrs_auth')
+  const token = safeStorage.getItem('mailrs_auth')
   const parsed = token ? JSON.parse(token) : null
   const tokenParam = parsed?.token ? `?token=${encodeURIComponent(parsed.token)}` : ''
   return `${proto}//${location.host}/api/events${tokenParam}`
