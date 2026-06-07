@@ -1,8 +1,17 @@
 import type { QueueEntry } from '@/lib/types'
 
+import { Button } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useMemo, useState } from 'react'
+import { Inbox } from 'lucide-react'
+import { useMemo } from 'react'
+import { useSearchParams } from 'react-router'
 
+import {
+  AdminEmptyState,
+  AdminErrorState,
+  AdminPageShell,
+  AdminTableSkeleton,
+} from '@/components/admin-page'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { fetchJson, postJson } from '@/lib/api'
@@ -25,30 +34,44 @@ const filterBaseStyle = 'rounded-md px-3 py-1 text-xs font-medium transition-col
 const filterActiveStyle = 'ring-2 ring-offset-1 ring-border ring-offset-bg'
 const filterAllStyle = 'bg-border text-fg-secondary'
 
+const HEADERS = ['From', 'To', 'Domain', 'Status', 'Attempts', 'Error', 'Actions']
+
 export function AdminQueues() {
-  const { data: queue = [], refetch } = useQuery({
+  const [searchParams, setSearchParams] = useSearchParams()
+  const statusFilter = parseStatus(searchParams.get('status'))
+  const currentPage = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
+
+  const setStatusFilter = (v: null | QueueStatus) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (v) next.set('status', v)
+      else next.delete('status')
+      next.delete('page')
+      return next
+    })
+  }
+
+  const setCurrentPage = (p: number) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (p === 1) next.delete('page')
+      else next.set('page', String(p))
+      return next
+    })
+  }
+
+  const { data, error, isFetching, isPending, refetch } = useQuery({
     queryKey: adminKeys.queues(),
     refetchInterval: 5000,
     queryFn: ({ signal }) => fetchJson<QueueEntry[]>('/queue', signal),
   })
-  const [statusFilter, setStatusFilterRaw] = useState<null | QueueStatus>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-
-  // wrap setStatusFilter to also reset page
-  const setStatusFilter = useCallback((v: null | QueueStatus) => {
-    setStatusFilterRaw(v)
-    setCurrentPage(1)
-  }, [])
+  const queue = useMemo(() => data ?? [], [data])
 
   const retryQueueItem = useAdminMutation({
     invalidateKey: adminKeys.queues(),
     mutationFn: (id: number) => postJson(`/queue/${id}/retry`, {}),
     successMsg: (id) => `Retrying queue item #${id}`,
   })
-
-  const handleRetry = (id: number) => {
-    retryQueueItem.mutate(id)
-  }
 
   const counts = useMemo(() => {
     const result: Record<string, number> = {}
@@ -69,37 +92,31 @@ export function AdminQueues() {
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-
-  // clamp current page if data shrinks
   const safePage = Math.min(currentPage, totalPages)
-  if (safePage !== currentPage) {
-    setCurrentPage(safePage)
-  }
 
   const pageItems = useMemo(
     () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
     [filtered, safePage]
   )
 
-  const handleFilterClick = (status: QueueStatus) => {
-    setStatusFilter(statusFilter === status ? null : status)
-  }
-
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Outbound Queue</h2>
-        <button
-          className="bg-surface hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
+    <AdminPageShell
+      actions={
+        <Button
+          disabled={isFetching && !isPending}
+          loading={isFetching && !isPending}
           onClick={() => refetch()}
+          size="sm"
+          variant="secondary"
         >
           Refresh
-        </button>
-      </div>
-
-      {/* status counts as clickable filter chips */}
+        </Button>
+      }
+      title="Outbound Queue"
+    >
       <div className="mb-4 flex flex-wrap gap-2">
         <button
+          aria-pressed={statusFilter === null}
           className={`${filterBaseStyle} ${filterAllStyle} ${statusFilter === null ? filterActiveStyle : ''}`}
           onClick={() => setStatusFilter(null)}
         >
@@ -107,95 +124,111 @@ export function AdminQueues() {
         </button>
         {ALL_STATUSES.map((status) => (
           <button
+            aria-pressed={statusFilter === status}
             className={`${filterBaseStyle} ${statusStyles[status]} ${statusFilter === status ? filterActiveStyle : ''}`}
             key={status}
-            onClick={() => handleFilterClick(status)}
+            onClick={() => setStatusFilter(statusFilter === status ? null : status)}
           >
             <span className="capitalize">{status}</span> ({counts[status]})
           </button>
         ))}
       </div>
 
-      {/* table */}
-      <div className="border-border overflow-hidden rounded-lg border">
-        <ScrollableTable>
-          <table className="w-full text-left text-sm">
-            <thead className="border-border bg-bg-secondary border-b">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">From</th>
-                <th className="px-4 py-2.5 font-medium">To</th>
-                <th className="px-4 py-2.5 font-medium">Domain</th>
-                <th className="px-4 py-2.5 font-medium">Status</th>
-                <th className="px-4 py-2.5 font-medium">Attempts</th>
-                <th className="px-4 py-2.5 font-medium">Error</th>
-                <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageItems.map((item) => (
-                <tr className="border-border border-b last:border-0" key={item.id}>
-                  <td className="px-4 py-3 font-medium">{item.sender}</td>
-                  <td className="px-4 py-3">{item.recipient}</td>
-                  <td className="text-fg-secondary px-4 py-3">{item.domain}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-xs ${statusStyles[item.status] ?? ''}`}
-                    >
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 tabular-nums">{item.attempts}</td>
-                  <td className="text-fg-muted max-w-48 truncate px-4 py-3 text-xs">
-                    {item.last_error ?? '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {item.status === 'failed' && (
-                      <button
-                        className="text-accent text-xs transition-colors hover:opacity-70"
-                        onClick={() => handleRetry(item.id)}
-                      >
-                        Retry
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {pageItems.length === 0 && (
+      {isPending ? (
+        <AdminTableSkeleton cols={7} headers={HEADERS} rows={6} />
+      ) : error ? (
+        <AdminErrorState error={error} onRetry={() => refetch()} retryDisabled={isFetching} />
+      ) : queue.length === 0 ? (
+        <AdminEmptyState
+          description="Outbound mail will appear here while it's being delivered."
+          icon={<Inbox className="h-10 w-10" />}
+          title="Queue is empty"
+        />
+      ) : (
+        <>
+          <ScrollableTable>
+            <table className="w-full text-left text-sm">
+              <thead className="border-border bg-bg-secondary border-b">
                 <tr>
-                  <td className="text-fg-muted px-4 py-8 text-center" colSpan={7}>
-                    {statusFilter ? `No ${statusFilter} entries` : 'Queue is empty'}
-                  </td>
+                  {HEADERS.slice(0, -1).map((h) => (
+                    <th className="px-4 py-2.5 font-medium" key={h}>
+                      {h}
+                    </th>
+                  ))}
+                  <th className="px-4 py-2.5 text-right font-medium">Actions</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </ScrollableTable>
-      </div>
+              </thead>
+              <tbody>
+                {pageItems.map((item) => (
+                  <tr className="border-border border-b last:border-0" key={item.id}>
+                    <td className="px-4 py-3 font-medium">{item.sender}</td>
+                    <td className="px-4 py-3">{item.recipient}</td>
+                    <td className="text-fg-secondary px-4 py-3">{item.domain}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-xs ${statusStyles[item.status] ?? ''}`}
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 tabular-nums">{item.attempts}</td>
+                    <td className="text-fg-muted max-w-48 truncate px-4 py-3 text-xs">
+                      {item.last_error ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {item.status === 'failed' && (
+                        <button
+                          className="text-accent text-xs transition-colors hover:opacity-70 disabled:opacity-50"
+                          disabled={retryQueueItem.isPending}
+                          onClick={() => retryQueueItem.mutate(item.id)}
+                        >
+                          Retry
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {pageItems.length === 0 && (
+                  <tr>
+                    <td className="text-fg-muted px-4 py-8 text-center" colSpan={7}>
+                      No {statusFilter} entries
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </ScrollableTable>
 
-      {/* pagination */}
-      {filtered.length > PAGE_SIZE && (
-        <div className="mt-4 flex items-center justify-between text-sm">
-          <span className="text-fg-secondary">
-            {filtered.length} entries &middot; Page {safePage} / {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <button
-              className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={safePage <= 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            >
-              Previous
-            </button>
-            <button
-              className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={safePage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Next
-            </button>
-          </div>
-        </div>
+          {filtered.length > PAGE_SIZE && (
+            <div className="mt-4 flex items-center justify-between text-sm">
+              <span className="text-fg-secondary">
+                {filtered.length} entries &middot; Page {safePage} / {totalPages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={safePage <= 1}
+                  onClick={() => setCurrentPage(safePage - 1)}
+                >
+                  Previous
+                </button>
+                <button
+                  className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setCurrentPage(safePage + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
-    </div>
+    </AdminPageShell>
   )
+}
+
+function parseStatus(raw: null | string): null | QueueStatus {
+  if (!raw) return null
+  return (ALL_STATUSES as readonly string[]).includes(raw) ? (raw as QueueStatus) : null
 }

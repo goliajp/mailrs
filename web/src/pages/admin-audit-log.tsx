@@ -1,5 +1,13 @@
+import { Button } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
+import { ScrollText } from 'lucide-react'
 
+import {
+  AdminEmptyState,
+  AdminErrorState,
+  AdminPageShell,
+  AdminTableSkeleton,
+} from '@/components/admin-page'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
@@ -13,60 +21,71 @@ type AuditEntry = {
   timestamp: number
 }
 
+const HEADERS = ['Time', 'Actor', 'Action', 'Target', 'Detail']
+
 export function AdminAuditLog() {
-  const { data: entries = [], refetch } = useQuery({
+  const { data, error, isFetching, isPending, refetch } = useQuery({
     queryKey: adminKeys.auditLog(),
-    queryFn: () => fetchJson<AuditEntry[]>('/admin/audit-log?limit=200'),
+    queryFn: ({ signal }) => fetchJson<AuditEntry[]>('/admin/audit-log?limit=200', signal),
   })
+  const entries = data ?? []
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Audit Log</h2>
-        <button
-          className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
+    <AdminPageShell
+      actions={
+        <Button
+          disabled={isFetching}
+          loading={isFetching}
           onClick={() => refetch()}
+          size="sm"
+          variant="secondary"
         >
           Refresh
-        </button>
-      </div>
-
-      <ScrollableTable>
-        <table className="w-full text-left text-sm">
-          <thead className="border-border bg-bg-secondary border-b">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">Time</th>
-              <th className="px-4 py-2.5 font-medium">Actor</th>
-              <th className="px-4 py-2.5 font-medium">Action</th>
-              <th className="px-4 py-2.5 font-medium">Target</th>
-              <th className="px-4 py-2.5 font-medium">Detail</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((entry) => (
-              <tr className="border-border border-b last:border-0" key={entry.id}>
-                <td className="text-fg-secondary px-4 py-3 whitespace-nowrap">
-                  {formatTime(entry.timestamp)}
-                </td>
-                <td className="px-4 py-3 font-medium">{entry.actor}</td>
-                <td className={`px-4 py-3 font-medium ${actionColor(entry.action)}`}>
-                  {entry.action}
-                </td>
-                <td className="text-fg-secondary px-4 py-3">{entry.target}</td>
-                <td className="text-fg-muted max-w-xs truncate px-4 py-3">{entry.detail}</td>
-              </tr>
-            ))}
-            {entries.length === 0 && (
+        </Button>
+      }
+      title="Audit Log"
+    >
+      {isPending ? (
+        <AdminTableSkeleton cols={5} headers={HEADERS} rows={6} />
+      ) : error ? (
+        <AdminErrorState error={error} onRetry={() => refetch()} retryDisabled={isFetching} />
+      ) : entries.length === 0 ? (
+        <AdminEmptyState
+          description="Actions taken by admins will appear here."
+          icon={<ScrollText className="h-10 w-10" />}
+          title="No audit log entries"
+        />
+      ) : (
+        <ScrollableTable>
+          <table className="w-full text-left text-sm">
+            <thead className="border-border bg-bg-secondary border-b">
               <tr>
-                <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
-                  No audit log entries
-                </td>
+                {HEADERS.map((h) => (
+                  <th className="px-4 py-2.5 font-medium" key={h}>
+                    {h}
+                  </th>
+                ))}
               </tr>
-            )}
-          </tbody>
-        </table>
-      </ScrollableTable>
-    </div>
+            </thead>
+            <tbody>
+              {entries.map((entry) => (
+                <tr className="border-border border-b last:border-0" key={entry.id}>
+                  <td className="text-fg-secondary px-4 py-3 whitespace-nowrap">
+                    {formatTime(entry.timestamp)}
+                  </td>
+                  <td className="px-4 py-3 font-medium">{entry.actor}</td>
+                  <td className={`px-4 py-3 font-medium ${actionColor(entry.action)}`}>
+                    {entry.action}
+                  </td>
+                  <td className="text-fg-secondary px-4 py-3">{entry.target}</td>
+                  <td className="text-fg-muted max-w-xs truncate px-4 py-3">{entry.detail}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollableTable>
+      )}
+    </AdminPageShell>
   )
 }
 

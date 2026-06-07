@@ -1,13 +1,19 @@
 import type { DomainInfo } from '@/lib/types'
 
-import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Mailbox } from 'lucide-react'
+import { Fragment, useState } from 'react'
 
+import {
+  AdminEmptyState,
+  AdminErrorState,
+  AdminPageShell,
+  AdminTableSkeleton,
+} from '@/components/admin-page'
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
+import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
-import { queryClient } from '@/lib/query-client'
 import { adminKeys } from '@/lib/query-keys'
 
 type EmailGroupInfo = {
@@ -19,15 +25,26 @@ type EmailGroupInfo = {
   name: string
 }
 
+const HEADERS = ['Address', 'Domain', 'Name', 'Description', 'Actions']
+
 export function AdminEmailGroups() {
-  const { data: groups = [] } = useQuery({
+  const {
+    data: groupsData,
+    error,
+    isPending,
+    refetch,
+  } = useQuery({
     queryKey: adminKeys.emailGroups(),
-    queryFn: () => fetchJson<EmailGroupInfo[]>('/admin/email-groups'),
+    queryFn: ({ signal }) => fetchJson<EmailGroupInfo[]>('/admin/email-groups', signal),
   })
-  const { data: domains = [] } = useQuery({
+  const groups = groupsData ?? []
+
+  const { data: domainsData } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: () => fetchJson<DomainInfo[]>('/admin/domains'),
+    queryFn: ({ signal }) => fetchJson<DomainInfo[]>('/admin/domains', signal),
   })
+  const domains = domainsData ?? []
+
   const [adding, setAdding] = useState(false)
   const [expandedId, setExpandedId] = useState<null | number>(null)
   const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
@@ -38,62 +55,72 @@ export function AdminEmailGroups() {
     name: '',
   })
 
-  const invalidateGroups = () =>
-    queryClient.invalidateQueries({ queryKey: adminKeys.emailGroups() })
+  const addGroup = useAdminMutation({
+    invalidateKey: adminKeys.emailGroups(),
+    mutationFn: (vars: typeof form) =>
+      postJson('/admin/email-groups', {
+        address: vars.address.trim(),
+        description: vars.description.trim(),
+        domain: vars.domain,
+        name: vars.name.trim(),
+      }),
+    successMsg: (vars) => `Email group "${vars.name.trim()}" created`,
+  })
 
-  const handleAdd = async () => {
-    if (!form.address.trim() || !form.domain || !form.name.trim()) return
-    try {
-      await postJson('/admin/email-groups', {
-        address: form.address.trim(),
-        description: form.description.trim(),
-        domain: form.domain,
-        name: form.name.trim(),
-      })
-      toast.success(`Email group "${form.name.trim()}" created`)
-      setForm({ address: '', description: '', domain: '', name: '' })
-      setAdding(false)
-      invalidateGroups()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to create email group')
-    }
+  const deleteGroup = useAdminMutation({
+    invalidateKey: adminKeys.emailGroups(),
+    successMsg: 'Email group deleted',
+    mutationFn: (id: number) => deleteJson(`/admin/email-groups/${id}`),
+  })
+
+  const formValid = !!form.address.trim() && !!form.domain && !!form.name.trim()
+
+  const handleAdd = () => {
+    if (!formValid) return
+    addGroup.mutate(form, {
+      onSuccess: () => {
+        setForm({ address: '', description: '', domain: '', name: '' })
+        setAdding(false)
+      },
+    })
   }
 
-  const handleDelete = async (id: number) => {
-    try {
-      await deleteJson(`/admin/email-groups/${id}`)
-      toast.success('Email group deleted')
-      setDeleteTarget(null)
-      if (expandedId === id) setExpandedId(null)
-      invalidateGroups()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete email group')
-      setDeleteTarget(null)
-    }
+  const handleDelete = (id: number) => {
+    deleteGroup.mutate(id, {
+      onSettled: () => {
+        setDeleteTarget(null)
+        if (expandedId === id) setExpandedId(null)
+      },
+    })
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Email Groups</h2>
-        <button
-          className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
-          onClick={() => setAdding(true)}
-        >
-          Add Email Group
-        </button>
-      </div>
-
+    <AdminPageShell
+      actions={
+        !adding && (
+          <button
+            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
+            onClick={() => setAdding(true)}
+          >
+            Add Email Group
+          </button>
+        )
+      }
+      title="Email Groups"
+    >
       {adding && (
         <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
           <div className="flex gap-2">
             <input
+              aria-label="Email address"
+              autoFocus
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, address: e.target.value })}
               placeholder="team@example.com"
               value={form.address}
             />
             <select
+              aria-label="Domain"
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, domain: e.target.value })}
               value={form.domain}
@@ -108,12 +135,14 @@ export function AdminEmailGroups() {
           </div>
           <div className="flex gap-2">
             <input
+              aria-label="Group name"
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Group name"
               value={form.name}
             />
             <input
+              aria-label="Description"
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Description"
@@ -121,12 +150,19 @@ export function AdminEmailGroups() {
             />
           </div>
           <div className="flex gap-2">
-            <button className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm" onClick={handleAdd}>
-              Save
+            <button
+              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
+              disabled={!formValid || addGroup.isPending}
+              onClick={handleAdd}
+            >
+              {addGroup.isPending ? 'Saving...' : 'Save'}
             </button>
             <button
               className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-              onClick={() => setAdding(false)}
+              onClick={() => {
+                setForm({ address: '', description: '', domain: '', name: '' })
+                setAdding(false)
+              }}
             >
               Cancel
             </button>
@@ -134,7 +170,17 @@ export function AdminEmailGroups() {
         </div>
       )}
 
-      <div className="border-border overflow-hidden rounded-lg border">
+      {isPending ? (
+        <AdminTableSkeleton cols={5} headers={HEADERS} rows={4} />
+      ) : error ? (
+        <AdminErrorState error={error} onRetry={() => refetch()} />
+      ) : groups.length === 0 && !adding ? (
+        <AdminEmptyState
+          description="Email groups are addresses that fan out to multiple recipients."
+          icon={<Mailbox className="h-10 w-10" />}
+          title="No email groups configured"
+        />
+      ) : (
         <ScrollableTable>
           <table className="w-full text-left text-sm">
             <thead className="border-border bg-bg-secondary border-b">
@@ -172,23 +218,16 @@ export function AdminEmailGroups() {
                   {expandedId === group.id && (
                     <tr>
                       <td colSpan={5}>
-                        <EmailGroupMembers group={group} onChanged={invalidateGroups} />
+                        <EmailGroupMembers group={group} />
                       </td>
                     </tr>
                   )}
                 </Fragment>
               ))}
-              {groups.length === 0 && (
-                <tr>
-                  <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
-                    No email groups configured
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </ScrollableTable>
-      </div>
+      )}
 
       {deleteTarget !== null && (
         <MobileModal onClose={() => setDeleteTarget(null)} open>
@@ -204,61 +243,52 @@ export function AdminEmailGroups() {
                 Cancel
               </button>
               <button
-                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+                disabled={deleteGroup.isPending}
                 onClick={() => handleDelete(deleteTarget)}
               >
-                Delete
+                {deleteGroup.isPending ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
         </MobileModal>
       )}
-    </div>
+    </AdminPageShell>
   )
 }
 
-function EmailGroupMembers({ group, onChanged }: { group: EmailGroupInfo; onChanged: () => void }) {
-  const [members, setMembers] = useState<null | string[]>(null)
+function EmailGroupMembers({ group }: { group: EmailGroupInfo }) {
   const [newMember, setNewMember] = useState('')
 
-  const load = useCallback(async () => {
-    try {
-      const data = await fetchJson<string[]>(`/admin/email-groups/${group.id}/members`)
-      setMembers(data)
-    } catch {
-      // keep current state
-    }
-  }, [group.id])
+  const { data: membersData } = useQuery({
+    queryKey: adminKeys.emailGroupMembers(group.id),
+    queryFn: ({ signal }) => fetchJson<string[]>(`/admin/email-groups/${group.id}/members`, signal),
+  })
+  const members = membersData ?? null
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  const addMember = useAdminMutation({
+    invalidateKey: adminKeys.emailGroupMembers(group.id),
+    mutationFn: (address: string) =>
+      postJson(`/admin/email-groups/${group.id}/members`, { address }),
+    successMsg: (address) => `Member "${address}" added`,
+  })
 
-  const handleAddMember = async () => {
-    if (!newMember.trim()) return
-    try {
-      await postJson(`/admin/email-groups/${group.id}/members`, {
-        address: newMember.trim(),
-      })
-      toast.success(`Member "${newMember.trim()}" added`)
-      setNewMember('')
-      load()
-      onChanged()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to add member')
-    }
+  const removeMember = useAdminMutation({
+    invalidateKey: adminKeys.emailGroupMembers(group.id),
+    mutationFn: (address: string) =>
+      deleteJson(`/admin/email-groups/${group.id}/members/${encodeURIComponent(address)}`),
+    successMsg: (address) => `Member "${address}" removed`,
+  })
+
+  const handleAddMember = () => {
+    const address = newMember.trim()
+    if (!address) return
+    addMember.mutate(address, { onSuccess: () => setNewMember('') })
   }
 
-  const handleRemoveMember = async (address: string) => {
+  const handleRemoveMember = (address: string) => {
     if (!window.confirm(`Remove member "${address}" from this email group?`)) return
-    try {
-      await deleteJson(`/admin/email-groups/${group.id}/members/${encodeURIComponent(address)}`)
-      toast.success(`Member "${address}" removed`)
-      load()
-      onChanged()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to remove member')
-    }
+    removeMember.mutate(address)
   }
 
   if (!members) {
@@ -271,6 +301,7 @@ function EmailGroupMembers({ group, onChanged }: { group: EmailGroupInfo; onChan
         <h4 className="text-fg-secondary mb-2 text-xs font-medium">Members</h4>
         <div className="mb-2 flex gap-2">
           <input
+            aria-label="New member address"
             className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
             onChange={(e) => setNewMember(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAddMember()}
@@ -278,10 +309,11 @@ function EmailGroupMembers({ group, onChanged }: { group: EmailGroupInfo; onChan
             value={newMember}
           />
           <button
-            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
+            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
+            disabled={!newMember.trim() || addMember.isPending}
             onClick={handleAddMember}
           >
-            Add
+            {addMember.isPending ? 'Adding...' : 'Add'}
           </button>
         </div>
         {members.length > 0 ? (
@@ -293,10 +325,12 @@ function EmailGroupMembers({ group, onChanged }: { group: EmailGroupInfo; onChan
               >
                 {addr}
                 <button
-                  className="text-danger hover:opacity-70"
+                  aria-label={`Remove ${addr}`}
+                  className="text-danger hover:opacity-70 disabled:opacity-50"
+                  disabled={removeMember.isPending}
                   onClick={() => handleRemoveMember(addr)}
                 >
-                  x
+                  ×
                 </button>
               </span>
             ))}

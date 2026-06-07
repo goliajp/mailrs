@@ -1,9 +1,16 @@
 import type { AttachmentInfo } from '@/lib/types'
 
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, Download, Eye, Search } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { ChevronLeft, Download, Eye, Search, Users } from 'lucide-react'
+import { useMemo } from 'react'
+import { useSearchParams } from 'react-router'
 
+import {
+  AdminEmptyState,
+  AdminErrorState,
+  AdminPageShell,
+  AdminTableSkeleton,
+} from '@/components/admin-page'
 import { HtmlFrame } from '@/components/html-frame'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson } from '@/lib/api'
@@ -44,22 +51,60 @@ type AuditMessage = {
   uid: number
 }
 
-export function AdminMailAudit() {
-  const [selectedAccount, setSelectedAccount] = useState<null | string>(null)
-  const [selectedThread, setSelectedThread] = useState<null | string>(null)
-  const [search, setSearch] = useState('')
+const ACCOUNT_HEADERS = ['Account', 'Domain', 'Name', 'Status', '']
 
-  const { data: accounts = [] } = useQuery({
+export function AdminMailAudit() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedAccount = searchParams.get('address')
+  const selectedThread = searchParams.get('thread')
+  const search = searchParams.get('q') ?? ''
+
+  const setSelectedAccount = (address: null | string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (address) next.set('address', address)
+      else next.delete('address')
+      next.delete('thread')
+      return next
+    })
+  }
+
+  const setSelectedThread = (threadId: null | string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (threadId) next.set('thread', threadId)
+      else next.delete('thread')
+      return next
+    })
+  }
+
+  const setSearch = (q: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (q) next.set('q', q)
+      else next.delete('q')
+      return next
+    })
+  }
+
+  const {
+    data: accountsData,
+    error: accountsError,
+    isPending: accountsPending,
+    refetch: refetchAccounts,
+  } = useQuery({
     queryKey: adminKeys.mailAuditAccounts(),
-    queryFn: () => fetchJson<AuditAccount[]>('/admin/audit/accounts'),
+    queryFn: ({ signal }) => fetchJson<AuditAccount[]>('/admin/audit/accounts', signal),
   })
+  const accounts = useMemo(() => accountsData ?? [], [accountsData])
 
   const { data: conversations = [], isFetching: conversationsLoading } = useQuery({
     enabled: !!selectedAccount,
     queryKey: adminKeys.mailAuditConversations(selectedAccount ?? ''),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const data = await fetchJson<AuditConversation[]>(
-        `/admin/audit/conversations?target_user=${encodeURIComponent(selectedAccount ?? '')}&limit=50`
+        `/admin/audit/conversations?target_user=${encodeURIComponent(selectedAccount ?? '')}&limit=50`,
+        signal
       )
       return Array.isArray(data) ? data : []
     },
@@ -68,25 +113,14 @@ export function AdminMailAudit() {
   const { data: messages = [], isFetching: messagesLoading } = useQuery({
     enabled: !!selectedAccount && !!selectedThread,
     queryKey: adminKeys.mailAuditThread(selectedAccount ?? '', selectedThread ?? ''),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const data = await fetchJson<AuditMessage[]>(
-        `/admin/audit/conversations/${encodeURIComponent(selectedThread ?? '')}/messages?target_user=${encodeURIComponent(selectedAccount ?? '')}`
+        `/admin/audit/conversations/${encodeURIComponent(selectedThread ?? '')}/messages?target_user=${encodeURIComponent(selectedAccount ?? '')}`,
+        signal
       )
       return Array.isArray(data) ? data : []
     },
   })
-
-  const loading = conversationsLoading || messagesLoading
-
-  const loadThread = (threadId: string) => {
-    if (!selectedAccount) return
-    setSelectedThread(threadId)
-  }
-
-  const handleSelectAccount = (address: string) => {
-    setSelectedAccount(address)
-    setSelectedThread(null)
-  }
 
   const filteredAccounts = useMemo(() => {
     if (!search) return accounts
@@ -99,21 +133,17 @@ export function AdminMailAudit() {
   // no account selected: show account list
   if (!selectedAccount) {
     return (
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="mb-6">
-          <div className="mb-1 flex items-center gap-2">
-            <Eye className="text-fg-muted h-5 w-5" />
-            <h2 className="text-lg font-semibold">Mail Audit</h2>
-          </div>
-          <p className="text-fg-muted text-sm">
-            Select an account to review their email conversations
-          </p>
-        </div>
+      <AdminPageShell title="Mail Audit">
+        <p className="text-fg-secondary -mt-4 mb-4 flex items-center gap-1.5 text-sm">
+          <Eye className="text-fg-muted h-4 w-4" />
+          Select an account to review their email conversations
+        </p>
 
         <div className="mb-4 flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="text-fg-muted absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
             <input
+              aria-label="Search accounts"
               className="border-border bg-bg focus:border-accent w-full rounded-lg border py-2 pr-3 pl-9 text-sm outline-none"
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search accounts..."
@@ -123,7 +153,23 @@ export function AdminMailAudit() {
           </div>
         </div>
 
-        <div className="border-border overflow-hidden rounded-lg border">
+        {accountsPending ? (
+          <AdminTableSkeleton cols={5} headers={ACCOUNT_HEADERS} rows={6} />
+        ) : accountsError ? (
+          <AdminErrorState error={accountsError} onRetry={() => refetchAccounts()} />
+        ) : accounts.length === 0 ? (
+          <AdminEmptyState
+            description="The admin.impersonate permission is required to audit mail."
+            icon={<Users className="h-10 w-10" />}
+            title="No auditable accounts"
+          />
+        ) : filteredAccounts.length === 0 ? (
+          <AdminEmptyState
+            description={`No accounts match "${search}".`}
+            icon={<Search className="h-10 w-10" />}
+            title="No matches"
+          />
+        ) : (
           <ScrollableTable>
             <table className="w-full text-left text-sm">
               <thead className="border-border bg-bg-secondary border-b">
@@ -154,27 +200,18 @@ export function AdminMailAudit() {
                     <td className="px-4 py-3">
                       <button
                         className="bg-fg text-bg rounded-md px-3 py-1 text-xs font-medium transition-colors hover:opacity-90"
-                        onClick={() => handleSelectAccount(a.address)}
+                        onClick={() => setSelectedAccount(a.address)}
                       >
                         View Mail
                       </button>
                     </td>
                   </tr>
                 ))}
-                {filteredAccounts.length === 0 && (
-                  <tr>
-                    <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
-                      {accounts.length === 0
-                        ? 'No auditable accounts (requires admin.impersonate permission)'
-                        : 'No matches'}
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </ScrollableTable>
-        </div>
-      </div>
+        )}
+      </AdminPageShell>
     )
   }
 
@@ -184,10 +221,9 @@ export function AdminMailAudit() {
       <div className="flex h-full flex-col overflow-hidden">
         <div className="border-border flex items-center gap-3 border-b px-6 py-3">
           <button
+            aria-label="Back to conversations"
             className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
-            onClick={() => {
-              setSelectedThread(null)
-            }}
+            onClick={() => setSelectedThread(null)}
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -197,11 +233,13 @@ export function AdminMailAudit() {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-6">
-          {loading && <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>}
+          {messagesLoading && messages.length === 0 && (
+            <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>
+          )}
           {messages.map((msg) => (
             <MessageView key={msg.id} msg={msg} targetUser={selectedAccount} />
           ))}
-          {!loading && messages.length === 0 && (
+          {!messagesLoading && messages.length === 0 && (
             <p className="text-fg-muted py-8 text-center text-sm">No messages</p>
           )}
         </div>
@@ -214,11 +252,9 @@ export function AdminMailAudit() {
     <div className="flex h-full flex-col overflow-hidden">
       <div className="border-border flex items-center gap-3 border-b px-6 py-3">
         <button
+          aria-label="Back to accounts"
           className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
-          onClick={() => {
-            setSelectedAccount(null)
-            setSelectedThread(null)
-          }}
+          onClick={() => setSelectedAccount(null)}
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -229,12 +265,14 @@ export function AdminMailAudit() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {loading && <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>}
+        {conversationsLoading && conversations.length === 0 && (
+          <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>
+        )}
         {conversations.map((c) => (
           <button
             className="border-border hover:bg-bg-secondary flex w-full items-start gap-3 border-b px-6 py-3 text-left transition-colors"
             key={c.thread_id}
-            onClick={() => loadThread(c.thread_id)}
+            onClick={() => setSelectedThread(c.thread_id)}
           >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
@@ -249,7 +287,7 @@ export function AdminMailAudit() {
             <span className="text-fg-muted shrink-0 text-xs">{formatDate(c.last_date)}</span>
           </button>
         ))}
-        {!loading && conversations.length === 0 && (
+        {!conversationsLoading && conversations.length === 0 && (
           <p className="text-fg-muted py-8 text-center text-sm">No conversations found</p>
         )}
       </div>
@@ -283,6 +321,7 @@ function MessageView({ msg, targetUser }: { msg: AuditMessage; targetUser: strin
         <div className="flex shrink-0 items-center gap-2">
           <span className="text-fg-muted text-xs">{formatFullDate(msg.internal_date)}</span>
           <a
+            aria-label="Download as .eml"
             className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
             href={`/api/admin/audit/messages/${msg.uid}/raw?target_user=${encodeURIComponent(targetUser)}&token=${encodeURIComponent(token)}`}
             title="Download .eml"

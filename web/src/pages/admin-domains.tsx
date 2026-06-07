@@ -1,8 +1,15 @@
 import type { DomainCheckReport, DomainInfo } from '@/lib/types'
 
 import { useQuery } from '@tanstack/react-query'
+import { Globe } from 'lucide-react'
 import { Fragment, useState } from 'react'
 
+import {
+  AdminEmptyState,
+  AdminErrorState,
+  AdminPageShell,
+  AdminTableSkeleton,
+} from '@/components/admin-page'
 import { Copyable } from '@/components/copy-button'
 import { DomainHealthCard } from '@/components/domain-health-card'
 import { MobileModal } from '@/components/mobile-modal'
@@ -11,11 +18,15 @@ import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 
+const HEADERS = ['Domain', 'Created', 'Actions']
+
 export function AdminDomains() {
-  const { data: domains = [] } = useQuery({
+  const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.domains(),
     queryFn: ({ signal }) => fetchJson<DomainInfo[]>('/admin/domains', signal),
   })
+  const domains = data ?? []
+
   const [adding, setAdding] = useState(false)
   const [newDomain, setNewDomain] = useState('')
   const [checking, setChecking] = useState<null | string>(null)
@@ -79,28 +90,39 @@ export function AdminDomains() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Domains</h2>
-        <button
-          className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
-          onClick={() => setAdding(true)}
-        >
-          Add Domain
-        </button>
-      </div>
-
+    <AdminPageShell
+      actions={
+        !adding && (
+          <button
+            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
+            onClick={() => setAdding(true)}
+          >
+            Add Domain
+          </button>
+        )
+      }
+      title="Domains"
+    >
       {adding && (
         <div className="mb-4 flex gap-2">
           <input
+            aria-label="New domain name"
+            autoFocus
             className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
             onChange={(e) => setNewDomain(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAdd()
+              if (e.key === 'Escape') setAdding(false)
+            }}
             placeholder="example.com"
             value={newDomain}
           />
-          <button className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm" onClick={handleAdd}>
-            Save
+          <button
+            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
+            disabled={addDomain.isPending || !newDomain.trim()}
+            onClick={handleAdd}
+          >
+            {addDomain.isPending ? 'Saving...' : 'Save'}
           </button>
           <button
             className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
@@ -111,7 +133,17 @@ export function AdminDomains() {
         </div>
       )}
 
-      <div className="border-border overflow-hidden rounded-lg border">
+      {isPending ? (
+        <AdminTableSkeleton cols={3} headers={HEADERS} rows={5} />
+      ) : error ? (
+        <AdminErrorState error={error} onRetry={() => refetch()} />
+      ) : domains.length === 0 && !adding ? (
+        <AdminEmptyState
+          description="Add a domain to start receiving mail for it."
+          icon={<Globe className="h-10 w-10" />}
+          title="No domains configured"
+        />
+      ) : (
         <ScrollableTable>
           <table className="w-full text-left text-sm">
             <thead className="border-border bg-bg-secondary border-b">
@@ -164,17 +196,10 @@ export function AdminDomains() {
                   )}
                 </Fragment>
               ))}
-              {domains.length === 0 && (
-                <tr>
-                  <td className="text-fg-muted px-4 py-8 text-center" colSpan={3}>
-                    No domains configured
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </ScrollableTable>
-      </div>
+      )}
 
       {deleteTarget && (
         <MobileModal onClose={() => setDeleteTarget(null)} open>
@@ -191,15 +216,16 @@ export function AdminDomains() {
                 Cancel
               </button>
               <button
-                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+                disabled={deleteDomain.isPending}
                 onClick={() => handleDelete(deleteTarget)}
               >
-                Delete
+                {deleteDomain.isPending ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
         </MobileModal>
       )}
-    </div>
+    </AdminPageShell>
   )
 }

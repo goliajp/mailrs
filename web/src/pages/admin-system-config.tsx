@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 
 import { useQuery } from '@tanstack/react-query'
-import { RotateCcw, Save } from 'lucide-react'
+import { RotateCcw, Save, Settings2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { AdminEmptyState, AdminErrorState, AdminPageShell } from '@/components/admin-page'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { deleteJson, fetchJson, putJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
@@ -44,7 +45,8 @@ export function AdminSystemConfig() {
   const {
     data: response,
     error: queryError,
-    isLoading: loading,
+    isPending,
+    refetch,
   } = useQuery({
     queryKey: adminKeys.systemConfig(),
     queryFn: ({ signal }) =>
@@ -56,11 +58,11 @@ export function AdminSystemConfig() {
   })
 
   const entries: ConfigEntry[] = response && response.success ? (response.entries ?? []) : []
-  const error =
+  const error: Error | null =
     queryError instanceof Error
-      ? queryError.message
+      ? queryError
       : response && !response.success
-        ? (response.message ?? 'Failed to load configuration')
+        ? new Error(response.message ?? 'Failed to load configuration')
         : null
 
   const saveConfig = useAdminMutation({
@@ -93,37 +95,38 @@ export function AdminSystemConfig() {
   const sortedGroups = Object.keys(grouped).sort()
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold">System Configuration</h2>
-        <p className="text-fg-secondary mt-1 text-sm">
-          Runtime server settings. Changes to database-sourced values take effect immediately.
-        </p>
-      </div>
+    <AdminPageShell title="System Configuration">
+      <p className="text-fg-secondary -mt-4 mb-6 text-sm">
+        Runtime server settings. Changes to database-sourced values take effect immediately.
+      </p>
 
-      {loading && <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>}
-
-      {!loading && error && <p className="py-8 text-center text-sm text-red-500">{error}</p>}
-
-      {!loading && !error && entries.length === 0 && (
-        <p className="text-fg-muted py-8 text-center text-sm">No configuration entries found</p>
+      {isPending ? (
+        <PanelGroupSkeleton />
+      ) : error ? (
+        <AdminErrorState error={error} onRetry={() => refetch()} />
+      ) : entries.length === 0 ? (
+        <AdminEmptyState
+          description="The server didn't return any configurable settings."
+          icon={<Settings2 className="h-10 w-10" />}
+          title="No configuration entries"
+        />
+      ) : (
+        <div className="flex flex-col gap-4">
+          {sortedGroups.map((group) => (
+            <GroupCard group={group} key={group}>
+              {grouped[group].map((entry) => (
+                <ConfigField
+                  entry={entry}
+                  key={entry.key}
+                  onReset={handleReset}
+                  onSave={handleSave}
+                />
+              ))}
+            </GroupCard>
+          ))}
+        </div>
       )}
-
-      <div className="flex flex-col gap-4">
-        {sortedGroups.map((group) => (
-          <GroupCard group={group} key={group}>
-            {grouped[group].map((entry) => (
-              <ConfigField
-                entry={entry}
-                key={entry.key}
-                onReset={handleReset}
-                onSave={handleSave}
-              />
-            ))}
-          </GroupCard>
-        ))}
-      </div>
-    </div>
+    </AdminPageShell>
   )
 }
 
@@ -141,10 +144,13 @@ function ConfigControl({
     const checked = value === 'true'
     return (
       <button
+        aria-checked={checked}
+        aria-label="Toggle value"
         className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
           checked ? 'bg-accent' : 'bg-gray-300 dark:bg-gray-600'
         }`}
         onClick={() => onChange(checked ? 'false' : 'true')}
+        role="switch"
         type="button"
       >
         <span
@@ -280,6 +286,26 @@ function GroupCard({ children, group }: { children: ReactNode; group: string }) 
         <h3 className="text-sm font-semibold">{label}</h3>
       </div>
       {children}
+    </div>
+  )
+}
+
+function PanelGroupSkeleton() {
+  return (
+    <div aria-busy="true" className="flex flex-col gap-4">
+      {[0, 1].map((i) => (
+        <div className="border-border overflow-hidden rounded-lg border" key={i}>
+          <div className="border-border bg-bg-secondary border-b px-4 py-2.5">
+            <span className="bg-fg-muted/30 block h-4 w-24 animate-pulse rounded" />
+          </div>
+          {[0, 1, 2].map((j) => (
+            <div className="border-border space-y-2 border-b px-4 py-4 last:border-0" key={j}>
+              <span className="bg-fg-muted/30 block h-4 w-1/3 animate-pulse rounded" />
+              <span className="bg-fg-muted/20 block h-3 w-2/3 animate-pulse rounded" />
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   )
 }
