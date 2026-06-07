@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
+import { AdminErrorState, AdminPageShell } from '@/components/admin-page'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
@@ -18,13 +19,13 @@ type AuditEntry = {
 type HealthInfo = {
   account_cache_size: number
   active_sessions: number
+  kevy: boolean
   level: number
   pg: boolean
   status: string
   total_connections: number
   total_messages: number
   uptime_secs: number
-  valkey: boolean
   version: string
 }
 
@@ -55,32 +56,47 @@ type StatusInfo = {
 // --- helpers ---
 
 export function AdminOverview() {
-  const { data: health = null, error: healthError } = useQuery({
+  const {
+    data: health = null,
+    error: healthError,
+    refetch: refetchHealth,
+  } = useQuery({
     queryKey: adminKeys.overviewHealth(),
     refetchInterval: 10_000,
-    queryFn: () => fetchJson<HealthInfo>('/health'),
+    queryFn: ({ signal }) => fetchJson<HealthInfo>('/health', signal),
   })
-  const { data: status = null, error: statusError } = useQuery({
+  const {
+    data: status = null,
+    error: statusError,
+    refetch: refetchStatus,
+  } = useQuery({
     queryKey: adminKeys.overviewStatus(),
     refetchInterval: 10_000,
-    queryFn: () => fetchJson<StatusInfo>('/status'),
+    queryFn: ({ signal }) => fetchJson<StatusInfo>('/status', signal),
   })
   const { data: smtp = null } = useQuery({
     queryKey: adminKeys.overviewSmtp(),
     refetchInterval: 10_000,
-    queryFn: () => fetchJson<SmtpConfig>('/admin/config/smtp'),
+    queryFn: ({ signal }) => fetchJson<SmtpConfig>('/admin/config/smtp', signal),
   })
   const { data: audit = [] } = useQuery({
     queryKey: adminKeys.overviewAuditLog(),
     refetchInterval: 10_000,
-    queryFn: () => fetchJson<AuditEntry[]>('/admin/audit-log?limit=10'),
+    queryFn: ({ signal }) => fetchJson<AuditEntry[]>('/admin/audit-log?limit=10', signal),
   })
 
-  if (healthError) {
-    return <div className="text-danger p-6 text-sm">Failed to load health</div>
-  }
-  if (statusError) {
-    return <div className="text-danger p-6 text-sm">Failed to load status</div>
+  if (healthError || statusError) {
+    return (
+      <AdminPageShell title="Overview">
+        <AdminErrorState
+          error={healthError ?? statusError ?? new Error('Failed to load')}
+          onRetry={() => {
+            refetchHealth()
+            refetchStatus()
+          }}
+        />
+      </AdminPageShell>
+    )
   }
 
   const activeConns = status?.active_connections ?? health?.total_connections ?? 0
@@ -90,11 +106,9 @@ export function AdminOverview() {
   const activeSessions = health?.active_sessions ?? 0
 
   return (
-    <div className="h-full overflow-y-auto p-6">
-      <h1 className="mb-6 text-lg font-semibold">Dashboard</h1>
-
+    <AdminPageShell title="Overview">
       {/* status banner — fixed-height shell so the layout below doesn't
-          jump when /api/health resolves (perfs/topics/05) */}
+          jump when /api/health resolves */}
       <div className="mb-6 min-h-[60px]">
         {health ? <StatusBanner health={health} /> : <BannerSkeleton />}
       </div>
@@ -129,11 +143,11 @@ export function AdminOverview() {
 
       {/* service health — reserved height so pills don't push later sections */}
       <div className="mb-6 min-h-[88px]">
-        <h2 className="text-fg-muted mb-3 text-sm font-medium">Services</h2>
+        <h3 className="text-fg-muted mb-3 text-sm font-medium">Services</h3>
         {health ? (
           <div className="flex flex-wrap gap-3">
             <ServicePill detail={health.pg ? 'up' : 'down'} name="PostgreSQL" ok={health.pg} />
-            <ServicePill detail={health.valkey ? 'up' : 'down'} name="Valkey" ok={health.valkey} />
+            <ServicePill detail={health.kevy ? 'up' : 'down'} name="Kevy" ok={health.kevy} />
             <ServicePill
               detail={smtp ? `:${smtp.smtp_port}` : undefined}
               name="SMTP"
@@ -163,7 +177,7 @@ export function AdminOverview() {
         )}
         <AuditLogPanel entries={audit} />
       </div>
-    </div>
+    </AdminPageShell>
   )
 }
 

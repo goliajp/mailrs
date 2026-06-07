@@ -1,19 +1,20 @@
 import type { DomainInfo } from '@/lib/types'
 
-import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { ShieldCheck } from 'lucide-react'
+import { Fragment, useState } from 'react'
 
+import {
+  AdminEmptyState,
+  AdminErrorState,
+  AdminPageShell,
+  AdminTableSkeleton,
+} from '@/components/admin-page'
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
+import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
-import { queryClient } from '@/lib/query-client'
 import { adminKeys } from '@/lib/query-keys'
-
-type ExpandedData = {
-  members: string[]
-  permissions: string[]
-}
 
 type GroupInfo = {
   description: string
@@ -23,19 +24,32 @@ type GroupInfo = {
   name: string
 }
 
+const HEADERS = ['Name', 'Domain', 'Builtin', 'Description', 'Actions']
+
 export function AdminGroups() {
-  const { data: groups = [] } = useQuery({
+  const {
+    data: groupsData,
+    error,
+    isPending,
+    refetch,
+  } = useQuery({
     queryKey: adminKeys.groups(),
-    queryFn: () => fetchJson<GroupInfo[]>('/admin/groups'),
+    queryFn: ({ signal }) => fetchJson<GroupInfo[]>('/admin/groups', signal),
   })
-  const { data: domains = [] } = useQuery({
+  const groups = groupsData ?? []
+
+  const { data: domainsData } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: () => fetchJson<DomainInfo[]>('/admin/domains'),
+    queryFn: ({ signal }) => fetchJson<DomainInfo[]>('/admin/domains', signal),
   })
-  const { data: allPermissions = [] } = useQuery({
+  const domains = domainsData ?? []
+
+  const { data: allPermissionsData } = useQuery({
     queryKey: adminKeys.permissions(),
-    queryFn: () => fetchJson<string[]>('/admin/permissions'),
+    queryFn: ({ signal }) => fetchJson<string[]>('/admin/permissions', signal),
   })
+  const allPermissions = allPermissionsData ?? []
+
   const [adding, setAdding] = useState(false)
   const [expandedId, setExpandedId] = useState<null | number>(null)
   const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
@@ -45,60 +59,72 @@ export function AdminGroups() {
     name: '',
   })
 
-  const invalidateGroups = () => queryClient.invalidateQueries({ queryKey: adminKeys.groups() })
+  const addGroup = useAdminMutation({
+    invalidateKey: adminKeys.groups(),
+    mutationFn: (vars: { description: string; domain: string | undefined; name: string }) =>
+      postJson('/admin/groups', vars),
+    successMsg: (vars) => `Group "${vars.name}" added`,
+  })
 
-  const handleAdd = async () => {
+  const deleteGroup = useAdminMutation({
+    invalidateKey: adminKeys.groups(),
+    successMsg: 'Group removed',
+    mutationFn: (id: number) => deleteJson(`/admin/groups/${id}`),
+  })
+
+  const handleAdd = () => {
     if (!form.name.trim()) return
-    try {
-      await postJson('/admin/groups', {
+    addGroup.mutate(
+      {
         description: form.description.trim(),
         domain: form.domain || undefined,
         name: form.name.trim(),
-      })
-      toast.success(`Group "${form.name.trim()}" added`)
-      setForm({ description: '', domain: '', name: '' })
-      setAdding(false)
-      invalidateGroups()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to add group')
-    }
+      },
+      {
+        onSuccess: () => {
+          setForm({ description: '', domain: '', name: '' })
+          setAdding(false)
+        },
+      }
+    )
   }
 
-  const handleDelete = async (id: number) => {
-    try {
-      await deleteJson(`/admin/groups/${id}`)
-      toast.success('Group removed')
-      setDeleteTarget(null)
-      if (expandedId === id) setExpandedId(null)
-      invalidateGroups()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to remove group')
-      setDeleteTarget(null)
-    }
+  const handleDelete = (id: number) => {
+    deleteGroup.mutate(id, {
+      onSettled: () => {
+        setDeleteTarget(null)
+        if (expandedId === id) setExpandedId(null)
+      },
+    })
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Groups</h2>
-        <button
-          className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
-          onClick={() => setAdding(true)}
-        >
-          Add Group
-        </button>
-      </div>
-
+    <AdminPageShell
+      actions={
+        !adding && (
+          <button
+            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
+            onClick={() => setAdding(true)}
+          >
+            Add Group
+          </button>
+        )
+      }
+      title="Groups"
+    >
       {adding && (
         <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
           <div className="flex gap-2">
             <input
+              aria-label="Group name"
+              autoFocus
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Group name"
               value={form.name}
             />
             <select
+              aria-label="Domain"
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, domain: e.target.value })}
               value={form.domain}
@@ -112,18 +138,26 @@ export function AdminGroups() {
             </select>
           </div>
           <input
+            aria-label="Description"
             className="border-border bg-bg-secondary w-full rounded-md border px-3 py-1.5 text-sm"
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             placeholder="Description"
             value={form.description}
           />
           <div className="flex gap-2">
-            <button className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm" onClick={handleAdd}>
-              Save
+            <button
+              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
+              disabled={!form.name.trim() || addGroup.isPending}
+              onClick={handleAdd}
+            >
+              {addGroup.isPending ? 'Saving...' : 'Save'}
             </button>
             <button
               className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-              onClick={() => setAdding(false)}
+              onClick={() => {
+                setForm({ description: '', domain: '', name: '' })
+                setAdding(false)
+              }}
             >
               Cancel
             </button>
@@ -131,71 +165,72 @@ export function AdminGroups() {
         </div>
       )}
 
-      <ScrollableTable>
-        <table className="w-full text-left text-sm">
-          <thead className="border-border bg-bg-secondary border-b">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">Name</th>
-              <th className="px-4 py-2.5 font-medium">Domain</th>
-              <th className="px-4 py-2.5 font-medium">Builtin</th>
-              <th className="px-4 py-2.5 font-medium">Description</th>
-              <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((group) => (
-              <Fragment key={group.id}>
-                <tr className="border-border border-b last:border-0">
-                  <td className="px-4 py-3 font-medium">{group.name}</td>
-                  <td className="text-fg-secondary px-4 py-3">{group.domain ?? '(Global)'}</td>
-                  <td className="px-4 py-3">
-                    {group.is_builtin && (
-                      <span className="bg-surface text-fg-secondary inline-block rounded px-2 py-0.5 text-xs font-medium">
-                        builtin
-                      </span>
-                    )}
-                  </td>
-                  <td className="text-fg-secondary px-4 py-3">{group.description}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      className="text-accent mr-3 text-xs hover:opacity-80"
-                      onClick={() => setExpandedId(expandedId === group.id ? null : group.id)}
-                    >
-                      {expandedId === group.id ? 'Hide' : 'Manage'}
-                    </button>
-                    {!group.is_builtin && (
+      {isPending ? (
+        <AdminTableSkeleton cols={5} headers={HEADERS} rows={4} />
+      ) : error ? (
+        <AdminErrorState error={error} onRetry={() => refetch()} />
+      ) : groups.length === 0 && !adding ? (
+        <AdminEmptyState
+          description="Groups bundle permissions and members for role-based access."
+          icon={<ShieldCheck className="h-10 w-10" />}
+          title="No groups configured"
+        />
+      ) : (
+        <ScrollableTable>
+          <table className="w-full text-left text-sm">
+            <thead className="border-border bg-bg-secondary border-b">
+              <tr>
+                <th className="px-4 py-2.5 font-medium">Name</th>
+                <th className="px-4 py-2.5 font-medium">Domain</th>
+                <th className="px-4 py-2.5 font-medium">Builtin</th>
+                <th className="px-4 py-2.5 font-medium">Description</th>
+                <th className="px-4 py-2.5 text-right font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((group) => (
+                <Fragment key={group.id}>
+                  <tr className="border-border border-b last:border-0">
+                    <td className="px-4 py-3 font-medium">{group.name}</td>
+                    <td className="text-fg-secondary px-4 py-3">{group.domain ?? '(Global)'}</td>
+                    <td className="px-4 py-3">
+                      {group.is_builtin && (
+                        <span className="bg-surface text-fg-secondary inline-block rounded px-2 py-0.5 text-xs font-medium">
+                          builtin
+                        </span>
+                      )}
+                    </td>
+                    <td className="text-fg-secondary px-4 py-3">{group.description}</td>
+                    <td className="px-4 py-3 text-right">
                       <button
-                        className="text-danger text-xs transition-colors hover:opacity-70"
-                        onClick={() => setDeleteTarget(group.id)}
+                        className="text-accent mr-3 text-xs hover:opacity-80"
+                        onClick={() => setExpandedId(expandedId === group.id ? null : group.id)}
                       >
-                        Delete
+                        {expandedId === group.id ? 'Hide' : 'Manage'}
                       </button>
-                    )}
-                  </td>
-                </tr>
-                {expandedId === group.id && (
-                  <tr>
-                    <td colSpan={5}>
-                      <GroupDetail
-                        allPermissions={allPermissions}
-                        group={group}
-                        onChanged={invalidateGroups}
-                      />
+                      {!group.is_builtin && (
+                        <button
+                          className="text-danger text-xs transition-colors hover:opacity-70"
+                          onClick={() => setDeleteTarget(group.id)}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
-                )}
-              </Fragment>
-            ))}
-            {groups.length === 0 && (
-              <tr>
-                <td className="text-fg-muted px-4 py-8 text-center" colSpan={5}>
-                  No groups configured
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </ScrollableTable>
+                  {expandedId === group.id && (
+                    <tr>
+                      <td colSpan={5}>
+                        <GroupDetail allPermissions={allPermissions} group={group} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </ScrollableTable>
+      )}
 
       {deleteTarget !== null && (
         <MobileModal onClose={() => setDeleteTarget(null)} open>
@@ -211,91 +246,79 @@ export function AdminGroups() {
                 Cancel
               </button>
               <button
-                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+                disabled={deleteGroup.isPending}
                 onClick={() => handleDelete(deleteTarget)}
               >
-                Delete
+                {deleteGroup.isPending ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
         </MobileModal>
       )}
-    </div>
+    </AdminPageShell>
   )
 }
 
-function GroupDetail({
-  allPermissions,
-  group,
-  onChanged,
-}: {
-  allPermissions: string[]
-  group: GroupInfo
-  onChanged: () => void
-}) {
-  const [data, setData] = useState<ExpandedData | null>(null)
+function GroupDetail({ allPermissions, group }: { allPermissions: string[]; group: GroupInfo }) {
   const [newMember, setNewMember] = useState('')
 
-  const load = useCallback(async () => {
-    try {
-      const [perms, members] = await Promise.all([
-        fetchJson<string[]>(`/admin/groups/${group.id}/permissions`),
-        fetchJson<string[]>(`/admin/groups/${group.id}/members`),
-      ])
-      setData({ members, permissions: perms })
-    } catch {
-      // keep current state
-    }
-  }, [group.id])
+  const { data: permissionsData } = useQuery({
+    queryKey: adminKeys.groupPermissions(group.id),
+    queryFn: ({ signal }) => fetchJson<string[]>(`/admin/groups/${group.id}/permissions`, signal),
+  })
+  const permissions = permissionsData ?? []
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  const { data: membersData } = useQuery({
+    queryKey: adminKeys.groupMembers(group.id),
+    queryFn: ({ signal }) => fetchJson<string[]>(`/admin/groups/${group.id}/members`, signal),
+  })
+  const members = membersData ?? []
 
-  const handleTogglePermission = async (perm: string, checked: boolean) => {
-    if (!data) return
-    const updated = checked
-      ? [...data.permissions, perm]
-      : data.permissions.filter((p) => p !== perm)
-    try {
-      await putJson(`/admin/groups/${group.id}/permissions`, {
-        permissions: updated,
-      })
-      setData({ ...data, permissions: updated })
-      toast.success('Permissions updated')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update permissions')
-    }
+  const updatePermissions = useAdminMutation({
+    invalidateKey: adminKeys.groupPermissions(group.id),
+    successMsg: 'Permissions updated',
+    mutationFn: (perms: string[]) =>
+      putJson(`/admin/groups/${group.id}/permissions`, { permissions: perms }),
+  })
+
+  const addMember = useAdminMutation({
+    invalidateKey: adminKeys.groupMembers(group.id),
+    mutationFn: (address: string) => postJson(`/admin/groups/${group.id}/members`, { address }),
+    successMsg: (address) => `Member "${address}" added`,
+  })
+
+  const removeMember = useAdminMutation({
+    invalidateKey: adminKeys.groupMembers(group.id),
+    mutationFn: (address: string) =>
+      deleteJson(`/admin/groups/${group.id}/members/${encodeURIComponent(address)}`),
+    successMsg: (address) => `Member "${address}" removed`,
+  })
+
+  const loading = !permissionsData || !membersData
+
+  const handleTogglePermission = (perm: string, checked: boolean) => {
+    const updated = checked ? [...permissions, perm] : permissions.filter((p) => p !== perm)
+    updatePermissions.mutate(updated)
   }
 
-  const handleAddMember = async () => {
-    if (!newMember.trim()) return
-    try {
-      await postJson(`/admin/groups/${group.id}/members`, {
-        address: newMember.trim(),
-      })
-      toast.success(`Member "${newMember.trim()}" added`)
-      setNewMember('')
-      load()
-      onChanged()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to add member')
-    }
+  const handleAddMember = () => {
+    const address = newMember.trim()
+    if (!address) return
+    addMember.mutate(address, {
+      onSuccess: () => {
+        setNewMember('')
+      },
+    })
   }
 
-  const handleRemoveMember = async (address: string) => {
+  const handleRemoveMember = (address: string) => {
+    // single-step confirm — small affordance vs full modal is intentional
     if (!window.confirm(`Remove member "${address}" from this group?`)) return
-    try {
-      await deleteJson(`/admin/groups/${group.id}/members/${encodeURIComponent(address)}`)
-      toast.success(`Member "${address}" removed`)
-      load()
-      onChanged()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to remove member')
-    }
+    removeMember.mutate(address)
   }
 
-  if (!data) {
+  if (loading) {
     return <div className="text-fg-muted px-4 py-3 text-sm">Loading...</div>
   }
 
@@ -310,7 +333,8 @@ function GroupDetail({
               key={perm}
             >
               <input
-                checked={data.permissions.includes(perm)}
+                checked={permissions.includes(perm)}
+                disabled={updatePermissions.isPending}
                 onChange={(e) => handleTogglePermission(perm, e.target.checked)}
                 type="checkbox"
               />
@@ -327,6 +351,7 @@ function GroupDetail({
         <h4 className="text-fg-secondary mb-2 text-xs font-medium">Members</h4>
         <div className="mb-2 flex gap-2">
           <input
+            aria-label="New member address"
             className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
             onChange={(e) => setNewMember(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAddMember()}
@@ -334,25 +359,28 @@ function GroupDetail({
             value={newMember}
           />
           <button
-            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm"
+            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
+            disabled={!newMember.trim() || addMember.isPending}
             onClick={handleAddMember}
           >
-            Add
+            {addMember.isPending ? 'Adding...' : 'Add'}
           </button>
         </div>
-        {data.members.length > 0 ? (
+        {members.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
-            {data.members.map((addr) => (
+            {members.map((addr) => (
               <span
                 className="bg-surface text-fg-secondary inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
                 key={addr}
               >
                 {addr}
                 <button
-                  className="text-danger hover:opacity-70"
+                  aria-label={`Remove ${addr}`}
+                  className="text-danger hover:opacity-70 disabled:opacity-50"
+                  disabled={removeMember.isPending}
                   onClick={() => handleRemoveMember(addr)}
                 >
-                  x
+                  ×
                 </button>
               </span>
             ))}
