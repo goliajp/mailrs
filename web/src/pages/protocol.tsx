@@ -5,6 +5,16 @@ import { useEffect, useRef, useState } from 'react'
 import { useSmtpEvents } from '@/hooks/use-smtp-events'
 import { formatUptime } from '@/lib/format'
 
+const EVENT_COLORS: Record<string, string> = {
+  Authenticated: 'text-info',
+  CommandReceived: 'text-accent',
+  ConnectionClosed: 'text-danger',
+  ConnectionOpened: 'text-success',
+  MessageDelivered: 'text-success',
+  ResponseSent: 'text-warning',
+  TlsUpgraded: 'text-accent',
+}
+
 export function Protocol() {
   const { connected, connections, events, status } = useSmtpEvents()
   const [selectedId, setSelectedId] = useState<null | number>(null)
@@ -13,7 +23,7 @@ export function Protocol() {
   const selectedConn = selectedId !== null ? (connections.get(selectedId) ?? null) : null
 
   return (
-    <div className="flex h-full flex-col">
+    <main className="flex h-full flex-col">
       {/* header */}
       <div className="border-border flex items-center justify-between border-b px-4 py-3">
         <div>
@@ -22,7 +32,7 @@ export function Protocol() {
             real-time SMTP session status and event stream
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div aria-live="polite" className="flex items-center gap-2" role="status">
           <div className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-success' : 'bg-danger'}`} />
           <span className="text-fg-muted text-xs">{connected ? 'connected' : 'disconnected'}</span>
         </div>
@@ -54,7 +64,10 @@ export function Protocol() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* left: connection list */}
-        <div className="border-border flex w-72 shrink-0 flex-col border-r">
+        <section
+          aria-label="Active SMTP sessions"
+          className="border-border flex w-72 shrink-0 flex-col border-r"
+        >
           <div className="border-border text-fg-muted border-b px-4 py-2 text-xs font-medium tracking-wider uppercase">
             Active Sessions ({connList.length})
           </div>
@@ -71,29 +84,32 @@ export function Protocol() {
               <div className="text-fg-muted p-4 text-center text-xs">no active connections</div>
             )}
           </div>
-        </div>
+        </section>
 
         {/* center: conversation */}
-        <div className="flex flex-1 flex-col">
+        <section aria-label="Session conversation" className="flex flex-1 flex-col">
           <div className="border-border text-fg-muted border-b px-4 py-2 text-xs font-medium tracking-wider uppercase">
             {selectedConn ? `Session #${selectedConn.id} — ${selectedConn.addr}` : 'Conversation'}
           </div>
           <div className="flex-1 overflow-hidden">
             <ConversationView conn={selectedConn} />
           </div>
-        </div>
+        </section>
 
         {/* right: event log */}
-        <div className="border-border flex w-96 shrink-0 flex-col border-l">
+        <section
+          aria-label="Event stream"
+          className="border-border flex w-96 shrink-0 flex-col border-l"
+        >
           <div className="border-border text-fg-muted border-b px-4 py-2 text-xs font-medium tracking-wider uppercase">
             Event Stream ({events.length})
           </div>
           <div className="flex-1 overflow-hidden">
             <EventLog events={events} />
           </div>
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -108,10 +124,12 @@ function ConnectionRow({
 }) {
   return (
     <button
+      aria-pressed={selected}
       className={`flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm transition-colors ${
         selected ? 'bg-accent/20 text-fg' : 'text-fg-secondary hover:bg-bg-secondary'
       }`}
       onClick={onClick}
+      type="button"
     >
       <span className="text-fg-muted font-mono text-xs">#{conn.id}</span>
       <span className="truncate">{conn.addr}</span>
@@ -157,6 +175,7 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
         return (
           <div className={`flex gap-2 ${isServer ? '' : 'flex-row-reverse'}`} key={i}>
             <div
+              aria-label={isServer ? 'Server' : 'Client'}
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                 isServer ? 'bg-success/10 text-success' : 'bg-accent/10 text-accent'
               }`}
@@ -169,7 +188,7 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
               }`}
             >
               {line.text.split('\r\n').map((l, j) => (
-                <div key={j}>{l || '\u00A0'}</div>
+                <div key={j}>{l || ' '}</div>
               ))}
             </div>
           </div>
@@ -183,18 +202,8 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
 }
 
 function EventBadge({ type }: { type: string }) {
-  const colors: Record<string, string> = {
-    Authenticated: 'text-info',
-    CommandReceived: 'text-accent',
-    ConnectionClosed: 'text-danger',
-    ConnectionOpened: 'text-success',
-    MessageDelivered: 'text-success',
-    ResponseSent: 'text-warning',
-    TlsUpgraded: 'text-accent',
-  }
-
   return (
-    <span className={`shrink-0 ${colors[type] ?? 'text-fg-muted'}`}>
+    <span className={`shrink-0 ${EVENT_COLORS[type] ?? 'text-fg-muted'}`}>
       {type.replace(/([A-Z])/g, ' $1').trim()}
     </span>
   )
