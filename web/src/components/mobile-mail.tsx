@@ -58,8 +58,10 @@ function MobileConversationView() {
       {/* header */}
       <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <button
+          aria-label="Back to thread"
           className="text-fg-muted hover:text-fg -ml-1 p-1"
           onClick={() => setMobileView('thread')}
+          type="button"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -108,6 +110,7 @@ function MobileConversationView() {
         <button
           className="bg-accent flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white active:opacity-90"
           onClick={() => setMobileView('reply')}
+          type="button"
         >
           <Reply className="h-4 w-4" />
           Reply
@@ -131,10 +134,14 @@ function MobileReplyView() {
   const lastMsg = messages[messages.length - 1]
   const subject = conversation?.subject || lastMsg?.subject || '(no subject)'
 
-  if (!selectedId || !lastMsg) {
-    setMobileView('thread')
-    return null
-  }
+  // bounce back to thread if there's nothing to reply to. Doing this in a
+  // useEffect (not directly during render) avoids the React "setState
+  // during render" warning + cascading re-render.
+  const shouldBounce = !selectedId || !lastMsg
+  useEffect(() => {
+    if (shouldBounce) setMobileView('thread')
+  }, [shouldBounce, setMobileView])
+  if (shouldBounce) return null
 
   const senderEmail = extractEmail(lastMsg.sender)
   const replyRecipients = senderEmail
@@ -152,8 +159,10 @@ function MobileReplyView() {
       {/* header */}
       <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <button
+          aria-label="Back to thread"
           className="text-fg-muted hover:text-fg -ml-1 p-1"
           onClick={() => setMobileView('thread')}
+          type="button"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -228,16 +237,20 @@ function MobileThreadView() {
       {/* header */}
       <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <button
+          aria-label="Back to inbox"
           className="text-fg-muted hover:text-fg -ml-1 p-1"
           onClick={() => setMobileView('list')}
+          type="button"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{subject}</h2>
         {messages.length > 1 && (
           <button
+            aria-label={`View conversation (${messages.length} messages)`}
             className="text-fg-muted hover:text-fg flex items-center gap-1 rounded-md px-2 py-1 text-xs"
             onClick={() => setMobileView('conversation')}
+            type="button"
           >
             <MessageSquare className="h-4 w-4" />
             <span>{messages.length}</span>
@@ -288,6 +301,7 @@ function MobileThreadView() {
                 <button
                   className="text-accent flex w-full items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium"
                   onClick={() => setMobileView('conversation')}
+                  type="button"
                 >
                   <MessageSquare className="h-4 w-4" />
                   View conversation ({messages.length} messages)
@@ -307,8 +321,10 @@ function MobileThreadView() {
 
         {/* floating reply button */}
         <button
+          aria-label="Reply"
           className="bg-accent sticky bottom-4 left-full z-10 mr-4 -ml-20 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg active:scale-95"
           onClick={() => setMobileView('reply')}
+          type="button"
         >
           <Reply className="h-6 w-6" />
         </button>
