@@ -1,7 +1,7 @@
 {
   "name": "@mailrs/web",
   "private": true,
-  "version": "1.7.129",
+  "version": "1.7.130",
   "type": "module",
   "scripts": {
     "dev": "vite",
