@@ -16,6 +16,38 @@ import {
 import { Plus, Search, Star, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 
+// Token swatches: each token's bg/color class is enumerated literally below
+// so Tailwind's purge keeps them. Dynamic `bg-[var(${token})]` would be
+// stripped at build because the class string isn't known statically.
+const SURFACE_TOKENS = [
+  { className: 'bg-[var(--gds-bg)]', label: 'bg' },
+  { className: 'bg-[var(--gds-surface)]', label: 'surface' },
+  { className: 'bg-[var(--gds-bg-secondary)]', label: 'bg-secondary' },
+] as const
+const TEXT_TOKENS = [
+  { className: 'text-[var(--gds-fg)]', label: 'primary' },
+  { className: 'text-[var(--gds-fg-secondary)]', label: 'secondary' },
+  { className: 'text-[var(--gds-fg-muted)]', label: 'muted' },
+] as const
+const STATUS_TOKENS = [
+  { className: 'bg-[var(--gds-success)]', label: 'success' },
+  { className: 'bg-[var(--gds-warning)]', label: 'warning' },
+  { className: 'bg-[var(--gds-danger)]', label: 'danger' },
+  { className: 'bg-[var(--gds-info)]', label: 'info' },
+] as const
+const SPACING_STEPS = [1, 2, 3, 4, 5, 6, 8, 10, 12] as const
+const SPACING_SIZE_CLASS: Record<number, string> = {
+  1: 'h-1 w-1',
+  2: 'h-2 w-2',
+  3: 'h-3 w-3',
+  4: 'h-4 w-4',
+  5: 'h-5 w-5',
+  6: 'h-6 w-6',
+  8: 'h-8 w-8',
+  10: 'h-10 w-10',
+  12: 'h-12 w-12',
+}
+
 export function Playground() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
@@ -23,7 +55,7 @@ export function Playground() {
   const setMode = useSetThemeMode()
 
   return (
-    <div className="bg-bg min-h-screen p-6">
+    <main className="bg-bg min-h-screen p-6">
       <div className="mx-auto max-w-4xl space-y-10">
         {/* header */}
         <div className="flex items-center justify-between">
@@ -39,62 +71,37 @@ export function Playground() {
         {/* color tokens */}
         <Section title="Color Tokens">
           <Row label="Surfaces">
-            {(['--gds-bg', '--gds-surface', '--gds-bg-secondary'] as const).map((v) => (
-              <div className="flex flex-col items-center gap-1" key={v}>
-                <div
-                  className="border-border h-12 w-12 border"
-                  style={{ background: `var(${v})` }}
-                />
-                <span className="text-fg-muted text-[10px]">{v.replace('--gds-', '')}</span>
+            {SURFACE_TOKENS.map((t) => (
+              <div className="flex flex-col items-center gap-1" key={t.label}>
+                <div className={`border-border h-12 w-12 border ${t.className}`} />
+                <span className="text-fg-muted text-[10px]">{t.label}</span>
               </div>
             ))}
           </Row>
           <Row label="Text">
-            {[
-              { label: 'primary', v: '--gds-fg' },
-              { label: 'secondary', v: '--gds-fg-secondary' },
-              { label: 'muted', v: '--gds-fg-muted' },
-            ].map(({ label, v }) => (
-              <span className="text-sm font-medium" key={v} style={{ color: `var(${v})` }}>
-                {label}
+            {TEXT_TOKENS.map((t) => (
+              <span className={`text-sm font-medium ${t.className}`} key={t.label}>
+                {t.label}
               </span>
             ))}
           </Row>
           <Row label="Status">
-            {(['success', 'warning', 'danger', 'info'] as const).map((s) => (
-              <div className="flex items-center gap-1.5" key={s}>
-                <div className="h-3 w-3 rounded-full" style={{ background: `var(--gds-${s})` }} />
-                <span className="text-fg-secondary text-xs">{s}</span>
+            {STATUS_TOKENS.map((t) => (
+              <div className="flex items-center gap-1.5" key={t.label}>
+                <div className={`h-3 w-3 rounded-full ${t.className}`} />
+                <span className="text-fg-secondary text-xs">{t.label}</span>
               </div>
             ))}
           </Row>
           <Row label="Brand">
             <div className="flex items-center gap-2">
-              <div
-                className="flex h-8 w-20 items-center justify-center text-xs font-medium"
-                style={{
-                  background: 'var(--gds-accent)',
-                  color: 'var(--gds-accent-fg)',
-                }}
-              >
+              <div className="flex h-8 w-20 items-center justify-center bg-[var(--gds-accent)] text-xs font-medium text-[var(--gds-accent-fg)]">
                 Primary
               </div>
-              <div
-                className="flex h-8 w-20 items-center justify-center text-xs font-medium"
-                style={{
-                  background: 'var(--gds-accent-hover)',
-                  color: 'var(--gds-accent-fg)',
-                }}
-              >
+              <div className="flex h-8 w-20 items-center justify-center bg-[var(--gds-accent-hover)] text-xs font-medium text-[var(--gds-accent-fg)]">
                 Hover
               </div>
-              <div
-                className="border-border flex h-8 w-20 items-center justify-center border text-xs font-medium"
-                style={{
-                  background: 'color-mix(in srgb, var(--gds-accent) 10%, transparent)',
-                  color: 'var(--gds-accent)',
-                }}
-              >
+              <div className="border-border flex h-8 w-20 items-center justify-center border bg-[color-mix(in_srgb,var(--gds-accent)_10%,transparent)] text-xs font-medium text-[var(--gds-accent)]">
                 Subtle
               </div>
             </div>
@@ -282,9 +289,9 @@ export function Playground() {
         {/* spacing */}
         <Section title="Spacing Scale">
           <div className="flex items-end gap-1">
-            {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
+            {SPACING_STEPS.map((n) => (
               <div className="flex flex-col items-center gap-1" key={n}>
-                <div className="bg-accent" style={{ height: `${n * 4}px`, width: `${n * 4}px` }} />
+                <div className={`bg-accent ${SPACING_SIZE_CLASS[n]}`} />
                 <span className="text-fg-muted text-[10px]">{n}</span>
               </div>
             ))}
@@ -295,7 +302,7 @@ export function Playground() {
           mailrs design system &middot; Powered by @goliapkg/gds
         </footer>
       </div>
-    </div>
+    </main>
   )
 }
 
