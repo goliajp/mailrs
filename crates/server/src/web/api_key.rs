@@ -173,11 +173,10 @@ pub(super) async fn revoke_api_key(
     };
 
     match api_key_store::revoke_api_key(pool, id, &auth_user.address).await {
-        Ok(Some(prefix)) => {
-            // evict from Kevy cache
-            if let Some(ref kevy) = state.kevy_embed {
-                api_key_store::cache_delete(kevy, &prefix);
-            }
+        Ok(Some(_prefix)) => {
+            // No cache to evict — verify always hits PG with
+            // `revoked_at IS NULL` filter, so the revoke is effective
+            // immediately.
             (StatusCode::OK, Json(serde_json::json!({"success": true})))
         }
         Ok(None) => (
@@ -193,7 +192,7 @@ pub(super) async fn revoke_api_key(
 
 #[cfg(test)]
 mod tests {
-    use crate::api_key_store::{self, CachedApiKey};
+    use crate::api_key_store::{self, VerifiedApiKey};
 
     use super::*;
 
@@ -229,7 +228,7 @@ mod tests {
     /// helper to test verify logic without hitting DB/Kevy
     fn verify_api_key_logic(
         token: &str,
-        cached: Option<&CachedApiKey>,
+        cached: Option<&VerifiedApiKey>,
     ) -> Result<AuthUser, (StatusCode, &'static str)> {
         // parse token
         let parts: Vec<&str> = token.splitn(3, '_').collect();
@@ -265,7 +264,7 @@ mod tests {
     #[test]
     fn test_bearer_auth_works() {
         let (full_key, _prefix, key_hash) = api_key_store::generate_api_key();
-        let cached = CachedApiKey {
+        let cached = VerifiedApiKey {
             key_hash,
             account_address: "user@example.com".to_string(),
             expires_at: None,
@@ -284,7 +283,7 @@ mod tests {
     #[test]
     fn test_expired_key_rejected() {
         let (full_key, _prefix, key_hash) = api_key_store::generate_api_key();
-        let cached = CachedApiKey {
+        let cached = VerifiedApiKey {
             key_hash,
             account_address: "user@example.com".to_string(),
             expires_at: Some(Utc::now() - chrono::Duration::hours(1)),
@@ -302,7 +301,7 @@ mod tests {
     #[test]
     fn test_wrong_key_secret() {
         let (_full_key, _prefix, key_hash) = api_key_store::generate_api_key();
-        let cached = CachedApiKey {
+        let cached = VerifiedApiKey {
             key_hash,
             account_address: "user@example.com".to_string(),
             expires_at: None,
@@ -340,7 +339,7 @@ mod tests {
     #[test]
     fn test_api_key_produces_auth_user() {
         let (full_key, _prefix, key_hash) = api_key_store::generate_api_key();
-        let cached = CachedApiKey {
+        let cached = VerifiedApiKey {
             key_hash,
             account_address: "admin@golia.jp".to_string(),
             expires_at: None,
