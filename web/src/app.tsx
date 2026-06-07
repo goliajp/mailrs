@@ -11,39 +11,32 @@ import {
 } from '@goliapkg/gds'
 import { useAtomValue } from 'jotai'
 import { getDefaultStore } from 'jotai'
-import { Suspense, useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
 import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
-import { ErrorBoundary } from '@/components/error-boundary'
 import { MobileShell } from '@/components/mobile-shell'
 import { MPane } from '@/layouts/pane'
-import { lazyWithReload } from '@/lib/lazy'
-import { type HealthInfo, HealthInfoSchema } from '@/lib/schemas'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 import { authAtom } from '@/store/auth'
 import { connectionStatusAtom, unreadCountAtom } from '@/store/chat'
 
-// every authenticated page is lazy so the entry chunk is just the shell +
-// auth gate. cuts cold-load JS preload by ~875 KB on /login.
-// lazyWithReload auto-reloads on stale-chunk failures from rapid deploys.
-const Admin = lazyWithReload(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
-const Chat = lazyWithReload(() => import('@/pages/chat').then((m) => ({ default: m.Chat })))
-const Dashboard = lazyWithReload(() =>
-  import('@/pages/dashboard').then((m) => ({ default: m.Dashboard }))
-)
-const Playground = lazyWithReload(() =>
-  import('@/pages/playground').then((m) => ({ default: m.Playground }))
-)
-const Protocol = lazyWithReload(() =>
-  import('@/pages/protocol').then((m) => ({ default: m.Protocol }))
-)
-const Settings = lazyWithReload(() =>
-  import('@/pages/settings').then((m) => ({ default: m.Settings }))
-)
+type HealthInfo = {
+  kevy: boolean
+  pg: boolean
+  status: string
+  version: string
+}
+
+const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
+const Chat = lazy(() => import('@/pages/chat').then((m) => ({ default: m.Chat })))
+const Dashboard = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.Dashboard })))
+const Playground = lazy(() => import('@/pages/playground').then((m) => ({ default: m.Playground })))
+const Protocol = lazy(() => import('@/pages/protocol').then((m) => ({ default: m.Protocol })))
+const Settings = lazy(() => import('@/pages/settings').then((m) => ({ default: m.Settings })))
 
 // apply zinc-neutral preset before first render — no effect race conditions
 initMailrsTheme()
@@ -55,7 +48,7 @@ export function App() {
   useThemeColor()
 
   return (
-    <ErrorBoundary>
+    <>
       <ToastProvider position="top-right" />
       <CommandPalette />
       <Routes>
@@ -63,11 +56,9 @@ export function App() {
         <Route element={<ResetPassword />} path="/reset-password" />
         <Route
           element={
-            <ErrorBoundary level="route">
-              <Suspense fallback={<LoadingFallback />}>
-                <Playground />
-              </Suspense>
-            </ErrorBoundary>
+            <Suspense fallback={<LoadingFallback />}>
+              <Playground />
+            </Suspense>
           }
           path="/playground"
         />
@@ -75,11 +66,9 @@ export function App() {
           element={
             <AuthShell>
               <PagePane>
-                <ErrorBoundary level="route">
-                  <Suspense fallback={<LoadingFallback />}>
-                    <Protocol />
-                  </Suspense>
-                </ErrorBoundary>
+                <Suspense fallback={<LoadingFallback />}>
+                  <Protocol />
+                </Suspense>
               </PagePane>
             </AuthShell>
           }
@@ -89,11 +78,9 @@ export function App() {
           element={
             <AuthShell>
               <PagePane>
-                <ErrorBoundary level="route">
-                  <Suspense fallback={<LoadingFallback />}>
-                    <Admin />
-                  </Suspense>
-                </ErrorBoundary>
+                <Suspense fallback={<LoadingFallback />}>
+                  <Admin />
+                </Suspense>
               </PagePane>
             </AuthShell>
           }
@@ -103,11 +90,9 @@ export function App() {
           element={
             <AuthShell>
               <PagePane>
-                <ErrorBoundary level="route">
-                  <Suspense fallback={<LoadingFallback />}>
-                    <Settings />
-                  </Suspense>
-                </ErrorBoundary>
+                <Suspense fallback={<LoadingFallback />}>
+                  <Settings />
+                </Suspense>
               </PagePane>
             </AuthShell>
           }
@@ -116,11 +101,9 @@ export function App() {
         <Route
           element={
             <AuthShell>
-              <ErrorBoundary level="route">
-                <Suspense fallback={<LoadingFallback />}>
-                  <Chat />
-                </Suspense>
-              </ErrorBoundary>
+              <Suspense fallback={<LoadingFallback />}>
+                <Chat />
+              </Suspense>
             </AuthShell>
           }
           path="/mail/*"
@@ -129,21 +112,16 @@ export function App() {
           element={
             <AuthShell>
               <PagePane>
-                <ErrorBoundary level="route">
-                  {/* dashboard-shaped fallback during the lazy chunk fetch
-                      so the user doesn't see a generic spinner give way to
-                      a structured page — the shell stays the whole time */}
-                  <Suspense fallback={<DashboardShellSkeleton />}>
-                    <Dashboard />
-                  </Suspense>
-                </ErrorBoundary>
+                <Suspense fallback={<DashboardShellSkeleton />}>
+                  <Dashboard />
+                </Suspense>
               </PagePane>
             </AuthShell>
           }
           path="/*"
         />
       </Routes>
-    </ErrorBoundary>
+    </>
   )
 }
 
@@ -221,15 +199,8 @@ function StatusBar() {
   const [health, setHealth] = useState<HealthInfo | null>(null)
 
   const fetchHealth = useCallback(async () => {
-    try {
-      const res = await fetch('/api/health')
-      if (res.ok) {
-        const raw: unknown = await res.json()
-        setHealth(HealthInfoSchema.parse(raw))
-      }
-    } catch {
-      /* ignore — drift is logged via ErrorBoundary, fetch failures ignored */
-    }
+    const res = await fetch('/api/health')
+    if (res.ok) setHealth(await res.json())
   }, [])
 
   useEffect(() => {

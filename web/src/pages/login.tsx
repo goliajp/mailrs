@@ -9,7 +9,6 @@ import { useNavigate, useSearchParams } from 'react-router'
 import { AuthCard } from '@/components/auth/auth-card'
 import { AuthField } from '@/components/auth/auth-field'
 import { BrandHeader } from '@/components/auth/brand-header'
-import { safeStorage } from '@/lib/safe-storage'
 import { authAtom } from '@/store/auth'
 
 type OidcClientConfig = {
@@ -22,12 +21,12 @@ export function Login() {
   const setAuth = useSetAtom(authAtom)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [address, setAddress] = useState(() => safeStorage.getItem('mailrs_saved_email') ?? '')
+  const [address, setAddress] = useState(() => localStorage.getItem('mailrs_saved_email') ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [oidcConfig, setOidcConfig] = useState<null | OidcClientConfig>(null)
-  const [rememberMe, setRememberMe] = useState(() => !!safeStorage.getItem('mailrs_saved_email'))
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('mailrs_saved_email'))
   const [totpRequired, setTotpRequired] = useState(false)
   const [totpCode, setTotpCode] = useState('')
   const [forgotMode, setForgotMode] = useState(false)
@@ -133,9 +132,9 @@ export function Login() {
         token: data.token,
       }
       if (rememberMe) {
-        safeStorage.setItem('mailrs_saved_email', address)
+        localStorage.setItem('mailrs_saved_email', address)
       } else {
-        safeStorage.removeItem('mailrs_saved_email')
+        localStorage.removeItem('mailrs_saved_email')
       }
       setAuth(auth)
 

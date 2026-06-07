@@ -5,12 +5,11 @@ import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { X } from 'lucide-react'
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
-import { lazyWithReload } from '@/lib/lazy'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { authAtom, getToken } from '@/store/auth'
@@ -20,9 +19,7 @@ import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 import { ActionBar } from './action-bar'
 import { AddressFields } from './address-fields'
 
-// Defer TipTap until the user actually opens the composer. Saves ~700 kB
-// off the chat-list / dashboard chunk for users who never compose.
-const StructuredCompose = lazyWithReload(() =>
+const StructuredCompose = lazy(() =>
   import('@/components/structured-compose').then((m) => ({ default: m.StructuredCompose }))
 )
 

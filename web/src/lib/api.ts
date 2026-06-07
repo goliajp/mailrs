@@ -1,4 +1,3 @@
-import { safeStorage } from '@/lib/safe-storage'
 import { getToken } from '@/store/auth'
 
 const API_BASE = '/api'
@@ -22,14 +21,6 @@ export type FeedbackAction =
   | 'mark_spam'
   | 'mark_vip'
   | 'unblock'
-
-// Optional validator/coercer applied to a parsed JSON response. Pass
-// either a Zod schema's `.parse` (e.g. `HealthInfoSchema.parse`) or a
-// lightweight shape assertion (e.g. `(raw) => assertArrayShape(...)`).
-// Throws synchronously — caught by useQuery as a query error and
-// surfaced through the route-level ErrorBoundary instead of a downstream
-// `undefined.foo` deeper in the render tree.
-export type ResponseValidator<T> = (raw: unknown) => T
 
 export type SaveDraftRequest = {
   bcc?: string
@@ -67,7 +58,7 @@ export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blo
     signal,
   })
   if (res.status === 401) {
-    safeStorage.removeItem('mailrs_auth')
+    localStorage.removeItem('mailrs_auth')
     window.location.href = '/login'
     throw new Error('unauthorized')
   }
@@ -77,17 +68,12 @@ export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blo
   return res.blob()
 }
 
-export async function fetchJson<T>(
-  path: string,
-  signal?: AbortSignal,
-  validate?: ResponseValidator<T>
-): Promise<T> {
+export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: authHeaders(),
     signal,
   })
-  const data = await handleResponse<T>(res)
-  return validate ? validate(data) : data
+  return handleResponse<T>(res)
 }
 
 export async function getThreadReactions(
@@ -177,7 +163,7 @@ function authHeaders(): Record<string, string> {
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
-    safeStorage.removeItem('mailrs_auth')
+    localStorage.removeItem('mailrs_auth')
     window.location.href = '/login'
     throw new Error('unauthorized')
   }

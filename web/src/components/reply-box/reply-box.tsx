@@ -3,21 +3,16 @@ import type { StructuredComposeHandle } from '@/components/structured-compose'
 
 import { toast } from '@goliapkg/gds'
 import { useAtomValue, useStore } from 'jotai'
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { deleteJson, postJson } from '@/lib/api'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
-import { lazyWithReload } from '@/lib/lazy'
-import { safeStorage } from '@/lib/safe-storage'
 import { authAtom } from '@/store/auth'
 import { threadMessagesAtom } from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
-// Defer the TipTap-laden composer until reply-box actually mounts. This
-// keeps the chat list / thread view chunk lean — opening a thread without
-// hitting Reply never pays the 700kB TipTap+ProseMirror+lowlight tax.
-const StructuredCompose = lazyWithReload(() =>
+const StructuredCompose = lazy(() =>
   import('@/components/structured-compose').then((m) => ({ default: m.StructuredCompose }))
 )
 
@@ -102,13 +97,13 @@ export function ReplyBox({
   const saveDraftLocal = useCallback(() => {
     const md = composeRef.current?.getMarkdown() ?? ''
     if (md.trim()) {
-      safeStorage.setItem(draftKey, md)
+      localStorage.setItem(draftKey, md)
     }
   }, [draftKey])
 
   // restore draft on mount
   useEffect(() => {
-    const saved = safeStorage.getItem(draftKey)
+    const saved = localStorage.getItem(draftKey)
     if (saved) {
       setTimeout(() => {
         composeRef.current?.setMarkdown(saved)
@@ -269,7 +264,7 @@ export function ReplyBox({
             }
           : {}),
       })
-      safeStorage.removeItem(draftKey)
+      localStorage.removeItem(draftKey)
       onSent()
     } catch (err) {
       saveDraftLocal()

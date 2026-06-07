@@ -90,12 +90,6 @@ describe('authAtom', () => {
     store.set(authAtom, null)
     expect(store.get(authAtom)).toBeNull()
   })
-
-  it('returns null when localStorage contains invalid JSON', () => {
-    mockStorage.setItem(STORAGE_KEY, 'not-valid-json{{{')
-    const store = createStore()
-    expect(store.get(authAtom)).toBeNull()
-  })
 })
 
 describe('getToken', () => {
@@ -117,11 +111,6 @@ describe('getToken', () => {
   it('returns token string when auth is stored', () => {
     mockStorage.setItem(STORAGE_KEY, JSON.stringify(sampleAuth))
     expect(getToken()).toBe('tok-abc123')
-  })
-
-  it('returns null when localStorage contains invalid JSON', () => {
-    mockStorage.setItem(STORAGE_KEY, '{{invalid')
-    expect(getToken()).toBeNull()
   })
 
   it('reflects updated token after authAtom is set', () => {

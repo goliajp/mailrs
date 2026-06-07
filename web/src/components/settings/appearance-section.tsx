@@ -3,7 +3,6 @@ import type { ThemeMode } from '@goliapkg/gds'
 import { useAtom } from 'jotai'
 import { useCallback, useState } from 'react'
 
-import { getNotificationSupport, requestNotificationPermission } from '@/lib/safe-storage'
 import { notificationsAtom, notificationSoundAtom, pageSizeAtom } from '@/store/settings'
 import { themeModeAtom } from '@/store/theme'
 
@@ -26,24 +25,15 @@ export function AppearanceSection() {
 
   const handleNotificationToggle = useCallback(
     async (enabled: boolean) => {
-      const support = getNotificationSupport()
-      if (support === 'unsupported') {
-        setNotificationError('Browser notifications are not supported on this device.')
-        return
-      }
-      if (enabled && support === 'unavailable') {
-        const result = await requestNotificationPermission()
+      if (enabled && Notification.permission === 'default') {
+        const result = await Notification.requestPermission()
         if (result === 'denied') {
-          setNotificationError(
-            'Browser notifications were denied. Please enable them in your browser settings.'
-          )
+          setNotificationError('Browser notifications were denied.')
           return
         }
       }
-      if (enabled && support === 'denied') {
-        setNotificationError(
-          'Browser notifications are blocked. Please enable them in your browser settings.'
-        )
+      if (enabled && Notification.permission === 'denied') {
+        setNotificationError('Browser notifications are blocked.')
         return
       }
       setNotificationError(null)

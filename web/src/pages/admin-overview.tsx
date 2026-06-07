@@ -4,7 +4,6 @@ import { AdminErrorState, AdminPageShell } from '@/components/admin-page'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { fetchJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
-import { type HealthInfo, HealthInfoSchema } from '@/lib/schemas'
 
 // --- types ---
 
@@ -15,6 +14,17 @@ type AuditEntry = {
   id: number
   target: string
   timestamp: number
+}
+
+type HealthInfo = {
+  active_sessions?: number
+  kevy: boolean
+  pg: boolean
+  status: string
+  total_connections?: number
+  total_messages?: number
+  uptime_secs: number
+  version: string
 }
 
 type SmtpConfig = {
@@ -51,7 +61,7 @@ export function AdminOverview() {
   } = useQuery({
     queryKey: adminKeys.overviewHealth(),
     refetchInterval: 10_000,
-    queryFn: ({ signal }) => fetchJson<HealthInfo>('/health', signal, HealthInfoSchema.parse),
+    queryFn: ({ signal }) => fetchJson<HealthInfo>('/health', signal),
   })
   const {
     data: status = null,

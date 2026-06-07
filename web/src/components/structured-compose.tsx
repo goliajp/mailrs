@@ -10,6 +10,7 @@ import { X } from 'lucide-react'
 import { marked } from 'marked'
 import {
   forwardRef,
+  lazy,
   type ReactNode,
   Suspense,
   useCallback,
@@ -24,7 +25,6 @@ import { DividerBlock } from '@/components/composer/blocks/divider-block'
 import { QuoteBlock } from '@/components/composer/blocks/quote-block'
 import { TextBlock } from '@/components/composer/blocks/text-block'
 import { useBlockComposer } from '@/components/composer/use-block-composer'
-import { lazyWithReload as lazy } from '@/lib/lazy'
 
 // SignatureBlock pulls in tiptap + prosemirror + lowlight + highlight.js
 // (≈700 kB raw). it only renders when the user has signatures enabled AND
