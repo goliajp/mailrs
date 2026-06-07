@@ -92,6 +92,16 @@ echo "==> running web tests"
 (cd web && bun run test)
 echo ""
 
+echo "==> checking bundle budget (entry chunk + total payload)"
+# Production-shape build (web/dist) is what the bundle-budget script
+# weighs. Skipping when --web-only because that mode runs its own build
+# downstream and re-runs the check there too.
+if [ "$WEB_ONLY" = false ]; then
+  (cd web && bunx --bun tsc -b && bunx --bun vite build >/dev/null 2>&1)
+  (cd web && node scripts/check-bundle.mjs)
+fi
+echo ""
+
 # 2. require fully clean working tree — bump.sh is about to touch Cargo.toml,
 #    web/package.json, Cargo.lock, and the rollback-on-deploy-failure trap below
 #    relies on `git checkout --` restoring those files to exactly their HEAD state.
