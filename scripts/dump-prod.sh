@@ -23,10 +23,16 @@ SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no"
 
 # pg_dump flags:
 #   --data-only            : schema is owned by init-schema + migrate-*.sql; don't dump it
-#   --inserts              : INSERT statements (not COPY) — matches the format SPG / round-7..10 used
+#   --column-inserts       : INSERT statements WITH column names — REQUIRED so any
+#                            prod column-order drift from migrate-NNN DROP+ADD COLUMN
+#                            patterns (migrate-038 redirect_uris, migrate-039
+#                            message_data) doesn't surface as a type/arity mismatch
+#                            on SPG dump-load. positional `--inserts` was tried in
+#                            v1.7.107 and broke round-11 acceptance — see SPG
+#                            mailrs-migration-feedback-followup-d-validate-11.md.
 #   --on-conflict-do-nothing : PG 16+; avoid pre-seed dup collisions on fresh-load
 #   --no-owner --no-privileges : strip role grants that mean nothing outside prod
-PG_DUMP_FLAGS="--data-only --inserts --on-conflict-do-nothing --no-owner --no-privileges"
+PG_DUMP_FLAGS="--data-only --column-inserts --on-conflict-do-nothing --no-owner --no-privileges"
 
 echo "==> pulling fresh pg_dump from $SSH_HOST"
 ssh $SSH_OPTS "$SSH_HOST" "cd $REMOTE_DIR && docker compose exec -T postgres \
