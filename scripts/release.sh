@@ -60,14 +60,25 @@ echo ""
 
 # 1. tests
 if [ "$WEB_ONLY" = false ]; then
-  echo "==> running cargo test (skip _under_budget — dev-profile noise)"
+  echo "==> running cargo nextest (skip _under_budget — dev-profile noise)"
   # Mirror .github/workflows/release.yml gate: perf_gate *_under_budget
   # tests are calibrated for release profile on M-series. Dev profile
   # under `cargo test --workspace` parallel load borders the budgets
   # and yields flaky failures that block ship. Skip them here; CI
   # already skips them. To run perf gates explicitly:
   #   cargo test --release --workspace -- _under_budget
-  cargo test --workspace -- --skip _under_budget
+  #
+  # nextest runs the same unit + integration suite 2-3x faster than
+  # `cargo test`, primarily by giving each test its own process and
+  # parallelising heavier integration tests that `cargo test` serialises
+  # within a single binary. Background-running this on macOS was
+  # consistently SIGKILLed by the harness time budget under the slower
+  # cargo test path (v1.7.124 needed manual bump + GHA build to ship).
+  # Doctests don't run under nextest (it has no --doc mode) so we still
+  # invoke `cargo test --doc` afterwards. They typically finish in <30s.
+  cargo nextest run --workspace --no-fail-fast \
+    --filterset 'not test(/_under_budget/)'
+  cargo test --workspace --doc -- --skip _under_budget
   echo ""
 fi
 
