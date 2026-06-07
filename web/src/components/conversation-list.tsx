@@ -329,7 +329,13 @@ const VIEW_TABS: { label: string; value: string }[] = [
   { label: 'Junk', value: 'junk' },
 ]
 
-function FilterBar() {
+// memo'd because FilterBar takes no props — every parent re-render
+// (search box keystroke, selection change, batch-mode toggle) would
+// otherwise re-create its 7 tabs + filter-panel JSX even though the
+// atom-backed state is identical. With memo, props-equal short-circuit
+// makes the function a no-op unless one of its atoms moves; useAtom
+// inside still subscribes correctly and re-renders when needed.
+const FilterBar = memo(function FilterBar() {
   const [quickFilter, setQuickFilter] = useAtom(quickFilterAtom)
   const [folder, setFolder] = useAtom(folderAtom)
   const [section, setSection] = useAtom(importanceSectionAtom)
@@ -578,7 +584,7 @@ function FilterBar() {
       </div>
     </div>
   )
-}
+})
 
 const dateLabel = dateGroupLabel
 

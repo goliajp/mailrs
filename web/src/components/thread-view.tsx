@@ -604,8 +604,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                             <img
                               alt="Verified brand"
                               className="ml-1 inline-block h-4 w-4 shrink-0"
+                              height={16}
+                              loading="lazy"
                               src={selectedMsg.bimi_logo_url}
                               title="BIMI verified brand"
+                              width={16}
                             />
                           )}
                         </p>
