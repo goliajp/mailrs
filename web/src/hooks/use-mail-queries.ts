@@ -11,9 +11,9 @@ export function useActionCountQuery(domains: string[]) {
   return useQuery({
     queryKey: mailKeys.actionCount(domains),
     staleTime: 60 * 1000,
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      return fetchJson<{ count: number }>(`/conversations/action-count${q}`)
+      return fetchJson<{ count: number }>(`/conversations/action-count${q}`, signal)
     },
   })
 }
@@ -22,9 +22,9 @@ export function useCategoriesQuery(domains: string[]) {
   return useQuery({
     queryKey: mailKeys.categories(domains),
     staleTime: 60 * 1000,
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      return fetchJson<CategoryCount[]>(`/conversations/categories${q}`)
+      return fetchJson<CategoryCount[]>(`/conversations/categories${q}`, signal)
     },
   })
 }
@@ -48,16 +48,20 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       const last = lastPage[lastPage.length - 1]
       return last?.last_date
     },
-    queryFn: ({ pageParam }) => fetchJson<ConversationSummary[]>(listPath(filters, pageParam)),
+    queryFn: ({ pageParam, signal }) =>
+      fetchJson<ConversationSummary[]>(listPath(filters, pageParam), signal),
   })
 }
 
 export function useThreadQuery(threadId: null | string, domains: string[]) {
   return useQuery({
     enabled: !!threadId,
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      return fetchJson<ThreadMessage[]>(`/conversations/${encodeURIComponent(threadId ?? '')}${q}`)
+      return fetchJson<ThreadMessage[]>(
+        `/conversations/${encodeURIComponent(threadId ?? '')}${q}`,
+        signal
+      )
     },
     // Thread content is mutation-invariant from the client's point of view —
     // mark-read / star / pin / archive all act on list-shape flags only, not
