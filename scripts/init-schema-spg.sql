@@ -11,7 +11,10 @@
 --  * VECTOR(N) + HNSW index (SPG v7.9.22 — opclass omitted, SPG picks default)
 --  * table-level UNIQUE(col, …) and PRIMARY KEY (col, …) (SPG v7.9.18 ✅)
 --  * partial indexes WHERE …  (SPG ✅)
---  * no PG-only constructs: no plpgsql, no triggers, no tsvector / GIN, no
+--  * tsvector storage column (SPG v7.16.1+ accepts the wire format —
+--    we declare the column but skip the GIN index since SPG-mode runs
+--    with MAILRS_FTS=off; cement does no FTS query against SPG)
+--  * no PG-only constructs: no plpgsql, no triggers, no GIN, no
 --    pg_trgm, no CREATE EXTENSION, no `public.` schema prefix, no
 --    `IS DISTINCT FROM` (rewritten to `<> OR IS NULL`)
 --  * no CHECK constraints (A7) — equivalent validation lives in the cement
@@ -117,6 +120,7 @@ CREATE TABLE messages (
     invite_method TEXT,
     rsvp_status TEXT,
     rsvp_at TIMESTAMPTZ,
+    search_vector tsvector,
     UNIQUE(mailbox_id, uid)
 );
 CREATE INDEX idx_messages_date ON messages(mailbox_id, date_epoch DESC);
@@ -172,12 +176,14 @@ CREATE INDEX idx_ea_embedding ON email_analysis USING hnsw (embedding);
 -- outbound + delivery
 -- =============================================================================
 
+-- outbound_queue column order matches prod after migrate-039
+-- (BYTEA → base64 TEXT via DROP+ADD pushes message_data to table tail).
+-- Keep in sync with prod or positional INSERTs from pg_dump will mis-align.
 CREATE TABLE outbound_queue (
     id BIGSERIAL PRIMARY KEY,
     sender TEXT NOT NULL,
     recipient TEXT NOT NULL,
     domain TEXT NOT NULL,
-    message_data TEXT NOT NULL DEFAULT '',  -- base64-encoded payload (D-pre #3)
     status TEXT NOT NULL DEFAULT 'pending',
     attempts INTEGER NOT NULL DEFAULT 0,
     max_attempts INTEGER NOT NULL DEFAULT 8,
@@ -186,7 +192,8 @@ CREATE TABLE outbound_queue (
     message_id TEXT,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
-    is_forwarded BOOLEAN NOT NULL DEFAULT false
+    is_forwarded BOOLEAN NOT NULL DEFAULT false,
+    message_data TEXT NOT NULL DEFAULT ''  -- base64-encoded payload (D-pre #3)
 );
 CREATE INDEX idx_queue_pending ON outbound_queue(status, next_retry) WHERE status = 'pending';
 CREATE INDEX idx_queue_domain ON outbound_queue(domain) WHERE status = 'pending';
@@ -486,16 +493,19 @@ CREATE INDEX idx_email_group_members_member ON email_group_members(member_addres
 -- OIDC provider tables (mailrs as OAuth/OIDC IdP)
 -- =============================================================================
 
+-- oauth_clients column order matches prod after migrate-038
+-- (TEXT[] → CSV TEXT via DROP+ADD pushes redirect_uris to table tail).
+-- Keep in sync with prod or positional INSERTs from pg_dump will mis-align.
 CREATE TABLE oauth_clients (
     client_id TEXT PRIMARY KEY,
     secret_hash TEXT NOT NULL,
     name TEXT NOT NULL,
-    redirect_uris TEXT NOT NULL DEFAULT '',  -- CSV (Phase D-pre #2)
     scopes TEXT NOT NULL DEFAULT 'openid email profile',
     trusted BOOLEAN NOT NULL DEFAULT false,
     active BOOLEAN NOT NULL DEFAULT true,
     created_by TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    redirect_uris TEXT NOT NULL DEFAULT ''  -- CSV (Phase D-pre #2)
 );
 
 CREATE TABLE oauth_auth_codes (
