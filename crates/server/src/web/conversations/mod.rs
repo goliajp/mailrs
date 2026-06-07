@@ -575,11 +575,11 @@ mod tests {
 
     #[test]
     fn superadmin_api_key_grants_domain_access() {
-        use crate::api_key_store::{self, CachedApiKey};
+        use crate::api_key_store::{self, VerifiedApiKey};
         use crate::permission::{AccountGroup, GroupInfo, compute_effective_permissions};
 
         let (full_key, _prefix, key_hash) = api_key_store::generate_api_key();
-        let cached = CachedApiKey {
+        let cached = VerifiedApiKey {
             key_hash,
             account_address: "admin@golia.jp".to_string(),
             expires_at: None,

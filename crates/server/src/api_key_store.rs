@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use rand_core::{OsRng, RngCore};
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 
@@ -21,15 +20,18 @@ pub(crate) struct ApiKeyRecord {
     pub app_id: Option<i64>,
 }
 
-/// lightweight struct cached in Kevy for fast auth lookups
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct CachedApiKey {
+/// Subset of `ApiKeyRecord` needed by the auth verify path. Built fresh
+/// from PG on every verify — there is no kevy cache for API keys (a
+/// previous version cached this struct for 300s, which left a window
+/// where a revoked key remained valid after the cache_delete call site
+/// was missed by some admin paths; see classic-errors / 2026-06-07).
+#[derive(Debug, Clone)]
+pub(crate) struct VerifiedApiKey {
     pub key_hash: String,
     pub account_address: String,
     pub expires_at: Option<DateTime<Utc>>,
     pub id: i64,
     /// if set, this is an app key; value is the app's internal id
-    #[serde(default)]
     pub app_id: Option<i64>,
 }
 
@@ -172,36 +174,6 @@ pub(crate) async fn update_last_used(pool: &PgPool, id: i64) {
         .bind(id)
         .execute(pool)
         .await;
-}
-
-// --- Kevy cache helpers ---
-
-const CACHE_TTL_SECS: u64 = 300;
-
-/// get a cached API key from Kevy
-pub(crate) fn cache_get(kevy: &crate::kevy_store::KevyStore, prefix: &str) -> Option<CachedApiKey> {
-    let key = format!("apikey:{prefix}");
-    let bytes = kevy.get(key.as_bytes()).ok()??;
-    let s = String::from_utf8(bytes).ok()?;
-    serde_json::from_str(&s).ok()
-}
-
-/// cache an API key in Kevy with TTL
-pub(crate) fn cache_set(kevy: &crate::kevy_store::KevyStore, prefix: &str, cached: &CachedApiKey) {
-    let key = format!("apikey:{prefix}");
-    if let Ok(json) = serde_json::to_string(cached) {
-        let _ = kevy.set_with_ttl(
-            key.as_bytes(),
-            json.as_bytes(),
-            std::time::Duration::from_secs(CACHE_TTL_SECS),
-        );
-    }
-}
-
-/// remove a cached API key from Kevy
-pub(crate) fn cache_delete(kevy: &crate::kevy_store::KevyStore, prefix: &str) {
-    let key = format!("apikey:{prefix}");
-    let _ = kevy.del(&[key.as_bytes()]);
 }
 
 #[cfg(test)]

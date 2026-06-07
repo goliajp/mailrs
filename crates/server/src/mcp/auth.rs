@@ -50,54 +50,37 @@ pub(crate) async fn mcp_auth_middleware(
     }
     let prefix = parts[1];
 
-    // try kevy cache first
-    let cached = if let Some(ref kevy) = state.kevy_embed {
-        api_key_store::cache_get(kevy, prefix)
-    } else {
-        None
+    // Always PG-verify. `get_api_key_by_prefix` filters `revoked_at IS NULL`
+    // at the SQL level (indexed via idx_api_keys_prefix_active), so a key
+    // revoked by ANY path takes effect immediately — no cache window.
+    let Some(ref pool) = state.pg_pool else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "auth backend unavailable",
+        )
+            .into_response();
     };
 
-    let cached = match cached {
-        Some(c) => c,
-        None => {
-            // cache miss — query PG
-            let Some(ref pool) = state.pg_pool else {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "auth backend unavailable",
-                )
-                    .into_response();
-            };
-
-            let record = match api_key_store::get_api_key_by_prefix(pool, prefix).await {
-                Ok(Some(r)) => r,
-                Ok(None) => {
-                    return (StatusCode::UNAUTHORIZED, "invalid api key").into_response();
-                }
-                Err(_) => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "auth backend unavailable",
-                    )
-                        .into_response();
-                }
-            };
-
-            let entry = api_key_store::CachedApiKey {
-                key_hash: record.key_hash,
-                account_address: record.account_address,
-                expires_at: record.expires_at,
-                id: record.id,
-                app_id: record.app_id,
-            };
-
-            // populate cache
-            if let Some(ref kevy) = state.kevy_embed {
-                api_key_store::cache_set(kevy, prefix, &entry);
-            }
-
-            entry
+    let record = match api_key_store::get_api_key_by_prefix(pool, prefix).await {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return (StatusCode::UNAUTHORIZED, "invalid api key").into_response();
         }
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "auth backend unavailable",
+            )
+                .into_response();
+        }
+    };
+
+    let cached = api_key_store::VerifiedApiKey {
+        key_hash: record.key_hash,
+        account_address: record.account_address,
+        expires_at: record.expires_at,
+        id: record.id,
+        app_id: record.app_id,
     };
 
     // verify hash

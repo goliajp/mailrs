@@ -28,47 +28,31 @@ pub(super) async fn verify_api_key(
     }
     let prefix = parts[1];
 
-    // try Kevy cache first
-    let cached = if let Some(ref kevy) = state.kevy_embed {
-        api_key_store::cache_get(kevy, prefix)
-    } else {
-        None
-    };
+    // Always PG-verify. `get_api_key_by_prefix` filters `revoked_at IS NULL`
+    // at the SQL level (indexed via idx_api_keys_prefix_active), so a key
+    // revoked by ANY path (admin endpoint, direct DB write, scheduled
+    // sweep) takes effect immediately — no cache window.
+    let pool = state.pg_pool.as_ref().ok_or((
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "auth backend unavailable",
+    ))?;
 
-    let cached = match cached {
-        Some(c) => c,
-        None => {
-            // cache miss — query PG
-            let pool = state.pg_pool.as_ref().ok_or((
+    let record = api_key_store::get_api_key_by_prefix(pool, prefix)
+        .await
+        .map_err(|_| {
+            (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "auth backend unavailable",
-            ))?;
+            )
+        })?
+        .ok_or((StatusCode::UNAUTHORIZED, "invalid api key"))?;
 
-            let record = api_key_store::get_api_key_by_prefix(pool, prefix)
-                .await
-                .map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "auth backend unavailable",
-                    )
-                })?
-                .ok_or((StatusCode::UNAUTHORIZED, "invalid api key"))?;
-
-            let entry = api_key_store::CachedApiKey {
-                key_hash: record.key_hash,
-                account_address: record.account_address,
-                expires_at: record.expires_at,
-                id: record.id,
-                app_id: record.app_id,
-            };
-
-            // populate cache
-            if let Some(ref kevy) = state.kevy_embed {
-                api_key_store::cache_set(kevy, prefix, &entry);
-            }
-
-            entry
-        }
+    let cached = api_key_store::VerifiedApiKey {
+        key_hash: record.key_hash,
+        account_address: record.account_address,
+        expires_at: record.expires_at,
+        id: record.id,
+        app_id: record.app_id,
     };
 
     // verify hash
