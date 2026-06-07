@@ -1,6 +1,10 @@
-import { Loader2 } from 'lucide-react'
+import { Alert, Button } from '@goliapkg/gds'
 import { useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
+
+import { AuthCard } from '@/components/auth/auth-card'
+import { AuthField } from '@/components/auth/auth-field'
+import { BrandHeader } from '@/components/auth/brand-header'
 
 export function ResetPassword() {
   const [searchParams] = useSearchParams()
@@ -11,14 +15,11 @@ export function ResetPassword() {
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  const confirmMismatch = confirm.length > 0 && confirm !== password
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-
-    if (!token) {
-      setError('Missing reset token')
-      return
-    }
 
     if (password.length < 8) {
       setError('Password must be at least 8 characters')
@@ -54,110 +55,80 @@ export function ResetPassword() {
 
   if (!token) {
     return (
-      <div className="bg-bg-secondary flex min-h-screen items-center justify-center">
-        <div className="border-border bg-surface w-full max-w-sm space-y-4 rounded-lg border p-8 shadow-lg">
-          <div className="flex flex-col items-center">
-            <img alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" src="/icon.svg" />
-            <h1 className="text-fg text-xl font-semibold tracking-tight">mailrs</h1>
-          </div>
-          <div className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm" role="alert">
-            Invalid or missing reset token
-          </div>
-          <div className="text-center">
-            <a className="text-accent text-sm hover:underline" href="/login">
-              Back to sign in
-            </a>
-          </div>
+      <AuthCard>
+        <BrandHeader />
+        <Alert role="alert" variant="danger">
+          Invalid or missing reset token
+        </Alert>
+        <div className="text-center">
+          <Link className="text-accent text-sm hover:underline" to="/login">
+            Back to sign in
+          </Link>
         </div>
-      </div>
+      </AuthCard>
     )
   }
 
   if (success) {
     return (
-      <div className="bg-bg-secondary flex min-h-screen items-center justify-center">
-        <div className="border-border bg-surface w-full max-w-sm space-y-4 rounded-lg border p-8 shadow-lg">
-          <div className="flex flex-col items-center">
-            <img alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" src="/icon.svg" />
-            <h1 className="text-fg text-xl font-semibold tracking-tight">mailrs</h1>
-          </div>
-          <div className="bg-success/10 text-success rounded-md px-3 py-2 text-sm">
-            Password reset successfully. You can now sign in with your new password.
-          </div>
-          <div className="text-center">
-            <a className="text-accent text-sm hover:underline" href="/login">
-              Sign in
-            </a>
-          </div>
+      <AuthCard>
+        <BrandHeader />
+        <Alert role="status" variant="success">
+          Password reset successfully. You can now sign in with your new password.
+        </Alert>
+        <div className="text-center">
+          <Link className="text-accent text-sm hover:underline" to="/login">
+            Sign in
+          </Link>
         </div>
-      </div>
+      </AuthCard>
     )
   }
 
   return (
-    <div className="bg-bg-secondary flex min-h-screen items-center justify-center">
-      <form
-        className="border-border bg-surface w-full max-w-sm space-y-5 rounded-lg border p-8 shadow-lg select-none"
-        onSubmit={handleSubmit}
-      >
-        <div className="flex flex-col items-center">
-          <img alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" src="/icon.svg" />
-          <h1 className="text-fg text-xl font-semibold tracking-tight">mailrs</h1>
-          <p className="text-fg-muted mt-1 text-sm">Set your new password</p>
-        </div>
+    <AuthCard onSubmit={handleSubmit}>
+      <BrandHeader subtitle="Set your new password" />
 
-        {error && (
-          <div className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm" role="alert">
-            {error}
-          </div>
-        )}
+      {error && (
+        <Alert role="alert" variant="danger">
+          {error}
+        </Alert>
+      )}
 
-        <div className="space-y-1.5">
-          <label className="text-fg-secondary block text-sm font-medium" htmlFor="reset-password">
-            New Password
-          </label>
-          <input
-            aria-label="New password"
-            autoFocus
-            className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
-            id="reset-password"
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            type="password"
-            value={password}
-          />
-        </div>
+      <AuthField
+        autoComplete="new-password"
+        autoFocus
+        id="reset-password"
+        label="New Password"
+        onChange={setPassword}
+        passwordToggle
+        required
+        type="password"
+        value={password}
+      />
 
-        <div className="space-y-1.5">
-          <label className="text-fg-secondary block text-sm font-medium" htmlFor="reset-confirm">
-            Confirm Password
-          </label>
-          <input
-            aria-label="Confirm password"
-            className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
-            id="reset-confirm"
-            onChange={(e) => setConfirm(e.target.value)}
-            required
-            type="password"
-            value={confirm}
-          />
-        </div>
+      <AuthField
+        autoComplete="new-password"
+        id="reset-confirm"
+        invalid={confirmMismatch}
+        invalidMessage={confirmMismatch ? 'Passwords do not match' : undefined}
+        label="Confirm Password"
+        onChange={setConfirm}
+        passwordToggle
+        required
+        type="password"
+        value={confirm}
+      />
 
-        <button
-          className="bg-accent hover:bg-accent-hover flex w-full items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50"
-          disabled={loading}
-          type="submit"
-        >
-          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {loading ? 'Resetting...' : 'Reset Password'}
-        </button>
+      <Button disabled={loading} fullWidth loading={loading} type="submit" variant="primary">
+        {loading ? 'Resetting...' : 'Reset Password'}
+      </Button>
 
-        <div className="text-center">
-          <a className="text-accent text-sm hover:underline" href="/login">
-            Back to sign in
-          </a>
-        </div>
-      </form>
-    </div>
+      <div className="text-center">
+        <Link className="text-accent text-sm hover:underline" to="/login">
+          Back to sign in
+        </Link>
+      </div>
+    </AuthCard>
   )
 }

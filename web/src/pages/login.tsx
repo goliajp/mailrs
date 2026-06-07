@@ -1,10 +1,14 @@
 import type { AuthInfo } from '@/store/auth'
 
+import { Alert, Button } from '@goliapkg/gds'
 import { useSetAtom } from 'jotai'
-import { ExternalLink, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
+import { AuthCard } from '@/components/auth/auth-card'
+import { AuthField } from '@/components/auth/auth-field'
+import { BrandHeader } from '@/components/auth/brand-header'
 import { authAtom } from '@/store/auth'
 
 type OidcClientConfig = {
@@ -23,7 +27,6 @@ export function Login() {
   const [loading, setLoading] = useState(false)
   const [oidcConfig, setOidcConfig] = useState<null | OidcClientConfig>(null)
   const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('mailrs_saved_email'))
-  const [showPassword, setShowPassword] = useState(false)
   const [totpRequired, setTotpRequired] = useState(false)
   const [totpCode, setTotpCode] = useState('')
   const [forgotMode, setForgotMode] = useState(false)
@@ -149,229 +152,165 @@ export function Login() {
     }
   }
 
-  return (
-    <div className="bg-bg flex min-h-screen items-center justify-center px-4">
-      <form
-        className="border-border bg-surface w-full max-w-sm space-y-5 rounded-lg border p-6 shadow-lg select-none sm:p-8"
-        onSubmit={forgotMode ? (e) => e.preventDefault() : handleSubmit}
-      >
-        <div className="flex flex-col items-center">
-          <img alt="mailrs" className="mb-3 h-14 w-14 rounded-lg shadow-sm" src="/icon.svg" />
-          <h1 className="text-fg text-xl font-semibold tracking-tight">Mailrs</h1>
-          <p className="text-fg-muted mt-1 text-sm">
-            {forgotMode ? 'Reset your password' : 'Sign in to your account'}
-          </p>
+  if (forgotMode) {
+    return (
+      <AuthCard onSubmit={handleForgotPassword}>
+        <BrandHeader subtitle="Reset your password" />
+
+        {forgotMessage && (
+          <Alert role="status" variant="success">
+            {forgotMessage}
+          </Alert>
+        )}
+
+        <AuthField
+          autoComplete="email"
+          autoFocus
+          id="forgot-email"
+          label="Account Email"
+          onChange={setForgotAddress}
+          placeholder="you@domain.com"
+          required
+          type="email"
+          value={forgotAddress}
+        />
+
+        <AuthField
+          autoComplete="email"
+          helperText="Enter the recovery email you configured in Settings. The reset link will be sent there."
+          id="forgot-recovery"
+          label="Recovery Email"
+          onChange={setForgotRecoveryEmail}
+          placeholder="your-recovery@gmail.com"
+          required
+          type="email"
+          value={forgotRecoveryEmail}
+        />
+
+        <Button
+          disabled={forgotLoading || !forgotAddress || !forgotRecoveryEmail}
+          fullWidth
+          loading={forgotLoading}
+          type="submit"
+          variant="primary"
+        >
+          {forgotLoading ? 'Sending...' : 'Send Reset Link'}
+        </Button>
+
+        <div className="text-center">
+          <button
+            className="text-accent text-sm hover:underline"
+            onClick={() => {
+              setForgotMode(false)
+              setForgotMessage('')
+            }}
+            type="button"
+          >
+            Back to login
+          </button>
         </div>
+      </AuthCard>
+    )
+  }
 
-        {error && !forgotMode && (
-          <div className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm" role="alert">
-            {error}
+  return (
+    <AuthCard onSubmit={handleSubmit}>
+      <BrandHeader subtitle="Sign in to your account" />
+
+      {error && (
+        <Alert role="alert" variant="danger">
+          {error}
+        </Alert>
+      )}
+
+      {!totpRequired && (
+        <>
+          <AuthField
+            autoComplete="email"
+            autoFocus
+            id="login-email"
+            label="Email"
+            onChange={setAddress}
+            placeholder="you@domain.com"
+            required
+            type="email"
+            value={address}
+          />
+
+          <AuthField
+            autoComplete="current-password"
+            id="login-password"
+            label="Password"
+            onChange={setPassword}
+            passwordToggle
+            required
+            type="password"
+            value={password}
+          />
+        </>
+      )}
+
+      {totpRequired && (
+        <AuthField
+          autoComplete="one-time-code"
+          autoFocus
+          helperText="Enter the code from your authenticator app, or a recovery code"
+          id="login-totp"
+          inputMode="numeric"
+          label="Two-Factor Code"
+          onChange={setTotpCode}
+          placeholder="Enter 6-digit code"
+          required
+          value={totpCode}
+        />
+      )}
+
+      {!totpRequired && (
+        <label className="flex items-center gap-2">
+          <input
+            checked={rememberMe}
+            className="border-border focus:ring-accent/40 h-4 w-4 rounded"
+            onChange={(e) => setRememberMe(e.target.checked)}
+            type="checkbox"
+          />
+          <span className="text-fg-secondary text-sm">Remember email</span>
+        </label>
+      )}
+
+      <Button disabled={loading} fullWidth loading={loading} type="submit" variant="primary">
+        {loading ? 'Signing in...' : totpRequired ? 'Verify' : 'Sign in'}
+      </Button>
+
+      <div className="text-center">
+        <button
+          className="text-accent text-sm hover:underline"
+          onClick={() => {
+            setForgotMode(true)
+            setError('')
+            setForgotMessage('')
+          }}
+          type="button"
+        >
+          Forgot password?
+        </button>
+      </div>
+
+      {oidcConfig?.enabled && (
+        <>
+          <div className="flex items-center gap-3">
+            <div className="bg-border h-px flex-1" />
+            <span className="text-fg-muted text-xs">or</span>
+            <div className="bg-border h-px flex-1" />
           </div>
-        )}
-
-        {!forgotMode && (
-          <>
-            <div className="space-y-1.5">
-              <label className="text-fg-secondary block text-xs font-medium" htmlFor="login-email">
-                Email
-              </label>
-              <input
-                aria-label="Email address"
-                autoComplete="email"
-                autoFocus
-                className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
-                id="login-email"
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="you@domain.com"
-                required
-                type="email"
-                value={address}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label
-                className="text-fg-secondary block text-xs font-medium"
-                htmlFor="login-password"
-              >
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  aria-label="Password"
-                  autoComplete="current-password"
-                  className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 pr-10 text-sm outline-none focus:ring-1"
-                  id="login-password"
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                />
-                <button
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="text-fg-muted hover:text-fg-secondary absolute top-1/2 right-2 -translate-y-1/2"
-                  onClick={() => setShowPassword((v) => !v)}
-                  tabIndex={-1}
-                  type="button"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-
-        {!forgotMode && totpRequired && (
-          <div className="space-y-1.5">
-            <label className="text-fg-secondary block text-xs font-medium" htmlFor="login-totp">
-              Two-Factor Code
-            </label>
-            <input
-              aria-label="Two-factor authentication code"
-              autoComplete="one-time-code"
-              autoFocus
-              className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
-              id="login-totp"
-              inputMode="numeric"
-              onChange={(e) => setTotpCode(e.target.value)}
-              placeholder="Enter 6-digit code"
-              required
-              type="text"
-              value={totpCode}
-            />
-            <p className="text-fg-muted text-xs">
-              Enter the code from your authenticator app, or a recovery code
-            </p>
-          </div>
-        )}
-
-        {!forgotMode && (
-          <>
-            {!totpRequired && (
-              <label className="flex items-center gap-2">
-                <input
-                  checked={rememberMe}
-                  className="border-border focus:ring-accent/40 h-4 w-4 rounded"
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  type="checkbox"
-                />
-                <span className="text-fg-secondary text-sm">Remember email</span>
-              </label>
-            )}
-
-            <button
-              className="bg-accent hover:bg-accent-hover flex w-full items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50"
-              disabled={loading}
-              type="submit"
-            >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {loading ? 'Signing in...' : totpRequired ? 'Verify' : 'Sign in'}
-            </button>
-
-            <div className="text-center">
-              <button
-                className="text-accent text-sm hover:underline"
-                onClick={() => {
-                  setForgotMode(true)
-                  setError('')
-                  setForgotMessage('')
-                }}
-                type="button"
-              >
-                Forgot password?
-              </button>
-            </div>
-
-            {oidcConfig?.enabled && (
-              <>
-                <div className="flex items-center gap-3">
-                  <div className="bg-border h-px flex-1" />
-                  <span className="text-fg-muted text-xs">or</span>
-                  <div className="bg-border h-px flex-1" />
-                </div>
-                <a
-                  className="border-border bg-bg-secondary text-fg hover:bg-bg-secondary flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors"
-                  href={oidcConfig.login_url}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Sign in with {oidcConfig.provider_name ?? 'SSO'}
-                </a>
-              </>
-            )}
-          </>
-        )}
-
-        {forgotMode && (
-          <>
-            {forgotMessage && (
-              <div className="bg-success/10 text-success rounded-md px-3 py-2 text-sm">
-                {forgotMessage}
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label className="text-fg-secondary block text-xs font-medium" htmlFor="forgot-email">
-                Account Email
-              </label>
-              <input
-                autoFocus
-                className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
-                id="forgot-email"
-                onChange={(e) => setForgotAddress(e.target.value)}
-                placeholder="you@domain.com"
-                required
-                type="email"
-                value={forgotAddress}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label
-                className="text-fg-secondary block text-xs font-medium"
-                htmlFor="forgot-recovery"
-              >
-                Recovery Email
-              </label>
-              <input
-                className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent/40 w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-1"
-                id="forgot-recovery"
-                onChange={(e) => setForgotRecoveryEmail(e.target.value)}
-                placeholder="your-recovery@gmail.com"
-                required
-                type="email"
-                value={forgotRecoveryEmail}
-              />
-              <p className="text-fg-muted text-xs">
-                Enter the recovery email you configured in Settings. The reset link will be sent
-                there.
-              </p>
-            </div>
-
-            <button
-              className="bg-accent hover:bg-accent-hover flex w-full items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50"
-              disabled={forgotLoading || !forgotAddress || !forgotRecoveryEmail}
-              onClick={handleForgotPassword}
-              type="button"
-            >
-              {forgotLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {forgotLoading ? 'Sending...' : 'Send Reset Link'}
-            </button>
-
-            <div className="text-center">
-              <button
-                className="text-accent text-sm hover:underline"
-                onClick={() => {
-                  setForgotMode(false)
-                  setForgotMessage('')
-                }}
-                type="button"
-              >
-                Back to login
-              </button>
-            </div>
-          </>
-        )}
-      </form>
-    </div>
+          <a
+            className="border-border bg-bg-secondary text-fg hover:bg-bg-secondary flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors"
+            href={oidcConfig.login_url}
+          >
+            <ExternalLink className="h-4 w-4" />
+            Sign in with {oidcConfig.provider_name ?? 'SSO'}
+          </a>
+        </>
+      )}
+    </AuthCard>
   )
 }
