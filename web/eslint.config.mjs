@@ -10,7 +10,7 @@ import globals from 'globals'
 import eslintTs from 'typescript-eslint'
 
 export default eslintTs.config(
-  { ignores: ['dist'] },
+  { ignores: ['dist', 'src/lib/types.openapi.ts'] },
 
   // base
   eslintJs.configs.recommended,
