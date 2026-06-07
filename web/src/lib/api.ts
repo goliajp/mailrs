@@ -41,17 +41,19 @@ export async function deleteDraft(id: number): Promise<{ message?: string; succe
   return deleteJson<{ message?: string; success: boolean }>(`/mail/drafts/${id}`)
 }
 
-export async function deleteJson<T>(path: string): Promise<T> {
+export async function deleteJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: authHeaders(),
     method: 'DELETE',
+    signal,
   })
   return handleResponse<T>(res)
 }
 
-export async function fetchBlob(path: string): Promise<Blob> {
+export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blob> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: authHeaders(),
+    signal,
   })
   if (res.status === 401) {
     localStorage.removeItem('mailrs_auth')
@@ -87,20 +89,22 @@ export async function listDrafts(): Promise<Draft[]> {
   return fetchJson<Draft[]>('/mail/drafts')
 }
 
-export async function postJson<T>(path: string, body: unknown): Promise<T> {
+export async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     body: JSON.stringify(body),
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     method: 'POST',
+    signal,
   })
   return handleResponse<T>(res)
 }
 
-export async function putJson<T>(path: string, body: unknown): Promise<T> {
+export async function putJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     body: JSON.stringify(body),
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     method: 'PUT',
+    signal,
   })
   return handleResponse<T>(res)
 }
