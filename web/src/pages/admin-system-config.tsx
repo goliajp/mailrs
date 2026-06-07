@@ -8,13 +8,26 @@ import { AdminEmptyState, AdminErrorState, AdminPageShell } from '@/components/a
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { deleteJson, fetchJson, putJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
-import {
-  type ConfigEntry,
-  type SystemConfigResponse,
-  SystemConfigResponseSchema,
-} from '@/lib/schemas'
+
+type ConfigEntry = {
+  default_value: string
+  description: string
+  group: string
+  key: string
+  source: string
+  updated_at?: string
+  updated_by?: string
+  value: string
+  value_type: string
+}
 
 type GroupedEntries = Record<string, ConfigEntry[]>
+
+type SystemConfigResponse = {
+  entries?: ConfigEntry[]
+  message?: string
+  success: boolean
+}
 
 const GROUP_LABELS: Record<string, string> = {
   ai: 'AI',
@@ -43,12 +56,7 @@ export function AdminSystemConfig() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.systemConfig(),
-    queryFn: ({ signal }) =>
-      fetchJson<SystemConfigResponse>(
-        '/admin/system-config',
-        signal,
-        SystemConfigResponseSchema.parse
-      ),
+    queryFn: ({ signal }) => fetchJson<SystemConfigResponse>('/admin/system-config', signal),
   })
 
   const entries: ConfigEntry[] = response && response.success ? (response.entries ?? []) : []

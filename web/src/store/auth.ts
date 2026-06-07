@@ -1,7 +1,5 @@
 import { atom } from 'jotai'
 
-import { safeStorage } from '@/lib/safe-storage'
-
 export type AuthInfo = {
   accessible_domains: string[]
   address: string
@@ -13,20 +11,16 @@ export type AuthInfo = {
 const STORAGE_KEY = 'mailrs_auth'
 
 function loadAuth(): AuthInfo | null {
-  try {
-    const raw = safeStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    return JSON.parse(raw) as AuthInfo
-  } catch {
-    return null
-  }
+  const raw = localStorage.getItem(STORAGE_KEY)
+  if (!raw) return null
+  return JSON.parse(raw) as AuthInfo
 }
 
 function saveAuth(info: AuthInfo | null) {
   if (info) {
-    safeStorage.setItem(STORAGE_KEY, JSON.stringify(info))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(info))
   } else {
-    safeStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(STORAGE_KEY)
   }
 }
 

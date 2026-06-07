@@ -1,7 +1,5 @@
-import { Suspense, useId } from 'react'
+import { lazy, Suspense, useId } from 'react'
 import { useSearchParams } from 'react-router'
-
-import { lazyWithReload as lazy } from '@/lib/lazy'
 
 const AccountSection = lazy(() =>
   import('@/components/settings/account-section').then((m) => ({ default: m.AccountSection }))
