@@ -3,8 +3,26 @@ import { resolve } from 'node:path'
 
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import type { Plugin } from 'vite'
+import { visualizer } from 'rollup-plugin-visualizer'
+import type { Plugin, PluginOption } from 'vite'
 import { defineConfig } from 'vitest/config'
+
+function buildPlugins(): PluginOption[] {
+  const plugins: PluginOption[] = [react(), tailwindcss(), swCacheBump()]
+  // Opt-in bundle analyzer: `BUNDLE_ANALYZE=1 vite build` writes
+  // dist/stats.html with a treemap of every module's bundled size. Off
+  // by default so normal builds stay fast.
+  if (process.env.BUNDLE_ANALYZE) {
+    plugins.push(
+      visualizer({
+        filename: 'dist/stats.html',
+        gzipSize: true,
+        template: 'treemap',
+      }) as PluginOption
+    )
+  }
+  return plugins
+}
 
 function swCacheBump(): Plugin {
   return {
@@ -66,7 +84,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
   },
-  plugins: [react(), tailwindcss(), swCacheBump()],
+  plugins: buildPlugins(),
   resolve: {
     alias: { '@': resolve(import.meta.dirname, 'src') },
   },
