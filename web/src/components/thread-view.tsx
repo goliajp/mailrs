@@ -380,6 +380,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     if (!selectedId) return
     if (autoMarkSuspendedRef.current) return
     if (selectedUnreadCount === 0) return
+    // Block re-entry while a mark-read mutation is still in flight for any
+    // thread. Without this, the wrapper returned by useMutation flips
+    // pending→success on each render, re-runs this effect, and — during
+    // the microtask window where onMutate is still awaiting
+    // cancelConversationFetches — sees selectedUnreadCount still > 0 and
+    // fires mutate() again. Observed in prod as 20+ POST /read for a
+    // single thread within <3s, which ultimately froze the page.
+    if (markReadMutation.isPending) return
 
     const doms = domainsRef.current
     const crossAll = crossAccountReadRef.current
