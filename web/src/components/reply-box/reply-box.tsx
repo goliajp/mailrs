@@ -1,6 +1,7 @@
+import type { ReplyMode } from './types'
+
 import { toast } from '@goliapkg/gds'
 import { useAtomValue, useStore } from 'jotai'
-import { Eye, Loader2, Send } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
@@ -11,21 +12,35 @@ import { authAtom } from '@/store/auth'
 import { threadMessagesAtom } from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
-export type ReplyMode = 'forward' | 'reply' | 'reply-all'
+import { ActionBar } from './action-bar'
+import { ModeToggle } from './mode-toggle'
+import { PreviewDialog } from './preview-dialog'
+import { SuggestionsRow } from './suggestions-row'
 
 type PolishResult = { message?: string; polished?: string; success: boolean }
+type ReplyBoxProps = {
+  forwardAttachmentsUid?: null | number
+  forwardMessageId?: null | string
+  lastMessageId: string
+  mode: ReplyMode
+  onModeChange: (mode: ReplyMode) => void
+  onSent: () => void
+  originalBody: string
+  originalDate: string
+  originalFrom: string
+  originalHtmlBody?: null | string
+  replyAllRecipients: string
+  replyRecipients: string
+  subject: string
+  threadId: string
+}
 type ReplySuggestResult = {
   message?: string
   success: boolean
   suggestions: string[]
 }
-type SendResult = { message?: string; message_id?: string; success: boolean }
 
-const MODE_LABELS: Record<ReplyMode, string> = {
-  forward: 'Forward',
-  reply: 'Reply',
-  'reply-all': 'Reply All',
-}
+type SendResult = { message?: string; message_id?: string; success: boolean }
 
 export function ReplyBox({
   forwardAttachmentsUid,
@@ -41,37 +56,20 @@ export function ReplyBox({
   replyAllRecipients,
   replyRecipients,
   subject,
-}: {
-  forwardAttachmentsUid?: null | number
-  forwardMessageId?: null | string
-  lastMessageId: string
-  mode: ReplyMode
-  onModeChange: (mode: ReplyMode) => void
-  onSent: () => void
-  originalBody: string
-  originalDate: string
-  originalFrom: string
-  originalHtmlBody?: null | string
-  replyAllRecipients: string
-  replyRecipients: string
-  subject: string
-  threadId: string
-}) {
+}: ReplyBoxProps) {
   const auth = useAtomValue(authAtom)
   const signature = useAtomValue(signatureAtom)
   const signatureEnabled = useAtomValue(signatureEnabledAtom)
   // Read threadMessages imperatively in the suggest handler — subscribing
   // via useAtomValue re-renders the TipTap editor (heavy) on every WS
-  // refetch of the open thread. The data is only used inside an
-  // event-handler closure, never during render.
+  // refetch of the open thread.
   const store = useStore()
   const [forwardTo, setForwardTo] = useState('')
   const [sending, setSending] = useState(false)
-  // MRS-15 follow-up: preview-before-send. After the broken-list incident
-  // where TipTap's getHTML() output looked clean in the compose pane but
-  // wrapped the signature into a bullet list when rendered by the
-  // recipient, we surface the actual to-send HTML in a sandboxed iframe so
-  // users can spot WYSIWYG drift before hitting send.
+  // MRS-15: preview-before-send. After the broken-list incident where
+  // TipTap's getHTML() output looked clean in the compose pane but wrapped
+  // the signature into a bullet list when rendered by the recipient, we
+  // surface the actual to-send HTML in a sandboxed iframe.
   const [previewHtml, setPreviewHtml] = useState<null | string>(null)
   // refs to avoid stale closures in send callback
   const forwardMessageIdRef = useRef(forwardMessageId)
@@ -83,8 +81,10 @@ export function ReplyBox({
   const [polishing, setPolishing] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
+  const [polishTone, setPolishTone] = useState('professional')
   const [error, setError] = useState('')
   const composeRef = useRef<StructuredComposeHandle>(null)
+  const prePolishRef = useRef<null | string>(null)
 
   // auto-save draft to localStorage every 3s
   const draftKey = `mailrs_draft_${lastMessageId || 'new'}`
@@ -112,9 +112,7 @@ export function ReplyBox({
   }, [draftKey])
 
   // periodic save while typing — bind the interval ONCE; the latest
-  // saveDraftLocal closure is read through a ref so we don't tear down
-  // and rebuild the interval every time draftKey changes (which happens
-  // on every thread switch / replyMode change downstream).
+  // saveDraftLocal closure is read through a ref.
   const saveDraftLocalRef = useRef(saveDraftLocal)
   saveDraftLocalRef.current = saveDraftLocal
   useEffect(() => {
@@ -275,10 +273,6 @@ export function ReplyBox({
     }
   }
 
-  const prePolishRef = useRef<null | string>(null)
-
-  const [polishTone, setPolishTone] = useState('professional')
-
   const polish = async (tone?: string) => {
     const handle = composeRef.current
     if (!handle) return
@@ -352,6 +346,11 @@ export function ReplyBox({
     toast.success('Suggestion applied')
   }
 
+  const openPreview = () => {
+    const content = composeRef.current?.getContent()
+    setPreviewHtml(content?.fullHtml ?? '')
+  }
+
   const quotedHtml =
     mode === 'forward' && originalHtmlBody ? originalHtmlBody : originalBody || undefined
   const quotedHeaderHtml =
@@ -371,37 +370,19 @@ export function ReplyBox({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* mode toggle + recipients */}
-      <div className="border-border flex shrink-0 items-center gap-1 border-b px-4 py-2 select-none">
-        {(Object.keys(MODE_LABELS) as ReplyMode[]).map((m) => (
-          <button
-            aria-pressed={mode === m}
-            className={`focus-visible:ring-accent cursor-pointer rounded px-2.5 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none md:py-1 ${
-              mode === m
-                ? 'bg-accent/10 text-accent'
-                : 'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary'
-            }`}
-            key={m}
-            onClick={() => handleModeChange(m)}
-          >
-            {MODE_LABELS[m]}
-          </button>
-        ))}
-        {mode !== 'forward' && (
-          <span
-            className="text-fg-muted ml-auto min-w-0 truncate text-xs"
-            title={mode === 'reply' ? replyRecipients : replyAllRecipients}
-          >
-            to {mode === 'reply' ? replyRecipients : replyAllRecipients}
-          </span>
-        )}
-      </div>
+      <ModeToggle
+        mode={mode}
+        onChange={handleModeChange}
+        replyAllRecipients={replyAllRecipients}
+        replyRecipients={replyRecipients}
+      />
 
-      {/* forward: to field */}
       {mode === 'forward' && (
         <div className="border-border shrink-0 border-b px-4 py-2">
           <div className="flex items-center gap-2">
-            <label className="text-fg-muted w-16 shrink-0 text-xs">To</label>
+            <label className="text-fg-muted w-16 shrink-0 text-xs" htmlFor="forward-to-input">
+              To
+            </label>
             <ContactAutocomplete
               className="border-border text-fg placeholder-fg-muted focus:border-accent w-full rounded-md border bg-transparent px-2 py-1 text-sm outline-none"
               onChange={setForwardTo}
@@ -409,31 +390,19 @@ export function ReplyBox({
               value={forwardTo}
             />
           </div>
-          {error && <p className="text-danger mt-1 text-xs">{error}</p>}
+          {error && (
+            <p className="text-danger mt-1 text-xs" role="alert">
+              {error}
+            </p>
+          )}
         </div>
       )}
 
-      {/* AI suggestions */}
-      {suggestions.length > 0 && (
-        <div className="border-border flex shrink-0 flex-wrap gap-1.5 border-b px-4 py-2">
-          {suggestions.map((s, i) => (
-            <button
-              className="border-border bg-accent/10 text-accent hover:bg-bg-secondary max-w-xs truncate rounded-full border px-2.5 py-0.5 text-xs transition-colors"
-              key={i}
-              onClick={() => applySuggestion(s)}
-              title={s}
-            >
-              {s}
-            </button>
-          ))}
-          <button
-            className="text-fg-muted hover:text-fg-secondary rounded-full px-2 py-0.5 text-xs transition-colors"
-            onClick={() => setSuggestions([])}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+      <SuggestionsRow
+        onApply={applySuggestion}
+        onDismiss={() => setSuggestions([])}
+        suggestions={suggestions}
+      />
 
       {/* block-based composer */}
       <div className="min-h-0 flex-1 overflow-hidden">
@@ -451,110 +420,29 @@ export function ReplyBox({
         />
       </div>
 
-      {/* action bar */}
-      <div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-t px-4 py-2 select-none">
-        {mode !== 'forward' && (
-          <button
-            className="text-accent hover:bg-accent/10 disabled:text-fg-muted flex h-8 shrink-0 items-center rounded-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={suggesting || sending}
-            onClick={suggest}
-            title="AI reply suggestions"
-          >
-            {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Suggest'}
-          </button>
-        )}
-        <div className="relative flex shrink-0">
-          <button
-            className="text-accent hover:bg-accent/10 disabled:text-fg-muted flex h-8 items-center rounded-l-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={polishing || sending}
-            onClick={() => polish()}
-            title={`Polish (${polishTone})`}
-          >
-            {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
-          </button>
-          <select
-            className="border-border text-accent hover:bg-accent/10 h-8 appearance-none rounded-r-md border-l bg-transparent px-1 text-[10px] outline-none disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={polishing || sending}
-            onChange={(e) => setPolishTone(e.target.value)}
-            value={polishTone}
-          >
-            <option value="professional">Pro</option>
-            <option value="casual">Casual</option>
-            <option value="formal">Formal</option>
-            <option value="friendly">Friendly</option>
-            <option value="concise">Concise</option>
-          </select>
-        </div>
-        <div className="flex-1" />
-
-        <button
-          className="border-border text-fg hover:bg-bg-tertiary flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={sending}
-          onClick={() => {
-            const content = composeRef.current?.getContent()
-            const html = content?.fullHtml ?? ''
-            setPreviewHtml(html)
-          }}
-          title="Preview as the recipient will see it"
-        >
-          <Eye className="h-3.5 w-3.5" />
-          Preview
-        </button>
-
-        <button
-          className="bg-accent hover:bg-accent-hover flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={sending}
-          onClick={send}
-        >
-          <Send className="h-3.5 w-3.5" />
-          {sending ? 'Sending…' : 'Send'}
-        </button>
-      </div>
+      <ActionBar
+        mode={mode}
+        onPolish={() => void polish()}
+        onPreview={openPreview}
+        onSend={() => void send()}
+        onSuggest={() => void suggest()}
+        onToneChange={setPolishTone}
+        polishing={polishing}
+        sending={sending}
+        suggesting={suggesting}
+        tone={polishTone}
+      />
 
       {previewHtml !== null && (
-        <div
-          className="bg-fg/40 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
-          onClick={() => setPreviewHtml(null)}
-        >
-          <div
-            className="border-border bg-bg flex max-h-[85vh] w-full max-w-3xl flex-col rounded-lg border shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="border-border flex items-center justify-between border-b px-4 py-2">
-              <div className="text-fg text-sm font-medium">Preview — receiver's view</div>
-              <button
-                className="text-fg-muted hover:text-fg text-xs"
-                onClick={() => setPreviewHtml(null)}
-              >
-                Close
-              </button>
-            </div>
-            <iframe
-              className="bg-bg-secondary min-h-[60vh] flex-1 rounded-b-lg"
-              sandbox=""
-              srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5;color:#222;background:#fff;padding:16px;margin:0}*{max-width:100%}</style></head><body>${previewHtml}</body></html>`}
-              title="message preview"
-            />
-            <div className="border-border flex items-center justify-end gap-2 border-t px-4 py-2">
-              <button
-                className="border-border text-fg hover:bg-bg-tertiary rounded-md border px-3 py-1.5 text-xs"
-                onClick={() => setPreviewHtml(null)}
-              >
-                Back to edit
-              </button>
-              <button
-                className="bg-accent hover:bg-accent-hover rounded-md px-3 py-1.5 text-xs font-medium text-white"
-                disabled={sending}
-                onClick={() => {
-                  setPreviewHtml(null)
-                  void send()
-                }}
-              >
-                Send
-              </button>
-            </div>
-          </div>
-        </div>
+        <PreviewDialog
+          html={previewHtml}
+          onClose={() => setPreviewHtml(null)}
+          onSend={() => {
+            setPreviewHtml(null)
+            void send()
+          }}
+          sending={sending}
+        />
       )}
     </div>
   )

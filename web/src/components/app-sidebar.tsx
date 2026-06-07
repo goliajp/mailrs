@@ -66,7 +66,7 @@ export function AppSidebar() {
       <aside className="hidden h-full w-14 shrink-0 flex-col items-center pt-1.5 pb-4 select-none md:flex">
         {/* logo */}
         <div className="mb-3">
-          <img alt="Mailrs" className="h-7 w-7 rounded-md" src="/icon.svg" />
+          <img alt="mailrs" className="h-7 w-7 rounded-md" src="/icon.svg" />
         </div>
 
         {/* home */}
@@ -159,10 +159,7 @@ export function AppSidebar() {
       </aside>
 
       {/* mobile: bottom tab bar */}
-      <nav
-        className="border-border bg-surface flex items-stretch border-t select-none md:hidden"
-        style={{ paddingBottom: 'var(--safe-area-bottom)' }}
-      >
+      <nav className="border-border bg-surface flex items-stretch border-t pb-[var(--safe-area-bottom)] select-none md:hidden">
         <MobileNavLink active={section === 'home'} href="/" icon={Home} label="Home" />
         <MobileNavLink
           active={section === 'mail'}
