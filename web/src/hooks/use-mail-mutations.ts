@@ -1,6 +1,7 @@
 import type { ConversationSummary } from '@/lib/types'
 
 import { type QueryKey, useMutation } from '@tanstack/react-query'
+import { getDefaultStore } from 'jotai'
 
 import {
   deleteJson,
@@ -10,6 +11,16 @@ import {
 } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
+import { stickyUnreadIdsAtom } from '@/store/chat'
+
+export type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar'
+
+type BatchResult = {
+  failed: number
+  message?: string
+  processed: number
+  success: boolean
+}
 
 // Mutation hooks for the mail flow. Every one of them runs the same
 // optimistic-update + rollback dance:
@@ -26,15 +37,6 @@ import { mailKeys } from '@/lib/query-keys'
 // `conversationsAtom`) means the optimistic state survives any concurrent
 // refetch — RQ's getQueryData / setQueryData operates on the canonical
 // store, not on a React-state mirror.
-
-export type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar'
-
-type BatchResult = {
-  failed: number
-  message?: string
-  processed: number
-  success: boolean
-}
 
 type Context = { snapshots: Array<[QueryKey, InfinitePages | undefined]> }
 
@@ -93,8 +95,6 @@ export function useBatchMutation() {
   })
 }
 
-// ---- mark read / unread ----
-
 export function useDeleteMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
     mutationFn: ({ threadId }) => deleteJson(`/conversations/${encodeURIComponent(threadId)}`),
@@ -125,6 +125,12 @@ export function useMarkReadMutation() {
       const snapshots = patchConversations((c) =>
         c.thread_id === threadId ? { ...c, unread_count: 0 } : c
       )
+      // Keep this thread visible in the current 'unread' filter session
+      // even though unread_count is now 0. Gmail-style: row only disappears
+      // when the user re-enters the unread filter, never under their cursor.
+      // No-op cost when the user isn't on the unread filter — the filter
+      // predicate ignores the set unless quickFilter === 'unread'.
+      addStickyUnread(threadId)
       return { snapshots }
     },
     // The optimistic patch IS the truth: server-side mark_thread_read writes
@@ -141,7 +147,7 @@ export function useMarkReadMutation() {
   })
 }
 
-// ---- star / unstar ----
+// ---- mark read / unread ----
 
 export function useMarkUnreadMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
@@ -155,6 +161,9 @@ export function useMarkUnreadMutation() {
       const snapshots = patchConversations((c) =>
         c.thread_id === threadId ? { ...c, unread_count: Math.max(1, c.unread_count) } : c
       )
+      // The row is genuinely unread again, no need to pin it as sticky any
+      // longer — let the unread filter govern visibility on its own.
+      removeStickyUnread(threadId)
       return { snapshots }
     },
     // Same as useMarkReadMutation: optimistic patch matches server state;
@@ -182,7 +191,7 @@ export function usePinMutation() {
   })
 }
 
-// ---- pin / unpin ----
+// ---- star / unstar ----
 
 export function useSnoozeMutation() {
   return useMutation<unknown, Error, { threadId: string; until: string }, Context>({
@@ -217,7 +226,7 @@ export function useStarMutation() {
   })
 }
 
-// ---- archive / unarchive ----
+// ---- pin / unpin ----
 
 export function useUnarchiveMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
@@ -255,7 +264,7 @@ export function useUnpinMutation() {
   })
 }
 
-// ---- snooze (server returns success; we drop the row optimistically) ----
+// ---- archive / unarchive ----
 
 export function useUnsnoozeMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
@@ -282,13 +291,20 @@ export function useUnstarMutation() {
   })
 }
 
-// ---- delete (single + batch share the same backend) ----
+// ---- snooze (server returns success; we drop the row optimistically) ----
+
+function addStickyUnread(threadId: string) {
+  const store = getDefaultStore()
+  const next = new Set(store.get(stickyUnreadIdsAtom))
+  next.add(threadId)
+  store.set(stickyUnreadIdsAtom, next)
+}
 
 async function cancelConversationFetches() {
   await queryClient.cancelQueries({ queryKey: mailKeys.conversations() })
 }
 
-// ---- batch operations ----
+// ---- delete (single + batch share the same backend) ----
 
 // Invalidates ONLY list-shape queries — never the thread query.
 //
@@ -307,6 +323,8 @@ function invalidateMail() {
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
 }
+
+// ---- batch operations ----
 
 // Invalidates only the small server-computed aggregates (categories +
 // actionCount) — leaves the conversations list cache alone. Used by
@@ -340,6 +358,15 @@ function patchConversations(
     }
   })
   return snapshots
+}
+
+function removeStickyUnread(threadId: string) {
+  const store = getDefaultStore()
+  const current = store.get(stickyUnreadIdsAtom)
+  if (!current.has(threadId)) return
+  const next = new Set(current)
+  next.delete(threadId)
+  store.set(stickyUnreadIdsAtom, next)
 }
 
 function rollbackConversations(snapshots: Array<[QueryKey, InfinitePages | undefined]>) {

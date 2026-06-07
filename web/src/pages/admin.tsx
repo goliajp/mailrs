@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 
 import { AdminSidebar } from '@/components/admin-sidebar'
+import { lazyWithReload as lazy } from '@/lib/lazy'
 
 // admin sub-pages are lazy: an admin landing on /admin/overview shouldn't
 // pay the bytes for system-config + mail-audit + audit-log etc. each sub-

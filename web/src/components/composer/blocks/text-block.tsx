@@ -1,17 +1,9 @@
 import type { TextBlockData } from '../types'
 
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { uploadInlineImage } from '@/components/rich-editor'
+import { lazyWithReload as lazy } from '@/lib/lazy'
 
 // the markdown-preview pipeline (react-markdown + remark-* + rehype-highlight)
 // is ~150-200 kB. preview is opt-in via the "Preview" tab — most send paths

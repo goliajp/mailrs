@@ -1,16 +1,25 @@
 import type { ReplyMode } from './types'
+import type { StructuredComposeHandle } from '@/components/structured-compose'
 
 import { toast } from '@goliapkg/gds'
 import { useAtomValue, useStore } from 'jotai'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
-import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
 import { deleteJson, postJson } from '@/lib/api'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
+import { lazyWithReload } from '@/lib/lazy'
+import { safeStorage } from '@/lib/safe-storage'
 import { authAtom } from '@/store/auth'
 import { threadMessagesAtom } from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
+
+// Defer the TipTap-laden composer until reply-box actually mounts. This
+// keeps the chat list / thread view chunk lean — opening a thread without
+// hitting Reply never pays the 700kB TipTap+ProseMirror+lowlight tax.
+const StructuredCompose = lazyWithReload(() =>
+  import('@/components/structured-compose').then((m) => ({ default: m.StructuredCompose }))
+)
 
 import { ActionBar } from './action-bar'
 import { ModeToggle } from './mode-toggle'
@@ -93,13 +102,13 @@ export function ReplyBox({
   const saveDraftLocal = useCallback(() => {
     const md = composeRef.current?.getMarkdown() ?? ''
     if (md.trim()) {
-      localStorage.setItem(draftKey, md)
+      safeStorage.setItem(draftKey, md)
     }
   }, [draftKey])
 
   // restore draft on mount
   useEffect(() => {
-    const saved = localStorage.getItem(draftKey)
+    const saved = safeStorage.getItem(draftKey)
     if (saved) {
       setTimeout(() => {
         composeRef.current?.setMarkdown(saved)
@@ -260,7 +269,7 @@ export function ReplyBox({
             }
           : {}),
       })
-      localStorage.removeItem(draftKey)
+      safeStorage.removeItem(draftKey)
       onSent()
     } catch (err) {
       saveDraftLocal()
@@ -406,18 +415,20 @@ export function ReplyBox({
 
       {/* block-based composer */}
       <div className="min-h-0 flex-1 overflow-hidden">
-        <StructuredCompose
-          disabled={sending}
-          mode={mode === 'forward' ? 'forward' : 'reply'}
-          onSubmit={send}
-          placeholder={placeholder}
-          quotedHeader={quotedHeader}
-          quotedHeaderHtml={quotedHeaderHtml}
-          quotedHtml={quotedHtml}
-          ref={composeRef}
-          signature={signature}
-          signatureEnabled={signatureEnabled}
-        />
+        <Suspense fallback={<ComposerSkeleton />}>
+          <StructuredCompose
+            disabled={sending}
+            mode={mode === 'forward' ? 'forward' : 'reply'}
+            onSubmit={send}
+            placeholder={placeholder}
+            quotedHeader={quotedHeader}
+            quotedHeaderHtml={quotedHeaderHtml}
+            quotedHtml={quotedHtml}
+            ref={composeRef}
+            signature={signature}
+            signatureEnabled={signatureEnabled}
+          />
+        </Suspense>
       </div>
 
       <ActionBar
@@ -444,6 +455,16 @@ export function ReplyBox({
           sending={sending}
         />
       )}
+    </div>
+  )
+}
+
+function ComposerSkeleton() {
+  return (
+    <div aria-busy="true" className="flex h-full flex-col gap-2 p-4">
+      <div className="bg-bg-secondary h-4 w-3/4 animate-pulse rounded" />
+      <div className="bg-bg-secondary h-4 w-1/2 animate-pulse rounded" />
+      <div className="bg-bg-secondary mt-2 h-24 w-full animate-pulse rounded" />
     </div>
   )
 }

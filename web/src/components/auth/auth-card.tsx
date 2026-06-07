@@ -8,7 +8,7 @@ type AuthCardProps = {
 export function AuthCard({ children, onSubmit }: AuthCardProps) {
   if (onSubmit) {
     return (
-      <div className="bg-bg flex min-h-screen items-center justify-center px-4">
+      <div className="bg-bg flex min-h-[100dvh] items-center justify-center px-4">
         <form
           className="border-border bg-surface w-full max-w-sm space-y-5 rounded-lg border p-6 shadow-lg select-none sm:p-8"
           onSubmit={onSubmit}
@@ -19,7 +19,7 @@ export function AuthCard({ children, onSubmit }: AuthCardProps) {
     )
   }
   return (
-    <div className="bg-bg flex min-h-screen items-center justify-center px-4">
+    <div className="bg-bg flex min-h-[100dvh] items-center justify-center px-4">
       <div className="border-border bg-surface w-full max-w-sm space-y-5 rounded-lg border p-6 shadow-lg select-none sm:p-8">
         {children}
       </div>

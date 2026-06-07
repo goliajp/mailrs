@@ -14,6 +14,7 @@ import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { shallowEqualConvo, useMailEvents } from '@/hooks/use-mail-events'
 import { useConversationsQuery } from '@/hooks/use-mail-queries'
 import { MPane, MPaneGroup } from '@/layouts/pane'
+import { getNotificationSupport, requestNotificationPermission } from '@/lib/safe-storage'
 import { authAtom } from '@/store/auth'
 import {
   categoryFilterAtom,
@@ -125,8 +126,8 @@ export function Chat() {
 
   // request notification permission
   useEffect(() => {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission()
+    if (getNotificationSupport() === 'unavailable') {
+      void requestNotificationPermission()
     }
   }, [])
 

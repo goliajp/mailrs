@@ -55,7 +55,7 @@ export function Playground() {
   const setMode = useSetThemeMode()
 
   return (
-    <main className="bg-bg min-h-screen p-6">
+    <main className="bg-bg min-h-[100dvh] p-6">
       <div className="mx-auto max-w-4xl space-y-10">
         {/* header */}
         <div className="flex items-center justify-between">
