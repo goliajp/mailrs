@@ -264,6 +264,8 @@ export function getEditorContent(editor: Editor | null): {
 function ToolbarButton({ active, children, disabled, onClick, title }: ToolbarButtonProps) {
   return (
     <button
+      aria-label={title}
+      aria-pressed={active}
       className={`rounded-md px-1.5 py-1 text-xs transition-colors ${
         active ? 'bg-border text-fg' : 'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary'
       } disabled:opacity-50`}
