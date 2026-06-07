@@ -401,6 +401,41 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [lastMessageUid])
 
+  // hooks for the timeline render. Must live above the early-return below —
+  // moving them after the `if (!selectedId) return …` makes the hook call
+  // order vary between renders and trips classic-errors → "React hooks
+  // after early return". Both work for `!selectedId`: handleSelectMsg
+  // captures only the setter, timelineItems short-circuits on `messages`
+  // being empty.
+  const myEmailForTimeline = auth?.address ?? ''
+  const VISIBLE_RECENT = 3
+  const hasCollapsedTimeline = messages.length > 5 && !showAllMessages
+  const handleSelectMsg = useCallback((idx: number) => setSelectedMsgIdx(idx), [])
+  const timelineItems = useMemo(() => {
+    const visible = hasCollapsedTimeline ? messages.slice(-VISIBLE_RECENT) : messages
+    const firstSubject = messages[0]?.subject
+    let prevDateGroup = ''
+    return visible.map((msg) => {
+      const idx = messages.indexOf(msg)
+      const senderEmail = extractEmail(msg.sender)
+      const isOwn = senderEmail === myEmailForTimeline
+      const msgDateGroup = new Date(msg.internal_date * 1000).toDateString()
+      const showDivider = msgDateGroup !== prevDateGroup
+      prevDateGroup = msgDateGroup
+      const showSubject = idx === 0 || msg.subject !== firstSubject
+      return {
+        dateLabel: bubbleDateLabel(msg.internal_date),
+        displayName: extractName(msg.sender),
+        idx,
+        isOwn,
+        msg,
+        showDivider,
+        showSubject,
+        subjectText: (msg.subject || '').trim(),
+      }
+    })
+  }, [messages, myEmailForTimeline, hasCollapsedTimeline])
+
   // empty state
   if (!selectedId) {
     return (
@@ -721,91 +756,31 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               </div>
             )}
             <div className="flex flex-col gap-2">
-              {(() => {
-                const VISIBLE_RECENT = 3
-                const hasCollapsed = messages.length > 5 && !showAllMessages
-                const visibleMessages = hasCollapsed ? messages.slice(-VISIBLE_RECENT) : messages
-                let prevDateGroup = ''
-
-                return (
-                  <>
-                    {hasCollapsed && (
-                      <button
-                        className="text-accent hover:text-accent-hover mx-auto mb-2 block text-xs font-medium"
-                        onClick={() => setShowAllMessages(true)}
-                      >
-                        Show {messages.length - VISIBLE_RECENT} earlier messages
-                      </button>
-                    )}
-                    {visibleMessages.map((msg) => {
-                      const idx = messages.indexOf(msg)
-                      const name = extractName(msg.sender)
-                      const senderEmail = extractEmail(msg.sender)
-                      const isOwn = senderEmail === myEmail
-                      const isSelected = selectedMsgIdx === idx
-
-                      const msgDateGroup = new Date(msg.internal_date * 1000).toDateString()
-                      const showDivider = msgDateGroup !== prevDateGroup
-                      prevDateGroup = msgDateGroup
-
-                      // first message in the thread carries the canonical
-                      // subject; later messages only show their own subject
-                      // when it differs (most threads it doesn't)
-                      const showSubject = idx === 0 || msg.subject !== messages[0]?.subject
-                      const subjectText = (msg.subject || '').trim()
-
-                      return (
-                        <Fragment key={msg.id}>
-                          {showDivider && (
-                            <BubbleDateDivider label={bubbleDateLabel(msg.internal_date)} />
-                          )}
-                          <div
-                            className={`focus-visible:ring-accent/50 flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none ${
-                              isSelected ? 'bg-accent/10' : 'hover:bg-bg-secondary'
-                            } ${isOwn ? 'ml-6' : ''}`}
-                            onClick={() => setSelectedMsgIdx(idx)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click()
-                            }}
-                            role="button"
-                            tabIndex={0}
-                          >
-                            <SenderAvatar sender={msg.sender} size={28} />
-                            <div className="min-w-0 flex-1 space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={`text-sm font-semibold ${isOwn ? 'text-accent' : 'text-fg'}`}
-                                >
-                                  {isOwn ? 'Me' : name}
-                                </span>
-                                <span className="text-fg-muted text-xs">
-                                  {formatDate(msg.internal_date)}
-                                  {msg.attachments.length > 0 && (
-                                    <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />
-                                  )}
-                                </span>
-                              </div>
-                              {showSubject && subjectText && (
-                                <div className="text-fg truncate text-sm font-medium">
-                                  {subjectText}
-                                </div>
-                              )}
-                              {msg.invite_method && <InviteCard messageUid={msg.uid} />}
-                              <BubbleBody
-                                msg={msg}
-                                myEmail={myEmail}
-                                myName={auth?.display_name}
-                                subject={subjectText}
-                              />
-                              <BubbleFactChips msg={msg} />
-                            </div>
-                          </div>
-                        </Fragment>
-                      )
-                    })}
-                  </>
-                )
-              })()}
+              {hasCollapsedTimeline && (
+                <button
+                  className="text-accent hover:text-accent-hover mx-auto mb-2 block text-xs font-medium"
+                  onClick={() => setShowAllMessages(true)}
+                >
+                  Show {messages.length - VISIBLE_RECENT} earlier messages
+                </button>
+              )}
+              {timelineItems.map((item) => (
+                <ThreadTimelineItem
+                  dateLabel={item.dateLabel}
+                  displayName={item.displayName}
+                  idx={item.idx}
+                  isOwn={item.isOwn}
+                  isSelected={selectedMsgIdx === item.idx}
+                  key={item.msg.id}
+                  msg={item.msg}
+                  myEmail={myEmail}
+                  myName={auth?.display_name}
+                  onSelect={handleSelectMsg}
+                  showDivider={item.showDivider}
+                  showSubject={item.showSubject}
+                  subjectText={item.subjectText}
+                />
+              ))}
               <div ref={bottomRef} />
             </div>
           </div>
@@ -924,6 +899,79 @@ function BubbleDateDivider({ label }: { label: string }) {
 
 const bubbleDateLabel = (ts: number | string) =>
   dateGroupLabel(typeof ts === 'number' ? ts : Math.floor(new Date(ts).getTime() / 1000))
+
+type ThreadTimelineItemProps = {
+  dateLabel: string
+  displayName: string
+  idx: number
+  isOwn: boolean
+  isSelected: boolean
+  msg: ThreadMessage
+  myEmail: string
+  myName?: string
+  onSelect: (idx: number) => void
+  showDivider: boolean
+  showSubject: boolean
+  subjectText: string
+}
+
+// memo'd timeline item — keeps mark-read / mark-flag / state toggles from
+// re-rendering every message bubble. Without memoization the parent's
+// .map() rebuilds every Fragment on every render of ThreadView, defeating
+// React's diff. `onSelect` must be stable (useCallback in parent).
+const ThreadTimelineItem = memo(function ThreadTimelineItem({
+  dateLabel,
+  displayName,
+  idx,
+  isOwn,
+  isSelected,
+  msg,
+  myEmail,
+  myName,
+  onSelect,
+  showDivider,
+  showSubject,
+  subjectText,
+}: ThreadTimelineItemProps) {
+  const handleClick = useCallback(() => onSelect(idx), [onSelect, idx])
+  return (
+    <Fragment>
+      {showDivider && <BubbleDateDivider label={dateLabel} />}
+      <div
+        className={`focus-visible:ring-accent/50 flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none ${
+          isSelected ? 'bg-accent/10' : 'hover:bg-bg-secondary'
+        } ${isOwn ? 'ml-6' : ''}`}
+        onClick={handleClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click()
+        }}
+        role="button"
+        tabIndex={0}
+      >
+        <SenderAvatar sender={msg.sender} size={28} />
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className={`text-sm font-semibold ${isOwn ? 'text-accent' : 'text-fg'}`}>
+              {isOwn ? 'Me' : displayName}
+            </span>
+            <span className="text-fg-muted text-xs">
+              {formatDate(msg.internal_date)}
+              {msg.attachments.length > 0 && (
+                <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />
+              )}
+            </span>
+          </div>
+          {showSubject && subjectText && (
+            <div className="text-fg truncate text-sm font-medium">{subjectText}</div>
+          )}
+          {msg.invite_method && <InviteCard messageUid={msg.uid} />}
+          <BubbleBody msg={msg} myEmail={myEmail} myName={myName} subject={subjectText} />
+          <BubbleFactChips msg={msg} />
+        </div>
+      </div>
+    </Fragment>
+  )
+})
 
 // strip invisible unicode: ZWJ, ZWNJ, ZW space, BOM, soft hyphen, directional marks, etc.
 const INVISIBLE_RE =
