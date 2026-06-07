@@ -46,7 +46,17 @@ function swCacheBump(): Plugin {
   }
 }
 
+const pkg = JSON.parse(
+  readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf-8'),
+) as { version: string }
+
 export default defineConfig({
+  // __MAILRS_VERSION__ is stamped at build time so runtime code (error
+  // reporter, status bar) can ship its version without importing package.json
+  // (which would need resolveJsonModule + drag the full JSON into the bundle).
+  define: {
+    __MAILRS_VERSION__: JSON.stringify(pkg.version),
+  },
   test: {
     coverage: {
       exclude: [

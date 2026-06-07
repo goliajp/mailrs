@@ -110,6 +110,7 @@ function ImageLightbox({ alt, onClose, src }: { alt: string; onClose: () => void
         <img
           alt={alt}
           className="max-h-[90vh] max-w-[90vw] rounded-md object-contain shadow-lg"
+          decoding="async"
           src={src}
         />
       </div>
@@ -130,7 +131,13 @@ function ImageThumbnail({ att, index, uid }: { att: AttachmentInfo; index: numbe
           onClick={() => setLightboxOpen(true)}
           title={`${att.filename} - click to enlarge`}
         >
-          <img alt={att.filename} className="max-h-32 object-contain" loading="lazy" src={url} />
+          <img
+            alt={att.filename}
+            className="max-h-32 object-contain"
+            decoding="async"
+            loading="lazy"
+            src={url}
+          />
         </button>
         <p className="text-fg-muted mt-1 truncate text-xs">
           <Copyable value={att.filename}>{att.filename}</Copyable>

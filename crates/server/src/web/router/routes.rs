@@ -8,7 +8,7 @@ use axum::routing::{any, delete, get, post, put};
 
 use super::super::{
     WebState, admin, ai_assist, api_key, auth, autodiscover, calendar_api, conversations, dav,
-    jmap, mail, oidc_provider, rsvp, system_config, templates, webhook, ws,
+    jmap, mail, oidc_provider, rsvp, system_config, templates, web_errors, webhook, ws,
 };
 
 pub(super) fn core_routes() -> axum::Router<Arc<WebState>> {
@@ -18,6 +18,8 @@ pub(super) fn core_routes() -> axum::Router<Arc<WebState>> {
         .route("/api/health", get(admin::get_health))
         .route("/api/readiness", get(admin::get_readiness))
         .route("/metrics", get(admin::prometheus_metrics))
+        // frontend ErrorBoundary reports — unauth on purpose, see web_errors.rs
+        .route("/api/web-errors", post(web_errors::submit))
         // websocket
         .route("/api/events", get(ws::ws_events))
         // queue
