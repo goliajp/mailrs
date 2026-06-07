@@ -66,7 +66,7 @@ export function AppSidebar() {
       <aside className="hidden h-full w-14 shrink-0 flex-col items-center pt-1.5 pb-4 select-none md:flex">
         {/* logo */}
         <div className="mb-3">
-          <img alt="mailrs" className="h-7 w-7 rounded-md" src="/icon.svg" />
+          <img alt="mailrs" className="h-7 w-7 rounded-md" decoding="async" src="/icon.svg" />
         </div>
 
         {/* home */}

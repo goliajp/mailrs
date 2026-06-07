@@ -1,6 +1,8 @@
 import { AlertTriangle } from 'lucide-react'
 import React from 'react'
 
+import { reportRuntimeError } from '@/lib/error-report'
+
 type ErrorBoundaryLevel = 'app' | 'route'
 
 type Props = {
@@ -25,6 +27,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo)
+    reportRuntimeError({ error })
   }
 
   handleAppReload = () => {

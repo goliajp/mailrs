@@ -29,6 +29,7 @@ mod router;
 mod rsvp;
 mod system_config;
 mod templates;
+mod web_errors;
 mod webhook;
 mod ws;
 
