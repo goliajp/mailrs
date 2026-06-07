@@ -1,31 +1,26 @@
+import type { TemplateInfo } from './types'
+
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { Loader2, Send, Sparkles, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { StructuredCompose, type StructuredComposeHandle } from '@/components/structured-compose'
 import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
-import { getToken } from '@/store/auth'
-import { authAtom } from '@/store/auth'
+import { authAtom, getToken } from '@/store/auth'
 import { composeReplySourceAtom, composingNewAtom } from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
+import { ActionBar } from './action-bar'
+import { AddressFields } from './address-fields'
+
 type PolishResult = { message?: string; polished?: string; success: boolean }
 type SendResult = { message?: string; message_id?: string; success: boolean }
-type TemplateInfo = {
-  category: string
-  html_body: string
-  id: number
-  name: string
-  subject: string
-  text_body: string
-}
 
 export function NewConversation() {
   const auth = useAtomValue(authAtom)
@@ -57,10 +52,8 @@ export function NewConversation() {
   })
 
   // composer opens by flipping an atom, which doesn't push a history entry.
-  // without this, browser Back leaves /mail entirely and lands wherever the
-  // user navigated from (often home). push a sentinel on mount so Back can
-  // pop it, and handle popstate by closing the composer instead of letting
-  // the pop cascade further up the stack
+  // without this, browser Back leaves /mail entirely. push a sentinel on
+  // mount so Back can pop it.
   useEffect(() => {
     window.history.pushState({ composerSentinel: true }, '')
 
@@ -77,7 +70,6 @@ export function NewConversation() {
 
   const applyTemplate = (t: TemplateInfo) => {
     setSubject(t.subject)
-    // prefer plaintext body; fall back to the html shim which strips tags
     if (t.text_body) composeRef.current?.setMarkdown(t.text_body)
     else if (t.html_body) composeRef.current?.setComposeContent(t.html_body)
   }
@@ -135,7 +127,7 @@ export function NewConversation() {
   const closeComposer = () => {
     // when our sentinel is still on top, pop it so Back afterwards lands on
     // the thread underneath. popstate will re-run the close handlers, which
-    // is idempotent
+    // is idempotent.
     const state = window.history.state as null | { composerSentinel?: boolean }
     if (state?.composerSentinel) {
       window.history.back()
@@ -236,8 +228,7 @@ export function NewConversation() {
             : {}),
         })
         // refresh the conversation list via RQ so the just-sent thread
-        // appears at the top; the cache invalidation handles all filter
-        // variants (All / Sent / etc).
+        // appears at the top.
         await queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })
         closeComposer()
       } else {
@@ -261,74 +252,36 @@ export function NewConversation() {
           aria-label="Close"
           className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
           onClick={closeComposer}
+          type="button"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
       {error && (
-        <div className="bg-danger/10 text-danger mx-4 mt-2 rounded-md px-3 py-1.5 text-xs">
+        <div
+          className="bg-danger/10 text-danger mx-4 mt-2 rounded-md px-3 py-1.5 text-xs"
+          role="alert"
+        >
           {error}
         </div>
       )}
 
-      {/* address fields — consistent label width for alignment */}
-      <div className="border-border flex shrink-0 flex-col border-b">
-        <div className="border-border flex h-9 items-center border-b px-4">
-          <label className="text-fg-muted w-14 shrink-0 text-xs">To</label>
-          <ContactAutocomplete
-            autoFocus
-            onChange={setTo}
-            placeholder="recipient@example.com"
-            value={to}
-          />
-          {!showCcBcc && (
-            <button
-              className="text-fg-muted hover:text-fg-secondary shrink-0 text-xs transition-colors"
-              onClick={() => setShowCcBcc(true)}
-            >
-              Cc/Bcc
-            </button>
-          )}
-        </div>
-        {showCcBcc && (
-          <>
-            <div className="border-border flex h-9 items-center border-b px-4">
-              <label className="text-fg-muted w-14 shrink-0 text-xs">Cc</label>
-              <ContactAutocomplete onChange={setCc} placeholder="cc@example.com" value={cc} />
-            </div>
-            <div className="border-border flex h-9 items-center border-b px-4">
-              <label className="text-fg-muted w-14 shrink-0 text-xs">Bcc</label>
-              <ContactAutocomplete onChange={setBcc} placeholder="bcc@example.com" value={bcc} />
-            </div>
-          </>
-        )}
-        <div className="border-border flex h-9 items-center border-b px-4">
-          <label className="text-fg-muted w-14 shrink-0 text-xs" htmlFor="new-conv-subject">
-            Subject
-          </label>
-          <input
-            className="text-fg flex-1 bg-transparent py-2 text-sm outline-none"
-            id="new-conv-subject"
-            onChange={(e) => setSubject(e.target.value)}
-            type="text"
-            value={subject}
-          />
-          <button
-            className="text-fg-muted hover:bg-accent/10 hover:text-accent shrink-0 rounded-md p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={generatingSubject || sending}
-            onClick={generateSubject}
-            title="AI generate subject"
-            type="button"
-          >
-            {generatingSubject ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" />
-            )}
-          </button>
-        </div>
-      </div>
+      <AddressFields
+        bcc={bcc}
+        cc={cc}
+        generatingSubject={generatingSubject}
+        onBccChange={setBcc}
+        onCcChange={setCc}
+        onGenerateSubject={generateSubject}
+        onShowCcBcc={() => setShowCcBcc(true)}
+        onSubjectChange={setSubject}
+        onToChange={setTo}
+        sending={sending}
+        showCcBcc={showCcBcc}
+        subject={subject}
+        to={to}
+      />
 
       {/* block-based composer */}
       <div className="min-h-0 flex-1">
@@ -356,116 +309,23 @@ export function NewConversation() {
         />
       </div>
 
-      {/* action bar */}
-      <div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-t px-4 py-2 select-none">
-        {scheduledAt && (
-          <span className="bg-accent/10 text-accent inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs">
-            {new Date(scheduledAt).toLocaleString(undefined, {
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit',
-              month: 'short',
-            })}
-            <button
-              aria-label="Clear schedule"
-              className="rounded-full p-0.5 hover:opacity-70"
-              onClick={() => {
-                setScheduledAt('')
-                setShowSchedulePicker(false)
-              }}
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </span>
-        )}
-        <button
-          className="bg-accent hover:bg-accent-hover flex h-8 shrink-0 items-center gap-1.5 rounded-md px-4 text-sm font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={sending}
-          onClick={send}
-        >
-          <Send className="h-3.5 w-3.5" />
-          {sending ? 'Sending…' : 'Send'}
-        </button>
-
-        <button
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${showSchedulePicker ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:bg-bg-secondary'}`}
-          disabled={sending}
-          onClick={() => setShowSchedulePicker((v) => !v)}
-          title="Schedule send"
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            viewBox="0 0 24 24"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 6v6l4 2" strokeLinecap="round" />
-          </svg>
-        </button>
-        {showSchedulePicker && (
-          <input
-            aria-label="Schedule send time"
-            className="border-border bg-bg-secondary text-fg focus:border-accent h-8 w-44 max-w-full shrink-0 rounded-md border px-2 text-xs outline-none"
-            min={(() => {
-              const d = new Date()
-              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-            })()}
-            onChange={(e) => setScheduledAt(e.target.value)}
-            type="datetime-local"
-            value={scheduledAt}
-          />
-        )}
-
-        <div className="bg-border mx-0.5 h-4 w-px" />
-
-        <button
-          className="text-accent hover:bg-accent/10 disabled:text-fg-muted flex h-8 shrink-0 items-center rounded-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={polishing || sending}
-          onClick={polish}
-          title="AI polish"
-        >
-          {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
-        </button>
-
-        {templates.length > 0 && (
-          <select
-            className="border-border bg-bg-secondary text-fg-secondary h-8 rounded-md border px-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-            defaultValue=""
-            disabled={sending}
-            onChange={(e) => {
-              const t = templates.find((t) => t.id === Number(e.target.value))
-              if (t) applyTemplate(t)
-              e.target.value = ''
-            }}
-          >
-            <option disabled value="">
-              Templates
-            </option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        )}
-
-        <div className="flex-1" />
-        <kbd className="text-fg-muted mr-1 hidden text-[10px] select-none sm:inline">
-          {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
-            ? '⌘'
-            : 'Ctrl+'}
-          ↵
-        </kbd>
-        <button
-          className="text-fg-muted hover:bg-bg-secondary flex h-8 shrink-0 items-center rounded-md px-3 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={sending}
-          onClick={closeComposer}
-        >
-          Cancel
-        </button>
-      </div>
+      <ActionBar
+        onCancel={closeComposer}
+        onPolish={polish}
+        onScheduleChange={setScheduledAt}
+        onScheduleClear={() => {
+          setScheduledAt('')
+          setShowSchedulePicker(false)
+        }}
+        onSend={send}
+        onTemplateSelect={applyTemplate}
+        onToggleSchedulePicker={() => setShowSchedulePicker((v) => !v)}
+        polishing={polishing}
+        scheduledAt={scheduledAt}
+        sending={sending}
+        showSchedulePicker={showSchedulePicker}
+        templates={templates}
+      />
     </div>
   )
 }

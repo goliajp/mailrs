@@ -242,8 +242,10 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
           ) : (
             <div>
               <button
+                aria-expanded={conflictsExpanded}
                 className="text-amber-300 hover:underline"
                 onClick={() => setConflictsExpanded((v) => !v)}
+                type="button"
               >
                 ⚠ Conflicts with {conflicts.length} events {conflictsExpanded ? '(hide)' : '(show)'}
               </button>
@@ -268,6 +270,7 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
           <button
             className="text-fg-muted hover:text-fg ml-auto text-xs underline-offset-2 hover:underline"
             onClick={() => setOverridePersisted(true)}
+            type="button"
           >
             Change
           </button>
@@ -281,6 +284,7 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
               className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => void send('ACCEPTED')}
+              type="button"
             >
               <Check className="h-3.5 w-3.5" />
               Accept
@@ -289,6 +293,7 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
               className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => void send('TENTATIVE')}
+              type="button"
             >
               Tentative
             </button>
@@ -296,14 +301,17 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
               className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => void send('DECLINED')}
+              type="button"
             >
               <X className="h-3.5 w-3.5" />
               Decline
             </button>
             <button
+              aria-expanded={counterOpen}
               className="text-fg-muted hover:text-fg ml-auto text-xs underline-offset-2 hover:underline disabled:opacity-50"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => setCounterOpen((v) => !v)}
+              type="button"
             >
               {counterOpen ? 'Cancel counter-proposal' : 'Propose new time'}
             </button>
@@ -325,16 +333,24 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
                 their calendar surfaces it for accept/decline.
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <label className="text-fg-muted text-xs">Start</label>
+                <label className="text-fg-muted text-xs" htmlFor="counter-start">
+                  Start
+                </label>
                 <input
+                  aria-label="Counter-proposal start time"
                   className="border-border text-fg bg-bg-secondary rounded border px-2 py-1 text-sm"
+                  id="counter-start"
                   onChange={(e) => setCounterStart(e.target.value)}
                   type="datetime-local"
                   value={counterStart}
                 />
-                <label className="text-fg-muted text-xs">End</label>
+                <label className="text-fg-muted text-xs" htmlFor="counter-end">
+                  End
+                </label>
                 <input
+                  aria-label="Counter-proposal end time"
                   className="border-border text-fg bg-bg-secondary rounded border px-2 py-1 text-sm"
+                  id="counter-end"
                   onChange={(e) => setCounterEnd(e.target.value)}
                   type="datetime-local"
                   value={counterEnd}
@@ -343,6 +359,7 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
                   className="bg-accent text-accent-fg hover:bg-accent-hover rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
                   disabled={!counterStart || rsvp === 'pending'}
                   onClick={() => void sendCounter()}
+                  type="button"
                 >
                   Send counter
                 </button>

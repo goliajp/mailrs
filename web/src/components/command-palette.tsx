@@ -1,7 +1,8 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
+  Home,
+  Inbox,
   LogOut,
-  Mail,
   Monitor,
   Moon,
   PenSquare,
@@ -11,7 +12,7 @@ import {
   Shield,
   Sun,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { MobileModal } from '@/components/mobile-modal'
@@ -39,6 +40,7 @@ export function CommandPalette() {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const listboxId = useId()
 
   const close = useCallback(() => {
     setOpen(false)
@@ -120,28 +122,44 @@ export function CommandPalette() {
       >
         {/* search input */}
         <div className="border-border flex items-center border-b px-4">
-          <Search className="text-fg-muted shrink-0" size={18} />
+          <Search aria-hidden="true" className="text-fg-muted shrink-0" size={18} />
           <input
+            aria-activedescendant={commands[selectedIndex]?.id}
+            aria-autocomplete="list"
+            aria-controls={listboxId}
+            aria-expanded
+            aria-label="Search commands"
+            autoComplete="off"
             className="text-fg placeholder:text-fg-muted w-full bg-transparent px-3 py-3 text-lg outline-none"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a command or search..."
             ref={inputRef}
+            role="combobox"
             type="text"
             value={query}
           />
-          <kbd className="border-border text-fg-muted shrink-0 rounded border px-1.5 py-0.5 text-xs">
+          <kbd
+            aria-hidden="true"
+            className="border-border text-fg-muted shrink-0 rounded border px-1.5 py-0.5 text-xs"
+          >
             ESC
           </kbd>
         </div>
 
         {/* results */}
-        <div className="max-h-80 overflow-y-auto py-2" ref={listRef}>
+        <div
+          aria-label="Commands"
+          className="max-h-80 overflow-y-auto py-2"
+          id={listboxId}
+          ref={listRef}
+          role="listbox"
+        >
           {commands.length === 0 ? (
             <div className="text-fg-muted px-4 py-8 text-center text-sm">No results found</div>
           ) : (
             groups.map((group) => (
-              <div key={group.category}>
+              <div key={group.category} role="group">
                 <div className="text-fg-muted px-4 py-1.5 text-xs font-medium tracking-wider uppercase">
                   {group.category}
                 </div>
@@ -151,20 +169,29 @@ export function CommandPalette() {
 
                   return (
                     <button
+                      aria-selected={isSelected}
                       className={`flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                         isSelected
                           ? 'bg-accent/10 text-fg'
                           : 'text-fg-secondary hover:bg-bg-secondary'
                       }`}
                       data-selected={isSelected}
+                      id={cmd.id}
                       key={cmd.id}
                       onClick={() => cmd.action()}
                       onMouseEnter={() => setSelectedIndex(idx)}
+                      role="option"
+                      type="button"
                     >
-                      <span className="text-fg-muted shrink-0">{cmd.icon}</span>
+                      <span aria-hidden="true" className="text-fg-muted shrink-0">
+                        {cmd.icon}
+                      </span>
                       <span className="flex-1 text-sm">{cmd.label}</span>
                       {cmd.shortcut && (
-                        <kbd className="border-border text-fg-muted rounded border px-1.5 py-0.5 text-xs">
+                        <kbd
+                          aria-hidden="true"
+                          className="border-border text-fg-muted rounded border px-1.5 py-0.5 text-xs"
+                        >
                           {cmd.shortcut}
                         </kbd>
                       )}
@@ -206,7 +233,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
     () => [
       {
         category: 'Navigation',
-        icon: <Mail size={16} />,
+        icon: <Home size={16} />,
         id: 'nav-home',
         label: 'Go to Home',
         action: () => {
@@ -216,7 +243,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
       },
       {
         category: 'Navigation',
-        icon: <Mail size={16} />,
+        icon: <Inbox size={16} />,
         id: 'nav-inbox',
         label: 'Go to Inbox',
         action: () => {
