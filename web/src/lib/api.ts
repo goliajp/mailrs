@@ -23,6 +23,14 @@ export type FeedbackAction =
   | 'mark_vip'
   | 'unblock'
 
+// Optional validator/coercer applied to a parsed JSON response. Pass
+// either a Zod schema's `.parse` (e.g. `HealthInfoSchema.parse`) or a
+// lightweight shape assertion (e.g. `(raw) => assertArrayShape(...)`).
+// Throws synchronously — caught by useQuery as a query error and
+// surfaced through the route-level ErrorBoundary instead of a downstream
+// `undefined.foo` deeper in the render tree.
+export type ResponseValidator<T> = (raw: unknown) => T
+
 export type SaveDraftRequest = {
   bcc?: string
   body?: string
@@ -51,6 +59,8 @@ export async function deleteJson<T>(path: string, signal?: AbortSignal): Promise
   return handleResponse<T>(res)
 }
 
+// --- draft types and API ---
+
 export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blob> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: authHeaders(),
@@ -67,14 +77,17 @@ export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blo
   return res.blob()
 }
 
-// --- draft types and API ---
-
-export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+export async function fetchJson<T>(
+  path: string,
+  signal?: AbortSignal,
+  validate?: ResponseValidator<T>
+): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: authHeaders(),
     signal,
   })
-  return handleResponse<T>(res)
+  const data = await handleResponse<T>(res)
+  return validate ? validate(data) : data
 }
 
 export async function getThreadReactions(

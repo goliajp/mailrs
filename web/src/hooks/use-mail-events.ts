@@ -99,9 +99,17 @@ export function useMailEvents(user: string) {
 
       ws.onmessage = (e) => {
         try {
-          const event = JSON.parse(e.data) as NewMessageEvent | SmtpEvent
+          const parsed: unknown = JSON.parse(e.data)
+          if (
+            !parsed ||
+            typeof parsed !== 'object' ||
+            typeof (parsed as { type?: unknown }).type !== 'string'
+          ) {
+            return
+          }
+          const event = parsed as NewMessageEvent | SmtpEvent
           if (event.type === 'NewMessage') {
-            const msg = event as NewMessageEvent
+            const msg = event
             if (msg.user === user) {
               // Surgical cache update instead of a blanket
               // `invalidateQueries({ queryKey: mailKeys.conversations() })`

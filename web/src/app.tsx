@@ -21,6 +21,7 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import { MobileShell } from '@/components/mobile-shell'
 import { MPane } from '@/layouts/pane'
 import { lazyWithReload } from '@/lib/lazy'
+import { type HealthInfo, HealthInfoSchema } from '@/lib/schemas'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 import { authAtom } from '@/store/auth'
@@ -217,19 +218,17 @@ function StatusBar() {
   const auth = useAtomValue(authAtom)
   const wsStatus = useAtomValue(connectionStatusAtom)
   const location = useLocation()
-  const [health, setHealth] = useState<null | {
-    kevy: boolean
-    pg: boolean
-    status: string
-    version: string
-  }>(null)
+  const [health, setHealth] = useState<HealthInfo | null>(null)
 
   const fetchHealth = useCallback(async () => {
     try {
       const res = await fetch('/api/health')
-      if (res.ok) setHealth(await res.json())
+      if (res.ok) {
+        const raw: unknown = await res.json()
+        setHealth(HealthInfoSchema.parse(raw))
+      }
     } catch {
-      /* ignore */
+      /* ignore — drift is logged via ErrorBoundary, fetch failures ignored */
     }
   }, [])
 
