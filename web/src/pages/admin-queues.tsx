@@ -4,8 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useCallback, useMemo, useState } from 'react'
 
 import { ScrollableTable } from '@/components/scrollable-table'
+import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { fetchJson, postJson } from '@/lib/api'
-import { queryClient } from '@/lib/query-client'
 import { adminKeys } from '@/lib/query-keys'
 
 const PAGE_SIZE = 20
@@ -29,7 +29,7 @@ export function AdminQueues() {
   const { data: queue = [], refetch } = useQuery({
     queryKey: adminKeys.queues(),
     refetchInterval: 5000,
-    queryFn: () => fetchJson<QueueEntry[]>('/queue'),
+    queryFn: ({ signal }) => fetchJson<QueueEntry[]>('/queue', signal),
   })
   const [statusFilter, setStatusFilterRaw] = useState<null | QueueStatus>(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -40,11 +40,14 @@ export function AdminQueues() {
     setCurrentPage(1)
   }, [])
 
-  const invalidateQueue = () => queryClient.invalidateQueries({ queryKey: adminKeys.queues() })
+  const retryQueueItem = useAdminMutation({
+    invalidateKey: adminKeys.queues(),
+    mutationFn: (id: number) => postJson(`/queue/${id}/retry`, {}),
+    successMsg: (id) => `Retrying queue item #${id}`,
+  })
 
-  const handleRetry = async (id: number) => {
-    await postJson(`/queue/${id}/retry`, {})
-    invalidateQueue()
+  const handleRetry = (id: number) => {
+    retryQueueItem.mutate(id)
   }
 
   const counts = useMemo(() => {

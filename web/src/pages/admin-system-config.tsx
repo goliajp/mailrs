@@ -1,12 +1,11 @@
 import type { ReactNode } from 'react'
 
-import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { RotateCcw, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { deleteJson, fetchJson, putJson } from '@/lib/api'
-import { queryClient } from '@/lib/query-client'
 import { adminKeys } from '@/lib/query-keys'
 
 type ConfigEntry = {
@@ -48,12 +47,12 @@ export function AdminSystemConfig() {
     isLoading: loading,
   } = useQuery({
     queryKey: adminKeys.systemConfig(),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       fetchJson<{
         entries?: ConfigEntry[]
         message?: string
         success: boolean
-      }>('/admin/system-config'),
+      }>('/admin/system-config', signal),
   })
 
   const entries: ConfigEntry[] = response && response.success ? (response.entries ?? []) : []
@@ -64,29 +63,25 @@ export function AdminSystemConfig() {
         ? (response.message ?? 'Failed to load configuration')
         : null
 
-  const invalidateConfig = () =>
-    queryClient.invalidateQueries({ queryKey: adminKeys.systemConfig() })
+  const saveConfig = useAdminMutation({
+    invalidateKey: adminKeys.systemConfig(),
+    mutationFn: (vars: { key: string; value: string }) =>
+      putJson(`/admin/system-config/${encodeURIComponent(vars.key)}`, { value: vars.value }),
+    successMsg: (vars) => `"${vars.key}" updated`,
+  })
 
-  const handleSave = async (key: string, value: string) => {
-    try {
-      await putJson(`/admin/system-config/${encodeURIComponent(key)}`, {
-        value,
-      })
-      toast.success(`"${key}" updated`)
-      await invalidateConfig()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to save config')
-    }
+  const resetConfig = useAdminMutation({
+    invalidateKey: adminKeys.systemConfig(),
+    mutationFn: (key: string) => deleteJson(`/admin/system-config/${encodeURIComponent(key)}`),
+    successMsg: (key) => `"${key}" reset to default`,
+  })
+
+  const handleSave = (key: string, value: string) => {
+    saveConfig.mutate({ key, value })
   }
 
-  const handleReset = async (key: string) => {
-    try {
-      await deleteJson(`/admin/system-config/${encodeURIComponent(key)}`)
-      toast.success(`"${key}" reset to default`)
-      await invalidateConfig()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to reset config')
-    }
+  const handleReset = (key: string) => {
+    resetConfig.mutate(key)
   }
 
   const grouped: GroupedEntries = {}
