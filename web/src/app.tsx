@@ -196,9 +196,9 @@ function StatusBar() {
   const wsStatus = useAtomValue(connectionStatusAtom)
   const location = useLocation()
   const [health, setHealth] = useState<null | {
+    kevy: boolean
     pg: boolean
     status: string
-    valkey: boolean
     version: string
   }>(null)
 
@@ -236,8 +236,8 @@ function StatusBar() {
               className={`inline-block h-2 w-2 rounded-full ${health.status === 'healthy' ? 'bg-success' : health.status === 'degraded' ? 'bg-warning' : 'bg-danger'}`}
             />
             {health.pg ? 'PG' : ''}
-            {health.pg && health.valkey ? ' · ' : ''}
-            {health.valkey ? 'Valkey' : ''}
+            {health.pg && health.kevy ? ' · ' : ''}
+            {health.kevy ? 'Kevy' : ''}
           </span>
         )}
         <span className="flex items-center gap-1">
