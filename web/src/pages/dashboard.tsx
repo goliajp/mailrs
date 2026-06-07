@@ -1,4 +1,4 @@
-import type { CategoryCount, ConversationSummary } from '@/lib/types'
+import type { ConversationSummary } from '@/lib/types'
 
 import { ScrollArea } from '@goliapkg/gds'
 import { useQueries } from '@tanstack/react-query'
@@ -20,6 +20,8 @@ import {
 import { fetchJson } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { dashboardKeys } from '@/lib/query-keys'
+import { assertArrayShape } from '@/lib/runtime-shape'
+import { type MailStats, MailStatsSchema } from '@/lib/schemas'
 import { authAtom } from '@/store/auth'
 import {
   composeReplySourceAtom,
@@ -37,12 +39,15 @@ type DashboardData = {
 
 type FolderInfo = { name: string; total: number; unseen: number }
 
-type MailStats = {
-  categories: CategoryCount[]
-  storage_bytes: number
-  total_messages: number
-  unread_messages: number
-}
+const CONVERSATION_REQUIRED_KEYS = [
+  'thread_id',
+  'subject',
+  'participants',
+  'last_date',
+  'unread_count',
+] as const
+
+const FOLDER_REQUIRED_KEYS = ['name', 'total', 'unseen'] as const
 
 const REFRESH_INTERVAL = 60_000
 
@@ -68,19 +73,23 @@ export function Dashboard() {
         queryKey: dashboardKeys.conversations(),
         refetchInterval: REFRESH_INTERVAL,
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          fetchJson<ConversationSummary[]>('/conversations?limit=200', signal),
+          fetchJson<ConversationSummary[]>('/conversations?limit=200', signal, (raw) =>
+            assertArrayShape<ConversationSummary>('/conversations', raw, CONVERSATION_REQUIRED_KEYS)
+          ),
       },
       {
         queryKey: dashboardKeys.stats(),
         refetchInterval: REFRESH_INTERVAL,
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          fetchJson<MailStats>('/mail/stats', signal).catch(() => null),
+          fetchJson<MailStats>('/mail/stats', signal, MailStatsSchema.parse).catch(() => null),
       },
       {
         queryKey: dashboardKeys.folders(),
         refetchInterval: REFRESH_INTERVAL,
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          fetchJson<FolderInfo[]>('/mail/folders', signal),
+          fetchJson<FolderInfo[]>('/mail/folders', signal, (raw) =>
+            assertArrayShape<FolderInfo>('/mail/folders', raw, FOLDER_REQUIRED_KEYS)
+          ),
       },
     ],
   })

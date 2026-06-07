@@ -4,8 +4,19 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
 import { fetchJson } from '@/lib/api'
 import { mailKeys, type MailListFilters } from '@/lib/query-keys'
+import { assertArrayShape } from '@/lib/runtime-shape'
 
 const PAGE_SIZE = 50
+
+const CONVERSATION_REQUIRED_KEYS = [
+  'thread_id',
+  'subject',
+  'participants',
+  'last_date',
+  'unread_count',
+] as const
+
+const THREAD_MESSAGE_REQUIRED_KEYS = ['id', 'sender', 'subject', 'internal_date'] as const
 
 export function useActionCountQuery(domains: string[]) {
   return useQuery({
@@ -49,7 +60,9 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       return last?.last_date
     },
     queryFn: ({ pageParam, signal }) =>
-      fetchJson<ConversationSummary[]>(listPath(filters, pageParam), signal),
+      fetchJson<ConversationSummary[]>(listPath(filters, pageParam), signal, (raw) =>
+        assertArrayShape<ConversationSummary>('/conversations', raw, CONVERSATION_REQUIRED_KEYS)
+      ),
   })
 }
 
@@ -60,7 +73,13 @@ export function useThreadQuery(threadId: null | string, domains: string[]) {
       const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
       return fetchJson<ThreadMessage[]>(
         `/conversations/${encodeURIComponent(threadId ?? '')}${q}`,
-        signal
+        signal,
+        (raw) =>
+          assertArrayShape<ThreadMessage>(
+            '/conversations/:threadId',
+            raw,
+            THREAD_MESSAGE_REQUIRED_KEYS
+          )
       )
     },
     // Thread content is mutation-invariant from the client's point of view —
