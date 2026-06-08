@@ -3,7 +3,7 @@ import type { ThreadMessage } from '@/lib/types'
 import { toast } from '@goliapkg/gds'
 import DOMPurify from 'dompurify'
 import { MoreVertical, Paperclip } from 'lucide-react'
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useCallback, useEffect, useRef, useState } from 'react'
 
 import { InviteCard } from '@/components/invite-card'
 import { SenderAvatar } from '@/components/sender-avatar'
@@ -87,7 +87,6 @@ export const ThreadTimelineItem = memo(function ThreadTimelineItem({
           )}
           {msg.invite_method && <InviteCard messageUid={msg.uid} />}
           <BubbleBody msg={msg} myEmail={myEmail} myName={myName} subject={subjectText} />
-          <BubbleFactChips msg={msg} />
         </div>
       </div>
     </Fragment>
@@ -144,82 +143,6 @@ const BubbleBody = memo(function BubbleBody({
     <p className="text-fg-muted text-xs italic">
       {msg.html_body ? 'Rich HTML message — click to view full content' : 'No preview available'}
     </p>
-  )
-})
-
-// strip the subject from the start of preview text. many transactional
-// emails (Stripe receipts, GitHub notifications, etc.) have the subject
-// repeated as the first heading inside the body, so the bubble would
-// show the same line twice (once as the subject row, once as the
-// preview). matches the leading words case-insensitively, with a small
-// allowance for trailing punctuation / sender names.
-function stripSubjectFromPreview(text: string, subject: string): string {
-  if (!subject) return text
-  const normSubject = subject.toLowerCase().trim()
-  if (!normSubject || normSubject.length < 6) return text
-  const normText = text.toLowerCase()
-  // search the first 200 chars for the subject and start the preview
-  // after it (skipping common separator characters)
-  const window = normText.slice(0, Math.min(200, normText.length))
-  const at = window.indexOf(normSubject)
-  if (at === -1) return text
-  let cut = at + normSubject.length
-  while (cut < text.length && /[\s·•|–—\-:,]/.test(text[cut])) cut++
-  const remainder = text.slice(cut).trim()
-  return remainder.length >= 30 ? remainder : text
-}
-
-// regex-extract facts from the rendered preview text directly. AI
-// metadata (msg.amounts / msg.dates / msg.action_items) is sparse in
-// practice — half the marketing/receipt emails arrive without anything
-// in those columns. parsing the visible bubble text guarantees the
-// chips show whenever the email actually contains the data.
-const RX_AMOUNT = /(?:[$€£¥￥]|USD|EUR|GBP|JPY|CNY)\s?\d{1,3}(?:[,，]\d{3})*(?:\.\d{1,2})?/g
-// dates: english month-name form ('April 19, 2026') OR CJK form
-// ('4月27日', '2026年4月27日') — most JP/CN marketing copy uses the
-// latter, so en-only matching missed the half of inboxes that needed it
-// most.
-const RX_DATE =
-  /\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:[,\s]+\d{4})?\b/g
-const RX_DATE_CJK = /(?:\d{4}\s*年\s*)?\d{1,2}\s*月\s*\d{1,2}\s*日/g
-const RX_RECEIPT = /(?:#|No\.?\s*|Number[:\s]+|番号[:：\s]+)([A-Z0-9]{4,}[-A-Z0-9]+)/g
-
-const BubbleFactChips = memo(function BubbleFactChips({ msg }: { msg: ThreadMessage }) {
-  const facts = useMemo(() => extractBubbleFacts(msg), [msg])
-  const actions = (msg.action_items || []).slice(0, 1)
-
-  if (
-    facts.amounts.length === 0 &&
-    facts.dates.length === 0 &&
-    facts.refs.length === 0 &&
-    actions.length === 0
-  ) {
-    return null
-  }
-
-  return (
-    <div className="flex flex-wrap gap-1 pt-0.5">
-      {facts.amounts.map((a, i) => (
-        <FactChip key={`amt-${i}`} kind="amount">
-          {a}
-        </FactChip>
-      ))}
-      {facts.dates.map((d, i) => (
-        <FactChip key={`date-${i}`} kind="date">
-          {d}
-        </FactChip>
-      ))}
-      {facts.refs.map((r, i) => (
-        <FactChip key={`ref-${i}`} kind="ref">
-          {r}
-        </FactChip>
-      ))}
-      {actions.map((a, i) => (
-        <FactChip key={`act-${i}`} kind="action">
-          {a}
-        </FactChip>
-      ))}
-    </div>
   )
 })
 
@@ -284,107 +207,26 @@ function cleanTextForBubble(raw: string): string {
     .trim()
 }
 
-function extractBubbleFacts(msg: ThreadMessage): {
-  amounts: string[]
-  dates: string[]
-  refs: string[]
-} {
-  // pull from AI metadata first; supplement with regex over the body.
-  // a.text / d.text can legitimately be missing on some AI rows, so coerce
-  // to empty string and filter — uniqueShort assumes string[]
-  const aiAmounts = (msg.amounts || [])
-    .map((a) => {
-      if (a.value !== undefined && a.currency) {
-        return `${a.currency} ${a.value.toLocaleString()}`
-      }
-      return a.text ?? ''
-    })
-    .filter((s) => s.length > 0)
-  const aiDates = (msg.dates || [])
-    .map((d) => d.iso_date ?? d.text ?? '')
-    .filter((s) => s.length > 0)
-
-  const body = msg.html_body
-    ? htmlToPreviewText(msg.html_body)
-    : msg.text_body || msg.clean_text || ''
-
-  const found: { amounts: string[]; dates: string[]; refs: string[] } = {
-    amounts: [],
-    dates: [],
-    refs: [],
-  }
-  if (body) {
-    const amounts = body.match(RX_AMOUNT) || []
-    found.amounts = uniqueShort(amounts, 2)
-    const dates = [...(body.match(RX_DATE) || []), ...(body.match(RX_DATE_CJK) || [])]
-    found.dates = uniqueShort(
-      dates.map((d) => d.replace(/\s+/g, '')),
-      2
-    )
-    const refs: string[] = []
-    let m: null | RegExpExecArray
-    while ((m = RX_RECEIPT.exec(body)) !== null) refs.push(m[1])
-    found.refs = uniqueShort(refs, 1)
-    RX_RECEIPT.lastIndex = 0
-  }
-
-  return {
-    amounts: uniqueShort([...aiAmounts, ...found.amounts], 2),
-    dates: uniqueShort([...aiDates, ...found.dates], 1),
-    refs: found.refs,
-  }
-}
-
-function FactChip({
-  children,
-  kind,
-}: {
-  children: React.ReactNode
-  kind: 'action' | 'amount' | 'date' | 'ref'
-}) {
-  const palette =
-    kind === 'amount'
-      ? 'bg-success/10 text-success'
-      : kind === 'date'
-        ? 'bg-info/10 text-info'
-        : kind === 'ref'
-          ? 'bg-bg-secondary text-fg-secondary'
-          : 'bg-warning/10 text-warning'
-  const icon = kind === 'amount' ? '💰' : kind === 'date' ? '📅' : kind === 'ref' ? '#' : '⚡'
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${palette}`}
-    >
-      <span aria-hidden="true">{icon}</span>
-      <span className="max-w-[140px] truncate">{children}</span>
-    </span>
-  )
-}
-
-function uniqueShort(arr: (null | string | undefined)[], cap: number): string[] {
-  // dedupe + collapse substring duplicates ('4月27日' is the same fact
-  // as '2026年4月27日' — keep the longer/more specific one). also drops
-  // exact case-insensitive duplicates from upstream sources. defensive
-  // type guard: AI metadata fields are nullable in the wire schema, so
-  // callers that forward them (.text / .iso_date) can produce undefined.
-  const cleaned = arr
-    .filter((s): s is string => typeof s === 'string')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-  // process longest first so shorter substrings get absorbed
-  cleaned.sort((a, b) => b.length - a.length)
-  const out: string[] = []
-  for (const item of cleaned) {
-    const lower = item.toLowerCase()
-    const dup = out.some((kept) => {
-      const k = kept.toLowerCase()
-      return k === lower || k.includes(lower) || lower.includes(k)
-    })
-    if (dup) continue
-    out.push(item)
-    if (out.length >= cap) break
-  }
-  return out
+// strip the subject from the start of preview text. many transactional
+// emails (Stripe receipts, GitHub notifications, etc.) have the subject
+// repeated as the first heading inside the body, so the bubble would
+// show the same line twice (once as the subject row, once as the
+// preview). matches the leading words case-insensitively, with a small
+// allowance for trailing punctuation / sender names.
+function stripSubjectFromPreview(text: string, subject: string): string {
+  if (!subject) return text
+  const normSubject = subject.toLowerCase().trim()
+  if (!normSubject || normSubject.length < 6) return text
+  const normText = text.toLowerCase()
+  // search the first 200 chars for the subject and start the preview
+  // after it (skipping common separator characters)
+  const window = normText.slice(0, Math.min(200, normText.length))
+  const at = window.indexOf(normSubject)
+  if (at === -1) return text
+  let cut = at + normSubject.length
+  while (cut < text.length && /[\s·•|–—\-:,]/.test(text[cut])) cut++
+  const remainder = text.slice(cut).trim()
+  return remainder.length >= 30 ? remainder : text
 }
 
 // dedicated DOMPurify instance so this preview path never runs the
