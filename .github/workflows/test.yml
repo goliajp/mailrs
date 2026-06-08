@@ -4,17 +4,17 @@ name: test
 # use PRs (see .claude/rules/common/git-workflow.md) — branch start/finish
 # is the merge path, so push triggers cover every code change.
 #
-# develop/main: integration + production tips
+# develop/master: integration + production tips
 # feature/**:   in-progress feature work (off develop)
 # bugfix/**:    in-progress bug fixes (off develop)
-# release/**:   release candidates (off develop, into main)
-# hotfix/**:    urgent prod fixes (off main, into main + develop)
+# release/**:   release candidates (off develop, into master)
+# hotfix/**:    urgent prod fixes (off master, into master + develop)
 
 on:
   push:
     branches:
       - develop
-      - main
+      - master
       - 'feature/**'
       - 'bugfix/**'
       - 'release/**'

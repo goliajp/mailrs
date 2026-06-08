@@ -65,6 +65,8 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: vite build
+        # vite output doesn't embed package.json version (we removed
+        # __MAILRS_VERSION__ define earlier), so no need to patch it.
         run: bunx --bun tsc -b && bunx --bun vite build
 
       - name: upload dist
