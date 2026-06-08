@@ -205,9 +205,81 @@ jobs:
         run: |
           docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker.outputs.version }}
 
+  deploy:
+    name: deploy to prod
+    needs: manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: extract version from tag
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: SSH + docker pull + restart
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          # max bash; -e bails on first failure so the health check at the
+          # end is the only "success" signal for the job
+          script_stop: true
+          script: |
+            set -e
+            cd /apps/mailrs
+
+            VERSION="${{ steps.ver.outputs.version }}"
+            echo "==> deploying mailrs v$VERSION"
+
+            # 1. pull new multi-arch image (published by the manifest job above)
+            docker pull ghcr.io/goliajp/mailrs:$VERSION
+
+            # 2. extract web assets from image → host bind-mount target.
+            #    docker-compose.prod.yml mounts ./web → /opt/mailrs/web:ro,
+            #    so the host copy is what the container actually serves.
+            docker create --name mailrs-web-tmp ghcr.io/goliajp/mailrs:$VERSION
+            mkdir -p web
+            docker cp mailrs-web-tmp:/opt/mailrs/web/. web/
+            docker rm mailrs-web-tmp
+
+            # 3. pin the version in .env so docker-compose picks the new tag
+            if grep -q '^MAILRS_VERSION=' .env; then
+              sed -i "s|^MAILRS_VERSION=.*|MAILRS_VERSION=$VERSION|" .env
+            else
+              echo "MAILRS_VERSION=$VERSION" >> .env
+            fi
+
+            # 4. align bind-mounted secret + data-volume ownership to UID 10001.
+            #    The image runs as USER mailrs (UID 10001); without this chown
+            #    the container can't read host-bound certs or write to /data.
+            chown -R 10001:10001 certs/ 2>/dev/null || true
+            docker run --rm -v mailrs_mailrs-data:/data alpine \
+              chown -R 10001:10001 /data
+
+            # 5. restart with the new image tag
+            docker compose up -d --remove-orphans
+
+            # 6. health gate — poll /api/health until healthy or 60s timeout
+            for i in $(seq 1 30); do
+              status=$(curl -sS --max-time 5 http://localhost:3100/api/health 2>/dev/null \
+                | python3 -c "import json,sys;print(json.load(sys.stdin).get('status','?'))" \
+                2>/dev/null || echo "unreachable")
+              case "$status" in
+                healthy|degraded)
+                  echo "==> health: $status — deploy ok"
+                  exit 0
+                  ;;
+              esac
+              sleep 2
+            done
+
+            echo "==> deploy failed; container logs (tail 40):" >&2
+            docker compose logs --tail 40 mailrs >&2 || true
+            exit 1
+
   publish:
     name: announce release
-    needs: manifest
+    needs: deploy
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

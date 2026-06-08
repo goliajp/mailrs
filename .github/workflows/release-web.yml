@@ -1,0 +1,125 @@
+name: release-web
+
+# Webapp-only release, decoupled from the Rust binary version.
+#
+# Triggered by pushing a `web-v*` tag. Skips cargo entirely, skips docker
+# image rebuild, skips container restart. Runs web tests, builds web/dist,
+# rsyncs it to host's bind-mount target. The container's tower_http
+# ServeDir reads files off disk, so the change is live on next request.
+#
+# Tag scheme: `web-v<YYYY.MM.DD>-<seq>` (e.g. `web-v2026.06.08-1`). Date
+# + seq lets multiple web-only releases land on the same day without
+# colliding with the Rust binary's `v<X.Y.Z>` SemVer.
+#
+# Developer flow:
+#   git flow release start web-v2026.06.08-1
+#   GIT_MERGE_AUTOEDIT=no git flow release finish -p -m "Web release" web-v2026.06.08-1
+
+on:
+  push:
+    tags:
+      - 'web-v*'
+
+jobs:
+  gate:
+    name: bun check + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: bun install
+        run: bun install --frozen-lockfile
+
+      - name: bun run check (tsc + eslint + prettier)
+        run: bun run check
+
+      - name: bun run test
+        run: bun run test
+
+  build:
+    name: vite build
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: bun install
+        run: bun install --frozen-lockfile
+
+      - name: vite build
+        run: bunx --bun tsc -b && bunx --bun vite build
+
+      - name: upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: deploy web to prod
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web-dist/
+
+      - name: prepare ssh key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: rsync dist to prod
+        run: |
+          rsync -avz --delete -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
+            web-dist/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/apps/mailrs/web/"
+
+      - name: post-deploy health check
+        run: |
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            'curl -sS --max-time 5 http://localhost:3100/api/health | python3 -c "import json,sys;print(json.load(sys.stdin).get(\"status\",\"?\"))"'
+
+  publish:
+    name: announce web release
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: create github release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: false
