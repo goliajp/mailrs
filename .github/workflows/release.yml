@@ -216,9 +216,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v4
+
       - name: extract version from tag
         id: ver
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # Sync the compose file to host BEFORE the SSH script runs. If the
+      # compose file changed (e.g. v1.7.132 added the ./web bind mount),
+      # the host needs the new YAML before `docker compose up -d`
+      # otherwise the container is recreated with the OLD config and any
+      # mount / env change introduced by this release is silently lost.
+      - name: scp docker-compose.prod.yml
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            docker-compose.prod.yml \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/apps/mailrs/docker-compose.prod.yml"
 
       - name: SSH + docker pull + restart
         uses: appleboy/ssh-action@v1.2.2
