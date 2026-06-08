@@ -290,7 +290,10 @@ mod tests {
     // OCRs fine on Linux/CI/prod and from non-/tmp paths on macOS. Skip
     // on macOS so the test gate stays green for local dev.
     #[test]
-    #[cfg_attr(target_os = "macos", ignore = "tesseract + /tmp broken on macOS Sequoia")]
+    #[cfg_attr(
+        target_os = "macos",
+        ignore = "tesseract + /tmp broken on macOS Sequoia"
+    )]
     fn ocr_image_with_tesseract() {
         if !tesseract_available() {
             return;
