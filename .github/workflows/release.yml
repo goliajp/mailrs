@@ -136,6 +136,11 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
+          # Inject the git tag's version into Cargo.toml + package.json
+          # at build time. Repo files stay at 0.0.0 — no bump commit, no
+          # bump.sh, no developer ceremony beyond `git tag v<x.y.z>`.
+          build-args: |
+            VERSION=${{ steps.ver.outputs.version }}
           # Push without a tag — output is the image digest. The
           # `manifest` job below collects per-arch digests and stamps
           # the semver tags on the combined manifest.

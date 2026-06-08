@@ -1,11 +1,21 @@
 # stage 1: build rust binary
 FROM rust:1-trixie AS rust-builder
 
+# Version is injected at build time from the git tag (e.g. v1.7.134 → 1.7.134).
+# Repo's Cargo.toml stays at 0.0.0 (placeholder) so there's no bump commit on
+# release; the real version lives only in the tag and the built artifact.
+ARG VERSION=0.0.0
+
 WORKDIR /build
 
 # copy manifests first for dependency layer caching
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ crates/
+
+# patch the workspace root version BEFORE cargo build so the resolver picks
+# it up. Only the workspace.package.version line; member crates inherit via
+# `version.workspace = true`.
+RUN sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
 
 # mount cargo registry + git cache + target dir for incremental builds
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
@@ -17,9 +27,12 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 # stage 2: build frontend
 FROM oven/bun:1-debian AS web-builder
 
+ARG VERSION=0.0.0
+
 WORKDIR /build
 
 COPY web/package.json web/bun.lock ./
+RUN sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" package.json
 RUN bun install --frozen-lockfile
 
 COPY web/ ./
