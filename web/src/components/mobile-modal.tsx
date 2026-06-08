@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 import { useVisualViewport } from '@/hooks/use-visual-viewport'
 
@@ -73,7 +74,10 @@ export function MobileModal({ children, className, onClose, open }: MobileModalP
     ? { bottom: keyboardHeight, overscrollBehavior: 'contain' }
     : { overscrollBehavior: 'contain' }
 
-  return (
+  // Portal to body so `fixed inset-0` is anchored to the viewport, not
+  // to whatever transformed ancestor (virtualized row, swipeable row,
+  // dropdown shell) happens to contain the trigger.
+  return createPortal(
     <div
       aria-modal="true"
       className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm ${className ?? ''}`}
@@ -83,6 +87,7 @@ export function MobileModal({ children, className, onClose, open }: MobileModalP
       style={style}
     >
       {children}
-    </div>
+    </div>,
+    document.body
   )
 }

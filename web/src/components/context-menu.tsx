@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { MobileModal } from '@/components/mobile-modal'
 
@@ -98,7 +99,10 @@ export function ContextMenu({
 
   if (!position) return null
 
-  // adjust if menu would go off-screen
+  // Portal to body so the menu escapes any ancestor `transform` (the
+  // virtualized list rows + SwipeableRow both apply transforms, which
+  // would otherwise re-anchor `position: fixed` to the row instead of
+  // the viewport — see CSS containing-block rules).
   const style: React.CSSProperties = {
     left: position.x,
     position: 'fixed',
@@ -106,7 +110,7 @@ export function ContextMenu({
     zIndex: 50,
   }
 
-  return (
+  return createPortal(
     <div
       className="border-border bg-surface hidden min-w-[160px] rounded-lg border py-1 shadow-lg md:block"
       ref={ref}
@@ -131,7 +135,8 @@ export function ContextMenu({
           {item.label}
         </button>
       ))}
-    </div>
+    </div>,
+    document.body
   )
 }
 
