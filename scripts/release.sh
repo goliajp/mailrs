@@ -1,17 +1,30 @@
 #!/usr/bin/env bash
 # usage: ./scripts/release.sh [--web-only|--ci|--ghcr] [patch|minor|major|<version>]
-# --web-only: skip Rust tests and cross-compilation, only deploy web assets
-# --ci:       skip local deploy; commit + tag + push so CI takes over
-#             (`release.yml` builds + pushes ghcr image; remote prod still
-#             needs to pull the image — see CI-SETUP.md / ROADMAP v5 L2 #4).
-# --ghcr:     deploy via ghcr-pull instead of local cargo zigbuild. Requires
-#             the target version's ghcr image to be published already
-#             (release.yml runs on tag push; for a fresh version use --ci
-#             first to publish, then run again with --ghcr). The standard
-#             local path stays the rollback fallback until v5 closes.
-# runs tests, bumps version, deploys, then tags and pushes only on success.
-# if deploy fails, the local version bump is rolled back so the working tree
-# stays clean and the next attempt starts from the same base.
+#
+# Strict git-flow release flow:
+#
+#  1. require current branch = develop (and clean working tree)
+#  2. run tests / checks
+#  3. `git flow release start v<version>`           ← creates release/v<version>
+#  4. bump.sh + cargo metadata (refresh Cargo.lock)
+#  5. commit "chore: bump version to <version>" on release branch
+#  6. `git flow release finish -p -m "v<version>" v<version>`
+#       → merges to main, tags v<version> on main, merges back to develop,
+#         pushes main + develop + tags. Tag push triggers .github/workflows/
+#         release.yml which builds + pushes the multi-arch ghcr image.
+#  7. mode-specific deploy:
+#       --web-only : `git flow release finish --notag` (no GHA), then
+#                    deploy.sh --web-only (scp web/dist, no container restart, ~10s)
+#       --ghcr     : wait for release.yml to publish ghcr image, then
+#                    deploy.sh --ghcr
+#       --ci       : skip deploy entirely (CI publishes image, prod pull manual)
+#       (default)  : legacy build-from-source path (cargo zigbuild → scp binary)
+#
+# Why this matters: the previous flow pushed commits straight to develop and
+# tagged from there. git-flow gives us:
+#   - main = always the deployed tip (rollback target)
+#   - develop = active integration (where new features land)
+#   - release/v<x> branches = isolated bump + finish (no half-bumped develop)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,125 +43,141 @@ for arg in "$@"; do
   esac
 done
 
-# at most one of --ci / --ghcr / --web-only
 mode_count=0
 [ "$CI_MODE" = true ]    && mode_count=$((mode_count + 1))
 [ "$GHCR_MODE" = true ]  && mode_count=$((mode_count + 1))
 [ "$WEB_ONLY" = true ]   && mode_count=$((mode_count + 1))
 if [ "$mode_count" -gt 1 ]; then
-  echo "error: --ci, --ghcr, and --web-only are mutually exclusive"
-  echo "  --web-only: web assets only, local deploy"
-  echo "  --ci:       skip local deploy; CI builds + pushes image"
-  echo "  --ghcr:     local deploy via ghcr-pull (no cargo zigbuild)"
+  echo "error: --ci, --ghcr, and --web-only are mutually exclusive" >&2
   exit 1
 fi
 
+# ---------- preflight: must be on develop, clean, git-flow available ----------
+
+CURRENT_BRANCH=$(git branch --show-current)
+if [ "$CURRENT_BRANCH" != "develop" ]; then
+  echo "error: releases must start from 'develop' (current: $CURRENT_BRANCH)" >&2
+  echo "  → git checkout develop && git pull, then try again" >&2
+  exit 1
+fi
+
+if ! git diff --quiet --ignore-submodules HEAD; then
+  echo "error: working tree has uncommitted changes" >&2
+  git status --short >&2
+  exit 1
+fi
+
+if ! command -v git-flow >/dev/null 2>&1 && ! git flow version >/dev/null 2>&1; then
+  echo "error: git-flow not installed. brew install git-flow-avh" >&2
+  exit 1
+fi
+
+# ---------- version target ----------
+
 CURRENT=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-
 case "$BUMP" in
   patch) PATCH=$((PATCH + 1)) ; VERSION="$MAJOR.$MINOR.$PATCH" ;;
   minor) MINOR=$((MINOR + 1)) ; PATCH=0 ; VERSION="$MAJOR.$MINOR.$PATCH" ;;
   major) MAJOR=$((MAJOR + 1)) ; MINOR=0 ; PATCH=0 ; VERSION="$MAJOR.$MINOR.$PATCH" ;;
-  [0-9]*.[0-9]*.[0-9]*)  VERSION="$BUMP" ;;
-  *) echo "error: argument must be patch|minor|major|<semver>" ; exit 1 ;;
+  [0-9]*.[0-9]*.[0-9]*) VERSION="$BUMP" ;;
+  *) echo "error: version must be patch|minor|major|<semver>" >&2 ; exit 1 ;;
 esac
 
-echo "==> current version: $CURRENT"
-echo "==> target  version: $VERSION"
+echo "==> current: $CURRENT → target: $VERSION"
 echo ""
 
-# 1. tests
+# ---------- 1. tests ----------
+
 if [ "$WEB_ONLY" = false ]; then
-  echo "==> running cargo nextest (skip _under_budget — dev-profile noise)"
-  # Mirror .github/workflows/release.yml gate: perf_gate *_under_budget
-  # tests are calibrated for release profile on M-series. Dev profile
-  # under `cargo test --workspace` parallel load borders the budgets
-  # and yields flaky failures that block ship. Skip them here; CI
-  # already skips them. To run perf gates explicitly:
-  #   cargo test --release --workspace -- _under_budget
-  #
-  # nextest runs the same unit + integration suite 2-3x faster than
-  # `cargo test`, primarily by giving each test its own process and
-  # parallelising heavier integration tests that `cargo test` serialises
-  # within a single binary. Background-running this on macOS was
-  # consistently SIGKILLed by the harness time budget under the slower
-  # cargo test path (v1.7.124 needed manual bump + GHA build to ship).
-  # Doctests don't run under nextest (it has no --doc mode) so we still
-  # invoke `cargo test --doc` afterwards. They typically finish in <30s.
+  echo "==> cargo nextest run --workspace (skip _under_budget)"
+  # Same gate as release.yml. *_under_budget perf-gate tests are M-series
+  # calibrated; CI runners are too slow + variable. Run them explicitly via
+  # `cargo test --release -- _under_budget` outside this script.
   cargo nextest run --workspace --no-fail-fast \
     --filterset 'not test(/_under_budget/)'
   cargo test --workspace --doc -- --skip _under_budget
   echo ""
 fi
 
-echo "==> running web check"
-(cd web && bun run check)
-echo ""
-echo "==> running web tests"
-# bun runtime's node:inspector lacks the v8 Coverage API that
-# @vitest/coverage-v8 needs (https://github.com/oven-sh/bun/issues/…).
-# Run plain `vitest run` until the web rewrite resolves this.
-(cd web && bun run test)
+echo "==> bun check + test"
+(cd web && bun run check && bun run test)
 echo ""
 
-# 2. require fully clean working tree — bump.sh is about to touch Cargo.toml,
-#    web/package.json, Cargo.lock, and the rollback-on-deploy-failure trap below
-#    relies on `git checkout --` restoring those files to exactly their HEAD state.
-#    if there were pre-existing uncommitted changes to those files we would
-#    silently destroy them on rollback.
-if ! git diff --quiet --ignore-submodules HEAD; then
-  echo "error: working tree has uncommitted changes"
-  git status --short
-  echo ""
-  echo "commit or stash everything before releasing"
-  exit 1
-fi
+# ---------- 2. git flow release start ----------
 
-# 3. bump version (local files only — not committed yet)
-echo "==> bumping version to $VERSION"
+RELEASE_BRANCH="release/v$VERSION"
+echo "==> git flow release start v$VERSION"
+git flow release start "v$VERSION"
+
+# now on $RELEASE_BRANCH
+
+# ---------- 3. bump + commit on release branch ----------
+
+echo "==> bumping version files"
 "$ROOT/scripts/bump.sh" "$VERSION"
-
-# bump.sh only rewrites Cargo.toml + web/package.json; Cargo.lock keeps the
-# previous mailrs-* internal versions until something rebuilds. Force a
-# resolver run so the eventual commit captures both files in sync.
-echo "==> syncing Cargo.lock"
+# bump.sh rewrites Cargo.toml + web/package.json but doesn't touch Cargo.lock.
+# Run metadata so internal mailrs-* versions update too.
 cargo metadata --format-version 1 > /dev/null
-echo ""
 
-# 4. deploy — if this fails, rollback the local bump before exiting.
-#    --ci mode skips local deploy entirely; commit + push happen unconditionally
-#    and CI (`release.yml`) builds + pushes the ghcr image. Remote prod is NOT
-#    updated by --ci mode until ROADMAP v5 L2 #4 (prod docker-compose pulls
-#    ghcr image) lands.
-rollback_bump() {
+git add Cargo.toml Cargo.lock web/package.json
+git commit -m "chore: bump version to $VERSION"
+
+# ---------- 4. mode-specific finish + deploy ----------
+
+# Rollback helper: if finish fails or deploy fails midway, drop the release
+# branch + restore develop unchanged. main is not touched until finish
+# succeeds (git-flow only fast-forwards / merges main at the very end), so
+# this is safe.
+rollback_release() {
   local rc=$?
   if [ "$rc" -ne 0 ]; then
-    echo ""
-    echo "==> deploy failed (exit $rc); rolling back local version bump"
-    git checkout -- Cargo.toml Cargo.lock web/package.json 2>/dev/null || true
-    # if web/bun.lock was touched by check/test, leave it alone — bun.lock
-    # changes are independent of the version bump.
+    echo "" >&2
+    echo "==> release failed (exit $rc) — cleaning up release branch" >&2
+    git checkout develop 2>/dev/null || true
+    git branch -D "$RELEASE_BRANCH" 2>/dev/null || true
+    # tag may have landed if `git flow release finish` got partway; remove it
+    # locally so a retry doesn't trip "tag exists"
+    git tag -d "v$VERSION" 2>/dev/null || true
   fi
   return $rc
 }
+trap rollback_release EXIT
 
-# --ghcr mode has a chicken-and-egg: deploy needs the ghcr image, but the
-# image is only built when the tag is pushed. So in --ghcr we commit + tag
-# + push FIRST (triggering release.yml), wait for the multi-arch build to
-# finish, then deploy from the freshly-published image. Legacy and --ci
-# modes keep the original ordering (deploy → commit → push for legacy;
-# commit → push only for --ci).
+if [ "$WEB_ONLY" = true ]; then
+  echo "==> --web-only: git flow release finish --notag (no CI image build needed)"
+  # No tag → release.yml not triggered. Web bind-mount picks up the new
+  # files on next request once deploy.sh scp's them.
+  GIT_MERGE_AUTOEDIT=no git flow release finish -p -n -m "Release v$VERSION (web-only)" "v$VERSION"
+
+  trap - EXIT
+  echo ""
+  echo "==> deploying web assets (scp; no container restart)"
+  "$ROOT/scripts/deploy.sh" --web-only
+  echo ""
+  echo "==> released v$VERSION (web-only, no tag)"
+  exit 0
+fi
+
+# All non-web-only paths finish with tag → that's the GHA trigger.
+echo "==> git flow release finish v$VERSION (merge to main, tag, merge back to develop, push all)"
+GIT_MERGE_AUTOEDIT=no git flow release finish -p -m "Release v$VERSION" "v$VERSION"
+
+trap - EXIT
+
+if [ "$CI_MODE" = true ]; then
+  echo ""
+  echo "==> released v$VERSION (--ci: tag pushed; CI release.yml takes over)"
+  echo "    watch: gh run watch \$(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[0].databaseId')"
+  echo "    manual deploy after CI green:"
+  echo "      ssh \$SSH_HOST 'sed -i \"s|MAILRS_VERSION=.*|MAILRS_VERSION=$VERSION|\" /apps/mailrs/.env && cd /apps/mailrs && docker compose up -d'"
+  exit 0
+fi
+
 if [ "$GHCR_MODE" = true ]; then
-  echo "==> --ghcr mode: commit + tag + push first to trigger release.yml"
-  git add Cargo.toml Cargo.lock web/package.json
-  git commit -m "chore: bump version to $VERSION"
-  git tag "v$VERSION"
-  git push && git push --tags
-
-  echo "==> waiting for release.yml multi-arch build to publish ghcr.io/goliajp/mailrs:$VERSION"
-  echo "    (this typically takes 15-25 min; sleeping 30s between polls)"
-  # Give the tag-push webhook time to register a workflow run
+  echo ""
+  echo "==> waiting for release.yml to publish ghcr.io/goliajp/mailrs:$VERSION"
+  echo "    typically 15-25 min; polling every 30s"
   sleep 15
   RUN_ID=""
   for _ in $(seq 1 10); do
@@ -161,64 +190,27 @@ if [ "$GHCR_MODE" = true ]; then
     exit 1
   fi
   echo "    watching run $RUN_ID"
-  # poll until completed (timeout 50 min)
-  for i in $(seq 1 100); do
+  for _ in $(seq 1 100); do
     STATUS=$(gh run view "$RUN_ID" --json status -q .status 2>/dev/null || echo "")
     [ "$STATUS" = "completed" ] && break
     sleep 30
   done
   CONCLUSION=$(gh run view "$RUN_ID" --json conclusion -q .conclusion 2>/dev/null || echo "unknown")
   if [ "$CONCLUSION" != "success" ]; then
-    echo "error: release.yml run $RUN_ID concluded $CONCLUSION — image may not be in ghcr" >&2
-    echo "       fix the CI failure, then run: ./scripts/deploy.sh --ghcr" >&2
+    echo "error: release.yml run $RUN_ID concluded $CONCLUSION" >&2
+    echo "       fix CI then: ./scripts/deploy.sh --ghcr" >&2
     exit 1
   fi
   echo "==> release.yml succeeded — image is in ghcr"
-
-  echo "==> deploying ghcr image to prod"
   "$ROOT/scripts/deploy.sh" --ghcr
-elif [ "$CI_MODE" = true ]; then
-  echo "==> --ci mode: skipping local deploy (CI release.yml will build + push ghcr image)"
   echo ""
-  echo "==> committing version bump"
-  git add Cargo.toml Cargo.lock web/package.json
-  git commit -m "chore: bump version to $VERSION"
-  echo "==> tagging v$VERSION"
-  git tag "v$VERSION"
-  echo "==> pushing to origin"
-  git push && git push --tags
-else
-  # legacy build-from-source path
-  trap rollback_bump EXIT
-
-  echo "==> deploying"
-  if [ "$WEB_ONLY" = true ]; then
-    "$ROOT/scripts/deploy.sh" --web-only
-  else
-    "$ROOT/scripts/deploy.sh"
-  fi
-
-  # deploy succeeded — disarm the rollback trap and persist the bump
-  trap - EXIT
-
-  echo ""
-  echo "==> committing version bump"
-  git add Cargo.toml Cargo.lock web/package.json
-  git commit -m "chore: bump version to $VERSION"
-
-  echo "==> tagging v$VERSION"
-  git tag "v$VERSION"
-
-  echo "==> pushing to origin"
-  git push && git push --tags
+  echo "==> released v$VERSION (--ghcr)"
+  exit 0
 fi
 
+# legacy build-from-source path
 echo ""
-if [ "$CI_MODE" = true ]; then
-  echo "==> released v$VERSION (tag pushed; CI release.yml takes over)"
-  echo "    watch: gh run watch \$(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[0].databaseId')"
-  echo "    NOTE: remote prod is NOT auto-updated yet. To deploy manually after CI green:"
-  echo "      ssh \$SSH_HOST 'docker pull ghcr.io/goliajp/mailrs:$VERSION && docker compose -f docker-compose.prod.yml up -d'"
-else
-  echo "==> released v$VERSION"
-fi
+echo "==> deploying (legacy build-from-source)"
+"$ROOT/scripts/deploy.sh"
+echo ""
+echo "==> released v$VERSION (legacy)"

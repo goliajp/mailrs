@@ -1,14 +1,24 @@
 name: test
 
-# Run cargo test + bun test on every push to develop/main and every PR.
-# The release workflow runs the same set on tag push, but this fires earlier
-# so reviewers see the gate status before merge.
+# Run cargo test + bun test on every push to a git-flow branch. We don't
+# use PRs (see .claude/rules/common/git-workflow.md) — branch start/finish
+# is the merge path, so push triggers cover every code change.
+#
+# develop/main: integration + production tips
+# feature/**:   in-progress feature work (off develop)
+# bugfix/**:    in-progress bug fixes (off develop)
+# release/**:   release candidates (off develop, into main)
+# hotfix/**:    urgent prod fixes (off main, into main + develop)
 
 on:
   push:
-    branches: [develop, main]
-  pull_request:
-    branches: [develop, main]
+    branches:
+      - develop
+      - main
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'release/**'
+      - 'hotfix/**'
 
 env:
   CARGO_TERM_COLOR: always
