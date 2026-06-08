@@ -127,12 +127,15 @@ jobs:
           # even though rsync said success — fail loudly instead of
           # letting the user discover it via the browser.
           BUNDLE=$(grep -oE 'index-[A-Za-z0-9_-]+\.js' web-dist/index.html | head -1)
-          echo "==> verifying https://${{ secrets.SSH_HOST }}/assets/$BUNDLE"
-          CT=$(curl -sI "https://${{ secrets.SSH_HOST }}/assets/$BUNDLE" | tr -d '\r' | awk -F': ' '/^content-type/ {print $2}')
+          URL="https://${{ secrets.SSH_HOST }}/assets/$BUNDLE"
+          echo "==> verifying $URL"
+          # %{content_type} is curl's own resolved value — no header
+          # parsing, no case-sensitivity gotchas.
+          CT=$(curl -sIo /dev/null -w '%{content_type}' "$URL")
           echo "==> content-type: $CT"
           case "$CT" in
             application/javascript*|text/javascript*) echo "==> bundle served — deploy ok" ;;
-            *) echo "==> ERROR: bundle not served (got $CT). Bind mount likely inactive on host." >&2; exit 1 ;;
+            *) echo "==> ERROR: bundle not served (got '$CT'). Bind mount likely inactive on host." >&2; exit 1 ;;
           esac
 
       - name: post-deploy health check
