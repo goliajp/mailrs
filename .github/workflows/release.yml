@@ -256,13 +256,25 @@ jobs:
             # 1. pull new multi-arch image (published by the manifest job above)
             docker pull ghcr.io/goliajp/mailrs:$VERSION
 
-            # 2. extract web assets from image → host bind-mount target.
+            # 2. bootstrap web/ from the image ONLY when host has no web yet.
             #    docker-compose.prod.yml mounts ./web → /opt/mailrs/web:ro,
-            #    so the host copy is what the container actually serves.
-            docker create --name mailrs-web-tmp ghcr.io/goliajp/mailrs:$VERSION
+            #    so the host directory is authoritative once populated. The
+            #    web-v* lane (release-web.yml) is the sole channel that
+            #    updates web on subsequent releases — full v* releases ship
+            #    Rust only and must NOT overwrite the bind-mount source,
+            #    otherwise any web-v* shipped between two v*'s gets wiped.
+            #
+            #    Convention: if a v* release intentionally ships web
+            #    changes too, cut a `web-v…` tag alongside it.
             mkdir -p web
-            docker cp mailrs-web-tmp:/opt/mailrs/web/. web/
-            docker rm mailrs-web-tmp
+            if [ ! -f web/index.html ]; then
+              echo "==> host web/ empty — bootstrapping from image baked-in copy"
+              docker create --name mailrs-web-tmp ghcr.io/goliajp/mailrs:$VERSION
+              docker cp mailrs-web-tmp:/opt/mailrs/web/. web/
+              docker rm mailrs-web-tmp
+            else
+              echo "==> host web/ already populated — leaving it alone (web ships via web-v* lane)"
+            fi
 
             # 3. pin the version in .env so docker-compose picks the new tag
             if grep -q '^MAILRS_VERSION=' .env; then

@@ -132,9 +132,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const [replyMode, setReplyMode] = useState<ReplyMode>('reply')
   const [forwardSource, setForwardSource] = useState<ForwardSource | null>(null)
   const [showAllMessages, setShowAllMessages] = useState(false)
-  // suspends the auto-mark-read effect for the current selection after the
-  // user explicitly marks the thread unread, so we don't immediately undo it
-  const autoMarkSuspendedRef = useRef(false)
+  // Tracks the threadId we've already auto-marked-read this entry. Set on
+  // first run for a given selectedId; cleared when selectedId changes. Any
+  // unread_count change WITHIN the same entry (right-click mark-unread on
+  // the open thread, new message arriving) is ignored — the user has to
+  // re-enter the thread for auto-mark to fire again.
+  const lastAutoMarkedIdRef = useRef<null | string>(null)
 
   // thread messages now live in react-query; we bridge to the legacy
   // threadMessagesAtom for downstream consumers. The bridge is structured
@@ -204,9 +207,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   const handleMarkUnread = useCallback(() => {
     if (!selectedId) return
-    // suspend auto-mark for this selection so the upcoming unread_count
-    // change does not cause the auto-mark effect to immediately re-mark it
-    autoMarkSuspendedRef.current = true
     setIsRead(false)
     markUnreadMutation.mutate(
       { threadId: selectedId },
@@ -357,8 +357,10 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setShowAllMessages(false)
     setMobileThreadTab('content')
     setMobileReplyOpen(false)
-    // re-arm auto-mark-read for the new selection
-    autoMarkSuspendedRef.current = false
+    // re-arm auto-mark-read for the new selection: clearing the ref makes
+    // the auto-mark effect treat this thread as "freshly entered" even if
+    // we're returning to a thread we've already auto-marked before.
+    lastAutoMarkedIdRef.current = null
     const existing = store
       .get(conversationsAtom)
       .find((c: ConversationSummary) => c.thread_id === selectedId)
@@ -376,8 +378,14 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     if (!selectedId) return
-    if (autoMarkSuspendedRef.current) return
-    if (selectedUnreadCount === 0) return
+    // Only one auto-mark per entry into the thread. Any later unread_count
+    // bump (right-click "mark as unread" on the open thread, new message
+    // arrival) leaves the thread alone — the user re-enters to clear it.
+    if (lastAutoMarkedIdRef.current === selectedId) return
+    if (selectedUnreadCount === 0) {
+      lastAutoMarkedIdRef.current = selectedId
+      return
+    }
     // Block re-entry while a mark-read mutation is still in flight for any
     // thread. Without this, the wrapper returned by useMutation flips
     // pending→success on each render, re-runs this effect, and — during
@@ -389,6 +397,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
     const doms = domainsRef.current
     const crossAll = crossAccountReadRef.current
+    lastAutoMarkedIdRef.current = selectedId
     setIsRead(true)
     markReadMutation.mutate({
       domains: crossAll && doms.length > 0 ? doms : undefined,
