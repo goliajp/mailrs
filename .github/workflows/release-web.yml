@@ -122,16 +122,20 @@ jobs:
 
       - name: post-deploy bundle check
         run: |
-          # Read the bundle hash vite emitted, then fetch it from prod.
-          # If prod returns SPA fallback (text/html) the deploy is broken
-          # even though rsync said success — fail loudly instead of
-          # letting the user discover it via the browser.
+          # Read the bundle hash vite emitted, then ask the container
+          # (via ssh-to-host) to serve it from its own ServeDir. If the
+          # bind mount went stale or rsync hit the wrong path, the
+          # container falls back to SPA (text/html) and this fails —
+          # before the user discovers it via the browser.
+          #
+          # SSH_HOST is the deploy target, not the public HTTPS hostname,
+          # so we hit the in-container port over loopback rather than
+          # public 443 (which has a different cert / SNI).
           BUNDLE=$(grep -oE 'index-[A-Za-z0-9_-]+\.js' web-dist/index.html | head -1)
-          URL="https://${{ secrets.SSH_HOST }}/assets/$BUNDLE"
-          echo "==> verifying $URL"
-          # %{content_type} is curl's own resolved value — no header
-          # parsing, no case-sensitivity gotchas.
-          CT=$(curl -sIo /dev/null -w '%{content_type}' "$URL")
+          echo "==> verifying $BUNDLE via host localhost:3100"
+          CT=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "curl -sIo /dev/null -w '%{content_type}' 'http://localhost:3100/assets/$BUNDLE'")
           echo "==> content-type: $CT"
           case "$CT" in
             application/javascript*|text/javascript*) echo "==> bundle served — deploy ok" ;;
