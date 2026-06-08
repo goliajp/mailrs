@@ -66,7 +66,13 @@ type Person = { cn: null | string; email: string }
 
 type RsvpStatus = 'idle' | 'pending' | 'sent' | { error: string }
 
-export function InviteCard({ messageUid }: { messageUid: number }) {
+export function InviteCard({
+  compact = false,
+  messageUid,
+}: {
+  compact?: boolean
+  messageUid: number
+}) {
   const detailQuery = useQuery({
     queryKey: messageKeys.detail(messageUid),
     queryFn: async () => {
@@ -82,7 +88,9 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
   const payloadForConflicts = detail?.invite_payload
   const startIso = payloadForConflicts ? pickIso(payloadForConflicts.dtstart) : null
   const endIso = payloadForConflicts ? (pickIso(payloadForConflicts.dtend) ?? startIso) : null
-  const conflictsEnabled = !!(payloadForConflicts && startIso && endIso)
+  // Skip conflict lookup in compact mode — narrow timeline rows show one line,
+  // no room for "⚠ Conflicts with N events"; the main panel still does it.
+  const conflictsEnabled = !compact && !!(payloadForConflicts && startIso && endIso)
   const conflictStart = startIso ? (startIso.endsWith('Z') ? startIso : `${startIso}Z`) : ''
   const conflictEnd = endIso ? (endIso.endsWith('Z') ? endIso : `${endIso}Z`) : ''
   const conflictExcludeUid = payloadForConflicts?.uid ?? ''
@@ -182,6 +190,22 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
   // buttons unless the user explicitly clicks Change.
   const persistedStatus = detail?.rsvp_status?.toUpperCase() ?? null
   const showPersisted = persistedStatus && !overridePersisted && rsvp !== 'sent'
+
+  if (compact) {
+    const statusLabel = persistedStatus ? compactStatusLabel(persistedStatus) : null
+    return (
+      <div className="border-border text-fg-muted my-1.5 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
+        <Calendar className="h-3 w-3 shrink-0" />
+        <span className="text-fg min-w-0 truncate font-medium">{payload.summary}</span>
+        {range && <span className="shrink-0 opacity-70">· {range}</span>}
+        {statusLabel && (
+          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${statusLabel.className}`}>
+            {statusLabel.label}
+          </span>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="border-border bg-bg-secondary my-3 rounded-lg border p-4">
@@ -370,6 +394,19 @@ export function InviteCard({ messageUid }: { messageUid: number }) {
       )}
     </div>
   )
+}
+
+function compactStatusLabel(partstat: string): null | { className: string; label: string } {
+  switch (partstat) {
+    case 'ACCEPTED':
+      return { className: 'bg-emerald-500/15 text-emerald-300', label: 'Accepted' }
+    case 'DECLINED':
+      return { className: 'bg-red-500/15 text-red-300', label: 'Declined' }
+    case 'TENTATIVE':
+      return { className: 'bg-amber-500/15 text-amber-300', label: 'Tentative' }
+    default:
+      return null
+  }
 }
 
 function formatDateTime(dt: CalDateTime | null | undefined): string {

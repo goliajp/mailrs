@@ -27,6 +27,7 @@ import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
 import { BottomSheet } from '@/components/bottom-sheet'
 import { Copyable } from '@/components/copy-button'
+import { InviteCard } from '@/components/invite-card'
 import { MessageBubble } from '@/components/message-bubble'
 import { MobileModal } from '@/components/mobile-modal'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
@@ -691,6 +692,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
                 {/* AI analysis */}
                 <AiAnalysisPanel message={selectedMsg} />
+
+                {/* invite card (full RSVP UI) — timeline shows a compact one-liner */}
+                {selectedMsg.invite_method && (
+                  <div className="px-4">
+                    <InviteCard messageUid={selectedMsg.uid} />
+                  </div>
+                )}
 
                 {/* email body */}
                 {selectedMsg.html_body && (
