@@ -421,10 +421,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const handleSelectMsg = useCallback((idx: number) => setSelectedMsgIdx(idx), [])
   const timelineItems = useMemo(() => {
     const visible = hasCollapsedTimeline ? messages.slice(-VISIBLE_RECENT) : messages
+    // when collapsed we slice off the tail; the global index of the first
+    // visible message is offset by however many we dropped from the front.
+    const offset = messages.length - visible.length
     const firstSubject = messages[0]?.subject
     let prevDateGroup = ''
-    return visible.map((msg) => {
-      const idx = messages.indexOf(msg)
+    return visible.map((msg, visIdx) => {
+      const idx = offset + visIdx
       const senderEmail = extractEmail(msg.sender)
       const isOwn = senderEmail === myEmailForTimeline
       const msgDateGroup = new Date(msg.internal_date * 1000).toDateString()
