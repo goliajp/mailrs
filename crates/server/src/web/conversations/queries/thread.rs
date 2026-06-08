@@ -61,145 +61,157 @@ pub(crate) async fn get_thread_messages(
             .collect()
     };
 
-    let mut result = Vec::with_capacity(messages.len());
-    for msg in &messages {
-        // in supermode, use the message owner's maildir; otherwise use current user
-        let maildir_user = if msg.user_address.is_empty() {
-            user
-        } else {
-            &msg.user_address
-        };
-        let raw =
-            message_util::read_message_raw(&state.maildir_root, maildir_user, &msg.maildir_id)
-                .await;
-        let parsed = raw
-            .as_deref()
-            .map(message_util::parse_message)
-            .unwrap_or_default();
-
-        // fallback: extract sender/subject from raw email if DB values are empty
-        let (sender, subject) = if msg.sender.is_empty() || msg.subject.is_empty() {
-            let raw_sender = raw
-                .as_deref()
-                .map(|d| message_util::extract_header_from_raw(d, "From"))
-                .unwrap_or_default();
-            let raw_subject = raw
-                .as_deref()
-                .map(|d| message_util::extract_header_from_raw(d, "Subject"))
-                .unwrap_or_default();
-            (
-                if msg.sender.is_empty() {
-                    message_util::decode_header(&raw_sender)
-                } else {
-                    message_util::decode_header(&msg.sender)
-                },
-                if msg.subject.is_empty() {
-                    message_util::decode_header(&raw_subject)
-                } else {
-                    message_util::decode_header(&msg.subject)
-                },
-            )
-        } else {
-            (
-                message_util::decode_header(&msg.sender),
-                message_util::decode_header(&msg.subject),
-            )
-        };
-
-        // try AI analysis first, fall back to rule-based
-        let ai = mb_store.get_email_analysis(msg.id).await.ok().flatten();
-        let (
-            category,
-            risk_score,
-            risk_reason,
-            summary,
-            people,
-            dates,
-            amounts,
-            action_items,
-            ai_analyzed,
-            clean_text,
-        ) = if let Some(ref a) = ai {
-            let ct = if a.clean_text.is_empty() {
-                None
+    // Per-message work is independent (maildir read, MIME parse, AI lookup)
+    // — run them concurrently and preserve input order via join_all. For a
+    // 25-message thread the cold-load drops from N× single-message latency
+    // to roughly 1× plus scheduling overhead.
+    //
+    // bind shared `&T` references locally so the per-message `async move`
+    // closures copy the references (refs are Copy) rather than try to move
+    // out of the outer `state` / `mb_store` / `user` bindings.
+    let maildir_root = &state.maildir_root;
+    let mb_store_ref = mb_store.as_ref();
+    let user_ref: &str = user;
+    let invite_methods_ref = &invite_methods;
+    let result: Vec<ThreadMessageResponse> =
+        futures_util::future::join_all(messages.iter().map(|msg| async move {
+            // in supermode, use the message owner's maildir; otherwise use current user
+            let maildir_user = if msg.user_address.is_empty() {
+                user_ref
             } else {
-                Some(a.clean_text.clone())
+                msg.user_address.as_str()
             };
-            (
-                a.category.clone(),
-                a.risk_score as u8,
-                a.risk_reason.clone(),
-                a.summary.clone(),
-                a.people.clone(),
-                a.dates.clone(),
-                a.amounts.clone(),
-                a.action_items.clone(),
-                true,
-                ct,
-            )
-        } else {
-            let (cat, score) = crate::web::classify_email(
-                &sender,
-                &subject,
-                parsed.0.as_deref(),
-                parsed.1.as_deref(),
-            );
-            (
-                cat,
-                score,
-                String::new(),
-                String::new(),
-                serde_json::json!([]),
-                serde_json::json!([]),
-                serde_json::json!([]),
-                serde_json::json!([]),
-                false,
-                None,
-            )
-        };
+            let raw =
+                message_util::read_message_raw(maildir_root, maildir_user, &msg.maildir_id).await;
+            let parsed = raw
+                .as_deref()
+                .map(message_util::parse_message)
+                .unwrap_or_default();
 
-        // extract structured data from HTML before moving it
-        let structured_data = parsed.1.as_deref().and_then(|html| {
-            let sd = mailrs_intelligence::structured::extract_structured_data(html);
-            if sd.is_empty() { None } else { Some(sd) }
-        });
+            // fallback: extract sender/subject from raw email if DB values are empty
+            let (sender, subject) = if msg.sender.is_empty() || msg.subject.is_empty() {
+                let raw_sender = raw
+                    .as_deref()
+                    .map(|d| message_util::extract_header_from_raw(d, "From"))
+                    .unwrap_or_default();
+                let raw_subject = raw
+                    .as_deref()
+                    .map(|d| message_util::extract_header_from_raw(d, "Subject"))
+                    .unwrap_or_default();
+                (
+                    if msg.sender.is_empty() {
+                        message_util::decode_header(&raw_sender)
+                    } else {
+                        message_util::decode_header(&msg.sender)
+                    },
+                    if msg.subject.is_empty() {
+                        message_util::decode_header(&raw_subject)
+                    } else {
+                        message_util::decode_header(&msg.subject)
+                    },
+                )
+            } else {
+                (
+                    message_util::decode_header(&msg.sender),
+                    message_util::decode_header(&msg.subject),
+                )
+            };
 
-        result.push(ThreadMessageResponse {
-            id: msg.id,
-            uid: msg.uid,
-            sender,
-            recipients: msg.recipients.clone(),
-            subject,
-            flags: msg.flags,
-            internal_date: msg.internal_date,
-            message_id: msg.message_id.clone(),
-            text_body: parsed.0,
-            html_body: parsed.1,
-            attachments: parsed.2,
-            category,
-            risk_score,
-            risk_reason,
-            summary,
-            people,
-            dates,
-            amounts,
-            action_items,
-            ai_analyzed,
-            clean_text,
-            new_content: msg.new_content.clone(),
-            importance_level: msg.importance_level.clone(),
-            importance_score: msg.importance_score,
-            is_bulk_sender: msg.is_bulk_sender,
-            has_tracking_pixel: msg.has_tracking_pixel,
-            requires_action: ai.as_ref().is_some_and(|a| a.requires_action),
-            sender_intent: ai
-                .as_ref()
-                .map_or_else(|| "inform".into(), |a| a.sender_intent.clone()),
-            action_deadline: ai.as_ref().and_then(|a| a.action_deadline.clone()),
-            structured_data,
-            invite_method: invite_methods.get(&msg.id).cloned(),
-        });
-    }
+            // try AI analysis first, fall back to rule-based
+            let ai = mb_store_ref.get_email_analysis(msg.id).await.ok().flatten();
+            let (
+                category,
+                risk_score,
+                risk_reason,
+                summary,
+                people,
+                dates,
+                amounts,
+                action_items,
+                ai_analyzed,
+                clean_text,
+            ) = if let Some(ref a) = ai {
+                let ct = if a.clean_text.is_empty() {
+                    None
+                } else {
+                    Some(a.clean_text.clone())
+                };
+                (
+                    a.category.clone(),
+                    a.risk_score as u8,
+                    a.risk_reason.clone(),
+                    a.summary.clone(),
+                    a.people.clone(),
+                    a.dates.clone(),
+                    a.amounts.clone(),
+                    a.action_items.clone(),
+                    true,
+                    ct,
+                )
+            } else {
+                let (cat, score) = crate::web::classify_email(
+                    &sender,
+                    &subject,
+                    parsed.0.as_deref(),
+                    parsed.1.as_deref(),
+                );
+                (
+                    cat,
+                    score,
+                    String::new(),
+                    String::new(),
+                    serde_json::json!([]),
+                    serde_json::json!([]),
+                    serde_json::json!([]),
+                    serde_json::json!([]),
+                    false,
+                    None,
+                )
+            };
+
+            // extract structured data from HTML before moving it
+            let structured_data = parsed.1.as_deref().and_then(|html| {
+                let sd = mailrs_intelligence::structured::extract_structured_data(html);
+                if sd.is_empty() { None } else { Some(sd) }
+            });
+
+            ThreadMessageResponse {
+                id: msg.id,
+                uid: msg.uid,
+                sender,
+                recipients: msg.recipients.clone(),
+                subject,
+                flags: msg.flags,
+                internal_date: msg.internal_date,
+                message_id: msg.message_id.clone(),
+                text_body: parsed.0,
+                html_body: parsed.1,
+                attachments: parsed.2,
+                category,
+                risk_score,
+                risk_reason,
+                summary,
+                people,
+                dates,
+                amounts,
+                action_items,
+                ai_analyzed,
+                clean_text,
+                new_content: msg.new_content.clone(),
+                importance_level: msg.importance_level.clone(),
+                importance_score: msg.importance_score,
+                is_bulk_sender: msg.is_bulk_sender,
+                has_tracking_pixel: msg.has_tracking_pixel,
+                requires_action: ai.as_ref().is_some_and(|a| a.requires_action),
+                sender_intent: ai
+                    .as_ref()
+                    .map_or_else(|| "inform".into(), |a| a.sender_intent.clone()),
+                action_deadline: ai.as_ref().and_then(|a| a.action_deadline.clone()),
+                structured_data,
+                invite_method: invite_methods_ref.get(&msg.id).cloned(),
+            }
+        }))
+        .await;
 
     if let Some(ref kevy) = state.kevy_embed
         && let Ok(json) = serde_json::to_string(&result)
