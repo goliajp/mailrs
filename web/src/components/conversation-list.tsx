@@ -4,22 +4,13 @@ import type { ConversationSummary } from '@/lib/types'
 import { toast } from '@goliapkg/gds'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import {
-  Check,
-  CheckCircle,
-  Mail,
-  MailCheck,
-  Pin,
-  Search,
-  SlidersHorizontal,
-  SquarePen,
-  Star,
-  X,
-} from 'lucide-react'
+import { Check, CheckCircle, Mail, MailCheck, Pin, Search, SquarePen, Star, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
+import { BatchActionBar } from '@/components/conversation-list-batch-action-bar'
+import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { SwipeableRow } from '@/components/swipeable-row'
 import {
@@ -34,30 +25,25 @@ import {
   useUnpinMutation,
   useUnstarMutation,
 } from '@/hooks/use-mail-mutations'
-import { useActionCountQuery, useCategoriesQuery } from '@/hooks/use-mail-queries'
 import { postJson } from '@/lib/api'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
 import { authAtom } from '@/store/auth'
 import {
   batchModeAtom,
-  categoryFilterAtom,
   composeReplySourceAtom,
   composingNewAtom,
   conversationsAtom,
   folderAtom,
   hasMoreAtom,
-  type ImportanceSection,
   importanceSectionAtom,
   initialLoadingAtom,
   loadingMoreAtom,
   quickFilterAtom,
   searchQueryAtom,
-  selectedDomainsAtom,
   selectedThreadIdAtom,
   selectedThreadIdsAtom,
   showArchivedAtom,
-  type SortOrder,
   sortOrderAtom,
   stickyUnreadIdsAtom,
   visibleConversationIdsAtom,
@@ -310,272 +296,6 @@ const ConversationItem = memo(function ConversationItem({
 // unified tab bar
 // Spam = AI-derived category filter (categoryFilter='spam', see classify.rs).
 // Junk = physical Junk mailbox (mb.name='Junk'), populated by sieve / "mark spam" action.
-const VIEW_TABS: { label: string; value: string }[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Unread', value: 'unread' },
-  { label: 'Starred', value: 'starred' },
-  { label: 'Sent', value: 'sent' },
-  { label: 'Action', value: 'action' },
-  { label: 'Spam', value: 'spam' },
-  { label: 'Junk', value: 'junk' },
-]
-
-// memo'd because FilterBar takes no props — every parent re-render
-// (search box keystroke, selection change, batch-mode toggle) would
-// otherwise re-create its 7 tabs + filter-panel JSX even though the
-// atom-backed state is identical. With memo, props-equal short-circuit
-// makes the function a no-op unless one of its atoms moves; useAtom
-// inside still subscribes correctly and re-renders when needed.
-const FilterBar = memo(function FilterBar() {
-  const [quickFilter, setQuickFilter] = useAtom(quickFilterAtom)
-  const [folder, setFolder] = useAtom(folderAtom)
-  const [section, setSection] = useAtom(importanceSectionAtom)
-  const [sortOrder, setSortOrder] = useAtom(sortOrderAtom)
-  const [showArchived, setShowArchived] = useAtom(showArchivedAtom)
-  const [activeCategory, setActiveCategory] = useAtom(categoryFilterAtom)
-  const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
-  const selectedDomainsVal = useAtomValue(selectedDomainsAtom)
-  const [filtersOpen, setFiltersOpen] = useState(false)
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  // category counts via react-query — cached + auto-invalidated by WS hook
-  const { data: categories = [] } = useCategoriesQuery(selectedDomainsVal)
-
-  // close dropdown on outside click
-  useEffect(() => {
-    if (!filtersOpen) return
-    const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setFiltersOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [filtersOpen])
-
-  // compute active tab from folder + quickFilter + importanceSection + category
-  const activeTab =
-    activeCategory === 'spam' || activeCategory === 'scam'
-      ? 'spam'
-      : folder === 'Sent'
-        ? 'sent'
-        : folder === 'Junk'
-          ? 'junk'
-          : section === 'action'
-            ? 'action'
-            : quickFilter !== 'all'
-              ? quickFilter
-              : 'all'
-
-  // chips behave like Gmail tabs: clicking the active one is a no-op,
-  // users clear filters by clicking All
-  const handleTab = (tab: string) => {
-    if (tab === activeTab) return
-    setActiveCategory(null)
-    setFolder(null)
-    setQuickFilter('all')
-    setSection(null)
-    if (tab === 'spam') {
-      setActiveCategory('spam')
-    } else if (tab === 'sent') {
-      setFolder('Sent')
-    } else if (tab === 'junk') {
-      setFolder('Junk')
-    } else if (tab === 'action') {
-      setSection('action')
-    } else if (tab === 'unread') {
-      setQuickFilter('unread')
-    } else if (tab === 'starred') {
-      setQuickFilter('starred')
-    }
-    // tab === 'all' → all filters cleared above
-  }
-
-  // action count for badge — same RQ-driven path; invalidates on WS events
-  const { data: actionCountData } = useActionCountQuery(selectedDomainsVal)
-  const actionCount = actionCountData?.count ?? 0
-
-  // whether any advanced filters are active
-  const hasAdvancedFilters =
-    sortOrder !== 'newest' ||
-    showArchived ||
-    (activeCategory !== null && activeCategory !== 'spam' && activeCategory !== 'scam') ||
-    selectedDomains.length > 0 ||
-    section === 'important' ||
-    section === 'other'
-
-  return (
-    <div className="border-border flex items-center gap-1 border-b px-3 py-1.5">
-      {/* main tabs — horizontally scrollable on mobile */}
-      <div className="scrollbar-hide flex snap-x snap-mandatory items-center gap-1 overflow-x-auto scroll-smooth md:overflow-x-visible">
-        {VIEW_TABS.map((t) => {
-          const isActive = activeTab === t.value
-          const base =
-            'snap-start shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
-          const color =
-            t.value === 'spam'
-              ? 'bg-danger/10 text-danger'
-              : t.value === 'action'
-                ? 'bg-danger/10 text-danger'
-                : t.value === 'starred'
-                  ? 'bg-warning/10 text-warning'
-                  : t.value === 'sent'
-                    ? 'bg-success/10 text-success'
-                    : t.value === 'unread'
-                      ? 'bg-accent/10 text-accent'
-                      : 'bg-border text-fg-secondary'
-          const ring = isActive ? 'ring-2 ring-offset-1 ring-border ring-offset-bg' : ''
-          return (
-            <button
-              className={`${base} ${color} ${ring}`}
-              key={t.value}
-              onClick={() => handleTab(t.value)}
-            >
-              {t.label}
-              {t.value === 'action' && actionCount > 0 && (
-                <span className="ml-1 opacity-70">{actionCount}</span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* filter dropdown toggle */}
-      <div className="relative ml-auto" ref={panelRef}>
-        <button
-          aria-label="Toggle filters"
-          className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150 ${
-            filtersOpen || hasAdvancedFilters
-              ? 'text-accent'
-              : 'text-fg-muted hover:bg-bg-secondary'
-          }`}
-          onClick={() => setFiltersOpen((prev) => !prev)}
-          title="Filters"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          {hasAdvancedFilters && (
-            <span className="bg-accent absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" />
-          )}
-        </button>
-
-        {/* filter dropdown panel */}
-        {filtersOpen && (
-          <div className="border-border bg-surface absolute top-full right-0 z-50 mt-1 w-56 rounded-lg border p-3 text-xs shadow-lg">
-            {/* sort */}
-            <div className="mb-3">
-              <label className="text-fg-muted mb-1 block font-medium">Sort</label>
-              <div className="flex gap-1">
-                {(['newest', 'oldest', 'unread'] as SortOrder[]).map((s) => (
-                  <button
-                    className={`rounded-md px-2 py-0.5 capitalize transition-colors ${
-                      sortOrder === s ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
-                    }`}
-                    key={s}
-                    onClick={() => setSortOrder(s)}
-                  >
-                    {s === 'unread' ? 'Unread first' : s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* view: active / archived */}
-            <div className="mb-3">
-              <label className="text-fg-muted mb-1 block font-medium">View</label>
-              <div className="flex gap-1">
-                <button
-                  className={`rounded-md px-2 py-0.5 transition-colors ${
-                    !showArchived ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
-                  }`}
-                  onClick={() => setShowArchived(false)}
-                >
-                  Active
-                </button>
-                <button
-                  className={`rounded-md px-2 py-0.5 transition-colors ${
-                    showArchived ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
-                  }`}
-                  onClick={() => setShowArchived(true)}
-                >
-                  Archived
-                </button>
-              </div>
-            </div>
-
-            {/* priority */}
-            <div className="mb-3">
-              <label className="text-fg-muted mb-1 block font-medium">Priority</label>
-              <div className="flex flex-wrap gap-1">
-                {([null, 'important', 'other'] as ImportanceSection[]).map((s) => (
-                  <button
-                    className={`rounded-md px-2 py-0.5 transition-colors ${
-                      section === s ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
-                    }`}
-                    key={s ?? 'all'}
-                    onClick={() => setSection(section === s ? null : s)}
-                  >
-                    {s === null ? 'All' : s === 'important' ? 'Important' : 'Other'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* categories */}
-            {categories.length > 0 && (
-              <div className="mb-3">
-                <label className="text-fg-muted mb-1 block font-medium">Category</label>
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    className={`rounded-md px-2 py-0.5 transition-colors ${
-                      activeCategory === null
-                        ? 'bg-fg text-bg'
-                        : 'text-fg-secondary hover:bg-bg-secondary'
-                    }`}
-                    onClick={() => setActiveCategory(null)}
-                  >
-                    All
-                  </button>
-                  {categories.map((cat) => (
-                    <button
-                      className={`rounded-md px-2 py-0.5 capitalize transition-colors ${
-                        activeCategory === cat.category
-                          ? 'bg-fg text-bg'
-                          : 'text-fg-secondary hover:bg-bg-secondary'
-                      }`}
-                      key={cat.category}
-                      onClick={() =>
-                        setActiveCategory(activeCategory === cat.category ? null : cat.category)
-                      }
-                    >
-                      {cat.category}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* reset all filters */}
-            {hasAdvancedFilters && (
-              <button
-                className="border-border text-fg-muted hover:bg-bg-secondary mt-3 w-full rounded-md border py-1 text-center transition-colors"
-                onClick={() => {
-                  setSortOrder('newest')
-                  setShowArchived(false)
-                  setActiveCategory(null)
-                  setSelectedDomains([])
-                  setSection(null)
-                  setFiltersOpen(false)
-                }}
-              >
-                Reset filters
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-})
 
 const dateLabel = dateGroupLabel
 
@@ -1060,76 +780,6 @@ export function ConversationList({
           selectedCount={selectedThreadIds.size}
         />
       )}
-    </div>
-  )
-}
-
-// floating action bar at bottom of list during batch mode
-function BatchActionBar({
-  loading,
-  onAction,
-  onCancel,
-  selectedCount,
-}: {
-  loading: boolean
-  onAction: (action: BatchAction) => void
-  onCancel: () => void
-  selectedCount: number
-}) {
-  return (
-    <div className="border-border bg-surface absolute right-0 bottom-0 left-0 z-40 border-t px-3 py-2 backdrop-blur">
-      <div className="flex items-center gap-2">
-        <span className="text-fg-secondary shrink-0 text-xs font-medium">
-          {selectedCount} selected
-        </span>
-        <div className="flex flex-1 items-center gap-1.5 overflow-x-auto">
-          <button
-            className="text-fg-secondary hover:bg-bg-secondary focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-            disabled={loading}
-            onClick={() => onAction('read')}
-          >
-            Mark read
-          </button>
-          <button
-            className="text-fg-secondary hover:bg-bg-secondary focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-            disabled={loading}
-            onClick={() => onAction('unread')}
-          >
-            Mark unread
-          </button>
-          <button
-            className="text-fg-secondary hover:bg-bg-secondary focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-            disabled={loading}
-            onClick={() => onAction('star')}
-          >
-            Star
-          </button>
-          <button
-            className="text-fg-secondary hover:bg-bg-secondary focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-            disabled={loading}
-            onClick={() => onAction('archive')}
-          >
-            Archive
-          </button>
-          <button
-            className="text-danger hover:bg-danger/10 focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-            disabled={loading}
-            onClick={() => onAction('delete')}
-          >
-            Delete
-          </button>
-        </div>
-        <button
-          className="text-fg-muted hover:bg-bg-secondary shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50"
-          disabled={loading}
-          onClick={onCancel}
-        >
-          Cancel
-        </button>
-        {loading && (
-          <div className="border-border border-t-fg-secondary h-4 w-4 shrink-0 animate-spin rounded-full border-2" />
-        )}
-      </div>
     </div>
   )
 }
