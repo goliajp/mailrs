@@ -8,6 +8,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { deleteJson, postJson } from '@/lib/api'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
+import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom } from '@/store/auth'
 import { threadMessagesAtom } from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
@@ -43,8 +44,6 @@ type ReplySuggestResult = {
   success: boolean
   suggestions: string[]
 }
-
-type SendResult = { message?: string; message_id?: string; success: boolean }
 
 export function ReplyBox({
   forwardAttachmentsUid,
@@ -133,20 +132,9 @@ export function ReplyBox({
   }
 
   const resolveRecipients = (): string[] => {
-    if (mode === 'reply')
-      return replyRecipients
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    if (mode === 'reply-all')
-      return replyAllRecipients
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    return forwardTo
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
+    if (mode === 'reply') return parseAddressList(replyRecipients)
+    if (mode === 'reply-all') return parseAddressList(replyAllRecipients)
+    return parseAddressList(forwardTo)
   }
 
   const resolveSubject = (): string => {
@@ -177,71 +165,35 @@ export function ReplyBox({
     const inReplyTo = currentMode === 'forward' ? undefined : lastMessageId
 
     try {
-      let sentMessageId: string | undefined
-      const assembled = content
+      const fwdMid = currentMode === 'forward' ? forwardMessageIdRef.current : null
+      const fwdUid = currentMode === 'forward' ? forwardAttachmentsUidRef.current : null
+      // when forwarding via backend (forward_message_id) AND there are no
+      // user-added attachments, the body field should carry only the user's
+      // typed text — backend appends the original body / attachments from
+      // the raw .eml. With attachments we use fullText/fullHtml as normal.
+      const isBackendForward =
+        currentMode === 'forward' && (fwdMid || fwdUid) && content.attachments.length === 0
+      const body = isBackendForward ? content.compose.text : content.fullText
+      const htmlBody = isBackendForward ? content.compose.html : content.fullHtml
 
-      const attachmentFiles = assembled.attachments
-      const hasAttachments = attachmentFiles.length > 0
+      const result = await sendMail({
+        attachments: content.attachments,
+        body,
+        forwardAttachmentsFrom: fwdUid && fwdUid > 0 ? fwdUid : undefined,
+        forwardMessageId: fwdMid && fwdMid.length > 0 ? fwdMid : undefined,
+        from: auth?.address ?? '',
+        htmlBody,
+        inReplyTo,
+        subject: resolvedSubject,
+        to,
+        token: auth?.token ?? '',
+      })
 
-      if (hasAttachments) {
-        const formData = new FormData()
-        formData.append('from', auth?.address ?? '')
-        formData.append('subject', resolvedSubject)
-        formData.append('body', assembled.fullText)
-        formData.append('html_body', assembled.fullHtml)
-        if (inReplyTo) formData.append('in_reply_to', inReplyTo)
-        if (currentMode === 'forward') {
-          const fmid = forwardMessageIdRef.current
-          const fuid = forwardAttachmentsUidRef.current
-          if (fmid) formData.append('forward_message_id', fmid)
-          if (fuid) formData.append('forward_attachments_from', String(fuid))
-        }
-        for (const r of to) formData.append('to', r)
-        for (const f of attachmentFiles) formData.append('attachments', f)
-
-        const res = await fetch('/api/mail/send-multipart', {
-          body: formData,
-          headers: { Authorization: `Bearer ${auth?.token ?? ''}` },
-          method: 'POST',
-        })
-        if (!res.ok) {
-          toast.error(`Send failed (${res.status})`)
-          return
-        }
-        const result: SendResult = await res.json()
-        if (!result.success) {
-          toast.error(result.message ?? 'Send failed')
-          return
-        }
-        sentMessageId = result.message_id
-      } else {
-        // when forwarding via backend (forward_message_id), send only the user's
-        // typed text — the backend reads the original body + attachments from raw .eml
-        const fwdMid = forwardMessageIdRef.current
-        const fwdUid = forwardAttachmentsUidRef.current
-        const isBackendForward = currentMode === 'forward' && (fwdMid || fwdUid)
-        const payload: Record<string, unknown> = {
-          bcc: [],
-          body: isBackendForward ? assembled.compose.text : assembled.fullText,
-          cc: [],
-          from: auth?.address ?? '',
-          html_body: isBackendForward ? assembled.compose.html : assembled.fullHtml,
-          subject: resolvedSubject,
-          to,
-        }
-        if (inReplyTo) payload['in_reply_to'] = inReplyTo
-        if (currentMode === 'forward') {
-          if (fwdMid && fwdMid.length > 0) payload['forward_message_id'] = fwdMid
-          if (fwdUid && fwdUid > 0) payload['forward_attachments_from'] = fwdUid
-        }
-
-        const result = await postJson<SendResult>('/mail/send', payload)
-        if (!result.success) {
-          toast.error(result.message ?? 'Send failed')
-          return
-        }
-        sentMessageId = result.message_id
+      if (!result.success) {
+        toast.error(result.message ?? 'Send failed')
+        return
       }
+      const sentMessageId = result.message_id
 
       composeRef.current?.clearCompose()
       setForwardTo('')

@@ -129,6 +129,11 @@ services:
     volumes:
       - mailrs-data:/data
       - ./certs:/certs:ro
+      # Host-bind the web assets so `release.sh --web-only` (just scp + no
+      # container restart) ships frontend changes in seconds. The image
+      # still ships /opt/mailrs/web baked-in for first-boot before the
+      # host dir is populated; the bind mount overlays it post-deploy.
+      - ./web:/opt/mailrs/web:ro
     restart: unless-stopped
 
 volumes:
