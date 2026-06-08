@@ -85,7 +85,7 @@ export const ThreadTimelineItem = memo(function ThreadTimelineItem({
           {showSubject && subjectText && (
             <div className="text-fg truncate text-sm font-medium">{subjectText}</div>
           )}
-          {msg.invite_method && <InviteCard messageUid={msg.uid} />}
+          {msg.invite_method && <InviteCard compact messageUid={msg.uid} />}
           <BubbleBody msg={msg} myEmail={myEmail} myName={myName} subject={subjectText} />
         </div>
       </div>
