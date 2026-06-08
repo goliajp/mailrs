@@ -94,9 +94,13 @@ if [ "$WEB_ONLY" = false ]; then
   # Same gate as release.yml. *_under_budget perf-gate tests are M-series
   # calibrated; CI runners are too slow + variable. Run them explicitly via
   # `cargo test --release -- _under_budget` outside this script.
+  #
+  # Doctests are NOT run here — they tend to hang under macOS rustdoc when
+  # the workspace is large (observed in arf crate: rustdoc child sits at
+  # 0% CPU for 10+ min, never exits). CI's release.yml also skips doctests.
+  # If you need them locally: `cargo test --workspace --doc`.
   cargo nextest run --workspace --no-fail-fast \
     --filterset 'not test(/_under_budget/)'
-  cargo test --workspace --doc -- --skip _under_budget
   echo ""
 fi
 
