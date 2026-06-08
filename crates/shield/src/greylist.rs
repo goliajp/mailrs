@@ -161,11 +161,9 @@ mod kevy_impl {
                     // delay window is computed correctly even right after
                     // warmup.
                     let warm_value = fs_u64.to_string();
-                    let _ = self.kevy.set_with_ttl(
-                        vk_key.as_bytes(),
-                        warm_value.as_bytes(),
-                        ttl,
-                    );
+                    let _ = self
+                        .kevy
+                        .set_with_ttl(vk_key.as_bytes(), warm_value.as_bytes(), ttl);
                 }
             }
 
@@ -175,7 +173,9 @@ mod kevy_impl {
                 GreylistDecision::Defer => {
                     // first time anywhere — set with TTL = pass_ttl
                     let value = now.to_string();
-                    let _ = self.kevy.set_with_ttl(vk_key.as_bytes(), value.as_bytes(), ttl);
+                    let _ = self
+                        .kevy
+                        .set_with_ttl(vk_key.as_bytes(), value.as_bytes(), ttl);
                 }
                 GreylistDecision::TooEarly | GreylistDecision::Accept => {
                     // refresh TTL to keep entry alive

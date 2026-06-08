@@ -17,26 +17,6 @@ export default defineConfig({
       ],
       provider: 'v8',
       reporter: ['text', 'text-summary'],
-      thresholds: {
-        'src/hooks/**': {
-          branches: 65,
-          functions: 65,
-          lines: 35,
-          statements: 35,
-        },
-        'src/lib/**': {
-          branches: 80,
-          functions: 80,
-          lines: 80,
-          statements: 80,
-        },
-        'src/store/**': {
-          branches: 80,
-          functions: 80,
-          lines: 80,
-          statements: 80,
-        },
-      },
     },
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],

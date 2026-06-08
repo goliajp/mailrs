@@ -60,11 +60,10 @@ pub async fn backfill_from_pg(
         return Ok(BackfillStats::default());
     }
 
-    let rows: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT triplet, first_seen FROM greylist_triplets",
-    )
-    .fetch_all(pool)
-    .await?;
+    let rows: Vec<(String, i64)> =
+        sqlx::query_as("SELECT triplet, first_seen FROM greylist_triplets")
+            .fetch_all(pool)
+            .await?;
 
     let mut stats = BackfillStats {
         scanned: rows.len() as u64,
@@ -82,7 +81,11 @@ pub async fn backfill_from_pg(
         let key = format!("gl:{triplet}");
         let value = first_seen_u64.to_string();
         if kevy
-            .set_with_ttl(key.as_bytes(), value.as_bytes(), Duration::from_secs(remaining))
+            .set_with_ttl(
+                key.as_bytes(),
+                value.as_bytes(),
+                Duration::from_secs(remaining),
+            )
             .is_ok()
         {
             stats.imported += 1;
