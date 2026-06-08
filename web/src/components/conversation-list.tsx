@@ -167,15 +167,7 @@ const ConversationItem = memo(function ConversationItem({
         // fixed height the virtualizer never has to re-measure anything,
         // so the overlap bug class is eliminated by construction —
         // no patch, no hack.
-        className={`focus-visible:ring-accent/50 relative flex h-24 w-full items-start gap-3 overflow-hidden border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:ring-2 focus-visible:outline-none ${
-          selected && !batchMode ? 'border-l-accent' : 'border-l-transparent'
-        } ${!hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''} ${
-          selected && !batchMode
-            ? 'bg-accent/10'
-            : checked
-              ? 'bg-accent/10'
-              : 'hover:bg-bg-secondary'
-        }`}
+        className={getRowClass({ batchMode, checked, hasUnread, selected })}
         onClick={handleClick}
         onContextMenu={ctx.open}
       >
@@ -193,9 +185,7 @@ const ConversationItem = memo(function ConversationItem({
         <SenderAvatar sender={firstParticipant} size={36} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span
-              className={`truncate text-sm ${isOwn ? 'text-accent' : ''} ${hasUnread ? 'text-fg font-semibold' : isOwn ? '' : 'text-fg-secondary'}`}
-            >
+            <span className={getSenderClass({ hasUnread, isOwn })}>
               {name}
               {convo.participants.length > 1 && (
                 <span className="text-fg-muted"> +{convo.participants.length - 1}</span>
@@ -233,7 +223,7 @@ const ConversationItem = memo(function ConversationItem({
                     <Mail className="h-4 w-4" />
                   </button>
                   <button
-                    className={`touch-target rounded p-1 ${isFlagged ? 'text-warning' : 'text-fg-muted hover:text-fg-secondary'}`}
+                    className={getStarClass({ density: 'mobile', isFlagged })}
                     onClick={(e) => {
                       e.stopPropagation()
                       onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star')
@@ -258,7 +248,7 @@ const ConversationItem = memo(function ConversationItem({
                     <Mail className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    className={`hover:bg-bg-secondary rounded p-0.5 ${isFlagged ? 'text-warning' : 'text-fg-muted hover:text-fg-secondary'}`}
+                    className={getStarClass({ density: 'desktop', isFlagged })}
                     onClick={(e) => {
                       e.stopPropagation()
                       onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star')
@@ -1443,4 +1433,48 @@ function VirtualConversationList({
       </div>
     </div>
   )
+}
+
+// row outer class — pulled out so the JSX above stops being a 9-line
+// ternary salad; the four input bools map to the same 5-token output every
+// render, so a pure function is the clean place for it.
+const ROW_BASE =
+  'focus-visible:ring-accent/50 relative flex h-24 w-full items-start gap-3 overflow-hidden border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:ring-2 focus-visible:outline-none'
+
+function getRowClass({
+  batchMode,
+  checked,
+  hasUnread,
+  selected,
+}: {
+  batchMode: boolean
+  checked: boolean
+  hasUnread: boolean
+  selected: boolean
+}): string {
+  const isSelected = selected && !batchMode
+  const border = isSelected ? 'border-l-accent' : 'border-l-transparent'
+  const bg = isSelected || checked ? 'bg-accent/10' : 'hover:bg-bg-secondary'
+  const dim = !hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''
+  return `${ROW_BASE} ${border} ${bg} ${dim}`
+}
+
+function getSenderClass({ hasUnread, isOwn }: { hasUnread: boolean; isOwn: boolean }): string {
+  // hasUnread wins over isOwn — same effective cascade as the previous
+  // double-ternary (`text-accent text-fg ...` resolves to the last token).
+  const color = hasUnread ? 'text-fg font-semibold' : isOwn ? 'text-accent' : 'text-fg-secondary'
+  return `truncate text-sm ${color}`
+}
+
+function getStarClass({
+  density,
+  isFlagged,
+}: {
+  density: 'desktop' | 'mobile'
+  isFlagged: boolean
+}): string {
+  const base =
+    density === 'mobile' ? 'touch-target rounded p-1' : 'hover:bg-bg-secondary rounded p-0.5'
+  const color = isFlagged ? 'text-warning' : 'text-fg-muted hover:text-fg-secondary'
+  return `${base} ${color}`
 }
