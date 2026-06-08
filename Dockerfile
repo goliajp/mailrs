@@ -1,23 +1,43 @@
-# stage 1: build rust binary
-FROM rust:1-trixie AS rust-builder
+# stage 1a: cargo-chef base image — cache layer for chef tool itself
+FROM rust:1-trixie AS chef
+RUN cargo install cargo-chef --locked --version ^0.1
+WORKDIR /build
 
+# stage 1b: planner — produces recipe.json describing the dep graph.
+# This layer is cheap (no compile), but its output (recipe.json) is the
+# cache key for the heavy cook stage below.
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY crates/ crates/
+RUN cargo chef prepare --recipe-path recipe.json
+
+# stage 1c: builder — first cooks all external deps (cached), then
+# builds the workspace + mailrs-server (re-runs on any crate code change).
+#
 # Version is injected at build time from the git tag (e.g. v1.7.134 → 1.7.134).
 # Repo's Cargo.toml stays at 0.0.0 (placeholder) so there's no bump commit on
 # release; the real version lives only in the tag and the built artifact.
+FROM chef AS rust-builder
 ARG VERSION=0.0.0
 
-WORKDIR /build
+# Cook external deps — buildx GHA cache makes this layer skip entirely
+# on subsequent builds where Cargo.toml/Cargo.lock are unchanged.
+COPY --from=planner /build/recipe.json recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo chef cook --release --recipe-path recipe.json
 
-# copy manifests first for dependency layer caching
+# Now copy the real source. Layer below invalidates on any crate code
+# change, but external deps stay cached above.
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ crates/
 
-# patch the workspace root version BEFORE cargo build so the resolver picks
-# it up. Only the workspace.package.version line; member crates inherit via
-# `version.workspace = true`.
+# Patch the workspace root version BEFORE cargo build so the resolver
+# picks it up. Only the workspace.package.version line; member crates
+# inherit via `version.workspace = true`.
 RUN sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
 
-# mount cargo registry + git cache + target dir for incremental builds
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
