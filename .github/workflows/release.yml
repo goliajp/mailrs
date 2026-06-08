@@ -264,14 +264,16 @@ jobs:
             # 5. restart with the new image tag
             docker compose up -d --remove-orphans
 
-            # 6. health gate — poll /api/health until healthy or 60s timeout
+            # 6. health gate — poll /api/health until healthy or 60s timeout.
+            # `health` not `status` because prod root shell is zsh; `$status`
+            # is a read-only special parameter there (equivalent to bash's $?).
             for i in $(seq 1 30); do
-              status=$(curl -sS --max-time 5 http://localhost:3100/api/health 2>/dev/null \
+              health=$(curl -sS --max-time 5 http://localhost:3100/api/health 2>/dev/null \
                 | python3 -c "import json,sys;print(json.load(sys.stdin).get('status','?'))" \
                 2>/dev/null || echo "unreachable")
-              case "$status" in
+              case "$health" in
                 healthy|degraded)
-                  echo "==> health: $status — deploy ok"
+                  echo "==> health: $health — deploy ok"
                   exit 0
                   ;;
               esac
