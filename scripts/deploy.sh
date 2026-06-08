@@ -118,12 +118,12 @@ fi
 
 # ---------- build ----------
 
-if [ "$GHCR_MODE" = false ]; then
-  echo "==> building web frontend"
-  (cd web && bunx --bun tsc -b && bunx --bun vite build)
-else
-  echo "==> ghcr mode: skip web build (assets ship inside ghcr image)"
-fi
+echo "==> building web frontend"
+# Always build web locally. Even in --ghcr mode the docker-compose now
+# bind-mounts ./web → /opt/mailrs/web, so the host needs the up-to-date
+# dist to overlay the image-baked copy. This is what unlocks the fast
+# --web-only path (scp + no restart).
+(cd web && bunx --bun tsc -b && bunx --bun vite build)
 
 if [ "$WEB_ONLY" = true ]; then
   echo "==> web-only mode: skipping Rust compilation"
@@ -148,11 +148,13 @@ else
   $SCP "$BINARY" "$SSH_HOST:$REMOTE_DIR/bin/mailrs-server"
 fi
 
-if [ "$GHCR_MODE" = false ]; then
-  echo "==> uploading web assets"
-  $SSH "mkdir -p $REMOTE_DIR/web"
-  $SCP -r web/dist/* "$SSH_HOST:$REMOTE_DIR/web/"
-fi
+echo "==> uploading web assets"
+# Both legacy and --ghcr modes now scp web/dist → $REMOTE_DIR/web/. The
+# docker-compose.prod.yml bind-mounts that path read-only into the
+# container's /opt/mailrs/web, so the upload alone is enough for the
+# served files to update (no container restart needed in --web-only).
+$SSH "mkdir -p $REMOTE_DIR/web"
+$SCP -r web/dist/* "$SSH_HOST:$REMOTE_DIR/web/"
 
 if [ "$WEB_ONLY" = false ]; then
   echo "==> uploading deployment configs"

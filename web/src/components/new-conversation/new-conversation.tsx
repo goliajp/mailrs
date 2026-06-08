@@ -12,6 +12,7 @@ import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
+import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom, getToken } from '@/store/auth'
 import { composeReplySourceAtom, composingNewAtom } from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
@@ -24,7 +25,6 @@ const StructuredCompose = lazy(() =>
 )
 
 type PolishResult = { message?: string; polished?: string; success: boolean }
-type SendResult = { message?: string; message_id?: string; success: boolean }
 
 export function NewConversation() {
   const auth = useAtomValue(authAtom)
@@ -143,10 +143,7 @@ export function NewConversation() {
 
   const send = async () => {
     if (sending) return
-    const recipients = to
-      .split(/[,;]/)
-      .map((s) => s.trim())
-      .filter(Boolean)
+    const recipients = parseAddressList(to)
     if (recipients.length === 0) {
       setError('Recipient is required')
       return
@@ -160,56 +157,19 @@ export function NewConversation() {
     setError('')
     setSending(true)
     try {
-      const ccList = cc
-        .split(/[,;]/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-      const bccList = bcc
-        .split(/[,;]/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-
-      const attachmentFiles = content.attachments
-      let result: SendResult
-
-      if (attachmentFiles.length > 0) {
-        const formData = new FormData()
-        formData.append('from', auth?.address ?? '')
-        formData.append('subject', subject)
-        formData.append('body', content.fullText)
-        formData.append('html_body', content.fullHtml)
-        for (const r of recipients) formData.append('to', r)
-        for (const r of ccList) formData.append('cc', r)
-        for (const r of bccList) formData.append('bcc', r)
-        for (const f of attachmentFiles) formData.append('attachments', f)
-        if (replySource?.messageId) formData.append('in_reply_to', replySource.messageId)
-        if (scheduledAt) formData.append('scheduled_at', new Date(scheduledAt).toISOString())
-
-        const token = getToken()
-        const res = await fetch('/api/mail/send-multipart', {
-          body: formData,
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          method: 'POST',
-        })
-        if (!res.ok) {
-          setError(`Send failed (${res.status})`)
-          setSending(false)
-          return
-        }
-        result = await res.json()
-      } else {
-        result = await postJson<SendResult>('/mail/send', {
-          bcc: bccList,
-          body: content.fullText,
-          cc: ccList,
-          from: auth?.address ?? '',
-          html_body: content.fullHtml,
-          in_reply_to: replySource?.messageId ?? null,
-          subject,
-          to: recipients,
-          ...(scheduledAt ? { scheduled_at: new Date(scheduledAt).toISOString() } : {}),
-        })
-      }
+      const result = await sendMail({
+        attachments: content.attachments,
+        bcc: parseAddressList(bcc),
+        body: content.fullText,
+        cc: parseAddressList(cc),
+        from: auth?.address ?? '',
+        htmlBody: content.fullHtml,
+        inReplyTo: replySource?.messageId,
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+        subject,
+        to: recipients,
+        token: getToken() ?? '',
+      })
 
       if (result.success) {
         const sentMessageId = result.message_id
@@ -231,8 +191,6 @@ export function NewConversation() {
               }
             : {}),
         })
-        // refresh the conversation list via RQ so the just-sent thread
-        // appears at the top.
         await queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })
         closeComposer()
       } else {
@@ -346,8 +304,6 @@ function ComposerSkeleton() {
   )
 }
 
-// pull the bare address out of a "Name <addr@host>" sender field, falling
-// back to the raw string if no angle-bracketed form is present
 function extractReplyAddress(sender: string): string {
   const match = sender.match(/<([^>]+)>/)
   return match ? match[1].trim() : sender.trim()
