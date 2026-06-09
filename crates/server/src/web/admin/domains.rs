@@ -171,7 +171,7 @@ pub(crate) async fn get_rbl_status(
     };
 
     // scan for rbl:status:* keys via the embed store
-    let keys: Vec<Vec<u8>> = store.with(|inner| inner.collect_keys(Some(b"rbl:status:*"), None));
+    let keys: Vec<Vec<u8>> = store.collect_keys(Some(b"rbl:status:*"), None);
 
     let mut reports = Vec::new();
     for key in &keys {

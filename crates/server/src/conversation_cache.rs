@@ -143,7 +143,7 @@ pub fn bust_user(kevy: &KevyStore, user: &str) {
         format!("{}:{}:*", PREFIX_ACTION, user),
     ];
     for pat in &patterns {
-        let keys: Vec<Vec<u8>> = kevy.with(|inner| inner.collect_keys(Some(pat.as_bytes()), None));
+        let keys: Vec<Vec<u8>> = kevy.collect_keys(Some(pat.as_bytes()), None);
         if !keys.is_empty() {
             let refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
             let _ = kevy.del(&refs);
@@ -174,7 +174,7 @@ pub fn bust_all_conversations(kevy: &KevyStore) -> usize {
     ];
     let mut deleted = 0;
     for pat in &patterns {
-        let keys: Vec<Vec<u8>> = kevy.with(|inner| inner.collect_keys(Some(pat.as_bytes()), None));
+        let keys: Vec<Vec<u8>> = kevy.collect_keys(Some(pat.as_bytes()), None);
         if !keys.is_empty() {
             let refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
             if let Ok(n) = kevy.del(&refs) {

@@ -194,8 +194,7 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
         // collect every rbl:status:* key, count those whose JSON value
         // has any_listed:true. kevy-store's collect_keys takes a glob-
         // style pattern matching Redis KEYS semantics.
-        let keys: Vec<Vec<u8>> =
-            store.with(|inner| inner.collect_keys(Some(b"rbl:status:*"), None));
+        let keys: Vec<Vec<u8>> = store.collect_keys(Some(b"rbl:status:*"), None);
         let mut rbl_listed: i64 = 0;
         for key in &keys {
             if let Ok(Some(bytes)) = store.get(key)
