@@ -56,6 +56,11 @@ pub(crate) struct ThreadMessageResponse {
     pub uid: u32,
     pub sender: String,
     pub recipients: String,
+    /// Cc list verbatim from the raw email's `Cc:` header (RFC 2047
+    /// decoded). DB schema doesn't index Cc, so we parse it from the
+    /// already-loaded raw message body in the thread loader.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cc: Option<String>,
     pub subject: String,
     pub flags: u32,
     pub internal_date: i64,
@@ -425,6 +430,7 @@ mod tests {
             uid: 100,
             sender: "alice@example.com".to_string(),
             recipients: "bob@example.com".to_string(),
+            cc: None,
             subject: "Test".to_string(),
             flags: 0,
             internal_date: 1700000000,
@@ -485,6 +491,7 @@ mod tests {
             uid: 100,
             sender: String::new(),
             recipients: String::new(),
+            cc: None,
             subject: String::new(),
             flags: 0,
             internal_date: 0,

@@ -252,11 +252,18 @@ pub(crate) async fn audit_get_thread_messages(
             if sd.is_empty() { None } else { Some(sd) }
         });
 
+        let cc = raw
+            .as_deref()
+            .map(|d| message_util::extract_header_from_raw(d, "Cc"))
+            .map(|s| message_util::decode_header(&s))
+            .filter(|s| !s.trim().is_empty());
+
         result.push(conversations::ThreadMessageResponse {
             id: msg.id,
             uid: msg.uid,
             sender,
             recipients: msg.recipients.clone(),
+            cc,
             subject,
             flags: msg.flags,
             internal_date: msg.internal_date,
