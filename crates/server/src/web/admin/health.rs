@@ -213,6 +213,45 @@ pub(crate) async fn prometheus_metrics(State(state): State<Arc<WebState>>) -> im
         let _ = writeln!(body, "mailrs_rbl_listed {rbl_listed}");
     }
 
+    // Kevy current-state snapshot. One Store::info() call per scrape,
+    // takes the kevy mutex once. Replay/Rewrite event metrics come
+    // through the metric-sink path (see kevy_store::emit_kevy_metric);
+    // these gauges are the complementary "live keyspace right now"
+    // snapshot view.
+    if let Some(ref store) = state.kevy_embed {
+        let info = store.info();
+        let _ = writeln!(
+            body,
+            "# HELP mailrs_kevy_keys Live key count (DBSIZE)\n# TYPE mailrs_kevy_keys gauge\nmailrs_kevy_keys {}",
+            info.keys
+        );
+        let _ = writeln!(
+            body,
+            "# HELP mailrs_kevy_used_memory_bytes Estimated resident bytes\n# TYPE mailrs_kevy_used_memory_bytes gauge\nmailrs_kevy_used_memory_bytes {}",
+            info.used_memory
+        );
+        let _ = writeln!(
+            body,
+            "# HELP mailrs_kevy_aof_bytes Current on-disk AOF size\n# TYPE mailrs_kevy_aof_bytes gauge\nmailrs_kevy_aof_bytes {}",
+            info.aof_bytes
+        );
+        let _ = writeln!(
+            body,
+            "# HELP mailrs_kevy_expire_pending Live keys carrying a TTL (0 when TTL expected = TTL subsystem bug)\n# TYPE mailrs_kevy_expire_pending gauge\nmailrs_kevy_expire_pending {}",
+            info.expire_pending
+        );
+        let _ = writeln!(
+            body,
+            "# HELP mailrs_kevy_evictions_total Cumulative keys evicted by maxmemory\n# TYPE mailrs_kevy_evictions_total counter\nmailrs_kevy_evictions_total {}",
+            info.evictions
+        );
+        let _ = writeln!(
+            body,
+            "# HELP mailrs_kevy_expired_keys_total Cumulative keys expired (lazy + active reaper)\n# TYPE mailrs_kevy_expired_keys_total counter\nmailrs_kevy_expired_keys_total {}",
+            info.expired_keys
+        );
+    }
+
     // Append metrics-rs facade output (IMAP/POP3/MCP counters + any
     // future migration from the hand-written gauges above). The
     // facade renders only metrics that have been touched, so on a
@@ -293,6 +332,22 @@ pub(crate) async fn get_health(State(state): State<Arc<WebState>>) -> impl IntoR
             state.started_at.elapsed().as_secs(),
         ),
     };
+    // One Store::info() call per /api/health hit. Docker healthcheck
+    // polls this every few seconds, but info() is a single-mutex
+    // snapshot (~µs), so the overhead is negligible vs the value of a
+    // single curl giving you keys / aof_bytes / expire_pending at a
+    // glance — without scraping prometheus.
+    let kevy_info = state.kevy_embed.as_ref().map(|s| {
+        let i = s.info();
+        serde_json::json!({
+            "keys": i.keys,
+            "used_memory_bytes": i.used_memory,
+            "aof_bytes": i.aof_bytes,
+            "expire_pending": i.expire_pending,
+            "evictions": i.evictions,
+            "expired_keys": i.expired_keys,
+        })
+    });
     (
         StatusCode::OK,
         Json(serde_json::json!({
@@ -300,6 +355,7 @@ pub(crate) async fn get_health(State(state): State<Arc<WebState>>) -> impl IntoR
             "level": level,
             "pg": pg,
             "kevy": kevy,
+            "kevy_info": kevy_info,
             "uptime_secs": uptime,
             "version": env!("CARGO_PKG_VERSION"),
             "active_sessions": state.sessions.len(),
