@@ -17,6 +17,7 @@ pub const ALL_PERMISSIONS: &[&str] = &[
     "internal.rpc",
     "admin.oauth_clients",
     "admin.system_config",
+    "admin.cache",
 ];
 
 /// group info loaded from the database

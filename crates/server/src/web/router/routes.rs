@@ -23,6 +23,11 @@ pub(super) fn core_routes() -> axum::Router<Arc<WebState>> {
         // queue
         .route("/api/queue", get(admin::get_queue))
         .route("/api/queue/{id}/retry", post(admin::retry_queue_message))
+        // cache flush
+        .route(
+            "/api/admin/cache/flush-conversations",
+            post(admin::flush_conversations),
+        )
 }
 pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
