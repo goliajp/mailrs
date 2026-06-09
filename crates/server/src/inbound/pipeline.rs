@@ -17,6 +17,7 @@ use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
 use hickory_resolver::TokioResolver;
 
 use crate::dmarc_report::DmarcReportStore;
+use crate::greylist_sync::GreylistListsHandle;
 
 /// Build the inbound `mailrs_inbound::Pipeline` from the optional backends
 /// configured at server startup. Each backend, when present, contributes its
@@ -29,6 +30,7 @@ use crate::dmarc_report::DmarcReportStore;
 pub fn build_inbound_pipeline(
     greylist_db: Option<Arc<GreylistDb>>,
     greylist_config: GreylistConfig,
+    greylist_whitelist: GreylistListsHandle,
     resolver: Option<Arc<TokioResolver>>,
     mail_auth_resolvers: Option<MailAuthResolvers>,
     dmarc_report_store: Option<Arc<DmarcReportStore>>,
@@ -40,7 +42,7 @@ pub fn build_inbound_pipeline(
     let mut builder = mailrs_inbound::Pipeline::builder().spam_threshold(spam_score_threshold);
 
     if let Some(db) = greylist_db {
-        builder = builder.add(GreylistStage::new(db, greylist_config));
+        builder = builder.add(GreylistStage::new(db, greylist_config, greylist_whitelist));
     }
     if let Some(r) = resolver {
         builder = builder.add(PtrStage::new(r));

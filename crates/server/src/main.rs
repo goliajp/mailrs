@@ -32,6 +32,7 @@ mod search_index;
 
 mod bootstrap;
 mod greylist_backfill;
+mod greylist_sync;
 mod kevy_store;
 mod mcp;
 mod oidc_jwt;
@@ -342,9 +343,35 @@ async fn main() {
 
     let users = Arc::new(user_store);
 
+    // Greylist whitelist sync: fires once immediately, then every
+    // cfg.greylist_sync_interval_secs. Empty URL = disabled, handle stays
+    // empty (no hits, all senders go through the triplet check). The
+    // handle is cloned into the GreylistStage so the sync task and the
+    // stage share a single snapshot via tokio::sync::RwLock.
+    let greylist_whitelist = greylist_sync::empty();
+    if let Some(ref url) = cfg.greylist_whitelist_url {
+        let handle = greylist_whitelist.clone();
+        let url = url.clone();
+        let interval = cfg.greylist_sync_interval_secs;
+        tracing::info!(
+            event = "subsystem_started",
+            subsystem = "greylist_sync",
+            url = %url,
+            interval_secs = interval,
+        );
+        greylist_sync::spawn_sync_task(handle, url, interval);
+    } else {
+        tracing::info!(
+            event = "subsystem_skipped",
+            subsystem = "greylist_sync",
+            reason = "MAILRS_GREYLIST_WHITELIST_URL not set"
+        );
+    }
+
     let inbound_pipeline = build_inbound_pipeline_with_shadows(
         &greylist_db,
         &greylist_config,
+        &greylist_whitelist,
         &resolver,
         &dmarc_report_store,
         &cfg,

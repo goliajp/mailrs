@@ -1,0 +1,84 @@
+# mailrs greylist whitelist
+#
+# Sender domains that bypass greylisting on the inbound pipeline. These
+# are major providers and trusted senders whose retry behavior is
+# unpredictable (Gmail can take hours; some transactional senders never
+# retry at all) — for these we'd rather accept on first try than risk
+# losing legitimate mail.
+#
+# Format:
+#   - one sender domain per line
+#   - `#` starts a comment (full-line or trailing both supported)
+#   - blank lines and whitespace ignored
+#   - case-insensitive (lowercased on load)
+#   - matches by suffix: `gmail.com` covers `*@gmail.com` and
+#     `*@mail.gmail.com`
+#
+# Update via PR. Production fetches this URL every
+# MAILRS_GREYLIST_SYNC_INTERVAL_SECS (default 3600s = 1h).
+#
+# A mailrs-side local list (admin API, planned Phase 2) overrides this
+# file when there's a conflict: local black always wins over remote
+# white. So if Gmail ever needs to be hard-blocked locally, the
+# remote whitelist entry below is silently shadowed.
+
+# Google
+gmail.com
+googlemail.com
+google.com
+googlegroups.com
+gsuite.com
+workspace.google.com
+
+# Microsoft
+outlook.com
+hotmail.com
+hotmail.co.jp
+live.com
+microsoft.com
+office365.com
+onmicrosoft.com
+
+# Apple
+icloud.com
+me.com
+mac.com
+
+# Yahoo
+yahoo.com
+yahoo.co.jp
+ymail.com
+
+# Japan major providers
+docomo.ne.jp
+softbank.ne.jp
+au.com
+ezweb.ne.jp
+i.softbank.jp
+mineo.jp
+biglobe.ne.jp
+nifty.com
+ocn.ne.jp
+plala.or.jp
+
+# Transactional / ESP infrastructure (sender domains)
+amazonses.com
+sendgrid.net
+sparkpostmail.com
+mailgun.org
+postmarkapp.com
+mandrillapp.com
+
+# Enterprise mail commonly seen in Qualcomm / similar B2B threads
+qti.qualcomm.com
+qualcomm.com
+focusai.com
+
+# GOLIA owned domains (self / partner trust)
+golia.jp
+golia.ai
+dadaya.jp
+marspot.com
+bitreits.com
+doracawl.com
+madcawl.com

@@ -153,6 +153,14 @@ impl ServerConfig {
         set_parsed("MAILRS_RATE_LIMIT_CAPACITY", &mut self.rate_limit_capacity);
         set_parsed("MAILRS_RATE_LIMIT_REFILL", &mut self.rate_limit_refill);
         set_parsed("MAILRS_GREYLIST_DELAY", &mut self.greylist_delay_secs);
+        if let Ok(v) = std::env::var("MAILRS_GREYLIST_WHITELIST_URL") {
+            // Empty string explicitly disables remote sync.
+            self.greylist_whitelist_url = if v.is_empty() { None } else { Some(v) };
+        }
+        set_parsed(
+            "MAILRS_GREYLIST_SYNC_INTERVAL_SECS",
+            &mut self.greylist_sync_interval_secs,
+        );
         set_bool_truthy("MAILRS_DNSBL_ENABLED", &mut self.dnsbl_enabled);
         // backwards-compatible alias: MAILRS_SPF_ENABLED → antispam_enabled
         if let Ok(v) = std::env::var("MAILRS_ANTISPAM_ENABLED") {
