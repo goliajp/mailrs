@@ -117,6 +117,16 @@ pub(crate) async fn get_thread_messages(
                 )
             };
 
+            // Cc header — not indexed in the DB, so parse it from the raw
+            // bytes we already loaded. None when the header is absent or
+            // empty (most one-to-one threads), so the wire payload skips
+            // the field entirely.
+            let cc = raw
+                .as_deref()
+                .map(|d| message_util::extract_header_from_raw(d, "Cc"))
+                .map(|s| message_util::decode_header(&s))
+                .filter(|s| !s.trim().is_empty());
+
             // try AI analysis first, fall back to rule-based
             let ai = mb_store_ref.get_email_analysis(msg.id).await.ok().flatten();
             let (
@@ -180,6 +190,7 @@ pub(crate) async fn get_thread_messages(
                 uid: msg.uid,
                 sender,
                 recipients: msg.recipients.clone(),
+                cc,
                 subject,
                 flags: msg.flags,
                 internal_date: msg.internal_date,
