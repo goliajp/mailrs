@@ -29,12 +29,22 @@ use kevy_embedded::{Config as KevyConfig, KevyMetric, Store};
 /// Shareable handle to the in-process kevy embedded store.
 pub type KevyStore = Arc<Store>;
 
+/// Number of shards for the in-process kevy keyspace. Picked to match the
+/// 4-core prod host (Config::with_shards uses a power-of-two routing mask
+/// when n is a power of two). Reads/writes to different shards hold
+/// independent locks → multi-core GET scales. First start with `n > 1`
+/// reshards the existing single `aof-0.aof` into `aof-0..n-1.aof` and
+/// backs the original up as `aof-0.aof.premigration.<unix_ns>`.
+const KEVY_SHARDS: usize = 4;
+
 /// Open the in-process kevy embedded store, optionally with AOF +
 /// snapshot persistence at `data_dir`. Wraps the store in an `Arc` so
 /// subsystems can clone cheaply. Also wires kevy's metric sink to
 /// `metrics::*!` + `tracing::info!` — no separate handle needed.
 pub fn open_store(data_dir: Option<&Path>) -> io::Result<KevyStore> {
-    let cfg = KevyConfig::default().with_metric_sink(emit_kevy_metric);
+    let cfg = KevyConfig::default()
+        .with_metric_sink(emit_kevy_metric)
+        .with_shards(KEVY_SHARDS);
     let cfg = match data_dir {
         Some(dir) => cfg.with_persist(dir),
         None => cfg,
