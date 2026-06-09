@@ -21,6 +21,16 @@
 # file when there's a conflict: local black always wins over remote
 # white. So if Gmail ever needs to be hard-blocked locally, the
 # remote whitelist entry below is silently shadowed.
+#
+# Curation principle: list the *sender* domain (envelope From / MAIL
+# FROM), not corporate web domains. Suffix matching means listing
+# the apex (gmail.com) is enough — sub-mailers (mail.gmail.com,
+# bounces.gmail.com) are automatically covered.
+
+
+# ====================================================================
+# Global webmail
+# ====================================================================
 
 # Google
 gmail.com
@@ -29,52 +39,765 @@ google.com
 googlegroups.com
 gsuite.com
 workspace.google.com
+appspotmail.com
 
 # Microsoft
 outlook.com
+outlook.jp
 hotmail.com
 hotmail.co.jp
+hotmail.co.uk
 live.com
+live.jp
+live.co.uk
+msn.com
 microsoft.com
 office365.com
 onmicrosoft.com
+exchangelabs.com
 
 # Apple
 icloud.com
 me.com
 mac.com
+apple.com
 
 # Yahoo
 yahoo.com
 yahoo.co.jp
+yahoo.co.uk
+yahoo.fr
+yahoo.de
+yahoo.it
+yahoo.es
+yahoo.com.br
+yahoo.com.mx
+yahoo.ca
+yahoo.com.au
+yahoo.co.in
+yahoo.co.kr
+yahoo.com.sg
+yahoo.com.hk
+yahoo.com.tw
 ymail.com
+rocketmail.com
 
-# Japan major providers
+# AOL (Yahoo)
+aol.com
+aol.co.uk
+aol.fr
+aol.de
+
+# Proton
+proton.me
+protonmail.com
+pm.me
+
+# Zoho / Fastmail / Tutanota
+zoho.com
+zohomail.com
+fastmail.com
+fastmail.fm
+tutanota.com
+tutamail.com
+tuta.io
+
+# GMX / Web.de (Germany)
+gmx.com
+gmx.net
+gmx.de
+gmx.us
+gmx.co.uk
+web.de
+mail.com
+1und1.de
+
+
+# ====================================================================
+# Japan ISPs / carriers / portals
+# ====================================================================
 docomo.ne.jp
 softbank.ne.jp
+i.softbank.jp
 au.com
 ezweb.ne.jp
-i.softbank.jp
 mineo.jp
 biglobe.ne.jp
 nifty.com
 ocn.ne.jp
 plala.or.jp
+so-net.ne.jp
+goo.ne.jp
+excite.co.jp
+infoseek.jp
+hi-ho.ne.jp
+dion.ne.jp
+nec.co.jp
+nikkei.com
+asahi.com
+mainichi.jp
+yomiuri.co.jp
+sankei.com
+livedoor.com
+livedoor.jp
+seesaa.jp
+rakuten.co.jp
+rakuten.com
+kddi.com
+ntt.com
+ntt.co.jp
+ntt-east.co.jp
+ntt-west.co.jp
 
-# Transactional / ESP infrastructure (sender domains)
+
+# ====================================================================
+# China major providers
+# ====================================================================
+qq.com
+foxmail.com
+163.com
+126.com
+sina.com
+sina.cn
+sohu.com
+139.com
+189.cn
+21cn.com
+yeah.net
+aliyun.com
+mail.cn
+tom.com
+chinaren.com
+cmcc.com
+unicom.cn
+chinatelecom.cn
+
+
+# ====================================================================
+# Korea / Taiwan / SEA
+# ====================================================================
+naver.com
+hanmail.net
+daum.net
+nate.com
+kakao.com
+hitejinro.com
+
+# Taiwan
+hinet.net
+seed.net.tw
+pchome.com.tw
+yam.com
+url.com.tw
+
+# Singapore / Malaysia / Indonesia / Philippines / Thailand / Vietnam
+singnet.com.sg
+starhub.com
+m1.com.sg
+streamyx.com
+maxis.com.my
+tm.com.my
+celcom.com.my
+tlkm.net.id
+indosatooredoo.com
+xl.co.id
+globe.com.ph
+smart.com.ph
+ais.co.th
+true.th
+dtac.co.th
+vnpt.vn
+viettel.com.vn
+
+
+# ====================================================================
+# India
+# ====================================================================
+rediffmail.com
+rediff.com
+indiatimes.com
+sify.com
+airtelmail.in
+in.com
+vsnl.net.in
+vsnl.com
+
+
+# ====================================================================
+# Russia / CIS / Eastern Europe
+# ====================================================================
+mail.ru
+yandex.com
+yandex.ru
+yandex.ua
+rambler.ru
+list.ru
+inbox.ru
+bk.ru
+ya.ru
+ukr.net
+i.ua
+seznam.cz
+centrum.cz
+post.cz
+o2.pl
+wp.pl
+onet.pl
+interia.pl
+
+
+# ====================================================================
+# UK / Ireland
+# ====================================================================
+btinternet.com
+sky.com
+talktalk.net
+virginmedia.com
+ntlworld.com
+blueyonder.co.uk
+plus.net
+o2.co.uk
+vodafone.co.uk
+eircom.net
+
+
+# ====================================================================
+# Continental Europe
+# ====================================================================
+# France
+orange.fr
+wanadoo.fr
+laposte.net
+free.fr
+sfr.fr
+bouyguestelecom.fr
+neuf.fr
+
+# Germany / Austria / Switzerland
+t-online.de
+freenet.de
+arcor.de
+chello.at
+aon.at
+sunrise.ch
+bluewin.ch
+swissonline.ch
+
+# Italy
+libero.it
+virgilio.it
+alice.it
+tin.it
+tiscali.it
+fastwebnet.it
+poste.it
+tim.it
+
+# Spain / Portugal
+telefonica.es
+movistar.es
+ya.com
+terra.es
+arsystel.com
+sapo.pt
+clix.pt
+
+# Netherlands / Belgium
+xs4all.nl
+ziggo.nl
+kpn.nl
+chello.nl
+hotmail.be
+skynet.be
+telenet.be
+proximus.be
+
+# Nordics
+telia.com
+telia.se
+telenor.no
+online.no
+elisa.fi
+saunalahti.fi
+hotmail.fi
+
+
+# ====================================================================
+# Australia / New Zealand
+# ====================================================================
+bigpond.com
+bigpond.net.au
+optusnet.com.au
+tpg.com.au
+iinet.net.au
+ihug.co.nz
+xtra.co.nz
+vodafone.co.nz
+spark.co.nz
+
+
+# ====================================================================
+# Latin America / Brazil / Mexico
+# ====================================================================
+uol.com.br
+bol.com.br
+terra.com.br
+ig.com.br
+oi.com.br
+yahoo.com.ar
+telcel.net
+prodigy.net.mx
+
+
+# ====================================================================
+# Middle East / Africa
+# ====================================================================
+emirates.net.ae
+etisalat.ae
+du.ae
+qa.com
+mtnonline.com
+telkom.co.za
+
+
+# ====================================================================
+# Transactional / ESP infrastructure (envelope-from domains)
+# ====================================================================
+# These are the actual sending domains for major email service
+# providers. Their customers use these for delivery — receiving
+# greylist on first try is wasteful and they sometimes don't retry.
+
+# Amazon
 amazonses.com
-sendgrid.net
-sparkpostmail.com
-mailgun.org
-postmarkapp.com
-mandrillapp.com
+amazon.com
+amazon.co.jp
+email.amazon.com
+amazon.sns.com
 
-# Enterprise mail commonly seen in Qualcomm / similar B2B threads
+# SendGrid
+sendgrid.net
+sendgrid.com
+
+# Mailgun
+mailgun.org
+mailgun.com
+mg.mailgun.com
+
+# Postmark
+postmarkapp.com
+mtasv.net
+
+# Mandrill / Mailchimp
+mandrillapp.com
+mailchimp.com
+mailchimpapp.com
+mcsv.net
+list-manage.com
+
+# SparkPost
+sparkpostmail.com
+sparkpost.com
+
+# Twilio / SendGrid Inc
+twilio.com
+twiliomail.com
+
+# Constant Contact
+ccsend.com
+constantcontact.com
+
+# Campaign Monitor
+cmail19.com
+cmail20.com
+
+# ActiveCampaign
+activehosted.com
+ac-mail.com
+
+# HubSpot
+hubspotemail.net
+hubspot.com
+
+# Drip / Klaviyo / Customer.io / Iterable
+drip.com
+sendlane.com
+klaviyo.com
+customeriomail.com
+iterable.com
+
+# Marketo
+marketo.com
+mktomail.com
+
+# Salesforce
+salesforce.com
+exacttarget.com
+mc.exacttarget.com
+
+# Brevo (Sendinblue) / Mailjet
+brevo.com
+sendinblue.com
+mailjet.com
+mailjet.info
+
+# Postal / Mailtrap / Mailosaur
+mailtrap.io
+mailosaur.net
+
+
+# ====================================================================
+# SaaS notification domains
+# ====================================================================
+# Major SaaS products' transactional senders
+
+# GitHub
+github.com
+noreply.github.com
+
+# GitLab / Atlassian
+gitlab.com
+atlassian.com
+atlassian.net
+bitbucket.org
+trello.com
+jira.com
+
+# Slack
+slack.com
+slack-mail.com
+
+# Discord
+discord.com
+discordapp.com
+
+# Zoom
+zoom.us
+zoomgov.com
+
+# Microsoft Teams (covered by microsoft.com above)
+
+# Figma / Linear / Notion / Asana
+figma.com
+linear.app
+notion.so
+notion.com
+asana.com
+monday.com
+
+# Zendesk / Intercom / Freshworks
+zendesk.com
+intercom.io
+intercom-mail.com
+freshdesk.com
+freshworks.com
+
+# Stripe / PayPal / Square / Klarna / Wise
+stripe.com
+paypal.com
+paypal.co.jp
+square.com
+squareup.com
+klarna.com
+wise.com
+transferwise.com
+
+# Crypto / Coinbase / Binance
+coinbase.com
+binance.com
+gemini.com
+kraken.com
+
+# Booking / travel / hospitality
+booking.com
+expedia.com
+trip.com
+trip.jp
+agoda.com
+hotels.com
+airbnb.com
+airbnb.jp
+
+# Uber / Lyft / food / delivery
+uber.com
+lyft.com
+doordash.com
+ubereats.com
+
+# Adobe / Autodesk / Dropbox / Box
+adobe.com
+adobesign.com
+autodesk.com
+dropbox.com
+dropboxmail.com
+box.com
+
+# Twitter / Meta / LinkedIn / Reddit / TikTok
+twitter.com
+x.com
+e.twitter.com
+meta.com
+facebook.com
+facebookmail.com
+linkedin.com
+e.linkedin.com
+reddit.com
+tiktok.com
+bytedance.com
+
+# Pinterest / Tumblr / Quora / Medium / WordPress / Squarespace
+pinterest.com
+tumblr.com
+quora.com
+medium.com
+mediumcorp.com
+wordpress.com
+squarespace.com
+wix.com
+
+# CRM / form / e-commerce platforms
+shopify.com
+woocommerce.com
+bigcommerce.com
+salesloft.com
+outreach.io
+
+# Analytics / monitoring
+googletagmanager.com
+mixpanel.com
+amplitude.com
+heap.io
+segment.com
+datadoghq.com
+newrelic.com
+pagerduty.com
+
+
+# ====================================================================
+# Cloud / hosting / infrastructure providers
+# ====================================================================
+amazonaws.com
+ses-noreply.amazonses.com
+googlecloud.com
+cloud.google.com
+azure.com
+azurewebsites.net
+heroku.com
+herokuapp.com
+netlify.com
+vercel.com
+fly.io
+fly.dev
+digitalocean.com
+linode.com
+cloudflare.com
+cloudflare.net
+
+# Domain registrars / DNS
+godaddy.com
+namecheap.com
+namebox.com
+porkbun.com
+gandi.net
+hover.com
+ovh.com
+ionos.com
+ionos.net
+
+
+# ====================================================================
+# E-commerce / marketplaces
+# ====================================================================
+# Amazon localized
+amazon.co.uk
+amazon.de
+amazon.fr
+amazon.it
+amazon.es
+amazon.ca
+amazon.com.au
+amazon.in
+amazon.com.br
+amazon.cn
+
+# eBay
+ebay.com
+ebay.co.uk
+ebay.de
+ebay.fr
+ebay.com.au
+ebay.ca
+
+# Etsy
+etsy.com
+
+# Alibaba / Aliexpress
+alibaba.com
+aliexpress.com
+1688.com
+
+# Walmart / Target / BestBuy
+walmart.com
+target.com
+bestbuy.com
+
+# Costco
+costco.com
+
+# IKEA
+ikea.com
+ikea.co.jp
+
+# Mercari / Yahoo Shopping (Japan)
+mercari.com
+mercari.jp
+
+# JP B2C
+amazon.co.jp
+rakuten.ne.jp
+zozo.jp
+zozotown.com
+
+
+# ====================================================================
+# Logistics / shipping
+# ====================================================================
+fedex.com
+ups.com
+dhl.com
+dhlecommerce.com
+usps.com
+royalmail.com
+deutschepost.de
+laposte.fr
+correios.com.br
+auspost.com.au
+canadapost.ca
+
+# Japan delivery
+yamato.co.jp
+post.japanpost.jp
+nittsu.co.jp
+sagawa-exp.co.jp
+
+
+# ====================================================================
+# Banking / payment / fintech
+# ====================================================================
+visa.com
+mastercard.com
+americanexpress.com
+ae.com
+discovercard.com
+
+# US banks
+chase.com
+bankofamerica.com
+wellsfargo.com
+citibank.com
+capitalone.com
+
+# UK / EU banks
+hsbc.com
+hsbc.co.uk
+barclays.co.uk
+lloyds.com
+natwest.com
+santander.com
+ing.com
+deutsche-bank.de
+
+# JP banks
+mufg.jp
+mizuhobank.co.jp
+smbc.co.jp
+japanpost.jp
+shinseibank.com
+sevenbank.co.jp
+
+
+# ====================================================================
+# Streaming / media / ticketing
+# ====================================================================
+netflix.com
+hulu.com
+spotify.com
+disney.com
+disneyplus.com
+amazonprime.com
+youtube.com
+twitch.tv
+sponicasterbus.com
+soundcloud.com
+ticketmaster.com
+livenation.com
+
+
+# ====================================================================
+# Education / research
+# ====================================================================
+coursera.org
+edx.org
+udemy.com
+khanacademy.org
+duolingo.com
+ieee.org
+acm.org
+arxiv.org
+overleaf.com
+
+# Reference: edu domains are usually fine to whitelist on a per-need
+# basis. The major US ones below; add others as needed.
+harvard.edu
+mit.edu
+stanford.edu
+cmu.edu
+berkeley.edu
+
+
+# ====================================================================
+# Government / public services (samples)
+# ====================================================================
+# Adding common state senders that legitimately email business inboxes
+# (tax authorities, registration confirmations). Localize per region.
+
+# Japan
+e-gov.go.jp
+nta.go.jp        # National Tax Agency
+
+# US
+irs.gov
+ssa.gov
+usps.gov
+
+# UK
+gov.uk
+hmrc.gov.uk
+
+# EU
+europa.eu
+
+
+# ====================================================================
+# Enterprise mail commonly seen in B2B threads
+# ====================================================================
+# These are not "providers" but are large enterprises whose senders
+# frequently land in cross-org threads. Curate by what shows up in
+# real reject/defer logs.
+
+# Qualcomm
 qti.qualcomm.com
 qualcomm.com
+
+# FocusAI
 focusai.com
 
+# Reach
+reachglobal.com
+
+
+# ====================================================================
 # GOLIA owned domains (self / partner trust)
+# ====================================================================
 golia.jp
 golia.ai
 dadaya.jp
