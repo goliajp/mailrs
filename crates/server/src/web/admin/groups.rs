@@ -43,7 +43,9 @@ pub(crate) async fn list_groups(
 
 pub(crate) async fn create_group(
     AuthUser {
-        ref permissions, ..
+        ref address,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<CreateGroupRequest>,
@@ -67,10 +69,23 @@ pub(crate) async fn create_group(
         .add_group(&req.name, req.domain.as_deref(), &req.description)
         .await
     {
-        Ok(id) => Json(ApiResult {
-            success: true,
-            message: Some(id.to_string()),
-        }),
+        Ok(id) => {
+            ds.log_audit(
+                address,
+                "group_created",
+                &id.to_string(),
+                &format!(
+                    "name={} domain={}",
+                    req.name,
+                    req.domain.as_deref().unwrap_or("(global)")
+                ),
+            )
+            .await;
+            Json(ApiResult {
+                success: true,
+                message: Some(id.to_string()),
+            })
+        }
         Err(e) => {
             tracing::warn!(error = %e, "admin operation failed");
             Json(ApiResult {
@@ -84,7 +99,9 @@ pub(crate) async fn create_group(
 pub(crate) async fn delete_group(
     Path(id): Path<i64>,
     AuthUser {
-        ref permissions, ..
+        ref address,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -98,10 +115,14 @@ pub(crate) async fn delete_group(
         });
     };
     match ds.remove_group(id).await {
-        Ok(true) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(true) => {
+            ds.log_audit(address, "group_deleted", &id.to_string(), "")
+                .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Ok(false) => Json(ApiResult {
             success: false,
             message: Some("group not found or is builtin".into()),
@@ -136,7 +157,9 @@ pub(crate) async fn get_group_permissions(
 pub(crate) async fn set_group_permissions(
     Path(id): Path<i64>,
     AuthUser {
-        ref permissions, ..
+        ref address,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetGroupPermissionsRequest>,
@@ -160,10 +183,19 @@ pub(crate) async fn set_group_permissions(
         });
     };
     match ds.set_group_permissions(id, &req.permissions).await {
-        Ok(()) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(()) => {
+            let detail = serde_json::json!({
+                "id": id,
+                "permissions": req.permissions,
+            })
+            .to_string();
+            ds.log_audit(address, "group_permissions_set", &id.to_string(), &detail)
+                .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Err(e) => {
             tracing::warn!(error = %e, "admin operation failed");
             Json(ApiResult {
@@ -194,7 +226,9 @@ pub(crate) async fn list_group_members(
 pub(crate) async fn add_group_member(
     Path(id): Path<i64>,
     AuthUser {
-        ref permissions, ..
+        address: actor,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddMemberRequest>,
@@ -209,10 +243,19 @@ pub(crate) async fn add_group_member(
         });
     };
     match ds.add_account_to_group(&req.address, id).await {
-        Ok(()) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(()) => {
+            ds.log_audit(
+                &actor,
+                "group_member_added",
+                &id.to_string(),
+                &format!("address={}", req.address),
+            )
+            .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Err(e) => {
             tracing::warn!(error = %e, "admin operation failed");
             Json(ApiResult {
@@ -226,7 +269,9 @@ pub(crate) async fn add_group_member(
 pub(crate) async fn remove_group_member(
     Path((id, address)): Path<(i64, String)>,
     AuthUser {
-        ref permissions, ..
+        address: actor,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -240,10 +285,19 @@ pub(crate) async fn remove_group_member(
         });
     };
     match ds.remove_account_from_group(&address, id).await {
-        Ok(true) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(true) => {
+            ds.log_audit(
+                &actor,
+                "group_member_removed",
+                &id.to_string(),
+                &format!("address={address}"),
+            )
+            .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Ok(false) => Json(ApiResult {
             success: false,
             message: Some("membership not found".into()),

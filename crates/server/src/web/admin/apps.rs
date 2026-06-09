@@ -188,7 +188,9 @@ pub(crate) async fn get_app(
 pub(crate) async fn delete_app(
     Path(app_id): Path<String>,
     AuthUser {
-        ref permissions, ..
+        ref address,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -202,10 +204,13 @@ pub(crate) async fn delete_app(
         });
     };
     match ds.remove_app(&app_id).await {
-        Ok(true) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(true) => {
+            ds.log_audit(address, "app_deleted", &app_id, "").await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Ok(false) => Json(ApiResult {
             success: false,
             message: Some("app not found".into()),
@@ -223,7 +228,9 @@ pub(crate) async fn delete_app(
 pub(crate) async fn update_app_scopes(
     Path(app_id): Path<String>,
     AuthUser {
-        ref permissions, ..
+        ref address,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<UpdateAppScopesRequest>,
@@ -252,11 +259,21 @@ pub(crate) async fn update_app_scopes(
             message: Some("domain store not configured".into()),
         });
     };
-    match ds.update_app_scopes(&app_id, &scopes.join(",")).await {
-        Ok(true) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+    let joined = scopes.join(",");
+    match ds.update_app_scopes(&app_id, &joined).await {
+        Ok(true) => {
+            let detail = serde_json::json!({
+                "id": app_id,
+                "scopes": joined,
+            })
+            .to_string();
+            ds.log_audit(address, "app_scopes_updated", &app_id, &detail)
+                .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Ok(false) => Json(ApiResult {
             success: false,
             message: Some("app not found".into()),

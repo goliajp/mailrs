@@ -56,7 +56,9 @@ pub(crate) async fn get_quota(
 pub(crate) async fn set_quota(
     Path(address): Path<String>,
     AuthUser {
-        ref permissions, ..
+        address: actor,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetQuotaRequest>,
@@ -71,10 +73,19 @@ pub(crate) async fn set_quota(
         });
     };
     match ds.set_quota(&address, req.quota_bytes).await {
-        Ok(true) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(true) => {
+            ds.log_audit(
+                &actor,
+                "account_quota_set",
+                &address,
+                &format!("quota_bytes={}", req.quota_bytes),
+            )
+            .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Ok(false) => Json(ApiResult {
             success: false,
             message: Some("account not found".into()),

@@ -548,6 +548,14 @@ impl MailMcpService {
         .await
         .map_err(|e| McpError::internal_error(format!("failed to create account: {e}"), None))?;
 
+        ds.log_audit(
+            &self.auth_user.address,
+            "account_created",
+            &params.address,
+            &format!("domain={}", params.domain),
+        )
+        .await;
+
         // auto-add to domain's user group
         let groups = ds
             .list_groups(Some(&params.domain))
@@ -586,6 +594,13 @@ impl MailMcpService {
         })?;
 
         if removed {
+            ds.log_audit(
+                &self.auth_user.address,
+                "account_removed",
+                &params.address,
+                "",
+            )
+            .await;
             Ok(CallToolResult::success(vec![Content::text(
                 serde_json::json!({"status": "removed", "address": params.address}).to_string(),
             )]))
@@ -625,6 +640,14 @@ impl MailMcpService {
         )
         .await
         .map_err(|e| McpError::internal_error(format!("failed to update password: {e}"), None))?;
+
+        ds.log_audit(
+            &self.auth_user.address,
+            "password_reset",
+            &params.address,
+            "",
+        )
+        .await;
 
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({"status": "password_updated", "address": params.address})
@@ -727,6 +750,14 @@ impl MailMcpService {
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
+        ds.log_audit(
+            &self.auth_user.address,
+            "group_member_added",
+            &params.group_id.to_string(),
+            &format!("address={}", params.address),
+        )
+        .await;
+
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({"status": "added", "address": params.address, "group_id": params.group_id}).to_string(),
         )]))
@@ -752,6 +783,13 @@ impl MailMcpService {
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
         if removed {
+            ds.log_audit(
+                &self.auth_user.address,
+                "group_member_removed",
+                &params.group_id.to_string(),
+                &format!("address={}", params.address),
+            )
+            .await;
             Ok(CallToolResult::success(vec![Content::text(
                 serde_json::json!({"status": "removed", "address": params.address, "group_id": params.group_id}).to_string(),
             )]))
@@ -789,6 +827,13 @@ impl MailMcpService {
         ds.add_domain(&params.name, chrono::Utc::now().timestamp())
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        ds.log_audit(
+            &self.auth_user.address,
+            "domain_added",
+            &params.name,
+            &format!("name={}", params.name),
+        )
+        .await;
         self.ok_result("domain_added", &params.name)
     }
 
@@ -806,6 +851,13 @@ impl MailMcpService {
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         if removed {
+            ds.log_audit(
+                &self.auth_user.address,
+                "domain_removed",
+                &params.name,
+                &format!("name={}", params.name),
+            )
+            .await;
             self.ok_result("domain_removed", &params.name)
         } else {
             Err(McpError::invalid_params("domain not found", None))
@@ -858,6 +910,16 @@ impl MailMcpService {
             )
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        ds.log_audit(
+            &self.auth_user.address,
+            "alias_added",
+            &id.to_string(),
+            &format!(
+                "source={} target={} type={}",
+                params.source_address, params.target_address, params.alias_type
+            ),
+        )
+        .await;
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({"status": "alias_added", "id": id, "source": params.source_address, "target": params.target_address}).to_string(),
         )]))
@@ -875,6 +937,13 @@ impl MailMcpService {
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         if removed {
+            ds.log_audit(
+                &self.auth_user.address,
+                "alias_removed",
+                &params.id.to_string(),
+                "",
+            )
+            .await;
             self.ok_result("alias_removed", &params.id.to_string())
         } else {
             Err(McpError::invalid_params("alias not found", None))
@@ -1081,6 +1150,14 @@ impl MailMcpService {
         .await
         .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
+        ds.log_audit(
+            &self.auth_user.address,
+            "app_created",
+            &app_id,
+            &format!("name={}", params.name),
+        )
+        .await;
+
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({
                 "app_id": app_id, "name": params.name, "scopes": params.scopes,
@@ -1105,6 +1182,8 @@ impl MailMcpService {
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         if removed {
+            ds.log_audit(&self.auth_user.address, "app_deleted", &params.app_id, "")
+                .await;
             self.ok_result("app_deleted", &params.app_id)
         } else {
             Err(McpError::invalid_params("app not found", None))
@@ -1406,6 +1485,13 @@ impl MailMcpService {
             )
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        ds.log_audit(
+            &self.auth_user.address,
+            "email_group_created",
+            &id.to_string(),
+            &format!("address={} domain={}", params.address, params.domain),
+        )
+        .await;
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({"status": "created", "id": id, "address": params.address})
                 .to_string(),
@@ -1424,7 +1510,16 @@ impl MailMcpService {
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?
         {
-            Some(addr) => self.ok_result("deleted", &addr),
+            Some(addr) => {
+                ds.log_audit(
+                    &self.auth_user.address,
+                    "email_group_deleted",
+                    &params.id.to_string(),
+                    "",
+                )
+                .await;
+                self.ok_result("deleted", &addr)
+            }
             None => Err(McpError::invalid_params("email group not found", None)),
         }
     }
@@ -1456,6 +1551,13 @@ impl MailMcpService {
         ds.add_email_group_member(params.group_id, &params.address)
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        ds.log_audit(
+            &self.auth_user.address,
+            "email_group_member_added",
+            &params.group_id.to_string(),
+            &format!("address={}", params.address),
+        )
+        .await;
         self.ok_result("member_added", &params.address)
     }
 
@@ -1473,6 +1575,13 @@ impl MailMcpService {
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         if removed {
+            ds.log_audit(
+                &self.auth_user.address,
+                "email_group_member_removed",
+                &params.group_id.to_string(),
+                &format!("address={}", params.address),
+            )
+            .await;
             self.ok_result("member_removed", &params.address)
         } else {
             Err(McpError::invalid_params("member not found", None))
@@ -2044,6 +2153,16 @@ impl MailMcpService {
             .await
             .map_err(|e| McpError::invalid_params(e, None))?;
 
+        if let Some(ref ds) = self.web_state.domain_store {
+            ds.log_audit(
+                &self.auth_user.address,
+                "system_config_updated",
+                &params.key,
+                &params.value,
+            )
+            .await;
+        }
+
         self.ok_result("updated", &format!("{} = {}", params.key, params.value))
     }
 
@@ -2065,6 +2184,16 @@ impl MailMcpService {
             .delete(&params.key)
             .await
             .map_err(|e| McpError::invalid_params(e, None))?;
+
+        if let Some(ref ds) = self.web_state.domain_store {
+            ds.log_audit(
+                &self.auth_user.address,
+                "system_config_reset",
+                &params.key,
+                "",
+            )
+            .await;
+        }
 
         self.ok_result("reset", &format!("{} reverted to default", params.key))
     }

@@ -47,7 +47,9 @@ pub(crate) async fn get_sieve(
 pub(crate) async fn set_sieve(
     Path(address): Path<String>,
     AuthUser {
-        ref permissions, ..
+        address: actor,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetSieveRequest>,
@@ -75,11 +77,21 @@ pub(crate) async fn set_sieve(
         });
     }
     let now = chrono::Utc::now().timestamp();
+    let script_len = req.script.len();
     match ds.set_sieve_script(&address, &req.script, now).await {
-        Ok(()) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(()) => {
+            ds.log_audit(
+                &actor,
+                "sieve_set",
+                &address,
+                &format!("size={script_len}"),
+            )
+            .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Err(e) => {
             tracing::warn!(error = %e, "admin operation failed");
             Json(ApiResult {
@@ -92,7 +104,9 @@ pub(crate) async fn set_sieve(
 
 pub(crate) async fn delete_sieve(
     Path(address): Path<String>,
-    AuthUser { .. }: AuthUser,
+    AuthUser {
+        address: actor, ..
+    }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
@@ -102,10 +116,13 @@ pub(crate) async fn delete_sieve(
         });
     };
     match ds.delete_sieve_script(&address).await {
-        Ok(true) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(true) => {
+            ds.log_audit(&actor, "sieve_deleted", &address, "").await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Ok(false) => Json(ApiResult {
             success: false,
             message: Some("no sieve script found".into()),

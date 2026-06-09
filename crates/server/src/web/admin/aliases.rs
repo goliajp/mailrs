@@ -28,7 +28,9 @@ pub(crate) async fn list_aliases(
 
 pub(crate) async fn add_alias(
     AuthUser {
-        ref permissions, ..
+        ref address,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddAliasRequest>,
@@ -71,10 +73,22 @@ pub(crate) async fn add_alias(
         )
         .await
     {
-        Ok(_) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(id) => {
+            ds.log_audit(
+                address,
+                "alias_added",
+                &id.to_string(),
+                &format!(
+                    "source={} target={} type={}",
+                    req.source_address, req.target_address, req.alias_type
+                ),
+            )
+            .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Err(e) => {
             tracing::warn!(error = %e, "admin operation failed");
             Json(ApiResult {
@@ -87,7 +101,7 @@ pub(crate) async fn add_alias(
 
 pub(crate) async fn remove_alias(
     Path(id): Path<i64>,
-    AuthUser { .. }: AuthUser,
+    AuthUser { ref address, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
@@ -97,10 +111,14 @@ pub(crate) async fn remove_alias(
         });
     };
     match ds.remove_alias(id).await {
-        Ok(true) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(true) => {
+            ds.log_audit(address, "alias_removed", &id.to_string(), "")
+                .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Ok(false) => Json(ApiResult {
             success: false,
             message: Some("alias not found".into()),

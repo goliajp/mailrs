@@ -59,6 +59,7 @@ pub(crate) async fn get_queue(State(state): State<Arc<WebState>>) -> impl IntoRe
 
 pub(crate) async fn retry_queue_message(
     Path(id): Path<i64>,
+    AuthUser { ref address, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref pool) = state.outbound_queue else {
@@ -70,10 +71,16 @@ pub(crate) async fn retry_queue_message(
 
     let now = chrono::Utc::now().timestamp();
     match mailrs_outbound_queue::queue::retry_message(pool, id, now).await {
-        Ok(true) => Json(RetryResponse {
-            success: true,
-            message: format!("message {id} queued for retry"),
-        }),
+        Ok(true) => {
+            if let Some(ref ds) = state.domain_store {
+                ds.log_audit(address, "queue_message_retried", &id.to_string(), "")
+                    .await;
+            }
+            Json(RetryResponse {
+                success: true,
+                message: format!("message {id} queued for retry"),
+            })
+        }
         Ok(false) => Json(RetryResponse {
             success: false,
             message: format!("message {id} not found or not retryable"),
@@ -112,7 +119,9 @@ pub(crate) async fn list_suppressed(
 
 pub(crate) async fn remove_suppressed(
     AuthUser {
-        ref permissions, ..
+        ref address,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(body): Json<SuppressionAction>,
@@ -128,11 +137,22 @@ pub(crate) async fn remove_suppressed(
         .into_response();
     };
     match mailrs_outbound_queue::queue::remove_suppression(pool, &body.email).await {
-        Ok(true) => Json(ApiResult {
-            success: true,
-            message: None,
-        })
-        .into_response(),
+        Ok(true) => {
+            if let Some(ref ds) = state.domain_store {
+                ds.log_audit(
+                    address,
+                    "suppression_removed",
+                    &body.email,
+                    &format!("email={}", body.email),
+                )
+                .await;
+            }
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+            .into_response()
+        }
         Ok(false) => Json(ApiResult {
             success: false,
             message: Some("not found".into()),
