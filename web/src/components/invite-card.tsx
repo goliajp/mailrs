@@ -193,11 +193,16 @@ export function InviteCard({
 
   if (compact) {
     const statusLabel = persistedStatus ? compactStatusLabel(persistedStatus) : null
+    // formatLocalRange ('2026年4月16日 19:30 → 2026年4月16日 20:00') overflowed
+    // the narrow timeline card. compactRange drops year + same-day duplicate
+    // and falls back to truncate via `min-w-0 truncate` if it still doesn't
+    // fit a particularly narrow viewport.
+    const compactR = formatCompactRange(payload.dtstart, payload.dtend)
     return (
       <div className="border-border text-fg-muted my-1.5 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
         <Calendar className="h-3 w-3 shrink-0" />
         <span className="text-fg min-w-0 truncate font-medium">{payload.summary}</span>
-        {range && <span className="shrink-0 opacity-70">· {range}</span>}
+        {compactR && <span className="min-w-0 shrink truncate opacity-70">· {compactR}</span>}
         {statusLabel && (
           <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${statusLabel.className}`}>
             {statusLabel.label}
@@ -409,6 +414,31 @@ function compactStatusLabel(partstat: string): null | { className: string; label
   }
 }
 
+function fmtHm(d: Date): string {
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+/// Narrow timeline render: drop the year, and if start and end fall on the
+/// same calendar day, render only the time of `end`. So a 60-min meeting
+/// becomes `4月16日 19:30 → 20:00` instead of `2026年4月16日 19:30 →
+/// 2026年4月16日 20:00`. Returns '' when there's no start to show.
+function formatCompactRange(
+  start: CalDateTime | null | undefined,
+  end: CalDateTime | null | undefined
+): string {
+  const sd = toLocalDate(start)
+  if (!sd) return ''
+  const sLabel = `${sd.getMonth() + 1}月${sd.getDate()}日 ${fmtHm(sd)}`
+  const ed = toLocalDate(end)
+  if (!ed) return sLabel
+  const sameDay =
+    sd.getFullYear() === ed.getFullYear() &&
+    sd.getMonth() === ed.getMonth() &&
+    sd.getDate() === ed.getDate()
+  const eLabel = sameDay ? fmtHm(ed) : `${ed.getMonth() + 1}月${ed.getDate()}日 ${fmtHm(ed)}`
+  return `${sLabel} → ${eLabel}`
+}
+
 function formatDateTime(dt: CalDateTime | null | undefined): string {
   const iso = pickIso(dt)
   if (!iso) return ''
@@ -491,4 +521,12 @@ function RsvpStatusPill({ at, partstat }: { at: null | string; partstat: string 
       {when && <span className="text-fg-muted ml-1 font-normal">{when}</span>}
     </span>
   )
+}
+
+function toLocalDate(dt: CalDateTime | null | undefined): Date | null {
+  const iso = pickIso(dt)
+  if (!iso) return null
+  const parseable = isUtc(dt) ? iso : `${iso.replace(/Z$/, '')}Z`
+  const d = new Date(parseable)
+  return isNaN(d.getTime()) ? null : d
 }

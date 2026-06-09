@@ -63,6 +63,18 @@ export function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
 
+/// Fixed-format HH:mm for timeline message headers. The surrounding date
+/// divider already provides the day grouping, so the per-message timestamp
+/// only carries the time-of-day signal — using `formatDate`'s fuzzy
+/// (today→time / yesterday / weekday / month-day) output here would
+/// duplicate the divider's "4月16日" label for every same-day message.
+export function formatTimeOfDay(ts: number): string {
+  return new Date(ts * 1000).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export function formatUptime(secs: number): string {
   const h = Math.floor(secs / 3600)
   const m = Math.floor((secs % 3600) / 60)

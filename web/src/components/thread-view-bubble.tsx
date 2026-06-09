@@ -8,7 +8,7 @@ import { Fragment, memo, useCallback, useEffect, useRef, useState } from 'react'
 import { InviteCard } from '@/components/invite-card'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { type FeedbackAction, recordFeedback } from '@/lib/api'
-import { formatDate } from '@/lib/format'
+import { formatTimeOfDay } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
 
 type ThreadTimelineItemProps = {
@@ -76,7 +76,7 @@ export const ThreadTimelineItem = memo(function ThreadTimelineItem({
               {isOwn ? 'Me' : displayName}
             </span>
             <span className="text-fg-muted text-xs">
-              {formatDate(msg.internal_date)}
+              {formatTimeOfDay(msg.internal_date)}
               {msg.attachments.length > 0 && (
                 <Paperclip className="ml-1 inline-block h-3 w-3 align-[-1px]" />
               )}
