@@ -127,13 +127,17 @@ pub fn compute_effective_permissions(
     overrides: &[(String, bool)],
     all_domains: &[String],
 ) -> EffectivePermissions {
-    // check if any global group has all permissions (= super)
-    let is_super = groups.iter().any(|ag| {
-        ag.group.domain.is_none()
-            && ALL_PERMISSIONS
-                .iter()
-                .all(|p| ag.permissions.iter().any(|gp| gp == p))
-    });
+    // Super identity = built-in global group literally named "super". The
+    // earlier "group has all permissions in ALL_PERMISSIONS" heuristic was
+    // self-defeating: every time the application code added a new perm to
+    // ALL_PERMISSIONS, every existing super group's group_permissions row
+    // was suddenly "incomplete" and the user silently lost super status.
+    // Tying identity to the marker (is_builtin + name) instead lets new
+    // perms in ALL_PERMISSIONS be auto-granted to super without any DB
+    // migration.
+    let is_super = groups
+        .iter()
+        .any(|ag| ag.group.is_builtin && ag.group.domain.is_none() && ag.group.name == "super");
 
     if is_super {
         // super user: check if any override revokes a permission
@@ -224,13 +228,30 @@ mod tests {
         }
     }
 
+    /// Built-in global "super" group fixture. Identity is what makes it
+    /// super (not the perms list), matching the prod schema where group 1
+    /// has is_builtin=true / name='super' / domain IS NULL.
+    fn make_super_group(perms: &[&str]) -> AccountGroup {
+        AccountGroup {
+            group: GroupInfo {
+                id: 1,
+                name: "super".to_string(),
+                domain: None,
+                description: String::new(),
+                is_builtin: true,
+                created_at: 0,
+            },
+            permissions: perms.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
     fn all_domains() -> Vec<String> {
         vec!["golia.jp".into(), "golia.ai".into()]
     }
 
     #[test]
     fn super_group_grants_everything() {
-        let groups = vec![make_group("super", None, ALL_PERMISSIONS)];
+        let groups = vec![make_super_group(ALL_PERMISSIONS)];
         let perms = compute_effective_permissions(&groups, &[], &all_domains());
 
         assert!(perms.is_super());
@@ -238,6 +259,32 @@ mod tests {
         assert!(perms.has("admin.groups"));
         assert!(perms.has("admin.impersonate"));
         assert_eq!(perms.accessible_domains().len(), 2);
+    }
+
+    #[test]
+    fn super_group_is_super_even_with_missing_perms() {
+        // Regression: previously is_super required the group's perms list to
+        // contain every entry in ALL_PERMISSIONS, so adding a new perm to
+        // the code (e.g. admin.cache) silently demoted every existing super
+        // group. The fix anchors super identity to the group marker, not
+        // the perms list — even an empty perms list still grants super.
+        let groups = vec![make_super_group(&[])];
+        let perms = compute_effective_permissions(&groups, &[], &all_domains());
+
+        assert!(perms.is_super());
+        assert!(perms.has("admin.cache"));
+        assert!(perms.has("mail.send"));
+    }
+
+    #[test]
+    fn non_super_named_super_is_not_super() {
+        // Identity check requires is_builtin + domain.is_none() + name.
+        // A non-builtin domain group that happens to be named "super" must
+        // NOT confer super — protects against admins fashioning fake supers.
+        let groups = vec![make_group("super", Some("golia.jp"), ALL_PERMISSIONS)];
+        let perms = compute_effective_permissions(&groups, &[], &all_domains());
+
+        assert!(!perms.is_super());
     }
 
     #[test]
@@ -286,7 +333,7 @@ mod tests {
 
     #[test]
     fn super_with_revoke_override_downgrades() {
-        let groups = vec![make_group("super", None, ALL_PERMISSIONS)];
+        let groups = vec![make_super_group(ALL_PERMISSIONS)];
         let overrides = vec![("admin.impersonate".to_string(), false)];
         let perms = compute_effective_permissions(&groups, &overrides, &all_domains());
 
@@ -337,7 +384,7 @@ mod tests {
 
     #[test]
     fn super_permission_list_complete() {
-        let groups = vec![make_group("super", None, ALL_PERMISSIONS)];
+        let groups = vec![make_super_group(ALL_PERMISSIONS)];
         let perms = compute_effective_permissions(&groups, &[], &all_domains());
         let list = perms.permission_list();
         assert_eq!(list.len(), ALL_PERMISSIONS.len());
