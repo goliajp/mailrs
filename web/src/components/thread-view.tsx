@@ -277,7 +277,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       ? DOMPurify.sanitize(msg.html_body)
       : `<pre style="white-space:pre-wrap;word-break:break-word;font-family:sans-serif;font-size:14px;line-height:1.6">${esc(msg.clean_text || msg.text_body || '')}</pre>`
     w.document.write(
-      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(msg.subject || '')}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:2rem;max-width:800px;margin:0 auto}table{border-collapse:collapse;width:100%;margin-bottom:1.5rem}td{padding:4px 8px;font-size:14px}td:first-child{font-weight:600;white-space:nowrap;color:#555;width:80px}hr{border:none;border-top:1px solid #ddd;margin:1rem 0}img{max-width:100%}@media print{body{padding:0}}</style></head><body><table><tr><td>From</td><td>${esc(msg.sender)}</td></tr><tr><td>To</td><td>${esc(msg.recipients)}</td></tr><tr><td>Date</td><td>${esc(formatFullDate(msg.internal_date))}</td></tr><tr><td>Subject</td><td>${esc(msg.subject || '')}</td></tr></table><hr><div>${body}</div></body></html>`
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(msg.subject || '')}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:2rem;max-width:800px;margin:0 auto}table{border-collapse:collapse;width:100%;margin-bottom:1.5rem}td{padding:4px 8px;font-size:14px}td:first-child{font-weight:600;white-space:nowrap;color:#555;width:80px}hr{border:none;border-top:1px solid #ddd;margin:1rem 0}img{max-width:100%}@media print{body{padding:0}}</style></head><body><table><tr><td>From</td><td>${esc(msg.sender)}</td></tr><tr><td>To</td><td>${esc(msg.recipients)}</td></tr>${msg.cc ? `<tr><td>Cc</td><td>${esc(msg.cc)}</td></tr>` : ''}<tr><td>Date</td><td>${esc(formatFullDate(msg.internal_date))}</td></tr><tr><td>Subject</td><td>${esc(msg.subject || '')}</td></tr></table><hr><div>${body}</div></body></html>`
     )
     w.document.close()
     w.onload = () => w.print()
@@ -660,6 +660,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           to {formatRecipients(selectedMsg.recipients)}
                         </span>
                       </p>
+                      {selectedMsg.cc && (
+                        <p className="text-fg-muted flex h-4 items-center text-xs select-text">
+                          <span className="truncate">cc {formatRecipients(selectedMsg.cc)}</span>
+                        </p>
+                      )}
                       <div className="flex h-5 items-center gap-1.5">
                         <span className="text-fg-muted text-xs leading-none">
                           {formatFullDate(selectedMsg.internal_date)}

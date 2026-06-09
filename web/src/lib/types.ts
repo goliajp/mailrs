@@ -235,6 +235,9 @@ export type ThreadMessage = {
   attachments: AttachmentInfo[]
   bimi_logo_url?: null | string
   category: string
+  // Cc list verbatim from the email's Cc: header, RFC 2047 decoded.
+  // Omitted when no Cc was present, so most one-to-one threads ship without it.
+  cc?: null | string
   clean_text: null | string
   dates: DateMention[]
   flags: number
