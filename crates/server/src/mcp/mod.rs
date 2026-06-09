@@ -881,6 +881,140 @@ impl MailMcpService {
         }
     }
 
+    // --- greylist local lists (Phase 2) ---
+
+    #[tool(
+        description = "List local greylist whitelist/blacklist entries. Filter by kind (domain/email/cidr) or list (white/black). Requires admin.greylist."
+    )]
+    async fn greylist_local_list(
+        &self,
+        Parameters(params): Parameters<GreylistLocalListParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.greylist")?;
+        let pool = self.pool()?;
+        let mut sql = "SELECT id, kind, list, value, note, \
+             EXTRACT(EPOCH FROM created_at)::bigint, created_by \
+             FROM greylist_local_lists WHERE 1=1"
+            .to_string();
+        let mut binds: Vec<String> = Vec::new();
+        if let Some(ref k) = params.kind
+            && matches!(k.as_str(), "domain" | "email" | "cidr")
+        {
+            binds.push(k.clone());
+            sql.push_str(&format!(" AND kind = ${}", binds.len()));
+        }
+        if let Some(ref l) = params.list
+            && matches!(l.as_str(), "white" | "black")
+        {
+            binds.push(l.clone());
+            sql.push_str(&format!(" AND list = ${}", binds.len()));
+        }
+        sql.push_str(" ORDER BY id");
+        let mut q = sqlx::query_as::<
+            _,
+            (i64, String, String, String, Option<String>, i64, Option<String>),
+        >(&sql);
+        for b in &binds {
+            q = q.bind(b);
+        }
+        let rows = q
+            .fetch_all(pool)
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let items: Vec<serde_json::Value> = rows
+            .into_iter()
+            .map(|(id, kind, list, value, note, created_at, created_by)| {
+                serde_json::json!({
+                    "id": id,
+                    "kind": kind,
+                    "list": list,
+                    "value": value,
+                    "note": note,
+                    "created_at": created_at,
+                    "created_by": created_by,
+                })
+            })
+            .collect();
+        self.json_result(&items)
+    }
+
+    #[tool(
+        description = "Add a local greylist entry. white entries bypass the greylist (skip triplet check); black entries are rejected with SMTP 550. A single key cannot exist on both lists at once — to move an entry, remove and re-add. kind is domain/email/cidr; list is white/black. Requires admin.greylist."
+    )]
+    async fn greylist_local_add(
+        &self,
+        Parameters(params): Parameters<GreylistLocalAddParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.greylist")?;
+        let pool = self.pool()?;
+        crate::greylist_local::validate_list(&params.list)
+            .map_err(|e| McpError::invalid_params(e.to_string(), None))?;
+        let normalized = crate::greylist_local::normalize(&params.kind, &params.value)
+            .map_err(|e| McpError::invalid_params(e.to_string(), None))?;
+        let actor = self.auth_user.address.clone();
+        let res: Result<(i64,), sqlx::Error> = sqlx::query_as(
+            "INSERT INTO greylist_local_lists (kind, list, value, note, created_by)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id",
+        )
+        .bind(&params.kind)
+        .bind(&params.list)
+        .bind(&normalized)
+        .bind(params.note.as_deref())
+        .bind(actor.as_str())
+        .fetch_one(pool)
+        .await;
+        match res {
+            Ok((id,)) => {
+                crate::greylist_local::reload(&self.web_state.greylist_local, pool).await;
+                Ok(CallToolResult::success(vec![Content::text(
+                    serde_json::json!({
+                        "status": "greylist_local_added",
+                        "id": id,
+                        "kind": params.kind,
+                        "list": params.list,
+                        "value": normalized,
+                    })
+                    .to_string(),
+                )]))
+            }
+            Err(sqlx::Error::Database(db)) if db.is_unique_violation() => Err(
+                McpError::invalid_params(
+                    format!(
+                        "value '{normalized}' already exists in greylist_local_lists; \
+                         remove the existing entry before re-adding to a different list"
+                    ),
+                    None,
+                ),
+            ),
+            Err(e) => Err(McpError::internal_error(format!("{e}"), None)),
+        }
+    }
+
+    #[tool(
+        description = "Remove a local greylist entry by id (from greylist_local_list). Requires admin.greylist."
+    )]
+    async fn greylist_local_remove(
+        &self,
+        Parameters(params): Parameters<GreylistLocalRemoveParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.greylist")?;
+        let pool = self.pool()?;
+        let r = sqlx::query("DELETE FROM greylist_local_lists WHERE id = $1")
+            .bind(params.id)
+            .execute(pool)
+            .await
+            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        if r.rows_affected() == 0 {
+            return Err(McpError::invalid_params(
+                format!("id {} not found", params.id),
+                None,
+            ));
+        }
+        crate::greylist_local::reload(&self.web_state.greylist_local, pool).await;
+        self.ok_result("greylist_local_removed", &params.id.to_string())
+    }
+
     // --- app management ---
 
     #[tool(description = "List all registered apps with their scopes and status.")]

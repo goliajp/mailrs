@@ -3413,6 +3413,7 @@ dependencies = [
  "html2text",
  "image",
  "instant-acme",
+ "ipnet",
  "jsonwebtoken",
  "kevy-embedded",
  "ldap3",

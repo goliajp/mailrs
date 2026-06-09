@@ -32,6 +32,7 @@ mod search_index;
 
 mod bootstrap;
 mod greylist_backfill;
+mod greylist_local;
 mod greylist_sync;
 mod kevy_store;
 mod mcp;
@@ -310,6 +311,39 @@ async fn main() {
     let system_config_store =
         init_system_config_store(&cfg, &pg_pool, &kevy_embedded_store, shutdown_rx.clone()).await;
 
+    // Phase 2 local greylist lists: load synchronously before WebState +
+    // pipeline are wired so the very first inbound mail honors operator
+    // policy. PG unavailable at boot = empty handle, same degradation
+    // posture as Phase 1 sync.
+    let greylist_local_handle = greylist_local::empty();
+    if let Some(ref pool) = pg_pool {
+        let started = std::time::Instant::now();
+        greylist_local::reload(&greylist_local_handle, pool).await;
+        let snapshot = greylist_local_handle.read().await;
+        tracing::info!(
+            event = "subsystem_started",
+            subsystem = "greylist_local",
+            white = snapshot.white_count(),
+            black = snapshot.black_count(),
+            total = snapshot.total(),
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            reload_secs = cfg.greylist_local_reload_secs,
+            "greylist_local: snapshot loaded",
+        );
+        drop(snapshot);
+        greylist_local::spawn_reload_task(
+            greylist_local_handle.clone(),
+            pool.clone(),
+            cfg.greylist_local_reload_secs,
+        );
+    } else {
+        tracing::info!(
+            event = "subsystem_skipped",
+            subsystem = "greylist_local",
+            reason = "no postgres pool",
+        );
+    }
+
     let web_state = Arc::new(build_web_state(WebStateInputs {
         cfg: &cfg,
         event_bus: event_bus.clone(),
@@ -326,6 +360,7 @@ async fn main() {
         meili_client: meili_client.as_ref(),
         system_config_store: system_config_store.clone(),
         metrics_handle: metrics_handle.clone(),
+        greylist_local: greylist_local_handle.clone(),
     }));
 
     // spawn meilisearch indexer
@@ -372,6 +407,7 @@ async fn main() {
         &greylist_db,
         &greylist_config,
         &greylist_whitelist,
+        &greylist_local_handle,
         &resolver,
         &dmarc_report_store,
         &cfg,

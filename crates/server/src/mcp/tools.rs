@@ -175,6 +175,38 @@ pub(crate) struct RemoveAliasParams {
     pub id: i64,
 }
 
+// --- greylist local lists (Phase 2) ---
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GreylistLocalListParams {
+    /// optional filter: "domain", "email", or "cidr"
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// optional filter: "white" or "black"
+    #[serde(default)]
+    pub list: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GreylistLocalAddParams {
+    /// rule kind: "domain" (e.g. "example.com"), "email" (e.g. "user@example.com"),
+    /// or "cidr" (e.g. "10.0.0.0/8" or "2001:db8::/32")
+    pub kind: String,
+    /// which list: "white" (skip greylist) or "black" (reject 550)
+    pub list: String,
+    /// the value to match, in the form implied by `kind`
+    pub value: String,
+    /// optional human-readable note for the audit trail
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GreylistLocalRemoveParams {
+    /// id from greylist_local_list output
+    pub id: i64,
+}
+
 // --- app management ---
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -639,6 +671,43 @@ mod tests {
     #[test]
     fn remove_alias_params_schema() {
         let schema = schema_for!(RemoveAliasParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("id"));
+    }
+
+    #[test]
+    fn greylist_local_list_params_empty() {
+        let _p: GreylistLocalListParams = serde_json::from_str("{}").unwrap();
+    }
+
+    #[test]
+    fn greylist_local_list_params_filters() {
+        let p: GreylistLocalListParams =
+            serde_json::from_str(r#"{"kind":"domain","list":"white"}"#).unwrap();
+        assert_eq!(p.kind.as_deref(), Some("domain"));
+        assert_eq!(p.list.as_deref(), Some("white"));
+    }
+
+    #[test]
+    fn greylist_local_add_params_schema() {
+        let schema = schema_for!(GreylistLocalAddParams);
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+        assert!(json.contains("kind"));
+        assert!(json.contains("list"));
+        assert!(json.contains("value"));
+    }
+
+    #[test]
+    fn greylist_local_add_params_minimal() {
+        let p: GreylistLocalAddParams =
+            serde_json::from_str(r#"{"kind":"domain","list":"white","value":"example.com"}"#)
+                .unwrap();
+        assert!(p.note.is_none());
+    }
+
+    #[test]
+    fn greylist_local_remove_params_schema() {
+        let schema = schema_for!(GreylistLocalRemoveParams);
         let json = serde_json::to_string_pretty(&schema).unwrap();
         assert!(json.contains("id"));
     }

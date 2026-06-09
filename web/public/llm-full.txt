@@ -160,6 +160,16 @@ Config for Claude Code or any MCP client:
 | get_queue | admin.queue | List outbound delivery queue entries (sender, recipient, status, attempts) |
 | retry_queue_message | admin.queue | Retry a failed outbound message by queue ID |
 
+### Greylist Local Lists (Phase 2)
+
+Server-wide local white/black overrides on top of the Phase 1 remote sender-domain whitelist. Precedence: any local-black hit beats any local-white hit beats the remote whitelist. A single (kind, value) can only exist on one list at a time (schema-enforced).
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| greylist_local_list | admin.greylist | List local greylist entries; filter by kind (domain/email/cidr) and/or list (white/black) |
+| greylist_local_add | admin.greylist | Add a local greylist entry. White = skip greylist, Black = reject 550 |
+| greylist_local_remove | admin.greylist | Remove a local greylist entry by id |
+
 ### Parameter Examples
 
 #### send_email
@@ -304,13 +314,60 @@ Response includes groups, effective permissions, accessible domains, and super s
 }
 ```
 
+#### greylist_local_add (domain)
+```json
+{
+  "kind": "domain",
+  "list": "white",
+  "value": "example.com",
+  "note": "trusted partner — bypass greylist"
+}
+```
+
+#### greylist_local_add (email)
+```json
+{
+  "kind": "email",
+  "list": "black",
+  "value": "spammer@example.com"
+}
+```
+
+#### greylist_local_add (cidr)
+```json
+{
+  "kind": "cidr",
+  "list": "black",
+  "value": "203.0.113.0/24",
+  "note": "abuse range — reject 550"
+}
+```
+
+REST equivalents:
+```
+curl -H "Authorization: Bearer <API_KEY>" \
+     "https://mail.golia.ai/api/admin/greylist/local-lists?kind=domain&list=white"
+
+curl -X POST -H "Authorization: Bearer <API_KEY>" -H "Content-Type: application/json" \
+     -d '{"kind":"domain","list":"white","value":"example.com"}' \
+     https://mail.golia.ai/api/admin/greylist/local-lists
+
+curl -X DELETE -H "Authorization: Bearer <API_KEY>" \
+     https://mail.golia.ai/api/admin/greylist/local-lists/42
+```
+
+Error responses:
+- 400 — invalid kind/list/value (e.g. non-canonical CIDR like `10.0.0.1/8` → use `10.0.0.0/8`)
+- 409 — `(kind, value)` already exists on the other list; remove first, then re-add
+- 403 — missing `admin.greylist` permission
+
 ---
 
 ## 2. Permission System
 
 mailrs uses group-based RBAC (role-based access control).
 
-### All 11 Permissions
+### All Permissions
 
 | Permission | Description |
 |-----------|-------------|
@@ -324,6 +381,10 @@ mailrs uses group-based RBAC (role-based access control).
 | admin.queue | Manage outbound delivery queue (view, retry) |
 | admin.sieve | Manage sieve filtering scripts |
 | admin.impersonate | Send as other users (set arbitrary `from` address) |
+| admin.oauth_clients | Manage OAuth client registrations |
+| admin.system_config | Edit runtime system config |
+| admin.cache | Flush server caches (conversations) |
+| admin.greylist | Manage local greylist white/black lists (Phase 2) |
 | internal.rpc | Internal RPC calls between services |
 
 ### Groups

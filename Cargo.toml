@@ -72,6 +72,10 @@ serde_json = "1"
 chrono = "0.4"
 hickory-resolver = "0.26"
 
+# IP / CIDR parsing — used by greylist local-lists (Phase 2) for IP-range
+# rules. ipnet handles both v4 and v6 with a single IpNet enum.
+ipnet = "2"
+
 # Bench harness — every published crate uses the same criterion config
 # (no default features, cargo_bench_support only). Pinning here makes
 # upgrades atomic.

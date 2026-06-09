@@ -30,7 +30,6 @@ export type AmountMention = {
   text: string
   value?: number
 }
-
 export type AttachmentInfo = {
   content_type: string
   filename: string
@@ -113,6 +112,27 @@ export type EventInfo = {
   start_date?: string
   url?: string
 }
+
+export type GreylistLocalEntry = {
+  created_at: number
+  created_by: null | string
+  id: number
+  kind: GreylistLocalKind
+  list: GreylistLocalListName
+  note: null | string
+  value: string
+}
+
+export type GreylistLocalHealth = {
+  black: number
+  last_error: null | string
+  last_reload_at: null | number
+  white: number
+}
+
+export type GreylistLocalKind = 'cidr' | 'domain' | 'email'
+
+export type GreylistLocalListName = 'black' | 'white'
 
 export type NewMessageEvent = {
   sender: string

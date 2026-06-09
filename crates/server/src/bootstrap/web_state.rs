@@ -35,6 +35,7 @@ pub(crate) struct WebStateInputs<'a> {
     pub(crate) meili_client: Option<&'a Arc<search_index::MeiliClient>>,
     pub(crate) system_config_store: Arc<system_config::SystemConfigStore>,
     pub(crate) metrics_handle: metrics_exporter_prometheus::PrometheusHandle,
+    pub(crate) greylist_local: crate::greylist_local::GreylistLocalHandle,
 }
 
 /// Build the `WebState` from optional backends. Optional pieces
@@ -60,6 +61,7 @@ pub(crate) fn build_web_state(i: WebStateInputs<'_>) -> WebState {
         .with_smtp_config(smtp_snapshot)
         .with_system_config(i.system_config_store)
         .with_metrics_handle(i.metrics_handle);
+    ws.greylist_local = i.greylist_local;
 
     if let Some(pool) = i.pg_pool {
         ws = ws.with_pg(pool.clone());

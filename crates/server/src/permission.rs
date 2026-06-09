@@ -18,6 +18,7 @@ pub const ALL_PERMISSIONS: &[&str] = &[
     "admin.oauth_clients",
     "admin.system_config",
     "admin.cache",
+    "admin.greylist",
 ];
 
 /// group info loaded from the database

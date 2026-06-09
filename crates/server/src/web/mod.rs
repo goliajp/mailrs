@@ -118,6 +118,9 @@ pub struct WebState {
     /// Prometheus exporter handle for `/metrics` rendering. `None`
     /// only in unit tests that don't install the global recorder.
     pub metrics_handle: Option<metrics_exporter_prometheus::PrometheusHandle>,
+    /// Phase 2 greylist local lists snapshot — shared with the inbound
+    /// pipeline. Admin endpoints reload this after each write.
+    pub greylist_local: crate::greylist_local::GreylistLocalHandle,
 }
 
 /// spawn a background task to clean up expired sessions and stale rate-limit buckets every hour
@@ -188,6 +191,7 @@ impl WebState {
             render_preview: None,
             system_config: None,
             metrics_handle: None,
+            greylist_local: crate::greylist_local::empty(),
         }
     }
 

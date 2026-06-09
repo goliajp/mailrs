@@ -24,6 +24,9 @@ const AdminDomains = lazy(() =>
 const AdminEmailGroups = lazy(() =>
   import('@/pages/admin-email-groups').then((m) => ({ default: m.AdminEmailGroups }))
 )
+const AdminGreylist = lazy(() =>
+  import('@/pages/admin-greylist').then((m) => ({ default: m.AdminGreylist }))
+)
 const AdminGroups = lazy(() =>
   import('@/pages/admin-groups').then((m) => ({ default: m.AdminGroups }))
 )
@@ -55,6 +58,7 @@ export function Admin() {
             <Route element={<AdminEmailGroups />} path="email-groups" />
             <Route element={<AdminApps />} path="apps" />
             <Route element={<AdminQueues />} path="queues" />
+            <Route element={<AdminGreylist />} path="greylist" />
             <Route element={<AdminAuditLog />} path="audit-log" />
             <Route element={<AdminMailAudit />} path="mail-audit" />
             <Route element={<AdminSystemConfig />} path="system-config" />

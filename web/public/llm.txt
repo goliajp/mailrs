@@ -11,7 +11,7 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-58 tools auto-discovered, grouped by category:
+61 tools auto-discovered, grouped by category:
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
@@ -27,6 +27,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 **Apps:** list_apps, create_app, delete_app
 **Webhooks:** list_webhooks, create_webhook, delete_webhook
 **Queue:** get_queue, retry_queue_message
+**Greylist:** greylist_local_list, greylist_local_add, greylist_local_remove
 
 ## REST API
 
@@ -51,6 +52,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET/POST/DELETE /api/admin/groups — group CRUD + /permissions + /members
 - GET/POST/DELETE /api/admin/apps — app CRUD + /scopes
 - GET /api/admin/permissions — list all permissions
+- GET/POST /api/admin/greylist/local-lists, DELETE /api/admin/greylist/local-lists/{id} — local greylist white/black CRUD (admin.greylist)
 
 ### Agent
 - POST/GET/DELETE /api/agent/keys — API key management

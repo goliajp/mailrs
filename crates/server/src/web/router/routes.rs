@@ -358,6 +358,15 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
             "/api/admin/apps/{app_id}/scopes",
             put(admin::update_app_scopes),
         )
+        // greylist local lists (Phase 2)
+        .route(
+            "/api/admin/greylist/local-lists",
+            get(admin::greylist_local::list).post(admin::greylist_local::create),
+        )
+        .route(
+            "/api/admin/greylist/local-lists/{id}",
+            delete(admin::greylist_local::remove),
+        )
         // audit log
         .route("/api/admin/audit-log", get(admin::get_audit_log))
         // mail audit (admin impersonate)

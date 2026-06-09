@@ -2,6 +2,7 @@ import {
   ArrowLeftRight,
   Blocks,
   Eye,
+  Filter,
   Globe,
   LayoutGrid,
   ListOrdered,
@@ -53,6 +54,11 @@ const navItems = [
     icon: <ListOrdered className="h-4 w-4" />,
     label: 'Queues',
     to: '/admin/queues',
+  },
+  {
+    icon: <Filter className="h-4 w-4" />,
+    label: 'Greylist',
+    to: '/admin/greylist',
   },
   {
     icon: <Eye className="h-4 w-4" />,
