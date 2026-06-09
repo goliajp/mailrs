@@ -71,6 +71,15 @@ pub(crate) async fn create_oauth_client(
                 name = req.name.as_str(),
                 "oauth client created"
             );
+            if let Some(ref ds) = state.domain_store {
+                ds.log_audit(
+                    address,
+                    "oauth_client_created",
+                    &client_id,
+                    &format!("name={}", req.name),
+                )
+                .await;
+            }
             (
                 StatusCode::OK,
                 Json(serde_json::json!({
@@ -127,7 +136,9 @@ pub(crate) async fn list_oauth_clients(
 pub(crate) async fn delete_oauth_client(
     Path(client_id): Path<String>,
     AuthUser {
-        ref permissions, ..
+        ref address,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -143,6 +154,10 @@ pub(crate) async fn delete_oauth_client(
     match crate::oidc_store::delete_client(pool, &client_id).await {
         Ok(true) => {
             tracing::info!(client_id = client_id.as_str(), "oauth client deactivated");
+            if let Some(ref ds) = state.domain_store {
+                ds.log_audit(address, "oauth_client_deleted", &client_id, "")
+                    .await;
+            }
             Json(ApiResult {
                 success: true,
                 message: None,

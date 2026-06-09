@@ -59,7 +59,9 @@ pub(crate) async fn get_account_overrides(
 pub(crate) async fn set_account_overrides(
     Path(address): Path<String>,
     AuthUser {
-        ref permissions, ..
+        address: actor,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SetOverridesRequest>,
@@ -87,11 +89,23 @@ pub(crate) async fn set_account_overrides(
         .into_iter()
         .map(|e| (e.permission, e.granted))
         .collect();
+    let detail = serde_json::json!({
+        "address": address,
+        "overrides": overrides
+            .iter()
+            .map(|(p, g)| serde_json::json!({"permission": p, "granted": g}))
+            .collect::<Vec<_>>(),
+    })
+    .to_string();
     match ds.set_account_overrides(&address, &overrides).await {
-        Ok(()) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(()) => {
+            ds.log_audit(&actor, "account_overrides_set", &address, &detail)
+                .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Err(e) => {
             tracing::warn!(error = %e, "admin operation failed");
             Json(ApiResult {

@@ -16,7 +16,9 @@ use crate::conversation_cache;
 
 pub(crate) async fn flush_conversations(
     AuthUser {
-        ref permissions, ..
+        ref address,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -36,6 +38,15 @@ pub(crate) async fn flush_conversations(
         deleted,
         "flushed conversation caches"
     );
+    if let Some(ref ds) = state.domain_store {
+        ds.log_audit(
+            address,
+            "cache_flushed_conversations",
+            "",
+            &format!("deleted_keys={deleted}"),
+        )
+        .await;
+    }
     Json(serde_json::json!({
         "success": true,
         "deleted_keys": deleted,

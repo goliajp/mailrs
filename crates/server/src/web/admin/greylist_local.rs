@@ -197,6 +197,15 @@ pub(crate) async fn create(
                 actor = %address,
                 "greylist_local entry added"
             );
+            if let Some(ref ds) = state.domain_store {
+                ds.log_audit(
+                    address,
+                    "greylist_local_added",
+                    &id.to_string(),
+                    &format!("kind={} list={} value={}", req.kind, req.list, normalized),
+                )
+                .await;
+            }
             (
                 StatusCode::CREATED,
                 Json(serde_json::to_value(CreatedResponse {
@@ -264,6 +273,10 @@ pub(crate) async fn remove(
                 actor = %address,
                 "greylist_local entry deleted"
             );
+            if let Some(ref ds) = state.domain_store {
+                ds.log_audit(address, "greylist_local_removed", &id.to_string(), "")
+                    .await;
+            }
             (StatusCode::NO_CONTENT, ()).into_response()
         }
         Ok(_) => (

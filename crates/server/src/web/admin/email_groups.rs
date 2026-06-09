@@ -30,7 +30,9 @@ pub(crate) async fn list_email_groups(
 
 pub(crate) async fn create_email_group(
     AuthUser {
-        ref permissions, ..
+        ref address,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<CreateEmailGroupRequest>,
@@ -54,10 +56,19 @@ pub(crate) async fn create_email_group(
         .create_email_group(&req.address, &req.domain, &req.name, &req.description)
         .await
     {
-        Ok(id) => Json(ApiResult {
-            success: true,
-            message: Some(id.to_string()),
-        }),
+        Ok(id) => {
+            ds.log_audit(
+                address,
+                "email_group_created",
+                &id.to_string(),
+                &format!("address={} domain={}", req.address, req.domain),
+            )
+            .await;
+            Json(ApiResult {
+                success: true,
+                message: Some(id.to_string()),
+            })
+        }
         Err(e) => {
             tracing::warn!(error = %e, "admin operation failed");
             Json(ApiResult {
@@ -71,7 +82,9 @@ pub(crate) async fn create_email_group(
 pub(crate) async fn delete_email_group(
     Path(id): Path<i64>,
     AuthUser {
-        ref permissions, ..
+        ref address,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -85,10 +98,14 @@ pub(crate) async fn delete_email_group(
         });
     };
     match ds.remove_email_group(id).await {
-        Ok(Some(_)) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(Some(_)) => {
+            ds.log_audit(address, "email_group_deleted", &id.to_string(), "")
+                .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Ok(None) => Json(ApiResult {
             success: false,
             message: Some("group not found".into()),
@@ -118,7 +135,9 @@ pub(crate) async fn list_email_group_members(
 pub(crate) async fn add_email_group_member(
     Path(id): Path<i64>,
     AuthUser {
-        ref permissions, ..
+        address: actor,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
     Json(req): Json<AddMemberRequest>,
@@ -143,10 +162,19 @@ pub(crate) async fn add_email_group_member(
         });
     }
     match ds.add_email_group_member(id, &req.address).await {
-        Ok(()) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(()) => {
+            ds.log_audit(
+                &actor,
+                "email_group_member_added",
+                &id.to_string(),
+                &format!("address={}", req.address),
+            )
+            .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Err(e) => {
             tracing::warn!(error = %e, "admin operation failed");
             Json(ApiResult {
@@ -160,7 +188,9 @@ pub(crate) async fn add_email_group_member(
 pub(crate) async fn remove_email_group_member(
     Path((id, address)): Path<(i64, String)>,
     AuthUser {
-        ref permissions, ..
+        address: actor,
+        ref permissions,
+        ..
     }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
@@ -174,10 +204,19 @@ pub(crate) async fn remove_email_group_member(
         });
     };
     match ds.remove_email_group_member(id, &address).await {
-        Ok(true) => Json(ApiResult {
-            success: true,
-            message: None,
-        }),
+        Ok(true) => {
+            ds.log_audit(
+                &actor,
+                "email_group_member_removed",
+                &id.to_string(),
+                &format!("address={address}"),
+            )
+            .await;
+            Json(ApiResult {
+                success: true,
+                message: None,
+            })
+        }
         Ok(false) => Json(ApiResult {
             success: false,
             message: Some("member not found".into()),
