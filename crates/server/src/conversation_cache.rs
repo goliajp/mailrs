@@ -160,6 +160,31 @@ pub fn bust_thread(kevy: &KevyStore, user: &str, thread_id: &str) {
     bust_user(kevy, user);
 }
 
+/// Invalidate every conversation cache across every user. Returns the
+/// number of keys deleted. Used by the admin flush endpoint after a
+/// backend wire-schema change so stale cached JSON from the previous
+/// version stops being served — the alternative is letting each user
+/// trip the deploy-cache-stale race per-thread.
+pub fn bust_all_conversations(kevy: &KevyStore) -> usize {
+    let patterns = [
+        format!("{}:*", PREFIX_THREAD),
+        format!("{}:*", PREFIX_LIST),
+        format!("{}:*", PREFIX_CATS),
+        format!("{}:*", PREFIX_ACTION),
+    ];
+    let mut deleted = 0;
+    for pat in &patterns {
+        let keys: Vec<Vec<u8>> = kevy.with(|inner| inner.collect_keys(Some(pat.as_bytes()), None));
+        if !keys.is_empty() {
+            let refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
+            if let Ok(n) = kevy.del(&refs) {
+                deleted += n;
+            }
+        }
+    }
+    deleted
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
