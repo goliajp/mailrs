@@ -69,6 +69,11 @@ pub struct ServerConfig {
     /// `greylist_sync_interval_secs`. None disables remote sync.
     pub greylist_whitelist_url: Option<String>,
     pub greylist_sync_interval_secs: u64,
+    /// Phase 2 local lists periodic reload cadence. Snapshot is also
+    /// reloaded synchronously after each admin POST/DELETE, so this
+    /// value is the failsafe (changes always become visible at most this
+    /// many seconds late even if a write skipped the inline reload).
+    pub greylist_local_reload_secs: u64,
     pub dnsbl_enabled: bool,
     pub antispam_enabled: bool,
     // DKIM signing
@@ -172,6 +177,7 @@ impl Default for ServerConfig {
                     .into(),
             ),
             greylist_sync_interval_secs: 3600,
+            greylist_local_reload_secs: 60,
             dnsbl_enabled: true,
             antispam_enabled: true,
             dkim_selector: None,

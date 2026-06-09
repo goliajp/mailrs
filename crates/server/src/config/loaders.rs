@@ -161,6 +161,10 @@ impl ServerConfig {
             "MAILRS_GREYLIST_SYNC_INTERVAL_SECS",
             &mut self.greylist_sync_interval_secs,
         );
+        set_parsed(
+            "MAILRS_GREYLIST_LOCAL_RELOAD_SECS",
+            &mut self.greylist_local_reload_secs,
+        );
         set_bool_truthy("MAILRS_DNSBL_ENABLED", &mut self.dnsbl_enabled);
         // backwards-compatible alias: MAILRS_SPF_ENABLED → antispam_enabled
         if let Ok(v) = std::env::var("MAILRS_ANTISPAM_ENABLED") {

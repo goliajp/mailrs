@@ -347,6 +347,19 @@ pub(crate) async fn get_health(State(state): State<Arc<WebState>>) -> impl IntoR
             "expired_keys": i.expired_keys,
         })
     });
+    // Phase 2 greylist local lists snapshot — read-only summary for
+    // operator visibility (the same data the admin UI's status pill
+    // renders). The RwLock acquire is `.read()`, contention-free under
+    // normal load.
+    let greylist_local = {
+        let g = state.greylist_local.read().await;
+        serde_json::json!({
+            "white": g.white_count(),
+            "black": g.black_count(),
+            "last_reload_at": g.last_reload_at,
+            "last_error": g.last_error,
+        })
+    };
     (
         StatusCode::OK,
         Json(serde_json::json!({
@@ -355,6 +368,7 @@ pub(crate) async fn get_health(State(state): State<Arc<WebState>>) -> impl IntoR
             "pg": pg,
             "kevy": kevy,
             "kevy_info": kevy_info,
+            "greylist_local": greylist_local,
             "uptime_secs": uptime,
             "version": env!("CARGO_PKG_VERSION"),
             "active_sessions": state.sessions.len(),

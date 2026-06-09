@@ -2478,6 +2478,87 @@
         }
       }
     },
+    "/api/admin/greylist/local-lists": {
+      "get": {
+        "operationId": "listGreylistLocal",
+        "summary": "List local greylist white/black entries",
+        "tags": ["Admin Greylist"],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["domain", "email", "cidr"] }
+          },
+          {
+            "name": "list",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["white", "black"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/GreylistLocalEntry" }
+                }
+              }
+            }
+          },
+          "403": { "description": "admin.greylist required" }
+        }
+      },
+      "post": {
+        "operationId": "addGreylistLocal",
+        "summary": "Create a local greylist entry",
+        "tags": ["Admin Greylist"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateGreylistLocalRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GreylistLocalEntry" }
+              }
+            }
+          },
+          "400": { "description": "Invalid kind/list/value (non-canonical CIDR, malformed email, etc.)" },
+          "403": { "description": "admin.greylist required" },
+          "409": { "description": "(kind, value) already exists on the other list — delete first to move" }
+        }
+      }
+    },
+    "/api/admin/greylist/local-lists/{id}": {
+      "delete": {
+        "operationId": "removeGreylistLocal",
+        "summary": "Remove a local greylist entry by id",
+        "tags": ["Admin Greylist"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Removed" },
+          "403": { "description": "admin.greylist required" },
+          "404": { "description": "Entry not found" }
+        }
+      }
+    },
     "/api/admin/groups": {
       "get": {
         "operationId": "listGroups",
@@ -7189,6 +7270,32 @@
           "target_address",
           "domain"
         ]
+      },
+      "GreylistLocalEntry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "kind": { "type": "string", "enum": ["domain", "email", "cidr"] },
+          "list": { "type": "string", "enum": ["white", "black"] },
+          "value": { "type": "string" },
+          "note": { "type": "string", "nullable": true },
+          "created_at": { "type": "integer", "format": "int64" },
+          "created_by": { "type": "string", "nullable": true }
+        },
+        "required": ["id", "kind", "list", "value", "created_at"]
+      },
+      "CreateGreylistLocalRequest": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string", "enum": ["domain", "email", "cidr"] },
+          "list": { "type": "string", "enum": ["white", "black"] },
+          "value": {
+            "type": "string",
+            "description": "domain (example.com) / email (user@example.com) / cidr (10.0.0.0/8 or 2001:db8::/32). CIDR must be canonical (host bits zero)."
+          },
+          "note": { "type": "string", "nullable": true }
+        },
+        "required": ["kind", "list", "value"]
       },
       "QuotaResponse": {
         "type": "object",

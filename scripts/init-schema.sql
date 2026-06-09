@@ -118,6 +118,22 @@ CREATE TABLE greylist_triplets (
     last_seen BIGINT NOT NULL
 );
 
+-- Phase 2 local white/black lists. UNIQUE (kind, value) without `list` is
+-- the schema-level mutex: same key cannot be on both white and black at
+-- the same time. To move an entry between lists, DELETE + INSERT (no
+-- PATCH/PUT in the admin API by design).
+CREATE TABLE greylist_local_lists (
+    id          BIGSERIAL PRIMARY KEY,
+    kind        TEXT NOT NULL CHECK (kind IN ('domain', 'email', 'cidr')),
+    list        TEXT NOT NULL CHECK (list IN ('white', 'black')),
+    value       TEXT NOT NULL,
+    note        TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by  TEXT,
+    UNIQUE (kind, value)
+);
+CREATE INDEX greylist_local_lists_kind_idx ON greylist_local_lists (kind);
+
 -- email_contacts: per-user senders/recipients extracted from message traffic.
 -- Distinct from the CardDAV "contacts" table created in migrate-023, which
 -- holds vCard objects keyed by address_book_id. Keeping these two as separate

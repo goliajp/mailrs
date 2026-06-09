@@ -6,34 +6,39 @@ use async_trait::async_trait;
 use mailrs_inbound::{DeliveryDecision, ReceiveContext, Stage, StageOutcome};
 use mailrs_shield::greylist::{self as greylisting, GreylistConfig, GreylistDb, GreylistDecision};
 
+use crate::greylist_local::GreylistLocalHandle;
 use crate::greylist_sync::GreylistListsHandle;
 
-/// Stage that checks the (client_ip, sender, recipient) triplet against a
-/// greylist store; on `Defer`/`TooEarly`, short-circuits the pipeline with
-/// [`DeliveryDecision::Greylist`]. On `Accept`, continues.
+/// Stage that consults local + remote whitelists and then the triplet
+/// store. Pipeline order:
 ///
-/// Before doing the triplet lookup, the stage consults a remote-synced
-/// sender-domain whitelist ([`GreylistListsHandle`]). Hits skip greylist
-/// entirely — used to let well-known providers (Gmail, Outlook, etc.)
-/// through on first try since their retry behavior is unreliable.
+/// 1. local-black hit → 550 5.7.1 reject
+/// 2. local-white hit → skip greylist
+/// 3. remote-white hit (Phase 1) → skip greylist
+/// 4. triplet check → Defer / TooEarly / Accept
+///
+/// Schema mutex `UNIQUE (kind, value)` makes step 2 unreachable when step
+/// 1 fires; the black-before-white code ordering is a belt-and-suspenders.
 pub struct GreylistStage {
     db: Arc<GreylistDb>,
     config: GreylistConfig,
-    whitelist: GreylistListsHandle,
+    remote_whitelist: GreylistListsHandle,
+    local_lists: GreylistLocalHandle,
 }
 
 impl GreylistStage {
-    /// Construct a `GreylistStage` bound to a `GreylistDb`, its config,
-    /// and the shared whitelist handle from `greylist_sync`.
+    /// Construct a stage from its dependencies.
     pub fn new(
         db: Arc<GreylistDb>,
         config: GreylistConfig,
-        whitelist: GreylistListsHandle,
+        remote_whitelist: GreylistListsHandle,
+        local_lists: GreylistLocalHandle,
     ) -> Self {
         Self {
             db,
             config,
-            whitelist,
+            remote_whitelist,
+            local_lists,
         }
     }
 }
@@ -45,24 +50,61 @@ impl Stage for GreylistStage {
     }
 
     async fn evaluate(&self, ctx: &mut ReceiveContext) -> StageOutcome {
-        // Whitelist short-circuit. Splits the sender on '@' and ancestor-
-        // walks the domain (mail.gmail.com → gmail.com etc.). Empty senders
-        // (bounces, '<>') silently fall through to the triplet check.
+        // 1. local black — checked first so that a single black entry can
+        //    punch a hole through a broad white entry (matcher contract:
+        //    any black-kind hit beats any white-kind hit).
+        let local = self.local_lists.read().await;
+        if let Some(kind) = local.matches_black(&ctx.sender, ctx.client_ip) {
+            metrics::counter!("mailrs_greylist_local_black_hit_total", "kind" => kind)
+                .increment(1);
+            tracing::info!(
+                target: "greylist",
+                sender = %ctx.sender,
+                client_ip = %ctx.client_ip,
+                kind = %kind,
+                "local black hit — rejecting 550"
+            );
+            return StageOutcome::Decide(DeliveryDecision::Reject {
+                code: 550,
+                message: "5.7.1 Message rejected: local policy denied".to_string(),
+            });
+        }
+
+        // 2. local white — skip the rest of the greylist (no triplet,
+        //    no remote whitelist needed).
+        if let Some(kind) = local.matches_white(&ctx.sender, ctx.client_ip) {
+            metrics::counter!("mailrs_greylist_local_white_hit_total", "kind" => kind)
+                .increment(1);
+            tracing::debug!(
+                target: "greylist",
+                sender = %ctx.sender,
+                kind = %kind,
+                "local white hit — skipping greylist"
+            );
+            return StageOutcome::Continue;
+        }
+        drop(local);
+
+        // 3. remote whitelist (Phase 1). Splits the sender on '@' and
+        //    ancestor-walks the domain (mail.gmail.com → gmail.com etc.).
+        //    Empty senders (bounces, '<>') silently fall through to the
+        //    triplet check.
         if let Some(domain) = ctx.sender.rsplit_once('@').map(|(_, d)| d)
             && !domain.is_empty()
         {
-            let lists = self.whitelist.read().await;
+            let lists = self.remote_whitelist.read().await;
             if lists.is_whitelisted(domain) {
                 metrics::counter!("mailrs_greylist_whitelist_hit_total").increment(1);
                 tracing::debug!(
                     target: "greylist",
                     sender = %ctx.sender,
-                    "whitelist hit — skipping greylist"
+                    "remote whitelist hit — skipping greylist"
                 );
                 return StageOutcome::Continue;
             }
         }
 
+        // 4. triplet check.
         let key = greylisting::triplet_key(&ctx.client_ip.to_string(), &ctx.sender, &ctx.recipient);
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

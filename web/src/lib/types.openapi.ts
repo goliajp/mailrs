@@ -952,6 +952,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/greylist/local-lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List local greylist white/black entries */
+        get: operations["listGreylistLocal"];
+        put?: never;
+        /** Create a local greylist entry */
+        post: operations["addGreylistLocal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/greylist/local-lists/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a local greylist entry by id */
+        delete: operations["removeGreylistLocal"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/groups": {
         parameters: {
             query?: never;
@@ -4685,6 +4720,28 @@ export interface components {
             /** @default alias */
             alias_type: string;
         };
+        GreylistLocalEntry: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            kind: "domain" | "email" | "cidr";
+            /** @enum {string} */
+            list: "white" | "black";
+            value: string;
+            note?: string | null;
+            /** Format: int64 */
+            created_at: number;
+            created_by?: string | null;
+        };
+        CreateGreylistLocalRequest: {
+            /** @enum {string} */
+            kind: "domain" | "email" | "cidr";
+            /** @enum {string} */
+            list: "white" | "black";
+            /** @description domain (example.com) / email (user@example.com) / cidr (10.0.0.0/8 or 2001:db8::/32). CIDR must be canonical (host bits zero). */
+            value: string;
+            note?: string | null;
+        };
         QuotaResponse: {
             address: string;
             /** Format: int64 */
@@ -6640,6 +6697,115 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiResult"];
                 };
+            };
+        };
+    };
+    listGreylistLocal: {
+        parameters: {
+            query?: {
+                kind?: "domain" | "email" | "cidr";
+                list?: "white" | "black";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GreylistLocalEntry"][];
+                };
+            };
+            /** @description admin.greylist required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    addGreylistLocal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGreylistLocalRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GreylistLocalEntry"];
+                };
+            };
+            /** @description Invalid kind/list/value (non-canonical CIDR, malformed email, etc.) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description admin.greylist required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description (kind, value) already exists on the other list — delete first to move */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    removeGreylistLocal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description admin.greylist required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Entry not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

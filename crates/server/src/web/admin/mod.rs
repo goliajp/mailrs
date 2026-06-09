@@ -25,6 +25,7 @@ pub mod audit;
 pub mod cache;
 pub mod domains;
 pub mod email_groups;
+pub mod greylist_local;
 pub mod groups;
 pub mod health;
 pub mod oauth;
