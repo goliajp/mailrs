@@ -18,6 +18,7 @@ use crate::inbound::stages::mail_auth::MailAuthResolvers;
 pub(crate) fn build_inbound_pipeline_with_shadows(
     greylist_db: &Option<Arc<mailrs_shield::greylist::GreylistDb>>,
     greylist_config: &mailrs_shield::greylist::GreylistConfig,
+    greylist_whitelist: &crate::greylist_sync::GreylistListsHandle,
     resolver: &Option<Arc<hickory_resolver::TokioResolver>>,
     dmarc_report_store: &Option<Arc<dmarc_report::DmarcReportStore>>,
     cfg: &config::ServerConfig,
@@ -42,6 +43,7 @@ pub(crate) fn build_inbound_pipeline_with_shadows(
     crate::inbound::pipeline::build_inbound_pipeline(
         greylist_db.clone(),
         greylist_config.clone(),
+        greylist_whitelist.clone(),
         resolver.clone(),
         mail_auth_resolvers,
         dmarc_report_store.clone(),

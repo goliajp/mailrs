@@ -64,6 +64,11 @@ pub struct ServerConfig {
     pub rate_limit_capacity: u32,
     pub rate_limit_refill: f64,
     pub greylist_delay_secs: u64,
+    /// Remote whitelist of sender domains that bypass greylisting. Pulled
+    /// from `greylist_whitelist_url` at startup and re-pulled every
+    /// `greylist_sync_interval_secs`. None disables remote sync.
+    pub greylist_whitelist_url: Option<String>,
+    pub greylist_sync_interval_secs: u64,
     pub dnsbl_enabled: bool,
     pub antispam_enabled: bool,
     // DKIM signing
@@ -156,7 +161,17 @@ impl Default for ServerConfig {
             dnsbl_zones: vec![],
             rate_limit_capacity: 10,
             rate_limit_refill: 1.0,
-            greylist_delay_secs: 300,
+            // Lowered from 300s (5 min) to 60s after observing Gmail / OAuth
+            // providers retrying within 60s typically — the previous floor
+            // forced multi-minute waits on a lot of routine first-time mail.
+            // Spam bots overwhelmingly do not retry at all, so the deterrent
+            // value of greylisting holds at 60s.
+            greylist_delay_secs: 60,
+            greylist_whitelist_url: Some(
+                "https://raw.githubusercontent.com/goliajp/mailrs/develop/assets/greylist-whitelist.txt"
+                    .into(),
+            ),
+            greylist_sync_interval_secs: 3600,
             dnsbl_enabled: true,
             antispam_enabled: true,
             dkim_selector: None,
@@ -759,7 +774,18 @@ mod tests {
     #[test]
     fn default_greylist_delay() {
         let cfg = ServerConfig::default();
-        assert_eq!(cfg.greylist_delay_secs, 300);
+        assert_eq!(cfg.greylist_delay_secs, 60);
+    }
+
+    #[test]
+    fn default_greylist_sync_url_and_interval() {
+        let cfg = ServerConfig::default();
+        assert!(
+            cfg.greylist_whitelist_url
+                .as_ref()
+                .is_some_and(|u| u.contains("greylist-whitelist.txt"))
+        );
+        assert_eq!(cfg.greylist_sync_interval_secs, 3600);
     }
 
     #[test]
@@ -1454,7 +1480,7 @@ mod tests {
         unsafe { std::env::set_var("MAILRS_SPAM_SCORE_THRESHOLD", "not_float") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.rate_limit_capacity, 10);
-        assert_eq!(cfg.greylist_delay_secs, 300);
+        assert_eq!(cfg.greylist_delay_secs, 60);
         assert!((cfg.spam_score_threshold - 4.0).abs() < f64::EPSILON);
         clear_mailrs_env();
     }
