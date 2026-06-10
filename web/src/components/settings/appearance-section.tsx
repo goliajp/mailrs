@@ -25,6 +25,11 @@ export function AppearanceSection() {
 
   const handleNotificationToggle = useCallback(
     async (enabled: boolean) => {
+      // iOS Safari (non-PWA) has no Notification API at all
+      if (enabled && !('Notification' in window)) {
+        setNotificationError('Browser notifications are not supported on this device.')
+        return
+      }
       if (enabled && Notification.permission === 'default') {
         const result = await Notification.requestPermission()
         if (result === 'denied') {
