@@ -1,7 +1,7 @@
 //! Alias CRUD + recipient resolution (account → alias
 //! → catch-all → reject). Includes `resolve_recipient`.
 
-use sqlx::PgPool;
+use crate::pg::BackendPool;
 
 use super::{Alias, CachedResolution, DomainStore, ResolvedRecipient, Result};
 
@@ -176,7 +176,7 @@ impl DomainStore {
 
     async fn resolve_targets(
         &self,
-        pool: &PgPool,
+        pool: &BackendPool,
         targets: &[(String, String)],
     ) -> ResolvedRecipient {
         let mut local_accounts = Vec::new();

@@ -57,6 +57,11 @@ async-trait = "0.1"
 
 # Storage + cache.
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "macros", "chrono"] }
+# spg-sqlx — sqlx 0.8 Database driver over spg-embedded (in-process SQL
+# engine, PG dialect). Behind the per-crate `spg` feature: stones keep
+# PG as the default backend; the server binary flips the workspace to
+# the embedded backend at build time. See .claude/rfcs/20260610-spg-embedded-cutover.md
+spg-sqlx = "7.20"
 # kevy-embedded — in-process RESP-compatible KV store with AOF + snapshot
 # persistence + native pub/sub bus. Zero network hop, ~10× faster than
 # the network kevy/redis container path. The only kvdb backend mailrs
@@ -134,3 +139,9 @@ inherits = "release"
 lto = false
 codegen-units = 16
 panic = "unwind"
+
+# TEMPORARY (spg embed spike, 2026-06-10): local spg-sqlx with the
+# Option-Encode + slice-Encode fixes, pending the SPG 7.20.1 release.
+# MUST be removed before any release tag — CI has no local spg checkout.
+[patch.crates-io]
+spg-sqlx = { path = "../../goliajp/spg/crates/spg-sqlx" }

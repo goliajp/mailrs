@@ -25,7 +25,7 @@ use mailrs_mailbox::PgMailboxStore;
 /// `resolver` is None (DNS unavailable) — in either case
 /// delivery would fail anyway.
 pub(crate) fn spawn_outbound_delivery(
-    outbound_queue: Option<&sqlx::PgPool>,
+    outbound_queue: Option<&crate::pg::BackendPool>,
     resolver: Option<&Arc<hickory_resolver::TokioResolver>>,
     kevy: Option<&crate::kevy_store::KevyStore>,
     cfg: &config::ServerConfig,
@@ -67,7 +67,7 @@ pub(crate) fn spawn_outbound_delivery(
 /// kevy [`Store`] (for `queue:notify` wakeup) and DKIM signing key (if
 /// configured). Pure construction — no spawning.
 pub(crate) fn build_delivery_worker(
-    pool: &sqlx::PgPool,
+    pool: &crate::pg::BackendPool,
     resolver: &Arc<hickory_resolver::TokioResolver>,
     kevy: Option<&crate::kevy_store::KevyStore>,
     cfg: &config::ServerConfig,
@@ -211,7 +211,7 @@ pub(crate) fn spawn_tlsrpt_flush_task(
     tls_rpt_obs: Arc<outbound_tls_rpt::TlsRptObserver>,
     hostname: String,
     resolver: Arc<hickory_resolver::TokioResolver>,
-    pool: sqlx::PgPool,
+    pool: crate::pg::BackendPool,
 ) {
     tokio::spawn(async move {
         // One reqwest client shared across windows. rustls, 30s

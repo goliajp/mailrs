@@ -1,4 +1,12 @@
-#![doc = include_str!("../README.md")]
+// README examples assume the default (PostgreSQL) backend — its
+// doctests construct a `sqlx::PgPool`, which doesn't typecheck when
+// the `spg` feature swaps `BackendPool` to `SpgPool`. Skip the README
+// doctests on that axis; the crate docs themselves stay identical.
+#![cfg_attr(not(feature = "spg"), doc = include_str!("../README.md"))]
+#![cfg_attr(
+    feature = "spg",
+    doc = "Mailbox metadata storage over the spg-embedded backend (see README.md)."
+)]
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 

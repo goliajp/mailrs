@@ -1,12 +1,12 @@
 //! `find_by_uid` + `find_conflicts` + `expand_rrule_utc` (recurrence expansion).
 
+use crate::pg::BackendPool;
 use chrono::{DateTime, Datelike, NaiveDateTime, Timelike, Utc};
-use sqlx::PgPool;
 
 use super::{CalendarEventRow, EventRowFull, EventRowSqlx};
 
 pub async fn find_conflicts(
-    pool: &PgPool,
+    pool: &BackendPool,
     calendar_id: i64,
     start: DateTime<Utc>,
     end: DateTime<Utc>,
@@ -160,7 +160,7 @@ fn expand_rrule_utc(
 
 /// Lookup a single event by (calendar_id, uid). Returns None when absent.
 pub async fn find_by_uid(
-    pool: &PgPool,
+    pool: &BackendPool,
     calendar_id: i64,
     uid: &str,
 ) -> Result<Option<CalendarEventRow>, sqlx::Error> {

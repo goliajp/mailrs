@@ -1,6 +1,6 @@
 //! Message mutation: expunge, copy/move, content patching, invite payload.
 
-use sqlx::PgPool;
+use crate::pg::BackendPool;
 
 use crate::pg::PgMailboxStore;
 
@@ -156,7 +156,7 @@ impl PgMailboxStore {
 
 /// copy message logic extracted as a free function so both copy_message and move_message can call it
 async fn copy_message_inner(
-    pool: &PgPool,
+    pool: &BackendPool,
     user: &str,
     src_mailbox_id: i64,
     uid: u32,

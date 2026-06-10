@@ -131,7 +131,7 @@ mod tests {
 }
 
 pub fn spawn_health_checker(
-    pg: sqlx::PgPool,
+    pg: crate::pg::BackendPool,
     kevy: crate::kevy_store::KevyStore,
     state: HealthState,
 ) {

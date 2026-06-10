@@ -366,6 +366,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
+name = "bigdecimal"
+version = "0.4.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d6867f1565b3aad85681f1015055b087fcfd840d6aeee6eee7f2da317603695"
+dependencies = [
+ "autocfg",
+ "libm",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3026,6 +3039,7 @@ dependencies = [
  "flate2",
  "mailrs-mail-builder 1.0.0",
  "psl",
+ "spg-sqlx",
  "sqlx",
  "thiserror",
  "tokio",
@@ -3224,6 +3238,7 @@ dependencies = [
  "memchr",
  "serde",
  "serde_json",
+ "spg-sqlx",
  "sqlx",
  "testcontainers",
  "tokio",
@@ -3288,6 +3303,7 @@ dependencies = [
  "rcgen 0.14.8",
  "rustls",
  "rustls-pki-types",
+ "spg-sqlx",
  "sqlx",
  "testcontainers",
  "testcontainers-modules",
@@ -3473,6 +3489,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "spg-sqlx",
  "sqlx",
  "tempfile",
  "tokio",
@@ -3497,6 +3514,7 @@ dependencies = [
  "hickory-resolver",
  "kevy-embedded",
  "mailrs-dnsbl 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "spg-sqlx",
  "sqlx",
  "tokio",
 ]
@@ -5486,6 +5504,79 @@ checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "spg-crypto"
+version = "7.20.0"
+
+[[package]]
+name = "spg-embedded"
+version = "7.20.0"
+dependencies = [
+ "spg-crypto",
+ "spg-engine",
+ "spg-manifest",
+ "spg-storage",
+]
+
+[[package]]
+name = "spg-embedded-tokio"
+version = "7.20.0"
+dependencies = [
+ "spg-embedded",
+ "spg-engine",
+ "tokio",
+]
+
+[[package]]
+name = "spg-engine"
+version = "7.20.0"
+dependencies = [
+ "sha1",
+ "sha2 0.10.9",
+ "spg-crypto",
+ "spg-sql",
+ "spg-storage",
+]
+
+[[package]]
+name = "spg-manifest"
+version = "7.20.0"
+dependencies = [
+ "spg-crypto",
+]
+
+[[package]]
+name = "spg-sql"
+version = "7.20.0"
+
+[[package]]
+name = "spg-sqlx"
+version = "7.20.0"
+dependencies = [
+ "bigdecimal",
+ "chrono",
+ "either",
+ "futures-core",
+ "futures-util",
+ "log",
+ "num-bigint",
+ "num-traits",
+ "serde_json",
+ "spg-embedded",
+ "spg-embedded-tokio",
+ "spg-storage",
+ "sqlx-core",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "spg-storage"
+version = "7.20.0"
+dependencies = [
+ "spg-crypto",
 ]
 
 [[package]]

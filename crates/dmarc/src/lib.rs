@@ -166,9 +166,17 @@ pub use pg::PgDmarcStore;
 #[cfg(feature = "pg-store")]
 mod pg {
     use async_trait::async_trait;
-    use sqlx::PgPool;
 
     use super::{DmarcResultRecord, DmarcStore};
+
+    /// Connection pool of the active SQL backend (PostgreSQL by
+    /// default, spg-embedded behind the `spg` feature).
+    #[cfg(not(feature = "spg"))]
+    pub type BackendPool = sqlx::PgPool;
+    /// Connection pool of the active SQL backend (PostgreSQL by
+    /// default, spg-embedded behind the `spg` feature).
+    #[cfg(feature = "spg")]
+    pub type BackendPool = spg_sqlx::SpgPool;
 
     /// Postgres-backed [`DmarcStore`]. Expects a table:
     ///
@@ -185,13 +193,13 @@ mod pg {
     /// CREATE INDEX dmarc_results_by_date ON dmarc_results(report_date);
     /// ```
     pub struct PgDmarcStore {
-        pool: PgPool,
+        pool: BackendPool,
     }
 
     impl PgDmarcStore {
         /// Construct a [`PgDmarcStore`] from an existing pool. The caller
         /// owns the pool lifecycle.
-        pub fn new(pool: PgPool) -> Self {
+        pub fn new(pool: BackendPool) -> Self {
             Self { pool }
         }
     }

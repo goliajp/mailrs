@@ -1,8 +1,8 @@
 //! Per-domain delivery: MX resolution, suppression filtering, retry/bounce
 //! bookkeeping, DSN enqueueing.
 
+use crate::BackendPool;
 use hickory_resolver::TokioResolver;
-use sqlx::PgPool;
 
 use super::smtp::try_deliver_via_mx;
 use crate::dsn;
@@ -11,7 +11,12 @@ use crate::retry::{retry_delay_secs, should_bounce};
 use crate::{DeliveryEvent, DeliveryEventSender};
 
 /// generate DSN bounce and enqueue it back to the original sender
-pub(super) async fn enqueue_dsn(pool: &PgPool, hostname: &str, msg: &QueuedMessage, error: &str) {
+pub(super) async fn enqueue_dsn(
+    pool: &BackendPool,
+    hostname: &str,
+    msg: &QueuedMessage,
+    error: &str,
+) {
     if msg.sender.is_empty() || msg.sender == "<>" {
         return; // don't bounce bounces
     }
@@ -57,7 +62,7 @@ pub async fn deliver_domain_static(
     hostname: &str,
     domain: &str,
     messages: Vec<QueuedMessage>,
-    pool: &PgPool,
+    pool: &BackendPool,
     port: u16,
     max_per_conn: usize,
     event_sender: Option<&DeliveryEventSender>,

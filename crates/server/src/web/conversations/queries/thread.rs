@@ -275,7 +275,7 @@ pub(crate) async fn get_thread_reactions(
 }
 
 pub(crate) async fn fetch_message_reactions(
-    pool: &sqlx::PgPool,
+    pool: &crate::pg::BackendPool,
     message_uid: i64,
     current_user: &str,
 ) -> Vec<ReactionSummary> {

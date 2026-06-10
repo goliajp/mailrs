@@ -419,7 +419,7 @@ impl MailMcpService {
             .ok_or_else(|| McpError::internal_error("domain store not available", None))
     }
 
-    fn pool(&self) -> Result<&sqlx::PgPool, McpError> {
+    fn pool(&self) -> Result<&crate::pg::BackendPool, McpError> {
         self.web_state
             .pg_pool
             .as_ref()

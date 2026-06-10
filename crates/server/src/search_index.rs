@@ -199,7 +199,7 @@ impl MeiliClient {
 }
 
 /// spawn background indexer that syncs messages from PG to meilisearch
-pub fn spawn_indexer(client: Arc<MeiliClient>, pool: sqlx::PgPool) {
+pub fn spawn_indexer(client: Arc<MeiliClient>, pool: crate::pg::BackendPool) {
     tokio::spawn(async move {
         // configure index on startup
         if let Err(e) = client.configure_index().await {

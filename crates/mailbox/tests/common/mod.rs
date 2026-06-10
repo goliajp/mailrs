@@ -1,87 +1,129 @@
-//! Shared testcontainers + sqlx setup for mailbox integration tests.
+//! Shared test fixture for mailbox integration tests, generic over the
+//! storage backend.
 //!
-//! Each test that calls [`setup_pg`] gets a fresh Postgres 18 + pgvector
-//! container (image: `pgvector/pgvector:pg18`) with the full `init-schema.sql`
-//! applied. The returned tuple's first element must be kept alive — dropping
-//! the `ContainerAsync` value stops the container.
+//! Default (PostgreSQL): each test that calls [`setup_pg`] gets a fresh
+//! Postgres 18 + pgvector container (image: `pgvector/pgvector:pg18`)
+//! with the full `init-schema.sql` applied. The returned tuple's first
+//! element must be kept alive — dropping the `ContainerAsync` value
+//! stops the container. Per-test containers are intentional: total
+//! isolation, no fixture contamination between tests. The trade-off is
+//! ~3-5 s startup per test; acceptable for the demo-level test count.
 //!
-//! Per-test containers are intentional: total isolation, no fixture
-//! contamination between tests. The trade-off is ~3-5 s startup per test;
-//! acceptable for the demo-level test count.
+//! `--features spg` (spg-embedded): each test gets a fresh in-memory
+//! SPG engine instead — no container, no docker, ~1 ms startup. The
+//! first tuple element is `()` so call sites stay identical.
 
 #![allow(dead_code)]
 
-use sqlx::PgPool;
-use testcontainers::{
-    ContainerAsync, GenericImage, ImageExt,
-    core::{IntoContainerPort, WaitFor},
-    runners::AsyncRunner,
-};
+use mailrs_mailbox::pg::BackendPool;
 
-// Phase D-pre #4 split: CREATE EXTENSION vector now lives in pg-extensions.sql
-// (PG-only; SPG rejects CREATE EXTENSION). On the prod docker-compose path the
-// two files are mounted as 00-/01- under /docker-entrypoint-initdb.d so the
-// extension lands before the schema. testcontainers-rs has no entrypoint-initdb
-// equivalent, so we apply both files manually here in PG-first order.
-const PG_EXTENSIONS_SQL: &str = include_str!("../../../../scripts/pg-extensions.sql");
 const SCHEMA_SQL: &str = include_str!("../../../../scripts/init-schema.sql");
 
-/// Spin up a Postgres + pgvector container, apply `init-schema.sql`, and
-/// return both the container handle (must stay alive!) and a connected pool.
-pub async fn setup_pg() -> (ContainerAsync<GenericImage>, PgPool) {
-    let container = GenericImage::new("pgvector/pgvector", "pg18")
-        .with_wait_for(WaitFor::message_on_stderr(
-            "database system is ready to accept connections",
-        ))
-        .with_exposed_port(5432.tcp())
-        .with_env_var("POSTGRES_PASSWORD", "test")
-        .with_env_var("POSTGRES_DB", "mailrs_test")
-        .with_env_var("POSTGRES_USER", "postgres")
-        .start()
-        .await
-        .expect("failed to start pgvector container");
+#[cfg(not(feature = "spg"))]
+mod backend {
+    use sqlx::PgPool;
+    use testcontainers::{
+        ContainerAsync, GenericImage, ImageExt,
+        core::{IntoContainerPort, WaitFor},
+        runners::AsyncRunner,
+    };
 
-    let host = container.get_host().await.expect("container host");
-    let port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("container port");
-    let url = format!("postgres://postgres:test@{host}:{port}/mailrs_test");
+    /// Keep-alive handle returned by `setup_pg`. Dropping it stops the
+    /// container.
+    pub type TestHandle = ContainerAsync<GenericImage>;
 
-    // Initial container readiness is signaled by the stderr message, but the
-    // listener can still race the first connection attempt. Retry briefly.
-    let pool = loop_connect(&url, std::time::Duration::from_secs(10)).await;
+    // Phase D-pre #4 split: CREATE EXTENSION vector now lives in
+    // pg-extensions.sql (PG-only; SPG ships vector natively). On the prod
+    // docker-compose path the two files are mounted as 00-/01- under
+    // /docker-entrypoint-initdb.d so the extension lands before the
+    // schema. testcontainers-rs has no entrypoint-initdb equivalent, so we
+    // apply both files manually here in PG-first order.
+    const PG_EXTENSIONS_SQL: &str = include_str!("../../../../scripts/pg-extensions.sql");
 
-    sqlx::raw_sql(PG_EXTENSIONS_SQL)
-        .execute(&pool)
-        .await
-        .expect("apply pg-extensions.sql");
+    /// Spin up a Postgres + pgvector container, apply `init-schema.sql`,
+    /// and return both the container handle (must stay alive!) and a
+    /// connected pool.
+    pub async fn setup_pg() -> (TestHandle, PgPool) {
+        let container = GenericImage::new("pgvector/pgvector", "pg18")
+            .with_wait_for(WaitFor::message_on_stderr(
+                "database system is ready to accept connections",
+            ))
+            .with_exposed_port(5432.tcp())
+            .with_env_var("POSTGRES_PASSWORD", "test")
+            .with_env_var("POSTGRES_DB", "mailrs_test")
+            .with_env_var("POSTGRES_USER", "postgres")
+            .start()
+            .await
+            .expect("failed to start pgvector container");
 
-    sqlx::raw_sql(SCHEMA_SQL)
-        .execute(&pool)
-        .await
-        .expect("apply init-schema.sql");
+        let host = container.get_host().await.expect("container host");
+        let port = container
+            .get_host_port_ipv4(5432)
+            .await
+            .expect("container port");
+        let url = format!("postgres://postgres:test@{host}:{port}/mailrs_test");
 
-    (container, pool)
-}
+        // Initial container readiness is signaled by the stderr message,
+        // but the listener can still race the first connection attempt.
+        // Retry briefly.
+        let pool = loop_connect(&url, std::time::Duration::from_secs(10)).await;
 
-async fn loop_connect(url: &str, budget: std::time::Duration) -> PgPool {
-    let deadline = std::time::Instant::now() + budget;
-    let mut last_err: Option<sqlx::Error> = None;
-    while std::time::Instant::now() < deadline {
-        match PgPool::connect(url).await {
-            Ok(pool) => return pool,
-            Err(e) => {
-                last_err = Some(e);
-                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        sqlx::raw_sql(PG_EXTENSIONS_SQL)
+            .execute(&pool)
+            .await
+            .expect("apply pg-extensions.sql");
+
+        sqlx::raw_sql(super::SCHEMA_SQL)
+            .execute(&pool)
+            .await
+            .expect("apply init-schema.sql");
+
+        (container, pool)
+    }
+
+    async fn loop_connect(url: &str, budget: std::time::Duration) -> PgPool {
+        let deadline = std::time::Instant::now() + budget;
+        let mut last_err: Option<sqlx::Error> = None;
+        while std::time::Instant::now() < deadline {
+            match PgPool::connect(url).await {
+                Ok(pool) => return pool,
+                Err(e) => {
+                    last_err = Some(e);
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                }
             }
         }
+        panic!("pg pool never came up: {last_err:?}");
     }
-    panic!("pg pool never came up: {last_err:?}");
 }
 
+#[cfg(feature = "spg")]
+mod backend {
+    use spg_sqlx::{SpgPool, SpgPoolExt};
+
+    /// No keep-alive needed for the in-process engine.
+    pub type TestHandle = ();
+
+    /// Open a fresh in-memory SPG engine and apply `init-schema.sql`.
+    /// (pg-extensions.sql is PG-only — SPG ships vector natively.)
+    pub async fn setup_pg() -> (TestHandle, SpgPool) {
+        let pool = SpgPool::connect_in_memory()
+            .await
+            .expect("open in-memory spg");
+
+        sqlx::raw_sql(super::SCHEMA_SQL)
+            .execute(&pool)
+            .await
+            .expect("apply init-schema.sql");
+
+        ((), pool)
+    }
+}
+
+pub use backend::setup_pg;
+
 /// Insert a domain + account row so message-level fixtures have FK targets.
-pub async fn seed_domain_account(pool: &PgPool, user: &str) {
+pub async fn seed_domain_account(pool: &BackendPool, user: &str) {
     let domain = user
         .split_once('@')
         .map(|(_, d)| d)
@@ -102,7 +144,7 @@ pub async fn seed_domain_account(pool: &PgPool, user: &str) {
 }
 
 /// Insert a mailbox row for `user` and return its id.
-pub async fn seed_mailbox(pool: &PgPool, user: &str, name: &str) -> i64 {
+pub async fn seed_mailbox(pool: &BackendPool, user: &str, name: &str) -> i64 {
     let row: (i64,) = sqlx::query_as(
         "INSERT INTO mailboxes (user_address, name, uidvalidity) VALUES ($1, $2, $3) RETURNING id",
     )

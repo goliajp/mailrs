@@ -13,8 +13,8 @@
 
 use std::time::Duration;
 
+use crate::pg::BackendPool;
 use chrono::Utc;
-use sqlx::PgPool;
 
 use super::feed::{ExternalFeed, record_error, record_success};
 
@@ -25,7 +25,7 @@ const WORKER_TICK: Duration = Duration::from_secs(60);
 
 /// Spawn the long-lived feed worker. Cheap if there are no feeds (the
 /// DUE query just returns empty and we sleep).
-pub fn spawn_feed_worker(pool: PgPool) {
+pub fn spawn_feed_worker(pool: BackendPool) {
     tokio::spawn(async move {
         loop {
             if let Err(e) = run_one_tick(&pool).await {
@@ -36,7 +36,7 @@ pub fn spawn_feed_worker(pool: PgPool) {
     });
 }
 
-async fn run_one_tick(pool: &PgPool) -> Result<(), sqlx::Error> {
+async fn run_one_tick(pool: &BackendPool) -> Result<(), sqlx::Error> {
     let now = Utc::now();
     let feeds = super::feed::list_due(pool, now).await?;
     if feeds.is_empty() {
@@ -94,7 +94,7 @@ enum SyncOutcome {
 
 async fn sync_one(
     client: &reqwest::Client,
-    pool: &PgPool,
+    pool: &BackendPool,
     feed: &ExternalFeed,
 ) -> Result<SyncOutcome, String> {
     let mut req = client.get(&feed.url);
@@ -146,7 +146,7 @@ async fn sync_one(
 /// path so structured columns (organizer, attendees, RRULE, ...) stay
 /// consistent with the rest of mailrs.
 async fn apply_ics_to_calendar(
-    pool: &PgPool,
+    pool: &BackendPool,
     calendar_id: i64,
     body: &[u8],
 ) -> Result<usize, sqlx::Error> {

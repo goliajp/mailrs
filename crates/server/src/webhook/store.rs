@@ -1,6 +1,6 @@
+use crate::pg::BackendPool;
 use mailrs_backoff::Backoff;
 use rand_core::{OsRng, RngCore};
-use sqlx::PgPool;
 
 use super::{OutboxEntry, Subscription};
 
@@ -31,7 +31,7 @@ pub fn retry_delay_secs(attempt: u32) -> i64 {
 
 /// insert a new webhook subscription and return its id
 pub async fn create_subscription(
-    pool: &PgPool,
+    pool: &BackendPool,
     account: &str,
     url: &str,
     event_type: &str,
@@ -56,7 +56,7 @@ pub async fn create_subscription(
 
 /// list all active subscriptions for an account
 pub async fn list_subscriptions(
-    pool: &PgPool,
+    pool: &BackendPool,
     account: &str,
 ) -> Result<Vec<Subscription>, sqlx::Error> {
     sqlx::query_as::<_, Subscription>(
@@ -72,7 +72,7 @@ pub async fn list_subscriptions(
 
 /// soft-delete a subscription by setting active=false, returns true if found
 pub async fn delete_subscription(
-    pool: &PgPool,
+    pool: &BackendPool,
     id: i64,
     account: &str,
 ) -> Result<bool, sqlx::Error> {
@@ -87,7 +87,10 @@ pub async fn delete_subscription(
 }
 
 /// get a single subscription by id
-pub async fn get_subscription(pool: &PgPool, id: i64) -> Result<Option<Subscription>, sqlx::Error> {
+pub async fn get_subscription(
+    pool: &BackendPool,
+    id: i64,
+) -> Result<Option<Subscription>, sqlx::Error> {
     sqlx::query_as::<_, Subscription>(
         "SELECT id, account_address, url, event_type, filter_sender, filter_thread_id, signing_secret, active, created_at
          FROM webhook_subscriptions
@@ -100,7 +103,7 @@ pub async fn get_subscription(pool: &PgPool, id: i64) -> Result<Option<Subscript
 
 /// find active subscriptions matching account, event type, and optional sender/thread filters
 pub async fn find_matching_subscriptions(
-    pool: &PgPool,
+    pool: &BackendPool,
     account: &str,
     event_type: &str,
     sender: &str,
@@ -125,7 +128,7 @@ pub async fn find_matching_subscriptions(
 
 /// insert an outbox entry for webhook delivery
 pub async fn enqueue_delivery(
-    pool: &PgPool,
+    pool: &BackendPool,
     subscription_id: i64,
     payload: &serde_json::Value,
     now: i64,
@@ -150,7 +153,7 @@ pub async fn enqueue_delivery(
 /// transition collapse to one roundtrip / one WAL fsync per batch
 /// instead of one SELECT + N per-row UPDATEs.
 pub async fn claim_for_delivery(
-    pool: &PgPool,
+    pool: &BackendPool,
     now: i64,
     limit: i32,
 ) -> Result<Vec<OutboxEntry>, sqlx::Error> {
@@ -174,7 +177,7 @@ pub async fn claim_for_delivery(
 }
 
 /// mark an outbox entry as delivered
-pub async fn mark_delivered(pool: &PgPool, id: i64, now: i64) -> Result<(), sqlx::Error> {
+pub async fn mark_delivered(pool: &BackendPool, id: i64, now: i64) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE webhook_outbox SET status = 'delivered', updated_at = $2 WHERE id = $1")
         .bind(id)
         .bind(now)
@@ -185,7 +188,7 @@ pub async fn mark_delivered(pool: &PgPool, id: i64, now: i64) -> Result<(), sqlx
 
 /// mark an outbox entry as failed, with exponential backoff retry or permanent failure
 pub async fn mark_failed(
-    pool: &PgPool,
+    pool: &BackendPool,
     id: i64,
     error: &str,
     attempt: i32,

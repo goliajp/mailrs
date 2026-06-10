@@ -20,7 +20,7 @@ pub fn spawn_daily_report_task(
     report_email: String,
     hostname: String,
     resolver: Arc<hickory_resolver::TokioResolver>,
-    outbound_queue: Option<sqlx::PgPool>,
+    outbound_queue: Option<crate::pg::BackendPool>,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
     tokio::spawn(async move {

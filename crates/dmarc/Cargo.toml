@@ -20,6 +20,8 @@ default = ["pg-store"]
 # Enable the Postgres-backed DmarcStore reference implementation.
 # Disable if you're plugging in your own store backend.
 pg-store = ["dep:sqlx"]
+# Swap the store backend from PostgreSQL (default) to spg-embedded.
+spg = ["dep:spg-sqlx"]
 
 [dependencies]
 async-trait = "0.1"
@@ -40,6 +42,7 @@ psl = "2"
 
 # pg-store feature
 sqlx = { workspace = true, optional = true }
+spg-sqlx = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }

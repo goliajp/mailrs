@@ -21,6 +21,9 @@ default = ["pg"]
 # QueueStore / Notifier and the bundled DeliveryWorker that depends on
 # them. Disable this feature if you're plugging in your own store backend.
 pg = ["dep:sqlx", "dep:kevy-embedded", "dep:base64"]
+# Swap the store backend from PostgreSQL (default) to spg-embedded.
+# Implies `pg` (same store code, different pool type).
+spg = ["pg", "dep:spg-sqlx"]
 
 [dependencies]
 async-trait = "0.1"
@@ -54,6 +57,7 @@ mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 
 # pg feature
 sqlx = { workspace = true, optional = true }
+spg-sqlx = { workspace = true, optional = true }
 kevy-embedded = { workspace = true, optional = true }
 # base64 used by the `pg` feature path to encode/decode message_data as
 # CSV TEXT (Phase D-pre #3: SPG has no BYTES type; SPG and PG schemas now

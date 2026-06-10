@@ -18,6 +18,17 @@ workspace = true
 # disabling it just turns the RPC into a "feature not enabled" error.
 default = []
 render-preview = ["dep:chromiumoxide"]
+# Swap the SQL backend from PostgreSQL (default) to spg-embedded —
+# the in-process engine; no postgres container, no TCP. Flips the
+# BackendPool type alias in this crate AND in every sqlx-using stone.
+# See .claude/rfcs/20260610-spg-embedded-cutover.md.
+spg = [
+    "dep:spg-sqlx",
+    "mailrs-mailbox/spg",
+    "mailrs-outbound-queue/spg",
+    "mailrs-shield/spg",
+    "mailrs-dmarc/spg",
+]
 
 [dependencies]
 mailrs-smtp-proto = "1"
@@ -80,6 +91,7 @@ mailrs-mime = { path = "../mime", version = "2" }
 metrics = "0.24"
 metrics-exporter-prometheus = { version = "0.18", default-features = false }
 sqlx = { workspace = true }
+spg-sqlx = { workspace = true, optional = true }
 kevy-embedded = { workspace = true }
 ipnet = { workspace = true }
 hickory-resolver = "0.26"

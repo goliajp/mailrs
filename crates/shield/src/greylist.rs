@@ -84,6 +84,15 @@ mod kevy_impl {
 
     use super::{GreylistConfig, GreylistDecision, evaluate_triplet};
 
+    /// Connection pool of the active SQL backend (PostgreSQL by
+    /// default, spg-embedded behind the `spg` feature).
+    #[cfg(not(feature = "spg"))]
+    pub type BackendPool = sqlx::PgPool;
+    /// Connection pool of the active SQL backend (PostgreSQL by
+    /// default, spg-embedded behind the `spg` feature).
+    #[cfg(feature = "spg")]
+    pub type BackendPool = spg_sqlx::SpgPool;
+
     /// Kevy-backed greylisting store with an optional Postgres cold-backup.
     ///
     /// First-seen timestamps live in the in-process kevy [`Store`] with a TTL
@@ -91,7 +100,7 @@ mod kevy_impl {
     /// for durability across restarts.
     pub struct GreylistDb {
         kevy: Store,
-        pg: Option<sqlx::PgPool>,
+        pg: Option<BackendPool>,
     }
 
     impl GreylistDb {
@@ -104,7 +113,7 @@ mod kevy_impl {
 
         /// Attach a Postgres pool for best-effort durability across kevy
         /// restarts (writes are best-effort; failures don't propagate).
-        pub fn with_pg(mut self, pool: sqlx::PgPool) -> Self {
+        pub fn with_pg(mut self, pool: BackendPool) -> Self {
             self.pg = Some(pool);
             self
         }

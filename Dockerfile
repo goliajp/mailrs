@@ -41,7 +41,7 @@ RUN sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    cargo build --release --bin mailrs-server \
+    cargo build --release --bin mailrs-server --features spg \
     && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server
 
 # stage 2: build frontend

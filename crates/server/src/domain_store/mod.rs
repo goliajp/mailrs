@@ -1,8 +1,8 @@
 use std::time::Instant;
 
+use crate::pg::BackendPool;
 use dashmap::DashMap;
 use serde::Serialize;
-use sqlx::PgPool;
 
 use crate::health::HealthState;
 
@@ -30,7 +30,7 @@ mod vacation;
 pub(super) const CACHE_TTL_SECS: u64 = 300;
 
 pub struct DomainStore {
-    pub(super) pg: Option<PgPool>,
+    pub(super) pg: Option<BackendPool>,
     pub(super) kevy: Option<crate::kevy_store::KevyStore>,
     pub(super) health: HealthState,
     // process-level cache for L3 degradation
@@ -116,7 +116,7 @@ impl From<sqlx::Error> for StoreError {
 
 impl DomainStore {
     pub fn new(
-        pg: Option<PgPool>,
+        pg: Option<BackendPool>,
         kevy: Option<crate::kevy_store::KevyStore>,
         health: HealthState,
     ) -> Self {
@@ -141,7 +141,7 @@ impl DomainStore {
         before - self.account_cache.len()
     }
 
-    pub(super) fn pg(&self) -> Result<&PgPool> {
+    pub(super) fn pg(&self) -> Result<&BackendPool> {
         match (&self.pg, self.health.pg_up()) {
             (Some(pool), true) => Ok(pool),
             (Some(pool), false) => {

@@ -1,4 +1,4 @@
-use sqlx::PgPool;
+use crate::pg::BackendPool;
 
 use crate::pg::PgMailboxStore;
 use crate::pg::helpers::row_to_message_meta;
@@ -165,7 +165,7 @@ impl PgMailboxStore {
 }
 
 /// bump highest_modseq for mailbox and return the new value
-async fn bump_modseq(pool: &PgPool, mailbox_id: i64) -> Result<u64, sqlx::Error> {
+async fn bump_modseq(pool: &BackendPool, mailbox_id: i64) -> Result<u64, sqlx::Error> {
     let row = sqlx::query_as::<_, (i64,)>(
         "UPDATE mailboxes SET highest_modseq = highest_modseq + 1
          WHERE id = $1 RETURNING highest_modseq",

@@ -1,10 +1,10 @@
+use crate::pg::BackendPool;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use rsa::pkcs1::EncodeRsaPublicKey;
 use rsa::pkcs8::EncodePrivateKey;
 use rsa::traits::PublicKeyParts;
 use rsa::{RsaPrivateKey, RsaPublicKey};
-use sqlx::PgPool;
 
 use crate::oidc_store;
 
@@ -41,7 +41,7 @@ pub(crate) fn current_kid() -> String {
 }
 
 /// ensure at least one active signing key exists; generate if needed
-pub(crate) async fn ensure_signing_key(pool: &PgPool) -> Result<(), BoxError> {
+pub(crate) async fn ensure_signing_key(pool: &BackendPool) -> Result<(), BoxError> {
     if oidc_store::has_any_active_key(pool).await? {
         tracing::info!("oidc signing key already exists");
         return Ok(());
