@@ -80,13 +80,8 @@ pub(crate) async fn set_sieve(
     let script_len = req.script.len();
     match ds.set_sieve_script(&address, &req.script, now).await {
         Ok(()) => {
-            ds.log_audit(
-                &actor,
-                "sieve_set",
-                &address,
-                &format!("size={script_len}"),
-            )
-            .await;
+            ds.log_audit(&actor, "sieve_set", &address, &format!("size={script_len}"))
+                .await;
             Json(ApiResult {
                 success: true,
                 message: None,
@@ -104,9 +99,7 @@ pub(crate) async fn set_sieve(
 
 pub(crate) async fn delete_sieve(
     Path(address): Path<String>,
-    AuthUser {
-        address: actor, ..
-    }: AuthUser,
+    AuthUser { address: actor, .. }: AuthUser,
     State(state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
     let Some(ref ds) = state.domain_store else {
