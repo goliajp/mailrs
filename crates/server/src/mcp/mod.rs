@@ -20,9 +20,7 @@ use rmcp::model::{
     CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
 };
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
-use rmcp::transport::streamable_http_server::{
-    StreamableHttpServerConfig, StreamableHttpService,
-};
+use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::{tool, tool_handler, tool_router};
 
 use base64::Engine;
@@ -983,7 +981,15 @@ impl MailMcpService {
         sql.push_str(" ORDER BY id");
         let mut q = sqlx::query_as::<
             _,
-            (i64, String, String, String, Option<String>, i64, Option<String>),
+            (
+                i64,
+                String,
+                String,
+                String,
+                Option<String>,
+                i64,
+                Option<String>,
+            ),
         >(&sql);
         for b in &binds {
             q = q.bind(b);
@@ -1049,15 +1055,15 @@ impl MailMcpService {
                     .to_string(),
                 )]))
             }
-            Err(sqlx::Error::Database(db)) if db.is_unique_violation() => Err(
-                McpError::invalid_params(
+            Err(sqlx::Error::Database(db)) if db.is_unique_violation() => {
+                Err(McpError::invalid_params(
                     format!(
                         "value '{normalized}' already exists in greylist_local_lists; \
                          remove the existing entry before re-adding to a different list"
                     ),
                     None,
-                ),
-            ),
+                ))
+            }
             Err(e) => Err(McpError::internal_error(format!("{e}"), None)),
         }
     }
