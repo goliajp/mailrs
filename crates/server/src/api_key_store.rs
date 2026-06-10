@@ -1,7 +1,7 @@
+use crate::pg::BackendPool;
 use chrono::{DateTime, Utc};
 use rand_core::{OsRng, RngCore};
 use sha2::{Digest, Sha256};
-use sqlx::PgPool;
 
 /// full DB row for an API key
 #[derive(Debug, sqlx::FromRow)]
@@ -61,7 +61,7 @@ pub(crate) fn generate_api_key() -> (String, String, String) {
 
 /// insert a new API key record, returns the row id
 pub(crate) async fn insert_api_key(
-    pool: &PgPool,
+    pool: &BackendPool,
     prefix: &str,
     key_hash: &str,
     full_key: &str,
@@ -89,7 +89,7 @@ pub(crate) async fn insert_api_key(
 /// insert an API key for an app, returns the row id
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn insert_app_api_key(
-    pool: &PgPool,
+    pool: &BackendPool,
     prefix: &str,
     key_hash: &str,
     full_key: &str,
@@ -118,7 +118,7 @@ pub(crate) async fn insert_app_api_key(
 
 /// look up an active (non-revoked) API key by prefix
 pub(crate) async fn get_api_key_by_prefix(
-    pool: &PgPool,
+    pool: &BackendPool,
     prefix: &str,
 ) -> Result<Option<ApiKeyRecord>, sqlx::Error> {
     sqlx::query_as::<_, ApiKeyRecord>(
@@ -134,7 +134,7 @@ pub(crate) async fn get_api_key_by_prefix(
 
 /// list all active API keys for an account, newest first
 pub(crate) async fn list_api_keys(
-    pool: &PgPool,
+    pool: &BackendPool,
     account_address: &str,
 ) -> Result<Vec<ApiKeyRecord>, sqlx::Error> {
     sqlx::query_as::<_, ApiKeyRecord>(
@@ -151,7 +151,7 @@ pub(crate) async fn list_api_keys(
 
 /// revoke an API key, returns the prefix if a row was updated (for cache eviction)
 pub(crate) async fn revoke_api_key(
-    pool: &PgPool,
+    pool: &BackendPool,
     id: i64,
     account_address: &str,
 ) -> Result<Option<String>, sqlx::Error> {
@@ -169,7 +169,7 @@ pub(crate) async fn revoke_api_key(
 }
 
 /// update last_used_at timestamp (fire-and-forget friendly)
-pub(crate) async fn update_last_used(pool: &PgPool, id: i64) {
+pub(crate) async fn update_last_used(pool: &BackendPool, id: i64) {
     let _ = sqlx::query("UPDATE api_keys SET last_used_at = now() WHERE id = $1")
         .bind(id)
         .execute(pool)

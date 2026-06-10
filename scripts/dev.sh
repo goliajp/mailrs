@@ -22,7 +22,10 @@ fi
 export MAILRS_HOSTNAME=localhost
 export MAILRS_MAILDIR=/tmp/mailrs/maildir
 export MAILRS_WEB_PORT=3200
-export MAILRS_PG_URL=postgres://mailrs:mailrs@localhost:5432/mailrs
+# spg-embedded — in-process SQL engine; no postgres container needed.
+# Fresh catalog bootstraps from init-schema.sql via `spg import`
+# (spgctl binary from the goliajp/spg checkout or PATH).
+export MAILRS_PG_URL=spg:///tmp/mailrs/spg/mailrs.spg
 export MAILRS_KEVY_URL=redis://localhost:6379
 export MAILRS_LOCAL_DOMAINS=localhost,golia.jp
 export MAILRS_USERS_FILE=/tmp/mailrs/users.toml
@@ -30,12 +33,27 @@ export MAILRS_DNSBL_ENABLED=false
 export MAILRS_ANTISPAM_ENABLED=false
 export MAILRS_AI_ANALYSIS_ENABLED=true
 
-mkdir -p /tmp/mailrs/maildir
+mkdir -p /tmp/mailrs/maildir /tmp/mailrs/spg
+
+if [ ! -f /tmp/mailrs/spg/mailrs.spg ]; then
+  SPG_BIN="$(command -v spg || true)"
+  if [ -z "$SPG_BIN" ]; then
+    for cand in "$ROOT/../../goliajp/spg/target/release/spg" "$ROOT/../../goliajp/spg/target/debug/spg"; do
+      [ -x "$cand" ] && SPG_BIN="$cand" && break
+    done
+  fi
+  if [ -z "$SPG_BIN" ]; then
+    echo "error: fresh spg catalog needs the 'spg' CLI (cargo build -p spgctl in goliajp/spg)" >&2
+    exit 1
+  fi
+  echo "==> bootstrapping spg catalog from scripts/init-schema.sql"
+  "$SPG_BIN" import --db /tmp/mailrs/spg/mailrs.spg --file "$ROOT/scripts/init-schema.sql"
+fi
 
 export MAILRS_IMAPS_PORT=1993
 
 echo "==> starting cargo run (SMTP 2525, submission 2587, IMAP 1143, IMAPS 1993, web API 3200)"
-cargo run --bin mailrs-server &
+cargo run --bin mailrs-server --features spg &
 PID_CARGO=$!
 
 echo "==> starting vite dev server (http://localhost:5173)"

@@ -84,6 +84,17 @@ jobs:
         # via `cargo bench` for trend tracking.
         run: cargo test --workspace --no-fail-fast -- --skip _under_budget
 
+      - name: cargo test --workspace (spg embed axis)
+        # Same suite against the in-process spg-embedded backend —
+        # the production shape after the SPG cutover. No containers:
+        # every fixture runs on SpgPool::connect_in_memory(), so this
+        # axis is fast and docker-independent. The PG axis above stays
+        # as the reference-backend gate for the published stones.
+        run: >
+          cargo test --workspace --no-fail-fast
+          --features mailrs-server/spg,mailrs-mailbox/spg,mailrs-outbound-queue/spg,mailrs-shield/spg,mailrs-dmarc/spg
+          -- --skip _under_budget
+
   web:
     name: web check + test
     runs-on: ubuntu-latest

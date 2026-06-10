@@ -31,7 +31,7 @@ fn classify_health(bounce_rate: f64) -> &'static str {
 }
 
 /// compute reputation metrics from the outbound queue and suppression list
-pub async fn compute_reputation(pool: &sqlx::PgPool) -> Vec<DomainReputation> {
+pub async fn compute_reputation(pool: &crate::pg::BackendPool) -> Vec<DomainReputation> {
     // sent/delivered/bounced per sender domain (last 30 days)
     let rows: Vec<(String, i64, i64, i64)> = sqlx::query_as(
         "SELECT \

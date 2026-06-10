@@ -20,7 +20,7 @@ use mailrs_mailbox::PgMailboxStore;
 /// that picks up DB changes without a restart.
 pub(crate) async fn init_system_config_store(
     cfg: &config::ServerConfig,
-    pg_pool: &Option<sqlx::PgPool>,
+    pg_pool: &Option<crate::pg::BackendPool>,
     kevy_store: &Option<crate::kevy_store::KevyStore>,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) -> Arc<system_config::SystemConfigStore> {

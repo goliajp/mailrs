@@ -84,7 +84,7 @@ pub(crate) async fn spawn_web_server(
 ///
 /// Items 2 and 3 need a PG pool; item 1 is independent.
 pub(crate) fn spawn_webhook_subsystem(
-    pg_pool: &Option<sqlx::PgPool>,
+    pg_pool: &Option<crate::pg::BackendPool>,
     event_bus: &EventBus,
     system_config_store: &Arc<system_config::SystemConfigStore>,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,
@@ -125,7 +125,7 @@ pub(crate) fn spawn_dmarc_aggregate_task(
     dmarc_report_store: &Option<Arc<dmarc_report::DmarcReportStore>>,
     resolver: &Option<Arc<hickory_resolver::TokioResolver>>,
     cfg: &config::ServerConfig,
-    outbound_queue: Option<sqlx::PgPool>,
+    outbound_queue: Option<crate::pg::BackendPool>,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) {
     let (Some(dmarc_store), Some(resolver)) = (dmarc_report_store, resolver) else {

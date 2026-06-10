@@ -3,21 +3,21 @@
 
 use std::sync::Arc;
 
+use crate::pg::BackendPool;
 use async_trait::async_trait;
 use mailrs_tls_rpt::{EventFact, FailureEvent, Store, StoreError, SuccessEvent};
-use sqlx::PgPool;
 
 use super::convert::{
     canonical_policy_str_to_type, failure_type_str, policy_type_str, str_to_failure_type,
 };
 
 pub struct PgTlsRptStore {
-    pool: PgPool,
+    pool: BackendPool,
 }
 
 impl PgTlsRptStore {
     /// New store wrapping the supplied PG pool.
-    pub fn new(pool: PgPool) -> Self {
+    pub fn new(pool: BackendPool) -> Self {
         Self { pool }
     }
 

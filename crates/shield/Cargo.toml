@@ -20,6 +20,9 @@ default = ["kevy-store"]
 # Enable the kevy-backed greylist store (with optional Postgres
 # pass-through). Disable if you're plugging in your own store.
 kevy-store = ["dep:kevy-embedded", "dep:sqlx"]
+# Swap the greylist cold-backup pool from PostgreSQL (default) to
+# spg-embedded. Type-alias level switch, same pattern as mailrs-mailbox.
+spg = ["dep:spg-sqlx"]
 
 [dependencies]
 mailrs-dnsbl = "1"
@@ -28,6 +31,7 @@ hickory-resolver = "0.26"
 # kevy-store feature
 kevy-embedded = { workspace = true, optional = true }
 sqlx = { workspace = true, optional = true }
+spg-sqlx = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }

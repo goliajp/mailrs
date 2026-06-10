@@ -66,7 +66,6 @@ impl DomainStore {
 mod tests {
     use super::*;
     use crate::health::HealthState;
-    use sqlx::postgres::PgPoolOptions;
 
     // real-PG test (no mocks). Gated on MAILRS_PG_URL so the default
     // `cargo test` skips it; run with:
@@ -76,11 +75,7 @@ mod tests {
     #[ignore = "requires MAILRS_PG_URL"]
     async fn dedup_window_lifecycle() {
         let url = std::env::var("MAILRS_PG_URL").expect("MAILRS_PG_URL required");
-        let pool = PgPoolOptions::new()
-            .max_connections(2)
-            .connect(&url)
-            .await
-            .expect("PG pool");
+        let pool = crate::pg::create_pool(&url).await.expect("DB pool");
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS vacation_dedup (\
              recipient TEXT NOT NULL, sender TEXT NOT NULL, handle TEXT NOT NULL, \

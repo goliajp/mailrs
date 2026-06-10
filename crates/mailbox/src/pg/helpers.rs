@@ -77,8 +77,8 @@ pub(crate) fn row_to_message_meta(
     }
 }
 
-/// convert a PgRow to MessageMeta (for queries with >16 columns)
-pub(crate) fn row_to_message_meta_from_row(r: sqlx::postgres::PgRow) -> MessageMeta {
+/// convert a row to MessageMeta (for queries with >16 columns)
+pub(crate) fn row_to_message_meta_from_row(r: crate::pg::BackendRow) -> MessageMeta {
     MessageMeta {
         id: r.get::<i64, _>(0),
         mailbox_id: r.get::<i64, _>(1),

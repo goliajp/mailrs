@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 
-use sqlx::PgPool;
+use crate::pg::BackendPool;
 
 use crate::message_util;
 use mailrs_attachment_extract::{self, ExtractionResult, MAX_EXTRACT_SIZE};
@@ -20,14 +20,14 @@ const BATCH_SIZE: i64 = 10;
 /// default OCR languages
 const DEFAULT_OCR_LANGS: &str = "eng+chi_sim+jpn";
 
-pub fn spawn_content_worker(pool: PgPool, maildir_root: String) {
+pub fn spawn_content_worker(pool: BackendPool, maildir_root: String) {
     tokio::spawn(async move {
         content_worker_loop(pool, maildir_root).await;
     });
     tracing::info!(event = "subsystem_started", subsystem = "content_worker");
 }
 
-async fn content_worker_loop(pool: PgPool, maildir_root: String) {
+async fn content_worker_loop(pool: BackendPool, maildir_root: String) {
     let mut interval = tokio::time::interval(POLL_INTERVAL);
     loop {
         interval.tick().await;
@@ -38,7 +38,7 @@ async fn content_worker_loop(pool: PgPool, maildir_root: String) {
 }
 
 /// find messages with attachments that haven't been processed yet
-async fn process_batch(pool: &PgPool, maildir_root: &str) -> Result<(), String> {
+async fn process_batch(pool: &BackendPool, maildir_root: &str) -> Result<(), String> {
     // find messages that have attachments but no attachment_content rows yet
     let rows = sqlx::query_as::<_, (i64, String, String, String)>(
         "SELECT m.id, m.sender, m.maildir_id, mb.user_address
@@ -81,7 +81,7 @@ async fn process_batch(pool: &PgPool, maildir_root: &str) -> Result<(), String> 
 
 /// process a single message's attachments
 async fn process_message(
-    pool: &PgPool,
+    pool: &BackendPool,
     maildir_root: &str,
     message_id: i64,
     maildir_id: &str,
@@ -151,7 +151,7 @@ async fn process_message(
 }
 
 async fn insert_extraction(
-    pool: &PgPool,
+    pool: &BackendPool,
     message_id: i64,
     attachment_index: i16,
     content_type: &str,
@@ -179,7 +179,7 @@ async fn insert_extraction(
 }
 
 /// insert a sentinel row so the worker doesn't re-process this message
-async fn insert_empty_sentinel(pool: &PgPool, message_id: i64) -> Result<(), String> {
+async fn insert_empty_sentinel(pool: &BackendPool, message_id: i64) -> Result<(), String> {
     sqlx::query(
         "INSERT INTO attachment_content
          (message_id, attachment_index, content_type, extracted_text)

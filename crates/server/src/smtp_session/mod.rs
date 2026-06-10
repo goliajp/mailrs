@@ -38,7 +38,7 @@ pub struct ConnectionContext {
     pub web_state: Arc<WebState>,
     pub rate_limiter: Arc<RateLimiter>,
     pub local_domains: Vec<String>,
-    pub outbound_queue: Option<sqlx::PgPool>,
+    pub outbound_queue: Option<crate::pg::BackendPool>,
     pub resolver: Option<Arc<TokioResolver>>,
     pub dnsbl_zones: Vec<String>,
     pub dnsbl_enabled: bool,

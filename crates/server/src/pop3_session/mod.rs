@@ -120,7 +120,8 @@ mod tests {
     use super::*;
 
     fn make_transaction_session(messages: Vec<MessageEntry>) -> Pop3Session {
-        let pool = sqlx::PgPool::connect_lazy("postgres://user:pass@localhost/db").unwrap();
+        let pool =
+            crate::pg::BackendPool::connect_lazy("postgres://user:pass@localhost/db").unwrap();
         Pop3Session {
             mailbox_store: Arc::new(PgMailboxStore::new(pool)),
             users: Arc::new(UserStore::empty()),

@@ -177,7 +177,7 @@ impl PgMailboxStore {
         }
 
         // One multi-row INSERT for the whole batch.
-        let mut qb: QueryBuilder<sqlx::Postgres> = QueryBuilder::new(
+        let mut qb: QueryBuilder<crate::pg::BackendDb> = QueryBuilder::new(
             "INSERT INTO messages (mailbox_id, uid, maildir_id, sender, recipients, subject, \
              size, date_epoch, internal_date, message_id, in_reply_to, thread_id, modseq) ",
         );

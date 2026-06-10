@@ -1,11 +1,11 @@
 //! Suppression list (hard-bounce blocklist).
 
 #[cfg(feature = "pg")]
-use sqlx::PgPool;
+use crate::BackendPool;
 
 /// check if a recipient address is in the suppression list (hard bounce)
 #[cfg(feature = "pg")]
-pub async fn is_suppressed(pool: &PgPool, email: &str) -> bool {
+pub async fn is_suppressed(pool: &BackendPool, email: &str) -> bool {
     sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM suppression_list WHERE email = $1)")
         .bind(email)
         .fetch_one(pool)
@@ -16,7 +16,7 @@ pub async fn is_suppressed(pool: &PgPool, email: &str) -> bool {
 /// add a recipient to the suppression list after a hard bounce
 #[cfg(feature = "pg")]
 pub async fn add_suppression(
-    pool: &PgPool,
+    pool: &BackendPool,
     email: &str,
     reason: &str,
     smtp_code: Option<i32>,
@@ -36,7 +36,7 @@ pub async fn add_suppression(
 
 /// remove an address from the suppression list (admin override)
 #[cfg(feature = "pg")]
-pub async fn remove_suppression(pool: &PgPool, email: &str) -> Result<bool, sqlx::Error> {
+pub async fn remove_suppression(pool: &BackendPool, email: &str) -> Result<bool, sqlx::Error> {
     let result = sqlx::query("DELETE FROM suppression_list WHERE email = $1")
         .bind(email)
         .execute(pool)
@@ -47,7 +47,7 @@ pub async fn remove_suppression(pool: &PgPool, email: &str) -> Result<bool, sqlx
 /// list all suppressed addresses
 #[cfg(feature = "pg")]
 pub async fn list_suppressions(
-    pool: &PgPool,
+    pool: &BackendPool,
     limit: i64,
 ) -> Result<Vec<(String, String, Option<i32>, i64)>, sqlx::Error> {
     sqlx::query_as(

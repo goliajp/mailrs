@@ -1,4 +1,4 @@
-use sqlx::PgPool;
+use crate::pg::BackendPool;
 use tokio::sync::watch;
 use tracing;
 
@@ -42,7 +42,7 @@ fn build_payload(
 }
 
 /// run the webhook event listener, subscribing to EventBus and enqueuing deliveries
-pub async fn run(event_bus: &EventBus, pool: &PgPool, mut shutdown: watch::Receiver<bool>) {
+pub async fn run(event_bus: &EventBus, pool: &BackendPool, mut shutdown: watch::Receiver<bool>) {
     let mut rx = event_bus.subscribe();
 
     loop {

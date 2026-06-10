@@ -62,6 +62,15 @@ pub mod store;
 /// Postgres-backed [`QueueStore`] implementation (feature-gated).
 #[cfg(feature = "pg")]
 pub mod pg_store;
+
+/// Connection pool of the active SQL backend (PostgreSQL by default,
+/// spg-embedded behind the `spg` feature).
+#[cfg(all(feature = "pg", not(feature = "spg")))]
+pub type BackendPool = sqlx::PgPool;
+/// Connection pool of the active SQL backend (PostgreSQL by default,
+/// spg-embedded behind the `spg` feature).
+#[cfg(feature = "spg")]
+pub type BackendPool = spg_sqlx::SpgPool;
 /// Async delivery worker that drains the queue + dispatches via SMTP (feature-gated).
 #[cfg(feature = "pg")]
 pub mod worker;

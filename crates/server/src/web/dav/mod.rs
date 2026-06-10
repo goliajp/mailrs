@@ -112,7 +112,7 @@ fn depth_from_headers(headers: &HeaderMap) -> u32 {
 
 #[derive(Clone)]
 struct DavAdapter {
-    pool: sqlx::PgPool,
+    pool: crate::pg::BackendPool,
 }
 
 impl DavAdapter {

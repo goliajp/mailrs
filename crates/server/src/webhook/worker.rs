@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use sqlx::PgPool;
+use crate::pg::BackendPool;
 use tokio::sync::watch;
 use tracing;
 
@@ -8,14 +8,14 @@ use super::{OutboxEntry, signer, store};
 
 /// background worker that polls the webhook outbox and delivers payloads
 pub struct WebhookWorker {
-    pool: PgPool,
+    pool: BackendPool,
     client: reqwest::Client,
     poll_interval: Duration,
     batch_size: i32,
 }
 
 impl WebhookWorker {
-    pub fn new(pool: PgPool) -> Self {
+    pub fn new(pool: BackendPool) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(5))
@@ -88,7 +88,7 @@ impl WebhookWorker {
 /// has already been atomically transitioned to `inflight` by the
 /// poll-loop's `claim_for_delivery`, so this function does not
 /// re-mark it.
-async fn deliver_one(client: &reqwest::Client, pool: &PgPool, entry: OutboxEntry) {
+async fn deliver_one(client: &reqwest::Client, pool: &BackendPool, entry: OutboxEntry) {
     let now = chrono::Utc::now().timestamp();
     let attempt = entry.attempts + 1;
 

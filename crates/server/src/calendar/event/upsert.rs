@@ -1,8 +1,8 @@
 //! `upsert_from_parsed_invite` + `delete_by_uid`.
 
+use crate::pg::BackendPool;
 use chrono::{DateTime, Datelike, Utc};
 use serde_json::json;
-use sqlx::PgPool;
 
 use mailrs_ical::{EventStatus, ParsedInvite};
 
@@ -11,7 +11,7 @@ use super::convert::{
 };
 
 pub async fn upsert_from_parsed_invite(
-    pool: &PgPool,
+    pool: &BackendPool,
     calendar_id: i64,
     uid: &str,
     parsed: &ParsedInvite,
@@ -140,7 +140,11 @@ pub async fn upsert_from_parsed_invite(
 /// past, but if the RRULE produces an occurrence inside the query window
 /// we still emit a synthetic ConflictRow with the occurrence's dtstart /
 /// dtend so the UI shows the right conflict time. Limited to 50 results.
-pub async fn delete_by_uid(pool: &PgPool, calendar_id: i64, uid: &str) -> Result<(), sqlx::Error> {
+pub async fn delete_by_uid(
+    pool: &BackendPool,
+    calendar_id: i64,
+    uid: &str,
+) -> Result<(), sqlx::Error> {
     sqlx::query("DELETE FROM calendar_events WHERE calendar_id = $1 AND uid = $2")
         .bind(calendar_id)
         .bind(uid)

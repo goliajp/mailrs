@@ -6,8 +6,8 @@
 //!
 //! [mailrs]: https://github.com/goliajp/mailrs
 
+use crate::BackendPool;
 use kevy_embedded::{PubsubFrame, Store};
-use sqlx::PgPool;
 
 use crate::queue;
 use crate::queue::QueuedMessage;
@@ -16,19 +16,19 @@ use crate::store::{Notifier, QueueStore, StoreError};
 /// `QueueStore` backed by a `sqlx::PgPool` against the mailrs schema.
 #[derive(Debug, Clone)]
 pub struct PgQueueStore {
-    pool: PgPool,
+    pool: BackendPool,
 }
 
 impl PgQueueStore {
     /// Build a Postgres-backed store over an existing connection pool. The
     /// pool is cloned cheaply on every operation, so a single pool can be
     /// shared with the rest of the application.
-    pub fn new(pool: PgPool) -> Self {
+    pub fn new(pool: BackendPool) -> Self {
         Self { pool }
     }
 
     /// Borrow the underlying pool for ad-hoc queries.
-    pub fn pool(&self) -> &PgPool {
+    pub fn pool(&self) -> &BackendPool {
         &self.pool
     }
 }

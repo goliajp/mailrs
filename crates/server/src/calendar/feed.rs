@@ -7,8 +7,8 @@
 //! into a per-feed read-only calendar. The user's CalDAV-subscribed
 //! native client picks them up alongside their own events.
 
+use crate::pg::BackendPool;
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 #[allow(dead_code)] // FromRow forces every column; not every caller reads all
@@ -43,7 +43,7 @@ pub struct CreateFeed<'a> {
 /// Create a new feed subscription, allocating a dedicated read-only
 /// calendar for it. The calendar's name defaults to the feed name (or
 /// the URL host if name is empty).
-pub async fn create(pool: &PgPool, req: CreateFeed<'_>) -> Result<i64, sqlx::Error> {
+pub async fn create(pool: &BackendPool, req: CreateFeed<'_>) -> Result<i64, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     let display_name = if req.name.is_empty() {
@@ -86,7 +86,7 @@ pub async fn create(pool: &PgPool, req: CreateFeed<'_>) -> Result<i64, sqlx::Err
 }
 
 pub async fn list_for_account(
-    pool: &PgPool,
+    pool: &BackendPool,
     account: &str,
 ) -> Result<Vec<ExternalFeed>, sqlx::Error> {
     sqlx::query_as(
@@ -97,7 +97,7 @@ pub async fn list_for_account(
     .await
 }
 
-pub async fn delete(pool: &PgPool, account: &str, feed_id: i64) -> Result<bool, sqlx::Error> {
+pub async fn delete(pool: &BackendPool, account: &str, feed_id: i64) -> Result<bool, sqlx::Error> {
     let res =
         sqlx::query("DELETE FROM external_calendar_feeds WHERE id = $1 AND account_address = $2")
             .bind(feed_id)
@@ -110,7 +110,10 @@ pub async fn delete(pool: &PgPool, account: &str, feed_id: i64) -> Result<bool, 
 /// Fetch all feeds whose `enabled = TRUE` and that are due for sync
 /// (last_synced_at IS NULL OR last_synced_at + interval < now). Used by
 /// the background worker on each tick.
-pub async fn list_due(pool: &PgPool, now: DateTime<Utc>) -> Result<Vec<ExternalFeed>, sqlx::Error> {
+pub async fn list_due(
+    pool: &BackendPool,
+    now: DateTime<Utc>,
+) -> Result<Vec<ExternalFeed>, sqlx::Error> {
     sqlx::query_as(
         "SELECT * FROM external_calendar_feeds
          WHERE enabled = TRUE
@@ -125,7 +128,7 @@ pub async fn list_due(pool: &PgPool, now: DateTime<Utc>) -> Result<Vec<ExternalF
 }
 
 pub async fn record_success(
-    pool: &PgPool,
+    pool: &BackendPool,
     feed_id: i64,
     now: DateTime<Utc>,
     etag: Option<&str>,
@@ -147,7 +150,7 @@ pub async fn record_success(
 }
 
 pub async fn record_error(
-    pool: &PgPool,
+    pool: &BackendPool,
     feed_id: i64,
     now: DateTime<Utc>,
     error: &str,

@@ -2,7 +2,7 @@
 //! `_smtp._tls.<domain>`, parse RUA endpoints, dispatch via
 //! mailto: (outbound queue) and https: (POST gzipped report).
 
-use sqlx::PgPool;
+use crate::pg::BackendPool;
 
 use hickory_resolver::TokioResolver;
 use hickory_resolver::proto::rr::RData;
@@ -15,7 +15,7 @@ pub async fn submit_report(
     submitter_domain: &str,
     submitter_address: &str,
     resolver: &TokioResolver,
-    outbound_pool: Option<&PgPool>,
+    outbound_pool: Option<&BackendPool>,
     http_client: Option<&reqwest::Client>,
 ) -> (usize, usize) {
     let gzipped = match gzip_report(report) {
@@ -117,7 +117,7 @@ async fn lookup_tlsrpt_record(
 /// recipient. Returns true on enqueue success.
 #[allow(clippy::too_many_arguments)]
 async fn submit_via_mailto(
-    outbound_pool: Option<&PgPool>,
+    outbound_pool: Option<&BackendPool>,
     report: &Report,
     submitter_address: &str,
     submitter_domain: &str,

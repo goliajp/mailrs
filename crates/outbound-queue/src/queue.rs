@@ -1,7 +1,7 @@
 #[cfg(feature = "pg")]
-use kevy_embedded::Store;
+use crate::BackendPool;
 #[cfg(feature = "pg")]
-use sqlx::PgPool;
+use kevy_embedded::Store;
 
 #[cfg(feature = "pg")]
 mod pg_codec {
@@ -107,7 +107,7 @@ pub struct QueuedMessage {
 /// enqueue a message for outbound delivery
 #[cfg(feature = "pg")]
 pub async fn enqueue(
-    pool: &PgPool,
+    pool: &BackendPool,
     sender: &str,
     recipient: &str,
     domain: &str,
@@ -132,7 +132,7 @@ pub async fn enqueue(
 #[allow(clippy::too_many_arguments)]
 #[cfg(feature = "pg")]
 pub async fn enqueue_ex(
-    pool: &PgPool,
+    pool: &BackendPool,
     sender: &str,
     recipient: &str,
     domain: &str,
@@ -168,7 +168,7 @@ pub fn notify(kevy: &Store) {
 /// recover messages stuck in inflight status for more than 10 minutes
 /// (worker crashed or was killed before marking them as delivered/failed)
 #[cfg(feature = "pg")]
-pub async fn recover_stale_inflight(pool: &PgPool, now: i64) -> Result<u64, sqlx::Error> {
+pub async fn recover_stale_inflight(pool: &BackendPool, now: i64) -> Result<u64, sqlx::Error> {
     let stale_threshold = now - 600; // 10 minutes
     let result = sqlx::query(
         "UPDATE outbound_queue SET status = 'pending', updated_at = $1 \
@@ -185,7 +185,7 @@ pub async fn recover_stale_inflight(pool: &PgPool, now: i64) -> Result<u64, sqlx
 /// the delivery worker to publish a `mailrs_outbound_queue_depth` gauge
 /// per poll tick. O(rows) but cheap with the `status` index.
 #[cfg(feature = "pg")]
-pub async fn count_pending(pool: &PgPool) -> Result<i64, sqlx::Error> {
+pub async fn count_pending(pool: &BackendPool) -> Result<i64, sqlx::Error> {
     let (n,): (i64,) =
         sqlx::query_as("SELECT count(*) FROM outbound_queue WHERE status = 'pending'")
             .fetch_one(pool)
@@ -197,7 +197,7 @@ pub async fn count_pending(pool: &PgPool) -> Result<i64, sqlx::Error> {
 /// by a worker). Used alongside `count_pending` so dashboards can show
 /// both "queued" and "in-flight" depth.
 #[cfg(feature = "pg")]
-pub async fn count_inflight(pool: &PgPool) -> Result<i64, sqlx::Error> {
+pub async fn count_inflight(pool: &BackendPool) -> Result<i64, sqlx::Error> {
     let (n,): (i64,) =
         sqlx::query_as("SELECT count(*) FROM outbound_queue WHERE status = 'inflight'")
             .fetch_one(pool)
@@ -214,7 +214,7 @@ pub async fn count_inflight(pool: &PgPool) -> Result<i64, sqlx::Error> {
 /// Kept for callers that only need a read snapshot.
 #[cfg(feature = "pg")]
 pub async fn dequeue(
-    pool: &PgPool,
+    pool: &BackendPool,
     now: i64,
     limit: u32,
 ) -> Result<Vec<QueuedMessage>, sqlx::Error> {
@@ -270,7 +270,7 @@ pub async fn dequeue(
 /// path, each pending row is delivered by at most one worker.
 #[cfg(feature = "pg")]
 pub async fn claim_for_delivery(
-    pool: &PgPool,
+    pool: &BackendPool,
     now: i64,
     limit: u32,
 ) -> Result<Vec<QueuedMessage>, sqlx::Error> {
@@ -316,7 +316,7 @@ pub async fn claim_for_delivery(
 
 /// mark a message as in-flight
 #[cfg(feature = "pg")]
-pub async fn mark_inflight(pool: &PgPool, id: i64, now: i64) -> Result<(), sqlx::Error> {
+pub async fn mark_inflight(pool: &BackendPool, id: i64, now: i64) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE outbound_queue SET status = 'inflight', updated_at = $1 WHERE id = $2")
         .bind(now)
         .bind(id)
@@ -327,7 +327,7 @@ pub async fn mark_inflight(pool: &PgPool, id: i64, now: i64) -> Result<(), sqlx:
 
 /// mark a message as delivered
 #[cfg(feature = "pg")]
-pub async fn mark_delivered(pool: &PgPool, id: i64, now: i64) -> Result<(), sqlx::Error> {
+pub async fn mark_delivered(pool: &BackendPool, id: i64, now: i64) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE outbound_queue SET status = 'delivered', updated_at = $1 WHERE id = $2")
         .bind(now)
         .bind(id)
@@ -339,7 +339,7 @@ pub async fn mark_delivered(pool: &PgPool, id: i64, now: i64) -> Result<(), sqlx
 /// mark a message as failed with next retry time
 #[cfg(feature = "pg")]
 pub async fn mark_failed(
-    pool: &PgPool,
+    pool: &BackendPool,
     id: i64,
     error: &str,
     next_retry: i64,
@@ -360,7 +360,7 @@ pub async fn mark_failed(
 /// mark a message as permanently bounced
 #[cfg(feature = "pg")]
 pub async fn mark_bounced(
-    pool: &PgPool,
+    pool: &BackendPool,
     id: i64,
     error: &str,
     now: i64,
@@ -378,7 +378,7 @@ pub async fn mark_bounced(
 
 /// get queue statistics
 #[cfg(feature = "pg")]
-pub async fn queue_stats(pool: &PgPool) -> Result<Vec<(String, i64)>, sqlx::Error> {
+pub async fn queue_stats(pool: &BackendPool) -> Result<Vec<(String, i64)>, sqlx::Error> {
     let rows: Vec<(String, i64)> =
         sqlx::query_as("SELECT status, COUNT(*) FROM outbound_queue GROUP BY status")
             .fetch_all(pool)
@@ -388,7 +388,10 @@ pub async fn queue_stats(pool: &PgPool) -> Result<Vec<(String, i64)>, sqlx::Erro
 
 /// get a specific queued message by id
 #[cfg(feature = "pg")]
-pub async fn get_message(pool: &PgPool, id: i64) -> Result<Option<QueuedMessage>, sqlx::Error> {
+pub async fn get_message(
+    pool: &BackendPool,
+    id: i64,
+) -> Result<Option<QueuedMessage>, sqlx::Error> {
     #[allow(clippy::type_complexity)]
     let row: Option<(i64, String, String, String, String, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
         "SELECT id, sender, recipient, domain, message_data, status, attempts, max_attempts, next_retry, last_error, message_id, created_at, updated_at, is_forwarded
@@ -420,7 +423,7 @@ pub async fn get_message(pool: &PgPool, id: i64) -> Result<Option<QueuedMessage>
 #[allow(clippy::too_many_arguments)]
 #[cfg(feature = "pg")]
 pub async fn enqueue_scheduled(
-    pool: &PgPool,
+    pool: &BackendPool,
     sender: &str,
     recipient: &str,
     domain: &str,
@@ -448,7 +451,7 @@ pub async fn enqueue_scheduled(
 
 /// cancel a pending outbound message (undo send)
 #[cfg(feature = "pg")]
-pub async fn cancel_pending(pool: &PgPool, id: i64) -> Result<bool, sqlx::Error> {
+pub async fn cancel_pending(pool: &BackendPool, id: i64) -> Result<bool, sqlx::Error> {
     let result = sqlx::query("DELETE FROM outbound_queue WHERE id = $1 AND status = 'pending'")
         .bind(id)
         .execute(pool)
@@ -459,7 +462,7 @@ pub async fn cancel_pending(pool: &PgPool, id: i64) -> Result<bool, sqlx::Error>
 /// cancel a pending outbound message by message_id (undo send)
 #[cfg(feature = "pg")]
 pub async fn cancel_pending_by_message_id(
-    pool: &PgPool,
+    pool: &BackendPool,
     message_id: &str,
     sender: &str,
 ) -> Result<bool, sqlx::Error> {
@@ -475,7 +478,7 @@ pub async fn cancel_pending_by_message_id(
 
 /// reset a bounced/failed message back to pending for retry
 #[cfg(feature = "pg")]
-pub async fn retry_message(pool: &PgPool, id: i64, now: i64) -> Result<bool, sqlx::Error> {
+pub async fn retry_message(pool: &BackendPool, id: i64, now: i64) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
         "UPDATE outbound_queue SET status = 'pending', next_retry = $1, updated_at = $1 WHERE id = $2 AND status IN ('bounced', 'failed')",
     )
@@ -488,7 +491,10 @@ pub async fn retry_message(pool: &PgPool, id: i64, now: i64) -> Result<bool, sql
 
 /// list recent queue entries for admin UI
 #[cfg(feature = "pg")]
-pub async fn list_recent(pool: &PgPool, limit: i32) -> Result<Vec<QueuedMessage>, sqlx::Error> {
+pub async fn list_recent(
+    pool: &BackendPool,
+    limit: i32,
+) -> Result<Vec<QueuedMessage>, sqlx::Error> {
     #[allow(clippy::type_complexity)]
     let rows: Vec<(i64, String, String, String, String, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
         "SELECT id, sender, recipient, domain, message_data, status, attempts, max_attempts, next_retry, last_error, message_id, created_at, updated_at, is_forwarded

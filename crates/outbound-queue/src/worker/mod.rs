@@ -10,10 +10,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::BackendPool;
 use hickory_resolver::TokioResolver;
 use kevy_embedded::{PubsubFrame, Store};
 use mailrs_dkim::HickoryDkimResolver;
-use sqlx::PgPool;
 
 use crate::DeliveryEventSender;
 use crate::dkim_sign::{self, DkimSignConfig};
@@ -65,7 +65,7 @@ pub fn group_by_domain(messages: Vec<QueuedMessage>) -> HashMap<String, Vec<Queu
 /// background delivery worker that polls the queue and delivers messages
 pub struct DeliveryWorker {
     config: WorkerConfig,
-    pool: PgPool,
+    pool: BackendPool,
     resolver: TokioResolver,
     hostname: String,
     dkim: Option<DkimSignConfig>,
@@ -81,7 +81,7 @@ impl DeliveryWorker {
     /// Construct a delivery worker with the given config + dependencies.
     pub fn new(
         config: WorkerConfig,
-        pool: PgPool,
+        pool: BackendPool,
         resolver: TokioResolver,
         hostname: String,
     ) -> Self {

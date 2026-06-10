@@ -1,5 +1,10 @@
 //! E2E inbound throughput baseline (PG-backed).
 //!
+//! PG-only by construction — the fixture tunes PgPoolOptions knobs
+//! (pool size, test_before_acquire) that don't exist on the embedded
+//! backend. The spg axis gets its own baseline in the cutover bench.
+#![cfg(not(feature = "spg"))]
+//!
 //! Calls `PgMailboxStore::append_message` directly — the same entry the SMTP
 //! receive pipeline uses after auth/policy stages — and measures sustained
 //! delivery throughput + per-call latency percentiles + sqlx pool stats.

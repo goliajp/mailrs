@@ -20,8 +20,8 @@
 //! current via MRS-4's post-store update, so the web invite-card UI sees
 //! the latest version regardless.
 
+use crate::pg::BackendPool;
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
 
 use mailrs_ical::{Method, ParsedInvite};
 
@@ -39,7 +39,7 @@ pub enum ReconcileOutcome {
 }
 
 pub async fn reconcile_inbound_invite(
-    pool: &PgPool,
+    pool: &BackendPool,
     user: &str,
     parsed: &ParsedInvite,
     raw_icalendar: &str,

@@ -67,7 +67,7 @@ pub(crate) struct FlagUpdate {
 /// None when no invite part is found, parsing fails, or the SQL update
 /// fails. None lets the caller fall back to the stored (null) values.
 async fn try_lazy_backfill_invite(
-    pool: &sqlx::PgPool,
+    pool: &crate::pg::BackendPool,
     message_id: i64,
     raw_bytes: &[u8],
 ) -> Option<(serde_json::Value, String)> {

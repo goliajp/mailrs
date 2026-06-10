@@ -1,7 +1,7 @@
+use crate::pg::BackendPool;
 use chrono::{DateTime, Utc};
 use rand_core::{OsRng, RngCore};
 use sha2::{Digest, Sha256};
-use sqlx::PgPool;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -40,8 +40,8 @@ fn encode_uris_csv(uris: &[String]) -> String {
         .join(",")
 }
 
-impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for OAuthClient {
-    fn from_row(row: &'r sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
+impl<'r> sqlx::FromRow<'r, crate::pg::BackendRow> for OAuthClient {
+    fn from_row(row: &'r crate::pg::BackendRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
         let csv: String = row.try_get("redirect_uris")?;
         Ok(Self {
@@ -60,7 +60,7 @@ impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for OAuthClient {
 
 /// create a new OAuth client; returns (client_id, plaintext_secret)
 pub(crate) async fn create_client(
-    pool: &PgPool,
+    pool: &BackendPool,
     name: &str,
     redirect_uris: &[String],
     scopes: &str,
@@ -119,7 +119,7 @@ pub(crate) fn verify_client_secret(secret: &str, hash: &str) -> bool {
 
 /// get an active client by client_id
 pub(crate) async fn get_client(
-    pool: &PgPool,
+    pool: &BackendPool,
     client_id: &str,
 ) -> Result<Option<OAuthClient>, sqlx::Error> {
     sqlx::query_as::<_, OAuthClient>(
@@ -133,7 +133,7 @@ pub(crate) async fn get_client(
 }
 
 /// list all active clients
-pub(crate) async fn list_clients(pool: &PgPool) -> Result<Vec<OAuthClient>, sqlx::Error> {
+pub(crate) async fn list_clients(pool: &BackendPool) -> Result<Vec<OAuthClient>, sqlx::Error> {
     sqlx::query_as::<_, OAuthClient>(
         "SELECT client_id, secret_hash, name, redirect_uris, scopes, trusted, active, created_by, created_at
          FROM oauth_clients
@@ -145,7 +145,10 @@ pub(crate) async fn list_clients(pool: &PgPool) -> Result<Vec<OAuthClient>, sqlx
 }
 
 /// deactivate (soft-delete) a client
-pub(crate) async fn delete_client(pool: &PgPool, client_id: &str) -> Result<bool, sqlx::Error> {
+pub(crate) async fn delete_client(
+    pool: &BackendPool,
+    client_id: &str,
+) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
         "UPDATE oauth_clients SET active = false WHERE client_id = $1 AND active = true",
     )
@@ -176,7 +179,7 @@ pub(crate) struct OAuthAuthCode {
 /// store a new auth code
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn store_auth_code(
-    pool: &PgPool,
+    pool: &BackendPool,
     code: &str,
     client_id: &str,
     account_address: &str,
@@ -207,7 +210,7 @@ pub(crate) async fn store_auth_code(
 
 /// atomically consume an auth code (returns the code if valid and unused)
 pub(crate) async fn consume_auth_code(
-    pool: &PgPool,
+    pool: &BackendPool,
     code: &str,
 ) -> Result<Option<OAuthAuthCode>, sqlx::Error> {
     sqlx::query_as::<_, OAuthAuthCode>(
@@ -222,7 +225,7 @@ pub(crate) async fn consume_auth_code(
 }
 
 /// delete expired auth codes
-pub(crate) async fn cleanup_expired_codes(pool: &PgPool) -> Result<u64, sqlx::Error> {
+pub(crate) async fn cleanup_expired_codes(pool: &BackendPool) -> Result<u64, sqlx::Error> {
     let result =
         sqlx::query("DELETE FROM oauth_auth_codes WHERE expires_at < now() OR used = true")
             .execute(pool)
@@ -245,7 +248,7 @@ pub(crate) struct OAuthSigningKey {
 
 /// get the first active signing key
 pub(crate) async fn get_active_signing_key(
-    pool: &PgPool,
+    pool: &BackendPool,
 ) -> Result<Option<OAuthSigningKey>, sqlx::Error> {
     sqlx::query_as::<_, OAuthSigningKey>(
         "SELECT kid, public_key_pem, private_key_pem, algorithm, active, created_at
@@ -260,7 +263,7 @@ pub(crate) async fn get_active_signing_key(
 
 /// store a new signing key
 pub(crate) async fn store_signing_key(
-    pool: &PgPool,
+    pool: &BackendPool,
     kid: &str,
     public_key_pem: &str,
     private_key_pem: &str,
@@ -282,7 +285,7 @@ pub(crate) async fn store_signing_key(
 
 /// list all active public keys (for JWKS endpoint)
 pub(crate) async fn list_active_public_keys(
-    pool: &PgPool,
+    pool: &BackendPool,
 ) -> Result<Vec<OAuthSigningKey>, sqlx::Error> {
     sqlx::query_as::<_, OAuthSigningKey>(
         "SELECT kid, public_key_pem, private_key_pem, algorithm, active, created_at
@@ -295,7 +298,7 @@ pub(crate) async fn list_active_public_keys(
 }
 
 /// check if any active signing key exists
-pub(crate) async fn has_any_active_key(pool: &PgPool) -> Result<bool, sqlx::Error> {
+pub(crate) async fn has_any_active_key(pool: &BackendPool) -> Result<bool, sqlx::Error> {
     let count =
         sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM oauth_signing_keys WHERE active = true")
             .fetch_one(pool)
@@ -307,7 +310,7 @@ pub(crate) async fn has_any_active_key(pool: &PgPool) -> Result<bool, sqlx::Erro
 
 /// store a refresh token (SHA-256 hash of the plaintext token)
 pub(crate) async fn store_refresh_token(
-    pool: &PgPool,
+    pool: &BackendPool,
     token_hash: &str,
     client_id: &str,
     account_address: &str,
@@ -342,7 +345,7 @@ pub(crate) struct OAuthRefreshToken {
 
 /// validate a refresh token (by its SHA-256 hash)
 pub(crate) async fn validate_refresh_token(
-    pool: &PgPool,
+    pool: &BackendPool,
     token_hash: &str,
 ) -> Result<Option<OAuthRefreshToken>, sqlx::Error> {
     sqlx::query_as::<_, OAuthRefreshToken>(
@@ -357,7 +360,7 @@ pub(crate) async fn validate_refresh_token(
 
 /// revoke a refresh token
 pub(crate) async fn revoke_refresh_token(
-    pool: &PgPool,
+    pool: &BackendPool,
     token_hash: &str,
 ) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
@@ -370,7 +373,7 @@ pub(crate) async fn revoke_refresh_token(
 }
 
 /// delete expired or revoked refresh tokens
-pub(crate) async fn cleanup_expired_refresh_tokens(pool: &PgPool) -> Result<u64, sqlx::Error> {
+pub(crate) async fn cleanup_expired_refresh_tokens(pool: &BackendPool) -> Result<u64, sqlx::Error> {
     let result =
         sqlx::query("DELETE FROM oauth_refresh_tokens WHERE expires_at < now() OR revoked = true")
             .execute(pool)

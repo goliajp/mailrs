@@ -133,7 +133,7 @@ pub fn empty() -> GreylistLocalHandle {
 
 /// Query PG for all rows, build a fresh snapshot, and atomically install
 /// it. Errors are recorded on the handle (`last_error`) but never panic.
-pub async fn reload(handle: &GreylistLocalHandle, pool: &sqlx::PgPool) {
+pub async fn reload(handle: &GreylistLocalHandle, pool: &crate::pg::BackendPool) {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -175,7 +175,7 @@ pub async fn reload(handle: &GreylistLocalHandle, pool: &sqlx::PgPool) {
     }
 }
 
-async fn load_from_pg(pool: &sqlx::PgPool) -> Result<GreylistLocalLists, sqlx::Error> {
+async fn load_from_pg(pool: &crate::pg::BackendPool) -> Result<GreylistLocalLists, sqlx::Error> {
     let rows: Vec<(String, String, String)> =
         sqlx::query_as("SELECT kind, list, value FROM greylist_local_lists")
             .fetch_all(pool)
@@ -236,7 +236,7 @@ async fn load_from_pg(pool: &sqlx::PgPool) -> Result<GreylistLocalLists, sqlx::E
 /// is the periodic refresher, not the boot loader).
 pub fn spawn_reload_task(
     handle: GreylistLocalHandle,
-    pool: sqlx::PgPool,
+    pool: crate::pg::BackendPool,
     interval_secs: u64,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {

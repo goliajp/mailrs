@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::pg::BackendPool;
 use arc_swap::ArcSwap;
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use tokio::sync::watch;
 
 use crate::config::SmuggleProtection;
@@ -197,7 +197,7 @@ const KEVY_KEY: &str = "syscfg:all";
 const RELOAD_INTERVAL: Duration = Duration::from_secs(60);
 
 pub struct SystemConfigStore {
-    pg: Option<PgPool>,
+    pg: Option<BackendPool>,
     kevy: Option<crate::kevy_store::KevyStore>,
     current: ArcSwap<RuntimeConfig>,
     env_defaults: RuntimeConfig,
@@ -208,7 +208,7 @@ pub struct SystemConfigStore {
 
 impl SystemConfigStore {
     pub fn new(
-        pg: Option<PgPool>,
+        pg: Option<BackendPool>,
         kevy: Option<crate::kevy_store::KevyStore>,
         env_defaults: RuntimeConfig,
     ) -> Self {

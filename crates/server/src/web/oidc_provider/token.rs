@@ -55,7 +55,7 @@ pub(crate) struct TokenRequest {
 }
 
 async fn handle_authorization_code_grant(
-    pool: &sqlx::PgPool,
+    pool: &crate::pg::BackendPool,
     state: &Arc<WebState>,
     form: &TokenRequest,
 ) -> (StatusCode, Json<serde_json::Value>) {
@@ -186,7 +186,7 @@ async fn handle_authorization_code_grant(
 }
 
 async fn handle_refresh_token_grant(
-    pool: &sqlx::PgPool,
+    pool: &crate::pg::BackendPool,
     state: &Arc<WebState>,
     form: &TokenRequest,
 ) -> (StatusCode, Json<serde_json::Value>) {
@@ -277,7 +277,7 @@ async fn handle_refresh_token_grant(
 
 /// issue id_token, access_token, and refresh_token
 async fn issue_tokens(
-    pool: &sqlx::PgPool,
+    pool: &crate::pg::BackendPool,
     state: &Arc<WebState>,
     client_id: &str,
     account_address: &str,

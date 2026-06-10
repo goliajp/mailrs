@@ -4,7 +4,7 @@
 use chrono::{DateTime, Utc};
 
 pub(super) async fn write_to_own_calendar(
-    pool: &sqlx::PgPool,
+    pool: &crate::pg::BackendPool,
     user: &str,
     invite_payload: &serde_json::Value,
     partstat: &str,

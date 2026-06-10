@@ -13,9 +13,9 @@
 
 use sqlx::FromRow;
 
+use crate::pg::BackendPool;
 use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
 use serde_json::json;
-use sqlx::PgPool;
 
 use mailrs_ical::vtimezone::{local_to_utc_offset_seconds, resolve};
 use mailrs_ical::{

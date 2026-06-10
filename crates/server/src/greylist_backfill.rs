@@ -22,8 +22,8 @@
 
 use std::time::Duration;
 
+use crate::pg::BackendPool;
 use kevy_embedded::Store;
-use sqlx::PgPool;
 use tracing::{info, warn};
 
 /// Sentinel key written under the `gl:` namespace once backfill completes.
@@ -51,7 +51,7 @@ pub struct BackfillStats {
 /// older than this are dropped — they'd be evicted on first kevy read
 /// anyway.
 pub async fn backfill_from_pg(
-    pool: &PgPool,
+    pool: &BackendPool,
     kevy: &Store,
     pass_ttl_secs: u64,
     now: u64,
@@ -112,7 +112,7 @@ pub async fn backfill_from_pg(
 /// so a transient PG hiccup doesn't block server boot. If the backfill
 /// fails the sentinel is not set, so the next startup retries.
 pub async fn backfill_from_pg_best_effort(
-    pool: &PgPool,
+    pool: &BackendPool,
     kevy: &Store,
     pass_ttl_secs: u64,
     now: u64,
@@ -141,7 +141,7 @@ mod tests {
         store.set(SENTINEL_KEY, b"1").unwrap();
         // PG pool is never touched because the sentinel check runs first;
         // we don't have a pool here, so this proves the early-return path.
-        // backfill_from_pg requires a PgPool, so we test the guard via
+        // backfill_from_pg requires a BackendPool, so we test the guard via
         // the public function on a populated store.
         assert!(matches!(store.get(SENTINEL_KEY), Ok(Some(_))));
     }

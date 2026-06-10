@@ -23,28 +23,50 @@ mod thread_ops;
 mod trait_impl;
 mod usage_ops;
 
-use sqlx::PgPool;
+// Backend selection: PostgreSQL by default, spg-embedded behind the
+// `spg` feature. One pool type in the public API; the concrete driver
+// is a build-time decision.
+/// The sqlx `Database` type of the active backend.
+#[cfg(not(feature = "spg"))]
+pub type BackendDb = sqlx::Postgres;
+/// The sqlx `Database` type of the active backend.
+#[cfg(feature = "spg")]
+pub type BackendDb = spg_sqlx::Spg;
+
+/// Connection pool of the active backend.
+#[cfg(not(feature = "spg"))]
+pub type BackendPool = sqlx::PgPool;
+/// Connection pool of the active backend.
+#[cfg(feature = "spg")]
+pub type BackendPool = spg_sqlx::SpgPool;
+
+/// Row type of the active backend.
+#[cfg(not(feature = "spg"))]
+pub type BackendRow = sqlx::postgres::PgRow;
+/// Row type of the active backend.
+#[cfg(feature = "spg")]
+pub type BackendRow = spg_sqlx::SpgRow;
 
 /// PostgreSQL-backed mailbox metadata store.
 ///
-/// Wraps a [`sqlx::PgPool`] and implements [`crate::MailboxStore`](crate::store::MailboxStore)
+/// Wraps a [`BackendPool`] and implements [`crate::MailboxStore`](crate::store::MailboxStore)
 /// plus a number of mailrs-specific inherent methods. See the module docs for
 /// the trait / PG-EXT distinction.
 pub struct PgMailboxStore {
-    pub(crate) pool: PgPool,
+    pub(crate) pool: BackendPool,
 }
 
 impl PgMailboxStore {
     /// Construct from an existing connected pool. The caller owns the pool
     /// lifecycle; `PgMailboxStore` does not close it on drop. Schema setup
     /// (running `init-schema.sql`) is the caller's responsibility.
-    pub fn new(pool: PgPool) -> Self {
+    pub fn new(pool: BackendPool) -> Self {
         Self { pool }
     }
 
     /// Borrow the underlying connection pool. Useful when downstream code
     /// wants to run additional queries against the same connection.
-    pub fn pool(&self) -> &PgPool {
+    pub fn pool(&self) -> &BackendPool {
         &self.pool
     }
 }

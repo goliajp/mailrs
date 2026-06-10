@@ -10,11 +10,24 @@
 //! testcontainers binds ephemeral host ports and Docker's per-container
 //! cold start (~3-5s) doesn't parallelise meaningfully on a laptop.
 
-use sqlx::PgPool;
+use mailrs_outbound_queue::BackendPool;
+#[cfg(not(feature = "spg"))]
 use sqlx::postgres::PgPoolOptions;
+#[cfg(not(feature = "spg"))]
 use testcontainers::ContainerAsync;
+#[cfg(not(feature = "spg"))]
 use testcontainers_modules::postgres::Postgres;
+#[cfg(not(feature = "spg"))]
 use testcontainers_modules::testcontainers::runners::AsyncRunner;
+
+/// Keep-alive handle for the backing store. The PG axis must hold the
+/// container; the spg axis has nothing to keep alive.
+#[cfg(not(feature = "spg"))]
+pub type TestHandle = ContainerAsync<Postgres>;
+/// Keep-alive handle for the backing store. The PG axis must hold the
+/// container; the spg axis has nothing to keep alive.
+#[cfg(feature = "spg")]
+pub type TestHandle = ();
 
 /// DDL applied to every fresh container. Mirrors `scripts/init-schema.sql`
 /// (the `outbound_queue` table + its pending index) and
@@ -60,7 +73,21 @@ CREATE INDEX idx_suppression_created ON suppression_list (created_at DESC);
 ///
 /// Panics on container-start or DDL-execution failure. Integration tests
 /// would be meaningless if the fixture is half-up, so we fail loudly.
-pub async fn start_pg() -> (ContainerAsync<Postgres>, PgPool) {
+#[cfg(feature = "spg")]
+pub async fn start_pg() -> (TestHandle, BackendPool) {
+    use spg_sqlx::SpgPoolExt;
+    let pool = spg_sqlx::SpgPool::connect_in_memory()
+        .await
+        .expect("open in-memory spg");
+    sqlx::raw_sql(SCHEMA_DDL)
+        .execute(&pool)
+        .await
+        .expect("apply schema DDL");
+    ((), pool)
+}
+
+#[cfg(not(feature = "spg"))]
+pub async fn start_pg() -> (TestHandle, BackendPool) {
     let container = Postgres::default()
         .start()
         .await

@@ -18,7 +18,7 @@ use crate::users::UserStore;
 /// requires MAILRS_PG_URL env var pointing to a test database
 async fn test_session() -> ImapSession {
     let url = std::env::var("MAILRS_PG_URL").expect("MAILRS_PG_URL required for integration tests");
-    let pool = sqlx::PgPool::connect(&url).await.unwrap();
+    let pool = crate::pg::BackendPool::connect(&url).await.unwrap();
     let store = Arc::new(PgMailboxStore::new(pool));
     let users = Arc::new(UserStore::from_plain_passwords(vec![(
         "alice@example.com".into(),

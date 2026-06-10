@@ -15,27 +15,6 @@
 # parallel-run period so we can dry-run the CI image alongside.
 
 services:
-  postgres:
-    container_name: mailrs-postgres
-    image: pgvector/pgvector:0.8.2-pg18-trixie
-    environment:
-      POSTGRES_DB: mailrs
-      POSTGRES_USER: mailrs
-      POSTGRES_PASSWORD: ${MAILRS_PG_PASSWORD:-mailrs}
-    ports:
-      - "5432:5432"
-    volumes:
-      - pg-data:/var/lib/postgresql/data
-      - ./scripts/pg-extensions.sql:/docker-entrypoint-initdb.d/00-pg-extensions.sql:ro
-      - ./scripts/init-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mailrs -d mailrs"]
-      interval: 10s
-      timeout: 5s
-      start_period: 30s
-      retries: 5
-    restart: unless-stopped
-
   chromium:
     container_name: mailrs-chromium
     image: zenika/alpine-chrome:124
@@ -94,13 +73,18 @@ services:
       - "995:995"
       - "3100:3100"
       - "4190:4190"
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       MAILRS_HOSTNAME: ${MAILRS_HOSTNAME:-mx.example.com}
       MAILRS_MAILDIR: /data/maildir
-      MAILRS_PG_URL: postgres://mailrs:${MAILRS_PG_PASSWORD:-mailrs}@postgres:5432/mailrs
+      # spg-embedded — in-process SQL engine (v1.7.148+ cutover). The
+      # catalog + WAL chunk dir live on the mailrs-data volume; the
+      # postgres container is gone. spg:// is parsed by the server's
+      # spg-build create_pool.
+      MAILRS_PG_URL: spg:///data/spg/mailrs.spg
+      # Zero-cron PITR (spg-embedded v7.19+): WAL rotates into chunk
+      # files; the in-process retention thread sweeps chunks older
+      # than the window. Off-host backup via `spg backup-pitr`.
+      SPG_PITR_RETENTION_HOURS: "24" 
       # In-process embed kevy store (Phase C v1.7.95+). AOF + snapshot
       # persistence on /data/kevy; survives container restart. Network
       # kevy is gone — every stone uses this in-process Store directly.
@@ -138,5 +122,6 @@ services:
 
 volumes:
   mailrs-data:
-  pg-data:
+  # pg-data intentionally NOT declared anymore — the old postgres
+  # volume stays on the host untouched as the cutover rollback path.
   meili-data:

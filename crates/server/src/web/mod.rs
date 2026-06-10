@@ -90,7 +90,7 @@ pub struct WebState {
     /// `mailrs_auth_total{outcome="success|failure"}`.
     pub auth_success_total: AtomicU64,
     pub auth_failure_total: AtomicU64,
-    pub outbound_queue: Option<sqlx::PgPool>,
+    pub outbound_queue: Option<crate::pg::BackendPool>,
     pub mailbox_store: Option<Arc<PgMailboxStore>>,
     pub domain_store: Option<Arc<DomainStore>>,
     pub maildir_root: String,
@@ -102,7 +102,7 @@ pub struct WebState {
     pub mta_sts_max_age: u64,
     pub mta_sts_id: String,
     pub health: Option<HealthState>,
-    pub pg_pool: Option<sqlx::PgPool>,
+    pub pg_pool: Option<crate::pg::BackendPool>,
     /// In-process embed kevy store — the only kevy handle in WebState.
     pub kevy_embed: Option<crate::kevy_store::KevyStore>,
     pub llm_config: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
@@ -223,7 +223,7 @@ impl WebState {
         self
     }
 
-    pub fn with_queue(mut self, pool: sqlx::PgPool) -> Self {
+    pub fn with_queue(mut self, pool: crate::pg::BackendPool) -> Self {
         self.outbound_queue = Some(pool);
         self
     }
@@ -297,7 +297,7 @@ impl WebState {
         self
     }
 
-    pub fn with_pg(mut self, pool: sqlx::PgPool) -> Self {
+    pub fn with_pg(mut self, pool: crate::pg::BackendPool) -> Self {
         self.pg_pool = Some(pool);
         self
     }
