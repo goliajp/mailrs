@@ -55,8 +55,7 @@ impl Stage for GreylistStage {
         //    any black-kind hit beats any white-kind hit).
         let local = self.local_lists.read().await;
         if let Some(kind) = local.matches_black(&ctx.sender, ctx.client_ip) {
-            metrics::counter!("mailrs_greylist_local_black_hit_total", "kind" => kind)
-                .increment(1);
+            metrics::counter!("mailrs_greylist_local_black_hit_total", "kind" => kind).increment(1);
             tracing::info!(
                 target: "greylist",
                 sender = %ctx.sender,
@@ -73,8 +72,7 @@ impl Stage for GreylistStage {
         // 2. local white — skip the rest of the greylist (no triplet,
         //    no remote whitelist needed).
         if let Some(kind) = local.matches_white(&ctx.sender, ctx.client_ip) {
-            metrics::counter!("mailrs_greylist_local_white_hit_total", "kind" => kind)
-                .increment(1);
+            metrics::counter!("mailrs_greylist_local_white_hit_total", "kind" => kind).increment(1);
             tracing::debug!(
                 target: "greylist",
                 sender = %ctx.sender,

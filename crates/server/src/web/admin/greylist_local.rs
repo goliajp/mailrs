@@ -119,7 +119,18 @@ pub(crate) async fn list(
         sql.push_str(&format!(" AND list = ${}", binds.len()));
     }
     sql.push_str(" ORDER BY id");
-    let mut query = sqlx::query_as::<_, (i64, String, String, String, Option<String>, i64, Option<String>)>(&sql);
+    let mut query = sqlx::query_as::<
+        _,
+        (
+            i64,
+            String,
+            String,
+            String,
+            Option<String>,
+            i64,
+            Option<String>,
+        ),
+    >(&sql);
     for b in &binds {
         query = query.bind(b);
     }
@@ -208,13 +219,15 @@ pub(crate) async fn create(
             }
             (
                 StatusCode::CREATED,
-                Json(serde_json::to_value(CreatedResponse {
-                    id,
-                    kind: req.kind,
-                    list: req.list,
-                    value: normalized,
-                })
-                .unwrap_or(serde_json::Value::Null)),
+                Json(
+                    serde_json::to_value(CreatedResponse {
+                        id,
+                        kind: req.kind,
+                        list: req.list,
+                        value: normalized,
+                    })
+                    .unwrap_or(serde_json::Value::Null),
+                ),
             )
                 .into_response()
         }
@@ -305,13 +318,10 @@ mod tests {
 
     #[test]
     fn create_request_deserializes_with_optional_note() {
-        let req: CreateRequest = serde_json::from_str(
-            r#"{"kind":"domain","list":"white","value":"example.com"}"#,
-        )
-        .unwrap();
+        let req: CreateRequest =
+            serde_json::from_str(r#"{"kind":"domain","list":"white","value":"example.com"}"#)
+                .unwrap();
         assert_eq!(req.kind, "domain");
         assert!(req.note.is_none());
     }
-
-
 }
