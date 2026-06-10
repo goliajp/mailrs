@@ -154,8 +154,7 @@ pub async fn reload(handle: &GreylistLocalHandle, pool: &sqlx::PgPool) {
                 black,
                 "greylist_local snapshot reloaded"
             );
-            metrics::counter!("mailrs_greylist_local_reload_total", "outcome" => "ok")
-                .increment(1);
+            metrics::counter!("mailrs_greylist_local_reload_total", "outcome" => "ok").increment(1);
             metrics::gauge!("mailrs_greylist_local_size", "list" => "white", "kind" => "any")
                 .set(white as f64);
             metrics::gauge!("mailrs_greylist_local_size", "list" => "black", "kind" => "any")
@@ -312,8 +311,8 @@ pub fn normalize(kind: &str, value: &str) -> Result<String, ValueError> {
             Ok(e)
         }
         "cidr" => {
-            let net = IpNet::from_str(trimmed)
-                .map_err(|_| ValueError::BadCidr(value.to_string()))?;
+            let net =
+                IpNet::from_str(trimmed).map_err(|_| ValueError::BadCidr(value.to_string()))?;
             let canonical = net.trunc().to_string();
             if canonical != trimmed {
                 return Err(ValueError::CidrNotCanonical {
@@ -347,18 +346,36 @@ mod tests {
     fn matches_black_email_direct() {
         let mut s = GreylistLocalLists::default();
         s.black_emails.insert("bob@example.com".into());
-        assert_eq!(s.matches_black("bob@example.com", ip("1.1.1.1")), Some("email"));
-        assert_eq!(s.matches_black("BOB@EXAMPLE.COM", ip("1.1.1.1")), Some("email"));
-        assert!(s.matches_black("alice@example.com", ip("1.1.1.1")).is_none());
+        assert_eq!(
+            s.matches_black("bob@example.com", ip("1.1.1.1")),
+            Some("email")
+        );
+        assert_eq!(
+            s.matches_black("BOB@EXAMPLE.COM", ip("1.1.1.1")),
+            Some("email")
+        );
+        assert!(
+            s.matches_black("alice@example.com", ip("1.1.1.1"))
+                .is_none()
+        );
     }
 
     #[test]
     fn matches_black_domain_ancestor() {
         let mut s = GreylistLocalLists::default();
         s.black_domains.insert("example.com".into());
-        assert_eq!(s.matches_black("a@example.com", ip("1.1.1.1")), Some("domain"));
-        assert_eq!(s.matches_black("a@mail.example.com", ip("1.1.1.1")), Some("domain"));
-        assert_eq!(s.matches_black("A@MAIL.EXAMPLE.COM", ip("1.1.1.1")), Some("domain"));
+        assert_eq!(
+            s.matches_black("a@example.com", ip("1.1.1.1")),
+            Some("domain")
+        );
+        assert_eq!(
+            s.matches_black("a@mail.example.com", ip("1.1.1.1")),
+            Some("domain")
+        );
+        assert_eq!(
+            s.matches_black("A@MAIL.EXAMPLE.COM", ip("1.1.1.1")),
+            Some("domain")
+        );
         assert!(s.matches_black("a@notexample.com", ip("1.1.1.1")).is_none());
     }
 
@@ -373,7 +390,8 @@ mod tests {
     #[test]
     fn matches_black_cidr_v6() {
         let mut s = GreylistLocalLists::default();
-        s.black_cidrs.push(IpNet::from_str("2001:db8::/32").unwrap());
+        s.black_cidrs
+            .push(IpNet::from_str("2001:db8::/32").unwrap());
         assert_eq!(s.matches_black("a@b.com", ip("2001:db8::1")), Some("cidr"));
         assert!(s.matches_black("a@b.com", ip("2001:dead::1")).is_none());
     }
@@ -405,10 +423,19 @@ mod tests {
         s.white_domains.insert("example.com".into());
         s.black_emails.insert("bob@example.com".into());
         // bob@example.com hits black via email
-        assert_eq!(s.matches_black("bob@example.com", ip("1.1.1.1")), Some("email"));
+        assert_eq!(
+            s.matches_black("bob@example.com", ip("1.1.1.1")),
+            Some("email")
+        );
         // …but anyone-else@example.com hits white via domain
-        assert!(s.matches_black("alice@example.com", ip("1.1.1.1")).is_none());
-        assert_eq!(s.matches_white("alice@example.com", ip("1.1.1.1")), Some("domain"));
+        assert!(
+            s.matches_black("alice@example.com", ip("1.1.1.1"))
+                .is_none()
+        );
+        assert_eq!(
+            s.matches_white("alice@example.com", ip("1.1.1.1")),
+            Some("domain")
+        );
     }
 
     #[test]
@@ -425,13 +452,19 @@ mod tests {
     #[test]
     fn normalize_domain_ok() {
         assert_eq!(normalize("domain", "Gmail.COM").unwrap(), "gmail.com");
-        assert_eq!(normalize("domain", "  example.org  ").unwrap(), "example.org");
+        assert_eq!(
+            normalize("domain", "  example.org  ").unwrap(),
+            "example.org"
+        );
         assert_eq!(normalize("domain", ".example.org.").unwrap(), "example.org");
     }
 
     #[test]
     fn normalize_domain_rejects_garbage() {
-        assert!(matches!(normalize("domain", "").unwrap_err(), ValueError::Empty));
+        assert!(matches!(
+            normalize("domain", "").unwrap_err(),
+            ValueError::Empty
+        ));
         assert!(matches!(
             normalize("domain", "nodot").unwrap_err(),
             ValueError::BadDomain(_)
@@ -448,7 +481,10 @@ mod tests {
 
     #[test]
     fn normalize_email_ok() {
-        assert_eq!(normalize("email", "User@Example.COM").unwrap(), "user@example.com");
+        assert_eq!(
+            normalize("email", "User@Example.COM").unwrap(),
+            "user@example.com"
+        );
     }
 
     #[test]
@@ -513,7 +549,13 @@ mod tests {
 
     #[test]
     fn validate_list_rejects_unknown() {
-        assert!(matches!(validate_list("grey").unwrap_err(), ValueError::InvalidList));
-        assert!(matches!(validate_list("").unwrap_err(), ValueError::InvalidList));
+        assert!(matches!(
+            validate_list("grey").unwrap_err(),
+            ValueError::InvalidList
+        ));
+        assert!(matches!(
+            validate_list("").unwrap_err(),
+            ValueError::InvalidList
+        ));
     }
 }
