@@ -135,7 +135,12 @@ export function useMailEvents(user: string) {
 
               if (notificationsRef.current) {
                 if (soundRef.current) playNotificationSound()
-                if (Notification.permission === 'granted' && document.hidden) {
+                // 'Notification' is absent on iOS Safari (non-PWA)
+                if (
+                  'Notification' in window &&
+                  Notification.permission === 'granted' &&
+                  document.hidden
+                ) {
                   new Notification(msg.sender, {
                     body: msg.subject || msg.snippet,
                     tag: msg.thread_id,

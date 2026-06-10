@@ -124,7 +124,12 @@ export function Chat() {
   ])
 
   useEffect(() => {
-    if (Notification.permission === 'default') void Notification.requestPermission()
+    // iOS Safari has no Notification global outside installed PWAs —
+    // a bare reference throws ReferenceError inside this effect, which
+    // unmounts the whole tree (the mobile inbox white-screen incident).
+    if ('Notification' in window && Notification.permission === 'default') {
+      void Notification.requestPermission()
+    }
   }, [])
 
   // websocket events
