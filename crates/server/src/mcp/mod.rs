@@ -19,8 +19,10 @@ use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
     CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
 };
-use rmcp::transport::streamable_http_server::StreamableHttpService;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+use rmcp::transport::streamable_http_server::{
+    StreamableHttpServerConfig, StreamableHttpService,
+};
 use rmcp::{tool, tool_handler, tool_router};
 
 use base64::Engine;
@@ -2350,6 +2352,19 @@ fn url_filename(url: &str) -> Option<String> {
 /// `MailMcpService` with the correct authenticated user. Both run in the
 /// same tokio task, so the task-local is always available in the factory.
 pub fn setup_mcp(state: Arc<WebState>) -> axum::Router<Arc<WebState>> {
+    // rmcp 1.7's DNS-rebinding protection rejects any request whose Host
+    // header is outside `allowed_hosts`; the library default is
+    // localhost-only, which 403s every request arriving via the public
+    // hostname ("Forbidden: Host header is not allowed"). Allow the
+    // configured server hostname (entries without a port match any port)
+    // plus the loopback names used by local dev and docker healthchecks.
+    let config = StreamableHttpServerConfig::default().with_allowed_hosts([
+        state.hostname.clone(),
+        "localhost".to_string(),
+        "127.0.0.1".to_string(),
+        "::1".to_string(),
+    ]);
+
     let state_clone = state.clone();
     let service = StreamableHttpService::new(
         move || {
@@ -2368,7 +2383,7 @@ pub fn setup_mcp(state: Arc<WebState>) -> axum::Router<Arc<WebState>> {
             Ok(MailMcpService::new(state_clone.clone(), auth_user))
         },
         LocalSessionManager::default().into(),
-        Default::default(),
+        config,
     );
 
     axum::Router::new().nest_service("/mcp", service)
