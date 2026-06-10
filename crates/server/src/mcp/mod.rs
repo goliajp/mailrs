@@ -2352,18 +2352,19 @@ fn url_filename(url: &str) -> Option<String> {
 /// `MailMcpService` with the correct authenticated user. Both run in the
 /// same tokio task, so the task-local is always available in the factory.
 pub fn setup_mcp(state: Arc<WebState>) -> axum::Router<Arc<WebState>> {
-    // rmcp 1.7's DNS-rebinding protection rejects any request whose Host
-    // header is outside `allowed_hosts`; the library default is
-    // localhost-only, which 403s every request arriving via the public
-    // hostname ("Forbidden: Host header is not allowed"). Allow the
-    // configured server hostname (entries without a port match any port)
-    // plus the loopback names used by local dev and docker healthchecks.
-    let config = StreamableHttpServerConfig::default().with_allowed_hosts([
-        state.hostname.clone(),
-        "localhost".to_string(),
-        "127.0.0.1".to_string(),
-        "::1".to_string(),
-    ]);
+    // rmcp 1.7 ships DNS-rebinding protection that 403s any request whose
+    // Host header is outside `allowed_hosts` (library default:
+    // localhost-only — which silently broke every public-hostname MCP
+    // client with "Forbidden: Host header is not allowed").
+    //
+    // Disabled here deliberately: that protection exists for
+    // UNauthenticated local servers a browser could reach via DNS
+    // rebinding. mailrs's /mcp requires a Bearer token on every call
+    // (mcp_auth_middleware); a rebound origin without a token gets an
+    // empty-permission AuthUser and can do nothing. Host checks add zero
+    // security here and one more way to break clients (rename the host,
+    // add a domain, hit via internal IP).
+    let config = StreamableHttpServerConfig::default().disable_allowed_hosts();
 
     let state_clone = state.clone();
     let service = StreamableHttpService::new(
