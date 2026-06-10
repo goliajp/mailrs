@@ -51,7 +51,9 @@ export const MessageBubble = memo(function MessageBubble({
     <div>
       {isHtml ? (
         <div>
-          <div className="border-border bg-bg overflow-hidden border select-text">
+          {/* html mail is light-mode by design — container stays white in
+              both themes to match the :host background inside HtmlFrame */}
+          <div className="border-border overflow-hidden border bg-white select-text">
             <HtmlFrame html={parts.body} />
           </div>
           <div className="px-2 py-1.5">

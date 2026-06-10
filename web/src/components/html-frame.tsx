@@ -88,7 +88,17 @@ const sanitizeCache = new Map<string, string>()
 // srcdoc <style> block had — just scoped to the shadow root instead of
 // embedded in a sandboxed document.
 const SHADOW_STYLES = `
-  :host { display: block; }
+  :host {
+    display: block;
+    /* HTML emails are authored against a light background and rarely
+       support dark mode. Pin the entire content area to light-mode
+       colors regardless of the app theme: the host paints white so a
+       narrow .mail-wrap (max-width 680px) doesn't leak the dark app
+       background at the sides, and color-scheme keeps form controls /
+       scrollbars inside the shadow root rendering light. */
+    background: #fff;
+    color-scheme: light;
+  }
   .mail-wrap {
     max-width: 680px;
     margin: 0 auto;
