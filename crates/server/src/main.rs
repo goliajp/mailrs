@@ -513,9 +513,8 @@ async fn main() {
     // came up degraded for exactly this reason).
     #[cfg(unix)]
     {
-        let mut sigterm =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("failed to install SIGTERM handler");
+        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler");
         tokio::select! {
             r = tokio::signal::ctrl_c() => r.expect("failed to listen for ctrl+c"),
             _ = sigterm.recv() => {}
