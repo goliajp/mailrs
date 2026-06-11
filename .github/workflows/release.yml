@@ -292,7 +292,7 @@ jobs:
             # 4. align bind-mounted secret + data-volume ownership to UID 10001.
             #    The image runs as USER mailrs (UID 10001); without this chown
             #    the container can't read host-bound certs or write to /data.
-            chown -R 10001:10001 certs/ 2>/dev/null || true
+            chown -R 10001:10001 certs/ dkim/ 2>/dev/null || true
             docker run --rm -v mailrs_mailrs-data:/data alpine \
               chown -R 10001:10001 /data
 
