@@ -1299,7 +1299,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3939,7 +3939,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5026,7 +5026,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5085,7 +5085,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5502,20 +5502,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
 name = "spg-crypto"
-version = "7.25.0"
+version = "7.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e089c51a651e18d4d79a2c10d042da545658279c8db8e1d361ee2879fd0f82b8"
+checksum = "d9673ccc25c531b84419a538b49f362ad924b48146b462b0015e83b2880466a5"
 
 [[package]]
 name = "spg-embedded"
-version = "7.25.0"
+version = "7.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a33435f05cc50da5189967ce70507285c3c73ba8f70df9818fe546b8fedf95d0"
+checksum = "05ee4b9dc2fd4d9db8ef9f191c43137313ab93bf1c9d87cfc3ed0b3a5991bc44"
 dependencies = [
  "spg-crypto",
  "spg-engine",
@@ -5525,9 +5525,9 @@ dependencies = [
 
 [[package]]
 name = "spg-embedded-tokio"
-version = "7.25.0"
+version = "7.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e03c0fb50dff439124a1ffb0fc86d3f5c67596f913e82b7bd503f9277fd01b92"
+checksum = "6d3841a6066da00a6fe6f799c96f18d87875d76b3a6089cf91e7715dae9caf3e"
 dependencies = [
  "spg-embedded",
  "spg-engine",
@@ -5536,9 +5536,9 @@ dependencies = [
 
 [[package]]
 name = "spg-engine"
-version = "7.25.0"
+version = "7.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af631fd6dad7df3775fe84ec96253cdf33cea4b12c102df4e81a25aea425a6d9"
+checksum = "1be07e21696a14240a4f9c0993ca504aed5006c41203a92fecac8a6b8fb0956a"
 dependencies = [
  "sha1",
  "sha2 0.10.9",
@@ -5549,24 +5549,24 @@ dependencies = [
 
 [[package]]
 name = "spg-manifest"
-version = "7.25.0"
+version = "7.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5490c5cf361da2ca0cb94b410d93e36b0e33d532618c64d67648f1ca2c5059c0"
+checksum = "d9841f7cf12e02fc9dc8435db35226241c396fe192a26e2928de037d67c0abfa"
 dependencies = [
  "spg-crypto",
 ]
 
 [[package]]
 name = "spg-sql"
-version = "7.25.0"
+version = "7.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc3a3a43fb6d68661f5cb0f6ff683f76951a5a8a877e1794cf95745697f407cd"
+checksum = "131a208c719b3d5b193952a60551f4f3d374cce1f7cb50d05ecbd05455558042"
 
 [[package]]
 name = "spg-sqlx"
-version = "7.25.0"
+version = "7.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d9a7d0477f746e316e0ab04196c4699b441b54c8c942f56b312d3899fcd511f"
+checksum = "826e61e9e5cf287942b179ef6e353ea059f5efeb3d2241df3b5259082f0121e9"
 dependencies = [
  "bigdecimal",
  "chrono",
@@ -5587,9 +5587,9 @@ dependencies = [
 
 [[package]]
 name = "spg-storage"
-version = "7.25.0"
+version = "7.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b851a9631cc40ad34d6d9084ff1590b79529b35cf04416c8da2273b1865561b0"
+checksum = "98fe680970e41eff0b9b4a1424df2d410acfa586a5f95797e5ef486f568f77e5"
 dependencies = [
  "spg-crypto",
 ]
@@ -5977,7 +5977,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6906,7 +6906,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
