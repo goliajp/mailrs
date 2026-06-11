@@ -198,17 +198,58 @@ impl MeiliClient {
     }
 }
 
+/// kevy key holding the highest message id already pushed to meili
+const CHECKPOINT_KEY: &[u8] = b"meili:last_indexed_id";
+
+/// read the indexer checkpoint from kevy. absent, unreadable, or
+/// unparseable values all mean "no checkpoint": start from 0 and let
+/// meili's id-based deduplication absorb the re-scan — exactly the
+/// pre-checkpoint first-run semantics
+fn load_checkpoint(store: &kevy_embedded::Store) -> i64 {
+    let raw = match store.get(CHECKPOINT_KEY) {
+        Ok(Some(raw)) => raw,
+        Ok(None) => return 0,
+        Err(e) => {
+            tracing::warn!(event = "meili_checkpoint_read_failed", error = %e);
+            return 0;
+        }
+    };
+    match std::str::from_utf8(&raw).ok().and_then(|s| s.parse().ok()) {
+        Some(id) => id,
+        None => {
+            tracing::warn!(event = "meili_checkpoint_unparseable", raw = ?raw);
+            0
+        }
+    }
+}
+
+/// persist the indexer checkpoint to kevy. a write failure only costs
+/// resume-after-restart, so log and keep indexing
+fn save_checkpoint(store: &kevy_embedded::Store, id: i64) {
+    if let Err(e) = store.set(CHECKPOINT_KEY, id.to_string().as_bytes()) {
+        tracing::warn!(event = "meili_checkpoint_write_failed", error = %e);
+    }
+}
+
 /// spawn background indexer that syncs messages from PG to meilisearch
-pub fn spawn_indexer(client: Arc<MeiliClient>, pool: crate::pg::BackendPool) {
+pub fn spawn_indexer(
+    client: Arc<MeiliClient>,
+    pool: crate::pg::BackendPool,
+    kevy: Option<crate::kevy_store::KevyStore>,
+) {
     tokio::spawn(async move {
         // configure index on startup
         if let Err(e) = client.configure_index().await {
             tracing::error!(event = "meili_configure_failed", error = %e);
         }
 
-        // track last indexed message id; on first run start from 0 and rely
-        // on meili's id-based deduplication to skip rows already imported
-        let mut last_id: i64 = 0;
+        // resume from the kevy checkpoint; without kevy (degraded boot)
+        // start from 0 and rely on meili's id-based deduplication to
+        // skip rows already imported
+        let mut last_id: i64 = kevy.as_deref().map(load_checkpoint).unwrap_or(0);
+        if last_id > 0 {
+            tracing::info!(event = "meili_resume_from_checkpoint", last_id);
+        }
 
         loop {
             // fetch unindexed messages from PG
@@ -284,6 +325,9 @@ pub fn spawn_indexer(client: Arc<MeiliClient>, pool: crate::pg::BackendPool) {
             match client.index_documents(&docs).await {
                 Ok(()) => {
                     last_id = max_id;
+                    if let Some(store) = &kevy {
+                        save_checkpoint(store, last_id);
+                    }
                     if count > 0 {
                         tracing::info!(event = "meili_indexed_batch", count, max_id);
                     }
@@ -303,4 +347,37 @@ pub fn spawn_indexer(client: Arc<MeiliClient>, pool: crate::pg::BackendPool) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn memory_store() -> kevy_embedded::Store {
+        kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap()
+    }
+
+    #[test]
+    fn checkpoint_absent_means_zero() {
+        let store = memory_store();
+
+        assert_eq!(load_checkpoint(&store), 0);
+    }
+
+    #[test]
+    fn checkpoint_roundtrip() {
+        let store = memory_store();
+
+        save_checkpoint(&store, 24304);
+
+        assert_eq!(load_checkpoint(&store), 24304);
+    }
+
+    #[test]
+    fn checkpoint_unparseable_means_zero() {
+        let store = memory_store();
+        store.set(CHECKPOINT_KEY, b"not-a-number").unwrap();
+
+        assert_eq!(load_checkpoint(&store), 0);
+    }
 }
