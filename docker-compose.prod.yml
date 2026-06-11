@@ -118,6 +118,10 @@ services:
       # still ships /opt/mailrs/web baked-in for first-boot before the
       # host dir is populated; the bind mount overlays it post-deploy.
       - ./web:/opt/mailrs/web:ro
+      # DKIM signing keys (MAILRS_DKIM_KEYS in .env points inside /dkim).
+      # Was lost in the SPG-cutover compose rewrite — outbound went
+      # unsigned for a day; keep it pinned here.
+      - ./dkim:/dkim:ro
     restart: unless-stopped
 
 volumes:
