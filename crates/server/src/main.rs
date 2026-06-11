@@ -504,7 +504,24 @@ async fn main() {
 
     spawn_rbl_monitor(&ctx.resolver, &cfg.hostname, &kevy_embedded_store);
 
-    // keep main alive
+    // keep main alive — exit on SIGINT (interactive ctrl+c) or
+    // SIGTERM (docker stop / compose recreate). SIGTERM matters for
+    // the embedded spg catalog lock: dying without running Drop
+    // leaves /data/spg/*.lock behind, and since spg 7.27 a
+    // replacement container sees a foreign-namespace lock as
+    // undecidable and refuses to open the catalog (v1.7.150 deploy
+    // came up degraded for exactly this reason).
+    #[cfg(unix)]
+    {
+        let mut sigterm =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("failed to install SIGTERM handler");
+        tokio::select! {
+            r = tokio::signal::ctrl_c() => r.expect("failed to listen for ctrl+c"),
+            _ = sigterm.recv() => {}
+        }
+    }
+    #[cfg(not(unix))]
     tokio::signal::ctrl_c()
         .await
         .expect("failed to listen for ctrl+c");
