@@ -172,7 +172,11 @@ async fn search_conversations_hits_tsvector_and_ilike_branches() {
         .search_conversations(USER, "uarterly", 10, None, None)
         .await
         .unwrap();
-    assert_eq!(hits.len(), 1, "ILIKE substring match still finds the thread");
+    assert_eq!(
+        hits.len(),
+        1,
+        "ILIKE substring match still finds the thread"
+    );
 
     // No match.
     let hits = store
