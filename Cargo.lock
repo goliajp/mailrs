@@ -3287,7 +3287,6 @@ name = "mailrs-outbound-queue"
 version = "4.0.0"
 dependencies = [
  "async-trait",
- "base64",
  "chrono",
  "criterion",
  "futures-util",

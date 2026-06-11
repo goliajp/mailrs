@@ -60,10 +60,9 @@ pub async fn backfill_from_pg(
         return Ok(BackfillStats::default());
     }
 
-    let rows: Vec<(String, i64)> =
-        sqlx::query_as("SELECT triplet, first_seen FROM greylist_triplets")
-            .fetch_all(pool)
-            .await?;
+    let rows: Vec<(String, i64)> = sqlx::query_as("SELECT key, first_seen FROM greylist_triplets")
+        .fetch_all(pool)
+        .await?;
 
     let mut stats = BackfillStats {
         scanned: rows.len() as u64,

@@ -3,32 +3,6 @@ use crate::BackendPool;
 #[cfg(feature = "pg")]
 use kevy_embedded::Store;
 
-#[cfg(feature = "pg")]
-mod pg_codec {
-    //! Base64 encode/decode for `outbound_queue.message_data`.
-    //!
-    //! Phase D-pre #3 switched the column from BYTEA to base64-standard TEXT
-    //! so the schema works on both PG and SPG (SPG v7.9 has no BYTES type).
-    //! `Vec<u8>` stays the public Rust shape — `QueuedMessage.message_data`,
-    //! all trait methods. Translation happens only at the sqlx bind/decode
-    //! boundary.
-
-    use base64::Engine;
-    use base64::engine::general_purpose::STANDARD;
-
-    pub(super) fn encode(data: &[u8]) -> String {
-        STANDARD.encode(data)
-    }
-
-    pub(super) fn decode(s: String) -> Vec<u8> {
-        // Forgiving decode: a corrupted row should not crash the worker. An
-        // empty payload after decode is treated as "row exists but unusable";
-        // delivery sees a zero-length body and bounces / fails per its
-        // usual error path.
-        STANDARD.decode(s).unwrap_or_default()
-    }
-}
-
 /// Lifecycle status of a queued message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QueueStatus {
@@ -149,7 +123,7 @@ pub async fn enqueue_ex(
     .bind(sender)
     .bind(recipient)
     .bind(domain)
-    .bind(pg_codec::encode(message_data))
+    .bind(message_data)
     .bind(now)
     .bind(message_id)
     .bind(is_forwarded)
@@ -219,7 +193,7 @@ pub async fn dequeue(
     limit: u32,
 ) -> Result<Vec<QueuedMessage>, sqlx::Error> {
     #[allow(clippy::type_complexity)]
-    let rows: Vec<(i64, String, String, String, String, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
+    let rows: Vec<(i64, String, String, String, Vec<u8>, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
         "SELECT id, sender, recipient, domain, message_data, status, attempts, max_attempts, next_retry, last_error, message_id, created_at, updated_at, is_forwarded
          FROM outbound_queue
          WHERE status = 'pending' AND next_retry <= $1
@@ -238,7 +212,7 @@ pub async fn dequeue(
             sender: r.1,
             recipient: r.2,
             domain: r.3,
-            message_data: pg_codec::decode(r.4),
+            message_data: r.4,
             status: QueueStatus::parse(&r.5).unwrap_or(QueueStatus::Pending),
             attempts: r.6 as u32,
             max_attempts: r.7 as u32,
@@ -275,7 +249,7 @@ pub async fn claim_for_delivery(
     limit: u32,
 ) -> Result<Vec<QueuedMessage>, sqlx::Error> {
     #[allow(clippy::type_complexity)]
-    let rows: Vec<(i64, String, String, String, String, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
+    let rows: Vec<(i64, String, String, String, Vec<u8>, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
         "UPDATE outbound_queue
          SET status = 'inflight', updated_at = $1
          WHERE id IN (
@@ -300,7 +274,7 @@ pub async fn claim_for_delivery(
             sender: r.1,
             recipient: r.2,
             domain: r.3,
-            message_data: pg_codec::decode(r.4),
+            message_data: r.4,
             status: QueueStatus::parse(&r.5).unwrap_or(QueueStatus::InFlight),
             attempts: r.6 as u32,
             max_attempts: r.7 as u32,
@@ -393,7 +367,7 @@ pub async fn get_message(
     id: i64,
 ) -> Result<Option<QueuedMessage>, sqlx::Error> {
     #[allow(clippy::type_complexity)]
-    let row: Option<(i64, String, String, String, String, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
+    let row: Option<(i64, String, String, String, Vec<u8>, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
         "SELECT id, sender, recipient, domain, message_data, status, attempts, max_attempts, next_retry, last_error, message_id, created_at, updated_at, is_forwarded
          FROM outbound_queue WHERE id = $1",
     )
@@ -406,7 +380,7 @@ pub async fn get_message(
         sender: r.1,
         recipient: r.2,
         domain: r.3,
-        message_data: pg_codec::decode(r.4),
+        message_data: r.4,
         status: QueueStatus::parse(&r.5).unwrap_or(QueueStatus::Pending),
         attempts: r.6 as u32,
         max_attempts: r.7 as u32,
@@ -440,7 +414,7 @@ pub async fn enqueue_scheduled(
     .bind(sender)
     .bind(recipient)
     .bind(domain)
-    .bind(pg_codec::encode(message_data))
+    .bind(message_data)
     .bind(scheduled_at)
     .bind(message_id)
     .bind(created_at)
@@ -496,7 +470,7 @@ pub async fn list_recent(
     limit: i32,
 ) -> Result<Vec<QueuedMessage>, sqlx::Error> {
     #[allow(clippy::type_complexity)]
-    let rows: Vec<(i64, String, String, String, String, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
+    let rows: Vec<(i64, String, String, String, Vec<u8>, String, i32, i32, i64, Option<String>, Option<String>, i64, i64, bool)> = sqlx::query_as(
         "SELECT id, sender, recipient, domain, message_data, status, attempts, max_attempts, next_retry, last_error, message_id, created_at, updated_at, is_forwarded
          FROM outbound_queue
          ORDER BY created_at DESC
@@ -513,7 +487,7 @@ pub async fn list_recent(
             sender: r.1,
             recipient: r.2,
             domain: r.3,
-            message_data: pg_codec::decode(r.4),
+            message_data: r.4,
             status: QueueStatus::parse(&r.5).unwrap_or(QueueStatus::Pending),
             attempts: r.6 as u32,
             max_attempts: r.7 as u32,

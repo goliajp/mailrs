@@ -9,13 +9,6 @@ pub type BackendPool = sqlx::PgPool;
 #[cfg(feature = "spg")]
 pub type BackendPool = spg_sqlx::SpgPool;
 
-/// Row type of the active backend.
-#[cfg(not(feature = "spg"))]
-pub type BackendRow = sqlx::postgres::PgRow;
-/// Row type of the active backend.
-#[cfg(feature = "spg")]
-pub type BackendRow = spg_sqlx::SpgRow;
-
 /// Connect a PostgreSQL pool from a `postgres://` URL.
 #[cfg(not(feature = "spg"))]
 pub async fn create_pool(url: &str) -> Result<BackendPool, sqlx::Error> {

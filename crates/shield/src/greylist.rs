@@ -155,7 +155,7 @@ mod kevy_impl {
                 && let Some(ref pool) = self.pg
             {
                 let row: Option<(i64, i64)> = sqlx::query_as(
-                    "SELECT first_seen, last_seen FROM greylist_triplets WHERE triplet = $1",
+                    "SELECT first_seen, last_seen FROM greylist_triplets WHERE key = $1",
                 )
                 .bind(key)
                 .fetch_optional(pool)
@@ -196,9 +196,9 @@ mod kevy_impl {
             if let Some(ref pool) = self.pg {
                 let now_i64 = now as i64;
                 let _ = sqlx::query(
-                    "INSERT INTO greylist_triplets (triplet, first_seen, last_seen)
+                    "INSERT INTO greylist_triplets (key, first_seen, last_seen)
                      VALUES ($1, $2, $3)
-                     ON CONFLICT (triplet) DO UPDATE SET last_seen = $3",
+                     ON CONFLICT (key) DO UPDATE SET last_seen = $3",
                 )
                 .bind(key)
                 .bind(first_seen.unwrap_or(now) as i64)

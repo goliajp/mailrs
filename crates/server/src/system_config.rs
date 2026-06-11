@@ -233,7 +233,7 @@ impl SystemConfigStore {
         };
 
         let rows: Vec<ConfigRow> = match sqlx::query_as(
-            "SELECT config_key, value, value_type, updated_at, updated_by FROM system_config",
+            "SELECT key, value, value_type, updated_at, updated_by FROM system_config",
         )
         .fetch_all(pool)
         .await
@@ -273,9 +273,9 @@ impl SystemConfigStore {
         let pool = self.pg.as_ref().ok_or("database not available")?;
 
         sqlx::query(
-            "INSERT INTO system_config (config_key, value, value_type, updated_at, updated_by) \
+            "INSERT INTO system_config (key, value, value_type, updated_at, updated_by) \
              VALUES ($1, $2, $3, now(), $4) \
-             ON CONFLICT (config_key) DO UPDATE SET value = $2, updated_at = now(), updated_by = $4",
+             ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now(), updated_by = $4",
         )
         .bind(key)
         .bind(value)
@@ -299,7 +299,7 @@ impl SystemConfigStore {
 
         let pool = self.pg.as_ref().ok_or("database not available")?;
 
-        sqlx::query("DELETE FROM system_config WHERE config_key = $1")
+        sqlx::query("DELETE FROM system_config WHERE key = $1")
             .bind(key)
             .execute(pool)
             .await

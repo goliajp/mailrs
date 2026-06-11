@@ -123,3 +123,61 @@ async fn flag_ops_update_round_trip_via_real_pg() {
             .unwrap();
     assert_eq!(flags.0 & 1, 0, "FLAG_SEEN bit cleared after remove_flags");
 }
+
+#[tokio::test]
+async fn search_conversations_hits_tsvector_and_ilike_branches() {
+    let (_container, pool) = setup_pg().await;
+    seed_domain_account(&pool, USER).await;
+    let mailbox_id = seed_mailbox(&pool, USER, "INBOX").await;
+
+    // Two messages in one thread; the search_vector trigger populates the
+    // tsvector column from subject/sender/body on INSERT.
+    for (uid, subject, body) in [
+        (1, "quarterly invoice attached", "please find the invoice"),
+        (2, "re: quarterly invoice attached", "thanks, received"),
+    ] {
+        sqlx::query(
+            "INSERT INTO messages (
+                mailbox_id, uid, maildir_id, internal_date, date_epoch,
+                flags, size, subject, sender, recipients,
+                thread_id, message_id, in_reply_to, text_body
+            ) VALUES ($1, $2, $3, 1700000000, 1700000000,
+                      0, 100, $4, 'a@x', $5,
+                      'th-1', $6, '', $7)",
+        )
+        .bind(mailbox_id)
+        .bind(uid)
+        .bind(format!("mdir-{uid}"))
+        .bind(subject)
+        .bind(USER)
+        .bind(format!("<m{uid}@x>"))
+        .bind(body)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+
+    let store = PgMailboxStore::new(pool.clone());
+
+    // tsvector branch: "invoice" is a token in subject + body.
+    let hits = store
+        .search_conversations(USER, "invoice", 10, None, None)
+        .await
+        .unwrap();
+    assert_eq!(hits.len(), 1, "one thread matches");
+    assert_eq!(hits[0].thread_id, "th-1");
+
+    // ILIKE branch: substring that tsvector tokenisation won't match.
+    let hits = store
+        .search_conversations(USER, "uarterly", 10, None, None)
+        .await
+        .unwrap();
+    assert_eq!(hits.len(), 1, "ILIKE substring match still finds the thread");
+
+    // No match.
+    let hits = store
+        .search_conversations(USER, "zebra", 10, None, None)
+        .await
+        .unwrap();
+    assert!(hits.is_empty());
+}

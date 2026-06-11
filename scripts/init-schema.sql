@@ -1,7 +1,7 @@
--- mailrs PG/SPG schema (dual-target since Phase D-pre #4)
--- `CREATE EXTENSION vector` lives in scripts/pg-extensions.sql, mounted as
--- /docker-entrypoint-initdb.d/00-pg-extensions.sql for the PG image only.
--- SPG ships VECTOR(N) builtin (no extension system) and rejects CREATE EXTENSION.
+-- mailrs schema. Runs on PostgreSQL (+pgvector) and SPG alike —
+-- SPG ships VECTOR(N) builtin and accepts CREATE EXTENSION as a no-op.
+
+CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE domains (
     name TEXT PRIMARY KEY,
@@ -72,9 +72,30 @@ CREATE TABLE messages (
     importance_score REAL NOT NULL DEFAULT 0.0,
     is_bulk_sender BOOLEAN NOT NULL DEFAULT false,
     has_tracking_pixel BOOLEAN NOT NULL DEFAULT false,
+    search_vector tsvector,
     UNIQUE(mailbox_id, uid)
 );
 CREATE INDEX idx_messages_date ON messages(mailbox_id, date_epoch DESC);
+CREATE INDEX idx_messages_search_vector ON messages USING GIN (search_vector);
+
+-- full-text search vector maintenance (mirrors migrate-016; the search
+-- query in mailbox search_ops relies on this column existing)
+CREATE OR REPLACE FUNCTION messages_search_vector_update() RETURNS trigger AS $$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', COALESCE(NEW.subject, '')), 'A') ||
+    setweight(to_tsvector('simple', COALESCE(NEW.sender, '')), 'B') ||
+    setweight(to_tsvector('simple', COALESCE(NEW.recipients, '')), 'B') ||
+    setweight(to_tsvector('simple', COALESCE(NEW.clean_text, COALESCE(NEW.text_body, ''))), 'C');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER messages_search_vector_trigger
+  BEFORE INSERT OR UPDATE OF subject, sender, recipients, text_body, clean_text
+  ON messages
+  FOR EACH ROW
+  EXECUTE FUNCTION messages_search_vector_update();
 CREATE INDEX idx_messages_thread ON messages(thread_id);
 CREATE INDEX idx_messages_message_id ON messages(message_id);
 CREATE INDEX idx_messages_modseq ON messages(mailbox_id, modseq);
@@ -85,7 +106,7 @@ CREATE TABLE outbound_queue (
     sender TEXT NOT NULL,
     recipient TEXT NOT NULL,
     domain TEXT NOT NULL,
-    message_data TEXT NOT NULL,  -- base64-encoded payload (Phase D-pre #3)
+    message_data BYTEA NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     attempts INTEGER NOT NULL DEFAULT 0,
     max_attempts INTEGER NOT NULL DEFAULT 8,
@@ -113,7 +134,7 @@ CREATE TABLE dmarc_results (
 CREATE INDEX idx_dmarc_date ON dmarc_results(report_date);
 
 CREATE TABLE greylist_triplets (
-    triplet TEXT PRIMARY KEY,
+    key TEXT PRIMARY KEY,
     first_seen BIGINT NOT NULL,
     last_seen BIGINT NOT NULL
 );
@@ -172,6 +193,28 @@ CREATE TABLE sender_feedback (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_sender_feedback_user ON sender_feedback(user_address, sender_email);
+
+-- attachment content extraction results (OCR, PDF text, etc.) —
+-- search_conversations UNIONs over extracted_text (mirrors migrate-007)
+CREATE TABLE attachment_content (
+    id BIGSERIAL PRIMARY KEY,
+    message_id BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    attachment_index SMALLINT NOT NULL,
+    content_type TEXT NOT NULL,
+    extracted_text TEXT,
+    language TEXT,
+    ocr_confidence DOUBLE PRECISION NOT NULL DEFAULT 0,
+    page_count SMALLINT,
+    metadata JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(message_id, attachment_index)
+);
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX idx_attachment_content_extracted_trgm
+    ON attachment_content USING gin(extracted_text gin_trgm_ops)
+    WHERE extracted_text IS NOT NULL AND extracted_text != '';
+CREATE INDEX idx_attachment_content_message
+    ON attachment_content(message_id) INCLUDE (attachment_index);
 
 CREATE TABLE email_analysis (
     message_id BIGINT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
@@ -242,7 +285,7 @@ CREATE INDEX IF NOT EXISTS idx_webhook_outbox_pending ON webhook_outbox(status, 
 
 -- system config: runtime-editable configuration
 CREATE TABLE IF NOT EXISTS system_config (
-    config_key TEXT PRIMARY KEY,
+    key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     value_type TEXT NOT NULL DEFAULT 'string',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
