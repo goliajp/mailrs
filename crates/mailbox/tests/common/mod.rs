@@ -32,14 +32,6 @@ mod backend {
     /// container.
     pub type TestHandle = ContainerAsync<GenericImage>;
 
-    // Phase D-pre #4 split: CREATE EXTENSION vector now lives in
-    // pg-extensions.sql (PG-only; SPG ships vector natively). On the prod
-    // docker-compose path the two files are mounted as 00-/01- under
-    // /docker-entrypoint-initdb.d so the extension lands before the
-    // schema. testcontainers-rs has no entrypoint-initdb equivalent, so we
-    // apply both files manually here in PG-first order.
-    const PG_EXTENSIONS_SQL: &str = include_str!("../../../../scripts/pg-extensions.sql");
-
     /// Spin up a Postgres + pgvector container, apply `init-schema.sql`,
     /// and return both the container handle (must stay alive!) and a
     /// connected pool.
@@ -67,11 +59,6 @@ mod backend {
         // but the listener can still race the first connection attempt.
         // Retry briefly.
         let pool = loop_connect(&url, std::time::Duration::from_secs(10)).await;
-
-        sqlx::raw_sql(PG_EXTENSIONS_SQL)
-            .execute(&pool)
-            .await
-            .expect("apply pg-extensions.sql");
 
         sqlx::raw_sql(super::SCHEMA_SQL)
             .execute(&pool)
@@ -104,8 +91,8 @@ mod backend {
     /// No keep-alive needed for the in-process engine.
     pub type TestHandle = ();
 
-    /// Open a fresh in-memory SPG engine and apply `init-schema.sql`.
-    /// (pg-extensions.sql is PG-only — SPG ships vector natively.)
+    /// Open a fresh in-memory SPG engine and apply `init-schema.sql`
+    /// (CREATE EXTENSION is a no-op on SPG).
     pub async fn setup_pg() -> (TestHandle, SpgPool) {
         let pool = SpgPool::connect_in_memory()
             .await
