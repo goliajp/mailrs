@@ -81,6 +81,10 @@ services:
       # postgres container is gone. spg:// is parsed by the server's
       # spg-build create_pool.
       MAILRS_PG_URL: spg:///data/spg/mailrs.spg
+      # single-instance contract: this container is the catalog's only
+      # writer; reclaim any predecessor's lock at boot (a SIGKILLed
+      # instance can't clean up, and 7.27 locks are namespace-honest).
+      MAILRS_SPG_FORCE_UNLOCK: "true"
       # Zero-cron PITR (spg-embedded v7.19+): WAL rotates into chunk
       # files; the in-process retention thread sweeps chunks older
       # than the window. Off-host backup via `spg backup-pitr`.

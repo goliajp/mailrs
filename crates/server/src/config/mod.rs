@@ -124,6 +124,12 @@ pub struct ServerConfig {
     pub srs_secret: Option<String>,
     // storage backends
     pub pg_url: Option<String>,
+    /// spg-embedded only: force-unlock the catalog before opening it.
+    /// For single-instance deployments (docker compose) where this
+    /// server is the data dir's only legitimate writer — a SIGKILLed
+    /// predecessor (deploy recreate beats the 10 s docker grace) leaves
+    /// a lock the namespace-honest 7.27 probe refuses to reclaim.
+    pub spg_force_unlock: bool,
     /// Persistence directory for the in-process kevy embedded store.
     /// `None` keeps kevy memory-only (lost on restart). The directory is
     /// created if missing; kevy writes `aof-0.aof` + `dump-0.rdb` here.
@@ -209,6 +215,7 @@ impl Default for ServerConfig {
             auth_max_lockout_secs: 86400,
             srs_secret: None,
             pg_url: None,
+            spg_force_unlock: false,
             kevy_data_dir: None,
             meili_url: None,
             meili_key: None,

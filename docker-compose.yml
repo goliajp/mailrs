@@ -54,6 +54,10 @@ services:
       MAILRS_MAILDIR: /data/maildir
       # spg-embedded — in-process SQL engine; catalog on the data volume.
       MAILRS_PG_URL: spg:///data/spg/mailrs.spg
+      # single-instance contract: this container is the catalog's only
+      # writer; reclaim any predecessor's lock at boot (a SIGKILLed
+      # instance can't clean up, and 7.27 locks are namespace-honest).
+      MAILRS_SPG_FORCE_UNLOCK: "true"
       SPG_PITR_RETENTION_HOURS: "24" 
       # In-process embed kevy store (Phase C v1.7.95+). AOF + snapshot
       # persistence on the mailrs-data volume; survives container restart.

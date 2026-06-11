@@ -103,6 +103,12 @@ async fn main() {
     );
 
     // PG + Kevy connections (optional, graceful degradation)
+    #[cfg(feature = "spg")]
+    if cfg.spg_force_unlock
+        && let Some(url) = &cfg.pg_url
+    {
+        pg::force_unlock(url);
+    }
     let pg_pool = match &cfg.pg_url {
         Some(url) => match pg::create_pool(url).await {
             Ok(pool) => {
