@@ -233,9 +233,15 @@ jobs:
           echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          # Destination is docker-compose.yml — the file `docker compose`
+          # actually reads in /apps/mailrs. Shipping it as
+          # docker-compose.prod.yml made this scp dead code: every
+          # `docker compose up -d` kept reusing the host's stale
+          # docker-compose.yml (caught at the v1.7.148 SPG cutover, where
+          # the env/service changes silently didn't apply).
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             docker-compose.prod.yml \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/apps/mailrs/docker-compose.prod.yml"
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/apps/mailrs/docker-compose.yml"
 
       - name: SSH + docker pull + restart
         uses: appleboy/ssh-action@v1.2.2
