@@ -5508,11 +5508,15 @@ dependencies = [
 
 [[package]]
 name = "spg-crypto"
-version = "7.20.0"
+version = "7.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "120409fcc653019a2695a9d4919816062ce3324a2f07acf6bfad628bd2d99e10"
 
 [[package]]
 name = "spg-embedded"
-version = "7.20.0"
+version = "7.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "40d72adc337c541e33b995f61a0d9a233a15aab04380994e6518a20d03861aee"
 dependencies = [
  "spg-crypto",
  "spg-engine",
@@ -5522,7 +5526,9 @@ dependencies = [
 
 [[package]]
 name = "spg-embedded-tokio"
-version = "7.20.0"
+version = "7.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "599df7df5413dd49ffe7b525264fb794cea40517d9d6b3bdea9eff0365c68c89"
 dependencies = [
  "spg-embedded",
  "spg-engine",
@@ -5531,7 +5537,9 @@ dependencies = [
 
 [[package]]
 name = "spg-engine"
-version = "7.20.0"
+version = "7.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffb1fe9aa3b8e95ec4292764ea820b9f95b3e5c08b3b53782746558b2abe5911"
 dependencies = [
  "sha1",
  "sha2 0.10.9",
@@ -5542,18 +5550,24 @@ dependencies = [
 
 [[package]]
 name = "spg-manifest"
-version = "7.20.0"
+version = "7.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a2dd9623abfc1b88f0206d163e188949e7455ad7cce00f6978e712a6ce1cf72"
 dependencies = [
  "spg-crypto",
 ]
 
 [[package]]
 name = "spg-sql"
-version = "7.20.0"
+version = "7.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb575580d2996d7a71f0cd38f374376b2b77920e6507bdef3d7d2a56161031c9"
 
 [[package]]
 name = "spg-sqlx"
-version = "7.20.0"
+version = "7.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "547f815727bcafedd6c07266c41b0127717ffaeb02bd01ed144364b0b51c43cd"
 dependencies = [
  "bigdecimal",
  "chrono",
@@ -5574,7 +5588,9 @@ dependencies = [
 
 [[package]]
 name = "spg-storage"
-version = "7.20.0"
+version = "7.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db9a79fb3082dc45ce7def71d9bc8750b1f293313eb6c3c4aeaa7ae1ed7d1f1f"
 dependencies = [
  "spg-crypto",
 ]
