@@ -36,3 +36,24 @@ pub async fn create_pool(url: &str) -> Result<BackendPool, sqlx::Error> {
         .connect_with(opts)
         .await
 }
+
+/// Force-release the catalog lock before opening (spg build only).
+/// Safe ONLY under the single-instance deployment contract — the
+/// caller asserts no other process can hold this catalog. Used when
+/// `MAILRS_SPG_FORCE_UNLOCK` is set (docker compose: a SIGKILLed
+/// predecessor's lock is unreclaimable across container namespaces).
+#[cfg(feature = "spg")]
+pub fn force_unlock(url: &str) {
+    let Some(path) = url.strip_prefix("spg://") else {
+        return;
+    };
+    match spg_embedded::Database::force_unlock(path) {
+        Ok(()) => {
+            tracing::info!(
+                path,
+                "spg catalog lock force-released (single-instance contract)"
+            );
+        }
+        Err(e) => tracing::warn!(path, error = ?e, "spg force_unlock failed"),
+    }
+}

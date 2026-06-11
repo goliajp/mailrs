@@ -24,6 +24,7 @@ render-preview = ["dep:chromiumoxide"]
 # See .claude/rfcs/20260610-spg-embedded-cutover.md.
 spg = [
     "dep:spg-sqlx",
+    "dep:spg-embedded",
     "mailrs-mailbox/spg",
     "mailrs-outbound-queue/spg",
     "mailrs-shield/spg",
@@ -92,6 +93,7 @@ metrics = "0.24"
 metrics-exporter-prometheus = { version = "0.18", default-features = false }
 sqlx = { workspace = true }
 spg-sqlx = { workspace = true, optional = true }
+spg-embedded = { workspace = true, optional = true }
 kevy-embedded = { workspace = true }
 ipnet = { workspace = true }
 hickory-resolver = "0.26"

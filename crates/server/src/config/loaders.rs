@@ -119,6 +119,7 @@ impl ServerConfig {
     /// PostgreSQL URL + kevy embedded persistence directory.
     pub(super) fn load_storage(&mut self) {
         set_opt_string("MAILRS_PG_URL", &mut self.pg_url);
+        set_bool_truthy("MAILRS_SPG_FORCE_UNLOCK", &mut self.spg_force_unlock);
         set_opt_path("MAILRS_KEVY_DATA_DIR", &mut self.kevy_data_dir);
         // MAILRS_KEVY_URL is no longer honored (Phase C: in-process only).
         // Warn loudly if operators still have it set in their env.
