@@ -228,7 +228,11 @@ CREATE TABLE email_analysis (
     action_items JSONB NOT NULL DEFAULT '[]',
     embedding vector(1024),
     model_version TEXT NOT NULL DEFAULT '',
-    analyzed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    analyzed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    clean_text TEXT NOT NULL DEFAULT '',
+    requires_action BOOLEAN NOT NULL DEFAULT false,
+    action_deadline TIMESTAMPTZ,
+    sender_intent TEXT NOT NULL DEFAULT 'inform'
 );
 CREATE INDEX idx_ea_category ON email_analysis(category);
 CREATE INDEX idx_ea_embedding ON email_analysis
