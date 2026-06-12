@@ -371,7 +371,7 @@ async fn main() {
 
     // spawn meilisearch indexer
     if let (Some(meili), Some(pool)) = (&meili_client, &pg_pool) {
-        search_index::spawn_indexer(meili.clone(), pool.clone());
+        search_index::spawn_indexer(meili.clone(), pool.clone(), kevy_embedded_store.clone());
         tracing::info!(event = "subsystem_started", subsystem = "meili_indexer");
     }
 
