@@ -18,7 +18,7 @@ BACKEND="${1:?usage: bench-api-e2e.sh pg|spg}"
 N="${N:-30}"
 WARMUP="${WARMUP:-3}"
 PORT="${PORT:-3209}"
-PG_CONTAINER="mailrs-bench-pg"
+PG_CONTAINER="mailrs-bench-pg-$$"   # per-run name: parallel runs must not reap each other
 PG_PORT="${PG_PORT:-54329}"
 SPG_IMAGE="${SPG_IMAGE:-goliakk/spg:latest}"
 BASE="http://127.0.0.1:${PORT}"
@@ -29,7 +29,8 @@ WORK="$(mktemp -d /tmp/mailrs-bench-api.XXXXXX)"
 SERVER_PID=""
 cleanup() {
   [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null || true
-  docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
+  # only reap our own container (pg mode creates it; spg mode never does)
+  [ "$BACKEND" = pg ] && docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 

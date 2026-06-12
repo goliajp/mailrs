@@ -103,7 +103,10 @@ if rows:
     )
     rows = []
 
-print(f"SELECT setval('messages_id_seq', {MESSAGES});")
+# no setval: the perf panel never inserts into the seeded tables, and
+# spg's BIGSERIAL doesn't expose an addressable <table>_id_seq (round-23
+# note filed). if this seed is ever reused for a write workload on PG,
+# bump the sequences first.
 
 # email_analysis: first ANALYSIS message ids
 for start in range(1, ANALYSIS + 1, BATCH):
