@@ -2521,18 +2521,18 @@ dependencies = [
 
 [[package]]
 name = "kevy-bytes"
-version = "1.13.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12e93b86626179e4dc27e158a39103c1e6ace60e040eb0f087538c2f2802b8f0"
+checksum = "24a72d4d3ed2e5c5f79ddb225c18bcf2792a3d9006a03de1d43606ecd21b4296"
 dependencies = [
  "kevy-hash",
 ]
 
 [[package]]
 name = "kevy-embedded"
-version = "1.1.17"
+version = "1.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1188090aa95c84bc3519ba8153daf680438a87be33d06d7415d81334528f7a6"
+checksum = "62b26ac610a5ae21f657a8bd0b1c30d4ebd5eebcc897b2bdbdc4e648a0ae7d2a"
 dependencies = [
  "kevy-hash",
  "kevy-persist",
@@ -2541,21 +2541,21 @@ dependencies = [
 
 [[package]]
 name = "kevy-hash"
-version = "1.13.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08331243c3239bc3a37d3a700fb2085af8c81ebd09f3b046185a05d2f1b96e6a"
+checksum = "c04b6c78fcde213be52ba8d3d174bc5823ecabf85f77e3d4f8ff100ab063aae6"
 
 [[package]]
 name = "kevy-madvise"
-version = "1.13.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "225829a07e18adf526e2d77e8cb4f4905cd6b48b24cfd3bce4ff2f56f4dc2922"
+checksum = "b56240da6a446a819f3792e7bea5b18625754113032b5bada04c4a58dd2f9b96"
 
 [[package]]
 name = "kevy-map"
-version = "1.13.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8194fe0f8880c2ed69ffad43cac7a1612fa4a7614fbbe25506055648de9c852a"
+checksum = "b3ee1357c182ef1dd1746053a346a89ed546f87c24009c07a68ab9e97dae1baf"
 dependencies = [
  "kevy-hash",
  "kevy-madvise",
@@ -2563,9 +2563,9 @@ dependencies = [
 
 [[package]]
 name = "kevy-persist"
-version = "1.13.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9518fa29263b6bee6e85c8c0809d213af7cb4e03ad4214e16efa568e1e5c5542"
+checksum = "4543b1dbdee2e011e366ca3445c2f1b1ca9d7535ab53e2f2936f9de047079ee1"
 dependencies = [
  "kevy-resp",
  "kevy-store",
@@ -2573,15 +2573,15 @@ dependencies = [
 
 [[package]]
 name = "kevy-resp"
-version = "1.13.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdee307038372dc2646f8807eff3410a714502775c900388dfba47d39edfcba8"
+checksum = "a5711e137f528a34addd324e2dcd525ce790bc0af3c664a12b120398e6847858"
 
 [[package]]
 name = "kevy-store"
-version = "1.13.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e75a3dae0beff649d6c5fec39f9be6d4fb6ee356b5079e379abbfc5fc112b1f"
+checksum = "00e5831f003be450a34492d24c2081a30abe26584eba6553e2cfdec18ee1d7f7"
 dependencies = [
  "kevy-bytes",
  "kevy-hash",
@@ -5508,15 +5508,15 @@ dependencies = [
 
 [[package]]
 name = "spg-crypto"
-version = "7.27.0"
+version = "7.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e7f5584f137dae35064d69f18fc954312969605ec915320d9e1af13772d3ca5"
+checksum = "b4746bb0335dc542a90df05d3f508c627eae9d810d0aeb7b0e30f18ff673a428"
 
 [[package]]
 name = "spg-embedded"
-version = "7.27.0"
+version = "7.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66b5f55bd11c34c114c02676863d9416010d983b938a57b80b2d6cc28db40423"
+checksum = "129bc2cdefd7579a16a1208169bd67bd58883117326ce6d3a0be0456e4470e8c"
 dependencies = [
  "spg-crypto",
  "spg-engine",
@@ -5526,9 +5526,9 @@ dependencies = [
 
 [[package]]
 name = "spg-embedded-tokio"
-version = "7.27.0"
+version = "7.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b1dc79ccaf7321ae93f3bce210f0c5049512785ddfbda900cf479a2296f74af"
+checksum = "99b2677a78b8f6f9538dc26d4a150688780977da64751f9e233b89e59706029e"
 dependencies = [
  "spg-embedded",
  "spg-engine",
@@ -5537,10 +5537,11 @@ dependencies = [
 
 [[package]]
 name = "spg-engine"
-version = "7.27.0"
+version = "7.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10c42087ecea95d982f9f299fa2f78d8c2c034e807e6dc1da9ca42e17db360c0"
+checksum = "cb8544b3c52fb6ef41286371c742fab6bb2c2570ca8c601b9c3edb49e71ea6d1"
 dependencies = [
+ "hashbrown 0.15.5",
  "sha1",
  "sha2 0.10.9",
  "spg-crypto",
@@ -5550,24 +5551,24 @@ dependencies = [
 
 [[package]]
 name = "spg-manifest"
-version = "7.27.0"
+version = "7.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e99a06290c45a55b5db459b818a811382a79954c1b44cbf380992f9f03c2b61"
+checksum = "e6e642643f2867b79780f425b6cff7b5de77f6bfc1cfe82dc4f9650a56b0eb2d"
 dependencies = [
  "spg-crypto",
 ]
 
 [[package]]
 name = "spg-sql"
-version = "7.27.0"
+version = "7.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef355348fd46ac348a6f4e9ccba45f0973f683a2cbdcacfd4d40a1bf90538ea8"
+checksum = "ea23c1b4d04b7961caf187589bf7f5a2b0b185adfe7aeca1e94b7726fa7d1555"
 
 [[package]]
 name = "spg-sqlx"
-version = "7.27.0"
+version = "7.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dda987f61ba08c81fa35e4945357970013c9fce60d7a3e56f38381e4627cf0e6"
+checksum = "0bfb65889bec17eb55a8c10d5b83441ecab09d1485ff3bc2d443f37b1ffed8e0"
 dependencies = [
  "bigdecimal",
  "chrono",
@@ -5588,9 +5589,9 @@ dependencies = [
 
 [[package]]
 name = "spg-storage"
-version = "7.27.0"
+version = "7.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea8f90efa6923f5e500c8511b0f2011d2b2c1ea6b6b46263caf086b3f3ecb08b"
+checksum = "a42f1715396aada5bbe3968a16568beea0b00520835e52e8cf3f795c4778dd84"
 dependencies = [
  "spg-crypto",
 ]
@@ -6907,7 +6908,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

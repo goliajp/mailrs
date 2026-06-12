@@ -292,17 +292,19 @@ jobs:
             # 4. align bind-mounted secret + data-volume ownership to UID 10001.
             #    The image runs as USER mailrs (UID 10001); without this chown
             #    the container can't read host-bound certs or write to /data.
-            chown -R 10001:10001 certs/ 2>/dev/null || true
+            chown -R 10001:10001 certs/ dkim/ 2>/dev/null || true
             docker run --rm -v mailrs_mailrs-data:/data alpine \
               chown -R 10001:10001 /data
 
             # 5. restart with the new image tag
             docker compose up -d --remove-orphans
 
-            # 6. health gate — poll /api/health until healthy or 60s timeout.
-            # `health` not `status` because prod root shell is zsh; `$status`
-            # is a read-only special parameter there (equivalent to bash's $?).
-            for i in $(seq 1 30); do
+            # 6. health gate — poll /api/health until healthy or 180s timeout.
+            # spg catalog load alone took ~75s on 2026-06-12 (762MB) before
+            # the web listener came up, so the old 60s window was a
+            # guaranteed false-fail. `health` not `status` because prod root
+            # shell is zsh; `$status` is read-only there (bash's $?).
+            for i in $(seq 1 90); do
               health=$(curl -sS --max-time 5 http://localhost:3100/api/health 2>/dev/null \
                 | python3 -c "import json,sys;print(json.load(sys.stdin).get('status','?'))" \
                 2>/dev/null || echo "unreachable")
