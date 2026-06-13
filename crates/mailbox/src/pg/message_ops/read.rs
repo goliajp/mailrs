@@ -200,7 +200,7 @@ impl PgMailboxStore {
     /// thread-level — `unread_messages` in the API was always displayed as
     /// "Unread N" without specifying messages vs threads, and threads are
     /// what the user actually sees in the list
-    pub async fn count_unseen(&self, user: &str) -> i64 {
+    pub async fn count_unseen(&self, user: &str) -> Result<i64, sqlx::Error> {
         let row: Result<(i64,), _> = sqlx::query_as(
             "SELECT COUNT(*) FROM (
                SELECT m.thread_id
@@ -228,7 +228,11 @@ impl PgMailboxStore {
         .fetch_one(&self.pool)
         .await;
 
-        row.map(|r| r.0).unwrap_or(0)
+        // propagate the error rather than swallow to 0 (a stone doesn't
+        // log; the caller decides). swallowing here hid an engine
+        // FILTER-clause parse failure for weeks — the homepage showed 0
+        // unread on otherwise-full mailboxes (incident 2026-06-13).
+        row.map(|r| r.0)
     }
 
     /// find a message by its message_id header (across all user's mailboxes)
