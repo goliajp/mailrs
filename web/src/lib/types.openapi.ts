@@ -4388,6 +4388,97 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/reconcile-maildir": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconcile maildir files into the message index (split-brain repair)
+         * @description Walks the maildir tree and indexes files that have no messages row, through the same uid-allocation/threading path as live delivery. dry_run reports the gap without writing. Requires internal.rpc.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @default false */
+                        dry_run?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Reconciliation report */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            dry_run?: boolean;
+                            report?: {
+                                scanned?: number;
+                                missing?: number;
+                                repaired?: number;
+                                missing_by_user?: {
+                                    [key: string]: number;
+                                };
+                                errors?: string[];
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/cache/flush-conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Flush the conversation-list cache */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Cache flushed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {

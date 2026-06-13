@@ -730,7 +730,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 )}
                 <AttachmentPreview attachments={selectedMsg.attachments} uid={selectedMsg.uid} />
               </>
-            ) : (
+            ) : loadingThread ? null : (
               <div className="text-fg-muted flex h-full flex-col items-center justify-center gap-2 py-12 text-sm">
                 <Mail className="h-8 w-8" strokeWidth={1.5} />
                 <p>Select a message to preview</p>

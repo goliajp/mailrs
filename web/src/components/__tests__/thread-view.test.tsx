@@ -356,6 +356,28 @@ describe('ThreadView — loading state', () => {
       expect(container.querySelector('.animate-pulse')).not.toBeNull()
     })
   })
+
+  it('does not show the empty state while a selected thread is loading', async () => {
+    // regression: the loading spinner overlay (80% opacity) and the
+    // "Select a message to preview" empty state used to render at the
+    // same time — both visible through the translucent overlay.
+    mockUseThreadQuery.mockReturnValue({ data: undefined, isPending: true })
+
+    const store = makeStore()
+    store.set(conversationsAtom, [makeConversation()])
+    store.set(threadMessagesAtom, [])
+    store.set(selectedThreadIdAtom, 'thread-1')
+
+    render(
+      <Wrapper store={store}>
+        <ThreadView />
+      </Wrapper>
+    )
+
+    await waitFor(() => {
+      expect(screen.queryByText('Select a message to preview')).toBeNull()
+    })
+  })
 })
 
 describe('ThreadView — delete dialog', () => {
