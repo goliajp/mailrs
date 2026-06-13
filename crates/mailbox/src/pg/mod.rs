@@ -18,6 +18,8 @@ mod flag_ops;
 pub(crate) mod helpers;
 mod mailbox_ops;
 mod message_ops;
+mod reconcile_ops;
+pub use reconcile_ops::ReconcileReport;
 mod search_ops;
 mod thread_ops;
 mod trait_impl;

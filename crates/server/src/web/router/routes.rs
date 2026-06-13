@@ -271,6 +271,10 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
             post(admin::check_domain_handler),
         )
         .route("/api/admin/rbl-status", get(admin::get_rbl_status))
+        .route(
+            "/api/admin/reconcile-maildir",
+            post(admin::reconcile::reconcile_maildir),
+        )
         .route("/api/admin/reputation", get(admin::get_reputation))
         .route("/api/admin/export", get(admin::export_messages))
         .route(

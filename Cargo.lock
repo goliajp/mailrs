@@ -3240,6 +3240,7 @@ dependencies = [
  "serde_json",
  "spg-sqlx",
  "sqlx",
+ "tempfile",
  "testcontainers",
  "tokio",
 ]

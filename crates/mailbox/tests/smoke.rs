@@ -185,3 +185,57 @@ async fn search_conversations_hits_tsvector_and_ilike_branches() {
         .unwrap();
     assert!(hits.is_empty());
 }
+
+#[tokio::test]
+async fn reconcile_maildir_repairs_orphan_files() {
+    let (_container, pool) = setup_pg().await;
+    seed_domain_account(&pool, USER).await;
+    let store = PgMailboxStore::new(pool.clone());
+    store.create_mailbox(USER, "INBOX").await.unwrap();
+
+    let root = tempfile::tempdir().unwrap();
+    let root_path = root.path().to_str().unwrap();
+
+    // control: one message through the normal indexed path
+    let indexed = b"From: a@x.com\r\nTo: alice@example.com\r\nSubject: indexed\r\nMessage-ID: <ctl-1@x.com>\r\n\r\nbody one\r\n";
+    store
+        .append_message(USER, "INBOX", root_path, indexed, 0, 1_700_000_000)
+        .await
+        .unwrap();
+
+    // orphan: delivered to disk only, never indexed (the split-brain shape)
+    let md = mailrs_maildir::Maildir::create(format!("{root_path}/example.com/alice")).unwrap();
+    let orphan = b"From: b@y.com\r\nTo: alice@example.com\r\nSubject: orphan\r\nMessage-ID: <orp-1@y.com>\r\n\r\nbody two\r\n";
+    let orphan_id = md.deliver(orphan).unwrap().to_string();
+
+    // dry run: detects, repairs nothing
+    let report = store.reconcile_maildir(root_path, true).await.unwrap();
+    assert_eq!(report.scanned, 2);
+    assert_eq!(report.missing, 1);
+    assert_eq!(report.repaired, 0);
+    let n: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM messages")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(n.0, 1, "dry run must not write");
+
+    // repair
+    let report = store.reconcile_maildir(root_path, false).await.unwrap();
+    assert_eq!(report.missing, 1);
+    assert_eq!(report.repaired, 1);
+
+    let row: (String, String, String) =
+        sqlx::query_as("SELECT sender, subject, thread_id FROM messages WHERE maildir_id = $1")
+            .bind(&orphan_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(row.0.contains("b@y.com"));
+    assert_eq!(row.1, "orphan");
+    assert!(!row.2.is_empty(), "threading resolved");
+
+    // idempotent: second pass finds nothing
+    let report = store.reconcile_maildir(root_path, false).await.unwrap();
+    assert_eq!(report.scanned, 2);
+    assert_eq!(report.missing, 0);
+}

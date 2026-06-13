@@ -33,6 +33,7 @@ pub mod permissions;
 pub mod policy;
 pub mod queue;
 pub mod quota;
+pub mod reconcile;
 pub mod sieve;
 
 pub(super) use account_groups::*;

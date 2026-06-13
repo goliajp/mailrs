@@ -1449,6 +1449,28 @@ impl MailMcpService {
         self.json_result(&items)
     }
 
+    #[tool(
+        description = "Reconcile maildir files into the message index (split-brain repair). dry_run reports the gap without writing. Requires internal.rpc permission."
+    )]
+    async fn reconcile_maildir(
+        &self,
+        Parameters(params): Parameters<ReconcileMaildirParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.require_permission("internal.rpc")?;
+        let store = self
+            .web_state
+            .mailbox_store
+            .as_ref()
+            .ok_or_else(|| McpError::internal_error("mailbox store not available", None))?;
+        let report = store
+            .reconcile_maildir(&self.web_state.maildir_root, params.dry_run)
+            .await
+            .map_err(|e| McpError::internal_error(e, None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({"dry_run": params.dry_run, "report": report}).to_string(),
+        )]))
+    }
+
     // --- email group management ---
 
     #[tool(
