@@ -57,7 +57,7 @@ async fn count_messages_returns_zero_for_user_with_no_data() {
     let store = PgMailboxStore::new(pool);
 
     assert_eq!(store.count_messages(USER).await, 0);
-    assert_eq!(store.count_unseen(USER).await, 0);
+    assert_eq!(store.count_unseen(USER).await.unwrap(), 0);
 }
 
 #[tokio::test]
@@ -238,4 +238,54 @@ async fn reconcile_maildir_repairs_orphan_files() {
     let report = store.reconcile_maildir(root_path, false).await.unwrap();
     assert_eq!(report.scanned, 2);
     assert_eq!(report.missing, 0);
+}
+
+// blocked on the spg axis by SPG round-29: the aggregate
+// `COUNT(*) FILTER (WHERE …)` clause doesn't parse on spg, so the query
+// errors → count_unseen logs + returns 0 there. we keep the
+// standard-SQL FILTER form (mailrs writes correct SQL; the engine must
+// support it) and assert correctness on the pg axis; re-enable on spg
+// once round-29 ships.
+#[cfg_attr(
+    feature = "spg",
+    ignore = "blocked on SPG round-29: aggregate FILTER clause"
+)]
+#[tokio::test]
+async fn count_unseen_counts_unread_threads() {
+    // sentinel: count_unseen uses a PG aggregate FILTER clause. its
+    // result was swallowed to 0 on error, so when spg couldn't parse
+    // FILTER the homepage unread badge silently read 0 on full mailboxes
+    // (incident 2026-06-13). this proves the query is correct SQL.
+    let (_container, pool) = setup_pg().await;
+    seed_domain_account(&pool, USER).await;
+    let store = PgMailboxStore::new(pool.clone());
+    store.create_mailbox(USER, "INBOX").await.unwrap();
+
+    let root = tempfile::tempdir().unwrap();
+    let root_path = root.path().to_str().unwrap();
+    // delivered unseen (flags = 0), sender != the user so it isn't a
+    // self-sent thread the count excludes
+    let msg = b"From: someone@elsewhere.com\r\nTo: alice@example.com\r\nSubject: unread one\r\nMessage-ID: <u-1@elsewhere.com>\r\n\r\nbody\r\n";
+    store
+        .append_message(USER, "INBOX", root_path, msg, 0, 1_700_000_000)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        store.count_unseen(USER).await.unwrap(),
+        1,
+        "one unseen inbound thread must count as unread"
+    );
+
+    // a second unseen message in the SAME thread is still one unread thread
+    let msg2 = b"From: someone@elsewhere.com\r\nTo: alice@example.com\r\nSubject: re: unread\r\nMessage-ID: <u-2@elsewhere.com>\r\nIn-Reply-To: <u-1@elsewhere.com>\r\n\r\nbody2\r\n";
+    store
+        .append_message(USER, "INBOX", root_path, msg2, 0, 1_700_000_100)
+        .await
+        .unwrap();
+    assert_eq!(
+        store.count_unseen(USER).await.unwrap(),
+        1,
+        "thread-level count: two messages in one thread is one unread thread"
+    );
 }

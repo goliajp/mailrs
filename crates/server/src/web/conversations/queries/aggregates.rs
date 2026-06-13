@@ -145,7 +145,13 @@ pub(crate) async fn get_mail_stats(
     }
 
     let total = mb_store.count_messages(user).await;
-    let unread = mb_store.count_unseen(user).await;
+    // 0 is the display fallback, but a query error is logged loudly here
+    // (the cement layer) rather than silently swallowed in the stone —
+    // an unlogged swallow hid a FILTER parse failure for weeks
+    let unread = mb_store.count_unseen(user).await.unwrap_or_else(|e| {
+        tracing::error!(error = %e, user, "count_unseen failed — unread badge shows 0");
+        0
+    });
     let storage = mb_store.user_storage_usage(user).await;
 
     let cats = mb_store
