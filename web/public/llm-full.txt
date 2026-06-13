@@ -159,6 +159,7 @@ Config for Claude Code or any MCP client:
 |------|-----------|-------------|
 | get_queue | admin.queue | List outbound delivery queue entries (sender, recipient, status, attempts) |
 | retry_queue_message | admin.queue | Retry a failed outbound message by queue ID |
+| reconcile_maildir | internal.rpc | Index maildir files missing from PG (split-brain repair); dry_run reports only |
 
 ### Greylist Local Lists (Phase 2)
 
@@ -293,6 +294,13 @@ Response includes groups, effective permissions, accessible domains, and super s
 ```json
 {
   "id": 42
+}
+```
+
+#### reconcile_maildir
+```json
+{
+  "dry_run": true
 }
 ```
 
@@ -651,6 +659,10 @@ curl -X POST https://mail.golia.ai/api/admin/accounts \
   -d '{"address": "new@golia.jp", "domain": "golia.jp", "display_name": "New User", "password": "secret"}'
 
 # remove account
+curl -X POST https://mail.golia.ai/api/admin/reconcile-maildir \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"dry_run": true}'
+
 curl -X DELETE https://mail.golia.ai/api/admin/accounts/old@golia.jp \
   -H "Authorization: Bearer mlrs_..."
 ```

@@ -318,6 +318,13 @@ pub(crate) struct GetContactsParams {}
 pub(crate) struct GetQueueParams {}
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ReconcileMaildirParams {
+    /// report the maildir/PG gap without writing anything (default false)
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(crate) struct RetryQueueMessageParams {
     /// queue message ID
     pub id: i64,
@@ -841,6 +848,14 @@ mod tests {
     fn get_queue_params_empty() {
         let json = r#"{}"#;
         let _params: GetQueueParams = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    fn reconcile_maildir_params_default_dry_run() {
+        let p: ReconcileMaildirParams = serde_json::from_str("{}").unwrap();
+        assert!(!p.dry_run);
+        let p: ReconcileMaildirParams = serde_json::from_str(r#"{"dry_run": true}"#).unwrap();
+        assert!(p.dry_run);
     }
 
     #[test]
