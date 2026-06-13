@@ -85,11 +85,15 @@ impl PgMailboxStore {
         // requires_action and spam/scam exclusion) collapsed into a single
         // LEFT JOIN. one merge/hash join instead of ~36k index probes
         // per request (perfs/topics/01 fix-c).
+        // "all" must mean ALL: the default view never hides mail by
+        // category. category is an opt-in filter only (pass a category to
+        // narrow to it, e.g. a Spam folder). nothing silently disappears
+        // from the default list because a (possibly stale, possibly
+        // wrong) classifier tagged it spam/scam. (2026-06-13: legit
+        // business mail — POs, settlement agreements — was found hidden
+        // this way after AI was disabled but old categories persisted.)
         if category.is_some() {
             conditions.push(format!("ea.category = ${param_idx}"));
-        } else {
-            // exclude spam/scam from default view — users must select the category explicitly
-            conditions.push("COALESCE(ea.category, 'general') NOT IN ('spam', 'scam')".to_string());
         }
 
         let where_clause = conditions.join(" AND ");
