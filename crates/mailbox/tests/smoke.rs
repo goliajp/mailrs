@@ -280,3 +280,82 @@ async fn count_unseen_counts_unread_threads() {
         "thread-level count: two messages in one thread is one unread thread"
     );
 }
+
+#[tokio::test]
+async fn reconcile_no_message_id_still_gets_thread_and_is_visible() {
+    // regression (2026-06-13): an orphan whose Message-ID header didn't
+    // extract got an empty thread_id, and list_conversations'
+    // `WHERE thread_id != ''` then hid it from every view — a real
+    // business email silently vanished. orphans must always thread.
+    let (_container, pool) = setup_pg().await;
+    seed_domain_account(&pool, USER).await;
+    let store = PgMailboxStore::new(pool.clone());
+    store.create_mailbox(USER, "INBOX").await.unwrap();
+
+    let root = tempfile::tempdir().unwrap();
+    let root_path = root.path().to_str().unwrap();
+
+    // orphan on disk with NO Message-ID header at all
+    let md = mailrs_maildir::Maildir::create(format!("{root_path}/example.com/alice")).unwrap();
+    let orphan = b"From: boss@partner.com\r\nTo: alice@example.com\r\nSubject: PO 4300079030 invoice\r\n\r\nplease invoice separately\r\n";
+    md.deliver(orphan).unwrap();
+
+    let report = store.reconcile_maildir(root_path, false).await.unwrap();
+    assert_eq!(report.repaired, 1);
+
+    let row: (String,) = sqlx::query_as("SELECT thread_id FROM messages WHERE subject = $1")
+        .bind("PO 4300079030 invoice")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(
+        !row.0.is_empty(),
+        "orphan with no Message-ID must still get a non-empty thread_id"
+    );
+
+    // and it is visible in the default conversation list
+    let convos = store
+        .list_conversations(USER, 50, None, None, None, false, None, None, None, None)
+        .await
+        .unwrap();
+    assert!(
+        convos.iter().any(|c| c.thread_id == row.0),
+        "the recovered message must appear in the default list"
+    );
+}
+
+#[tokio::test]
+async fn default_list_shows_spam_categorised_mail() {
+    // "all" must mean ALL: a message a (possibly stale, possibly wrong)
+    // classifier tagged 'spam' must still appear in the default view —
+    // categories are opt-in filters, never silent exclusions.
+    let (_container, pool) = setup_pg().await;
+    seed_domain_account(&pool, USER).await;
+    let mailbox_id = seed_mailbox(&pool, USER, "INBOX").await;
+
+    sqlx::query(
+        "INSERT INTO messages (mailbox_id, uid, maildir_id, internal_date, date_epoch,
+            flags, size, subject, sender, recipients, thread_id, message_id, in_reply_to)
+         VALUES ($1, 1, 'm-1', 1700000000, 1700000000, 0, 100,
+            'Settlement Agreement', 'legal@partner.com', $2, 'th-spam', '<s1@x>', '')",
+    )
+    .bind(mailbox_id)
+    .bind(USER)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO email_analysis (message_id, category) SELECT id, 'spam' FROM messages WHERE thread_id = 'th-spam'")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let store = PgMailboxStore::new(pool.clone());
+    let convos = store
+        .list_conversations(USER, 50, None, None, None, false, None, None, None, None)
+        .await
+        .unwrap();
+    assert!(
+        convos.iter().any(|c| c.thread_id == "th-spam"),
+        "spam-categorised mail must still show in the default 'all' view"
+    );
+}

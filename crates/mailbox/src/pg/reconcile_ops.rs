@@ -157,18 +157,29 @@ impl PgMailboxStore {
         let sender = extract_header_value(&data, "From");
         let recipients = extract_header_value(&data, "To");
         let subject = extract_header_value(&data, "Subject");
-        let message_id = threading::extract_message_id(&data);
         let in_reply_to = threading::extract_in_reply_to(&data);
-        let thread_id = if !message_id.is_empty() {
-            let parent = self
-                .find_thread_id_by_message_id(user, &in_reply_to)
-                .await
-                .ok()
-                .flatten();
-            threading::resolve_thread_id(&message_id, &in_reply_to, |_| parent.clone())
+        // message_id extraction can fail (e.g. an Outlook fold this parser
+        // misses); never let that yield an empty thread_id, which the
+        // conversation list filters out — the message would silently
+        // vanish from every view (incident 2026-06-13). synthesise a
+        // stable id from the maildir_id when the header is missing.
+        let raw_message_id = threading::extract_message_id(&data);
+        let effective_message_id = if raw_message_id.is_empty() {
+            format!("{maildir_id}@mailrs.local")
         } else {
-            String::new()
+            raw_message_id
         };
+        // always resolve a thread: try the in_reply_to parent first
+        // (threads a reply even when its own Message-ID was lost), then
+        // fall back to the message's own id. resolve_thread_id never
+        // returns empty given a non-empty own id.
+        let parent = self
+            .find_thread_id_by_message_id(user, &in_reply_to)
+            .await
+            .ok()
+            .flatten();
+        let thread_id =
+            threading::resolve_thread_id(&effective_message_id, &in_reply_to, |_| parent.clone());
 
         // same PG half the live pipeline uses: uid allocation + insert
         self.index_message(
@@ -180,7 +191,7 @@ impl PgMailboxStore {
             &subject,
             data.len() as u32,
             delivered_at,
-            &message_id,
+            &effective_message_id,
             &in_reply_to,
             &thread_id,
         )
