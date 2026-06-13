@@ -64,17 +64,23 @@ impl PgMailboxStore {
         // allows UID gaps. The pre-round-30 tx-wrapped code had the
         // equivalent failure mode if a crash happened between
         // maildir.deliver() writing the file and the tx committing.
-        let (mailbox_id, uid, new_modseq) = sqlx::query_as::<_, (i64, i32, i64)>(
+        // plain column references only: spg wire-types arithmetic
+        // RETURNING expressions as TEXT (round-27, 2026-06-13 — every
+        // delivery index failed silently since the cutover). `uid` is
+        // computed client-side from the post-update uidnext; identical
+        // semantics on both engines.
+        let (mailbox_id, next_uid, new_modseq) = sqlx::query_as::<_, (i64, i32, i64)>(
             "UPDATE mailboxes
              SET uidnext = uidnext + 1,
                  highest_modseq = highest_modseq + 1
              WHERE user_address = $1 AND name = $2
-             RETURNING id, uidnext - 1 AS uid, highest_modseq AS new_modseq",
+             RETURNING id, uidnext, highest_modseq",
         )
         .bind(user)
         .bind(mailbox_name)
         .fetch_one(&self.pool)
         .await?;
+        let uid = next_uid - 1;
 
         sqlx::query(
             "INSERT INTO messages (mailbox_id, uid, maildir_id, sender, recipients, subject,
@@ -156,17 +162,20 @@ impl PgMailboxStore {
 
         for ((user, mailbox_name), indices) in &by_mailbox {
             let n = indices.len() as i32;
-            let (mailbox_id, base_uid, base_modseq): (i64, i32, i64) = sqlx::query_as(
+            // plain columns only in RETURNING (round-27: spg types
+            // arithmetic expressions as TEXT); bases computed client-side
+            let (mailbox_id, next_uid, new_modseq): (i64, i32, i64) = sqlx::query_as(
                 "UPDATE mailboxes
                  SET uidnext = uidnext + $1, highest_modseq = highest_modseq + $1
                  WHERE user_address = $2 AND name = $3
-                 RETURNING id, uidnext - $1 AS base_uid, highest_modseq - $1 AS base_modseq",
+                 RETURNING id, uidnext, highest_modseq",
             )
             .bind(n)
             .bind(*user)
             .bind(*mailbox_name)
             .fetch_one(&mut *tx)
             .await?;
+            let (base_uid, base_modseq) = (next_uid - n, new_modseq - i64::from(n));
             mailbox_info.insert((*user, *mailbox_name), (mailbox_id, base_uid, base_modseq));
 
             for (offset, &record_idx) in indices.iter().enumerate() {
