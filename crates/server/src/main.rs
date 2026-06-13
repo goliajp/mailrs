@@ -110,16 +110,9 @@ async fn main() {
         pg::force_unlock(url);
     }
     let pg_pool = match &cfg.pg_url {
-        Some(url) => match pg::create_pool(url).await {
-            Ok(pool) => {
-                tracing::info!("postgres connected");
-                Some(pool)
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, "postgres connection failed, running in degraded mode");
-                None
-            }
-        },
+        // 5 min covers observed WAL-replay boot races with headroom;
+        // past that, concede to degraded mode as before
+        Some(url) => pg::connect_pool_with_retry(url, std::time::Duration::from_secs(300)).await,
         None => None,
     };
 
