@@ -37,8 +37,8 @@ pub async fn compute_reputation(pool: &crate::pg::BackendPool) -> Vec<DomainRepu
         "SELECT \
            SPLIT_PART(sender, '@', 2) as domain, \
            COUNT(*) as total, \
-           COUNT(*) FILTER (WHERE status = 'delivered') as delivered, \
-           COUNT(*) FILTER (WHERE status = 'bounced') as bounced \
+           COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered, \
+           COUNT(CASE WHEN status = 'bounced' THEN 1 END) as bounced \
          FROM outbound_queue \
          WHERE created_at > NOW() - INTERVAL '30 days' \
            AND SPLIT_PART(sender, '@', 2) != '' \

@@ -201,8 +201,15 @@ impl PgMailboxStore {
     /// "Unread N" without specifying messages vs threads, and threads are
     /// what the user actually sees in the list
     pub async fn count_unseen(&self, user: &str) -> Result<i64, sqlx::Error> {
+        // TEMP(SPG): spg 7.30.3 can't parse two standard-SQL shapes this
+        // query originally used — a FROM-clause derived table (round-31)
+        // and the aggregate FILTER clause (round-29). rewritten to the
+        // equivalent CTE + COUNT(CASE ...) forms (both also standard SQL,
+        // both parse on spg). owner-authorized so the unread badge works
+        // now; revert to the plainer derived-table + FILTER form when the
+        // engine supports them.
         let row: Result<(i64,), _> = sqlx::query_as(
-            "SELECT COUNT(*) FROM (
+            "WITH unread_threads AS (
                SELECT m.thread_id
                FROM messages m
                JOIN mailboxes mb ON m.mailbox_id = mb.id
@@ -220,9 +227,10 @@ impl PgMailboxStore {
                  )
                GROUP BY m.thread_id
                HAVING BOOL_OR(m.archived) = false
-                  AND COUNT(*) FILTER (WHERE (m.flags & 1) = 0) > 0
+                  AND COUNT(CASE WHEN (m.flags & 1) = 0 THEN 1 END) > 0
                   AND LOWER(COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')) NOT LIKE '%' || LOWER($1) || '%'
-             ) t",
+             )
+             SELECT COUNT(*) FROM unread_threads",
         )
         .bind(user)
         .fetch_one(&self.pool)

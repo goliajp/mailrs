@@ -240,22 +240,13 @@ async fn reconcile_maildir_repairs_orphan_files() {
     assert_eq!(report.missing, 0);
 }
 
-// blocked on the spg axis by SPG round-29: the aggregate
-// `COUNT(*) FILTER (WHERE …)` clause doesn't parse on spg, so the query
-// errors → count_unseen logs + returns 0 there. we keep the
-// standard-SQL FILTER form (mailrs writes correct SQL; the engine must
-// support it) and assert correctness on the pg axis; re-enable on spg
-// once round-29 ships.
-#[cfg_attr(
-    feature = "spg",
-    ignore = "blocked on SPG round-29: aggregate FILTER clause"
-)]
 #[tokio::test]
 async fn count_unseen_counts_unread_threads() {
-    // sentinel: count_unseen uses a PG aggregate FILTER clause. its
-    // result was swallowed to 0 on error, so when spg couldn't parse
-    // FILTER the homepage unread badge silently read 0 on full mailboxes
-    // (incident 2026-06-13). this proves the query is correct SQL.
+    // sentinel: count_unseen's unread aggregate must actually count. its
+    // result was once swallowed to 0 on error, hiding that spg couldn't
+    // parse the standard FILTER clause — the homepage unread badge read 0
+    // on full mailboxes (incident 2026-06-13). runs on both axes now via
+    // the TEMP(round-29) CASE form; flips back to FILTER when spg ships it.
     let (_container, pool) = setup_pg().await;
     seed_domain_account(&pool, USER).await;
     let store = PgMailboxStore::new(pool.clone());
