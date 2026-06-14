@@ -26,6 +26,7 @@ mod outbound_tls_rpt;
 mod pg;
 mod pop3_session;
 mod rbl_monitor;
+mod reconcile_task;
 mod render_preview;
 mod reputation;
 mod search_index;
@@ -271,6 +272,12 @@ pub async fn run() {
         if count > 0 {
             tracing::info!(event = "threading_backfill_complete", count);
         }
+    }
+
+    // periodic maildir reconcile (S2.2): the "never lose a message"
+    // backstop for the notification-driven post-delivery path.
+    if let Some(ref mb) = mailbox_store {
+        reconcile_task::spawn_periodic_reconcile(mb.clone(), cfg.maildir_root.clone());
     }
 
     // shared LLM provider — used by background analyzer, web semantic
