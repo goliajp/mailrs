@@ -67,7 +67,7 @@ spg-embedded = "7.30.3"
 # persistence + native pub/sub bus. Zero network hop, ~10× faster than
 # the network kevy/redis container path. The only kvdb backend mailrs
 # ships with after Phase C (v1.7.95+); the `redis` crate dep is gone.
-kevy-embedded = "1.1"
+kevy-embedded = "1.2"
 
 # Serialization.
 serde = { version = "1", features = ["derive"] }
