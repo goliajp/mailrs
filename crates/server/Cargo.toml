@@ -131,6 +131,13 @@ chromiumoxide = { version = "0.9", default-features = false, optional = true }
 jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 rsa = { version = "0.9", features = ["pem"] }
 
+[dev-dependencies]
+# Receiving-path e2e regression baseline (tests/e2e_receiving.rs) spins up
+# a real pgvector container — same image + version the mailbox crate's
+# fixtures use. Pre-pulled in CI's test.yml. tokio / sqlx / tempfile /
+# mailrs-maildir come from [dependencies] (available to integration tests).
+testcontainers = "0.27"
+
 # Network-driven SMTP load bench — substantiates / refutes the
 # "+10-20% throughput" claim from commit 9f21e0b (perf-first release
 # profile). Custom harness because the bench drives real TCP sessions
