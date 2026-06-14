@@ -49,6 +49,26 @@ pub(crate) struct ProcessDeps {
     pub maildir_root: String,
 }
 
+/// Channel the DATA handler hands delivered messages to, off the hot path.
+/// The deps ride with each message so the consumer stays context-free —
+/// the seam the notification consumer (P2) will plug into.
+pub(crate) type ProcessTx = tokio::sync::mpsc::Sender<(DeliveredMessage, Arc<ProcessDeps>)>;
+
+/// Spawn the single post-delivery consumer and return its sender. The DATA
+/// handler `try_send`s here so maildir write stays synchronous while
+/// indexing + the post-delivery pass run off the hot path. Capacity 1024;
+/// when the channel is full (or the consumer has gone) the caller falls
+/// back to synchronous processing — backpressure, never a dropped message.
+pub(crate) fn spawn_process_consumer() -> ProcessTx {
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<(DeliveredMessage, Arc<ProcessDeps>)>(1024);
+    tokio::spawn(async move {
+        while let Some((msg, deps)) = rx.recv().await {
+            process_delivered(msg, &deps).await;
+        }
+    });
+    tx
+}
+
 /// Index a delivered message and run every post-delivery side effect:
 /// ensure mailboxes → extract subject/from → effective message-id →
 /// thread resolution → sieve folder → index → `NewMessage` event → iTIP

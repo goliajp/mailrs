@@ -58,6 +58,10 @@ pub struct ConnectionContext {
     /// them as a single `deliver_batch` call — see
     /// [`crate::delivery_executor`] for tuning + rationale.
     pub delivery_executor: mailrs_delivery_executor::DeliveryExecutor,
+    /// Sender to the single post-delivery consumer (S1.4). The DATA handler
+    /// try_sends delivered messages here so maildir write stays synchronous
+    /// while indexing + the post-delivery pass run off the hot path.
+    pub process_tx: process_delivered::ProcessTx,
 }
 
 mod address;
@@ -70,6 +74,7 @@ mod process_delivered;
 mod srs;
 
 use events::handle_event;
+pub(crate) use process_delivered::spawn_process_consumer;
 
 /// handle a plain-text SMTP connection (port 25/587), may upgrade via STARTTLS
 #[tracing::instrument(name = "smtp.conn", skip(stream, ctx), fields(peer = %addr, tls = false))]

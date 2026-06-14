@@ -183,15 +183,31 @@ Message-ID: <m-baseline-1@external.com>\r\n\
 hello world from the baseline test\r\n";
     deliver(port, "bob@external.com", USER, msg).await;
 
-    // events emitted on the bus
-    let new_msg = wait_for_event(&mut rx, |e| matches!(e, SmtpEvent::NewMessage { .. })).await;
+    // Post-delivery is async (S1.4): NewMessage comes from the consumer
+    // task while MessageDelivered comes from the DATA handler, so the two
+    // can arrive in either order — gather both without assuming order.
+    let mut new_message: Option<SmtpEvent> = None;
+    let mut saw_delivered = false;
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while new_message.is_none() || !saw_delivered {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match tokio::time::timeout(remaining, rx.recv()).await {
+            Ok(Ok(ev)) => match &ev.event {
+                SmtpEvent::NewMessage { .. } => new_message = Some(ev.event.clone()),
+                SmtpEvent::MessageDelivered { .. } => saw_delivered = true,
+                _ => {}
+            },
+            Ok(Err(e)) => panic!("event channel error: {e}"),
+            Err(_) => panic!("timed out waiting for NewMessage + MessageDelivered"),
+        }
+    }
     let SmtpEvent::NewMessage {
         user,
         subject,
         sender,
         thread_id,
         ..
-    } = new_msg
+    } = new_message.unwrap()
     else {
         unreachable!()
     };
@@ -199,8 +215,6 @@ hello world from the baseline test\r\n";
     assert_eq!(subject, "hello baseline");
     assert!(sender.contains("bob@external.com"), "sender: {sender}");
     assert!(!thread_id.is_empty(), "thread resolved");
-
-    wait_for_event(&mut rx, |e| matches!(e, SmtpEvent::MessageDelivered { .. })).await;
 
     // messages row indexed
     let (db_sender, db_subject, db_thread, db_maildir, db_rcpt): (
