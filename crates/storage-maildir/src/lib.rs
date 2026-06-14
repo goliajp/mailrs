@@ -429,5 +429,9 @@ impl fmt::Display for MessageId {
     }
 }
 
+/// Read-by-id, mark-processed, and delete primitives (the receiver/core
+/// consumption path), kept out of lib.rs to hold it under the size limit.
+mod access;
+
 #[cfg(test)]
 mod tests;
