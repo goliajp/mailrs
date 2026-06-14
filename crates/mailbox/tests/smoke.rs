@@ -359,3 +359,61 @@ async fn default_list_shows_spam_categorised_mail() {
         "spam-categorised mail must still show in the default 'all' view"
     );
 }
+
+#[tokio::test]
+async fn index_message_is_idempotent_on_maildir_id() {
+    // S1.1: the receiver-decouple notification + reconcile design can ask
+    // to index the same delivered maildir file twice. index_message must
+    // be idempotent on (mailbox_id, maildir_id): same uid back, no second
+    // row, and uidnext advanced only once.
+    let (_container, pool) = setup_pg().await;
+    seed_domain_account(&pool, USER).await;
+    let store = PgMailboxStore::new(pool.clone());
+    store.create_mailbox(USER, "INBOX").await.unwrap();
+
+    let maildir_id = "dup-maildir-1";
+    let index_once = || {
+        store.index_message(
+            USER,
+            "INBOX",
+            maildir_id,
+            "a@x.com",
+            USER,
+            "subject one",
+            100,
+            1_700_000_000,
+            "<m1@x.com>",
+            "",
+            "th-1",
+        )
+    };
+
+    let uid1 = index_once().await.unwrap();
+    let uid2 = index_once().await.unwrap();
+    assert_eq!(uid1, uid2, "same maildir_id returns the same uid");
+
+    let count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
+         WHERE mb.user_address = $1 AND m.maildir_id = $2",
+    )
+    .bind(USER)
+    .bind(maildir_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count.0, 1, "second index must not insert a duplicate row");
+
+    // first call advanced uidnext by one (uid1 = old uidnext); the
+    // idempotent second call left it untouched.
+    let uidnext: (i32,) =
+        sqlx::query_as("SELECT uidnext FROM mailboxes WHERE user_address = $1 AND name = 'INBOX'")
+            .bind(USER)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        uidnext.0,
+        uid1 as i32 + 1,
+        "uidnext advanced exactly once across two index calls"
+    );
+}
