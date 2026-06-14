@@ -8,14 +8,17 @@
 //! TTL silently drops, senders get re-deferred forever; if a notification
 //! is treated as durable, lost mail never gets indexed.
 //!
-//! The network client for kevy-server is a kevy dogfood deliverable that
-//! has not shipped yet (and the dogfood rule forbids mailrs writing its
-//! own). Until it lands, the in-process `kevy_embedded::Store` is the
-//! stand-in — same engine, same command semantics, no network layer. These
-//! tests pin those semantics, driven **through the real mailrs stone**
+//! This file pins those semantics at the level mailrs uses **today**: the
+//! embedded `kevy_embedded::Store`, driven **through the real mailrs stone**
 //! (`mailrs-shield`'s `GreylistDb`) where one exists and against the raw
-//! `Store` primitives otherwise, so the eventual network cutover (P4/P6)
-//! is a transport swap, not a semantic gamble.
+//! `Store` primitives otherwise. The network kevy-server (the `kevy` server
+//! binary / `ghcr.io/goliajp/kevy` image) and its RESP clients
+//! (`kevy-resp-client` / `kevy-client` / `kevy-cli`) DO ship — the network
+//! layer is exercised separately by the ramp-to-break load test under
+//! `~/workspace/kevy-loadtest/` (real network server, business-mix load on
+//! staging). Same engine + same RESP command set both ways, so these
+//! semantic guarantees carry across the eventual in-process → network
+//! cutover (P4/P6): it's a transport swap, not a semantic gamble.
 //!
 //! No database, no Docker — kevy is in-process. Runs on both backend axes.
 //!
