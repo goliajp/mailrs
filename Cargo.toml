@@ -6,6 +6,7 @@ resolver = "2"
 members = [
     "crates/smtp-proto",
     "crates/storage-maildir",
+    "crates/message-store",
     "crates/smtp-client",
     "crates/outbound-queue",
     "crates/mailbox",

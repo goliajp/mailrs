@@ -1,0 +1,19 @@
+[package]
+name = "mailrs-message-store"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0 OR MIT"
+description = "Async storage-backend abstraction for delivered mail — the MessageStore trait (deliver_batch / fetch / list_unprocessed / mark_processed / delete) plus a maildir implementation. The seam the mailrs receiver/core split and a future object-store backend share. Internal until the abstraction stabilises."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mailrs-maildir = { path = "../storage-maildir", version = "1.2" }
+async-trait = { workspace = true }
+tokio = { version = "1", features = ["rt"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
+tempfile = "3"
