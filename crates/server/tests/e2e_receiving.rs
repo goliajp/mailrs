@@ -181,19 +181,24 @@ Subject: hello baseline\r\n\
 Message-ID: <m-baseline-1@external.com>\r\n\
 \r\n\
 hello world from the baseline test\r\n";
+    let delivery_started = Instant::now();
     deliver(port, "bob@external.com", USER, msg).await;
 
     // Post-delivery is async (S1.4): NewMessage comes from the consumer
     // task while MessageDelivered comes from the DATA handler, so the two
     // can arrive in either order — gather both without assuming order.
     let mut new_message: Option<SmtpEvent> = None;
+    let mut new_message_latency: Option<Duration> = None;
     let mut saw_delivered = false;
     let deadline = Instant::now() + Duration::from_secs(5);
     while new_message.is_none() || !saw_delivered {
         let remaining = deadline.saturating_duration_since(Instant::now());
         match tokio::time::timeout(remaining, rx.recv()).await {
             Ok(Ok(ev)) => match &ev.event {
-                SmtpEvent::NewMessage { .. } => new_message = Some(ev.event.clone()),
+                SmtpEvent::NewMessage { .. } => {
+                    new_message = Some(ev.event.clone());
+                    new_message_latency = Some(delivery_started.elapsed());
+                }
                 SmtpEvent::MessageDelivered { .. } => saw_delivered = true,
                 _ => {}
             },
@@ -215,6 +220,17 @@ hello world from the baseline test\r\n";
     assert_eq!(subject, "hello baseline");
     assert!(sender.contains("bob@external.com"), "sender: {sender}");
     assert!(!thread_id.is_empty(), "thread resolved");
+
+    // S2.3 latency budget: delivery -> NewMessage must stay prompt even
+    // though post-delivery is async. Generous 2s ceiling (actual is tens
+    // of ms in-process) — this gate catches an async stall, not micro
+    // perf. Measured from delivery start, a conservative upper bound on
+    // the maildir-write -> NewMessage span. See crates/server/BUDGETS.md.
+    let latency = new_message_latency.expect("NewMessage observed");
+    assert!(
+        latency < Duration::from_secs(2),
+        "delivery->NewMessage budget <2s, was {latency:?}"
+    );
 
     // messages row indexed
     let (db_sender, db_subject, db_thread, db_maildir, db_rcpt): (
