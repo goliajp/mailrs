@@ -425,6 +425,10 @@ pub async fn run() {
         &kevy_embedded_store,
     );
 
+    // single post-delivery consumer (S1.4): DATA handlers try_send delivered
+    // messages here so maildir write stays on the hot path.
+    let process_tx = crate::smtp_session::spawn_process_consumer();
+
     let ctx = Arc::new(ConnectionContext {
         hostname: cfg.hostname.clone(),
         maildir_root: cfg.maildir_root.clone(),
@@ -448,6 +452,7 @@ pub async fn run() {
         ldap_config: ldap_config.clone(),
         inbound_pipeline,
         delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
+        process_tx,
     });
 
     spawn_smtp_listeners(&ctx, &cfg, tls_state.is_some(), shutdown_rx.clone()).await;

@@ -122,12 +122,14 @@ where
             // Core-side post-delivery handles, cloned once for the batch.
             // `None` when no mailbox store is configured — the same gate as
             // the old inline `if let Some(ref mb_store) = ctx.mailbox_store`.
-            let process_deps = ctx.mailbox_store.as_ref().map(|mb| ProcessDeps {
-                mailbox_store: Arc::clone(mb),
-                event_bus: ctx.event_bus.clone(),
-                outbound_queue: ctx.outbound_queue.clone(),
-                resolver: ctx.resolver.clone(),
-                maildir_root: ctx.maildir_root.clone(),
+            let process_deps = ctx.mailbox_store.as_ref().map(|mb| {
+                Arc::new(ProcessDeps {
+                    mailbox_store: Arc::clone(mb),
+                    event_bus: ctx.event_bus.clone(),
+                    outbound_queue: ctx.outbound_queue.clone(),
+                    resolver: ctx.resolver.clone(),
+                    maildir_root: ctx.maildir_root.clone(),
+                })
             });
 
             // deliver to local recipients via maildir
@@ -175,25 +177,29 @@ where
                         .await
                     {
                         Ok(id) => {
-                            // index + post-delivery moved to process_delivered
-                            // (S1.3). Same gate as the old inline block: only
-                            // runs when a mailbox store is configured.
+                            // S1.4: hand the delivered message to the
+                            // post-delivery consumer so maildir write stays
+                            // on the hot path. Same gate as the old inline
+                            // block — only when a mailbox store is
+                            // configured. On a full channel (or a gone
+                            // consumer) fall back to inline processing:
+                            // backpressure, never a dropped message.
                             if let Some(deps) = &process_deps {
-                                process_delivered(
-                                    DeliveredMessage {
-                                        maildir_id: id.to_string(),
-                                        user: format!("{local}@{domain}"),
-                                        rcpt: rcpt.clone(),
-                                        rcpt_folder: rcpt_folder.clone(),
-                                        reverse_path: reverse_path.clone(),
-                                        full_message: full_message.clone(),
-                                        msg_message_id: msg_message_id.clone(),
-                                        msg_in_reply_to: msg_in_reply_to.clone(),
-                                        msg_size,
-                                    },
-                                    deps,
-                                )
-                                .await;
+                                let msg = DeliveredMessage {
+                                    maildir_id: id.to_string(),
+                                    user: format!("{local}@{domain}"),
+                                    rcpt: rcpt.clone(),
+                                    rcpt_folder: rcpt_folder.clone(),
+                                    reverse_path: reverse_path.clone(),
+                                    full_message: full_message.clone(),
+                                    msg_message_id: msg_message_id.clone(),
+                                    msg_in_reply_to: msg_in_reply_to.clone(),
+                                    msg_size,
+                                };
+                                if let Err(err) = ctx.process_tx.try_send((msg, Arc::clone(deps))) {
+                                    let (msg, deps) = err.into_inner();
+                                    process_delivered(msg, &deps).await;
+                                }
                             }
                         }
                         Err(e) => {
