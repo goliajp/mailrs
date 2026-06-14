@@ -3493,6 +3493,7 @@ dependencies = [
  "spg-sqlx",
  "sqlx",
  "tempfile",
+ "testcontainers",
  "tokio",
  "tokio-rustls",
  "tokio-util",
