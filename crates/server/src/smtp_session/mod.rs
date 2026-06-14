@@ -66,6 +66,7 @@ mod credentials;
 mod events;
 mod headers;
 mod post_delivery;
+mod process_delivered;
 mod srs;
 
 use events::handle_event;

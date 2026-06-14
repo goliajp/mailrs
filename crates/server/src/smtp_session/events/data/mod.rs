@@ -12,8 +12,8 @@ use mailrs_smtp_proto::unstuff_data;
 use crate::event_bus::SmtpEvent;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
-use super::super::headers::{extract_snippet, format_received_header};
-use super::super::post_delivery::post_delivery_process;
+use super::super::headers::format_received_header;
+use super::super::process_delivered::{DeliveredMessage, ProcessDeps, process_delivered};
 use super::super::{ConnectionContext, DATA_TIMEOUT, SessionAction};
 
 mod antispam;
@@ -119,6 +119,17 @@ where
             // through `Arc<Vec<u8>> → Vec<u8> → [u8]` deref coercion.
             let full_message = std::sync::Arc::new(full_message);
 
+            // Core-side post-delivery handles, cloned once for the batch.
+            // `None` when no mailbox store is configured — the same gate as
+            // the old inline `if let Some(ref mb_store) = ctx.mailbox_store`.
+            let process_deps = ctx.mailbox_store.as_ref().map(|mb| ProcessDeps {
+                mailbox_store: Arc::clone(mb),
+                event_bus: ctx.event_bus.clone(),
+                outbound_queue: ctx.outbound_queue.clone(),
+                resolver: ctx.resolver.clone(),
+                maildir_root: ctx.maildir_root.clone(),
+            });
+
             // deliver to local recipients via maildir
             for rcpt in &local_rcpts {
                 let (rcpt_folder, skip_delivery) =
@@ -164,216 +175,25 @@ where
                         .await
                     {
                         Ok(id) => {
-                            // index in mailbox store if available
-                            if let Some(ref mb_store) = ctx.mailbox_store {
-                                // Compute `id.to_string()` once per
-                                // delivery — used both as `maildir_id`
-                                // for `index_message` and again for the
-                                // AI post-delivery background task.
-                                let maildir_id_str = id.to_string();
-                                let user = format!("{local}@{domain}");
-                                let _ = mb_store.ensure_default_mailboxes(&user).await;
-                                let now = chrono::Utc::now().timestamp();
-                                // single-pass extract: mail-parser builds a
-                                // full Message tree per call; calling
-                                // extract_header twice parses twice. The
-                                // _and_from helper hands back both fields
-                                // for one parse.
-                                let extract_started = std::time::Instant::now();
-                                let (subject, from_header) =
-                                    super::super::headers::extract_subject_and_from(&full_message);
-                                tracing::debug!(
-                                    phase = "extract_subject_from",
-                                    duration_us = extract_started.elapsed().as_micros() as u64,
-                                    "stage complete"
-                                );
-                                // use From header for sender (includes
-                                // display name); fall back to SMTP envelope
-                                // reverse_path
-                                let sender = if from_header.is_empty() {
-                                    reverse_path.clone()
-                                } else {
-                                    from_header
-                                };
-
-                                // generate a synthetic message-id if missing
-                                let effective_message_id = if msg_message_id.is_empty() {
-                                    format!("{}.{}@mailrs.local", now, id)
-                                } else {
-                                    msg_message_id.clone()
-                                };
-
-                                // resolve thread_id
-                                let thread_id = {
-                                    let parent_tid = if !msg_in_reply_to.is_empty() {
-                                        mb_store
-                                            .find_thread_id_by_message_id(&user, &msg_in_reply_to)
-                                            .await
-                                            .ok()
-                                            .flatten()
-                                    } else {
-                                        None
-                                    };
-                                    mailrs_mailbox::threading::resolve_thread_id(
-                                        &effective_message_id,
-                                        &msg_in_reply_to,
-                                        |_| parent_tid.clone(),
-                                    )
-                                };
-
-                                // ensure sieve target folder exists
-                                if rcpt_folder != "INBOX" && rcpt_folder != "Junk" {
-                                    let _ = mb_store.create_mailbox(&user, &rcpt_folder).await;
-                                }
-
-                                let index_started = std::time::Instant::now();
-                                let indexed_uid = mb_store
-                                    .index_message(
-                                        &user,
-                                        &rcpt_folder,
-                                        &maildir_id_str,
-                                        &sender,
-                                        rcpt,
-                                        &subject,
-                                        msg_size as u32,
-                                        now,
-                                        &effective_message_id,
-                                        &msg_in_reply_to,
-                                        &thread_id,
-                                    )
-                                    .await
-                                    .ok();
-                                tracing::debug!(
-                                    phase = "mailbox_index_message",
-                                    duration_us = index_started.elapsed().as_micros() as u64,
-                                    "stage complete"
-                                );
-
-                                // emit NewMessage event
-                                let snippet = extract_snippet(&full_message);
-                                ctx.event_bus.emit(SmtpEvent::NewMessage {
-                                    user: user.clone(),
-                                    thread_id: thread_id.clone(),
-                                    sender: sender.clone(),
-                                    subject: subject.clone(),
-                                    snippet,
-                                });
-
-                                // MRS-4: detect iTIP / iMIP invite parts
-                                // and project the parsed payload onto
-                                // messages.invite_payload so the web
-                                // client / macapp can render an
-                                // invite card without re-parsing.
-                                if let Some(uid) = indexed_uid
-                                    && let Some(extracted) =
-                                        crate::calendar::invite_extract::extract_invite_part(
-                                            &full_message,
-                                        )
-                                {
-                                    if let Ok(parsed) =
-                                        mailrs_ical::parse_invite(&extracted.ics_bytes)
-                                    {
-                                        if let Ok(payload_json) = serde_json::to_value(&parsed) {
-                                            let method_str =
-                                                format!("{:?}", parsed.method).to_uppercase();
-                                            match mb_store
-                                                .update_invite_payload(
-                                                    &user,
-                                                    &rcpt_folder,
-                                                    uid,
-                                                    &payload_json,
-                                                    &method_str,
-                                                )
-                                                .await
-                                            {
-                                                Ok(Some(msg_id)) => {
-                                                    ctx.event_bus.emit(SmtpEvent::InviteReceived {
-                                                        user: user.clone(),
-                                                        message_id: msg_id,
-                                                        method: method_str.clone(),
-                                                        uid: parsed.uid.clone(),
-                                                    });
-                                                    // MRS-7: reconcile against
-                                                    // the user's own calendar
-                                                    // (only touches events the
-                                                    // user has already RSVP'd).
-                                                    if let Some(ref pool) = ctx.outbound_queue {
-                                                        let raw_ics = std::str::from_utf8(
-                                                            &extracted.ics_bytes,
-                                                        )
-                                                        .unwrap_or("");
-                                                        match crate::calendar::reconcile::reconcile_inbound_invite(
-                                                                    pool,
-                                                                    &user,
-                                                                    &parsed,
-                                                                    raw_ics,
-                                                                )
-                                                                .await
-                                                                {
-                                                                    Ok(outcome) => {
-                                                                        tracing::info!(
-                                                                            user = %user,
-                                                                            uid = %parsed.uid,
-                                                                            method = %method_str,
-                                                                            outcome = ?outcome,
-                                                                            "reconcile",
-                                                                        );
-                                                                    }
-                                                                    Err(e) => {
-                                                                        tracing::warn!(
-                                                                            "reconcile failed for {user}/{}: {e}",
-                                                                            parsed.uid,
-                                                                        );
-                                                                    }
-                                                                }
-                                                    }
-                                                }
-                                                Ok(None) => {
-                                                    tracing::debug!(
-                                                        "invite detected but message row not found for {user}/{rcpt_folder}/{uid}"
-                                                    );
-                                                }
-                                                Err(e) => {
-                                                    tracing::warn!(
-                                                        "update_invite_payload failed: {e}"
-                                                    );
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        tracing::debug!(
-                                            "text/calendar part found but ical parse failed for {user}/{rcpt_folder}/{uid}"
-                                        );
-                                    }
-                                }
-
-                                // async post-delivery: contact upsert + content extraction + importance scoring
-                                let mb_store_bg = Arc::clone(mb_store);
-                                let user_bg = user.clone();
-                                let sender_bg = sender.clone();
-                                let maildir_id_bg = maildir_id_str.clone();
-                                let maildir_root_bg = ctx.maildir_root.clone();
-                                let raw_headers = String::from_utf8_lossy(
-                                    &full_message[..full_message.len().min(4096)],
+                            // index + post-delivery moved to process_delivered
+                            // (S1.3). Same gate as the old inline block: only
+                            // runs when a mailbox store is configured.
+                            if let Some(deps) = &process_deps {
+                                process_delivered(
+                                    DeliveredMessage {
+                                        maildir_id: id.to_string(),
+                                        user: format!("{local}@{domain}"),
+                                        rcpt: rcpt.clone(),
+                                        rcpt_folder: rcpt_folder.clone(),
+                                        reverse_path: reverse_path.clone(),
+                                        full_message: full_message.clone(),
+                                        msg_message_id: msg_message_id.clone(),
+                                        msg_in_reply_to: msg_in_reply_to.clone(),
+                                        msg_size,
+                                    },
+                                    deps,
                                 )
-                                .to_string();
-                                // Arc-clone the function-level body (cheap refcount
-                                // bump) instead of copying its bytes.
-                                let full_msg_bg = Arc::clone(&full_message);
-                                let resolver_bg = ctx.resolver.clone();
-                                tokio::spawn(async move {
-                                    post_delivery_process(
-                                        &mb_store_bg,
-                                        &user_bg,
-                                        &sender_bg,
-                                        &maildir_id_bg,
-                                        &maildir_root_bg,
-                                        &raw_headers,
-                                        &full_msg_bg,
-                                        resolver_bg.as_deref(),
-                                    )
-                                    .await;
-                                });
+                                .await;
                             }
                         }
                         Err(e) => {
