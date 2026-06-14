@@ -80,7 +80,13 @@ CREATE TABLE messages (
     invite_method TEXT,
     rsvp_status TEXT,
     rsvp_at TIMESTAMPTZ,
-    UNIQUE(mailbox_id, uid)
+    UNIQUE(mailbox_id, uid),
+    -- idempotency key for the receiver-decouple notification + reconcile
+    -- design: re-indexing the same delivered maildir file (a re-fired
+    -- notification, or reconcile racing the live path) must not create a
+    -- duplicate row. index_message checks existence first; this is the
+    -- DB-level backstop. Mirrored onto existing DBs by migrate-047.
+    UNIQUE(mailbox_id, maildir_id)
 );
 -- iTIP invite metadata lookups (migrate-032)
 CREATE INDEX idx_messages_is_invite ON messages(mailbox_id)

@@ -64,6 +64,28 @@ impl PgMailboxStore {
         // allows UID gaps. The pre-round-30 tx-wrapped code had the
         // equivalent failure mode if a crash happened between
         // maildir.deliver() writing the file and the tx committing.
+        // Idempotency: if this (mailbox, maildir_id) is already indexed,
+        // return the existing uid without reserving a new one. The
+        // receiver-decouple notification + reconcile design can ask to
+        // index the same delivered maildir file more than once (a re-fired
+        // notification, or reconcile racing the live path); reserving a
+        // fresh uid each time would create duplicate rows / UID gaps. The
+        // messages_mailbox_maildir_uniq index (migrate-047) is the DB-level
+        // backstop for any double-index that races past this check.
+        if let Some((existing_uid,)) = sqlx::query_as::<_, (i32,)>(
+            "SELECT m.uid FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE mb.user_address = $1 AND mb.name = $2 AND m.maildir_id = $3",
+        )
+        .bind(user)
+        .bind(mailbox_name)
+        .bind(maildir_id)
+        .fetch_optional(&self.pool)
+        .await?
+        {
+            return Ok(existing_uid as u32);
+        }
+
         // plain column references only: spg wire-types arithmetic
         // RETURNING expressions as TEXT (round-27, 2026-06-13 — every
         // delivery index failed silently since the cutover). `uid` is
