@@ -39,8 +39,10 @@ impl UserStore {
         }
     }
 
-    /// create a user store from plaintext username/password pairs (for testing)
-    #[cfg(test)]
+    /// create a user store from plaintext username/password pairs. Test-only
+    /// constructor in spirit, but kept un-gated so the server crate's tests
+    /// (managesieve / imap integration) can build it across the crate
+    /// boundary after the move to `mailrs-core` (S5.2f).
     pub fn from_plain_passwords(pairs: Vec<(String, String)>) -> Self {
         let users = pairs
             .into_iter()

@@ -49,7 +49,12 @@ mod smtp_session;
 pub(crate) mod system_config;
 mod tls;
 mod totp;
-mod users;
+/// re-export shim: `UserStore` + credential helpers moved to the shared
+/// `mailrs-core` crate (S5.2f). Kept as `crate::users` so the web / imap /
+/// pop3 / mcp / smtp call sites stay unchanged.
+mod users {
+    pub use mailrs_core::users::*;
+}
 mod web;
 
 use bootstrap::*;

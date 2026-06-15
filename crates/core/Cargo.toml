@@ -14,5 +14,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { version = "1", features = ["sync"] }
 
+# UserStore: argon2 password verification + users.toml parsing.
+argon2 = { workspace = true }
+password-hash = { workspace = true }
+rand_core = { workspace = true }
+toml = "1"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["sync", "rt", "macros"] }
