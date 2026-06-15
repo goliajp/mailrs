@@ -118,13 +118,6 @@ where
             // through `Arc<Vec<u8>> → Vec<u8> → [u8]` deref coercion.
             let full_message = std::sync::Arc::new(full_message);
 
-            // Whether the post-delivery consumer is configured to index +
-            // run the post-delivery pass. Same gate as before (the deps the
-            // consumer owns are built only when a mailbox store exists) —
-            // the receiver no longer holds those deps, so it just decides
-            // whether to hand the message off.
-            let post_delivery_enabled = ctx.mailbox_store.is_some();
-
             // deliver to local recipients via maildir
             for rcpt in &local_rcpts {
                 let (rcpt_folder, skip_delivery) =
@@ -136,11 +129,11 @@ where
 
                 if let Some((local, domain)) = rcpt.split_once('@') {
                     // check quota before delivery
-                    if let (Some(ds), Some(mb_store)) = (&ctx.account_store, &ctx.mailbox_store)
+                    if let (Some(ds), Some(qs)) = (&ctx.account_store, &ctx.quota_store)
                         && let Ok(Some(quota)) = ds.quota(rcpt).await
                         && quota > 0
                     {
-                        let usage = mb_store.user_storage_usage(rcpt).await;
+                        let usage = qs.user_storage_usage(rcpt).await;
                         if usage + msg_size as u64 > quota as u64 {
                             tracing::warn!(
                                 event = "smtp_quota_exceeded",
@@ -178,32 +171,33 @@ where
                             // block on `send` (backpressure to the single
                             // consumer's rate — never a dropped message);
                             // if the consumer is gone (shutdown) the message
-                            // is on disk and reconcile will index it.
-                            if post_delivery_enabled {
-                                let msg = DeliveredMessage {
-                                    maildir_id: id.to_string(),
-                                    user: format!("{local}@{domain}"),
-                                    rcpt: rcpt.clone(),
-                                    rcpt_folder: rcpt_folder.clone(),
-                                    reverse_path: reverse_path.clone(),
-                                    full_message: full_message.clone(),
-                                    msg_message_id: msg_message_id.clone(),
-                                    msg_in_reply_to: msg_in_reply_to.clone(),
-                                    msg_size,
-                                };
-                                use tokio::sync::mpsc::error::TrySendError;
-                                match ctx.process_tx.try_send(msg) {
-                                    Ok(()) => {}
-                                    Err(TrySendError::Full(msg)) => {
-                                        let _ = ctx.process_tx.send(msg).await;
-                                    }
-                                    Err(TrySendError::Closed(_)) => {
-                                        tracing::error!(
-                                            event = "process_consumer_gone",
-                                            rcpt = %rcpt,
-                                            "post-delivery consumer closed; message on disk, reconcile will index"
-                                        );
-                                    }
+                            // is on disk and reconcile will index it. The
+                            // receiver always hands off — the core consumer
+                            // decides whether to process (it owns the deps;
+                            // none = degraded mode, drains and drops).
+                            let msg = DeliveredMessage {
+                                maildir_id: id.to_string(),
+                                user: format!("{local}@{domain}"),
+                                rcpt: rcpt.clone(),
+                                rcpt_folder: rcpt_folder.clone(),
+                                reverse_path: reverse_path.clone(),
+                                full_message: full_message.clone(),
+                                msg_message_id: msg_message_id.clone(),
+                                msg_in_reply_to: msg_in_reply_to.clone(),
+                                msg_size,
+                            };
+                            use tokio::sync::mpsc::error::TrySendError;
+                            match ctx.process_tx.try_send(msg) {
+                                Ok(()) => {}
+                                Err(TrySendError::Full(msg)) => {
+                                    let _ = ctx.process_tx.send(msg).await;
+                                }
+                                Err(TrySendError::Closed(_)) => {
+                                    tracing::error!(
+                                        event = "process_consumer_gone",
+                                        rcpt = %rcpt,
+                                        "post-delivery consumer closed; message on disk, reconcile will index"
+                                    );
                                 }
                             }
                         }

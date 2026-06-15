@@ -21,6 +21,7 @@ const DATA_TIMEOUT: Duration = Duration::from_secs(600);
 use crate::account_store::AccountStore;
 use crate::config::SmuggleProtection;
 use crate::event_bus::{EventBus, SmtpEvent, next_connection_id};
+use crate::quota_store::QuotaStore;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
 use crate::inbound::auth_guard::AuthGuardStore;
@@ -52,7 +53,11 @@ pub struct ConnectionContext {
     /// `true` when the SPF/DKIM/ARC/DMARC + content-scan pipeline
     /// should run on inbound mail. Mirrors `cfg.antispam_enabled`.
     pub antispam_enabled: bool,
-    pub mailbox_store: Option<Arc<mailrs_mailbox::PgMailboxStore>>,
+    /// Receiver-facing storage-usage lookup for quota enforcement.
+    /// Abstracted as [`QuotaStore`] so the receiver doesn't bind the
+    /// spg-backed `PgMailboxStore` — the quota *limit* comes from
+    /// [`AccountStore::quota`], this supplies the *usage*.
+    pub quota_store: Option<Arc<dyn QuotaStore>>,
     pub smuggle_protection: SmuggleProtection,
     pub auth_guard: Arc<dyn AuthGuardStore>,
     /// Receiver-facing account / recipient lookups: resolution, submission

@@ -27,6 +27,7 @@ mod message_util;
 mod outbound_tls_rpt;
 mod pg;
 mod pop3_session;
+mod quota_store;
 mod rbl_monitor;
 mod reconcile_task;
 mod render_preview;
@@ -542,7 +543,9 @@ pub async fn run() {
         dnsbl_zones: cfg.dnsbl_zones.clone(),
         dnsbl_enabled: cfg.dnsbl_enabled,
         antispam_enabled: cfg.antispam_enabled,
-        mailbox_store: mailbox_store.clone(),
+        quota_store: mailbox_store
+            .clone()
+            .map(|m| m as Arc<dyn crate::quota_store::QuotaStore>),
         smuggle_protection: cfg.smuggle_protection,
         auth_guard: auth_guard.clone(),
         account_store: domain_store
