@@ -1,6 +1,6 @@
 use hickory_resolver::TokioResolver;
 
-use super::headers::extract_display_name;
+use mailrs_receiver::smtp_session::headers::extract_display_name;
 
 /// async post-delivery processing: contact upsert, content extraction, importance scoring, BIMI
 #[allow(clippy::too_many_arguments)]

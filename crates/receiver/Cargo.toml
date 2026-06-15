@@ -12,6 +12,10 @@ workspace = true
 [dependencies]
 async-trait = { workspace = true }
 
+# Shared session infra (event bus, UserStore, LdapConfig) + hot-reload TLS.
+mailrs-core = { path = "../core" }
+mailrs-tls-reload = "1"
+
 # Inbound receiving pipeline + anti subsystems. mailrs-shield / mailrs-dmarc
 # are pulled WITHOUT their /spg feature — the receiver uses only the
 # backend-generic surface (GreylistDb over a GreylistBackend trait, the
@@ -28,7 +32,26 @@ mailrs-auth-guard = { path = "../auth-guard", version = "2" }
 mailrs-rate-limit = "1"
 mailrs-clamav = "1"
 
-tokio = { version = "1", features = ["sync", "rt", "time", "macros"] }
+# SMTP session machinery (S5.4). mailrs-outbound-queue is pulled WITHOUT
+# its /spg feature — the receiver binds only the Notifier / QueueStore
+# trait surfaces, never the spg-backed PgQueueStore.
+mailrs-smtp-proto = "1"
+mailrs-smtp-codec = "1"
+mailrs-sieve = { path = "../sieve", version = "2" }
+mailrs-outbound-queue = { path = "../outbound-queue", version = "4" }
+mailrs-mail-builder = "1"
+mailrs-delivery-executor = { path = "../delivery-executor", version = "1.2" }
+# mailrs-mailbox is pulled WITHOUT its /spg feature — the receiver uses only
+# the backend-generic threading helpers (message-id / in-reply-to parsing).
+mailrs-mailbox = { path = "../mailbox", version = "1" }
+mailrs-rfc2047 = "1"
+mailrs-mime = { path = "../mime", version = "2" }
+mailrs-srs = "1"
+mailrs-arf = "1"
+
+tokio = { version = "1", features = ["sync", "rt", "time", "macros", "net", "io-util"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+futures-util = { version = "0.3", features = ["sink"] }
 hickory-resolver = "0.26"
 ipnet = { workspace = true }
 metrics = "0.24"
@@ -36,3 +59,6 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "for
 tracing = "0.1"
 bytes = "1"
 memchr = "2"
+chrono = { version = "0.4", features = ["serde"] }
+base64 = "0.22"
+argon2 = { workspace = true }

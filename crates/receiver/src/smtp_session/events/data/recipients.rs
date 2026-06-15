@@ -1,7 +1,7 @@
 //! `classify_recipients` — split forward-path list into local
 //! (after alias resolution) and remote recipients.
 
-use crate::domain_store::ResolvedRecipient;
+use crate::ResolvedRecipient;
 
 use super::super::super::ConnectionContext;
 use super::super::super::address::is_local_domain;

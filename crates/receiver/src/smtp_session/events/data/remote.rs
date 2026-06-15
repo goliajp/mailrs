@@ -1,7 +1,7 @@
 //! `enqueue_remote_rcpts` — push outbound recipients into the
 //! outbound queue with SRS rewriting for forwards.
 
-use crate::event_bus::SmtpEvent;
+use mailrs_core::event_bus::SmtpEvent;
 
 use super::super::super::ConnectionContext;
 use super::super::super::srs::srs_rewrite;

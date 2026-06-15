@@ -9,8 +9,8 @@ use std::net::SocketAddr;
 use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::State;
 
-use crate::event_bus::SmtpEvent;
 use crate::inbound::pipeline::DeliveryDecision;
+use mailrs_core::event_bus::SmtpEvent;
 
 use super::super::super::ConnectionContext;
 
