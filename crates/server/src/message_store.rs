@@ -15,7 +15,7 @@
 use std::sync::Arc;
 
 use mailrs_mailbox::PgMailboxStore;
-pub use mailrs_message_store::{MaildirStore, MessageStore};
+pub use mailrs_message_store::{MaildirStore, MessageId, MessageStore};
 
 /// The configured delivered-message backend. `MaildirStore` today;
 /// P7 swaps to an object-store backend here (driven by config). This

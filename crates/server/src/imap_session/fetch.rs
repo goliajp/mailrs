@@ -291,44 +291,18 @@ impl ImapSession {
             _ => return None,
         };
         let (local, domain) = username.split_once('@')?;
-        let base = format!("{}/{domain}/{local}", self.maildir_root);
+        let path = format!("{}/{domain}/{local}", self.maildir_root);
 
-        // fast path: try direct file lookup by maildir_id
-        // check new/ (no flags suffix)
-        let new_path = format!("{base}/new/{}", msg.maildir_id);
-        if let Ok(data) = tokio::fs::read(&new_path).await {
-            return Some(data);
-        }
-        // check cur/ with common flag suffixes
-        for suffix in &[":2,S", ":2,", ":2,RS", ":2,FS", ":2,FRS"] {
-            let cur_path = format!("{base}/cur/{}{suffix}", msg.maildir_id);
-            if let Ok(data) = tokio::fs::read(&cur_path).await {
-                return Some(data);
-            }
-        }
-
-        // slow fallback: scan directories. The scan_cur / scan_new
-        // helpers are blocking readdir; wrap in spawn_blocking so the
-        // fallback doesn't stall the runtime either. Directory scans
-        // are also the warning signal that a flag-suffix lookup
-        // missed and we're paying the brittle-suffix-list cost.
-        let base_clone = base.clone();
-        let maildir_id = msg.maildir_id.clone();
-        let path = tokio::task::spawn_blocking(move || -> Option<String> {
-            let md = mailrs_maildir::Maildir::open(&base_clone);
-            for entries in [md.scan_cur(), md.scan_new()] {
-                if let Ok(entries) = entries
-                    && let Some(entry) =
-                        entries.into_iter().find(|e| e.id.to_string() == maildir_id)
-                {
-                    return entry.path.to_str().map(str::to_string);
-                }
-            }
-            None
-        })
-        .await
-        .ok()
-        .flatten()?;
-        tokio::fs::read(path).await.ok()
+        // read through the MessageStore seam: fetch does the
+        // scan-by-id + read on the blocking pool, replacing the old
+        // brittle ":2,FRS"-suffix guessing + manual scan fallback.
+        self.message_store
+            .fetch(
+                &path,
+                &crate::message_store::MessageId(msg.maildir_id.clone()),
+            )
+            .await
+            .ok()
+            .flatten()
     }
 }
