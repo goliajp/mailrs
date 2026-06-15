@@ -6,7 +6,7 @@ use mailrs_imap_proto::{
 use mailrs_mailbox::{Mailbox, PgMailboxStore};
 
 use crate::domain_store::DomainStore;
-use crate::inbound::auth_guard::AuthGuard;
+use crate::inbound::auth_guard::AuthGuardStore;
 use crate::users::UserStore;
 
 // IMAP session — split across submodules in this directory:
@@ -91,7 +91,7 @@ pub struct ImapSession {
     /// APPEND path writes through this seam; see
     /// [`crate::message_store`].
     pub(super) message_store: Arc<dyn crate::message_store::MessageStore>,
-    pub(super) auth_guard: Option<Arc<AuthGuard>>,
+    pub(super) auth_guard: Option<Arc<dyn AuthGuardStore>>,
     pub(super) peer_addr: Option<std::net::IpAddr>,
     pub(super) domain_store: Option<Arc<DomainStore>>,
     pub(super) ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
@@ -124,7 +124,11 @@ impl ImapSession {
         self
     }
 
-    pub fn with_auth_guard(mut self, guard: Arc<AuthGuard>, addr: std::net::IpAddr) -> Self {
+    pub fn with_auth_guard(
+        mut self,
+        guard: Arc<dyn AuthGuardStore>,
+        addr: std::net::IpAddr,
+    ) -> Self {
         self.auth_guard = Some(guard);
         self.peer_addr = Some(addr);
         self
@@ -342,7 +346,7 @@ pub async fn handle_connection<S>(
     addr: std::net::SocketAddr,
     mailbox_store: Arc<mailrs_mailbox::PgMailboxStore>,
     users: Arc<crate::users::UserStore>,
-    auth_guard: Arc<AuthGuard>,
+    auth_guard: Arc<dyn AuthGuardStore>,
     domain_store: Option<Arc<DomainStore>>,
     ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
     event_bus: crate::event_bus::EventBus,

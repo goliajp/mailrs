@@ -34,7 +34,9 @@ pub(crate) fn init_auth_guard(cfg: &config::ServerConfig) -> Arc<AuthGuard> {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
         loop {
             interval.tick().await;
-            auth_guard_cleanup.cleanup_stale(std::time::Instant::now());
+            // concrete `AuthGuard` — call the sync inherent method
+            // directly rather than going through the async trait.
+            auth_guard_cleanup.cleanup_stale(crate::inbound::auth_guard::unix_now());
         }
     });
     auth_guard

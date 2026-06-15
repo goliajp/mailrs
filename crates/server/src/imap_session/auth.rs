@@ -9,7 +9,7 @@
 
 use mailrs_imap_proto::{format_bad, format_bye, format_capability, format_no, format_ok};
 
-use crate::inbound::auth_guard::AuthCheck;
+use crate::inbound::auth_guard::{AuthCheck, unix_now};
 
 use super::{ImapSession, ImapState};
 
@@ -53,7 +53,8 @@ impl ImapSession {
         }
 
         if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr)
-            && let AuthCheck::LockedOut { remaining_secs } = guard.check(ip, username)
+            && let AuthCheck::LockedOut { remaining_secs } =
+                guard.check(ip, username, unix_now()).await
         {
             return vec![format_no(
                 tag,
@@ -100,7 +101,7 @@ impl ImapSession {
 
         if ok {
             if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
-                guard.record_success(ip, username);
+                guard.record_success(ip, username).await;
             }
             let _ = self.mailbox_store.ensure_default_mailboxes(username).await;
             self.state = ImapState::Authenticated {
@@ -109,7 +110,7 @@ impl ImapSession {
             vec![format_ok(tag, "LOGIN completed")]
         } else {
             if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
-                guard.record_failure(ip, username);
+                guard.record_failure(ip, username, unix_now()).await;
             }
             vec![format_no(tag, "LOGIN failed")]
         }

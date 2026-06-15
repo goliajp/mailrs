@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use crate::config::SmuggleProtection;
 use crate::event_bus::EventBus;
-use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig};
+use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig, AuthGuardStore};
 use crate::inbound::rate_limit::{InMemoryRateLimitStore, RateLimitStore, TokenBucketConfig};
 use crate::pg::BackendPool;
 use crate::smtp_session::{ConnectionContext, handle_plain_connection};
@@ -38,7 +38,7 @@ pub async fn spawn_receiving_server(pool: BackendPool, maildir_root: String) -> 
             capacity: 100_000,
             refill_rate: 100_000.0,
         }));
-    let auth_guard = Arc::new(AuthGuard::new(AuthGuardConfig::default()));
+    let auth_guard: Arc<dyn AuthGuardStore> = Arc::new(AuthGuard::new(AuthGuardConfig::default()));
     let mailbox_store = Arc::new(mailrs_mailbox::PgMailboxStore::new(pool));
 
     let ctx = Arc::new(ConnectionContext {

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::net::TcpStream;
 
 use crate::domain_store::DomainStore;
-use crate::inbound::auth_guard::{AuthCheck, AuthGuard};
+use crate::inbound::auth_guard::{AuthCheck, AuthGuardStore, unix_now};
 use crate::users::UserStore;
 use mailrs_sieve::compile_sieve;
 
@@ -17,7 +17,7 @@ enum SieveState {
 pub struct ManageSieveSession {
     domain_store: Option<Arc<DomainStore>>,
     users: Arc<UserStore>,
-    auth_guard: Option<Arc<AuthGuard>>,
+    auth_guard: Option<Arc<dyn AuthGuardStore>>,
     peer_addr: Option<std::net::IpAddr>,
     state: SieveState,
     ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
@@ -40,7 +40,11 @@ impl ManageSieveSession {
         self
     }
 
-    pub fn with_auth_guard(mut self, guard: Arc<AuthGuard>, addr: std::net::IpAddr) -> Self {
+    pub fn with_auth_guard(
+        mut self,
+        guard: Arc<dyn AuthGuardStore>,
+        addr: std::net::IpAddr,
+    ) -> Self {
         self.auth_guard = Some(guard);
         self.peer_addr = Some(addr);
         self
@@ -135,7 +139,7 @@ impl ManageSieveSession {
 
         // check auth guard
         if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr)
-            && let AuthCheck::LockedOut { .. } = guard.check(ip, &username)
+            && let AuthCheck::LockedOut { .. } = guard.check(ip, &username, unix_now()).await
         {
             return vec!["NO \"too many failures, try later\"\r\n".into()];
         }
@@ -190,13 +194,13 @@ impl ManageSieveSession {
 
         if !authenticated {
             if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
-                guard.record_failure(ip, &username);
+                guard.record_failure(ip, &username, unix_now()).await;
             }
             return vec!["NO \"authentication failed\"\r\n".into()];
         }
 
         if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
-            guard.record_success(ip, &username);
+            guard.record_success(ip, &username).await;
         }
 
         self.state = SieveState::Authenticated {
@@ -388,7 +392,7 @@ pub async fn handle_connection(
     stream: TcpStream,
     addr: std::net::SocketAddr,
     users: Arc<UserStore>,
-    auth_guard: Arc<AuthGuard>,
+    auth_guard: Arc<dyn AuthGuardStore>,
     domain_store: Option<Arc<DomainStore>>,
     ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
 ) {
