@@ -12,12 +12,10 @@
 
 mod account_store;
 mod conn_metrics;
-pub mod event_bus;
 mod quota_store;
 mod recipient;
 
 pub use account_store::{AccountStore, AccountStoreError};
 pub use conn_metrics::ConnectionMetrics;
-pub use event_bus::{BroadcastEvent, EventBus, EventPublisher, SmtpEvent, next_connection_id};
 pub use quota_store::QuotaStore;
 pub use recipient::ResolvedRecipient;

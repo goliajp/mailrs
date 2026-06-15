@@ -8,6 +8,7 @@ members = [
     "crates/storage-maildir",
     "crates/message-store",
     "crates/receiver",
+    "crates/core",
     "crates/smtp-client",
     "crates/outbound-queue",
     "crates/mailbox",
