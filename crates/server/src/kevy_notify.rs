@@ -90,6 +90,12 @@ impl KevyEventPublisher {
     }
 }
 
+impl crate::event_bus::EventPublisher for KevyEventPublisher {
+    fn publish(&self, event: &SmtpEvent) {
+        KevyEventPublisher::publish(self, event);
+    }
+}
+
 /// Spawn the subscriber bridge: a dedicated OS thread that subscribes
 /// to `channel` on the kevy-server, blocking-reads published events,
 /// and re-emits them into the local `bus` (skipping this process's own
