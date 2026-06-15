@@ -184,9 +184,17 @@ pub(crate) async fn deliver_message_ex(
         if is_local {
             if let Some(ref mb_store) = state.mailbox_store {
                 let _ = mb_store.ensure_default_mailboxes(rcpt).await;
-                if let Err(e) = mb_store
-                    .append_message(rcpt, "INBOX", &state.maildir_root, raw, 0, ts)
-                    .await
+                if let Err(e) = crate::message_store::deliver_and_index(
+                    state.message_store.as_ref(),
+                    mb_store,
+                    rcpt,
+                    "INBOX",
+                    &state.maildir_root,
+                    raw,
+                    0,
+                    ts,
+                )
+                .await
                 {
                     errors.push(format!("{rcpt}: {e}"));
                 } else {
@@ -258,17 +266,18 @@ pub(crate) async fn deliver_message_ex(
     // save copy to Sent folder
     if let Some(ref mb_store) = state.mailbox_store {
         let _ = mb_store.ensure_default_mailboxes(from).await;
-        let sent_ok = mb_store
-            .append_message(
-                from,
-                "Sent",
-                &state.maildir_root,
-                raw,
-                mailrs_mailbox::FLAG_SEEN,
-                ts,
-            )
-            .await
-            .is_ok();
+        let sent_ok = crate::message_store::deliver_and_index(
+            state.message_store.as_ref(),
+            mb_store,
+            from,
+            "Sent",
+            &state.maildir_root,
+            raw,
+            mailrs_mailbox::FLAG_SEEN,
+            ts,
+        )
+        .await
+        .is_ok();
         // Bust the sender's conversation caches so the newly-Sent
         // message shows up in the thread view on the next fetch.
         // Without this, multi-turn conversation replies appeared to

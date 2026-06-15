@@ -93,6 +93,10 @@ pub struct WebState {
     pub outbound_queue: Option<crate::pg::BackendPool>,
     pub mailbox_store: Option<Arc<PgMailboxStore>>,
     pub domain_store: Option<Arc<DomainStore>>,
+    /// Swappable delivered-message backend (maildir today). Local web
+    /// delivery (INBOX + Sent copy) writes through this seam; see
+    /// [`crate::message_store`].
+    pub message_store: Arc<dyn crate::message_store::MessageStore>,
     pub maildir_root: String,
     pub hostname: String,
     pub sessions: DashMap<String, SessionInfo>,
@@ -169,6 +173,7 @@ impl WebState {
             outbound_queue: None,
             mailbox_store: None,
             domain_store: None,
+            message_store: crate::message_store::default_store(),
             maildir_root: String::new(),
             hostname: String::new(),
             sessions: DashMap::new(),

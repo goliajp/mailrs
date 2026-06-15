@@ -87,6 +87,10 @@ pub struct ImapSession {
     /// `<domain>/<localpart>`). Used by `read_message_file` and
     /// the APPEND path.
     pub maildir_root: String,
+    /// Swappable delivered-message backend (maildir today). The
+    /// APPEND path writes through this seam; see
+    /// [`crate::message_store`].
+    pub(super) message_store: Arc<dyn crate::message_store::MessageStore>,
     pub(super) auth_guard: Option<Arc<AuthGuard>>,
     pub(super) peer_addr: Option<std::net::IpAddr>,
     pub(super) domain_store: Option<Arc<DomainStore>>,
@@ -107,6 +111,7 @@ impl ImapSession {
             state: ImapState::NotAuthenticated,
             pending_append: None,
             maildir_root: String::new(),
+            message_store: crate::message_store::default_store(),
             auth_guard: None,
             peer_addr: None,
             domain_store: None,

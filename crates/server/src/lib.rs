@@ -21,6 +21,7 @@ pub mod inbound;
 mod inline_image;
 mod listeners;
 mod managesieve_session;
+mod message_store;
 mod message_util;
 mod outbound_tls_rpt;
 mod pg;
