@@ -3,6 +3,7 @@ mod acme;
 mod ai_analyzer;
 mod api_key_store;
 mod config;
+mod conn_metrics;
 mod metrics;
 
 mod content_worker;
@@ -532,7 +533,7 @@ pub async fn run() {
         tls_state: tls_state.clone(),
         users: users.clone(),
         event_bus: event_bus.clone(),
-        web_state: web_state.clone(),
+        metrics: web_state.clone() as Arc<dyn crate::conn_metrics::ConnectionMetrics>,
         rate_limiter,
         local_domains: cfg.local_domains.clone(),
         outbound_enqueue: outbound_queue.clone().map(|p| {

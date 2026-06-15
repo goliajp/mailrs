@@ -20,6 +20,7 @@ const DATA_TIMEOUT: Duration = Duration::from_secs(600);
 
 use crate::account_store::AccountStore;
 use crate::config::SmuggleProtection;
+use crate::conn_metrics::ConnectionMetrics;
 use crate::event_bus::{EventBus, SmtpEvent, next_connection_id};
 use crate::quota_store::QuotaStore;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
@@ -28,7 +29,6 @@ use crate::inbound::auth_guard::AuthGuardStore;
 use crate::inbound::rate_limit::RateLimitStore;
 use crate::tls::TlsState;
 use crate::users::UserStore;
-use crate::web::WebState;
 use mailrs_outbound_queue::{Notifier, QueueStore};
 
 pub struct ConnectionContext {
@@ -37,7 +37,10 @@ pub struct ConnectionContext {
     pub tls_state: Option<TlsState>,
     pub users: Arc<UserStore>,
     pub event_bus: EventBus,
-    pub web_state: Arc<WebState>,
+    /// Connection + inbound-verdict metrics sink. Abstracted as
+    /// [`ConnectionMetrics`] so the receiver records metrics without holding
+    /// the whole spg/kevy-bound `WebState`.
+    pub metrics: Arc<dyn ConnectionMetrics>,
     pub rate_limiter: Arc<dyn RateLimitStore>,
     pub local_domains: Vec<String>,
     /// Outbound enqueue seam for the receiving path: relay recipients,
@@ -106,7 +109,7 @@ pub async fn handle_plain_connection(
 ) {
     metrics::counter!("mailrs_smtp_connections_total", "tls" => "plain").increment(1);
     let conn_id = next_connection_id();
-    ctx.web_state.on_connect();
+    ctx.metrics.on_connect();
     ctx.event_bus.emit(SmtpEvent::ConnectionOpened {
         id: conn_id,
         addr: addr.to_string(),
@@ -126,7 +129,7 @@ pub async fn handle_plain_connection(
             id: conn_id,
             reason: "rate limited".into(),
         });
-        ctx.web_state.on_disconnect();
+        ctx.metrics.on_disconnect();
         ctx.event_bus
             .emit(SmtpEvent::ConnectionClosed { id: conn_id });
         return;
@@ -154,7 +157,7 @@ pub async fn handle_plain_connection(
             id: conn_id,
             reason: format!("DNSBL: {zone} ({result:?})"),
         });
-        ctx.web_state.on_disconnect();
+        ctx.metrics.on_disconnect();
         ctx.event_bus
             .emit(SmtpEvent::ConnectionClosed { id: conn_id });
         return;
@@ -178,7 +181,7 @@ pub async fn handle_plain_connection(
 
     let greeting = Response::greeting(&ctx.hostname).format_greeting();
     if framed.send(greeting).await.is_err() {
-        ctx.web_state.on_disconnect();
+        ctx.metrics.on_disconnect();
         ctx.event_bus
             .emit(SmtpEvent::ConnectionClosed { id: conn_id });
         return;
@@ -189,14 +192,14 @@ pub async fn handle_plain_connection(
         match action {
             SessionAction::Continue => continue,
             SessionAction::Close => {
-                ctx.web_state.on_disconnect();
+                ctx.metrics.on_disconnect();
                 ctx.event_bus
                     .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                 return;
             }
             SessionAction::UpgradeTls => {
                 let Some(ref tls) = ctx.tls_state else {
-                    ctx.web_state.on_disconnect();
+                    ctx.metrics.on_disconnect();
                     ctx.event_bus
                         .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                     return;
@@ -205,7 +208,7 @@ pub async fn handle_plain_connection(
 
                 let parts = framed.into_parts();
                 if !parts.read_buf.is_empty() {
-                    ctx.web_state.on_disconnect();
+                    ctx.metrics.on_disconnect();
                     ctx.event_bus
                         .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                     return;
@@ -215,7 +218,7 @@ pub async fn handle_plain_connection(
                 let tls_stream = match acceptor.accept(tcp_stream).await {
                     Ok(s) => s,
                     Err(_) => {
-                        ctx.web_state.on_disconnect();
+                        ctx.metrics.on_disconnect();
                         ctx.event_bus
                             .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                         return;
@@ -237,13 +240,13 @@ pub async fn handle_plain_connection(
                     match action {
                         SessionAction::Continue => continue,
                         SessionAction::Close => {
-                            ctx.web_state.on_disconnect();
+                            ctx.metrics.on_disconnect();
                             ctx.event_bus
                                 .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                             return;
                         }
                         SessionAction::UpgradeTls => {
-                            ctx.web_state.on_disconnect();
+                            ctx.metrics.on_disconnect();
                             ctx.event_bus
                                 .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                             return;
@@ -264,7 +267,7 @@ pub async fn handle_tls_connection(
 ) {
     metrics::counter!("mailrs_smtp_connections_total", "tls" => "implicit").increment(1);
     let conn_id = next_connection_id();
-    ctx.web_state.on_connect();
+    ctx.metrics.on_connect();
     ctx.event_bus.emit(SmtpEvent::ConnectionOpened {
         id: conn_id,
         addr: addr.to_string(),
@@ -272,7 +275,7 @@ pub async fn handle_tls_connection(
     });
 
     let Some(ref tls) = ctx.tls_state else {
-        ctx.web_state.on_disconnect();
+        ctx.metrics.on_disconnect();
         ctx.event_bus
             .emit(SmtpEvent::ConnectionClosed { id: conn_id });
         return;
@@ -282,7 +285,7 @@ pub async fn handle_tls_connection(
     let tls_stream = match acceptor.accept(stream).await {
         Ok(s) => s,
         Err(_) => {
-            ctx.web_state.on_disconnect();
+            ctx.metrics.on_disconnect();
             ctx.event_bus
                 .emit(SmtpEvent::ConnectionClosed { id: conn_id });
             return;
@@ -306,7 +309,7 @@ pub async fn handle_tls_connection(
 
     let greeting = Response::greeting(&ctx.hostname).format_greeting();
     if framed.send(greeting).await.is_err() {
-        ctx.web_state.on_disconnect();
+        ctx.metrics.on_disconnect();
         ctx.event_bus
             .emit(SmtpEvent::ConnectionClosed { id: conn_id });
         return;
@@ -317,7 +320,7 @@ pub async fn handle_tls_connection(
         match action {
             SessionAction::Continue => continue,
             SessionAction::Close | SessionAction::UpgradeTls => {
-                ctx.web_state.on_disconnect();
+                ctx.metrics.on_disconnect();
                 ctx.event_bus
                     .emit(SmtpEvent::ConnectionClosed { id: conn_id });
                 return;
