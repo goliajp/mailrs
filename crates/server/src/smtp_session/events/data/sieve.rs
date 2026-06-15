@@ -5,7 +5,7 @@ use mailrs_rfc5322::Message;
 use mailrs_sieve::{SieveAction, compile_sieve, evaluate_sieve_with_envelope};
 
 use super::super::super::ConnectionContext;
-use crate::account_store::AccountStore;
+use mailrs_receiver::AccountStore;
 
 /// Evaluate sieve script for `rcpt` (if any) against `full_message`.
 /// Returns `(rcpt_folder, skip_delivery)` — the destination folder

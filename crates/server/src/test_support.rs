@@ -58,7 +58,7 @@ pub async fn spawn_receiving_server(pool: BackendPool, maildir_root: String) -> 
         tls_state: None,
         users: Arc::new(UserStore::empty()),
         event_bus: event_bus.clone(),
-        metrics: web_state as Arc<dyn crate::conn_metrics::ConnectionMetrics>,
+        metrics: web_state as Arc<dyn mailrs_receiver::ConnectionMetrics>,
         rate_limiter,
         local_domains: Vec::new(),
         outbound_enqueue: None,
@@ -66,7 +66,10 @@ pub async fn spawn_receiving_server(pool: BackendPool, maildir_root: String) -> 
         dnsbl_zones: Vec::new(),
         dnsbl_enabled: false,
         antispam_enabled: false,
-        quota_store: Some(mailbox_store as Arc<dyn crate::quota_store::QuotaStore>),
+        quota_store: Some(
+            Arc::new(crate::quota_store::MailboxQuotaStore(mailbox_store))
+                as Arc<dyn mailrs_receiver::QuotaStore>,
+        ),
         smuggle_protection: SmuggleProtection::Off,
         auth_guard,
         account_store: None,

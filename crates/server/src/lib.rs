@@ -533,7 +533,7 @@ pub async fn run() {
         tls_state: tls_state.clone(),
         users: users.clone(),
         event_bus: event_bus.clone(),
-        metrics: web_state.clone() as Arc<dyn crate::conn_metrics::ConnectionMetrics>,
+        metrics: web_state.clone() as Arc<dyn mailrs_receiver::ConnectionMetrics>,
         rate_limiter,
         local_domains: cfg.local_domains.clone(),
         outbound_enqueue: outbound_queue.clone().map(|p| {
@@ -544,14 +544,15 @@ pub async fn run() {
         dnsbl_zones: cfg.dnsbl_zones.clone(),
         dnsbl_enabled: cfg.dnsbl_enabled,
         antispam_enabled: cfg.antispam_enabled,
-        quota_store: mailbox_store
-            .clone()
-            .map(|m| m as Arc<dyn crate::quota_store::QuotaStore>),
+        quota_store: mailbox_store.clone().map(|m| {
+            Arc::new(crate::quota_store::MailboxQuotaStore(m))
+                as Arc<dyn mailrs_receiver::QuotaStore>
+        }),
         smuggle_protection: cfg.smuggle_protection,
         auth_guard: auth_guard.clone(),
         account_store: domain_store
             .clone()
-            .map(|d| d as Arc<dyn crate::account_store::AccountStore>),
+            .map(|d| d as Arc<dyn mailrs_receiver::AccountStore>),
         queue_notifier: kevy_embedded_store.as_ref().map(|s| {
             Arc::new(mailrs_outbound_queue::KevyNotifier::new(s.as_ref().clone()))
                 as Arc<dyn mailrs_outbound_queue::Notifier>

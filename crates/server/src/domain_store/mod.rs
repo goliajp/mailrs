@@ -82,14 +82,10 @@ pub struct AuditEntry {
     pub detail: String,
 }
 
-#[derive(Debug, Clone)]
-pub enum ResolvedRecipient {
-    Account(String),
-    /// group email: deliver a copy to each member's mailbox
-    Group(Vec<String>),
-    Forward(Vec<String>),
-    Reject,
-}
+// The recipient-resolution result type moved to the `mailrs-receiver`
+// crate (the receiver's account port). Re-exported here so existing
+// `crate::domain_store::ResolvedRecipient` call sites keep resolving.
+pub use mailrs_receiver::ResolvedRecipient;
 
 pub(super) type Result<T> = std::result::Result<T, StoreError>;
 
