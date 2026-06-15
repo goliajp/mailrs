@@ -28,6 +28,7 @@ use crate::inbound::rate_limit::RateLimitStore;
 use crate::tls::TlsState;
 use crate::users::UserStore;
 use crate::web::WebState;
+use mailrs_outbound_queue::Notifier;
 
 pub struct ConnectionContext {
     pub hostname: String,
@@ -49,7 +50,12 @@ pub struct ConnectionContext {
     pub smuggle_protection: SmuggleProtection,
     pub auth_guard: Arc<dyn AuthGuardStore>,
     pub domain_store: Option<Arc<DomainStore>>,
-    pub kevy: Option<crate::kevy_store::KevyStore>,
+    /// Wakes the outbound delivery worker after the receiving path
+    /// enqueues relay / sieve-redirect / vacation mail. Abstracted as a
+    /// trait so the receiver doesn't bind the in-process kevy store —
+    /// the in-process [`mailrs_outbound_queue::KevyNotifier`] today, a
+    /// network notifier in the receiver-split topology.
+    pub queue_notifier: Option<Arc<dyn Notifier>>,
     pub srs_secret: Option<String>,
     pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
     pub inbound_pipeline: mailrs_inbound::Pipeline,
