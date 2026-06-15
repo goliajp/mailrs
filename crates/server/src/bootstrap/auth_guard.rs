@@ -15,11 +15,12 @@ use crate::{
 };
 use mailrs_mailbox::PgMailboxStore;
 
-/// Construct the brute-force `AuthGuard` from per-account + per-IP
-/// thresholds in `cfg`, and spawn a 5-minute periodic cleanup task
-/// that evicts entries past their lockout window.
-pub(crate) fn init_auth_guard(cfg: &config::ServerConfig) -> Arc<AuthGuard> {
-    let auth_guard = Arc::new(AuthGuard::new(AuthGuardConfig {
+/// Build the [`AuthGuardConfig`] from the per-account + per-IP
+/// thresholds in `cfg`. Shared by the in-process [`init_auth_guard`]
+/// and the network `KevyServerAuthGuardStore` so both honor the same
+/// lockout policy.
+pub(crate) fn auth_guard_config(cfg: &config::ServerConfig) -> AuthGuardConfig {
+    AuthGuardConfig {
         max_failures_account: cfg.auth_max_failures_account,
         account_window_secs: cfg.auth_account_window_secs,
         base_lockout_secs: cfg.auth_base_lockout_secs,
@@ -28,7 +29,13 @@ pub(crate) fn init_auth_guard(cfg: &config::ServerConfig) -> Arc<AuthGuard> {
         ip_base_lockout_secs: cfg.auth_ip_base_lockout_secs,
         backoff_multiplier: cfg.auth_backoff_multiplier,
         max_lockout_secs: cfg.auth_max_lockout_secs,
-    }));
+    }
+}
+
+/// Construct the in-process brute-force `AuthGuard` and spawn a 5-minute
+/// periodic cleanup task that evicts entries past their lockout window.
+pub(crate) fn init_auth_guard(cfg: &config::ServerConfig) -> Arc<AuthGuard> {
+    let auth_guard = Arc::new(AuthGuard::new(auth_guard_config(cfg)));
     let auth_guard_cleanup = auth_guard.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));

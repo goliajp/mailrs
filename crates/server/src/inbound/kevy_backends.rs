@@ -11,14 +11,19 @@
 //! Used only in the receiver-split topology (`MAILRS_KEVY_URL` set);
 //! otherwise the subsystems run on the in-process embedded store.
 
+use std::io;
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use kevy_client::Connection;
 
 use mailrs_shield::greylist::GreylistBackend;
 
-use crate::inbound::auth_guard::unix_now;
+use crate::inbound::auth_guard::{
+    AuthCheck, AuthGuardConfig, AuthGuardStore, normalize_ip, unix_now,
+};
 use crate::inbound::rate_limit::{RateLimitStore, TokenBucketConfig};
 use crate::kevy_net::KevyNetClient;
 
@@ -145,6 +150,141 @@ impl RateLimitStore for KevyServerRateLimitStore {
     }
 }
 
+/// Increment a scope's failure counter; arm a lockout when it reaches
+/// `max`. The counter self-expires after `window`; on lockout the
+/// counter is reset (during a lockout the session rejects before
+/// verifying, so no failures accumulate). One blocking round-trip
+/// sequence on a single connection.
+fn bump_failure_scope(
+    c: &mut Connection,
+    fail_key: &[u8],
+    lock_key: &[u8],
+    max: i64,
+    window: Duration,
+    lockout: Duration,
+) -> io::Result<()> {
+    let count = c.incr(fail_key)?;
+    if count == 1 {
+        c.expire(fail_key, window)?;
+    }
+    if count >= max {
+        c.set_with_ttl(lock_key, b"1", lockout)?;
+        c.del(&[fail_key])?;
+    }
+    Ok(())
+}
+
+/// Network [`AuthGuardStore`] over a shared kevy-server — a distributed
+/// brute-force lockout via `INCR` failure counters + lockout keys.
+///
+/// Simpler than the in-process sliding-window+exponential-backoff
+/// tracker, by design (per the receiver plan): per-scope failure
+/// counters with a window TTL, and on threshold a lockout key with a
+/// fixed `base_lockout` TTL. It keys on the /64-normalized IP so the
+/// per-IP lockout has the same evasion-resistance as the in-process
+/// impl. **Difference from in-process:** repeat offenders do not get an
+/// exponentially-growing lockout — every lockout is the base duration.
+///
+/// Fail-open: a `check` error reads as Allowed (a kevy outage must not
+/// lock out legitimate users); record errors are dropped.
+pub struct KevyServerAuthGuardStore {
+    client: Arc<KevyNetClient>,
+    max_failures_account: i64,
+    account_window: Duration,
+    account_lockout: Duration,
+    max_failures_ip: i64,
+    ip_window: Duration,
+    ip_lockout: Duration,
+}
+
+impl KevyServerAuthGuardStore {
+    pub fn new(client: Arc<KevyNetClient>, config: AuthGuardConfig) -> Self {
+        Self {
+            client,
+            max_failures_account: i64::from(config.max_failures_account),
+            account_window: Duration::from_secs(config.account_window_secs),
+            account_lockout: Duration::from_secs(config.base_lockout_secs),
+            max_failures_ip: i64::from(config.max_failures_ip),
+            ip_window: Duration::from_secs(config.ip_window_secs),
+            ip_lockout: Duration::from_secs(config.ip_base_lockout_secs),
+        }
+    }
+}
+
+#[async_trait]
+impl AuthGuardStore for KevyServerAuthGuardStore {
+    async fn check(&self, ip: IpAddr, username: &str, _now: u64) -> AuthCheck {
+        let ip = normalize_ip(ip);
+        let ip_lock = format!("ag:li:{ip}").into_bytes();
+        let acct_lock = format!("ag:la:{ip}:{username}").into_bytes();
+        let client = self.client.clone();
+        // per-IP first, then per-account — matches in-process precedence.
+        let remaining: io::Result<Option<u64>> = tokio::task::spawn_blocking(move || {
+            client.with_conn(|c| {
+                for key in [&ip_lock, &acct_lock] {
+                    let ms = c.ttl_ms(key)?;
+                    if ms > 0 {
+                        return Ok(Some(((ms / 1000) as u64).max(1)));
+                    }
+                }
+                Ok(None)
+            })
+        })
+        .await
+        .unwrap_or(Ok(None));
+        // None or any error → Allowed (fail-open).
+        match remaining {
+            Ok(Some(secs)) => AuthCheck::LockedOut {
+                remaining_secs: secs,
+            },
+            _ => AuthCheck::Allowed,
+        }
+    }
+
+    async fn record_failure(&self, ip: IpAddr, username: &str, _now: u64) {
+        let ip = normalize_ip(ip);
+        let acct_fail = format!("ag:fa:{ip}:{username}").into_bytes();
+        let acct_lock = format!("ag:la:{ip}:{username}").into_bytes();
+        let ip_fail = format!("ag:fi:{ip}").into_bytes();
+        let ip_lock = format!("ag:li:{ip}").into_bytes();
+        let max_a = self.max_failures_account;
+        let win_a = self.account_window;
+        let lock_a = self.account_lockout;
+        let max_i = self.max_failures_ip;
+        let win_i = self.ip_window;
+        let lock_i = self.ip_lockout;
+        let client = self.client.clone();
+        let _ = tokio::task::spawn_blocking(move || {
+            client.with_conn(|c| {
+                bump_failure_scope(c, &acct_fail, &acct_lock, max_a, win_a, lock_a)?;
+                bump_failure_scope(c, &ip_fail, &ip_lock, max_i, win_i, lock_i)?;
+                Ok(())
+            })
+        })
+        .await;
+    }
+
+    async fn record_success(&self, ip: IpAddr, username: &str) {
+        let ip = normalize_ip(ip);
+        let acct_fail = format!("ag:fa:{ip}:{username}").into_bytes();
+        let acct_lock = format!("ag:la:{ip}:{username}").into_bytes();
+        let client = self.client.clone();
+        // clear the per-account counter + lockout only — never the per-IP
+        // scope (matches the in-process contract).
+        let _ = tokio::task::spawn_blocking(move || {
+            client.with_conn(|c| {
+                c.del(&[acct_fail.as_slice(), acct_lock.as_slice()])?;
+                Ok(())
+            })
+        })
+        .await;
+    }
+
+    async fn cleanup_stale(&self, _before: u64) {
+        // kevy expires failure counters + lockout keys natively.
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,5 +324,70 @@ mod tests {
         assert!(!store.check("1.2.3.4").await, "3rd over capacity");
         // a different key has its own bucket
         assert!(store.check("5.6.7.8").await, "other key unaffected");
+    }
+
+    fn auth_config(max_account: u32) -> AuthGuardConfig {
+        AuthGuardConfig {
+            max_failures_account: max_account,
+            account_window_secs: 900,
+            base_lockout_secs: 60,
+            // keep IP scope out of the way for the account-focused test
+            max_failures_ip: 1000,
+            ip_window_secs: 3600,
+            ip_base_lockout_secs: 3600,
+            backoff_multiplier: 2.0,
+            max_lockout_secs: 86400,
+        }
+    }
+
+    #[tokio::test]
+    async fn auth_backend_locks_after_threshold_then_success_clears() {
+        let client = Arc::new(KevyNetClient::new("mem://auth-backend-test"));
+        let store = KevyServerAuthGuardStore::new(client, auth_config(2));
+        let ip: IpAddr = "203.0.113.9".parse().unwrap();
+
+        assert!(matches!(
+            store.check(ip, "carol", 1_000).await,
+            AuthCheck::Allowed
+        ));
+        store.record_failure(ip, "carol", 1_000).await;
+        store.record_failure(ip, "carol", 1_000).await; // hits threshold → lockout
+        assert!(matches!(
+            store.check(ip, "carol", 1_000).await,
+            AuthCheck::LockedOut { remaining_secs } if remaining_secs > 0
+        ));
+        // a different account on the same IP is unaffected (IP scope high)
+        assert!(matches!(
+            store.check(ip, "dave", 1_000).await,
+            AuthCheck::Allowed
+        ));
+        // success clears the account lockout + counter
+        store.record_success(ip, "carol").await;
+        assert!(matches!(
+            store.check(ip, "carol", 1_000).await,
+            AuthCheck::Allowed
+        ));
+    }
+
+    #[tokio::test]
+    async fn auth_backend_ip_scope_locks_across_usernames() {
+        // low IP threshold, high account threshold: spraying usernames
+        // from one IP trips the per-IP lockout (the /64 evasion guard).
+        let client = Arc::new(KevyNetClient::new("mem://auth-ip-scope-test"));
+        let cfg = AuthGuardConfig {
+            max_failures_account: 1000,
+            max_failures_ip: 3,
+            ..auth_config(1000)
+        };
+        let store = KevyServerAuthGuardStore::new(client, cfg);
+        let ip: IpAddr = "198.51.100.7".parse().unwrap();
+
+        store.record_failure(ip, "u1", 1_000).await;
+        store.record_failure(ip, "u2", 1_000).await;
+        store.record_failure(ip, "u3", 1_000).await; // 3rd → IP lockout
+        assert!(matches!(
+            store.check(ip, "anyone", 1_000).await,
+            AuthCheck::LockedOut { .. }
+        ));
     }
 }

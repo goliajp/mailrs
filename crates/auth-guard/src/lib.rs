@@ -112,8 +112,14 @@ pub fn lockout_duration(
     backoff.base_delay(consecutive_lockouts).as_secs()
 }
 
-/// normalize IPv6 to /64 prefix for rate limiting
-fn normalize_ip(ip: IpAddr) -> IpAddr {
+/// Normalize an IPv6 address to its /64 prefix (IPv4 unchanged).
+///
+/// Both counters key on this so a single attacker can't evade the
+/// per-IP lockout by spraying across the many addresses inside one
+/// /64. Exposed so an out-of-process [`AuthGuardStore`] (e.g. over a
+/// shared kevy-server) can key its lockout state identically and keep
+/// the same evasion-resistance.
+pub fn normalize_ip(ip: IpAddr) -> IpAddr {
     match ip {
         IpAddr::V6(v6) => {
             let segments = v6.segments();

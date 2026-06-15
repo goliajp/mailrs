@@ -7,7 +7,7 @@ use crate::config;
 use crate::domain_store;
 use crate::event_bus::{EventBus, SmtpEvent};
 use crate::imap_session;
-use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig};
+use crate::inbound::auth_guard::AuthGuardStore;
 use crate::managesieve_session;
 use crate::pop3_session;
 use crate::smtp_session::ConnectionContext;
@@ -78,7 +78,7 @@ pub(crate) async fn spawn_smtp_listeners(
 pub(crate) async fn spawn_imap_listeners(
     mailbox_store: &Option<Arc<PgMailboxStore>>,
     users: &Arc<crate::users::UserStore>,
-    auth_guard: &Arc<AuthGuard>,
+    auth_guard: &Arc<dyn AuthGuardStore>,
     domain_store: &Option<Arc<domain_store::DomainStore>>,
     event_bus: &EventBus,
     ldap_config: &Option<Arc<crate::ldap_auth::LdapConfig>>,
@@ -176,7 +176,7 @@ pub(crate) async fn spawn_imap_listeners(
 pub(crate) async fn spawn_pop3_listener(
     mailbox_store: &Option<Arc<PgMailboxStore>>,
     users: &Arc<crate::users::UserStore>,
-    auth_guard: &Arc<AuthGuard>,
+    auth_guard: &Arc<dyn AuthGuardStore>,
     domain_store: &Option<Arc<domain_store::DomainStore>>,
     ldap_config: &Option<Arc<crate::ldap_auth::LdapConfig>>,
     cfg: &config::ServerConfig,
@@ -227,7 +227,7 @@ pub(crate) async fn spawn_pop3_listener(
 /// config. Always spawned; doesn't depend on PG.
 pub(crate) async fn spawn_managesieve_listener(
     users: &Arc<crate::users::UserStore>,
-    auth_guard: &Arc<AuthGuard>,
+    auth_guard: &Arc<dyn AuthGuardStore>,
     domain_store: &Option<Arc<domain_store::DomainStore>>,
     ldap_config: &Option<Arc<crate::ldap_auth::LdapConfig>>,
     cfg: &config::ServerConfig,

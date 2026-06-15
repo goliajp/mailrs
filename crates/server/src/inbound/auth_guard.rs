@@ -9,7 +9,7 @@
 //! drop in without touching the call sites. The bundled
 //! [`AuthGuard`] is the in-process impl.
 
-pub use mailrs_auth_guard::{AuthCheck, AuthGuard, AuthGuardConfig, AuthGuardStore};
+pub use mailrs_auth_guard::{AuthCheck, AuthGuard, AuthGuardConfig, AuthGuardStore, normalize_ip};
 
 /// Current wall clock in unix seconds — the `now` the auth-guard
 /// surface expects. Kept here so every call site computes it the
