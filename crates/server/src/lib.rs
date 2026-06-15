@@ -36,7 +36,8 @@ mod bootstrap;
 mod greylist_backfill;
 mod greylist_local;
 mod greylist_sync;
-mod kevy_net;
+pub mod kevy_net;
+pub mod kevy_notify;
 mod kevy_store;
 mod mcp;
 mod oidc_jwt;
@@ -180,7 +181,31 @@ pub async fn run() {
         None => UserStore::empty(),
     };
 
-    let event_bus = EventBus::new(1024);
+    // In the receiver-split topology, mail events also cross processes
+    // via a shared kevy-server: this process publishes its own and a
+    // background bridge re-injects others' into the local bus (skipping
+    // its own origin). Supplements — never replaces — the in-process
+    // broadcast.
+    let event_bus = match kevy_net_client.as_ref() {
+        Some(client) => {
+            let origin = kevy_notify::process_origin();
+            let channel = kevy_notify::NOTIFY_CHANNEL.to_vec();
+            let publisher = Arc::new(kevy_notify::KevyEventPublisher::new(
+                client.clone(),
+                channel.clone(),
+                origin.clone(),
+            ));
+            let bus = EventBus::new(1024).with_publisher(publisher);
+            kevy_notify::spawn_kevy_notify_bridge(
+                client.url().to_string(),
+                channel,
+                origin,
+                bus.clone(),
+            );
+            bus
+        }
+        None => EventBus::new(1024),
+    };
 
     spawn_cache_bust_task(&kevy_embedded_store, &event_bus);
 
