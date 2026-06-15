@@ -2529,6 +2529,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kevy-client"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f93fcf9d001bf983a78f9c2b939c4ba901d902ce1f15153eb5b9d3c4042c294f"
+dependencies = [
+ "kevy-embedded",
+ "kevy-hash",
+ "kevy-resp",
+ "kevy-resp-client",
+]
+
+[[package]]
 name = "kevy-embedded"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2576,6 +2588,15 @@ name = "kevy-resp"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e4191829139316561019822aa1e984f069f45bacadd471ee6f348f1262269c6"
+
+[[package]]
+name = "kevy-resp-client"
+version = "1.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1f409fdb308f3ea0662ddce1ae579670093ac8dfb37da28a1689c578193e8c7"
+dependencies = [
+ "kevy-resp",
+]
 
 [[package]]
 name = "kevy-store"
@@ -3432,6 +3453,7 @@ dependencies = [
  "instant-acme",
  "ipnet",
  "jsonwebtoken",
+ "kevy-client",
  "kevy-embedded",
  "ldap3",
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",

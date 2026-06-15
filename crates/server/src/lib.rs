@@ -36,6 +36,7 @@ mod bootstrap;
 mod greylist_backfill;
 mod greylist_local;
 mod greylist_sync;
+mod kevy_net;
 mod kevy_store;
 mod mcp;
 mod oidc_jwt;
@@ -149,6 +150,20 @@ pub async fn run() {
             }
         };
 
+    // Optional shared network kevy-server for the anti subsystems
+    // (greylist / rate / auth-guard). Set MAILRS_KEVY_URL to point this
+    // process at a kevy-server it shares with the rest of the fleet (the
+    // receiver-split topology); unset keeps every subsystem on the
+    // in-process embedded store. The embedded store always opens anyway
+    // for the message-state hot path.
+    let kevy_net_client: Option<Arc<kevy_net::KevyNetClient>> = cfg.kevy_url.as_ref().map(|url| {
+        tracing::info!(
+            kevy_url = %url,
+            "anti subsystems will share state via network kevy-server"
+        );
+        Arc::new(kevy_net::KevyNetClient::new(url.clone()))
+    });
+
     let health_state = health::HealthState::new();
     if let (Some(pg), Some(embed)) = (&pg_pool, &kevy_embedded_store) {
         health::spawn_health_checker(pg.clone(), embed.clone(), health_state.clone());
@@ -216,7 +231,12 @@ pub async fn run() {
         ..Default::default()
     };
 
-    if let (Some(store), Some(pool)) = (kevy_embedded_store.as_ref(), pg_pool.as_ref()) {
+    // Backfill PG reputation into the embedded store only when greylist
+    // actually reads that store. In network mode greylist reads the
+    // shared kevy-server, so warming the embedded store would be wasted.
+    if kevy_net_client.is_none()
+        && let (Some(store), Some(pool)) = (kevy_embedded_store.as_ref(), pg_pool.as_ref())
+    {
         let now_secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -230,9 +250,16 @@ pub async fn run() {
         .await;
     }
 
-    let greylist_db = kevy_embedded_store
-        .as_ref()
-        .map(|store| Arc::new(GreylistDb::new(store.as_ref().clone())));
+    // greylist reads the shared network kevy-server when MAILRS_KEVY_URL
+    // is set, else the in-process embedded store.
+    let greylist_db = match kevy_net_client.as_ref() {
+        Some(client) => Some(Arc::new(GreylistDb::with_backend(Arc::new(
+            crate::inbound::kevy_backends::KevyServerGreylistBackend::new(client.clone()),
+        )))),
+        None => kevy_embedded_store
+            .as_ref()
+            .map(|store| Arc::new(GreylistDb::new(store.as_ref().clone()))),
+    };
 
     let auth_guard = init_auth_guard(&cfg);
 
