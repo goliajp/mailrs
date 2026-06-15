@@ -11,3 +11,28 @@ workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
+
+# Inbound receiving pipeline + anti subsystems. mailrs-shield / mailrs-dmarc
+# are pulled WITHOUT their /spg feature — the receiver uses only the
+# backend-generic surface (GreylistDb over a GreylistBackend trait, the
+# DMARC verifier), so it stays free of spg / kevy-embedded.
+mailrs-inbound = "1"
+mailrs-rfc5322 = "1"
+mailrs-shield = { path = "../shield", version = "3" }
+mailrs-dmarc = { path = "../dmarc", version = "2" }
+mailrs-spf = { path = "../spf", version = "2" }
+mailrs-dkim = { path = "../dkim", version = "3" }
+mailrs-arc = { path = "../arc", version = "3" }
+mailrs-intelligence = { path = "../intelligence", version = "3" }
+mailrs-auth-guard = { path = "../auth-guard", version = "2" }
+mailrs-rate-limit = "1"
+mailrs-clamav = "1"
+
+tokio = { version = "1", features = ["sync", "rt", "time", "macros"] }
+hickory-resolver = "0.26"
+ipnet = { workspace = true }
+metrics = "0.24"
+reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls"] }
+tracing = "0.1"
+bytes = "1"
+memchr = "2"

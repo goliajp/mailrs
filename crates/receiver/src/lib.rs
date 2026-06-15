@@ -19,3 +19,10 @@ pub use account_store::{AccountStore, AccountStoreError};
 pub use conn_metrics::ConnectionMetrics;
 pub use quota_store::QuotaStore;
 pub use recipient::ResolvedRecipient;
+
+// The inbound receiving pipeline + anti subsystems + greylist snapshot
+// loaders (S5.3). The spg-bound PG loader half of greylist_local and the
+// kevy-network adapters (inbound::kevy_backends) stay in the server crate.
+pub mod greylist_local;
+pub mod greylist_sync;
+pub mod inbound;

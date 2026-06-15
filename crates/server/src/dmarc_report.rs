@@ -18,11 +18,18 @@ pub use mailrs_dmarc::{
 /// (a lost aggregate row must never block delivery). The port is defined by
 /// the mail-auth stage (consumer); this adapter stays in the core.
 ///
+/// A newtype is required because both the port (`DmarcReportSink`, in
+/// mailrs-receiver since S5.3) and the store (`PgDmarcStore`, in
+/// mailrs-dmarc) are foreign — the orphan rule forbids implementing the
+/// trait directly on the store here.
+///
 /// [`DmarcReportSink`]: crate::inbound::stages::mail_auth::DmarcReportSink
+pub struct DmarcReportSinkAdapter(pub Arc<DmarcReportStore>);
+
 #[async_trait::async_trait]
-impl crate::inbound::stages::mail_auth::DmarcReportSink for DmarcReportStore {
+impl crate::inbound::stages::mail_auth::DmarcReportSink for DmarcReportSinkAdapter {
     async fn record_result(&self, record: &DmarcResultRecord) {
-        let _ = DmarcStore::record_result(self, record).await;
+        let _ = DmarcStore::record_result(self.0.as_ref(), record).await;
     }
 }
 

@@ -44,9 +44,10 @@ pub(crate) fn build_inbound_pipeline_with_shadows(
     // Build the concrete impls here (the core owns spg + kevy) and inject
     // them as trait objects, so the pipeline stages bind only the
     // DmarcReportSink / SpamCache ports — not PgDmarcStore / kevy Store.
-    let dmarc_sink = dmarc_report_store
-        .clone()
-        .map(|s| s as Arc<dyn crate::inbound::stages::mail_auth::DmarcReportSink>);
+    let dmarc_sink = dmarc_report_store.clone().map(|s| {
+        Arc::new(crate::dmarc_report::DmarcReportSinkAdapter(s))
+            as Arc<dyn crate::inbound::stages::mail_auth::DmarcReportSink>
+    });
     let spam_cache = kevy_embed.clone().map(|s| {
         Arc::new(mailrs_intelligence::spam::KevySpamCache::new(
             s.as_ref().clone(),
