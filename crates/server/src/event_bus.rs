@@ -2,8 +2,10 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
+
+use crate::kevy_notify::KevyEventPublisher;
 
 static CONNECTION_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -11,7 +13,7 @@ pub fn next_connection_id() -> u64 {
     CONNECTION_COUNTER.fetch_add(1, Ordering::Relaxed)
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum SmtpEvent {
     ConnectionOpened {
@@ -89,6 +91,20 @@ pub enum SmtpEvent {
     },
 }
 
+impl SmtpEvent {
+    /// Whether this event is worth publishing to a shared kevy-server
+    /// for cross-process delivery (receiver-split topology). Only the
+    /// user-facing mail events cross; high-frequency protocol-trace
+    /// events stay in-process. (P5/P6 may refine which events the
+    /// receiver vs core actually publish.)
+    pub fn crosses_process(&self) -> bool {
+        matches!(
+            self,
+            SmtpEvent::NewMessage { .. } | SmtpEvent::InviteReceived { .. }
+        )
+    }
+}
+
 /// Envelope wrapping an [`SmtpEvent`] for broadcast.
 ///
 /// Carries an optional pre-serialised JSON cache populated lazily on
@@ -128,16 +144,43 @@ impl BroadcastEvent {
 #[derive(Clone)]
 pub struct EventBus {
     tx: broadcast::Sender<Arc<BroadcastEvent>>,
+    /// When set, [`Self::emit`] also publishes cross-process-worthy
+    /// events to a shared kevy-server (receiver-split topology).
+    publisher: Option<Arc<KevyEventPublisher>>,
 }
 
 impl EventBus {
     pub fn new(capacity: usize) -> Self {
         let (tx, _) = broadcast::channel(capacity);
-        Self { tx }
+        Self {
+            tx,
+            publisher: None,
+        }
+    }
+
+    /// Attach a cross-process publisher. Set before the bus is cloned
+    /// around so every clone shares it.
+    pub fn with_publisher(mut self, publisher: Arc<KevyEventPublisher>) -> Self {
+        self.publisher = Some(publisher);
+        self
     }
 
     pub fn emit(&self, event: SmtpEvent) {
+        // cross-process publish (best-effort) for notify-worthy events,
+        // before the local broadcast so a slow publisher doesn't gate it.
+        if let Some(ref publisher) = self.publisher
+            && event.crosses_process()
+        {
+            publisher.publish(&event);
+        }
         // ignore send errors (no subscribers)
+        let _ = self.tx.send(Arc::new(BroadcastEvent::new(event)));
+    }
+
+    /// Broadcast locally only — never re-publishes cross-process. Used
+    /// by the kevy subscriber bridge to inject events received from
+    /// other processes without looping them back out.
+    pub fn emit_local(&self, event: SmtpEvent) {
         let _ = self.tx.send(Arc::new(BroadcastEvent::new(event)));
     }
 
