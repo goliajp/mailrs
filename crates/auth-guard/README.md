@@ -17,19 +17,24 @@ to slow brute-force attackers without affecting honest users.
 ```rust
 use mailrs_auth_guard::{AuthGuard, AuthGuardConfig, AuthCheck};
 use std::net::IpAddr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 let guard = AuthGuard::new(AuthGuardConfig::default());
 let ip: IpAddr = "192.0.2.1".parse().unwrap();
 
+// The caller supplies the clock as unix seconds — the guard stores no
+// `Instant`, so the same `now` drives the window and lockout math.
+let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+
 // Before checking the password, ask: are we already in lockout?
-match guard.check(ip, "alice") {
+match guard.check(ip, "alice", now) {
     AuthCheck::Allowed => {
         // proceed to verify password
         let password_ok = false; // your real check
         if password_ok {
             guard.record_success(ip, "alice");
         } else {
-            guard.record_failure(ip, "alice");
+            guard.record_failure(ip, "alice", now);
         }
     }
     AuthCheck::LockedOut { remaining_secs } => {
