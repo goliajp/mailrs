@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-auth-guard"
-version = "1.0.3"
+version = "2.0.0"
 edition = "2024"
 description = "Per-IP + per-(IP, username) failed-auth counter with exponential-backoff lockout. IPv6 normalized to /64 prefix. Sharded DashMap; allocation-free on the success path."
 license = "Apache-2.0 OR MIT"
@@ -19,9 +19,11 @@ workspace = true
 dashmap = "6"
 tracing = "0.1"
 mailrs-backoff = "1"
+async-trait = "0.1"
 
 [dev-dependencies]
 criterion = { workspace = true }
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 
 [[bench]]
 name = "guard"

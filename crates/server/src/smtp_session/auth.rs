@@ -8,7 +8,7 @@ use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::{AuthStep, Event, Session};
 
 use crate::event_bus::SmtpEvent;
-use crate::inbound::auth_guard::AuthCheck;
+use crate::inbound::auth_guard::{AuthCheck, unix_now};
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
 use super::credentials::verify_credentials;
@@ -26,7 +26,9 @@ pub(super) async fn handle_need_auth<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    if let AuthCheck::LockedOut { remaining_secs } = ctx.auth_guard.check(addr.ip(), &username) {
+    if let AuthCheck::LockedOut { remaining_secs } =
+        ctx.auth_guard.check(addr.ip(), &username, unix_now()).await
+    {
         let resp = Response::new(
             421,
             Some(mailrs_smtp_proto::EnhancedCode {
@@ -43,7 +45,7 @@ where
     }
     let ok = verify_credentials(ctx, &username, &password).await;
     let resp = if ok {
-        ctx.auth_guard.record_success(addr.ip(), &username);
+        ctx.auth_guard.record_success(addr.ip(), &username).await;
         session.set_authenticated(username.clone());
         ctx.event_bus.emit(SmtpEvent::Authenticated {
             id: conn_id,
@@ -51,7 +53,9 @@ where
         });
         Response::auth_ok()
     } else {
-        ctx.auth_guard.record_failure(addr.ip(), &username);
+        ctx.auth_guard
+            .record_failure(addr.ip(), &username, unix_now())
+            .await;
         Response::auth_failed()
     };
     if framed.send(resp.format()).await.is_err() {
@@ -110,7 +114,7 @@ where
             match event {
                 Event::NeedAuth { username, password } => {
                     if let AuthCheck::LockedOut { remaining_secs } =
-                        ctx.auth_guard.check(addr.ip(), &username)
+                        ctx.auth_guard.check(addr.ip(), &username, unix_now()).await
                     {
                         let resp = Response::new(
                             421,
@@ -128,7 +132,7 @@ where
                     }
                     let ok = verify_credentials(ctx, &username, &password).await;
                     let resp = if ok {
-                        ctx.auth_guard.record_success(addr.ip(), &username);
+                        ctx.auth_guard.record_success(addr.ip(), &username).await;
                         session.set_authenticated(username.clone());
                         ctx.event_bus.emit(SmtpEvent::Authenticated {
                             id: conn_id,
@@ -136,7 +140,9 @@ where
                         });
                         Response::auth_ok()
                     } else {
-                        ctx.auth_guard.record_failure(addr.ip(), &username);
+                        ctx.auth_guard
+                            .record_failure(addr.ip(), &username, unix_now())
+                            .await;
                         Response::auth_failed()
                     };
                     if framed.send(resp.format()).await.is_err() {

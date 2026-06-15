@@ -7,6 +7,9 @@ use mailrs_auth_guard::{AuthCheck, AuthGuard, AuthGuardConfig};
 
 const ITERS: usize = 200;
 
+/// Fixed unix-seconds "now" for the guard calls under test.
+const NOW: u64 = 1_700_000_000;
+
 fn time_median<F: FnMut()>(mut op: F) -> Duration {
     let mut samples = Vec::with_capacity(ITERS);
     for _ in 0..ITERS {
@@ -23,7 +26,7 @@ fn check_empty_map_under_budget() {
     let guard = AuthGuard::new(AuthGuardConfig::default());
     let ip: IpAddr = "192.0.2.1".parse().unwrap();
     let median = time_median(|| {
-        let r = guard.check(ip, "alice");
+        let r = guard.check(ip, "alice", NOW);
         assert!(matches!(r, AuthCheck::Allowed));
     });
     // Budget: 5 µs (release ~43 ns; dev runs DashMap ~10× slower plus
@@ -40,10 +43,10 @@ fn check_locked_out_under_budget() {
     let guard = AuthGuard::new(AuthGuardConfig::default());
     let ip: IpAddr = "192.0.2.2".parse().unwrap();
     for _ in 0..10 {
-        guard.record_failure(ip, "bob");
+        guard.record_failure(ip, "bob", NOW);
     }
     let median = time_median(|| {
-        let r = guard.check(ip, "bob");
+        let r = guard.check(ip, "bob", NOW);
         assert!(matches!(r, AuthCheck::LockedOut { .. }));
     });
     // Budget: 5 µs (release ~30 ns; dev ~1.5 µs single-run; can spike
@@ -63,9 +66,9 @@ fn record_failure_repeat_under_budget() {
     let guard = AuthGuard::new(AuthGuardConfig::default());
     let ip: IpAddr = "192.0.2.3".parse().unwrap();
     // prime
-    guard.record_failure(ip, "carol");
+    guard.record_failure(ip, "carol", NOW);
     let median = time_median(|| {
-        guard.record_failure(ip, "carol");
+        guard.record_failure(ip, "carol", NOW);
     });
     // Budget: 10 µs (release ~250 ns). DashMap get_mut + Vec::retain +
     // push + tracing::warn (which is no-op at info level).
@@ -83,12 +86,12 @@ fn cleanup_stale_under_budget_1k_entries() {
     for octet in 0..=255u8 {
         for low in 0..4u8 {
             let ip: IpAddr = format!("10.{octet}.0.{low}").parse().unwrap();
-            guard.record_failure(ip, "x");
+            guard.record_failure(ip, "x", NOW);
         }
     }
     let median = time_median(|| {
         // cleanup with current time (preserves all active records)
-        guard.cleanup_stale(Instant::now());
+        guard.cleanup_stale(NOW);
     });
     // Budget: 5 ms for 1024 entries (release ~100 µs). Scales linearly.
     let budget = Duration::from_millis(5);

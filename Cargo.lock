@@ -2904,22 +2904,13 @@ dependencies = [
 
 [[package]]
 name = "mailrs-auth-guard"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
+ "async-trait",
  "criterion",
  "dashmap",
  "mailrs-backoff 1.0.0",
- "tracing",
-]
-
-[[package]]
-name = "mailrs-auth-guard"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a390fe252549a4900bfe7478a0c090e0d61f5c93a19c54aba292b4f61ab13275"
-dependencies = [
- "dashmap",
- "mailrs-backoff 1.0.0",
+ "tokio",
  "tracing",
 ]
 
@@ -3447,7 +3438,7 @@ dependencies = [
  "mailrs-arc",
  "mailrs-arf 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-attachment-extract 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-auth-guard 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-auth-guard",
  "mailrs-backoff 1.0.0",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",

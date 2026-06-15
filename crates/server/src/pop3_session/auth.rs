@@ -1,6 +1,6 @@
 //! POP3 AUTHORIZATION-state commands: CAPA, USER, PASS.
 
-use crate::inbound::auth_guard::AuthCheck;
+use crate::inbound::auth_guard::{AuthCheck, unix_now};
 use crate::users::UserStore;
 
 use super::{Pop3Session, Pop3State};
@@ -41,7 +41,7 @@ impl Pop3Session {
 
         // check auth guard
         if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr)
-            && let AuthCheck::LockedOut { .. } = guard.check(ip, username)
+            && let AuthCheck::LockedOut { .. } = guard.check(ip, username, unix_now()).await
         {
             return vec!["-ERR [IN-USE] too many failures, try later\r\n".into()];
         }
@@ -100,13 +100,13 @@ impl Pop3Session {
 
         if !authenticated {
             if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
-                guard.record_failure(ip, username);
+                guard.record_failure(ip, username, unix_now()).await;
             }
             return vec!["-ERR [AUTH] invalid credentials\r\n".into()];
         }
 
         if let (Some(guard), Some(ip)) = (&self.auth_guard, self.peer_addr) {
-            guard.record_success(ip, username);
+            guard.record_success(ip, username).await;
         }
 
         // load INBOX messages

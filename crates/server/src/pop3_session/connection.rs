@@ -8,7 +8,7 @@ use tokio::net::TcpStream;
 use mailrs_mailbox::PgMailboxStore;
 
 use crate::domain_store::DomainStore;
-use crate::inbound::auth_guard::AuthGuard;
+use crate::inbound::auth_guard::AuthGuardStore;
 use crate::users::UserStore;
 
 use super::Pop3Session;
@@ -29,7 +29,7 @@ pub async fn handle_connection(
     addr: std::net::SocketAddr,
     mailbox_store: Arc<PgMailboxStore>,
     users: Arc<UserStore>,
-    auth_guard: Arc<AuthGuard>,
+    auth_guard: Arc<dyn AuthGuardStore>,
     domain_store: Option<Arc<DomainStore>>,
     ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
     maildir_root: &str,

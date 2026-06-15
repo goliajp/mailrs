@@ -12,7 +12,7 @@ use axum::response::IntoResponse;
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 
-use crate::inbound::auth_guard::AuthCheck;
+use crate::inbound::auth_guard::{AuthCheck, unix_now};
 
 use super::super::{AuthUser, SessionInfo, WebState};
 use super::*;
@@ -58,7 +58,7 @@ async fn login_inner(
     if state.domain_store.is_none() {
         return auth_not_configured();
     }
-    if let Some(resp) = lockout_response(&state, addr.ip(), &req.address) {
+    if let Some(resp) = lockout_response(&state, addr.ip(), &req.address).await {
         return resp;
     }
 
@@ -99,13 +99,13 @@ fn auth_not_configured() -> (StatusCode, Json<serde_json::Value>) {
 /// If `state.auth_guard` reports a lockout for `(ip, address)`,
 /// produce the 429 response. Otherwise return None and the caller
 /// proceeds to credential verification.
-fn lockout_response(
+async fn lockout_response(
     state: &WebState,
     ip: std::net::IpAddr,
     address: &str,
 ) -> Option<(StatusCode, Json<serde_json::Value>)> {
     let guard = state.auth_guard.as_ref()?;
-    if let AuthCheck::LockedOut { remaining_secs } = guard.check(ip, address) {
+    if let AuthCheck::LockedOut { remaining_secs } = guard.check(ip, address, unix_now()).await {
         Some((
             StatusCode::TOO_MANY_REQUESTS,
             Json(serde_json::json!({
@@ -134,7 +134,7 @@ async fn verify_password_and_load_account(
             // constant-time rejection: spend the same time as a real argon2 verify
             crate::users::dummy_verify(&req.password);
             if let Some(ref guard) = state.auth_guard {
-                guard.record_failure(ip, &req.address);
+                guard.record_failure(ip, &req.address, unix_now()).await;
             }
             state
                 .auth_failure_total
@@ -168,7 +168,7 @@ async fn verify_password_and_load_account(
 
     if !valid {
         if let Some(ref guard) = state.auth_guard {
-            guard.record_failure(ip, &req.address);
+            guard.record_failure(ip, &req.address, unix_now()).await;
         }
         ds.log_audit(&req.address, "login_failed", "", &format!("ip={ip}"))
             .await;
@@ -212,7 +212,7 @@ async fn check_totp(
 
     if !code_valid && !recovery_valid {
         if let Some(ref guard) = state.auth_guard {
-            guard.record_failure(ip, &req.address);
+            guard.record_failure(ip, &req.address, unix_now()).await;
         }
         ds.log_audit(&req.address, "totp_failed", "", &format!("ip={ip}"))
             .await;
@@ -245,7 +245,7 @@ async fn issue_session_response(
     ip: std::net::IpAddr,
 ) -> (StatusCode, Json<serde_json::Value>) {
     if let Some(ref guard) = state.auth_guard {
-        guard.record_success(ip, &account.address);
+        guard.record_success(ip, &account.address).await;
     }
     state
         .auth_success_total

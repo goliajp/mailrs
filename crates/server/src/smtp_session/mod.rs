@@ -23,7 +23,7 @@ use crate::domain_store::DomainStore;
 use crate::event_bus::{EventBus, SmtpEvent, next_connection_id};
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
-use crate::inbound::auth_guard::AuthGuard;
+use crate::inbound::auth_guard::AuthGuardStore;
 use crate::inbound::rate_limit::RateLimitStore;
 use crate::tls::TlsState;
 use crate::users::UserStore;
@@ -47,7 +47,7 @@ pub struct ConnectionContext {
     pub antispam_enabled: bool,
     pub mailbox_store: Option<Arc<mailrs_mailbox::PgMailboxStore>>,
     pub smuggle_protection: SmuggleProtection,
-    pub auth_guard: Arc<AuthGuard>,
+    pub auth_guard: Arc<dyn AuthGuardStore>,
     pub domain_store: Option<Arc<DomainStore>>,
     pub kevy: Option<crate::kevy_store::KevyStore>,
     pub srs_secret: Option<String>,

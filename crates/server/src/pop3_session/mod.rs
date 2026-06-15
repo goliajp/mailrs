@@ -3,7 +3,7 @@ use std::sync::Arc;
 use mailrs_mailbox::PgMailboxStore;
 
 use crate::domain_store::DomainStore;
-use crate::inbound::auth_guard::AuthGuard;
+use crate::inbound::auth_guard::AuthGuardStore;
 use crate::users::UserStore;
 
 mod auth;
@@ -37,7 +37,7 @@ pub struct Pop3Session {
     state: Pop3State,
     maildir_root: String,
     pending_user: Option<String>,
-    auth_guard: Option<Arc<AuthGuard>>,
+    auth_guard: Option<Arc<dyn AuthGuardStore>>,
     peer_addr: Option<std::net::IpAddr>,
     domain_store: Option<Arc<DomainStore>>,
     ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
@@ -63,7 +63,11 @@ impl Pop3Session {
         self
     }
 
-    pub fn with_auth_guard(mut self, guard: Arc<AuthGuard>, addr: std::net::IpAddr) -> Self {
+    pub fn with_auth_guard(
+        mut self,
+        guard: Arc<dyn AuthGuardStore>,
+        addr: std::net::IpAddr,
+    ) -> Self {
         self.auth_guard = Some(guard);
         self.peer_addr = Some(addr);
         self

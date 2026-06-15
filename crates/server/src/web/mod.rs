@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::domain_store::DomainStore;
 use crate::event_bus::EventBus;
 use crate::health::HealthState;
-use crate::inbound::auth_guard::AuthGuard;
+use crate::inbound::auth_guard::AuthGuardStore;
 use mailrs_mailbox::PgMailboxStore;
 
 mod admin;
@@ -100,7 +100,7 @@ pub struct WebState {
     pub maildir_root: String,
     pub hostname: String,
     pub sessions: DashMap<String, SessionInfo>,
-    pub auth_guard: Option<Arc<AuthGuard>>,
+    pub auth_guard: Option<Arc<dyn AuthGuardStore>>,
     pub mta_sts_mode: Option<String>,
     pub mta_sts_mx: Vec<String>,
     pub mta_sts_max_age: u64,
@@ -251,7 +251,7 @@ impl WebState {
         self
     }
 
-    pub fn with_auth_guard(mut self, guard: Arc<AuthGuard>) -> Self {
+    pub fn with_auth_guard(mut self, guard: Arc<dyn AuthGuardStore>) -> Self {
         self.auth_guard = Some(guard);
         self
     }
