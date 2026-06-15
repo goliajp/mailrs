@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::config;
 use crate::domain_store;
 use crate::event_bus::{EventBus, SmtpEvent};
-use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig};
+use crate::inbound::auth_guard::AuthGuardStore;
 use crate::web::WebState;
 use crate::{
     acme, conversation_cache, dmarc_report, event_bus, health, listeners, oidc_jwt,
@@ -22,7 +22,7 @@ use mailrs_mailbox::PgMailboxStore;
 pub(crate) struct WebStateInputs<'a> {
     pub(crate) cfg: &'a config::ServerConfig,
     pub(crate) event_bus: EventBus,
-    pub(crate) auth_guard: Arc<AuthGuard>,
+    pub(crate) auth_guard: Arc<dyn AuthGuardStore>,
     pub(crate) health_state: health::HealthState,
     pub(crate) pg_pool: &'a Option<crate::pg::BackendPool>,
     pub(crate) kevy_embed: &'a Option<crate::kevy_store::KevyStore>,

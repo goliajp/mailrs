@@ -271,7 +271,18 @@ pub async fn run() {
             .map(|store| Arc::new(GreylistDb::new(store.as_ref().clone()))),
     };
 
-    let auth_guard = init_auth_guard(&cfg);
+    // shared kevy-server → distributed lockout shared across the fleet;
+    // else the in-process AuthGuard (with its periodic cleanup task).
+    let auth_guard: Arc<dyn crate::inbound::auth_guard::AuthGuardStore> =
+        match kevy_net_client.as_ref() {
+            Some(client) => Arc::new(
+                crate::inbound::kevy_backends::KevyServerAuthGuardStore::new(
+                    client.clone(),
+                    auth_guard_config(&cfg),
+                ),
+            ),
+            None => init_auth_guard(&cfg),
+        };
 
     // mailbox store for IMAP (PG-backed)
     let mailbox_store = pg_pool
