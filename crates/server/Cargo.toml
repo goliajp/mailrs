@@ -96,6 +96,7 @@ sqlx = { workspace = true }
 spg-sqlx = { workspace = true, optional = true }
 spg-embedded = { workspace = true, optional = true }
 kevy-embedded = { workspace = true }
+kevy-client = { workspace = true }
 ipnet = { workspace = true }
 hickory-resolver = "0.26"
 tracing = "0.1"

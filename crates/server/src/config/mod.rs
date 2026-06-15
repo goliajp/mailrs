@@ -134,6 +134,12 @@ pub struct ServerConfig {
     /// `None` keeps kevy memory-only (lost on restart). The directory is
     /// created if missing; kevy writes `aof-0.aof` + `dump-0.rdb` here.
     pub kevy_data_dir: Option<std::path::PathBuf>,
+    /// Optional URL of a shared network kevy-server (e.g.
+    /// `kevy://host:6379`). When set, the anti subsystems (greylist /
+    /// rate / auth-guard) share their state through it instead of the
+    /// in-process embedded store — the receiver-split topology. `None`
+    /// (the default) keeps every subsystem on the in-process store.
+    pub kevy_url: Option<String>,
     // Meilisearch
     pub meili_url: Option<String>,
     pub meili_key: Option<String>,
@@ -217,6 +223,7 @@ impl Default for ServerConfig {
             pg_url: None,
             spg_force_unlock: false,
             kevy_data_dir: None,
+            kevy_url: None,
             meili_url: None,
             meili_key: None,
             chrome_cdp_url: None,

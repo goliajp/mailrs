@@ -121,14 +121,12 @@ impl ServerConfig {
         set_opt_string("MAILRS_PG_URL", &mut self.pg_url);
         set_bool_truthy("MAILRS_SPG_FORCE_UNLOCK", &mut self.spg_force_unlock);
         set_opt_path("MAILRS_KEVY_DATA_DIR", &mut self.kevy_data_dir);
-        // MAILRS_KEVY_URL is no longer honored (Phase C: in-process only).
-        // Warn loudly if operators still have it set in their env.
-        if std::env::var("MAILRS_KEVY_URL").is_ok() {
-            tracing::warn!(
-                "MAILRS_KEVY_URL is no longer honored — kevy now runs in-process. \
-                 Remove the var and rely on MAILRS_KEVY_DATA_DIR for persistence."
-            );
-        }
+        // MAILRS_KEVY_URL points the anti subsystems (greylist / rate /
+        // auth-guard) at a shared network kevy-server (receiver-split
+        // topology). Unset → every subsystem stays on the in-process
+        // embedded store (Phase C default). The in-process store always
+        // opens regardless, for the message-state hot path.
+        set_opt_string_nonempty("MAILRS_KEVY_URL", &mut self.kevy_url);
     }
 
     /// Manual TLS cert + key paths (vs ACME auto-issued).
