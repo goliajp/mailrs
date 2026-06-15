@@ -184,11 +184,21 @@ pub async fn run() {
 
     spawn_cache_bust_task(&kevy_embedded_store, &event_bus);
 
-    let rate_limiter: Arc<dyn RateLimitStore> =
-        Arc::new(InMemoryRateLimitStore::new(TokenBucketConfig {
-            capacity: cfg.rate_limit_capacity,
-            refill_rate: cfg.rate_limit_refill,
-        }));
+    let rate_limit_config = TokenBucketConfig {
+        capacity: cfg.rate_limit_capacity,
+        refill_rate: cfg.rate_limit_refill,
+    };
+    // shared kevy-server → distributed fixed-window counter; else the
+    // in-process GCRA token bucket.
+    let rate_limiter: Arc<dyn RateLimitStore> = match kevy_net_client.as_ref() {
+        Some(client) => Arc::new(
+            crate::inbound::kevy_backends::KevyServerRateLimitStore::new(
+                client.clone(),
+                rate_limit_config,
+            ),
+        ),
+        None => Arc::new(InMemoryRateLimitStore::new(rate_limit_config)),
+    };
 
     let outbound_queue = pg_pool.clone();
 
