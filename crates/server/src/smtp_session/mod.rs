@@ -18,11 +18,11 @@ const CONNECTION_TIMEOUT: Duration = Duration::from_secs(300);
 /// timeout waiting for DATA content after 354 response
 const DATA_TIMEOUT: Duration = Duration::from_secs(600);
 
-use crate::account_store::AccountStore;
 use crate::config::SmuggleProtection;
-use crate::conn_metrics::ConnectionMetrics;
 use crate::event_bus::{EventBus, SmtpEvent, next_connection_id};
-use crate::quota_store::QuotaStore;
+use mailrs_receiver::AccountStore;
+use mailrs_receiver::ConnectionMetrics;
+use mailrs_receiver::QuotaStore;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
 use crate::inbound::auth_guard::AuthGuardStore;

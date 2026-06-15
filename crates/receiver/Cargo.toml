@@ -1,0 +1,13 @@
+[package]
+name = "mailrs-receiver"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0 OR MIT"
+description = "Ports of the mailrs SMTP receiving path: the AccountStore / QuotaStore / ConnectionMetrics traits the receiver depends on (plus the pure ResolvedRecipient type), free of spg / kevy. The spg/kevy-backed adapters live in the server core. The seam the receiver/core split is built on. Internal until the abstraction stabilises."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = { workspace = true }

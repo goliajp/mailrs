@@ -3373,6 +3373,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-receiver"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+]
+
+[[package]]
 name = "mailrs-rfc2047"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3483,6 +3490,7 @@ dependencies = [
  "mailrs-outbound-queue",
  "mailrs-postmaster",
  "mailrs-rate-limit 1.0.1",
+ "mailrs-receiver",
  "mailrs-rfc2047 1.1.1",
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc5322 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
