@@ -66,7 +66,7 @@ pub async fn spawn_receiving_server(pool: BackendPool, maildir_root: String) -> 
         dnsbl_zones: Vec::new(),
         dnsbl_enabled: false,
         antispam_enabled: false,
-        mailbox_store: Some(mailbox_store),
+        quota_store: Some(mailbox_store as Arc<dyn crate::quota_store::QuotaStore>),
         smuggle_protection: SmuggleProtection::Off,
         auth_guard,
         account_store: None,
