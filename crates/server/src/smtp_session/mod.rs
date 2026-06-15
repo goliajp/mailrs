@@ -24,7 +24,7 @@ use crate::event_bus::{EventBus, SmtpEvent, next_connection_id};
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
 use crate::inbound::auth_guard::AuthGuard;
-use crate::inbound::rate_limit::{RateLimitStore, RateLimiter};
+use crate::inbound::rate_limit::RateLimitStore;
 use crate::tls::TlsState;
 use crate::users::UserStore;
 use crate::web::WebState;
@@ -36,7 +36,7 @@ pub struct ConnectionContext {
     pub users: Arc<UserStore>,
     pub event_bus: EventBus,
     pub web_state: Arc<WebState>,
-    pub rate_limiter: Arc<RateLimiter>,
+    pub rate_limiter: Arc<dyn RateLimitStore>,
     pub local_domains: Vec<String>,
     pub outbound_queue: Option<crate::pg::BackendPool>,
     pub resolver: Option<Arc<TokioResolver>>,

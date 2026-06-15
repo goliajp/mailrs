@@ -56,7 +56,7 @@ use std::sync::Arc;
 use hickory_resolver::TokioResolver;
 
 use crate::config::ServerConfig;
-use crate::inbound::rate_limit::{RateLimiter, TokenBucketConfig};
+use crate::inbound::rate_limit::{InMemoryRateLimitStore, RateLimitStore, TokenBucketConfig};
 use crate::smtp_session::ConnectionContext;
 use crate::users::UserStore;
 use mailrs_mailbox::PgMailboxStore;
@@ -169,10 +169,11 @@ pub async fn run() {
 
     spawn_cache_bust_task(&kevy_embedded_store, &event_bus);
 
-    let rate_limiter = Arc::new(RateLimiter::new(TokenBucketConfig {
-        capacity: cfg.rate_limit_capacity,
-        refill_rate: cfg.rate_limit_refill,
-    }));
+    let rate_limiter: Arc<dyn RateLimitStore> =
+        Arc::new(InMemoryRateLimitStore::new(TokenBucketConfig {
+            capacity: cfg.rate_limit_capacity,
+            refill_rate: cfg.rate_limit_refill,
+        }));
 
     let outbound_queue = pg_pool.clone();
 
