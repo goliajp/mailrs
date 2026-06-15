@@ -36,7 +36,7 @@ pub(super) fn format_received_header(
 /// `bench_two_pass_vs_single_pass_extract` harness (PERFORMANCE.md).
 ///
 /// Returns `(subject, from)`. Either may be `String::new()` if missing.
-pub(super) fn extract_subject_and_from(message: &[u8]) -> (String, String) {
+pub fn extract_subject_and_from(message: &[u8]) -> (String, String) {
     let msg = mailrs_rfc5322::Message::new(message);
     let subject = msg
         .header("Subject")
@@ -84,7 +84,7 @@ fn format_from_field(value: &[u8]) -> String {
 }
 
 /// extract a short snippet from the message body for notifications
-pub(super) fn extract_snippet(message: &[u8]) -> String {
+pub fn extract_snippet(message: &[u8]) -> String {
     let part = mailrs_mime::parse(message);
     if let Some(text) = part.body_text() {
         // one-line snippet, max 100 chars. Single allocation via
@@ -107,7 +107,7 @@ pub(super) fn extract_snippet(message: &[u8]) -> String {
 }
 
 /// extract display name from "Display Name <email@domain>" format
-pub(super) fn extract_display_name(sender: &str) -> String {
+pub fn extract_display_name(sender: &str) -> String {
     if let Some(angle) = sender.find('<') {
         let name = sender[..angle].trim().trim_matches('"');
         if !name.is_empty() {

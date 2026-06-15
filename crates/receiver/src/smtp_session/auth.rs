@@ -7,8 +7,8 @@ use tokio_util::codec::Framed;
 use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::{AuthStep, Event, Session};
 
-use crate::event_bus::SmtpEvent;
 use crate::inbound::auth_guard::{AuthCheck, unix_now};
+use mailrs_core::event_bus::SmtpEvent;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
 use super::credentials::verify_credentials;

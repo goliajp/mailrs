@@ -1,4 +1,4 @@
-use crate::users::UserStore;
+use mailrs_core::users::UserStore;
 
 use super::ConnectionContext;
 
@@ -27,7 +27,7 @@ pub(super) async fn verify_credentials(
             }
             _ => {
                 // constant-time: do dummy argon2 work even when account not found
-                crate::users::dummy_verify(password);
+                mailrs_core::users::dummy_verify(password);
             }
         }
     }

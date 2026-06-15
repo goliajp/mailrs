@@ -15,27 +15,15 @@ use std::sync::Arc;
 use hickory_resolver::TokioResolver;
 
 use mailrs_mailbox::PgMailboxStore;
+// DeliveredMessage / ProcessTx are the context-free channel types — they
+// moved to mailrs-receiver with the DATA handler (S5.4). The consumer
+// (ProcessDeps + the spg/kevy-bound `process_delivered`) stays here.
+use mailrs_receiver::smtp_session::delivered::{DeliveredMessage, ProcessTx};
+use mailrs_receiver::smtp_session::headers::{extract_snippet, extract_subject_and_from};
 
-use super::headers::{extract_snippet, extract_subject_and_from};
 use super::post_delivery::post_delivery_process;
 use crate::event_bus::{EventBus, SmtpEvent};
 use crate::pg::BackendPool;
-
-/// One message successfully written to maildir, ready for indexing and the
-/// post-delivery pass. Built by the DATA handler from the delivery result.
-/// Derived values (subject, sender, thread_id, effective message-id) are
-/// computed inside [`process_delivered`], not carried here.
-pub(crate) struct DeliveredMessage {
-    pub maildir_id: String,
-    pub user: String,
-    pub rcpt: String,
-    pub rcpt_folder: String,
-    pub reverse_path: String,
-    pub full_message: Arc<Vec<u8>>,
-    pub msg_message_id: String,
-    pub msg_in_reply_to: String,
-    pub msg_size: usize,
-}
 
 /// The core-side handles [`process_delivered`] needs, cloned once from the
 /// `ConnectionContext` per DATA batch. Decoupled from the full context so
@@ -48,14 +36,6 @@ pub(crate) struct ProcessDeps {
     pub resolver: Option<Arc<TokioResolver>>,
     pub maildir_root: String,
 }
-
-/// Channel the DATA handler hands delivered messages to, off the hot path.
-/// Only the plain [`DeliveredMessage`] crosses the boundary — the core-side
-/// [`ProcessDeps`] is owned by the consumer (P5: ProcessDeps relocation), so
-/// the receiver hands off a context-free value and never touches the
-/// spg/kevy-bound deps. This is the seam the cross-process notification
-/// consumer (P6) plugs into.
-pub(crate) type ProcessTx = tokio::sync::mpsc::Sender<DeliveredMessage>;
 
 /// Spawn the single post-delivery consumer and return its sender. The DATA
 /// handler hands delivered messages here so maildir write stays synchronous

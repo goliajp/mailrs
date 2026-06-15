@@ -8,11 +8,11 @@ use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::{Session, State};
 use mailrs_smtp_proto::unstuff_data;
 
-use crate::event_bus::SmtpEvent;
+use mailrs_core::event_bus::SmtpEvent;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
+use super::super::delivered::DeliveredMessage;
 use super::super::headers::format_received_header;
-use super::super::process_delivered::DeliveredMessage;
 use super::super::{ConnectionContext, DATA_TIMEOUT, SessionAction};
 
 mod antispam;
