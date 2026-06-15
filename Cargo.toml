@@ -64,8 +64,8 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 # engine, PG dialect). Behind the per-crate `spg` feature: stones keep
 # PG as the default backend; the server binary flips the workspace to
 # the embedded backend at build time. See .claude/rfcs/20260610-spg-embedded-cutover.md
-spg-sqlx = "7.30.1"
-spg-embedded = "7.30.3"
+spg-sqlx = "7.32.1"
+spg-embedded = "7.32.1"
 # kevy-embedded — in-process RESP-compatible KV store with AOF + snapshot
 # persistence + native pub/sub bus. Zero network hop, ~10× faster than
 # the network kevy/redis container path. The only kvdb backend mailrs
