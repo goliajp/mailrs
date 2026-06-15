@@ -11,9 +11,9 @@ pub(super) async fn verify_credentials(
     if ctx.users.verify(username, password) {
         return true;
     }
-    if let Some(ref ds) = ctx.domain_store {
-        match ds.get_account_with_hash(username).await {
-            Ok(Some((_account, hash))) => {
+    if let Some(ref ds) = ctx.account_store {
+        match ds.password_hash(username).await {
+            Ok(Some(hash)) => {
                 let valid = if hash.is_empty() {
                     false
                 } else if hash.starts_with("$argon2") {

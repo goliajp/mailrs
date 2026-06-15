@@ -5,7 +5,7 @@ use mailrs_rfc5322::Message;
 use mailrs_sieve::{SieveAction, compile_sieve, evaluate_sieve_with_envelope};
 
 use super::super::super::ConnectionContext;
-use crate::domain_store::DomainStore;
+use crate::account_store::AccountStore;
 
 /// Evaluate sieve script for `rcpt` (if any) against `full_message`.
 /// Returns `(rcpt_folder, skip_delivery)` — the destination folder
@@ -21,10 +21,10 @@ pub(super) async fn apply_sieve_actions(
     let mut rcpt_folder = target_folder.to_string();
     let mut skip_delivery = false;
 
-    let Some(ref ds) = ctx.domain_store else {
+    let Some(ref ds) = ctx.account_store else {
         return (rcpt_folder, skip_delivery);
     };
-    let Ok(Some(script)) = ds.get_sieve_script(rcpt).await else {
+    let Ok(Some(script)) = ds.sieve_script(rcpt).await else {
         return (rcpt_folder, skip_delivery);
     };
     let compiled = match compile_sieve(&script) {
@@ -67,7 +67,7 @@ pub(super) async fn apply_sieve_actions(
                 );
             }
             SieveAction::Vacation { .. } => {
-                handle_vacation(rcpt, reverse_path, full_message, action, ds, ctx).await;
+                handle_vacation(rcpt, reverse_path, full_message, action, ds.as_ref(), ctx).await;
             }
             SieveAction::Reject(reason) => {
                 tracing::info!(
@@ -113,7 +113,7 @@ async fn handle_vacation(
     reverse_path: &str,
     full_message: &[u8],
     action: &SieveAction,
-    ds: &DomainStore,
+    ds: &dyn AccountStore,
     ctx: &ConnectionContext,
 ) {
     let SieveAction::Vacation {

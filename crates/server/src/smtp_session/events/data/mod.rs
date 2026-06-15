@@ -136,8 +136,8 @@ where
 
                 if let Some((local, domain)) = rcpt.split_once('@') {
                     // check quota before delivery
-                    if let (Some(ds), Some(mb_store)) = (&ctx.domain_store, &ctx.mailbox_store)
-                        && let Ok(Some(quota)) = ds.get_quota(rcpt).await
+                    if let (Some(ds), Some(mb_store)) = (&ctx.account_store, &ctx.mailbox_store)
+                        && let Ok(Some(quota)) = ds.quota(rcpt).await
                         && quota > 0
                     {
                         let usage = mb_store.user_storage_usage(rcpt).await;
