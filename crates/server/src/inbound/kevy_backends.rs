@@ -18,6 +18,8 @@ use async_trait::async_trait;
 
 use mailrs_shield::greylist::GreylistBackend;
 
+use crate::inbound::auth_guard::unix_now;
+use crate::inbound::rate_limit::{RateLimitStore, TokenBucketConfig};
 use crate::kevy_net::KevyNetClient;
 
 /// Network [`GreylistBackend`] over a shared kevy-server.
@@ -70,6 +72,79 @@ impl GreylistBackend for KevyServerGreylistBackend {
     }
 }
 
+/// Network [`RateLimitStore`] over a shared kevy-server — a distributed
+/// fixed-window counter (`INCR` + `EXPIRE`).
+///
+/// The in-process store is a GCRA token bucket; a fixed window is a
+/// lossy but contract-compliant approximation (the trait only promises
+/// steady-state rate, and tolerates eventual consistency). The window
+/// is sized so `capacity` requests are allowed per `capacity /
+/// refill_rate` seconds — steady-state ≈ `refill_rate`/sec, burst ≈
+/// `capacity`, matching the bucket's shape. `refill_rate <= 0` (pure
+/// burst cap) maps to a 1-day window, mirroring the in-memory impl.
+///
+/// Fail-open: any error (unreachable server, join failure) returns
+/// `true` (allow) — a kevy outage must not block mail.
+pub struct KevyServerRateLimitStore {
+    client: Arc<KevyNetClient>,
+    limit: i64,
+    window_secs: u64,
+}
+
+impl KevyServerRateLimitStore {
+    pub fn new(client: Arc<KevyNetClient>, config: TokenBucketConfig) -> Self {
+        let window_secs = if config.refill_rate <= 0.0 {
+            86_400
+        } else {
+            ((f64::from(config.capacity) / config.refill_rate).round() as u64).max(1)
+        };
+        Self {
+            client,
+            limit: i64::from(config.capacity),
+            window_secs,
+        }
+    }
+}
+
+#[async_trait]
+impl RateLimitStore for KevyServerRateLimitStore {
+    async fn check(&self, key: &str) -> bool {
+        let client = self.client.clone();
+        let window_secs = self.window_secs;
+        let limit = self.limit;
+        // fixed window keyed by the current bucket index; the key
+        // self-expires, so distinct windows never collide.
+        let bucket = unix_now() / window_secs;
+        let redis_key = format!("rl:{key}:{bucket}").into_bytes();
+        let ttl = Duration::from_secs(window_secs);
+        tokio::task::spawn_blocking(move || {
+            client.with_conn(|c| {
+                let count = c.incr(&redis_key)?;
+                if count == 1 {
+                    // first hit in this window — arm the TTL so the
+                    // counter resets when the window rolls over.
+                    c.expire(&redis_key, ttl)?;
+                }
+                Ok(count <= limit)
+            })
+        })
+        .await
+        .unwrap_or(Ok(true)) // join failure → allow
+        .unwrap_or(true) // io error → allow (fail-open)
+    }
+
+    async fn cleanup_stale(&self, _before_unix_secs: u64) {
+        // kevy expires the window keys natively (EXPIRE) — nothing to do.
+    }
+
+    async fn len(&self) -> usize {
+        // DBSIZE would count greylist + every other key, not just rate
+        // buckets; report 0 per the trait contract for stores that don't
+        // track their own size.
+        0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -90,5 +165,24 @@ mod tests {
             backend.get(b"gl:triplet").await.as_deref(),
             Some(&b"1700000000"[..])
         );
+    }
+
+    #[tokio::test]
+    async fn rate_backend_allows_to_capacity_then_rejects() {
+        // capacity 2, refill 0 → 1-day window, limit 2. Three checks in
+        // the same window: allow, allow, reject.
+        let client = Arc::new(KevyNetClient::new("mem://rate-backend-test"));
+        let store = KevyServerRateLimitStore::new(
+            client,
+            TokenBucketConfig {
+                capacity: 2,
+                refill_rate: 0.0,
+            },
+        );
+        assert!(store.check("1.2.3.4").await, "1st under capacity");
+        assert!(store.check("1.2.3.4").await, "2nd at capacity");
+        assert!(!store.check("1.2.3.4").await, "3rd over capacity");
+        // a different key has its own bucket
+        assert!(store.check("5.6.7.8").await, "other key unaffected");
     }
 }
