@@ -256,8 +256,33 @@ impl PgMailboxStore {
 
         let msg_id = md
             .deliver(data)
-            .map_err(|e| format!("failed to deliver: {e}"))?;
+            .map_err(|e| format!("failed to deliver: {e}"))?
+            .to_string();
 
+        let uid = self
+            .index_delivered(user, mailbox_name, &msg_id, data, flags, now)
+            .await?;
+
+        Ok((uid, msg_id))
+    }
+
+    /// Index an already-delivered message: extract headers, resolve
+    /// the thread, insert the metadata row, and apply `flags`.
+    ///
+    /// This is the index-only half of [`Self::append_message`]. The
+    /// maildir/object write is the caller's responsibility (it has
+    /// already happened, yielding `msg_id`) — keeping the storage
+    /// write out of the mailbox stone lets the server route it
+    /// through the swappable `MessageStore` seam. Returns the UID.
+    pub async fn index_delivered(
+        &self,
+        user: &str,
+        mailbox_name: &str,
+        msg_id: &str,
+        data: &[u8],
+        flags: u32,
+        now: i64,
+    ) -> Result<u32, String> {
         let sender = extract_header_value(data, "From");
         let recipients = extract_header_value(data, "To");
         let subject = extract_header_value(data, "Subject");
@@ -279,7 +304,7 @@ impl PgMailboxStore {
             .index_message(
                 user,
                 mailbox_name,
-                &msg_id.to_string(),
+                msg_id,
                 &sender,
                 &recipients,
                 &subject,
@@ -302,6 +327,6 @@ impl PgMailboxStore {
             let _ = self.update_flags(mb.id, uid, flags).await;
         }
 
-        Ok((uid, msg_id.to_string()))
+        Ok(uid)
     }
 }

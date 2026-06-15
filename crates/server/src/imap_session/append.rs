@@ -84,17 +84,17 @@ impl ImapSession {
         };
 
         let now = chrono::Utc::now().timestamp();
-        match self
-            .mailbox_store
-            .append_message(
-                &username,
-                &pending.mailbox,
-                &self.maildir_root,
-                data,
-                pending.flags,
-                now,
-            )
-            .await
+        match crate::message_store::deliver_and_index(
+            self.message_store.as_ref(),
+            &self.mailbox_store,
+            &username,
+            &pending.mailbox,
+            &self.maildir_root,
+            data,
+            pending.flags,
+            now,
+        )
+        .await
         {
             Ok((uid, _)) => strs_to_bytes(vec![format_ok(
                 &pending.tag,
