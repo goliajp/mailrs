@@ -8,15 +8,15 @@ pub use mailrs_inbound::{
     format_auth_results_header, make_delivery_decision,
 };
 
-use super::stages::mail_auth::MailAuthResolvers;
+use super::stages::mail_auth::{DmarcReportSink, MailAuthResolvers};
 use super::stages::{
     AiScoringStage, ClamavStage, ContentScanStage, GreylistStage, MailAuthStage, PtrStage,
 };
+use mailrs_intelligence::spam::SpamCache;
 use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
 
 use hickory_resolver::TokioResolver;
 
-use crate::dmarc_report::DmarcReportStore;
 use crate::greylist_local::GreylistLocalHandle;
 use crate::greylist_sync::GreylistListsHandle;
 
@@ -35,10 +35,10 @@ pub fn build_inbound_pipeline(
     greylist_local: GreylistLocalHandle,
     resolver: Option<Arc<TokioResolver>>,
     mail_auth_resolvers: Option<MailAuthResolvers>,
-    dmarc_report_store: Option<Arc<DmarcReportStore>>,
+    dmarc_sink: Option<Arc<dyn DmarcReportSink>>,
     clamav_addr: Option<String>,
     llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
-    kevy: Option<crate::kevy_store::KevyStore>,
+    spam_cache: Option<Arc<dyn SpamCache>>,
     spam_score_threshold: f64,
 ) -> mailrs_inbound::Pipeline {
     let mut builder = mailrs_inbound::Pipeline::builder().spam_threshold(spam_score_threshold);
@@ -55,14 +55,18 @@ pub fn build_inbound_pipeline(
         builder = builder.add(PtrStage::new(r));
     }
     if let Some(resolvers) = mail_auth_resolvers {
-        builder = builder.add(MailAuthStage::new(resolvers, dmarc_report_store));
+        builder = builder.add(MailAuthStage::new(resolvers, dmarc_sink));
     }
     if let Some(addr) = clamav_addr {
         builder = builder.add(ClamavStage::new(addr));
     }
     builder = builder.add(ContentScanStage::new());
     if let Some(provider) = llm_provider {
-        builder = builder.add(AiScoringStage::new(provider, kevy, spam_score_threshold));
+        builder = builder.add(AiScoringStage::new(
+            provider,
+            spam_cache,
+            spam_score_threshold,
+        ));
     }
 
     builder.build()

@@ -5,7 +5,7 @@ use hickory_resolver::proto::rr::RData;
 use mailrs_dmarc::{DmarcOutcome, DmarcPolicy as MailrsPolicy, PolicyAction};
 use mailrs_inbound::{DeliveryDecision, DmarcPolicy, ReceiveContext, StageOutcome};
 
-use crate::dmarc_report::{DmarcResultRecord, DmarcStore};
+use mailrs_dmarc::DmarcResultRecord;
 
 use super::MailAuthStage;
 
@@ -107,18 +107,17 @@ impl MailAuthStage {
         dmarc_result: &str,
         disposition: &str,
     ) {
-        let Some(store) = self.report_store() else {
+        let Some(sink) = self.sink() else {
             return;
         };
-        let _ = store
-            .record_result(&DmarcResultRecord {
-                source_ip: ctx.client_ip.to_string(),
-                from_domain: mail_from_domain.to_string(),
-                spf_result: ctx.auth_results.spf.clone(),
-                dkim_result: ctx.auth_results.dkim.clone(),
-                dmarc_result: dmarc_result.to_string(),
-                disposition: disposition.to_string(),
-            })
-            .await;
+        sink.record_result(&DmarcResultRecord {
+            source_ip: ctx.client_ip.to_string(),
+            from_domain: mail_from_domain.to_string(),
+            spf_result: ctx.auth_results.spf.clone(),
+            dkim_result: ctx.auth_results.dkim.clone(),
+            dmarc_result: dmarc_result.to_string(),
+            disposition: disposition.to_string(),
+        })
+        .await;
     }
 }

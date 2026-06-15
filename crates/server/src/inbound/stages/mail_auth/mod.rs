@@ -10,9 +10,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use hickory_resolver::TokioResolver;
+use mailrs_dmarc::DmarcResultRecord;
 use mailrs_inbound::{ReceiveContext, Stage, StageOutcome};
-
-use crate::dmarc_report::DmarcReportStore;
 
 mod arc;
 mod dkim;
@@ -40,6 +39,18 @@ pub struct MailAuthResolvers {
     pub dmarc: Arc<TokioResolver>,
 }
 
+/// Fire-and-forget sink for per-message DMARC results feeding aggregate
+/// reporting. A dyn-compatible narrowing of the stone's `DmarcStore` (which
+/// carries an associated `Error` type and the report-generation methods the
+/// receiver never calls) — the receiver only records; the spg-backed impl
+/// lives in the core. Errors are swallowed: a lost aggregate row must never
+/// block delivery.
+#[async_trait]
+pub trait DmarcReportSink: Send + Sync {
+    /// Record one verified DMARC result for aggregate reporting.
+    async fn record_result(&self, record: &DmarcResultRecord);
+}
+
 /// Stage that performs SPF, DKIM, ARC, and DMARC verification and records
 /// the aggregate result in `ctx.auth_results`. On DMARC policy=reject
 /// returns `Decide(Reject)`; otherwise returns `Continue`.
@@ -48,19 +59,18 @@ pub struct MailAuthResolvers {
 /// `mailrs-dmarc` crates (DEPS_AUDIT #1 closed — `mail-auth` removed).
 pub struct MailAuthStage {
     resolvers: MailAuthResolvers,
-    dmarc_report_store: Option<Arc<DmarcReportStore>>,
+    dmarc_sink: Option<Arc<dyn DmarcReportSink>>,
 }
 
 impl MailAuthStage {
-    /// Construct a `MailAuthStage`. The optional `DmarcReportStore` records
-    /// per-message DMARC outcomes for aggregate reporting.
-    pub fn new(
-        resolvers: MailAuthResolvers,
-        dmarc_report_store: Option<Arc<DmarcReportStore>>,
-    ) -> Self {
+    /// Construct a `MailAuthStage`. The optional [`DmarcReportSink`] records
+    /// per-message DMARC outcomes for aggregate reporting — injected as a
+    /// trait object (the spg-backed impl is built in the core) so this stage
+    /// doesn't bind the report store.
+    pub fn new(resolvers: MailAuthResolvers, dmarc_sink: Option<Arc<dyn DmarcReportSink>>) -> Self {
         Self {
             resolvers,
-            dmarc_report_store,
+            dmarc_sink,
         }
     }
 
@@ -68,8 +78,8 @@ impl MailAuthStage {
         self.resolvers.dmarc.as_ref()
     }
 
-    pub(super) fn report_store(&self) -> Option<&Arc<DmarcReportStore>> {
-        self.dmarc_report_store.as_ref()
+    pub(super) fn sink(&self) -> Option<&Arc<dyn DmarcReportSink>> {
+        self.dmarc_sink.as_ref()
     }
 }
 
