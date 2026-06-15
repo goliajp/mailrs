@@ -529,7 +529,10 @@ pub async fn run() {
         smuggle_protection: cfg.smuggle_protection,
         auth_guard: auth_guard.clone(),
         domain_store: domain_store.clone(),
-        kevy: kevy_embedded_store.clone(),
+        queue_notifier: kevy_embedded_store.as_ref().map(|s| {
+            Arc::new(mailrs_outbound_queue::KevyNotifier::new(s.as_ref().clone()))
+                as Arc<dyn mailrs_outbound_queue::Notifier>
+        }),
         srs_secret: cfg.srs_secret.clone(),
         ldap_config: ldap_config.clone(),
         inbound_pipeline,
