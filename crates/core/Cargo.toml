@@ -1,0 +1,18 @@
+[package]
+name = "mailrs-core"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0 OR MIT"
+description = "Shared session infrastructure for the mailrs server + receiver: the SmtpEvent bus and (incrementally) the cross-protocol session primitives (auth store, TLS state, LDAP config). Free of spg / kevy so both the stateful core and the stateless receiver can depend on it. Internal until the split stabilises."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { version = "1", features = ["sync"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["sync", "rt", "macros"] }

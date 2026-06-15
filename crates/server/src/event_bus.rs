@@ -4,4 +4,4 @@
 //! the kevy-backed [`EventPublisher`] adapter in `kevy_notify` can implement
 //! the (now-foreign) trait for its server-local publisher type.
 
-pub use mailrs_receiver::event_bus::*;
+pub use mailrs_core::event_bus::*;

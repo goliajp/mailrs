@@ -2985,6 +2985,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "mailrs-dav"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3377,9 +3386,6 @@ name = "mailrs-receiver"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
@@ -3474,6 +3480,7 @@ dependencies = [
  "mailrs-backoff 1.0.0",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-core",
  "mailrs-dav 1.1.0",
  "mailrs-delivery-executor",
  "mailrs-dkim",
