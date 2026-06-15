@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -13,7 +12,7 @@ use crate::event_bus::SmtpEvent;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
 use super::super::headers::format_received_header;
-use super::super::process_delivered::{DeliveredMessage, ProcessDeps, process_delivered};
+use super::super::process_delivered::DeliveredMessage;
 use super::super::{ConnectionContext, DATA_TIMEOUT, SessionAction};
 
 mod antispam;
@@ -119,18 +118,12 @@ where
             // through `Arc<Vec<u8>> → Vec<u8> → [u8]` deref coercion.
             let full_message = std::sync::Arc::new(full_message);
 
-            // Core-side post-delivery handles, cloned once for the batch.
-            // `None` when no mailbox store is configured — the same gate as
-            // the old inline `if let Some(ref mb_store) = ctx.mailbox_store`.
-            let process_deps = ctx.mailbox_store.as_ref().map(|mb| {
-                Arc::new(ProcessDeps {
-                    mailbox_store: Arc::clone(mb),
-                    event_bus: ctx.event_bus.clone(),
-                    outbound_queue: ctx.outbound_queue.clone(),
-                    resolver: ctx.resolver.clone(),
-                    maildir_root: ctx.maildir_root.clone(),
-                })
-            });
+            // Whether the post-delivery consumer is configured to index +
+            // run the post-delivery pass. Same gate as before (the deps the
+            // consumer owns are built only when a mailbox store exists) —
+            // the receiver no longer holds those deps, so it just decides
+            // whether to hand the message off.
+            let post_delivery_enabled = ctx.mailbox_store.is_some();
 
             // deliver to local recipients via maildir
             for rcpt in &local_rcpts {
@@ -177,14 +170,16 @@ where
                         .await
                     {
                         Ok(id) => {
-                            // S1.4: hand the delivered message to the
-                            // post-delivery consumer so maildir write stays
-                            // on the hot path. Same gate as the old inline
-                            // block — only when a mailbox store is
-                            // configured. On a full channel (or a gone
-                            // consumer) fall back to inline processing:
-                            // backpressure, never a dropped message.
-                            if let Some(deps) = &process_deps {
+                            // S1.4 + P5: hand the delivered message to the
+                            // core-side post-delivery consumer so maildir
+                            // write stays on the hot path. Only a plain
+                            // `DeliveredMessage` crosses — the consumer owns
+                            // the spg/kevy-bound deps. On a full channel,
+                            // block on `send` (backpressure to the single
+                            // consumer's rate — never a dropped message);
+                            // if the consumer is gone (shutdown) the message
+                            // is on disk and reconcile will index it.
+                            if post_delivery_enabled {
                                 let msg = DeliveredMessage {
                                     maildir_id: id.to_string(),
                                     user: format!("{local}@{domain}"),
@@ -196,9 +191,19 @@ where
                                     msg_in_reply_to: msg_in_reply_to.clone(),
                                     msg_size,
                                 };
-                                if let Err(err) = ctx.process_tx.try_send((msg, Arc::clone(deps))) {
-                                    let (msg, deps) = err.into_inner();
-                                    process_delivered(msg, &deps).await;
+                                use tokio::sync::mpsc::error::TrySendError;
+                                match ctx.process_tx.try_send(msg) {
+                                    Ok(()) => {}
+                                    Err(TrySendError::Full(msg)) => {
+                                        let _ = ctx.process_tx.send(msg).await;
+                                    }
+                                    Err(TrySendError::Closed(_)) => {
+                                        tracing::error!(
+                                            event = "process_consumer_gone",
+                                            rcpt = %rcpt,
+                                            "post-delivery consumer closed; message on disk, reconcile will index"
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -229,14 +234,14 @@ where
                     rcpt = %reported_addr,
                     "ARF feedback report parsed, adding to suppression list"
                 );
-                if let Some(ref queue_pool) = ctx.outbound_queue {
-                    let _ = mailrs_outbound_queue::queue::add_suppression(
-                        queue_pool,
-                        reported_addr,
-                        &format!("FBL complaint: {}", report.feedback_type),
-                        None,
-                    )
-                    .await;
+                if let Some(ref queue) = ctx.outbound_enqueue {
+                    let _ = queue
+                        .add_suppression(
+                            reported_addr,
+                            &format!("FBL complaint: {}", report.feedback_type),
+                            None,
+                        )
+                        .await;
                 }
             }
 

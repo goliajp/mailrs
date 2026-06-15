@@ -92,12 +92,14 @@ async fn enqueue_sieve_outbound(
     body: &[u8],
     ctx: &ConnectionContext,
 ) {
-    let Some(ref pool) = ctx.outbound_queue else {
+    let Some(ref queue) = ctx.outbound_enqueue else {
         return;
     };
     let now = chrono::Utc::now().timestamp();
     let domain = to.split_once('@').map(|(_, d)| d).unwrap_or("unknown");
-    let _ = mailrs_outbound_queue::queue::enqueue(pool, from, to, domain, body, None, now).await;
+    let _ = queue
+        .enqueue(from, to, domain, body, None, now, false)
+        .await;
     if let Some(ref notifier) = ctx.queue_notifier {
         notifier.notify().await;
     }

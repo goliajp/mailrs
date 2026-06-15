@@ -507,9 +507,22 @@ pub async fn run() {
         &kevy_embedded_store,
     );
 
-    // single post-delivery consumer (S1.4): DATA handlers try_send delivered
-    // messages here so maildir write stays on the hot path.
-    let process_tx = crate::smtp_session::spawn_process_consumer();
+    // single post-delivery consumer (S1.4 + P5): DATA handlers hand
+    // delivered messages here so maildir write stays on the hot path. The
+    // core-side deps (mailbox store, event bus, calendar pool, resolver)
+    // live with the consumer, not the receiver — only a plain
+    // `DeliveredMessage` crosses the channel. `None` deps = degraded mode
+    // (no mailbox store): the consumer drains and drops, reconcile indexes.
+    let process_deps = mailbox_store.clone().map(|mb| {
+        Arc::new(crate::smtp_session::ProcessDeps {
+            mailbox_store: mb,
+            event_bus: event_bus.clone(),
+            outbound_queue: outbound_queue.clone(),
+            resolver: resolver.clone(),
+            maildir_root: cfg.maildir_root.clone(),
+        })
+    });
+    let process_tx = crate::smtp_session::spawn_process_consumer(process_deps);
 
     let ctx = Arc::new(ConnectionContext {
         hostname: cfg.hostname.clone(),
@@ -520,7 +533,10 @@ pub async fn run() {
         web_state: web_state.clone(),
         rate_limiter,
         local_domains: cfg.local_domains.clone(),
-        outbound_queue: outbound_queue.clone(),
+        outbound_enqueue: outbound_queue.clone().map(|p| {
+            Arc::new(mailrs_outbound_queue::PgQueueStore::new(p))
+                as Arc<dyn mailrs_outbound_queue::QueueStore>
+        }),
         resolver,
         dnsbl_zones: cfg.dnsbl_zones.clone(),
         dnsbl_enabled: cfg.dnsbl_enabled,
@@ -598,7 +614,7 @@ pub async fn run() {
         &dmarc_report_store,
         &ctx.resolver,
         &cfg,
-        ctx.outbound_queue.clone(),
+        outbound_queue.clone(),
         shutdown_rx.clone(),
     );
 
