@@ -273,7 +273,7 @@ where
             }
 
             if ok && !local_rcpts.is_empty() {
-                ctx.web_state.on_message_delivered();
+                ctx.metrics.on_message_delivered();
                 ctx.event_bus.emit(SmtpEvent::MessageDelivered {
                     id: conn_id,
                     from: reverse_path,

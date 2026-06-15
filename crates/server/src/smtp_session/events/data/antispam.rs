@@ -5,7 +5,6 @@
 //! inside.
 
 use std::net::SocketAddr;
-use std::sync::atomic::Ordering;
 
 use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::State;
@@ -66,9 +65,7 @@ pub(super) async fn run_antispam(
 
     match decision {
         DeliveryDecision::Reject { code, message } => {
-            ctx.web_state
-                .inbound_reject_total
-                .fetch_add(1, Ordering::Relaxed);
+            ctx.metrics.inbound_reject();
             metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "reject").increment(1);
             let class = (code / 100) as u8;
             let resp = Response::new(
@@ -87,9 +84,7 @@ pub(super) async fn run_antispam(
             AntiSpamOutcome::Reject(resp)
         }
         DeliveryDecision::Greylist => {
-            ctx.web_state
-                .inbound_defer_total
-                .fetch_add(1, Ordering::Relaxed);
+            ctx.metrics.inbound_defer();
             metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "defer").increment(1);
             let resp = Response::new(
                 451,
@@ -110,9 +105,7 @@ pub(super) async fn run_antispam(
             auth_header,
             reason,
         } => {
-            ctx.web_state
-                .inbound_junk_total
-                .fetch_add(1, Ordering::Relaxed);
+            ctx.metrics.inbound_junk();
             metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "junk").increment(1);
             tracing::info!(
                 event = "junk",
@@ -128,9 +121,7 @@ pub(super) async fn run_antispam(
             }
         }
         DeliveryDecision::Accept { auth_header } => {
-            ctx.web_state
-                .inbound_accept_total
-                .fetch_add(1, Ordering::Relaxed);
+            ctx.metrics.inbound_accept();
             metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "accept").increment(1);
             let mut new_msg = auth_header.into_bytes();
             new_msg.extend_from_slice(&full_message);

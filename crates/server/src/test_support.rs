@@ -58,7 +58,7 @@ pub async fn spawn_receiving_server(pool: BackendPool, maildir_root: String) -> 
         tls_state: None,
         users: Arc::new(UserStore::empty()),
         event_bus: event_bus.clone(),
-        web_state,
+        metrics: web_state as Arc<dyn crate::conn_metrics::ConnectionMetrics>,
         rate_limiter,
         local_domains: Vec::new(),
         outbound_enqueue: None,
