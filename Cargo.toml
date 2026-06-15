@@ -82,6 +82,15 @@ kevy-client = "1.9"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# Password hashing — shared by the server (web/imap/pop3/mcp auth) and
+# mailrs-core (the UserStore credential file). password-hash + rand_core
+# pinned to older majors — argon2 0.5.x (latest) hard-deps password-hash
+# 0.5, and rsa 0.9.x (latest) hard-deps rand_core 0.6. Unpin when argon2
+# 0.6 / rsa 0.10 publish. See rust-deps-and-warnings.md §6.
+argon2 = "0.5"
+password-hash = "0.5"
+rand_core = { version = "0.6", features = ["std"] }
+
 # Time + DNS — used in 5+ crates each, pin centrally so a future bump
 # rolls through the workspace in one commit.
 chrono = "0.4"

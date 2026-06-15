@@ -2988,9 +2988,13 @@ dependencies = [
 name = "mailrs-core"
 version = "0.1.0"
 dependencies = [
+ "argon2",
+ "password-hash",
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "tokio",
+ "toml",
 ]
 
 [[package]]
