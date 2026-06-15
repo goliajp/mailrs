@@ -20,5 +20,9 @@ password-hash = { workspace = true }
 rand_core = { workspace = true }
 toml = "1"
 
+# LdapConfig: optional LDAP auth fallback (used by smtp/imap/pop3/managesieve).
+ldap3 = { version = "0.12.1", default-features = false, features = ["tls-rustls-ring"] }
+tracing = "0.1"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["sync", "rt", "macros"] }

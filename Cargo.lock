@@ -2989,12 +2989,14 @@ name = "mailrs-core"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "ldap3",
  "password-hash",
  "rand_core 0.6.4",
  "serde",
  "serde_json",
  "tokio",
  "toml",
+ "tracing",
 ]
 
 [[package]]
@@ -3475,7 +3477,6 @@ dependencies = [
  "jsonwebtoken",
  "kevy-client",
  "kevy-embedded",
- "ldap3",
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-arc",
  "mailrs-arf 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
