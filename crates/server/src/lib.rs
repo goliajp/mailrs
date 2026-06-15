@@ -42,8 +42,14 @@ mod search_index;
 
 mod bootstrap;
 mod greylist_backfill;
+// greylist_local keeps the spg-bound PG loaders + re-exports the pure
+// snapshot/matching half from mailrs-receiver (S5.3).
 mod greylist_local;
-mod greylist_sync;
+/// re-export shim: the remote-whitelist sync (spg-free) moved to
+/// mailrs-receiver (S5.3).
+mod greylist_sync {
+    pub use mailrs_receiver::greylist_sync::*;
+}
 pub mod kevy_net;
 pub mod kevy_notify;
 mod kevy_store;

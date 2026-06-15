@@ -13,8 +13,10 @@ pub use mailrs_auth_guard::{AuthCheck, AuthGuard, AuthGuardConfig, AuthGuardStor
 
 /// Current wall clock in unix seconds — the `now` the auth-guard
 /// surface expects. Kept here so every call site computes it the
-/// same way.
-pub(crate) fn unix_now() -> u64 {
+/// same way. `pub` (not `pub(crate)`) so the server crate's protocol
+/// handlers reach it across the crate boundary after the move to
+/// mailrs-receiver (S5.3).
+pub fn unix_now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()

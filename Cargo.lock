@@ -3392,6 +3392,25 @@ name = "mailrs-receiver"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
+ "hickory-resolver",
+ "ipnet",
+ "mailrs-arc",
+ "mailrs-auth-guard",
+ "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-dkim",
+ "mailrs-dmarc",
+ "mailrs-inbound 1.0.5",
+ "mailrs-intelligence",
+ "mailrs-rate-limit 1.0.1",
+ "mailrs-rfc5322 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-shield",
+ "mailrs-spf",
+ "memchr",
+ "metrics",
+ "reqwest 0.13.3",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
