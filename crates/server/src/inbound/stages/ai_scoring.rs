@@ -14,22 +14,25 @@ use mailrs_inbound::{ReceiveContext, Stage, StageOutcome};
 /// `ctx.ptr_score`.
 pub struct AiScoringStage {
     provider: Arc<dyn mailrs_intelligence::provider::LlmProvider>,
-    kevy: Option<crate::kevy_store::KevyStore>,
+    spam_cache: Option<Arc<dyn mailrs_intelligence::spam::SpamCache>>,
     spam_threshold: f64,
 }
 
 impl AiScoringStage {
     /// Construct an `AiScoringStage`. The `spam_threshold` is the same
     /// value used by the `Pipeline` and `make_delivery_decision`; pass them
-    /// from the same config source at startup to keep them in sync.
+    /// from the same config source at startup to keep them in sync. The
+    /// `spam_cache` is injected as a trait object (the kevy-backed impl is
+    /// built in the core / bootstrap) so this stage doesn't bind the
+    /// in-process kevy store.
     pub fn new(
         provider: Arc<dyn mailrs_intelligence::provider::LlmProvider>,
-        kevy: Option<crate::kevy_store::KevyStore>,
+        spam_cache: Option<Arc<dyn mailrs_intelligence::spam::SpamCache>>,
         spam_threshold: f64,
     ) -> Self {
         Self {
             provider,
-            kevy,
+            spam_cache,
             spam_threshold,
         }
     }
@@ -49,13 +52,8 @@ impl Stage for AiScoringStage {
 
         let subject = extract_header(&ctx.message, "Subject").unwrap_or_default();
         let body_preview = extract_body_preview(&ctx.message, 500);
-        let cache = self
-            .kevy
-            .as_ref()
-            .map(|s| mailrs_intelligence::spam::KevySpamCache::new(s.as_ref().clone()));
-        let cache_ref: Option<&dyn mailrs_intelligence::spam::SpamCache> = cache
-            .as_ref()
-            .map(|c| c as &dyn mailrs_intelligence::spam::SpamCache);
+        let cache_ref: Option<&dyn mailrs_intelligence::spam::SpamCache> =
+            self.spam_cache.as_deref();
         ctx.ai_score = match mailrs_intelligence::spam::classify(
             self.provider.as_ref(),
             cache_ref,

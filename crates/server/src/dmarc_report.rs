@@ -13,6 +13,19 @@ pub use mailrs_dmarc::{
     format_report_email, generate_dmarc_report_xml,
 };
 
+/// Adapt the spg-backed report store to the receiver's fire-and-forget
+/// [`DmarcReportSink`] port: record the result, swallow any backend error
+/// (a lost aggregate row must never block delivery). The port is defined by
+/// the mail-auth stage (consumer); this adapter stays in the core.
+///
+/// [`DmarcReportSink`]: crate::inbound::stages::mail_auth::DmarcReportSink
+#[async_trait::async_trait]
+impl crate::inbound::stages::mail_auth::DmarcReportSink for DmarcReportStore {
+    async fn record_result(&self, record: &DmarcResultRecord) {
+        let _ = DmarcStore::record_result(self, record).await;
+    }
+}
+
 /// spawn daily DMARC report generation task
 pub fn spawn_daily_report_task(
     store: Arc<DmarcReportStore>,
