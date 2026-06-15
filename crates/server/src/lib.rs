@@ -16,7 +16,12 @@ mod event_bus;
 mod health;
 pub(crate) mod permission;
 
-mod ldap_auth;
+/// re-export shim: `LdapConfig` moved to the shared `mailrs-core` crate
+/// (S5.2h). Kept as `crate::ldap_auth` so the smtp / imap / pop3 /
+/// managesieve / web / config call sites stay unchanged.
+mod ldap_auth {
+    pub use mailrs_core::ldap_auth::*;
+}
 
 mod imap_session;
 pub mod inbound;

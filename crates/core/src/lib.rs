@@ -6,6 +6,7 @@
 //! state, LDAP config). Free of spg / kevy so it sits below both.
 
 pub mod event_bus;
+pub mod ldap_auth;
 pub mod users;
 
 pub use event_bus::{BroadcastEvent, EventBus, EventPublisher, SmtpEvent, next_connection_id};
