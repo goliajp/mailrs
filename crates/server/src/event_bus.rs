@@ -5,8 +5,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use crate::kevy_notify::KevyEventPublisher;
-
 static CONNECTION_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub fn next_connection_id() -> u64 {
@@ -141,12 +139,22 @@ impl BroadcastEvent {
     }
 }
 
+/// Cross-process publisher for notify-worthy [`SmtpEvent`]s. Abstracted so
+/// the bus doesn't bind the concrete kevy-server publisher — the kevy-backed
+/// impl (`KevyEventPublisher`) lives in `kevy_notify`; the receiver-split
+/// topology can supply a network publisher without `event_bus` depending on
+/// the kevy client.
+pub trait EventPublisher: Send + Sync {
+    /// Publish `event` to the shared channel (best-effort, fire-and-forget).
+    fn publish(&self, event: &SmtpEvent);
+}
+
 #[derive(Clone)]
 pub struct EventBus {
     tx: broadcast::Sender<Arc<BroadcastEvent>>,
     /// When set, [`Self::emit`] also publishes cross-process-worthy
     /// events to a shared kevy-server (receiver-split topology).
-    publisher: Option<Arc<KevyEventPublisher>>,
+    publisher: Option<Arc<dyn EventPublisher>>,
 }
 
 impl EventBus {
@@ -160,7 +168,7 @@ impl EventBus {
 
     /// Attach a cross-process publisher. Set before the bus is cloned
     /// around so every clone shares it.
-    pub fn with_publisher(mut self, publisher: Arc<KevyEventPublisher>) -> Self {
+    pub fn with_publisher(mut self, publisher: Arc<dyn EventPublisher>) -> Self {
         self.publisher = Some(publisher);
         self
     }
