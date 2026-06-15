@@ -31,7 +31,7 @@ pub(super) async fn enqueue_remote_rcpts(
         return RemoteEnqueueResult::RelayDenied;
     }
 
-    let Some(ref pool) = ctx.outbound_queue else {
+    let Some(ref queue) = ctx.outbound_enqueue else {
         tracing::error!(
             event = "no_outbound_queue",
             "outbound queue unavailable, cannot relay"
@@ -53,17 +53,17 @@ pub(super) async fn enqueue_remote_rcpts(
         } else {
             reverse_path.to_string()
         };
-        match mailrs_outbound_queue::queue::enqueue_ex(
-            pool,
-            &envelope_sender,
-            rcpt,
-            domain,
-            full_message,
-            None,
-            now,
-            *is_fwd,
-        )
-        .await
+        match queue
+            .enqueue(
+                &envelope_sender,
+                rcpt,
+                domain,
+                full_message,
+                None,
+                now,
+                *is_fwd,
+            )
+            .await
         {
             Ok(_) => enqueue_ok = true,
             Err(e) => {

@@ -28,7 +28,7 @@ use crate::inbound::rate_limit::RateLimitStore;
 use crate::tls::TlsState;
 use crate::users::UserStore;
 use crate::web::WebState;
-use mailrs_outbound_queue::Notifier;
+use mailrs_outbound_queue::{Notifier, QueueStore};
 
 pub struct ConnectionContext {
     pub hostname: String,
@@ -39,7 +39,13 @@ pub struct ConnectionContext {
     pub web_state: Arc<WebState>,
     pub rate_limiter: Arc<dyn RateLimitStore>,
     pub local_domains: Vec<String>,
-    pub outbound_queue: Option<crate::pg::BackendPool>,
+    /// Outbound enqueue seam for the receiving path: relay recipients,
+    /// sieve redirect/vacation copies, and FBL suppression. Abstracted as
+    /// [`QueueStore`] so the receiver enqueues without binding the spg
+    /// `BackendPool` — the in-process [`mailrs_outbound_queue::PgQueueStore`]
+    /// today, a network store in the receiver-split topology. `None` when
+    /// no outbound queue is configured (degraded mode / tests).
+    pub outbound_enqueue: Option<Arc<dyn QueueStore>>,
     pub resolver: Option<Arc<TokioResolver>>,
     pub dnsbl_zones: Vec<String>,
     pub dnsbl_enabled: bool,
@@ -80,7 +86,7 @@ mod process_delivered;
 mod srs;
 
 use events::handle_event;
-pub(crate) use process_delivered::spawn_process_consumer;
+pub(crate) use process_delivered::{ProcessDeps, spawn_process_consumer};
 
 /// handle a plain-text SMTP connection (port 25/587), may upgrade via STARTTLS
 #[tracing::instrument(name = "smtp.conn", skip(stream, ctx), fields(peer = %addr, tls = false))]

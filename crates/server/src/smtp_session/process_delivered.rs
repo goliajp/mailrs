@@ -50,20 +50,28 @@ pub(crate) struct ProcessDeps {
 }
 
 /// Channel the DATA handler hands delivered messages to, off the hot path.
-/// The deps ride with each message so the consumer stays context-free —
-/// the seam the notification consumer (P2) will plug into.
-pub(crate) type ProcessTx = tokio::sync::mpsc::Sender<(DeliveredMessage, Arc<ProcessDeps>)>;
+/// Only the plain [`DeliveredMessage`] crosses the boundary — the core-side
+/// [`ProcessDeps`] is owned by the consumer (P5: ProcessDeps relocation), so
+/// the receiver hands off a context-free value and never touches the
+/// spg/kevy-bound deps. This is the seam the cross-process notification
+/// consumer (P6) plugs into.
+pub(crate) type ProcessTx = tokio::sync::mpsc::Sender<DeliveredMessage>;
 
 /// Spawn the single post-delivery consumer and return its sender. The DATA
-/// handler `try_send`s here so maildir write stays synchronous while
-/// indexing + the post-delivery pass run off the hot path. Capacity 1024;
-/// when the channel is full (or the consumer has gone) the caller falls
-/// back to synchronous processing — backpressure, never a dropped message.
-pub(crate) fn spawn_process_consumer() -> ProcessTx {
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<(DeliveredMessage, Arc<ProcessDeps>)>(1024);
+/// handler hands delivered messages here so maildir write stays synchronous
+/// while indexing + the post-delivery pass run off the hot path. The deps
+/// live with the consumer (core side), not the receiver. `deps == None`
+/// means no mailbox store is configured (degraded mode): the consumer
+/// drains and drops — messages are on disk and get indexed by reconcile.
+/// Capacity 1024; when the channel is full the caller blocks on `send`
+/// (backpressure to the single consumer's rate — never a dropped message).
+pub(crate) fn spawn_process_consumer(deps: Option<Arc<ProcessDeps>>) -> ProcessTx {
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<DeliveredMessage>(1024);
     tokio::spawn(async move {
-        while let Some((msg, deps)) = rx.recv().await {
-            process_delivered(msg, &deps).await;
+        while let Some(msg) = rx.recv().await {
+            if let Some(ref deps) = deps {
+                process_delivered(msg, deps).await;
+            }
         }
     });
     tx
@@ -73,7 +81,7 @@ pub(crate) fn spawn_process_consumer() -> ProcessTx {
 /// ensure mailboxes → extract subject/from → effective message-id →
 /// thread resolution → sieve folder → index → `NewMessage` event → iTIP
 /// invite projection → spawn the content / importance / BIMI pass.
-pub(crate) async fn process_delivered(msg: DeliveredMessage, deps: &ProcessDeps) {
+async fn process_delivered(msg: DeliveredMessage, deps: &ProcessDeps) {
     let mb_store = &deps.mailbox_store;
     let maildir_id_str = msg.maildir_id.clone();
     let user = msg.user.clone();

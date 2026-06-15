@@ -41,6 +41,17 @@ pub async fn spawn_receiving_server(pool: BackendPool, maildir_root: String) -> 
     let auth_guard: Arc<dyn AuthGuardStore> = Arc::new(AuthGuard::new(AuthGuardConfig::default()));
     let mailbox_store = Arc::new(mailrs_mailbox::PgMailboxStore::new(pool));
 
+    // Core-side post-delivery consumer owns the deps; the receiver hands
+    // off only a plain DeliveredMessage (P5: ProcessDeps relocation).
+    let process_deps = Some(Arc::new(crate::smtp_session::ProcessDeps {
+        mailbox_store: Arc::clone(&mailbox_store),
+        event_bus: event_bus.clone(),
+        outbound_queue: None,
+        resolver: None,
+        maildir_root: maildir_root.clone(),
+    }));
+    let process_tx = crate::smtp_session::spawn_process_consumer(process_deps);
+
     let ctx = Arc::new(ConnectionContext {
         hostname: "mx.test.local".to_string(),
         maildir_root,
@@ -50,7 +61,7 @@ pub async fn spawn_receiving_server(pool: BackendPool, maildir_root: String) -> 
         web_state,
         rate_limiter,
         local_domains: Vec::new(),
-        outbound_queue: None,
+        outbound_enqueue: None,
         resolver: None,
         dnsbl_zones: Vec::new(),
         dnsbl_enabled: false,
@@ -64,7 +75,7 @@ pub async fn spawn_receiving_server(pool: BackendPool, maildir_root: String) -> 
         ldap_config: None,
         inbound_pipeline: mailrs_inbound::Pipeline::builder().build(),
         delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
-        process_tx: crate::smtp_session::spawn_process_consumer(),
+        process_tx,
     });
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
