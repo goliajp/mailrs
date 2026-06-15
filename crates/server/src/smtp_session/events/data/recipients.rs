@@ -29,7 +29,7 @@ pub(super) async fn classify_recipients(
 
     let mut local_rcpts: Vec<String> = Vec::with_capacity(initial_local.len());
     for rcpt in &initial_local {
-        if let Some(ref ds) = ctx.domain_store {
+        if let Some(ref ds) = ctx.account_store {
             match ds.resolve_recipient(rcpt).await {
                 ResolvedRecipient::Account(addr) => {
                     local_rcpts.push(addr);

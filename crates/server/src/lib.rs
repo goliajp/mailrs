@@ -1,3 +1,4 @@
+mod account_store;
 mod acme;
 mod ai_analyzer;
 mod api_key_store;
@@ -544,7 +545,9 @@ pub async fn run() {
         mailbox_store: mailbox_store.clone(),
         smuggle_protection: cfg.smuggle_protection,
         auth_guard: auth_guard.clone(),
-        domain_store: domain_store.clone(),
+        account_store: domain_store
+            .clone()
+            .map(|d| d as Arc<dyn crate::account_store::AccountStore>),
         queue_notifier: kevy_embedded_store.as_ref().map(|s| {
             Arc::new(mailrs_outbound_queue::KevyNotifier::new(s.as_ref().clone()))
                 as Arc<dyn mailrs_outbound_queue::Notifier>

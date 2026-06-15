@@ -69,7 +69,7 @@ pub async fn spawn_receiving_server(pool: BackendPool, maildir_root: String) -> 
         mailbox_store: Some(mailbox_store),
         smuggle_protection: SmuggleProtection::Off,
         auth_guard,
-        domain_store: None,
+        account_store: None,
         queue_notifier: None,
         srs_secret: None,
         ldap_config: None,

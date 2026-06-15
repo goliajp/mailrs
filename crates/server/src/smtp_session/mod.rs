@@ -18,8 +18,8 @@ const CONNECTION_TIMEOUT: Duration = Duration::from_secs(300);
 /// timeout waiting for DATA content after 354 response
 const DATA_TIMEOUT: Duration = Duration::from_secs(600);
 
+use crate::account_store::AccountStore;
 use crate::config::SmuggleProtection;
-use crate::domain_store::DomainStore;
 use crate::event_bus::{EventBus, SmtpEvent, next_connection_id};
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
@@ -55,7 +55,11 @@ pub struct ConnectionContext {
     pub mailbox_store: Option<Arc<mailrs_mailbox::PgMailboxStore>>,
     pub smuggle_protection: SmuggleProtection,
     pub auth_guard: Arc<dyn AuthGuardStore>,
-    pub domain_store: Option<Arc<DomainStore>>,
+    /// Receiver-facing account / recipient lookups: resolution, submission
+    /// auth, sieve / vacation / quota. Abstracted as [`AccountStore`] so the
+    /// receiver doesn't bind the spg-backed `DomainStore` — in-process today,
+    /// network-backed in the receiver-split topology.
+    pub account_store: Option<Arc<dyn AccountStore>>,
     /// Wakes the outbound delivery worker after the receiving path
     /// enqueues relay / sieve-redirect / vacation mail. Abstracted as a
     /// trait so the receiver doesn't bind the in-process kevy store —
