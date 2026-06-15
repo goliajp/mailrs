@@ -26,7 +26,9 @@ export MAILRS_WEB_PORT=3200
 # Fresh catalog bootstraps from init-schema.sql via `spg import`
 # (spgctl binary from the goliajp/spg checkout or PATH).
 export MAILRS_PG_URL=spg:///tmp/mailrs/spg/mailrs.spg
-export MAILRS_KEVY_URL=redis://localhost:6379
+# MAILRS_KEVY_URL intentionally unset: local dev runs kevy in-process
+# (Phase C). Set it only when running a real kevy-server for the
+# receiver-split topology (P6), as kevy://host:port — not redis://.
 export MAILRS_LOCAL_DOMAINS=localhost,golia.jp
 export MAILRS_USERS_FILE=/tmp/mailrs/users.toml
 export MAILRS_DNSBL_ENABLED=false
