@@ -1,0 +1,165 @@
+# Receiver-split topology (P6) — three mailrs roles from one image.
+#
+#   [receiver]  binds the public SMTP ports (25/587/465), runs antispam +
+#               anti (via the shared kevy-server), writes accepted mail to
+#               the shared spool volume, emits SpoolDelivered. Zero spg.
+#   [kevy-server] network kevy: shared anti state (greylist/rate/auth) +
+#               the cross-process SpoolDelivered notify channel.
+#   [mailrs]    the core — consumes the spool (resolve/sieve/deliver/index),
+#               owns spg + the embedded kevy + web/imap/pop3/managesieve.
+#               Does NOT publish the public SMTP ports here (the receiver
+#               front-door does); it still binds them inside its own netns,
+#               harmlessly, since nothing maps to them.
+#
+# The receiver and core SHARE the data volume so the spool maildir's
+# tmp→new atomic rename holds across both (same mount). Kill the core and
+# the receiver keeps accepting + spooling; restart the core and its
+# reconcile sweep drains the backlog, indexing each message exactly once.
+#
+# Opt-in via MAILRS_RECEIVER_SPLIT=1 on the core. The monolith deploy
+# (deploy/docker-compose.yml) is unchanged and remains the default.
+
+services:
+  postgres:
+    container_name: mailrs-postgres
+    image: pgvector/pgvector:0.8.2-pg18-trixie
+    environment:
+      POSTGRES_USER: mailrs
+      POSTGRES_PASSWORD: ${MAILRS_PG_PASSWORD:-mailrs}
+      POSTGRES_DB: mailrs
+    volumes:
+      - pg-data:/var/lib/postgresql
+      - ./init-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    restart: unless-stopped
+
+  chromium:
+    container_name: mailrs-chromium
+    image: zenika/alpine-chrome:124
+    command: ["--no-sandbox", "--remote-debugging-address=0.0.0.0", "--remote-debugging-port=9222", "--disable-gpu", "--headless"]
+    restart: unless-stopped
+
+  meilisearch:
+    container_name: mailrs-meilisearch
+    image: getmeili/meilisearch:v1.44
+    environment:
+      MEILI_MASTER_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_ENV: production
+    volumes:
+      - meili-data:/meili_data
+    restart: unless-stopped
+
+  # shared network kevy: anti state + cross-process SpoolDelivered notify.
+  # Not exposed to the host — only the receiver and core reach it over the
+  # compose network. Its loss is non-fatal: anti fails open and the core's
+  # spool reconcile sweep still drains everything (notify is just the fast
+  # path).
+  kevy-server:
+    container_name: mailrs-kevy
+    image: ghcr.io/goliajp/kevy:latest
+    environment:
+      KEVY_PORT: "6379"
+      KEVY_AOF: "1"
+      KEVY_DIR: /data
+    volumes:
+      - kevy-server-data:/data
+    healthcheck:
+      test: ["CMD", "kevy-cli", "-p", "6379", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+    restart: unless-stopped
+
+  # the public mail front door. Accepts + spools; never resolves or stores
+  # in spg. Survives any core outage.
+  receiver:
+    container_name: mailrs-receiver
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
+    entrypoint: ["mailrs-receiver"]
+    pull_policy: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    ports:
+      - "25:25"
+      - "587:587"
+      - "465:465"
+    environment:
+      MAILRS_HOSTNAME: ${MAILRS_HOSTNAME:-mail.golia.ai}
+      MAILRS_SPOOL_ROOT: /data/.spool
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_LOCAL_DOMAINS: ${MAILRS_LOCAL_DOMAINS:-}
+      MAILRS_PORT: "25"
+      MAILRS_SUBMISSION_PORT: "587"
+      MAILRS_SMTPS_PORT: "465"
+      MAILRS_ANTISPAM_ENABLED: "${MAILRS_ANTISPAM_ENABLED:-true}"
+      MAILRS_TLS_CERT: /certs/fullchain.pem
+      MAILRS_TLS_KEY: /certs/privkey.pem
+      MAILRS_USERS_FILE: /data/users.toml
+    volumes:
+      - mailrs-data:/data
+      - ./certs:/certs:ro
+    depends_on:
+      - kevy-server
+    restart: unless-stopped
+
+  # the core / consumer half.
+  mailrs:
+    container_name: mailrs
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
+    pull_policy: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    # NOTE: the public SMTP ports (25/587/465) are owned by the receiver
+    # above. The core publishes only its non-receiving listeners.
+    ports:
+      - "143:143"
+      - "993:993"
+      - "110:110"
+      - "995:995"
+      - "4190:4190"
+      - "3100:3100"
+    environment:
+      MAILRS_HOSTNAME: ${MAILRS_HOSTNAME:-mail.golia.ai}
+      MAILRS_MAILDIR: /data/maildir
+      MAILRS_PG_URL: postgres://mailrs:${MAILRS_PG_PASSWORD:-mailrs}@postgres:5432/mailrs
+      # core role under split: consume the spool the receiver writes.
+      MAILRS_RECEIVER_SPLIT: "1"
+      MAILRS_SPOOL_ROOT: /data/.spool
+      # connect the same kevy-server so the SpoolDelivered notify bridge
+      # re-injects the receiver's events into this process's bus.
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      # the core also keeps its embedded kevy for outbound-queue notify /
+      # spam cache / cache-bust — independent of the shared network kevy.
+      MAILRS_KEVY_DATA_DIR: /data/kevy
+      MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
+      MAILRS_LOCAL_DOMAINS: ${MAILRS_LOCAL_DOMAINS:-}
+      MAILRS_TLS_CERT: /certs/fullchain.pem
+      MAILRS_TLS_KEY: /certs/privkey.pem
+      MAILRS_USERS_FILE: /data/users.toml
+      MAILRS_DKIM_SELECTOR: mail
+      MAILRS_DKIM_DOMAIN: ${MAILRS_DKIM_DOMAIN:-golia.jp}
+      MAILRS_DKIM_PRIVATE_KEY: /dkim/golia.jp.key
+      MAILRS_MEILI_URL: http://meilisearch:7700
+      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
+      MAILRS_CHROME_CDP_URL: ws://chromium:9222
+      MAILRS_ANTISPAM_ENABLED: "${MAILRS_ANTISPAM_ENABLED:-true}"
+      MAILRS_AI_ANALYSIS_ENABLED: "${MAILRS_AI_ANALYSIS_ENABLED:-false}"
+    volumes:
+      - mailrs-data:/data
+      - ./certs:/certs:ro
+      - ./dkim:/dkim:ro
+    depends_on:
+      - postgres
+      - chromium
+      - meilisearch
+      - kevy-server
+    restart: unless-stopped
+
+volumes:
+  mailrs-data:
+  pg-data:
+  meili-data:
+  kevy-server-data:
