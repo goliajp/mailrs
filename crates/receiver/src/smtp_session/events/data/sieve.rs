@@ -4,24 +4,24 @@ use mailrs_mail_builder::MessageBuilder;
 use mailrs_rfc5322::Message;
 use mailrs_sieve::{SieveAction, compile_sieve, evaluate_sieve_with_envelope};
 
-use super::super::super::ConnectionContext;
+use super::super::super::DeliveryDeps;
 use crate::AccountStore;
 
 /// Evaluate sieve script for `rcpt` (if any) against `full_message`.
 /// Returns `(rcpt_folder, skip_delivery)` — the destination folder
 /// (after FileInto), and whether Discard/Reject was matched.
 /// Side effects: enqueue Redirect/Vacation outbound messages.
-pub(super) async fn apply_sieve_actions(
+pub(crate) async fn apply_sieve_actions(
     rcpt: &str,
     target_folder: &str,
     reverse_path: &str,
     full_message: &[u8],
-    ctx: &ConnectionContext,
+    deps: &DeliveryDeps<'_>,
 ) -> (String, bool) {
     let mut rcpt_folder = target_folder.to_string();
     let mut skip_delivery = false;
 
-    let Some(ref ds) = ctx.account_store else {
+    let Some(ds) = deps.account_store else {
         return (rcpt_folder, skip_delivery);
     };
     let Ok(Some(script)) = ds.sieve_script(rcpt).await else {
@@ -58,7 +58,7 @@ pub(super) async fn apply_sieve_actions(
                 skip_delivery = true;
             }
             SieveAction::Redirect(addr) => {
-                enqueue_sieve_outbound(rcpt, reverse_path, addr, full_message, ctx).await;
+                enqueue_sieve_outbound(rcpt, reverse_path, addr, full_message, deps).await;
                 tracing::info!(
                     event = "sieve_redirect",
                     user = rcpt,
@@ -67,7 +67,7 @@ pub(super) async fn apply_sieve_actions(
                 );
             }
             SieveAction::Vacation { .. } => {
-                handle_vacation(rcpt, reverse_path, full_message, action, ds.as_ref(), ctx).await;
+                handle_vacation(rcpt, reverse_path, full_message, action, ds.as_ref(), deps).await;
             }
             SieveAction::Reject(reason) => {
                 tracing::info!(
@@ -90,9 +90,9 @@ async fn enqueue_sieve_outbound(
     from: &str,
     to: &str,
     body: &[u8],
-    ctx: &ConnectionContext,
+    deps: &DeliveryDeps<'_>,
 ) {
-    let Some(ref queue) = ctx.outbound_enqueue else {
+    let Some(queue) = deps.outbound_enqueue else {
         return;
     };
     let now = chrono::Utc::now().timestamp();
@@ -100,7 +100,7 @@ async fn enqueue_sieve_outbound(
     let _ = queue
         .enqueue(from, to, domain, body, None, now, false)
         .await;
-    if let Some(ref notifier) = ctx.queue_notifier {
+    if let Some(notifier) = deps.queue_notifier {
         notifier.notify().await;
     }
 }
@@ -114,7 +114,7 @@ async fn handle_vacation(
     full_message: &[u8],
     action: &SieveAction,
     ds: &dyn AccountStore,
-    ctx: &ConnectionContext,
+    deps: &DeliveryDeps<'_>,
 ) {
     let SieveAction::Vacation {
         reason,
@@ -184,7 +184,7 @@ async fn handle_vacation(
         .text_body(reason.as_str())
         .build();
 
-    enqueue_sieve_outbound(rcpt, from_addr, reverse_path, &body, ctx).await;
+    enqueue_sieve_outbound(rcpt, from_addr, reverse_path, &body, deps).await;
     let now = chrono::Utc::now().timestamp();
     if let Err(e) = ds
         .record_vacation_reply(rcpt, reverse_path, &handle_key, now)
