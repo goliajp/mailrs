@@ -23,6 +23,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Shared session infra (event bus, UserStore, LdapConfig) + hot-reload TLS.
 mailrs-core = { path = "../core" }
 mailrs-tls-reload = "1"
+# rustls crypto provider must be installed once per process before any TLS
+# config is built (SMTPS/STARTTLS). The server binary does this in its run();
+# the standalone receiver binary must do the same or rustls panics on first use.
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "tls12", "std"] }
 
 # Inbound receiving pipeline + anti subsystems. mailrs-shield / mailrs-dmarc
 # are pulled WITHOUT their /spg feature — the receiver uses only the
