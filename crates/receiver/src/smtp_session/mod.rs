@@ -92,6 +92,36 @@ pub struct ConnectionContext {
     pub spool_sink: Option<Arc<dyn spool_sink::SpoolSink>>,
 }
 
+/// The subset of delivery dependencies the recipient-resolution / sieve /
+/// relay helpers need — borrowed from either a `ConnectionContext` (monolith)
+/// or the core spool consumer (split). Decoupling these helpers from the full
+/// `ConnectionContext` lets the core consume a spool file and run the same
+/// resolve/sieve/relay path the receiver used to run inline (P6-S7).
+pub struct DeliveryDeps<'a> {
+    pub local_domains: &'a [String],
+    pub account_store: &'a Option<Arc<dyn AccountStore>>,
+    pub outbound_enqueue: &'a Option<Arc<dyn QueueStore>>,
+    pub queue_notifier: &'a Option<Arc<dyn Notifier>>,
+    pub event_bus: &'a EventBus,
+    pub hostname: &'a str,
+    pub srs_secret: &'a Option<String>,
+}
+
+impl ConnectionContext {
+    /// Borrow the delivery-relevant fields for the resolve/sieve/relay helpers.
+    pub fn delivery_deps(&self) -> DeliveryDeps<'_> {
+        DeliveryDeps {
+            local_domains: &self.local_domains,
+            account_store: &self.account_store,
+            outbound_enqueue: &self.outbound_enqueue,
+            queue_notifier: &self.queue_notifier,
+            event_bus: &self.event_bus,
+            hostname: &self.hostname,
+            srs_secret: &self.srs_secret,
+        }
+    }
+}
+
 mod address;
 mod auth;
 mod credentials;

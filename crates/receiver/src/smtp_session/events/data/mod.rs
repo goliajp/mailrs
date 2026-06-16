@@ -120,7 +120,11 @@ where
 
             let msg_size = full_message.len();
 
-            let (local_rcpts, remote_rcpts) = classify_recipients(&forward_paths, ctx).await;
+            // monolith inline delivery: resolve/sieve/relay run here, against
+            // the session's deps. (In the split, the core consumer runs the
+            // same helpers against its own deps after fetching from spool.)
+            let deps = ctx.delivery_deps();
+            let (local_rcpts, remote_rcpts) = classify_recipients(&forward_paths, &deps).await;
 
             let mut ok = true;
 
@@ -141,7 +145,7 @@ where
             // deliver to local recipients via maildir
             for rcpt in &local_rcpts {
                 let (rcpt_folder, skip_delivery) =
-                    apply_sieve_actions(rcpt, target_folder, &reverse_path, &full_message, ctx)
+                    apply_sieve_actions(rcpt, target_folder, &reverse_path, &full_message, &deps)
                         .await;
                 if skip_delivery {
                     continue;
@@ -266,7 +270,7 @@ where
                     &full_message,
                     is_authenticated,
                     conn_id,
-                    ctx,
+                    &deps,
                 )
                 .await
                 {

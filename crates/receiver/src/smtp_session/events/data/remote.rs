@@ -3,7 +3,7 @@
 
 use mailrs_core::event_bus::SmtpEvent;
 
-use super::super::super::ConnectionContext;
+use super::super::super::DeliveryDeps;
 use super::super::super::srs::srs_rewrite;
 
 pub(super) enum RemoteEnqueueResult {
@@ -24,14 +24,14 @@ pub(super) async fn enqueue_remote_rcpts(
     full_message: &[u8],
     is_authenticated: bool,
     conn_id: u64,
-    ctx: &ConnectionContext,
+    deps: &DeliveryDeps<'_>,
 ) -> RemoteEnqueueResult {
     let has_user_remote = remote_rcpts.iter().any(|(_, fwd)| !fwd);
     if has_user_remote && !is_authenticated {
         return RemoteEnqueueResult::RelayDenied;
     }
 
-    let Some(ref queue) = ctx.outbound_enqueue else {
+    let Some(queue) = deps.outbound_enqueue else {
         tracing::error!(
             event = "no_outbound_queue",
             "outbound queue unavailable, cannot relay"
@@ -45,8 +45,8 @@ pub(super) async fn enqueue_remote_rcpts(
     for (rcpt, is_fwd) in remote_rcpts {
         let domain = rcpt.split_once('@').map(|(_, d)| d).unwrap_or("unknown");
         let envelope_sender = if *is_fwd && !reverse_path.is_empty() {
-            if let Some(ref secret) = ctx.srs_secret {
-                srs_rewrite(reverse_path, &ctx.hostname, secret)
+            if let Some(secret) = deps.srs_secret {
+                srs_rewrite(reverse_path, deps.hostname, secret)
             } else {
                 reverse_path.to_string()
             }
@@ -78,10 +78,10 @@ pub(super) async fn enqueue_remote_rcpts(
         }
     }
     if enqueue_ok {
-        if let Some(ref notifier) = ctx.queue_notifier {
+        if let Some(notifier) = deps.queue_notifier {
             notifier.notify().await;
         }
-        ctx.event_bus.emit(SmtpEvent::MessageQueued {
+        deps.event_bus.emit(SmtpEvent::MessageQueued {
             id: conn_id,
             from: reverse_path.to_string(),
             to: remote_rcpts.iter().map(|(a, _)| a.clone()).collect(),
