@@ -4,14 +4,14 @@ use mailrs_mail_builder::MessageBuilder;
 use mailrs_rfc5322::Message;
 use mailrs_sieve::{SieveAction, compile_sieve, evaluate_sieve_with_envelope};
 
-use super::super::super::DeliveryDeps;
+use super::super::DeliveryDeps;
 use crate::AccountStore;
 
 /// Evaluate sieve script for `rcpt` (if any) against `full_message`.
 /// Returns `(rcpt_folder, skip_delivery)` — the destination folder
 /// (after FileInto), and whether Discard/Reject was matched.
 /// Side effects: enqueue Redirect/Vacation outbound messages.
-pub(crate) async fn apply_sieve_actions(
+pub async fn apply_sieve_actions(
     rcpt: &str,
     target_folder: &str,
     reverse_path: &str,

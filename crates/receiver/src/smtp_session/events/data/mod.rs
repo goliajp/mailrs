@@ -16,15 +16,12 @@ use super::super::headers::format_received_header;
 use super::super::{ConnectionContext, DATA_TIMEOUT, SessionAction};
 
 mod antispam;
-mod recipients;
-mod remote;
-mod sieve;
 mod spool_accept;
 
+use super::super::delivery::{
+    RemoteEnqueueResult, apply_sieve_actions, classify_recipients, enqueue_remote_rcpts,
+};
 use antispam::{AntiSpamOutcome, run_antispam};
-use recipients::classify_recipients;
-use remote::{RemoteEnqueueResult, enqueue_remote_rcpts};
-use sieve::apply_sieve_actions;
 
 pub(super) async fn handle_need_data<S>(
     framed: &mut Framed<S, SmtpCodec>,
