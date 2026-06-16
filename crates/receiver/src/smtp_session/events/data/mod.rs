@@ -19,6 +19,7 @@ mod antispam;
 mod recipients;
 mod remote;
 mod sieve;
+mod spool_accept;
 
 use antispam::{AntiSpamOutcome, run_antispam};
 use recipients::classify_recipients;
@@ -96,6 +97,25 @@ where
                         target_folder = tf;
                     }
                 }
+            }
+
+            // P6 split: in receiver-only mode (spool_sink set), do NOT resolve
+            // recipients / sieve / deliver / relay here — write the
+            // antispam-processed message to the spool and let the core consume
+            // it. The monolith (spool_sink == None) falls through to the inline
+            // delivery path below, unchanged.
+            if ctx.spool_sink.is_some() {
+                return spool_accept::handle_spool_mode(
+                    framed,
+                    &reverse_path,
+                    &forward_paths,
+                    is_authenticated,
+                    conn_id,
+                    target_folder,
+                    &full_message,
+                    ctx,
+                )
+                .await;
             }
 
             let msg_size = full_message.len();
