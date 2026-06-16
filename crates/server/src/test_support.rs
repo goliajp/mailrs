@@ -79,6 +79,7 @@ pub async fn spawn_receiving_server(pool: BackendPool, maildir_root: String) -> 
         inbound_pipeline: mailrs_inbound::Pipeline::builder().build(),
         delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
         process_tx,
+        spool_sink: None,
     });
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

@@ -578,6 +578,9 @@ pub async fn run() {
         inbound_pipeline,
         delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
         process_tx,
+        // monolith: inline delivery via process_tx (the receiver binary sets
+        // this to a maildir spool sink for the split topology).
+        spool_sink: None,
     });
 
     spawn_smtp_listeners(&ctx, &cfg, tls_state.is_some(), shutdown_rx.clone()).await;

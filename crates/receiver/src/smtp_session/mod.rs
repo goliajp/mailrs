@@ -85,6 +85,11 @@ pub struct ConnectionContext {
     /// try_sends delivered messages here so maildir write stays synchronous
     /// while indexing + the post-delivery pass run off the hot path.
     pub process_tx: delivered::ProcessTx,
+    /// P6 receiver/core split: when set (the receiver binary), the DATA handler
+    /// writes the accepted message to the spool via this sink and emits a
+    /// `SpoolDelivered` notify instead of resolving + delivering inline. `None`
+    /// (the monolith / tests) keeps the inline `process_tx` delivery path.
+    pub spool_sink: Option<Arc<dyn spool_sink::SpoolSink>>,
 }
 
 mod address;
@@ -93,9 +98,11 @@ mod credentials;
 pub mod delivered;
 mod events;
 pub mod headers;
+pub mod spool_sink;
 mod srs;
 
 pub use delivered::{DeliveredMessage, ProcessTx};
+pub use spool_sink::SpoolSink;
 
 use events::handle_event;
 
