@@ -109,11 +109,15 @@ where
     SessionAction::Continue
 }
 
-/// True if any forward-path's domain is not in `local_domains` (case-insensitive).
+/// True if any forward-path resolves to a non-local domain — using the same
+/// [`is_local_domain`] semantics as the delivery classifier (empty
+/// `local_domains` means "accept all as local"), so the receiver's coarse
+/// relay guard never diverges from how the core will classify the recipient.
 fn has_remote_rcpt(forward_paths: &[String], local_domains: &[String]) -> bool {
+    use super::super::super::address::is_local_domain;
     forward_paths.iter().any(|r| {
         r.rsplit_once('@')
-            .map(|(_, d)| !local_domains.iter().any(|ld| ld.eq_ignore_ascii_case(d)))
+            .map(|(_, d)| !is_local_domain(d, local_domains))
             .unwrap_or(false)
     })
 }
@@ -141,9 +145,18 @@ mod tests {
     }
 
     #[test]
-    fn domain_match_is_case_insensitive() {
-        let local = vec!["SMK.ai".to_string()];
+    fn rcpt_domain_match_is_case_insensitive() {
+        // local_domains arrive lowercased from config; a mixed-case RCPT domain
+        // still matches because is_local_domain lowercases the RCPT side.
+        let local = vec!["smk.ai".to_string()];
         assert!(!has_remote_rcpt(&["a@smk.AI".into()], &local));
+    }
+
+    #[test]
+    fn empty_local_domains_means_all_local() {
+        // matches is_local_domain: no configured local domains -> accept all
+        // as local (never relay-deny), consistent with the delivery classifier.
+        assert!(!has_remote_rcpt(&["a@anywhere.com".into()], &[]));
     }
 
     #[test]
