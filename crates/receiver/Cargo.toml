@@ -31,6 +31,9 @@ mailrs-intelligence = { path = "../intelligence", version = "3" }
 mailrs-auth-guard = { path = "../auth-guard", version = "2" }
 mailrs-rate-limit = "1"
 mailrs-clamav = "1"
+# Network kevy-server client for the receiver/core split: greylist/rate/auth
+# state + SpoolDelivered notify go over kevy:// instead of in-process.
+kevy-client = { workspace = true }
 
 # SMTP session machinery (S5.4). mailrs-outbound-queue is pulled WITHOUT
 # its /spg feature — the receiver binds only the Notifier / QueueStore
