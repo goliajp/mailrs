@@ -3400,6 +3400,7 @@ dependencies = [
  "futures-util",
  "hickory-resolver",
  "ipnet",
+ "kevy-client",
  "mailrs-arc",
  "mailrs-arf 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-auth-guard",

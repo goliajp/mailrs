@@ -50,7 +50,11 @@ mod greylist_local;
 mod greylist_sync {
     pub use mailrs_receiver::greylist_sync::*;
 }
-pub mod kevy_net;
+/// re-export shim: the network kevy client moved to mailrs-receiver (P6-S5)
+/// so the receiver binary can construct the network anti backends.
+pub mod kevy_net {
+    pub use mailrs_receiver::kevy_net::*;
+}
 pub mod kevy_notify;
 mod kevy_store;
 mod mcp;

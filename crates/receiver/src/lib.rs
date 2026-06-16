@@ -26,4 +26,5 @@ pub use recipient::ResolvedRecipient;
 pub mod greylist_local;
 pub mod greylist_sync;
 pub mod inbound;
+pub mod kevy_net;
 pub mod smtp_session;
