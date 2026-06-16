@@ -24,5 +24,8 @@ toml = "1"
 ldap3 = { version = "0.12.1", default-features = false, features = ["tls-rustls-ring"] }
 tracing = "0.1"
 
+# SpoolEnvelope: base64-framed envelope header on spool files (receiver/core split).
+base64 = "0.22"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["sync", "rt", "macros"] }

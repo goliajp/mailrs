@@ -7,6 +7,7 @@
 
 pub mod event_bus;
 pub mod ldap_auth;
+pub mod spool;
 pub mod users;
 
 pub use event_bus::{BroadcastEvent, EventBus, EventPublisher, SmtpEvent, next_connection_id};
