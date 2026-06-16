@@ -126,6 +126,7 @@ mod address;
 mod auth;
 mod credentials;
 pub mod delivered;
+pub mod delivery;
 mod events;
 pub mod headers;
 pub mod spool_sink;

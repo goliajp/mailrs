@@ -3,10 +3,10 @@
 
 use mailrs_core::event_bus::SmtpEvent;
 
-use super::super::super::DeliveryDeps;
-use super::super::super::srs::srs_rewrite;
+use super::super::DeliveryDeps;
+use super::super::srs::srs_rewrite;
 
-pub(super) enum RemoteEnqueueResult {
+pub enum RemoteEnqueueResult {
     Ok,
     PartialFailure,
     RelayDenied,
@@ -18,7 +18,7 @@ pub(super) enum RemoteEnqueueResult {
 ///   the sender is not authenticated (caller responds 550).
 /// - `PartialFailure` if any enqueue failed (caller sets `ok = false`).
 /// - `Ok` otherwise.
-pub(super) async fn enqueue_remote_rcpts(
+pub async fn enqueue_remote_rcpts(
     remote_rcpts: &[(String, bool)],
     reverse_path: &str,
     full_message: &[u8],

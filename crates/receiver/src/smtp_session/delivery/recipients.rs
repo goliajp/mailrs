@@ -3,13 +3,13 @@
 
 use crate::ResolvedRecipient;
 
-use super::super::super::DeliveryDeps;
-use super::super::super::address::is_local_domain;
+use super::super::DeliveryDeps;
+use super::super::address::is_local_domain;
 
 /// Split `forward_paths` into local (after alias resolution) and
 /// remote (with `is_forwarded` flag) recipients, deduping locals
 /// case-insensitively. Pure helper: no I/O beyond `account_store`.
-pub(crate) async fn classify_recipients(
+pub async fn classify_recipients(
     forward_paths: &[String],
     deps: &DeliveryDeps<'_>,
 ) -> (Vec<String>, Vec<(String, bool)>) {
