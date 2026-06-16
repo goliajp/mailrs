@@ -78,6 +78,11 @@ services:
     image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
     entrypoint: ["mailrs-receiver"]
     pull_policy: always
+    # the receiver runs no web server (port 3100 is core-only), so the
+    # image's default healthcheck (curl :3100) can never pass. Disable it —
+    # the receiver's liveness is its SMTP listener plus the restart policy.
+    healthcheck:
+      disable: true
     dns:
       - 8.8.8.8
       - 1.1.1.1
