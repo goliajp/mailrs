@@ -3413,6 +3413,7 @@ dependencies = [
  "mailrs-intelligence",
  "mailrs-mail-builder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox",
+ "mailrs-message-store",
  "mailrs-mime",
  "mailrs-outbound-queue",
  "mailrs-rate-limit 1.0.1",
@@ -3433,6 +3434,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
