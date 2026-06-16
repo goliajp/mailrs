@@ -87,6 +87,14 @@ pub enum SmtpEvent {
         method: String,
         uid: String,
     },
+    /// Receiver (split topology) wrote an accepted message to the spool and
+    /// is asking the core to consume it. A best-effort wake-up hint — the
+    /// spool file is the source of truth; the spool reconcile sweep is the
+    /// durability backstop if this notify is dropped. Carries no body.
+    SpoolDelivered {
+        spool_id: String,
+        recipient_count: usize,
+    },
 }
 
 impl SmtpEvent {
@@ -98,7 +106,9 @@ impl SmtpEvent {
     pub fn crosses_process(&self) -> bool {
         matches!(
             self,
-            SmtpEvent::NewMessage { .. } | SmtpEvent::InviteReceived { .. }
+            SmtpEvent::NewMessage { .. }
+                | SmtpEvent::InviteReceived { .. }
+                | SmtpEvent::SpoolDelivered { .. }
         )
     }
 }
@@ -334,10 +344,25 @@ mod tests {
                 subject: "sub".into(),
                 snippet: "sn".into(),
             },
+            SmtpEvent::SpoolDelivered {
+                spool_id: "1781500000.abcd".into(),
+                recipient_count: 2,
+            },
         ];
         for event in events {
             let json = serde_json::to_string(&event);
             assert!(json.is_ok(), "failed to serialize: {event:?}");
         }
+    }
+
+    #[test]
+    fn spool_delivered_crosses_process() {
+        assert!(
+            SmtpEvent::SpoolDelivered {
+                spool_id: "x".into(),
+                recipient_count: 1,
+            }
+            .crosses_process()
+        );
     }
 }

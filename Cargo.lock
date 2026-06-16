@@ -2989,6 +2989,7 @@ name = "mailrs-core"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "base64",
  "ldap3",
  "password-hash",
  "rand_core 0.6.4",
