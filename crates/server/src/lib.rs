@@ -597,6 +597,38 @@ pub async fn run() {
         spool_sink: None,
     });
 
+    // P6 split: when this core runs as the consumer half
+    // (MAILRS_RECEIVER_SPLIT), also drain the spool the receiver process
+    // writes to — consume spool files (SpoolDelivered notify + reconcile
+    // sweep) and run the same resolve/sieve/deliver/relay path, handing each
+    // local delivery to the existing post-delivery consumer over a cloned
+    // process_tx. Opt-in; the monolith (flag unset) is unchanged.
+    if std::env::var("MAILRS_RECEIVER_SPLIT")
+        .map(|v| v != "0" && v.to_lowercase() != "false")
+        .unwrap_or(false)
+    {
+        let spool_root = std::env::var("MAILRS_SPOOL_ROOT")
+            .unwrap_or_else(|_| format!("{}/.spool", cfg.maildir_root));
+        let spool_deps = Arc::new(smtp_session::SpoolConsumeDeps {
+            spool_incoming_path: format!("{spool_root}/incoming"),
+            spool_store: crate::message_store::default_store(),
+            delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
+            process_tx: ctx.process_tx.clone(),
+            account_store: ctx.account_store.clone(),
+            quota_store: ctx.quota_store.clone(),
+            outbound_enqueue: ctx.outbound_enqueue.clone(),
+            queue_notifier: ctx.queue_notifier.clone(),
+            event_bus: ctx.event_bus.clone(),
+            hostname: cfg.hostname.clone(),
+            srs_secret: cfg.srs_secret.clone(),
+            local_domains: cfg.local_domains.clone(),
+            maildir_root: cfg.maildir_root.clone(),
+            in_flight: Arc::new(dashmap::DashMap::new()),
+        });
+        smtp_session::spawn_spool_consumer(spool_deps, ctx.event_bus.clone(), 30);
+        tracing::info!("MAILRS_RECEIVER_SPLIT set: core spool consumer started");
+    }
+
     spawn_smtp_listeners(&ctx, &cfg, tls_state.is_some(), shutdown_rx.clone()).await;
 
     spawn_web_server(web_state, &cfg, &domain_store, shutdown_rx.clone()).await;
