@@ -9,8 +9,16 @@ publish = false
 [lints]
 workspace = true
 
+# The standalone receiver process (P6): SMTP I/O + anti via kevy-server +
+# antispam + spool write + SpoolDelivered notify. Zero spg / PG.
+[[bin]]
+name = "mailrs-receiver"
+path = "src/main.rs"
+
 [dependencies]
 async-trait = { workspace = true }
+mailrs-message-store = { path = "../message-store" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Shared session infra (event bus, UserStore, LdapConfig) + hot-reload TLS.
 mailrs-core = { path = "../core" }
@@ -54,7 +62,7 @@ mailrs-mime = { path = "../mime", version = "2" }
 mailrs-srs = "1"
 mailrs-arf = "1"
 
-tokio = { version = "1", features = ["sync", "rt", "time", "macros", "net", "io-util"] }
+tokio = { version = "1", features = ["sync", "rt", "rt-multi-thread", "time", "macros", "net", "io-util", "signal"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 futures-util = { version = "0.3", features = ["sink"] }
 hickory-resolver = "0.26"
