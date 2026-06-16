@@ -26,7 +26,12 @@ mod ldap_auth {
 mod imap_session;
 pub mod inbound;
 mod inline_image;
-mod listeners;
+/// re-export shim: the generic TCP listener template moved to
+/// mailrs-receiver (P6-S5) so the receiver binary can bind its SMTP
+/// listeners. server's imap/pop3/web/managesieve listeners use it via this.
+mod listeners {
+    pub use mailrs_receiver::listeners::*;
+}
 mod managesieve_session;
 mod message_store;
 mod message_util;
@@ -55,7 +60,12 @@ mod greylist_sync {
 pub mod kevy_net {
     pub use mailrs_receiver::kevy_net::*;
 }
-pub mod kevy_notify;
+/// re-export shim: cross-process notify (publisher + subscriber bridge)
+/// moved to mailrs-receiver (P6-S5) — the receiver publishes SpoolDelivered,
+/// the core spawns the subscriber bridge. Both via this shim.
+pub mod kevy_notify {
+    pub use mailrs_receiver::kevy_notify::*;
+}
 mod kevy_store;
 mod mcp;
 mod oidc_jwt;

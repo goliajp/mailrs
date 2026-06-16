@@ -23,8 +23,8 @@ use serde::{Deserialize, Serialize};
 
 use kevy_client::Subscriber;
 
-use crate::event_bus::{EventBus, SmtpEvent};
 use crate::kevy_net::KevyNetClient;
+use mailrs_core::event_bus::{EventBus, SmtpEvent};
 
 /// The default pub/sub channel for mail notifications.
 pub const NOTIFY_CHANNEL: &[u8] = b"notify:new-mail";
@@ -90,7 +90,7 @@ impl KevyEventPublisher {
     }
 }
 
-impl crate::event_bus::EventPublisher for KevyEventPublisher {
+impl mailrs_core::event_bus::EventPublisher for KevyEventPublisher {
     fn publish(&self, event: &SmtpEvent) {
         KevyEventPublisher::publish(self, event);
     }

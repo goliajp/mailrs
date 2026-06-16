@@ -27,4 +27,6 @@ pub mod greylist_local;
 pub mod greylist_sync;
 pub mod inbound;
 pub mod kevy_net;
+pub mod kevy_notify;
+pub mod listeners;
 pub mod smtp_session;
