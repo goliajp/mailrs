@@ -42,7 +42,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
     cargo build --release --bin mailrs-server --features spg,render-preview \
-    && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server
+    && cargo build --release --bin mailrs-receiver \
+    && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server \
+    && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver
 
 # stage 2: build frontend
 FROM oven/bun:1-debian AS web-builder
@@ -74,6 +76,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN groupadd -r -g 10001 mailrs && useradd -r -u 10001 -g mailrs -d /data -s /sbin/nologin mailrs
 
 COPY --from=rust-builder /usr/local/bin/mailrs-server /usr/local/bin/mailrs-server
+# receiver split (P6): the standalone receiver binary ships in the same
+# image. Idle unless a container's entrypoint is overridden to
+# mailrs-receiver (the receiver-split topology); the default mailrs-server
+# entrypoint never touches it. One image, two roles.
+COPY --from=rust-builder /usr/local/bin/mailrs-receiver /usr/local/bin/mailrs-receiver
 COPY --from=web-builder /build/dist /opt/mailrs/web
 
 # Grant the binary capability to bind privileged ports (< 1024) so it
@@ -82,6 +89,9 @@ COPY --from=web-builder /build/dist /opt/mailrs/web
 # every privileged listener to <port+1000> (e.g. SMTP 25 → 1025) and
 # external mail traffic stops landing. Discovered in v1.7.91 cutover.
 RUN setcap 'cap_net_bind_service=+ep' /usr/local/bin/mailrs-server
+# the receiver binary binds the same privileged SMTP ports (25 / 465 / 587)
+# when run as the receiver-split front door, so it needs the same capability.
+RUN setcap 'cap_net_bind_service=+ep' /usr/local/bin/mailrs-receiver
 
 # create data directories with correct ownership
 RUN mkdir -p /data/maildir /data/acme /certs && chown -R mailrs:mailrs /data
