@@ -86,7 +86,7 @@ describe('fetchJson', () => {
     expect(opts.signal).toBe(controller.signal)
   })
 
-  it('throws on 401 and redirects to /login', async () => {
+  it('throws on 401 and redirects to /login with return_to', async () => {
     mockGetToken.mockReturnValue('stale-token')
     const removeItem = vi.fn()
     vi.stubGlobal('localStorage', {
@@ -94,10 +94,34 @@ describe('fetchJson', () => {
       removeItem,
       setItem: vi.fn(),
     })
-    vi.stubGlobal('window', { ...globalThis.window, location: { href: '' } })
+    vi.stubGlobal('window', {
+      ...globalThis.window,
+      location: { hash: '', href: '', pathname: '/mail/inbox', search: '?folder=Inbox' },
+    })
     vi.stubGlobal('fetch', makeFetchMock(401, {}))
     await expect(fetchJson('/secure')).rejects.toThrow('unauthorized')
     expect(removeItem).toHaveBeenCalledWith('mailrs_auth')
+    expect(window.location.href).toBe(
+      '/login?return_to=' + encodeURIComponent('/mail/inbox?folder=Inbox')
+    )
+  })
+
+  it('does not redirect when 401 fires from /login itself (avoid loop)', async () => {
+    mockGetToken.mockReturnValue('stale-token')
+    const removeItem = vi.fn()
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn(),
+      removeItem,
+      setItem: vi.fn(),
+    })
+    vi.stubGlobal('window', {
+      ...globalThis.window,
+      location: { hash: '', href: '/login', pathname: '/login', search: '' },
+    })
+    vi.stubGlobal('fetch', makeFetchMock(401, {}))
+    await expect(fetchJson('/secure')).rejects.toThrow('unauthorized')
+    expect(removeItem).toHaveBeenCalledWith('mailrs_auth')
+    // href left untouched — we're already on /login
     expect(window.location.href).toBe('/login')
   })
 
@@ -203,7 +227,7 @@ describe('fetchBlob', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/attachment/1', expect.any(Object))
   })
 
-  it('throws on 401 and redirects to /login', async () => {
+  it('throws on 401 and redirects to /login with return_to', async () => {
     mockGetToken.mockReturnValue('old-token')
     const removeItem = vi.fn()
     vi.stubGlobal('localStorage', {
@@ -211,7 +235,10 @@ describe('fetchBlob', () => {
       removeItem,
       setItem: vi.fn(),
     })
-    vi.stubGlobal('window', { ...globalThis.window, location: { href: '' } })
+    vi.stubGlobal('window', {
+      ...globalThis.window,
+      location: { hash: '', href: '', pathname: '/mail/conv/abc', search: '' },
+    })
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -222,7 +249,9 @@ describe('fetchBlob', () => {
     )
     await expect(fetchBlob('/attachment/1')).rejects.toThrow('unauthorized')
     expect(removeItem).toHaveBeenCalledWith('mailrs_auth')
-    expect(window.location.href).toBe('/login')
+    expect(window.location.href).toBe(
+      '/login?return_to=' + encodeURIComponent('/mail/conv/abc')
+    )
   })
 
   it('throws on non-200 non-401 status', async () => {
