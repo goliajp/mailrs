@@ -58,8 +58,7 @@ export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blo
     signal,
   })
   if (res.status === 401) {
-    localStorage.removeItem('mailrs_auth')
-    window.location.href = '/login'
+    redirectToLogin()
     throw new Error('unauthorized')
   }
   if (!res.ok) {
@@ -163,8 +162,7 @@ function authHeaders(): Record<string, string> {
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
-    localStorage.removeItem('mailrs_auth')
-    window.location.href = '/login'
+    redirectToLogin()
     throw new Error('unauthorized')
   }
   if (!res.ok) {
@@ -179,4 +177,19 @@ async function handleResponse<T>(res: Response): Promise<T> {
     throw new Error(message)
   }
   return res.json()
+}
+
+// Drop the stale token and bounce to /login, but preserve the current
+// URL via ?return_to= so the user lands back on the same view after
+// re-authenticating. The login page already honours return_to.
+function redirectToLogin(): void {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem('mailrs_auth')
+  const here = window.location.pathname + window.location.search + window.location.hash
+  // Don't loop if we're already on /login (avoid replacing return_to of
+  // an in-flight login attempt with itself).
+  if (window.location.pathname === '/login') {
+    return
+  }
+  window.location.href = `/login?return_to=${encodeURIComponent(here)}`
 }

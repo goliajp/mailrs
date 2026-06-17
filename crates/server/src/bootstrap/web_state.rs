@@ -68,6 +68,19 @@ pub(crate) fn build_web_state(i: WebStateInputs<'_>) -> WebState {
     }
     if let Some(store) = i.kevy_embed {
         ws.kevy_embed = Some(store.clone());
+        // Wire the session mirror through kevy so user sessions survive a
+        // mailrs-server restart (mem-watchdog graceful restart, deploy, …)
+        // and then rehydrate the in-memory cache from whatever was
+        // persisted from the previous process.
+        ws.sessions.attach_kevy(store.clone());
+        let restored = ws.sessions.restore_from_kevy();
+        if restored > 0 {
+            tracing::info!(
+                event = "sessions_restored_from_kevy",
+                count = restored,
+                "rehydrated web sessions from kevy across restart"
+            );
+        }
     }
     if let Some(q) = i.outbound_queue {
         ws = ws.with_queue(q.clone());
