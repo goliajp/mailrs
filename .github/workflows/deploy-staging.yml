@@ -82,19 +82,40 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${{ secrets.STAGING_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: pull + redeploy mailrs-staging (spg) + health gate
+      # Sync the split compose file before bringing services up, so any
+      # edits in this commit (env changes, port maps, new sidecars) apply.
+      - name: scp docker-compose.staging.split.yml
+        run: |
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+            deploy/docker-compose.staging.split.yml \
+            "${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}:/apps/mailrs-staging/docker-compose.staging.split.yml"
+
+      - name: pull + redeploy split (receiver + kevy + core) + health gate
         run: |
           ssh -i ~/.ssh/id_ed25519 \
             "${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}" \
             'set -e
              cd /apps/mailrs-staging
              grep -q "^MAILRS_VERSION=" .env && sed -i "s/^MAILRS_VERSION=.*/MAILRS_VERSION=develop/" .env || echo "MAILRS_VERSION=develop" >> .env
-             docker compose -p mailrs-staging -f docker-compose.staging.yml pull mailrs
-             docker compose -p mailrs-staging -f docker-compose.staging.yml up -d mailrs
+             # split topology: receiver + kevy + core from one image; reuse the
+             # mailrs-data volume so spg + maildir + spool live on one mount.
+             docker compose -p mailrs-staging -f docker-compose.staging.split.yml pull receiver mailrs
+             docker compose -p mailrs-staging -f docker-compose.staging.split.yml up -d --remove-orphans
+             # core health = same /api/health on :3101 (web stayed on core).
              for i in $(seq 1 36); do
                if curl -fsS --max-time 5 http://127.0.0.1:3101/api/health | grep -q "\"status\":\"healthy\""; then
-                 echo "staging (spg) healthy"; exit 0
+                 echo "staging (spg, split) core healthy"
+                 # receiver liveness = SMTP listener bound. ss to confirm.
+                 if docker exec mailrs-staging-receiver ss -ltn 2>/dev/null | grep -qE ":(25|465|587)\b"; then
+                   echo "receiver SMTP listeners bound"
+                 else
+                   echo "warning: receiver SMTP ports not visible (ss missing or netns mismatch)"
+                 fi
+                 exit 0
                fi
                sleep 5
              done
-             echo "health check failed"; docker logs --tail 50 mailrs-staging; exit 1'
+             echo "health check failed"
+             docker logs --tail 50 mailrs-staging || true
+             docker logs --tail 30 mailrs-staging-receiver || true
+             exit 1'
