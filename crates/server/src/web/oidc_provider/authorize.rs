@@ -185,7 +185,9 @@ fn try_extract_session(
     }
 
     let session = state.sessions.get(&token)?;
-    if session.created_at.elapsed() < super::super::SESSION_TTL {
+    let elapsed_secs =
+        crate::inbound::auth_guard::unix_now().saturating_sub(session.created_at_unix);
+    if elapsed_secs < super::super::SESSION_TTL.as_secs() {
         Some((session.address.clone(), session.display_name.clone()))
     } else {
         None

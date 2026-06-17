@@ -283,7 +283,7 @@ async fn issue_session_response(
             address: account.address.clone(),
             display_name: account.display_name.clone(),
             permissions: permissions.clone(),
-            created_at: std::time::Instant::now(),
+            created_at_unix: crate::inbound::auth_guard::unix_now(),
         },
     );
 

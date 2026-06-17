@@ -82,7 +82,9 @@ impl FromRequestParts<Arc<WebState>> for AuthUser {
             }
 
             if let Some(session) = state.sessions.get(token.as_str()) {
-                if session.created_at.elapsed() < super::SESSION_TTL {
+                let elapsed_secs =
+                    crate::inbound::auth_guard::unix_now().saturating_sub(session.created_at_unix);
+                if elapsed_secs < super::SESSION_TTL.as_secs() {
                     return Ok(AuthUser {
                         address: session.address.clone(),
                         display_name: session.display_name.clone(),

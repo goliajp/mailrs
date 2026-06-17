@@ -21,8 +21,10 @@ pub(super) async fn ws_events(
 ) -> Result<impl IntoResponse, StatusCode> {
     // authentication is mandatory
     let token = query.token.as_deref().ok_or(StatusCode::UNAUTHORIZED)?;
+    let now = crate::inbound::auth_guard::unix_now();
     match state.sessions.get(token) {
-        Some(session) if session.created_at.elapsed() < super::SESSION_TTL => {}
+        Some(session)
+            if now.saturating_sub(session.created_at_unix) < super::SESSION_TTL.as_secs() => {}
         _ => return Err(StatusCode::UNAUTHORIZED),
     }
     Ok(ws.on_upgrade(move |socket| handle_ws(socket, state)))

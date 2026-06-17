@@ -60,10 +60,12 @@ async fn authenticate(headers: &HeaderMap, state: &Arc<WebState>) -> Option<Stri
     let auth_header = headers.get("authorization")?.to_str().ok()?;
 
     if let Some(token) = auth_header.strip_prefix("Bearer ") {
-        if let Some(session) = state.sessions.get(token)
-            && session.created_at.elapsed() < super::SESSION_TTL
-        {
-            return Some(session.address.clone());
+        if let Some(session) = state.sessions.get(token) {
+            let elapsed_secs =
+                crate::inbound::auth_guard::unix_now().saturating_sub(session.created_at_unix);
+            if elapsed_secs < super::SESSION_TTL.as_secs() {
+                return Some(session.address.clone());
+            }
         }
         return None;
     }
