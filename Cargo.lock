@@ -5608,9 +5608,9 @@ checksum = "821aa6bbdaa5038ffc221f0ee525d5cf0c436ea4bed34d643d64a132cd266ffd"
 
 [[package]]
 name = "spg-embedded"
-version = "7.34.5"
+version = "7.34.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e33327464bcf7a48e3d753513cf31131db92563953a4570e04ea52cc3911ca9"
+checksum = "28b250edc679d659bf0e754fae588c05adf84e50acb4f82d8acce1087f844815"
 dependencies = [
  "spg-crypto",
  "spg-engine",
@@ -5660,9 +5660,9 @@ checksum = "2caa5339c9f2134dd9457441fe880be45d9f6ef4c4d0362fa4852d79f5b162dc"
 
 [[package]]
 name = "spg-sqlx"
-version = "7.34.5"
+version = "7.34.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4ebdd283556683aa812859166bba43d12dc6f2c1c49c407e90a7a83896b01b4"
+checksum = "60f4d9554b5a42e4c9354378933f84a35f5d811eca72622ed9c519ab13fd234f"
 dependencies = [
  "bigdecimal",
  "chrono",
