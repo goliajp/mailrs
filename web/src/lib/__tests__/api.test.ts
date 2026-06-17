@@ -249,9 +249,7 @@ describe('fetchBlob', () => {
     )
     await expect(fetchBlob('/attachment/1')).rejects.toThrow('unauthorized')
     expect(removeItem).toHaveBeenCalledWith('mailrs_auth')
-    expect(window.location.href).toBe(
-      '/login?return_to=' + encodeURIComponent('/mail/conv/abc')
-    )
+    expect(window.location.href).toBe('/login?return_to=' + encodeURIComponent('/mail/conv/abc'))
   })
 
   it('throws on non-200 non-401 status', async () => {
