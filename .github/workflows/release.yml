@@ -240,7 +240,7 @@ jobs:
           # docker-compose.yml (caught at the v1.7.148 SPG cutover, where
           # the env/service changes silently didn't apply).
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
-            docker-compose.prod.yml \
+            docker-compose.prod.split.yml \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/apps/mailrs/docker-compose.yml"
 
       - name: SSH + docker pull + restart
@@ -310,8 +310,21 @@ jobs:
                 2>/dev/null || echo "unreachable")
               case "$health" in
                 healthy|degraded)
-                  echo "==> health: $health — deploy ok"
-                  exit 0
+                  echo "==> core health: $health"
+                  # split: also smoke-check the receiver's SMTP listeners
+                  # so a silent receiver crash doesn't pass deploy.
+                  if docker ps --format '{{.Names}}' | grep -q '^mailrs-receiver$'; then
+                    if docker exec mailrs-receiver ss -ltn 2>/dev/null | grep -qE ":(25|465|587)\b"; then
+                      echo "==> receiver SMTP listeners bound — deploy ok"
+                      exit 0
+                    else
+                      echo "==> receiver up but SMTP ports not bound; waiting"
+                    fi
+                  else
+                    # no receiver in compose (monolith rollback) — core alone is the signal.
+                    echo "==> monolith mode — deploy ok"
+                    exit 0
+                  fi
                   ;;
               esac
               sleep 2
@@ -319,6 +332,7 @@ jobs:
 
             echo "==> deploy failed; container logs (tail 40):" >&2
             docker compose logs --tail 40 mailrs >&2 || true
+            docker compose logs --tail 30 mailrs-receiver >&2 || true
             exit 1
 
   publish:
