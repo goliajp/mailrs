@@ -105,11 +105,14 @@ jobs:
              for i in $(seq 1 36); do
                if curl -fsS --max-time 5 http://127.0.0.1:3101/api/health | grep -q "\"status\":\"healthy\""; then
                  echo "staging (spg, split) core healthy"
-                 # receiver liveness = SMTP listener bound. ss to confirm.
-                 if docker exec mailrs-staging-receiver ss -ltn 2>/dev/null | grep -qE ":(25|465|587)\b"; then
-                   echo "receiver SMTP listeners bound"
+                 # receiver liveness via SMTP banner over the host-bound
+                 # port (receiver image has no ss/nc; banner is the real
+                 # signal anyway). Staging binds the SMTP ports on the
+                 # ens5 interface IP, hit it directly.
+                 if timeout 3 bash -c "exec 3<>/dev/tcp/172.31.11.182/25; head -c 3 <&3" 2>/dev/null | grep -q "^220"; then
+                   echo "receiver SMTP banner ok"
                  else
-                   echo "warning: receiver SMTP ports not visible (ss missing or netns mismatch)"
+                   echo "warning: receiver SMTP banner not yet (deploy still considered ok if core healthy)"
                  fi
                  exit 0
                fi

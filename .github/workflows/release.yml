@@ -311,14 +311,16 @@ jobs:
               case "$health" in
                 healthy|degraded)
                   echo "==> core health: $health"
-                  # split: also smoke-check the receiver's SMTP listeners
-                  # so a silent receiver crash doesn't pass deploy.
+                  # split: also smoke-check the receiver's SMTP listener
+                  # by talking to it from the host (receiver image has no
+                  # ss/nc; banner-back is a stronger signal than ss
+                  # anyway).
                   if docker ps --format '{{.Names}}' | grep -q '^mailrs-receiver$'; then
-                    if docker exec mailrs-receiver ss -ltn 2>/dev/null | grep -qE ":(25|465|587)\b"; then
-                      echo "==> receiver SMTP listeners bound — deploy ok"
+                    if timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/25; head -c 3 <&3' 2>/dev/null | grep -q '^220'; then
+                      echo "==> receiver SMTP banner ok — deploy ok"
                       exit 0
                     else
-                      echo "==> receiver up but SMTP ports not bound; waiting"
+                      echo "==> receiver up but SMTP banner not yet; waiting"
                     fi
                   else
                     # no receiver in compose (monolith rollback) — core alone is the signal.
