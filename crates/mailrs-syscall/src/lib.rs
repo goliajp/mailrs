@@ -105,12 +105,12 @@ pub fn mmap_anon_rw(len: usize) -> Result<*mut u8, Errno> {
     let raw = unsafe {
         syscall6(
             SYS_MMAP,
-            0,                       // addr — let kernel pick
-            len as i64,              // len
-            PROT_READ | PROT_WRITE,  // prot
+            0,                      // addr — let kernel pick
+            len as i64,             // len
+            PROT_READ | PROT_WRITE, // prot
             MAP_PRIVATE | MAP_ANONYMOUS,
-            -1,                      // fd — must be -1 for anon
-            0,                       // offset
+            -1, // fd — must be -1 for anon
+            0,  // offset
         )
     };
     decode(raw).map(|p| p as *mut u8)
@@ -146,7 +146,14 @@ pub unsafe fn munmap(addr: *mut u8, len: usize) -> Result<(), Errno> {
 /// `mmap`'d page.
 #[cfg(target_os = "linux")]
 pub unsafe fn madvise_dontneed(addr: *mut u8, len: usize) -> Result<(), Errno> {
-    let raw = unsafe { syscall3(SYS_MADVISE, addr as i64, len as i64, linux_consts::MADV_DONTNEED) };
+    let raw = unsafe {
+        syscall3(
+            SYS_MADVISE,
+            addr as i64,
+            len as i64,
+            linux_consts::MADV_DONTNEED,
+        )
+    };
     decode(raw).map(|_| ())
 }
 
