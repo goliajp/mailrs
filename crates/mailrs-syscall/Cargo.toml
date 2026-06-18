@@ -1,0 +1,13 @@
+[package]
+name = "mailrs-syscall"
+version = "0.1.0"
+edition = "2024"
+description = "0-dep raw Linux syscall stubs for mailrs's in-process allocator (mmap / munmap / madvise). aarch64-linux + x86_64-linux only — macOS host build is a stub so cargo workspace builds during development; the real path activates under target_os=linux."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+authors = ["GOLIA K.K."]
+keywords = ["mailrs", "syscall", "no-libc", "linux", "mmap"]
+categories = ["no-std", "external-ffi-bindings"]
+
+[lints]
+workspace = true
