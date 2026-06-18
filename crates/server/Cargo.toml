@@ -38,6 +38,7 @@ mailrs-delivery-executor = { path = "../delivery-executor", version = "1.2" }
 mailrs-message-store = { path = "../message-store" }
 mailrs-receiver = { path = "../receiver" }
 mailrs-core = { path = "../core" }
+mailrs-mmalloc = { path = "../mailrs-mmalloc" }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 tokio-rustls = "0.26"
