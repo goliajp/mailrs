@@ -177,9 +177,32 @@ mod tests {
     use super::*;
     use core::ptr;
 
+    /// Build an `Allocator` directly on the heap, bypassing the
+    /// ~1 MB stack copy that `Box::new(Allocator::new())` does in
+    /// debug builds (where the on-stack temporary trips the
+    /// 2 MB default test-thread stack on Linux CI runners).
+    /// Safe because `Option<Span>` has the NonNull niche, so the
+    /// all-zero bit pattern is a valid `Allocator::new()` value
+    /// (all spans = None, all class cursors = 0).
+    fn test_alloc() -> Box<Allocator> {
+        use core::alloc::Layout;
+        let layout = Layout::new::<Allocator>();
+        // SAFETY: layout is non-zero; alloc_zeroed returns a
+        // pointer to zero-initialised memory of that size+align,
+        // and our Allocator type is all-zero-valid.
+        let ptr = unsafe { std::alloc::alloc_zeroed(layout) } as *mut Allocator;
+        if ptr.is_null() {
+            std::alloc::handle_alloc_error(layout);
+        }
+        // SAFETY: ptr was just returned by the global allocator with
+        // the matching layout, and the all-zero bit pattern is a
+        // valid Allocator.
+        unsafe { Box::from_raw(ptr) }
+    }
+
     #[test]
     fn alloc_and_free_recycles() {
-        let mut a = Allocator::new();
+        let mut a = test_alloc();
         let p1 = a.alloc(16).expect("alloc 16");
         unsafe { *p1 = 0xab };
         unsafe { a.dealloc(p1, 16) };
@@ -200,7 +223,7 @@ mod tests {
 
     #[test]
     fn cross_span_alloc() {
-        let mut a = Allocator::new();
+        let mut a = test_alloc();
         // Fill span 1 with 256-class allocations: 16 KB / 256 = 64
         // slots fits exactly; the 65th should trigger a new span.
         for _ in 0..64 {
@@ -214,7 +237,7 @@ mod tests {
 
     #[test]
     fn alloc_too_large_returns_none() {
-        let mut a = Allocator::new();
+        let mut a = test_alloc();
         assert!(
             a.alloc(8192).is_none(),
             "8192 > max bucket — caller routes to large_alloc"
@@ -223,7 +246,7 @@ mod tests {
 
     #[test]
     fn writable_freshly_mapped() {
-        let mut a = Allocator::new();
+        let mut a = test_alloc();
         for size in [16, 32, 64, 128, 256, 512, 1024, 2048, 4096] {
             let p = a.alloc(size).expect("alloc");
             unsafe {
@@ -244,7 +267,7 @@ mod tests {
     /// silently break alignment for SIMD / `_Atomic` heap reads.
     #[test]
     fn alloc_pointers_are_16_byte_aligned() {
-        let mut a = Allocator::new();
+        let mut a = test_alloc();
         for _ in 0..1024 {
             for &size in SIZE_CLASSES.iter() {
                 let p = a.alloc(size).expect("alloc") as usize;
@@ -264,7 +287,7 @@ mod tests {
     /// span dispatch bugs that single-shot tests miss.
     #[test]
     fn stress_100k_roundtrips_no_corruption() {
-        let mut a = Allocator::new();
+        let mut a = test_alloc();
         let sizes = [16usize, 32, 64, 128, 256, 512, 1024, 2048, 4096];
         for round in 0..100_000usize {
             let size = sizes[round % sizes.len()];
@@ -285,7 +308,7 @@ mod tests {
     /// must NOT.)
     #[test]
     fn same_class_packs_into_one_span() {
-        let mut a = Allocator::new();
+        let mut a = test_alloc();
         let p1 = a.alloc(64).expect("alloc 1");
         let p2 = a.alloc(64).expect("alloc 2");
         // Both should be in the same span: addresses differ by
