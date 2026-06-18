@@ -32,6 +32,8 @@ members = [
     "crates/dnsbl",
     "crates/clamav",
     "crates/backoff",
+    "crates/mailrs-syscall",
+    "crates/mailrs-mmalloc",
     "crates/tls-reload",
     "crates/acme",
     "crates/spf",

@@ -1,0 +1,16 @@
+[package]
+name = "mailrs-mmalloc"
+version = "0.1.0"
+edition = "2024"
+description = "mmap-backed allocator for mailrs-server. Forked from the goliajp/torajs `torajs-mmalloc` v0.7 layered design (page bump + size-class free-list + TLAB + large mmap), adapted to Linux x86_64 + aarch64 prod targets. Provides a #[global_allocator]-compatible MailrsAllocator whose freed pages call madvise(MADV_DONTNEED) so resident memory actually returns to the OS — the bit glibc per-thread arenas refuse to do. Origin: 0-deps in-house policy, see DEPS_AUDIT.md / project NORTH STAR. macOS host build is a no-op stub so workspace cargo test runs during development."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+authors = ["GOLIA K.K."]
+keywords = ["mailrs", "allocator", "mmap", "no-libc", "global-allocator"]
+categories = ["memory-management"]
+
+[dependencies]
+mailrs-syscall = { path = "../mailrs-syscall" }
+
+[lints]
+workspace = true
