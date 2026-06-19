@@ -22,10 +22,16 @@ use core::ptr::{self, NonNull};
 
 use mailrs_syscall::{Errno, mmap_anon_rw, munmap};
 
-/// Default span byte length. Same 16 KB as the legacy `PageBump`
-/// so existing fit / coverage characteristics are preserved when
-/// the next commit switches `Allocator` to span-backed.
-pub const SPAN_LEN: usize = 16 * 1024;
+/// Default span byte length. Bumped from the legacy `PageBump` 16 KB
+/// to 512 KB on the mailrs fork: combined with `PER_CLASS_CAP = 4096`,
+/// 16 KB capped each size class at 64 MB of addressable arena, which
+/// `mailrs-server` boot exhausted on the 4096-byte class (staging
+/// reproducer logged `memory allocation of 2520 bytes failed` →
+/// `handle_alloc_error`). 512 KB raises the per-class ceiling to
+/// 2 GB. Cannot go above 1 MB because `Span::slot_count` is `u16`
+/// and `SPAN_LEN / MIN_SLOT(16) ≤ 65535` must hold; 512 KB / 16 =
+/// 32 768 leaves a comfortable margin.
+pub const SPAN_LEN: usize = 512 * 1024;
 
 /// Minimum slot size — must hold an in-place freelist `next`
 /// pointer (8 bytes on 64-bit targets). All size classes are
