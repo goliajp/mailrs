@@ -309,6 +309,7 @@ fn zero_sentinel() -> *mut u8 {
 ///   a popped node can't be re-pushed during a single CAS attempt.
 ///   Without the TLAB the ABA window collapses to a few instructions
 ///   and produces silent pointer aliasing under multi-thread contention.
+///
 /// One spin-lock per alloc/free is correct and adequate for a
 /// baseline; future work re-introduces TLAB via gettid-indexed
 /// per-thread state once the surface is reliable.
