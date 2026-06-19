@@ -3539,6 +3539,7 @@ dependencies = [
  "mailrs-maildir",
  "mailrs-message-store",
  "mailrs-mime",
+ "mailrs-mmalloc",
  "mailrs-outbound-queue",
  "mailrs-postmaster",
  "mailrs-rate-limit 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
