@@ -176,65 +176,65 @@ impl Allocator {
 
     /// O(1) dealloc using the registry-provided `(class_idx,
     /// idx_in_class)` hint. Jumps straight to the owning `Span` without
-    /// scanning. If the free empties the span, the span is dropped
-    /// (Drop fires munmap) and the slot becomes a `None` tombstone —
-    /// `class_cur` does NOT decrement, so the idx for OTHER live spans
-    /// remains stable.
+    /// scanning. If the free empties the span, the span's pages are
+    /// `madvise(MADV_DONTNEED)`'d — VMA stays mapped, RSS drops,
+    /// next `alloc_slot` on the same span gets fresh zero pages via
+    /// page fault. No drop, no compaction, no SpanRegistry change;
+    /// `class_live` stays unchanged.
     ///
-    /// Returns `Some(span_base)` if the span was dropped; the caller
-    /// (Layer 1 / Layer 0 free) must deregister the entry from the
-    /// external `SpanRegistry`. Returns `None` if the span survived or
-    /// if the hint was stale (no live span at that idx).
+    /// Returns `true` iff this free decommitted the span (caller can
+    /// use this for stats / tracing); `false` if the span survived
+    /// with live slots OR the hint was stale.
     ///
     /// # Safety
     ///
     /// `ptr` must be a slot pointer that was returned by an `alloc`
     /// call on the span currently at `classes[class_idx][idx_in_class]`,
-    /// not already freed. Caller MUST have just looked up `(class_idx,
-    /// idx_in_class)` from the registry for `ptr`'s span_base — using
-    /// a stale hint after the span was dropped is a no-op (returns
-    /// `None`), not UB.
+    /// not already freed.
     pub unsafe fn dealloc_hinted(
         &mut self,
         ptr: *mut u8,
         class_idx: usize,
         idx_in_class: u16,
-    ) -> Option<usize> {
+    ) -> bool {
         if class_idx >= SIZE_CLASSES.len() {
-            return None;
+            return false;
         }
         let idx = idx_in_class as usize;
-        let cell = self.classes[class_idx].get_mut(idx)?;
-        let emptied_base = {
-            let span = cell.as_mut()?;
-            debug_assert!(
-                span.contains(ptr),
-                "dealloc_hinted: hint ({class_idx},{idx}) doesn't own ptr"
-            );
-            // SAFETY: caller's outer Safety invariant — ptr came from
-            // a matching alloc on this exact span.
-            unsafe { span.free_slot(ptr) };
-            span.is_empty().then(|| span.base() as usize)
+        let Some(cell) = self.classes[class_idx].get_mut(idx) else {
+            return false;
         };
-        if let Some(base) = emptied_base {
-            let _ = cell.take();
-            self.class_live[class_idx] -= 1;
-            return Some(base);
+        let Some(span) = cell.as_mut() else {
+            return false;
+        };
+        debug_assert!(
+            span.contains(ptr),
+            "dealloc_hinted: hint ({class_idx},{idx}) doesn't own ptr"
+        );
+        // SAFETY: caller's outer Safety invariant — ptr came from
+        // a matching alloc on this exact span.
+        unsafe { span.free_slot(ptr) };
+        if span.is_empty() && span.dirty {
+            span.decommit_pages();
+            return true;
         }
-        None
+        false
     }
 
     /// Legacy O(n_spans_in_class) dealloc — scans the per-class array
     /// for the owning span. Used by callers that don't have a registry
     /// hint (Layer 0 free routes that hit a registry miss; tests that
-    /// don't use the registry). Returns `Some(span_base)` on shrink.
+    /// don't use the registry). Returns `true` if the dealloc
+    /// decommitted the span.
     ///
     /// # Safety
     ///
     /// `ptr` must be a pointer returned by `alloc(size)`, and not
     /// already freed.
-    pub unsafe fn dealloc(&mut self, ptr: *mut u8, size: usize) -> Option<usize> {
-        let bucket = Self::bucket_for(size)?;
+    pub unsafe fn dealloc(&mut self, ptr: *mut u8, size: usize) -> bool {
+        let Some(bucket) = Self::bucket_for(size) else {
+            return false;
+        };
         let cur = self.class_cur[bucket] as usize;
         for i in 0..cur {
             let owns = matches!(
@@ -248,17 +248,36 @@ impl Allocator {
             // containment, so this hint is sound.
             return unsafe { self.dealloc_hinted(ptr, bucket, i as u16) };
         }
-        None
+        false
     }
 
-    /// Total bytes addressable from the kernel via this allocator.
-    /// = `sum over classes of (live_spans × SPAN_LEN)`. O(SIZE_CLASSES)
-    /// (= 9 today, 32 after M5) — diagnostic, not a runtime hot path.
+    /// Total VMA bytes mapped from the kernel via this allocator.
+    /// = `sum over classes of (live_spans × SPAN_LEN)`. Includes
+    /// decommitted spans (their VMA is still mapped, just not
+    /// resident). O(SIZE_CLASSES) — diagnostic, not a hot path.
     pub fn mapped_bytes(&self) -> usize {
         self.class_live
             .iter()
             .map(|live| (*live as usize) * SPAN_LEN)
             .sum()
+    }
+
+    /// Total RSS-equivalent bytes — only counts spans currently
+    /// `dirty` (= touched since last `decommit_pages`). Decommitted
+    /// spans contribute zero. Walks `classes[..]` so it's
+    /// O(SIZE_CLASSES × class_cur) — diagnostic only, not a hot path.
+    pub fn resident_bytes(&self) -> usize {
+        let mut sum = 0usize;
+        for (bucket, cur) in self.class_cur.iter().enumerate() {
+            for cell in &self.classes[bucket][..*cur as usize] {
+                if let Some(span) = cell.as_ref()
+                    && span.dirty
+                {
+                    sum += SPAN_LEN;
+                }
+            }
+        }
+        sum
     }
 }
 
@@ -302,16 +321,16 @@ mod tests {
     fn alloc_and_free_recycles() {
         let mut a = test_alloc();
         // Keep a second slot live so the free below doesn't empty
-        // the whole span (which on this fork would trigger shrink
-        // and unmap the region, giving the next alloc a brand-new
-        // base address instead of the LIFO-recycled slot).
+        // the span (which would `madvise(MADV_DONTNEED)` it and
+        // reset bump_high / freelist — the next alloc would then
+        // hand a fresh slot at offset 0 instead of recycling p1).
         let p1 = a.alloc(16).expect("alloc 16 #1");
         let _keep = a.alloc(16).expect("alloc 16 #2");
         unsafe { *p1 = 0xab };
-        let dropped = unsafe { a.dealloc(p1, 16) };
+        let decommitted = unsafe { a.dealloc(p1, 16) };
         assert!(
-            dropped.is_none(),
-            "span still has a live slot — should not shrink"
+            !decommitted,
+            "span still has a live slot — should not decommit"
         );
         // Next alloc of same bucket should hand back the same
         // block (Span freelist is LIFO).
@@ -410,45 +429,37 @@ mod tests {
         }
     }
 
-    /// Empty-span shrink: when the last live slot in a span is
-    /// freed, the Allocator drops the span (firing `Span::drop`
-    /// which munmaps the region) and reports `mapped_bytes() == 0`
-    /// so subsequent introspection sees the released memory.
-    /// Returns the span_base so the caller can deregister it from
-    /// any external ptr→span lookup table.
+    /// Empty-span decommit: when the last live slot in a span is
+    /// freed, the Allocator madvise's the span's pages
+    /// (`MADV_DONTNEED`) — VMA stays mapped (`mapped_bytes()`
+    /// unchanged), but RSS drops (`resident_bytes()` falls to 0).
+    /// The span object lives on in `classes[][]` ready for instant
+    /// reuse without another mmap.
     #[test]
-    fn shrink_drops_span_on_last_free() {
+    fn decommit_on_empty_span() {
         let mut a = test_alloc();
         let p = a.alloc(64).expect("alloc");
-        // First alloc of a brand-new span returns the span's base
-        // (`Span::alloc_slot` bumps from offset 0). mmap doesn't
-        // guarantee SPAN_LEN alignment, so `(p) & !(SPAN_LEN-1)`
-        // would be a different (wrong) value — use p directly.
-        let span_base = p as usize;
-        assert_eq!(a.mapped_bytes(), SPAN_LEN, "alloc should grow one span");
-        let dropped = unsafe { a.dealloc(p, 64) };
-        assert_eq!(
-            dropped,
-            Some(span_base),
-            "last free of a span should report the dropped span base"
-        );
-        assert_eq!(
-            a.mapped_bytes(),
-            0,
-            "empty span should be munmapped, mapped_bytes back to 0"
-        );
-        // Next alloc must build a fresh span — the old base is gone.
-        let p2 = a.alloc(64).expect("realloc after shrink");
-        assert_eq!(a.mapped_bytes(), SPAN_LEN, "fresh span allocated");
+        assert_eq!(a.mapped_bytes(), SPAN_LEN, "alloc grows one span");
+        assert_eq!(a.resident_bytes(), SPAN_LEN, "span is dirty post-alloc");
+        let decommitted = unsafe { a.dealloc(p, 64) };
+        assert!(decommitted, "last free should decommit");
+        assert_eq!(a.mapped_bytes(), SPAN_LEN, "VMA stays mapped");
+        assert_eq!(a.resident_bytes(), 0, "decommit drops resident pages");
+        // Next alloc reuses the SAME span — page faults re-commit
+        // pages on first write, no new mmap.
+        let p2 = a.alloc(64).expect("realloc after decommit");
         unsafe { *p2 = 0x77 };
+        assert_eq!(a.mapped_bytes(), SPAN_LEN, "still one span (no new mmap)");
+        assert_eq!(a.resident_bytes(), SPAN_LEN, "span dirty again post-alloc");
     }
 
-    /// Cross-span shrink: with two spans live, freeing every slot
-    /// in the FIRST span should drop only that span and leave the
-    /// second one mapped + intact. Compaction must move the
-    /// surviving span into the freed slot's index.
+    /// Cross-span decommit: with two spans live, freeing every
+    /// slot in the FIRST span decommits only that span and leaves
+    /// the second one mapped + dirty + intact. No drop, no
+    /// compaction, no array index churn (idx stays stable for
+    /// SpanRegistry).
     #[test]
-    fn shrink_compacts_classes_array() {
+    fn decommit_keeps_classes_intact() {
         let mut a = test_alloc();
         let slots_per_span = SPAN_LEN / 256;
         // Fill span 0 with 256-class allocations.
@@ -457,21 +468,23 @@ mod tests {
             .collect();
         // One more alloc to grow span 1 — keep that ptr live.
         let span1_ptr = a.alloc(256).expect("alloc span1");
-        assert_eq!(a.mapped_bytes(), 2 * SPAN_LEN, "two spans active");
-        // Free every slot in span 0 — the last free should drop it.
+        assert_eq!(a.mapped_bytes(), 2 * SPAN_LEN, "two spans mapped");
+        assert_eq!(a.resident_bytes(), 2 * SPAN_LEN, "both dirty");
+        // Free every slot in span 0 — the last free should decommit it.
         let last = span0.pop().expect("non-empty");
         for p in &span0 {
             assert!(
-                unsafe { a.dealloc(*p, 256) }.is_none(),
-                "intermediate free should not drop span 0"
+                !unsafe { a.dealloc(*p, 256) },
+                "intermediate free shouldn't decommit"
             );
         }
         assert!(
-            unsafe { a.dealloc(last, 256) }.is_some(),
-            "last free of span 0 should drop it"
+            unsafe { a.dealloc(last, 256) },
+            "last free of span 0 should decommit"
         );
-        // Only span 1 remains.
-        assert_eq!(a.mapped_bytes(), SPAN_LEN, "span 0 unmapped");
+        // VMA still has both spans; RSS only span 1.
+        assert_eq!(a.mapped_bytes(), 2 * SPAN_LEN, "both spans still mapped");
+        assert_eq!(a.resident_bytes(), SPAN_LEN, "only span 1 dirty");
         // span 1 should still hold its live slot — writeable test.
         unsafe { *span1_ptr = 0xee };
         assert_eq!(unsafe { *span1_ptr }, 0xee, "span 1 must still be live");
