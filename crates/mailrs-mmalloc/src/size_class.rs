@@ -229,9 +229,10 @@ mod tests {
     #[test]
     fn cross_span_alloc() {
         let mut a = test_alloc();
-        // Fill span 1 with 256-class allocations: 16 KB / 256 = 64
-        // slots fits exactly; the 65th should trigger a new span.
-        for _ in 0..64 {
+        // Fill exactly one span of 256-class allocations; the next
+        // alloc must trigger a fresh span and double `mapped_bytes`.
+        let slots_per_span = SPAN_LEN / 256;
+        for _ in 0..slots_per_span {
             let p = a.alloc(256).expect("alloc 256");
             unsafe { *p = 0xcd };
         }
