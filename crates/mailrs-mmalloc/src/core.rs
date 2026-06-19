@@ -347,10 +347,15 @@ pub fn alloc_sized(size: usize) -> *mut u8 {
     let p = unsafe { (*&raw mut CORE_ALLOC).alloc(size) }.unwrap_or(core::ptr::null_mut());
     let after_mapped = unsafe { (*&raw const CORE_ALLOC).mapped_bytes() };
     if !p.is_null() && after_mapped > before_mapped {
-        // Span base = ptr rounded down to SPAN_LEN boundary.
-        let span_base = (p as usize) & !(SPAN_LEN - 1);
+        // Just-grown span — `Span::alloc_slot` on a fresh span
+        // bumps from offset 0, so the returned `p` IS the span's
+        // base address. (The older `(p as usize) & !(SPAN_LEN - 1)`
+        // form assumed mmap returns SPAN_LEN-aligned regions; it
+        // doesn't — mmap only guarantees page (4 KB) alignment, so
+        // that rounding registered a guessed base disconnected from
+        // the real span and broke Layer 0 lookup.)
         unsafe {
-            (*&raw mut CORE_REGISTRY).insert(span_base, class_idx as u8, SPAN_LEN);
+            (*&raw mut CORE_REGISTRY).insert(p as usize, class_idx as u8, SPAN_LEN);
         }
     }
     unlock();
@@ -361,6 +366,12 @@ pub fn alloc_sized(size: usize) -> *mut u8 {
 /// lookup entirely (fastest path). Routes through the locked
 /// central `Allocator.dealloc`; see `alloc_sized`'s comment for why
 /// neither the TLAB nor the lock-free Central is used on this fork.
+///
+/// If the dealloc empties the owning span, the Allocator drops it
+/// (firing `Span::drop` → `munmap`) and returns the span's base
+/// address; we then remove the matching `CORE_REGISTRY` entry so a
+/// later Layer 0 `free(ptr)` lookup cannot return a stale class_idx
+/// for an address that no longer belongs to this allocator.
 ///
 /// # Safety
 ///
@@ -380,7 +391,10 @@ pub unsafe fn free_sized(ptr: *mut u8, size: usize) {
         return;
     }
     lock();
-    unsafe { (*&raw mut CORE_ALLOC).dealloc(ptr, size) };
+    let dropped_span_base = unsafe { (*&raw mut CORE_ALLOC).dealloc(ptr, size) };
+    if let Some(base) = dropped_span_base {
+        unsafe { (*&raw mut CORE_REGISTRY).remove(base) };
+    }
     unlock();
 }
 
@@ -568,18 +582,27 @@ mod tests {
     #[test]
     fn layer0_free_recovers_size_via_registry() {
         // Layer 1 alloc → Layer 0 free. Registry should have been
-        // populated by alloc_sized's grow hook.
+        // populated by alloc_sized's grow hook. Keep a second slot
+        // live so the free below doesn't fully empty the span (which
+        // would trigger shrink + unmap, and the next alloc would
+        // come from a brand-new span at a different base).
         let p = alloc_sized(128);
+        let keep = alloc_sized(128);
         assert!(!p.is_null());
+        assert!(!keep.is_null());
         unsafe {
             *p = 0xcd;
             free(p);
         }
         // Subsequent alloc of same size should reuse the freed
-        // slot (Span freelist is LIFO).
+        // slot (Span freelist is LIFO; span survived because `keep`
+        // is still live).
         let p2 = alloc_sized(128);
         assert_eq!(p, p2, "Layer 0 free didn't return slot to span");
-        unsafe { free_sized(p2, 128) };
+        unsafe {
+            free_sized(p2, 128);
+            free_sized(keep, 128);
+        }
     }
 
     #[test]

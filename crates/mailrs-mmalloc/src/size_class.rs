@@ -126,35 +126,57 @@ impl Allocator {
     /// required — `super::extern_api` Layer 2 shim handles this
     /// via SHIM_HEADER for libc-compat consumers).
     ///
+    /// Returns `Some(span_base)` if this free emptied the span,
+    /// in which case the span has been removed from `classes` and
+    /// dropped (which fires `Span::drop` → `munmap`, returning the
+    /// region to the OS). The caller is expected to deregister
+    /// `span_base` from any external ptr→span lookup table
+    /// (e.g. `super::core::CORE_REGISTRY`) to prevent stale entries
+    /// pointing into the now-unmapped region.
+    /// Returns `None` otherwise (slot recycled into the span's
+    /// freelist; span remains mapped).
+    ///
     /// # Safety
     ///
     /// `ptr` must be a pointer returned by `alloc(size)`, and not
     /// already freed (double-free is UB and will corrupt the
     /// owning span's freelist).
-    pub unsafe fn dealloc(&mut self, ptr: *mut u8, size: usize) {
-        let Some(bucket) = Self::bucket_for(size) else {
-            // Out of bucket range — caller should have used
-            // large_alloc/large_free; silently leak to keep the
-            // invariant simple.
-            return;
-        };
+    pub unsafe fn dealloc(&mut self, ptr: *mut u8, size: usize) -> Option<usize> {
+        let bucket = Self::bucket_for(size)?;
         // Dispatch ptr to its owning span: same-class scan.
         // Phase 2a item 3 replaces this with O(1) registry lookup.
         let cur = self.class_cur[bucket] as usize;
         for i in 0..cur {
-            if let Some(span) = self.classes[bucket][i].as_mut() {
-                if span.contains(ptr) {
+            // Borrow the span only long enough to free the slot and
+            // observe `is_empty`; drop the borrow before `take()` so
+            // the `classes[bucket][i]` slot can be mutated.
+            let emptied_base = match self.classes[bucket][i].as_mut() {
+                Some(span) if span.contains(ptr) => {
                     // SAFETY: ptr is contained in this span; caller's
                     // outer Safety invariant says ptr was from a
                     // matching `alloc(size)`, which placed it in
                     // exactly this size class.
                     unsafe { span.free_slot(ptr) };
-                    return;
+                    span.is_empty().then(|| span.base() as usize)
                 }
+                _ => continue,
+            };
+            let base = emptied_base?;
+            // Span is now fully empty — take it out (Drop fires
+            // munmap), then compact `classes[bucket]` by moving the
+            // last live entry into the hole so the LIFO scan in
+            // `alloc` stays dense.
+            let _dropped = self.classes[bucket][i].take();
+            let last = cur - 1;
+            if i != last {
+                self.classes[bucket][i] = self.classes[bucket][last].take();
             }
+            self.class_cur[bucket] -= 1;
+            return Some(base);
         }
         // ptr not in any span — silently drop (matches legacy
         // behavior: mis-sized free is leak, not UB).
+        None
     }
 
     /// Total bytes addressable from the kernel via this allocator.
@@ -208,9 +230,18 @@ mod tests {
     #[test]
     fn alloc_and_free_recycles() {
         let mut a = test_alloc();
-        let p1 = a.alloc(16).expect("alloc 16");
+        // Keep a second slot live so the free below doesn't empty
+        // the whole span (which on this fork would trigger shrink
+        // and unmap the region, giving the next alloc a brand-new
+        // base address instead of the LIFO-recycled slot).
+        let p1 = a.alloc(16).expect("alloc 16 #1");
+        let _keep = a.alloc(16).expect("alloc 16 #2");
         unsafe { *p1 = 0xab };
-        unsafe { a.dealloc(p1, 16) };
+        let dropped = unsafe { a.dealloc(p1, 16) };
+        assert!(
+            dropped.is_none(),
+            "span still has a live slot — should not shrink"
+        );
         // Next alloc of same bucket should hand back the same
         // block (Span freelist is LIFO).
         let p2 = a.alloc(16).expect("realloc 16");
@@ -306,6 +337,73 @@ mod tests {
                 a.dealloc(p, size);
             }
         }
+    }
+
+    /// Empty-span shrink: when the last live slot in a span is
+    /// freed, the Allocator drops the span (firing `Span::drop`
+    /// which munmaps the region) and reports `mapped_bytes() == 0`
+    /// so subsequent introspection sees the released memory.
+    /// Returns the span_base so the caller can deregister it from
+    /// any external ptr→span lookup table.
+    #[test]
+    fn shrink_drops_span_on_last_free() {
+        let mut a = test_alloc();
+        let p = a.alloc(64).expect("alloc");
+        // First alloc of a brand-new span returns the span's base
+        // (`Span::alloc_slot` bumps from offset 0). mmap doesn't
+        // guarantee SPAN_LEN alignment, so `(p) & !(SPAN_LEN-1)`
+        // would be a different (wrong) value — use p directly.
+        let span_base = p as usize;
+        assert_eq!(a.mapped_bytes(), SPAN_LEN, "alloc should grow one span");
+        let dropped = unsafe { a.dealloc(p, 64) };
+        assert_eq!(
+            dropped,
+            Some(span_base),
+            "last free of a span should report the dropped span base"
+        );
+        assert_eq!(
+            a.mapped_bytes(),
+            0,
+            "empty span should be munmapped, mapped_bytes back to 0"
+        );
+        // Next alloc must build a fresh span — the old base is gone.
+        let p2 = a.alloc(64).expect("realloc after shrink");
+        assert_eq!(a.mapped_bytes(), SPAN_LEN, "fresh span allocated");
+        unsafe { *p2 = 0x77 };
+    }
+
+    /// Cross-span shrink: with two spans live, freeing every slot
+    /// in the FIRST span should drop only that span and leave the
+    /// second one mapped + intact. Compaction must move the
+    /// surviving span into the freed slot's index.
+    #[test]
+    fn shrink_compacts_classes_array() {
+        let mut a = test_alloc();
+        let slots_per_span = SPAN_LEN / 256;
+        // Fill span 0 with 256-class allocations.
+        let mut span0: Vec<*mut u8> = (0..slots_per_span)
+            .map(|_| a.alloc(256).expect("alloc span0"))
+            .collect();
+        // One more alloc to grow span 1 — keep that ptr live.
+        let span1_ptr = a.alloc(256).expect("alloc span1");
+        assert_eq!(a.mapped_bytes(), 2 * SPAN_LEN, "two spans active");
+        // Free every slot in span 0 — the last free should drop it.
+        let last = span0.pop().expect("non-empty");
+        for p in &span0 {
+            assert!(
+                unsafe { a.dealloc(*p, 256) }.is_none(),
+                "intermediate free should not drop span 0"
+            );
+        }
+        assert!(
+            unsafe { a.dealloc(last, 256) }.is_some(),
+            "last free of span 0 should drop it"
+        );
+        // Only span 1 remains.
+        assert_eq!(a.mapped_bytes(), SPAN_LEN, "span 0 unmapped");
+        // span 1 should still hold its live slot — writeable test.
+        unsafe { *span1_ptr = 0xee };
+        assert_eq!(unsafe { *span1_ptr }, 0xee, "span 1 must still be live");
     }
 
     /// Span-backed shape regression: verify two allocs in the same
