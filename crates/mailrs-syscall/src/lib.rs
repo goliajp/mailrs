@@ -157,6 +157,25 @@ pub unsafe fn madvise_dontneed(addr: *mut u8, len: usize) -> Result<(), Errno> {
     decode(raw).map(|_| ())
 }
 
+/// `gettid()` — kernel thread id of the calling thread (NOT `getpid`,
+/// which returns the process id). Stable across the thread's lifetime,
+/// unique within the process. Used by `mailrs-mmalloc`'s per-thread
+/// allocation cache to find this thread's TLAB slot without going
+/// through libc / pthread.
+///
+/// Returns `u32` because Linux tids fit in `pid_t` (signed 32-bit) and
+/// the kernel never returns negative values for `gettid`. Cost: one
+/// raw syscall (~30-100 ns); callers should cache the result per
+/// hot loop if they need it repeatedly. The mailrs allocator currently
+/// calls it once per `alloc`/`free` because the per-thread slot lookup
+/// happens at that granularity.
+#[cfg(target_os = "linux")]
+pub fn gettid() -> u32 {
+    let raw = unsafe { syscall3(SYS_GETTID, 0, 0, 0) };
+    // gettid never fails — kernel always has a tid for the caller.
+    raw as u32
+}
+
 // ---- per-arch syscall numbers -------------------------------------------
 
 /// `mmap` syscall number on the current target arch. The Linux ABI
@@ -170,6 +189,9 @@ const SYS_MUNMAP: u32 = 11;
 /// `madvise` syscall number on x86_64 Linux.
 #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 const SYS_MADVISE: u32 = 28;
+/// `gettid` syscall number on x86_64 Linux.
+#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+const SYS_GETTID: u32 = 186;
 
 /// `mmap` syscall number on aarch64 Linux.
 #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
@@ -180,6 +202,9 @@ const SYS_MUNMAP: u32 = 215;
 /// `madvise` syscall number on aarch64 Linux.
 #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
 const SYS_MADVISE: u32 = 233;
+/// `gettid` syscall number on aarch64 Linux.
+#[cfg(all(target_arch = "aarch64", target_os = "linux"))]
+const SYS_GETTID: u32 = 178;
 
 // ---- macOS host stubs (dev-only) ----------------------------------------
 //
@@ -214,6 +239,14 @@ pub unsafe fn munmap(_addr: *mut u8, _len: usize) -> Result<(), Errno> {
 #[cfg(not(target_os = "linux"))]
 pub unsafe fn madvise_dontneed(_addr: *mut u8, _len: usize) -> Result<(), Errno> {
     Err(Errno(38))
+}
+
+/// macOS host stub — returns 0. The real allocator is Linux-only and
+/// never reaches this path; the stub exists so `cargo build --workspace`
+/// on a dev laptop still resolves the symbol.
+#[cfg(not(target_os = "linux"))]
+pub fn gettid() -> u32 {
+    0
 }
 
 #[cfg(test)]
@@ -257,6 +290,23 @@ mod tests {
             }
             munmap(p, len).expect("munmap");
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn gettid_returns_nonzero_and_stable() {
+        let a = gettid();
+        let b = gettid();
+        assert!(a > 0, "kernel tid must be positive");
+        assert_eq!(a, b, "gettid must be stable within a thread");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn gettid_differs_across_threads() {
+        let main = gettid();
+        let other = std::thread::spawn(gettid).join().unwrap();
+        assert_ne!(main, other, "different threads must have different tids");
     }
 
     #[cfg(not(target_os = "linux"))]
