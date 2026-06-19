@@ -31,11 +31,16 @@ use crate::span::{SPAN_LEN, Span};
 /// Requests larger than the last entry route to `super::large`.
 pub const SIZE_CLASSES: [usize; 9] = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096];
 
-/// Max active spans per size class. 4096 × 16 KB span = 64 MB per
-/// class addressable arena. With 9 classes the upper bound is
-/// 576 MB; in practice only a few classes grow, the rest stay at
-/// zero spans. Metadata cost (Option<Span> ≈ 32 B) is
-/// 4096 × 32 × 9 ≈ 1.15 MB static — fine for a static mut.
+/// Max active spans per size class. With the mailrs fork's
+/// `SPAN_LEN = 512 KB`, 4096 spans × 512 KB = 2 GB per class
+/// addressable arena. (Pre-bump: 16 KB span × 4096 = 64 MB per class,
+/// which mailrs-server boot exhausted on the 4096-byte class —
+/// `alloc_sized` returned null → `handle_alloc_error`. See the
+/// SPAN_LEN docstring in `span.rs` for the incident.) With 9
+/// classes the upper bound is 18 GB; in practice only a few classes
+/// grow, the rest stay at zero spans. Metadata cost
+/// (Option<Span> ≈ 32 B) is 4096 × 32 × 9 ≈ 1.15 MB static — fine
+/// for a static mut.
 pub const PER_CLASS_CAP: usize = 4096;
 
 /// Backwards-compat alias: pre-Phase-2a callers using

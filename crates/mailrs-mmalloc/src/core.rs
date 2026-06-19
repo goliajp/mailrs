@@ -33,7 +33,7 @@ use crate::central::CentralQueue;
 use crate::large::{large_alloc, large_free};
 use crate::size_class::{Allocator, PER_CLASS_CAP, SIZE_CLASSES};
 use crate::span::SPAN_LEN;
-use crate::tlab::{TLAB_CACHE_DEPTH, TlabCache};
+use crate::tlab::TlabCache;
 
 // ============================================================
 // SpanRegistry — ptr→span O(log n) lookup
@@ -242,6 +242,16 @@ static mut CORE_REGISTRY: SpanRegistry = SpanRegistry::new();
 // so the toolchain can inline TLAB.pop/push at alloc/free sites
 // (LLVM-era backend did; the native ARM64 re-port is swap-3+
 // backlog — see cmd_build's synthesize_obj_alloc).
+//
+// mailrs-fork note: `__mailrs_core_tlab` is NOT touched by
+// `alloc_sized` / `free_sized` on this fork. mailrs-server is a
+// tokio multi-worker binary, and unsynchronized pop/push to a
+// process-wide TLAB would be a data race. The hot path bypasses
+// the TLAB, dispatching free → `CORE_CENTRAL.push` (lock-free MPMC)
+// and alloc → `CORE_CENTRAL.pop`. The TLAB stays in the tree so a
+// future per-thread upgrade (gettid-indexed array, see Phase 2c
+// backlog above) can re-light it without re-introducing the
+// symbol.
 #[unsafe(no_mangle)]
 pub static mut __mailrs_core_tlab: TlabCache = TlabCache::new();
 
@@ -284,10 +294,14 @@ fn zero_sentinel() -> *mut u8 {
 /// Layer 1 alloc — caller knows size. Hot path; `free_sized`
 /// skips registry. Returns NULL on OOM, sentinel on `size == 0`.
 ///
-/// TLAB fast path (Phase 2b item 7): if a slot of the right size
-/// class is cached in __mailrs_core_tlab, return it directly (~3 cycles
-/// inside the locked section). Miss falls through to
-/// `CORE_ALLOC.alloc` (size_class span freelist).
+/// Fast path on the mailrs fork: lock-free `CORE_CENTRAL.pop`
+/// (Treiber stack CAS, ~1 atomic op on hit). Miss falls through to
+/// `CORE_ALLOC.alloc` under `CORE_LOCK` — cold path covering first
+/// allocs for each size class and span-grow events.
+///
+/// The TLAB layer (`__mailrs_core_tlab`) is intentionally bypassed
+/// — see the static's comment for why a process-wide TLAB cannot
+/// be touched safely from tokio worker threads.
 ///
 /// `#[inline(always)]` (Phase 2e item 13a): lets fat LTO + cc -flto
 /// inline the hot path into user-binary IR, eliminating extern "C"
@@ -317,34 +331,13 @@ pub fn alloc_sized(size: usize) -> *mut u8 {
         Some(i) => i,
         None => return core::ptr::null_mut(),
     };
-    // TLAB fast path — plain global, single direct load + ~3 cyc pop.
-    // Common case under hot loops.
-    let tlab = &raw mut __mailrs_core_tlab;
-    if let Some(p) = unsafe { (*tlab).pop(class_idx) } {
+    // Fast path: lock-free pop from Central (= per-class free
+    // freelist, populated by every `free_sized` of this class).
+    if let Some(p) = CORE_CENTRAL.pop(class_idx) {
         return p;
     }
-    // TLAB miss — drain up to TLAB_CACHE_DEPTH slots from Central
-    // back into per-thread TLAB. Central is lock-free MPMC.
-    let first_central = CORE_CENTRAL.pop(class_idx);
-    if let Some(p) = first_central {
-        for _ in 1..TLAB_CACHE_DEPTH {
-            match CORE_CENTRAL.pop(class_idx) {
-                Some(q) => {
-                    if !unsafe { (*tlab).push(class_idx, q) } {
-                        // TLAB filled mid-drain — push leftover
-                        // back to Central for next round.
-                        unsafe { CORE_CENTRAL.push(class_idx, q) };
-                        break;
-                    }
-                }
-                None => break,
-            }
-        }
-        return p;
-    }
-    // TLAB + Central both empty — central Allocator (under lock,
-    // since Allocator's per-class span lists need sync). Only
-    // entered on first allocs / cold paths.
+    // Central empty — fall through to the central Allocator under
+    // lock. Only entered on first allocs / cold paths / span-grow.
     lock();
     let before_mapped = unsafe { (*&raw const CORE_ALLOC).mapped_bytes() };
     let p = unsafe { (*&raw mut CORE_ALLOC).alloc(size) }.unwrap_or(core::ptr::null_mut());
@@ -363,11 +356,11 @@ pub fn alloc_sized(size: usize) -> *mut u8 {
 /// Layer 1 free — caller provides original size. Skips registry
 /// lookup entirely (fastest path).
 ///
-/// TLAB fast path (Phase 2b item 7): push the freed slot into
-/// __mailrs_core_tlab so the next `alloc_sized` of the same size can hand
-/// it back without touching the central span freelist (~3 cycles
-/// inside the locked section). If the TLAB is full for this
-/// class, fall through to central `Allocator.dealloc`.
+/// Fast path on the mailrs fork: lock-free `CORE_CENTRAL.push`
+/// (Treiber stack CAS, ~1 atomic op). The next `alloc_sized` of
+/// the same class pops it back without touching the locked central
+/// `Allocator`. TLAB layer bypassed — see `__mailrs_core_tlab`
+/// static's comment.
 ///
 /// # Safety
 ///
@@ -390,13 +383,6 @@ pub unsafe fn free_sized(ptr: *mut u8, size: usize) {
         Some(i) => i,
         None => return,
     };
-    // TLAB fast path — plain global, single direct load + ~3 cyc push.
-    let tlab = &raw mut __mailrs_core_tlab;
-    if unsafe { (*tlab).push(class_idx, ptr) } {
-        return;
-    }
-    // TLAB full — push to Central (lock-free MPMC). Next alloc-
-    // miss on this class drains Central back to TLAB amortized.
     unsafe { CORE_CENTRAL.push(class_idx, ptr) };
 }
 
