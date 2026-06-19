@@ -20,7 +20,7 @@
 use core::mem::size_of;
 use core::ptr::{self, NonNull};
 
-use mailrs_syscall::{Errno, mmap_anon_rw_aligned, munmap};
+use mailrs_syscall::{Errno, madvise_dontneed, mmap_anon_rw_aligned, munmap};
 
 /// Default span byte length. Bumped from the legacy `PageBump` 16 KB
 /// to 512 KB on the mailrs fork: combined with `PER_CLASS_CAP = 4096`,
@@ -80,6 +80,12 @@ pub struct Span {
     /// `core` API uses this to dispatch free without a caller-
     /// supplied size.
     pub class_idx: u8,
+    /// `true` while the span has resident pages (alloc_slot has been
+    /// called since the last `decommit_pages`). `false` immediately
+    /// after `decommit_pages` returns and until the next alloc_slot
+    /// touches a page. Used by `Allocator::resident_bytes` to report
+    /// RSS-equivalent state.
+    pub dirty: bool,
 }
 
 impl Span {
@@ -114,12 +120,14 @@ impl Span {
             bump_high: 0,
             freelist: None,
             class_idx,
+            dirty: false, // freshly mmap'd pages are zero, no commit yet
         })
     }
 
     /// Pop one slot. Returns `None` if the span is fully used.
     /// LIFO order — recently freed slots are handed out first
-    /// (cache-friendly).
+    /// (cache-friendly). Marks the span `dirty` (= has resident
+    /// pages); the next `decommit_pages` will madvise them again.
     pub fn alloc_slot(&mut self) -> Option<*mut u8> {
         if let Some(node) = self.freelist.take() {
             // SAFETY: freelist head was written by a prior `free_slot`,
@@ -127,6 +135,7 @@ impl Span {
             // (= slots within this span). Reading `next` is sound.
             self.freelist = unsafe { node.as_ref().next };
             self.free_count -= 1;
+            self.dirty = true;
             return Some(node.as_ptr() as *mut u8);
         }
         if self.bump_high < self.slot_count {
@@ -136,9 +145,52 @@ impl Span {
             let p = unsafe { self.base.as_ptr().add(offset) };
             self.bump_high += 1;
             self.free_count -= 1;
+            self.dirty = true;
             return Some(p);
         }
         None
+    }
+
+    /// Tell the kernel we don't need this span's pages right now —
+    /// `madvise(base, SPAN_LEN, MADV_DONTNEED)`. The VMA stays
+    /// mapped (the next `alloc_slot` page-faults fresh zero pages
+    /// in), but resident pages are returned to the OS immediately
+    /// and RSS for the process drops.
+    ///
+    /// **Caller MUST ensure the span has no live slots** — calling
+    /// this while any slot is handed out to user code would zap
+    /// their data. `Allocator::dealloc_hinted` checks `is_empty()`
+    /// before calling.
+    ///
+    /// **Critical state reset**: the embedded freelist (`next`
+    /// pointers stored in slot first-8-bytes) lives in the very
+    /// pages being decommitted — `madvise` zeros them, so the
+    /// existing `freelist` head would walk into zero-filled
+    /// territory on the next pop (= "freelist ends here"). Without
+    /// a reset, all slots beyond the head would be invisible to
+    /// `alloc_slot`. We restore `bump_high = 0`, `freelist = None`
+    /// so `alloc_slot` bumps from offset 0 across the now-virgin
+    /// region, matching the kernel's view that the pages are fresh.
+    /// `free_count` was already `slot_count` (the caller's empty
+    /// precondition), so no change there.
+    pub fn decommit_pages(&mut self) {
+        debug_assert_eq!(
+            self.free_count, self.slot_count,
+            "decommit_pages called with live slots — UB risk"
+        );
+        // SAFETY: self.base is the SPAN_LEN-aligned mmap'd region
+        // returned by `Span::new_for_class`; passing it back to
+        // madvise is well-formed. Errors are swallowed — there's
+        // no recovery for a failed madvise (would just leave the
+        // pages resident until the next alloc; not a correctness
+        // issue).
+        let _ = unsafe { madvise_dontneed(self.base.as_ptr(), SPAN_LEN) };
+        self.dirty = false;
+        // Reset slot-tracking state to the post-mmap "virgin" shape.
+        // The kernel has dropped the pages, so any freelist next ptrs
+        // we held are now stale (would read as 0 on first re-access).
+        self.bump_high = 0;
+        self.freelist = None;
     }
 
     /// Push a slot back onto the freelist.

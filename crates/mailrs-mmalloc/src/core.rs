@@ -431,36 +431,32 @@ unsafe fn alloc_one_under_lock(class_idx: usize, size: usize) -> *mut u8 {
 
 /// Free one slot back to the central allocator using the registry's
 /// O(1) `(class_idx, idx_in_class)` hint to skip
-/// `Allocator::dealloc`'s linear scan. If the free empties the span,
-/// the registry entry is removed. Caller MUST hold `CORE_LOCK`.
+/// `Allocator::dealloc`'s linear scan. Caller MUST hold `CORE_LOCK`.
 ///
-/// `size` is the slot size (used to derive the bucket); the registry
-/// confirms which `idx_in_class` owns this ptr.
+/// On M4: if the free empties the owning span, `dealloc_hinted`
+/// `madvise(MADV_DONTNEED)`'s the span pages — VMA stays mapped, RSS
+/// drops, registry entry stays valid (the span object lives on in
+/// `Allocator::classes[][]`, ready for instant reuse without re-mmap).
+/// So no registry remove on shrink; the entry is permanent for the
+/// span's process lifetime.
 #[inline]
 unsafe fn free_one_under_lock(ptr: *mut u8, size: usize) {
     let class_idx = match Allocator::bucket_for(size) {
         Some(c) => c,
         None => return,
     };
-    let span_base = (ptr as usize) & !(SPAN_LEN - 1);
     let idx = match unsafe { (*&raw const CORE_REGISTRY).lookup_full(ptr as usize) } {
         Some((found_class, idx, _)) if found_class as usize == class_idx => idx,
         _ => {
-            // Registry miss or class mismatch — fall back to the legacy
-            // scan in case the alloc somehow bypassed the registry.
-            // Shouldn't fire on Layer 1 allocs that always go through
-            // `alloc_one_under_lock`.
-            let dropped = unsafe { (*&raw mut CORE_ALLOC).dealloc(ptr, size) };
-            if let Some(base) = dropped {
-                unsafe { (*&raw mut CORE_REGISTRY).remove(base) };
-            }
+            // Registry miss or class mismatch — fall back to the
+            // legacy scan in case the alloc somehow bypassed the
+            // registry. Shouldn't fire on Layer 1 allocs that always
+            // go through `alloc_one_under_lock`.
+            let _decommitted = unsafe { (*&raw mut CORE_ALLOC).dealloc(ptr, size) };
             return;
         }
     };
-    let dropped = unsafe { (*&raw mut CORE_ALLOC).dealloc_hinted(ptr, class_idx, idx) };
-    if dropped.is_some() {
-        unsafe { (*&raw mut CORE_REGISTRY).remove(span_base) };
-    }
+    let _decommitted = unsafe { (*&raw mut CORE_ALLOC).dealloc_hinted(ptr, class_idx, idx) };
 }
 
 /// Refill an empty TLAB class. Strategy:
