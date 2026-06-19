@@ -210,7 +210,7 @@ mod tests {
     fn new_for_class_sizes_slot_count_correctly() {
         let s = Span::new_for_class(16, 0).expect("alloc span");
         assert_eq!(s.slot_size(), 16);
-        assert_eq!(s.slot_count, SPAN_LEN as u16 / 16);
+        assert_eq!(s.slot_count as usize, SPAN_LEN / 16);
         assert_eq!(s.free_count, s.slot_count);
         assert!(s.is_empty());
         assert!(!s.is_full());
@@ -233,13 +233,16 @@ mod tests {
     #[test]
     fn alloc_slot_returns_none_when_full() {
         let mut s = Span::new_for_class(4096, 3).expect("alloc span");
-        // 16 KB / 4096 = 4 slots.
+        let slot_count = SPAN_LEN / 4096;
         let mut ptrs = vec![];
-        for _ in 0..4 {
+        for _ in 0..slot_count {
             ptrs.push(s.alloc_slot().expect("alloc"));
         }
         assert!(s.is_full());
-        assert!(s.alloc_slot().is_none(), "5th alloc should fail");
+        assert!(
+            s.alloc_slot().is_none(),
+            "alloc past slot_count should fail"
+        );
         // Free one — span should report not-full.
         unsafe { s.free_slot(ptrs[0]) };
         assert!(!s.is_full());
