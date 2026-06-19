@@ -348,19 +348,17 @@ static mut CORE_REGISTRY: SpanRegistry = SpanRegistry::new();
 #[unsafe(no_mangle)]
 pub static mut __mailrs_core_tlab: TlabCache = TlabCache::new();
 
-/// Process-wide central queue (Phase 2c item 10). Lock-free MPMC
-/// stack per size class; acts as the TLAB overflow buffer + cross-
-/// thread free landing zone. Single-thread runtime today: TLAB
-/// overflow → Central.push (lock-free, faster than Allocator.dealloc's
-/// O(n_spans) scan); alloc TLAB.miss → drain Central back to TLAB
-/// before falling through to Allocator.alloc. Multi-thread future:
-/// foreign-thread free → Central.push automatically routes to
-/// owning thread's next refill cycle.
-///
-/// mailrs fork: held statically per upstream-sync policy but unused
-/// by `alloc_sized` / `free_sized` (see those functions' comments
-/// for the ABA-window rationale that took it off the hot path).
-#[allow(dead_code)]
+/// Process-wide central queue. Lock-free MPMC stack per size class
+/// (Treiber-stack push/pop with tagged-pointer ABA defence — see
+/// `central.rs`). Acts as the slot-routing buffer between per-thread
+/// TLABs:
+/// - TLAB overflow on free → `CORE_CENTRAL.push` (lock-free; no
+///   `CORE_LOCK`)
+/// - TLAB miss on alloc → `CORE_CENTRAL.pop` first; only fall through
+///   to the locked Allocator if Central is also empty
+/// - Cross-thread free routing happens here naturally: thread A's
+///   overflow pushes to Central, thread B's miss pops from it. No
+///   coordination needed beyond the AtomicU64 head.
 static CORE_CENTRAL: CentralQueue = CentralQueue::new();
 
 #[inline]
@@ -465,11 +463,16 @@ unsafe fn free_one_under_lock(ptr: *mut u8, size: usize) {
     }
 }
 
-/// Refill an empty TLAB class from the central allocator under one
-/// lock acquisition, then return the first allocated slot to the
-/// caller. Up to `REFILL_BATCH` slots are pulled; the caller's slot
-/// is the first one, the rest go into the TLAB for subsequent fast-
-/// path hits. Returns `null_mut()` on OOM.
+/// Refill an empty TLAB class. Strategy:
+///
+/// 1. **Try `CORE_CENTRAL.pop` up to `REFILL_BATCH` times — no lock.**
+///    Central is the lock-free cross-thread slot buffer. If another
+///    thread recently overflowed slots of this class, they're sitting
+///    here waiting. First `pop` returns the caller's slot; subsequent
+///    pops fill the TLAB.
+/// 2. **If Central is empty, fall back to `CORE_LOCK + Allocator`.**
+///    Pull up to `REFILL_BATCH - already_filled` slots from the
+///    central allocator under one lock acquisition.
 ///
 /// # Safety
 ///
@@ -477,53 +480,76 @@ unsafe fn free_one_under_lock(ptr: *mut u8, size: usize) {
 /// caller (= the per-thread-cache slot's `owner_tid == gettid()`).
 #[inline(never)]
 unsafe fn refill_tlab(tlab: *mut TlabCache, class_idx: usize, size: usize) -> *mut u8 {
-    lock();
     let mut result = core::ptr::null_mut::<u8>();
-    for i in 0..REFILL_BATCH {
+    let mut filled = 0usize;
+    // Phase 1 — drain Central into TLAB. Lock-free, may amortize the
+    // entire refill against zero lock acquisitions in steady state.
+    while filled < REFILL_BATCH {
+        let Some(p) = CORE_CENTRAL.pop(class_idx) else {
+            break;
+        };
+        if filled == 0 {
+            result = p;
+        } else if !unsafe { (*tlab).push(class_idx, p) } {
+            // TLAB full — give back to Central so the slot isn't lost.
+            unsafe { CORE_CENTRAL.push(class_idx, p) };
+            break;
+        }
+        filled += 1;
+    }
+    if filled == REFILL_BATCH {
+        return result;
+    }
+    // Phase 2 — Central exhausted, dip into the locked Allocator for
+    // the remainder.
+    lock();
+    while filled < REFILL_BATCH {
         let p = unsafe { alloc_one_under_lock(class_idx, size) };
         if p.is_null() {
             break;
         }
-        if i == 0 {
+        if filled == 0 {
             result = p;
         } else if !unsafe { (*tlab).push(class_idx, p) } {
-            // TLAB filled mid-refill — give the surplus back. (Shouldn't
-            // fire in practice: the class starts empty and the cap is
-            // TLAB_CACHE_DEPTH ≥ REFILL_BATCH, so all REFILL_BATCH-1
-            // pushes fit. Guard anyway.)
             unsafe { free_one_under_lock(p, size) };
             break;
         }
+        filled += 1;
     }
     unlock();
     result
 }
 
-/// Flush half the TLAB class back to the central allocator under one
-/// lock acquisition, then push the caller's slot. Used when a free
-/// arrives but the TLAB class is already at `TLAB_CACHE_DEPTH`.
+/// Flush half the TLAB class **to `CORE_CENTRAL`** (lock-free push)
+/// plus the caller's incoming slot. Used when a free arrives and the
+/// TLAB class is already at `TLAB_CACHE_DEPTH`. By draining to
+/// Central rather than the locked Allocator, this path becomes fully
+/// lock-free — perfect for cross-thread free routing (the slots will
+/// be popped by whichever thread next misses its TLAB on this class).
 ///
 /// # Safety
 ///
-/// `tlab` must point to a TLAB owned by the caller (see `refill_tlab`).
-/// `ptr` must be a valid slot pointer of `size` bytes, not already
-/// freed.
+/// `tlab` must point to a TLAB owned by the caller. `ptr` must be a
+/// valid slot pointer of `size` bytes, not already freed.
 #[inline(never)]
 unsafe fn flush_tlab_and_push(tlab: *mut TlabCache, class_idx: usize, ptr: *mut u8, size: usize) {
-    lock();
-    // Drain half the TLAB class — leaves room for the incoming push
-    // plus headroom so the next free doesn't trigger another flush.
+    let _ = size; // Central doesn't need size (slots are class-typed)
+    // Drain half the TLAB to Central. Leaves room for the incoming
+    // push plus headroom for the next free.
     let target = TLAB_CACHE_DEPTH / 2;
     for _ in 0..target {
-        match unsafe { (*tlab).pop(class_idx) } {
-            Some(p) => unsafe { free_one_under_lock(p, size) },
-            None => break,
-        }
+        let Some(p) = (unsafe { (*tlab).pop(class_idx) }) else {
+            break;
+        };
+        unsafe { CORE_CENTRAL.push(class_idx, p) };
     }
-    // The slot the caller wanted to free also goes back to central
-    // — we already paid the lock, no need to push it into the TLAB.
-    unsafe { free_one_under_lock(ptr, size) };
-    unlock();
+    // Push the caller's slot. The TLAB now has room (we just drained
+    // half) so this should always succeed; if it doesn't (concurrent
+    // drain raced us — can't happen for a single-thread-owned TLAB,
+    // but guard anyway), fall back to Central.
+    if !unsafe { (*tlab).push(class_idx, ptr) } {
+        unsafe { CORE_CENTRAL.push(class_idx, ptr) };
+    }
 }
 
 /// Layer 1 alloc — caller knows size. Hot path; `free_sized` skips
