@@ -27,9 +27,38 @@ use core::ptr::NonNull;
 
 use crate::span::{SPAN_LEN, Span};
 
-/// Power-of-two size classes covered by the per-class span pool.
+/// Size classes covered by the per-class span pool. Go-style
+/// fine-grained table, 32 classes vs the legacy 9 power-of-two
+/// classes. Every entry is a **multiple of 16** so the natural
+/// slot alignment satisfies Rust's `Layout::align() <= 16`
+/// requirement for `GlobalAlloc` (Go uses 8-byte alignment and
+/// includes 24-class entries; we drop those to keep the 16-byte
+/// invariant for x86_64 SIMD types).
+///
 /// Requests larger than the last entry route to `super::large`.
-pub const SIZE_CLASSES: [usize; 9] = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096];
+///
+/// Worst-case internal fragmentation per request: 50% at the
+/// `17 → 32` boundary (a request of 17 lands in a 32-byte slot).
+/// Average waste on a uniform-random workload across the [1, 4096]
+/// range is below 12.5% — see `tests/fragmentation.rs`. Real
+/// workloads concentrate near power-of-two sizes so they pay even
+/// less.
+#[rustfmt::skip]
+pub const SIZE_CLASSES: [usize; 32] = [
+    // stride 16 across [16, 128]
+    16,
+    32,   48,   64,   80,   96,   112,  128,
+    // stride 16 across [128, 256] (8 entries)
+    144,  160,  176,  192,  208,  224,  240,  256,
+    // stride 64 across [256, 512]
+    320,  384,  448,  512,
+    // stride 128 across [512, 1024]
+    640,  768,  896,  1024,
+    // stride 256 across [1024, 2048]
+    1280, 1536, 1792, 2048,
+    // stride 512 across [2048, 4096]
+    2560, 3072, 3584, 4096,
+];
 
 /// Max active spans per size class. With the mailrs fork's
 /// `SPAN_LEN = 512 KB`, 4096 spans × 512 KB = 2 GB per class
@@ -340,11 +369,25 @@ mod tests {
 
     #[test]
     fn bucket_routing() {
-        assert_eq!(Allocator::bucket_for(1), Some(0));
-        assert_eq!(Allocator::bucket_for(16), Some(0));
-        assert_eq!(Allocator::bucket_for(17), Some(1));
-        assert_eq!(Allocator::bucket_for(4096), Some(8));
-        assert_eq!(Allocator::bucket_for(4097), None);
+        // 32-class Go-style table, all multiples of 16; boundaries
+        // at 16, 32, 48, 64, …, 4096.
+        assert_eq!(Allocator::bucket_for(1), Some(0)); // → 16
+        assert_eq!(Allocator::bucket_for(16), Some(0)); // → 16
+        assert_eq!(Allocator::bucket_for(17), Some(1)); // → 32
+        assert_eq!(Allocator::bucket_for(32), Some(1)); // → 32
+        assert_eq!(Allocator::bucket_for(33), Some(2)); // → 48
+        assert_eq!(Allocator::bucket_for(257), Some(16)); // → 320
+        assert_eq!(Allocator::bucket_for(2049), Some(28)); // → 2560
+        assert_eq!(Allocator::bucket_for(4096), Some(31)); // largest
+        assert_eq!(Allocator::bucket_for(4097), None); // out of range
+        // Every class is a multiple of 16 (the GlobalAlloc alignment
+        // invariant) and strictly sorted ascending.
+        for w in SIZE_CLASSES.windows(2) {
+            assert!(w[0] < w[1], "SIZE_CLASSES must be strictly sorted");
+        }
+        for &c in SIZE_CLASSES.iter() {
+            assert_eq!(c % 16, 0, "class {c} is not a multiple of 16");
+        }
     }
 
     #[test]
