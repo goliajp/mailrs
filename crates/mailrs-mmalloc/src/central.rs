@@ -33,8 +33,7 @@
 //! Reference: Treiber 1986 "Systems Programming: Coping with
 //! Parallelism" (IBM Research Report RJ 5118).
 
-use core::ptr;
-use core::sync::atomic::{AtomicPtr, Ordering};
+use core::sync::atomic::{AtomicU64, Ordering};
 
 use crate::size_class::SIZE_CLASSES;
 
@@ -47,9 +46,51 @@ struct CentralNode {
     next: *mut CentralNode,
 }
 
-/// Per-class lock-free MPMC stack for remote-free dispatch.
+/// Mask for the pointer half of a tagged-pointer head value: the
+/// low 48 bits hold a user-space virtual address. x86_64 and
+/// aarch64 production targets both use ≤ 48-bit user VAs (canonical
+/// addresses on x86_64; ASID-stripped on aarch64), so this packing
+/// is safe today. LA57 / aarch64-52bit are not enabled on mailrs
+/// production targets; if they ever are, swap this for a 128-bit
+/// CAS (cmpxchg16b / LDXP+STXP) via inline asm.
+const ABA_PTR_MASK: u64 = 0x0000_FFFF_FFFF_FFFF;
+
+/// Bit position of the ABA counter inside a tagged head value.
+const ABA_COUNTER_SHIFT: u32 = 48;
+
+/// Pack (ptr, counter) into a single `u64` for `AtomicU64` storage.
+/// `ptr` MUST fit in 48 bits (low bits of canonical user-space VA);
+/// `counter` MUST fit in 16 bits.
+#[inline]
+fn pack(ptr: *mut CentralNode, counter: u16) -> u64 {
+    (ptr as u64 & ABA_PTR_MASK) | ((counter as u64) << ABA_COUNTER_SHIFT)
+}
+
+/// Unpack a tagged head value into (ptr, counter).
+#[inline]
+fn unpack(packed: u64) -> (*mut CentralNode, u16) {
+    let ptr = (packed & ABA_PTR_MASK) as *mut CentralNode;
+    let counter = (packed >> ABA_COUNTER_SHIFT) as u16;
+    (ptr, counter)
+}
+
+/// Per-class lock-free MPMC stack for cross-thread slot dispatch.
+///
+/// Each per-class head is an `AtomicU64` packed as
+/// `(counter: u16 << 48) | (next_ptr: u48)`. Every push or pop
+/// increments the counter, so a CAS that targets the same `next_ptr`
+/// must also match the counter — eliminating the classical ABA
+/// hazard (where the same node gets pushed → popped → re-pushed in
+/// the gap between a slow consumer's `load` and its `compare_exchange`,
+/// leaving the consumer to swap in a stale `next` pointer).
+///
+/// The counter is 16 bits, so ABA is still *theoretically* possible
+/// after 65 536 push/pop pairs on the same address inside a single
+/// pop's CAS attempt — a window of nanoseconds vs a billion-cycle
+/// counter wrap. Documented as a known limitation; no real workload
+/// can fill the counter wrap inside one CAS retry.
 pub struct CentralQueue {
-    heads: [AtomicPtr<CentralNode>; SIZE_CLASSES.len()],
+    heads: [AtomicU64; SIZE_CLASSES.len()],
 }
 
 impl Default for CentralQueue {
@@ -58,67 +99,82 @@ impl Default for CentralQueue {
     }
 }
 
-const NULL_HEAD: AtomicPtr<CentralNode> = AtomicPtr::new(ptr::null_mut());
+const EMPTY_HEAD: AtomicU64 = AtomicU64::new(0);
 
 impl CentralQueue {
     pub const fn new() -> Self {
         CentralQueue {
-            heads: [NULL_HEAD; SIZE_CLASSES.len()],
+            heads: [EMPTY_HEAD; SIZE_CLASSES.len()],
         }
     }
 
     /// Push a slot pointer into the remote queue for `class_idx`.
-    /// Lock-free CAS retry loop.
+    /// Lock-free CAS retry loop with tagged-pointer ABA defence.
     ///
     /// # Safety
     ///
     /// `ptr` must be a slot pointer owned by this allocator (= came
     /// from `Allocator::alloc` of a slot in the matching size class)
-    /// and not concurrently in use elsewhere (= TLAB, central queue,
+    /// and not concurrently in use elsewhere (TLAB, central queue,
     /// or caller hand-out). Writes to `ptr`'s first 8 bytes for the
     /// embedded `next` link.
     pub unsafe fn push(&self, class_idx: usize, ptr: *mut u8) {
         let node = ptr as *mut CentralNode;
         let head = &self.heads[class_idx];
-        let mut cur = head.load(Ordering::Acquire);
+        let mut cur_packed = head.load(Ordering::Acquire);
         loop {
+            let (cur_ptr, cur_counter) = unpack(cur_packed);
+            // SAFETY: `node` is the slot just being pushed; its first
+            // 8 bytes are about to become the embedded next link. The
+            // caller's safety invariant says no other thread touches it.
             unsafe {
-                (*node).next = cur;
+                (*node).next = cur_ptr;
             }
-            match head.compare_exchange_weak(cur, node, Ordering::Release, Ordering::Acquire) {
+            let new_packed = pack(node, cur_counter.wrapping_add(1));
+            match head.compare_exchange_weak(
+                cur_packed,
+                new_packed,
+                Ordering::Release,
+                Ordering::Acquire,
+            ) {
                 Ok(_) => return,
-                Err(now) => cur = now,
+                Err(now) => cur_packed = now,
             }
         }
     }
 
     /// Pop one slot for `class_idx`. Returns `None` if queue is
-    /// empty. Lock-free CAS retry loop.
+    /// empty. Lock-free CAS retry loop with tagged-pointer ABA
+    /// defence.
     ///
-    /// ABA hazard: documented at mod level. Caller must understand
-    /// that under heavy multi-thread churn the returned pointer
-    /// may be the "second incarnation" of an address that was
-    /// pushed→popped→re-pushed during the loop. Safe in mmalloc
-    /// because re-push only happens after a full allocator
-    /// roundtrip (free → drain to TLAB → re-alloc → re-free →
-    /// re-push), which cannot complete in the window of a single
-    /// `pop` attempt.
+    /// Each pop increments the counter, so even if the slot we
+    /// observed gets popped + re-pushed concurrently inside our
+    /// retry window, the head's packed value changes (different
+    /// counter) and our CAS correctly retries with the fresh head.
     pub fn pop(&self, class_idx: usize) -> Option<*mut u8> {
         let head = &self.heads[class_idx];
-        let mut cur = head.load(Ordering::Acquire);
+        let mut cur_packed = head.load(Ordering::Acquire);
         loop {
-            if cur.is_null() {
+            let (cur_ptr, cur_counter) = unpack(cur_packed);
+            if cur_ptr.is_null() {
                 return None;
             }
-            // SAFETY: cur was loaded from `head` which was set by a
-            // prior `push`; push wrote `next` before publishing
-            // `cur` as head. The read here happens-before the CAS
-            // success below; if CAS fails, we retry with the new
-            // head and re-read its `next`.
-            let next = unsafe { (*cur).next };
-            match head.compare_exchange_weak(cur, next, Ordering::Release, Ordering::Acquire) {
-                Ok(_) => return Some(cur as *mut u8),
-                Err(now) => cur = now,
+            // SAFETY: cur_ptr was the head when we loaded; push wrote
+            // `next` before publishing the new head. If the head has
+            // moved since our load, the CAS below fails and we retry
+            // with the fresh head — we never deref a stale ptr that
+            // has been popped + freed (popped slots are returned to
+            // the caller, never freed back to the kernel from here).
+            let next = unsafe { (*cur_ptr).next };
+            let new_packed = pack(next, cur_counter.wrapping_add(1));
+            match head.compare_exchange_weak(
+                cur_packed,
+                new_packed,
+                Ordering::Release,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Some(cur_ptr as *mut u8),
+                Err(now) => cur_packed = now,
             }
         }
     }
@@ -138,11 +194,12 @@ impl CentralQueue {
     }
 
     /// Snapshot check — true iff `class_idx`'s head is currently
-    /// null. Cheap (single atomic load); useful for "TLAB refill
-    /// needed, check central first" fast path.
+    /// null. Cheap (single atomic load + mask); useful for "TLAB
+    /// refill needed, check central first" fast path.
     #[inline]
     pub fn is_empty(&self, class_idx: usize) -> bool {
-        self.heads[class_idx].load(Ordering::Acquire).is_null()
+        let (ptr, _) = unpack(self.heads[class_idx].load(Ordering::Acquire));
+        ptr.is_null()
     }
 }
 
