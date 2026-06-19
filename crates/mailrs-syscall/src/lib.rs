@@ -130,6 +130,48 @@ pub unsafe fn munmap(addr: *mut u8, len: usize) -> Result<(), Errno> {
     decode(raw).map(|_| ())
 }
 
+/// `mmap_anon_rw` that guarantees the returned address is aligned to
+/// `align` (a power of two ≥ page size). Implemented by over-allocating
+/// `len + align` bytes and `munmap`ing the unaligned head + tail.
+///
+/// Used by `mailrs-mmalloc`'s span allocator to get SPAN_LEN-aligned
+/// regions, so the in-binary registry can recover `span_base` from any
+/// interior `ptr` via `ptr & !(SPAN_LEN - 1)` in O(1) (no binary
+/// search across a sorted base list).
+///
+/// Overhead: 1 extra mmap + up to 2 extra munmaps per call. Amortized
+/// over the SPAN_LEN/slot_size allocations the span serves (~32 K
+/// allocs for SPAN_LEN=512K, slot=16), the per-alloc overhead is
+/// negligible (a few ns).
+///
+/// `align` MUST be a power of two and ≥ 4096. Returns `Errno(22)`
+/// (EINVAL) for an invalid `align`.
+#[cfg(target_os = "linux")]
+pub fn mmap_anon_rw_aligned(len: usize, align: usize) -> Result<*mut u8, Errno> {
+    if !align.is_power_of_two() || align < 4096 {
+        return Err(Errno(22));
+    }
+    // Over-allocate so a worst-case unaligned base still leaves `len`
+    // aligned bytes inside the region. Note `align` (not `align - 1`)
+    // because we may need to trim the entire `align` bytes if the
+    // returned base is already aligned (then tail trim is `align`).
+    let over = len + align;
+    let raw = mmap_anon_rw(over)?;
+    let raw_addr = raw as usize;
+    let aligned_addr = (raw_addr + align - 1) & !(align - 1);
+    let head_trim = aligned_addr - raw_addr;
+    let tail_trim = align - head_trim;
+    // Trim head (if any) and tail.
+    if head_trim > 0 {
+        unsafe { munmap(raw, head_trim)? };
+    }
+    if tail_trim > 0 {
+        let tail_addr = (aligned_addr + len) as *mut u8;
+        unsafe { munmap(tail_addr, tail_trim)? };
+    }
+    Ok(aligned_addr as *mut u8)
+}
+
 /// `madvise(addr, len, MADV_DONTNEED)` — tell the kernel the caller
 /// has no current use for these pages. The VMA stays mapped (so the
 /// caller can keep the same address), but the resident pages are
@@ -249,6 +291,12 @@ pub fn gettid() -> u32 {
     0
 }
 
+/// macOS host stub — always fails with ENOSYS.
+#[cfg(not(target_os = "linux"))]
+pub fn mmap_anon_rw_aligned(_len: usize, _align: usize) -> Result<*mut u8, Errno> {
+    Err(Errno(38))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,6 +355,50 @@ mod tests {
         let main = gettid();
         let other = std::thread::spawn(gettid).join().unwrap();
         assert_ne!(main, other, "different threads must have different tids");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn mmap_aligned_returns_aligned_writable_region() {
+        // Request 64 KB aligned to 512 KB — the mailrs-mmalloc SPAN_LEN
+        // shape. Verify alignment + writability + munmap round-trip.
+        let len = 64 * 1024;
+        let align = 512 * 1024;
+        let p = mmap_anon_rw_aligned(len, align).expect("aligned mmap");
+        assert_eq!(p as usize % align, 0, "result not aligned to {align}");
+        unsafe {
+            *p = 0xab;
+            *p.add(len - 1) = 0xcd;
+            assert_eq!(*p, 0xab);
+            assert_eq!(*p.add(len - 1), 0xcd);
+            munmap(p, len).expect("munmap aligned region");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn mmap_aligned_rejects_bad_align() {
+        // Non-power-of-two
+        assert_eq!(mmap_anon_rw_aligned(4096, 12000).unwrap_err(), Errno(22));
+        // < page size
+        assert_eq!(mmap_anon_rw_aligned(4096, 2048).unwrap_err(), Errno(22));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn mmap_aligned_many_iterations_stable() {
+        // Stress: many aligned mmaps + munmaps. Catches any leak / state
+        // confusion in the head/tail trimming.
+        let len = 8192;
+        let align = 64 * 1024;
+        for _ in 0..200 {
+            let p = mmap_anon_rw_aligned(len, align).expect("aligned");
+            assert_eq!(p as usize % align, 0);
+            unsafe {
+                *p = 0xaa;
+                munmap(p, len).expect("munmap");
+            }
+        }
     }
 
     #[cfg(not(target_os = "linux"))]

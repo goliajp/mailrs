@@ -20,7 +20,7 @@
 use core::mem::size_of;
 use core::ptr::{self, NonNull};
 
-use mailrs_syscall::{Errno, mmap_anon_rw, munmap};
+use mailrs_syscall::{Errno, mmap_anon_rw_aligned, munmap};
 
 /// Default span byte length. Bumped from the legacy `PageBump` 16 KB
 /// to 512 KB on the mailrs fork: combined with `PER_CLASS_CAP = 4096`,
@@ -83,16 +83,28 @@ pub struct Span {
 }
 
 impl Span {
-    /// Allocate a new span from the kernel, sliced for slots of
-    /// `slot_size` bytes. `slot_size` must be ≥ `MIN_SLOT` and ≤
-    /// `SPAN_LEN`; returns an error on bad input or mmap failure.
+    /// Allocate a new span from the kernel, SPAN_LEN-aligned and
+    /// sliced for slots of `slot_size` bytes. `slot_size` must be
+    /// ≥ `MIN_SLOT` and ≤ `SPAN_LEN`; returns an error on bad input
+    /// or mmap failure.
+    ///
+    /// The SPAN_LEN-alignment is load-bearing for `core`'s O(1)
+    /// ptr→span lookup: given any interior `ptr`, the owning span's
+    /// base is recoverable as `ptr & !(SPAN_LEN - 1)` with no
+    /// registry walk. `mmap_anon_rw_aligned` over-allocates +
+    /// trims to guarantee the alignment.
     pub fn new_for_class(slot_size: usize, class_idx: u8) -> Result<Self, Errno> {
         debug_assert!(slot_size >= MIN_SLOT, "slot_size < MIN_SLOT");
         debug_assert!(slot_size <= SPAN_LEN, "slot_size > SPAN_LEN");
-        let p = mmap_anon_rw(SPAN_LEN)?;
-        // SAFETY: mmap_anon_rw returned Ok ⇒ p is non-null and points
-        // to SPAN_LEN bytes of writable memory.
+        let p = mmap_anon_rw_aligned(SPAN_LEN, SPAN_LEN)?;
+        // SAFETY: mmap_anon_rw_aligned returned Ok ⇒ p is non-null,
+        // SPAN_LEN-aligned, and points to SPAN_LEN bytes of writable
+        // memory.
         let base = unsafe { NonNull::new_unchecked(p) };
+        debug_assert!(
+            (base.as_ptr() as usize) & (SPAN_LEN - 1) == 0,
+            "Span::new_for_class: aligned mmap returned unaligned base"
+        );
         let slot_count = (SPAN_LEN / slot_size) as u16;
         Ok(Span {
             base,

@@ -38,47 +38,73 @@ use crate::tlab::{TLAB_CACHE_DEPTH, TlabCache};
 use mailrs_syscall::gettid;
 
 // ============================================================
-// SpanRegistry — ptr→span O(log n) lookup
+// SpanRegistry — open-addressed hash, O(1) ptr→span lookup
 // ============================================================
 
 /// Max spans tracked by `SpanRegistry`. = `PER_CLASS_CAP *
 /// SIZE_CLASSES.len()`. Matches the upper bound the underlying
-/// `size_class::Allocator` can reach plus Phase 2d large-alloc
-/// entries (which share the same array — large allocs are
-/// infrequent enough that the shared cap isn't tight). Phase 2c
-/// sharded hashmap removes this cap.
+/// `size_class::Allocator` can reach plus large-alloc entries (which
+/// share the same registry).
 pub const MAX_REGISTERED_SPANS: usize = PER_CLASS_CAP * SIZE_CLASSES.len();
 
+/// Hash table capacity. Load factor cap 0.5 — 2× the max population
+/// so probe chains stay short. Power-of-two so we can mask instead of
+/// modulo.
+const REGISTRY_CAPACITY: usize = (MAX_REGISTERED_SPANS * 2).next_power_of_two();
+
 /// Sentinel class index marking a large (mmap-direct) allocation
-/// rather than a small-span slot. Phase 2d item 11+12.
+/// rather than a small-span slot.
 pub const LARGE_CLASS_IDX: u8 = u8::MAX;
+
+/// `log2(SPAN_LEN)` — used to derive the hash key for span-base entries.
+/// Spans are SPAN_LEN-aligned (see `Span::new_for_class`), so the low
+/// SPAN_LEN_LOG2 bits of a span base are zero; using `base >>
+/// SPAN_LEN_LOG2` as the hash input throws away the redundant bits.
+const SPAN_LEN_LOG2: u32 = SPAN_LEN.trailing_zeros();
 
 #[derive(Clone, Copy)]
 struct RegistryEntry {
-    /// Base address of the registered region (mmap'd start).
+    /// Base address of the registered region. `0` marks a vacant slot;
+    /// `usize::MAX` marks a tombstone (removed slot, probe must
+    /// continue past it). Neither sentinel can collide with a real
+    /// mmap result.
     base: usize,
-    /// Size class index — 0..SIZE_CLASSES.len() for small span,
-    /// `LARGE_CLASS_IDX` for large mmap-direct allocations.
+    /// Size class index — `0..SIZE_CLASSES.len()` for a small span,
+    /// `LARGE_CLASS_IDX` for a large mmap-direct allocation.
     class_idx: u8,
-    /// Region size in bytes — used for ptr-containment check
-    /// (small span: SPAN_LEN; large alloc: PAGE_4K-rounded size).
-    /// Carrying it per-entry lets `lookup` and `remove` uniformly
-    /// handle both small + large without branching on class_idx.
+    /// For small spans: index into `Allocator::classes[class_idx]`
+    /// (the per-class span array slot the `Span` object lives in).
+    /// Lets `Allocator::dealloc` skip the linear scan and jump straight
+    /// to the owning span. Unused for large allocs.
+    idx_in_class: u16,
+    /// Region size in bytes. Small span: `SPAN_LEN`. Large alloc:
+    /// page-rounded user size. Used by Layer 0 `free` to route to
+    /// `large_free` and by Layer 1 small-free to recover the slot
+    /// size class.
     size: usize,
 }
 
-const ZERO_ENTRY: RegistryEntry = RegistryEntry {
+const VACANT_ENTRY: RegistryEntry = RegistryEntry {
     base: 0,
     class_idx: 0,
+    idx_in_class: 0,
     size: 0,
 };
 
+/// Open-addressed hash table for ptr → owning region lookup. Linear
+/// probing; load factor capped at 0.5. Single-writer (callers hold
+/// `CORE_LOCK`), so no internal synchronisation.
+///
+/// Lookup is O(1) amortized: aligned-mmap guarantees every span
+/// starts on a SPAN_LEN boundary, so the lookup key is
+/// `span_base = ptr & !(SPAN_LEN - 1)` — derivable from any interior
+/// pointer with one bitwise AND. The hash function is a multiplicative
+/// hash on `base >> SPAN_LEN_LOG2`, then mask to the table size.
 pub struct SpanRegistry {
-    /// Sorted by `base` ascending. First `cur` entries occupied;
-    /// remainder is zeroed but unread. Sort invariant maintained
-    /// by `insert`.
-    entries: [RegistryEntry; MAX_REGISTERED_SPANS],
-    cur: u32,
+    table: [RegistryEntry; REGISTRY_CAPACITY],
+    /// Live entry count. Used only for the `len`/`is_empty`
+    /// diagnostics — the hash table itself never needs it to operate.
+    live: u32,
 }
 
 impl Default for SpanRegistry {
@@ -87,132 +113,197 @@ impl Default for SpanRegistry {
     }
 }
 
+const fn hash_key(base: usize) -> usize {
+    // Fibonacci hashing on the span-aligned key. Multiplier is
+    // `(2^64 / golden_ratio)` rounded — gives a near-uniform distribution
+    // for sequential or clustered inputs without a slow modulo. Mask to
+    // the table size below.
+    let key = base >> SPAN_LEN_LOG2;
+    key.wrapping_mul(0x9E37_79B9_7F4A_7C15)
+}
+
 impl SpanRegistry {
     pub const fn new() -> Self {
         SpanRegistry {
-            entries: [ZERO_ENTRY; MAX_REGISTERED_SPANS],
-            cur: 0,
+            table: [VACANT_ENTRY; REGISTRY_CAPACITY],
+            live: 0,
         }
     }
 
-    /// Insert a new region entry. Maintains sorted-by-base
-    /// invariant via insertion sort. O(n) but called only on
-    /// span grow or large alloc (both rare — amortized cost
-    /// negligible per-alloc).
-    /// Returns `false` if the registry is at cap.
+    /// Heap-allocate a fresh `SpanRegistry`. The static-sized hash
+    /// table is several MB — `Box::new(SpanRegistry::boxed())` first
+    /// constructs it on the stack then moves into the box, which
+    /// overflows the 2 MB default thread stack. `boxed()` uses
+    /// `alloc_zeroed` directly so the registry never lives on the
+    /// stack. The zero bit pattern IS a valid `SpanRegistry` (all
+    /// entries `VACANT_ENTRY = 0`, live = 0), so `alloc_zeroed` is
+    /// sound.
+    ///
+    /// Mainly for tests; production uses the `static mut CORE_REGISTRY`
+    /// directly so this is never on the hot path.
+    pub fn boxed() -> Box<Self> {
+        use core::alloc::Layout;
+        let layout = Layout::new::<Self>();
+        // SAFETY: `Self` is zero-valid (all VACANT_ENTRY = 0); `alloc_zeroed`
+        // returns a pointer to layout.size() bytes of zeroed memory.
+        let ptr = unsafe { std::alloc::alloc_zeroed(layout) } as *mut Self;
+        if ptr.is_null() {
+            std::alloc::handle_alloc_error(layout);
+        }
+        unsafe { Box::from_raw(ptr) }
+    }
+
+    /// Insert a region. `base` must be unique (a span / large alloc
+    /// is only registered once); the call returns `false` if the
+    /// table is at the 0.5 load-factor cap (= MAX_REGISTERED_SPANS
+    /// live entries) — in practice never hit because the underlying
+    /// Allocator's per-class cap fires first.
     pub fn insert(&mut self, base: usize, class_idx: u8, size: usize) -> bool {
-        let cur = self.cur as usize;
-        if cur >= MAX_REGISTERED_SPANS {
+        self.insert_with_idx(base, class_idx, 0, size)
+    }
+
+    /// Insert with an explicit `idx_in_class` hint for Layer 1 fast
+    /// dispatch. Layer 0 (`insert`) uses 0; the caller can pass the
+    /// actual idx for the small-span hot path.
+    pub fn insert_with_idx(
+        &mut self,
+        base: usize,
+        class_idx: u8,
+        idx_in_class: u16,
+        size: usize,
+    ) -> bool {
+        if self.live as usize >= MAX_REGISTERED_SPANS {
             return false;
         }
-        // Binary search for insertion point in [0, cur).
-        let mut lo = 0usize;
-        let mut hi = cur;
-        while lo < hi {
-            let mid = (lo + hi) / 2;
-            if self.entries[mid].base < base {
-                lo = mid + 1;
-            } else {
-                hi = mid;
+        let mut slot = hash_key(base) & (REGISTRY_CAPACITY - 1);
+        loop {
+            let entry = &self.table[slot];
+            // Vacant or tombstone → use this slot. Updating an existing
+            // base is also allowed (idempotent re-register).
+            if entry.base == 0 || entry.base == usize::MAX || entry.base == base {
+                let was_live = entry.base != 0 && entry.base != usize::MAX;
+                self.table[slot] = RegistryEntry {
+                    base,
+                    class_idx,
+                    idx_in_class,
+                    size,
+                };
+                if !was_live {
+                    self.live += 1;
+                }
+                return true;
             }
+            slot = (slot + 1) & (REGISTRY_CAPACITY - 1);
         }
-        let insert_at = lo;
-        // Shift entries [insert_at..cur] right by 1.
-        let mut i = cur;
-        while i > insert_at {
-            self.entries[i] = self.entries[i - 1];
-            i -= 1;
-        }
-        self.entries[insert_at] = RegistryEntry {
-            base,
-            class_idx,
-            size,
-        };
-        self.cur += 1;
-        true
     }
 
-    /// Lookup `ptr` → `(class_idx, size)`. O(log n) via binary
-    /// search on sorted-by-base entries.
+    /// Lookup `ptr` (anywhere inside a registered region) → `(class_idx,
+    /// size)`. Returns `None` if `ptr` falls outside every registered
+    /// region.
     ///
-    /// Returns `None` if `ptr` falls outside any registered region.
-    /// For Phase 2d large-alloc dispatch: returned `class_idx` is
-    /// `LARGE_CLASS_IDX` for mmap-direct large allocs; `size` is
-    /// then the mmap'd size to pass to `large_free`.
+    /// O(1) for small spans (SPAN_LEN-aligned via `aligned_mmap`).
+    /// Large allocs are also SPAN_LEN-aligned by accident (every mmap
+    /// is page-aligned) so they're discoverable by the same
+    /// `ptr & mask` for any ptr that falls within the page-rounded
+    /// region. For large allocs that may straddle SPAN_LEN boundaries
+    /// (size > SPAN_LEN), `lookup` falls back to a multi-probe by
+    /// recomputing the candidate base at each SPAN_LEN boundary
+    /// inside a small horizon.
     pub fn lookup(&self, ptr: usize) -> Option<(u8, usize)> {
-        let cur = self.cur as usize;
-        if cur == 0 {
-            return None;
+        // Primary attempt: single-SPAN_LEN-aligned base.
+        let base = ptr & !(SPAN_LEN - 1);
+        if let Some(entry) = self.probe(base)
+            && ptr >= entry.base
+            && ptr < entry.base + entry.size
+        {
+            return Some((entry.class_idx, entry.size));
         }
-        // Find largest i in [0, cur) where entries[i].base <= ptr.
-        let mut lo = 0usize;
-        let mut hi = cur;
-        while lo < hi {
-            let mid = (lo + hi) / 2;
-            if self.entries[mid].base <= ptr {
-                lo = mid + 1;
-            } else {
-                hi = mid;
+        // Large alloc fallback: the alloc may have started at a
+        // SPAN_LEN-aligned base K spans below ptr's bucket. Walk back
+        // up to a small horizon (8 SPAN_LENs = 4 MB for 512K SPAN).
+        // Caller can grow this if real workloads need it.
+        for shift in 1..8 {
+            let candidate = base.wrapping_sub(shift * SPAN_LEN);
+            if let Some(entry) = self.probe(candidate)
+                && entry.class_idx == LARGE_CLASS_IDX
+                && ptr >= entry.base
+                && ptr < entry.base + entry.size
+            {
+                return Some((entry.class_idx, entry.size));
             }
         }
-        if lo == 0 {
-            return None;
+        None
+    }
+
+    /// Same as `lookup` but additionally returns `idx_in_class`, used
+    /// by Layer 1 small-free fast path to jump straight to the owning
+    /// `Allocator::classes[class_idx][idx]`.
+    pub fn lookup_full(&self, ptr: usize) -> Option<(u8, u16, usize)> {
+        let base = ptr & !(SPAN_LEN - 1);
+        if let Some(entry) = self.probe(base)
+            && ptr >= entry.base
+            && ptr < entry.base + entry.size
+        {
+            return Some((entry.class_idx, entry.idx_in_class, entry.size));
         }
-        let entry = &self.entries[lo - 1];
-        if ptr >= entry.base && ptr < entry.base + entry.size {
-            Some((entry.class_idx, entry.size))
-        } else {
-            None
+        None
+    }
+
+    /// Remove the entry whose base is `base` (for small spans: the
+    /// SPAN_LEN-aligned start; for large allocs: the page-aligned
+    /// mmap result). Returns `Some((class_idx, size))` on success,
+    /// `None` if no matching entry. Leaves a tombstone in the slot
+    /// so probe chains for other entries still terminate correctly.
+    pub fn remove(&mut self, base: usize) -> Option<(u8, usize)> {
+        let mut slot = hash_key(base) & (REGISTRY_CAPACITY - 1);
+        loop {
+            let entry = self.table[slot];
+            if entry.base == 0 {
+                // Vacant — search ends.
+                return None;
+            }
+            if entry.base == base {
+                self.table[slot] = RegistryEntry {
+                    base: usize::MAX, // tombstone
+                    class_idx: 0,
+                    idx_in_class: 0,
+                    size: 0,
+                };
+                self.live -= 1;
+                return Some((entry.class_idx, entry.size));
+            }
+            slot = (slot + 1) & (REGISTRY_CAPACITY - 1);
         }
     }
 
-    /// Remove the entry whose region contains `ptr`. O(log n +
-    /// shift). Returns `Some((class_idx, size))` of the removed
-    /// region, or `None` if `ptr` is not in any registered region.
-    /// Used by Phase 2d large-alloc free path to deregister
-    /// before `large_free`'s munmap.
-    pub fn remove(&mut self, ptr: usize) -> Option<(u8, usize)> {
-        let cur = self.cur as usize;
-        if cur == 0 {
-            return None;
-        }
-        // Binary search for containing entry.
-        let mut lo = 0usize;
-        let mut hi = cur;
-        while lo < hi {
-            let mid = (lo + hi) / 2;
-            if self.entries[mid].base <= ptr {
-                lo = mid + 1;
-            } else {
-                hi = mid;
+    /// Probe for the entry with `base` exactly. Returns the entry by
+    /// value (Copy) so the borrow is short. Skips tombstones, stops at
+    /// vacant.
+    #[inline]
+    fn probe(&self, base: usize) -> Option<RegistryEntry> {
+        let mut slot = hash_key(base) & (REGISTRY_CAPACITY - 1);
+        loop {
+            let entry = self.table[slot];
+            if entry.base == 0 {
+                return None;
             }
+            if entry.base == base {
+                return Some(entry);
+            }
+            slot = (slot + 1) & (REGISTRY_CAPACITY - 1);
         }
-        if lo == 0 {
-            return None;
-        }
-        let idx = lo - 1;
-        let entry = self.entries[idx];
-        if ptr < entry.base || ptr >= entry.base + entry.size {
-            return None;
-        }
-        // Shift [idx+1..cur) left by 1.
-        for i in idx..(cur - 1) {
-            self.entries[i] = self.entries[i + 1];
-        }
-        self.cur -= 1;
-        Some((entry.class_idx, entry.size))
     }
 
-    /// Current span population count.
+    /// Current live entry count.
     #[inline]
     pub fn len(&self) -> usize {
-        self.cur as usize
+        self.live as usize
     }
 
-    /// True iff no spans registered.
+    /// True iff no entries registered.
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.cur == 0
+        self.live == 0
     }
 }
 
@@ -307,34 +398,70 @@ fn zero_sentinel() -> *mut u8 {
 const REFILL_BATCH: usize = 8;
 
 /// Allocate one slot from the central allocator + register the span in
-/// `CORE_REGISTRY` if a new span was grown. Caller MUST hold
-/// `CORE_LOCK`. Returns `null_mut()` on OOM (per-class cap reached or
-/// kernel mmap failure).
+/// `CORE_REGISTRY` (with idx_in_class hint) if a new span was grown.
+/// Caller MUST hold `CORE_LOCK`. Returns `null_mut()` on OOM.
+///
+/// With M2's aligned-mmap + hash-registry, the registered `span_base`
+/// is the just-handed-out `p` (first slot in a fresh span is at offset
+/// 0, AND `Span::new_for_class` now uses `mmap_anon_rw_aligned` so
+/// `p == span_base` and `p & (SPAN_LEN - 1) == 0`). The
+/// `idx_in_class` from `AllocOutcome` lets subsequent free hits skip
+/// `Allocator::dealloc`'s linear scan via `dealloc_hinted`.
 #[inline]
 unsafe fn alloc_one_under_lock(class_idx: usize, size: usize) -> *mut u8 {
-    let before_mapped = unsafe { (*&raw const CORE_ALLOC).mapped_bytes() };
-    let p = unsafe { (*&raw mut CORE_ALLOC).alloc(size) }.unwrap_or(core::ptr::null_mut());
-    let after_mapped = unsafe { (*&raw const CORE_ALLOC).mapped_bytes() };
-    if !p.is_null() && after_mapped > before_mapped {
-        // Just-grown span — `Span::alloc_slot` on a fresh span bumps
-        // from offset 0, so the returned `p` IS the span's base
-        // address. mmap only guarantees page (4 KB) alignment so
-        // we can NOT recover the base via `p & !(SPAN_LEN - 1)`.
+    let outcome = match unsafe { (*&raw mut CORE_ALLOC).alloc_with_idx(size) } {
+        Some(o) => o,
+        None => return core::ptr::null_mut(),
+    };
+    if outcome.grew_span {
+        let base = outcome.ptr as usize;
+        debug_assert!(
+            base & (SPAN_LEN - 1) == 0,
+            "alloc_one_under_lock: grown span base {base:#x} not SPAN_LEN-aligned"
+        );
         unsafe {
-            (*&raw mut CORE_REGISTRY).insert(p as usize, class_idx as u8, SPAN_LEN);
+            (*&raw mut CORE_REGISTRY).insert_with_idx(
+                base,
+                class_idx as u8,
+                outcome.idx_in_class,
+                SPAN_LEN,
+            );
         }
     }
-    p
+    outcome.ptr
 }
 
-/// Free one slot back to the central allocator + deregister the owning
-/// span from `CORE_REGISTRY` if the dealloc dropped the span (last
-/// live slot freed). Caller MUST hold `CORE_LOCK`.
+/// Free one slot back to the central allocator using the registry's
+/// O(1) `(class_idx, idx_in_class)` hint to skip
+/// `Allocator::dealloc`'s linear scan. If the free empties the span,
+/// the registry entry is removed. Caller MUST hold `CORE_LOCK`.
+///
+/// `size` is the slot size (used to derive the bucket); the registry
+/// confirms which `idx_in_class` owns this ptr.
 #[inline]
 unsafe fn free_one_under_lock(ptr: *mut u8, size: usize) {
-    let dropped = unsafe { (*&raw mut CORE_ALLOC).dealloc(ptr, size) };
-    if let Some(base) = dropped {
-        unsafe { (*&raw mut CORE_REGISTRY).remove(base) };
+    let class_idx = match Allocator::bucket_for(size) {
+        Some(c) => c,
+        None => return,
+    };
+    let span_base = (ptr as usize) & !(SPAN_LEN - 1);
+    let idx = match unsafe { (*&raw const CORE_REGISTRY).lookup_full(ptr as usize) } {
+        Some((found_class, idx, _)) if found_class as usize == class_idx => idx,
+        _ => {
+            // Registry miss or class mismatch — fall back to the legacy
+            // scan in case the alloc somehow bypassed the registry.
+            // Shouldn't fire on Layer 1 allocs that always go through
+            // `alloc_one_under_lock`.
+            let dropped = unsafe { (*&raw mut CORE_ALLOC).dealloc(ptr, size) };
+            if let Some(base) = dropped {
+                unsafe { (*&raw mut CORE_REGISTRY).remove(base) };
+            }
+            return;
+        }
+    };
+    let dropped = unsafe { (*&raw mut CORE_ALLOC).dealloc_hinted(ptr, class_idx, idx) };
+    if dropped.is_some() {
+        unsafe { (*&raw mut CORE_REGISTRY).remove(span_base) };
     }
 }
 
@@ -564,14 +691,14 @@ mod tests {
 
     #[test]
     fn registry_lookup_empty_is_none() {
-        let r = SpanRegistry::new();
+        let r = SpanRegistry::boxed();
         assert!(r.lookup(0x1000).is_none());
         assert!(r.is_empty());
     }
 
     #[test]
     fn registry_insert_then_lookup_in_range() {
-        let mut r = SpanRegistry::new();
+        let mut r = SpanRegistry::boxed();
         let base = 0x1_0000_0000usize;
         assert!(r.insert(base, 3, SPAN_LEN));
         // Inside span
@@ -586,7 +713,7 @@ mod tests {
 
     #[test]
     fn registry_insert_maintains_sorted_invariant() {
-        let mut r = SpanRegistry::new();
+        let mut r = SpanRegistry::boxed();
         // Insert in reverse-base order; lookups should still work.
         let bases = [
             0x9_0000_0000usize,
@@ -609,21 +736,23 @@ mod tests {
 
     #[test]
     fn registry_lookup_below_lowest_is_none() {
-        let mut r = SpanRegistry::new();
+        let mut r = SpanRegistry::boxed();
         r.insert(0x5_0000_0000, 1, SPAN_LEN);
         assert!(r.lookup(0x1_0000_0000).is_none());
     }
 
     #[test]
     fn registry_remove_drops_entry() {
-        let mut r = SpanRegistry::new();
+        let mut r = SpanRegistry::boxed();
         let bases = [0x1_0000_0000usize, 0x3_0000_0000, 0x5_0000_0000];
         for (i, b) in bases.iter().enumerate() {
             assert!(r.insert(*b, i as u8, SPAN_LEN));
         }
         assert_eq!(r.len(), 3);
-        // Remove middle entry.
-        let (class_idx, size) = r.remove(0x3_0000_0000 + 100).expect("remove middle");
+        // Remove middle entry — `remove` takes the registered span
+        // BASE (not an interior ptr); the M2 hash registry resolves
+        // an exact base lookup, not a containment search.
+        let (class_idx, size) = r.remove(0x3_0000_0000).expect("remove middle");
         assert_eq!(class_idx, 1);
         assert_eq!(size, SPAN_LEN);
         assert_eq!(r.len(), 2);
@@ -637,7 +766,7 @@ mod tests {
     #[test]
     fn registry_large_class_tracked() {
         // Phase 2d: LARGE_CLASS_IDX entries with custom size.
-        let mut r = SpanRegistry::new();
+        let mut r = SpanRegistry::boxed();
         let large_base = 0x10_0000_0000usize;
         let large_size = 256 * 1024; // 256 KB large alloc
         assert!(r.insert(large_base, LARGE_CLASS_IDX, large_size));

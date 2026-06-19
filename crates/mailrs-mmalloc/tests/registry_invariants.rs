@@ -15,7 +15,7 @@ use mailrs_mmalloc::span::SPAN_LEN;
 /// that was NOT inserted returns None.
 #[test]
 fn insert_lookup_random_distinct() {
-    let mut r = SpanRegistry::new();
+    let mut r = SpanRegistry::boxed();
     let mut rng: u64 = 0xdead_beef_cafe_babe;
     // Use page-spaced bases so a random "outside" probe falls between spans.
     let bases: Vec<usize> = (0..512)
@@ -50,7 +50,7 @@ fn insert_lookup_random_distinct() {
 /// rounds the surviving entries must still resolve correctly.
 #[test]
 fn churn_keeps_surviving_entries_resolvable() {
-    let mut r = SpanRegistry::new();
+    let mut r = SpanRegistry::boxed();
     // Pre-populate.
     let bases: Vec<usize> = (0..200)
         .map(|i| 0x2_0000_0000usize + i * SPAN_LEN * 2)
@@ -83,7 +83,7 @@ fn churn_keeps_surviving_entries_resolvable() {
 /// returns `(LARGE_CLASS_IDX, real_size)`, never a small-class match.
 #[test]
 fn small_and_large_coexist() {
-    let mut r = SpanRegistry::new();
+    let mut r = SpanRegistry::boxed();
     let small_base = 0x3_0000_0000usize;
     let large_base = small_base + SPAN_LEN * 100;
     let large_size = 256 * 1024;
@@ -107,7 +107,7 @@ fn small_and_large_coexist() {
 /// "free of a foreign ptr is silent" contract.)
 #[test]
 fn remove_missing_is_safe() {
-    let mut r = SpanRegistry::new();
+    let mut r = SpanRegistry::boxed();
     r.insert(0x4_0000_0000usize, 1, SPAN_LEN);
     assert_eq!(r.len(), 1);
     assert_eq!(r.remove(0x4_0000_0000 + SPAN_LEN * 5), None);
