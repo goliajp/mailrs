@@ -54,15 +54,39 @@ pub const MAX_PAGES: usize = PER_CLASS_CAP * SIZE_CLASSES.len();
 const NONE_SPAN: Option<Span> = None;
 const EMPTY_CLASS_ARRAY: [Option<Span>; PER_CLASS_CAP] = [NONE_SPAN; PER_CLASS_CAP];
 
+/// Outcome of `Allocator::alloc_with_idx` — carries enough info for
+/// an external reverse-index (`super::core::SpanRegistry`) to register
+/// the (base, class_idx, idx) tuple needed for O(1) ptr→span dispatch
+/// on subsequent `free`.
+pub struct AllocOutcome {
+    /// The allocated slot pointer (caller-visible).
+    pub ptr: *mut u8,
+    /// Index of the owning span in `classes[class_idx]`. Stable for
+    /// the lifetime of the span (tombstone-based dealloc keeps it
+    /// constant).
+    pub idx_in_class: u16,
+    /// `true` iff this alloc grew a new span (the caller must register
+    /// the span's base in the external registry). For a hit on an
+    /// existing span: `false`.
+    pub grew_span: bool,
+}
+
 pub struct Allocator {
-    /// Per-class span pool. Each entry is `Some(Span)` if that
-    /// pool slot is populated, `None` if unused. Population grows
-    /// from index 0 monotonically per class via `class_cur`.
+    /// Per-class span pool. Each entry is `Some(Span)` if that pool
+    /// slot is populated, `None` if it's either never been populated
+    /// OR has been freed (tombstone). Tombstones keep the index stable
+    /// for the external `SpanRegistry` — `dealloc_hinted` leaves a
+    /// `None` in place instead of compacting the array.
     classes: [[Option<Span>; PER_CLASS_CAP]; SIZE_CLASSES.len()],
-    /// Per-class population cursor — number of spans currently in
-    /// `classes[class_idx]`. New spans append at index `class_cur`;
-    /// `class_cur` is bounded by `PER_CLASS_CAP`.
+    /// Per-class high-water mark — the highest index ever populated
+    /// (live OR tombstone). New spans first try to fill the lowest
+    /// tombstone in `[0..class_cur)`; if none, append at `class_cur`
+    /// and bump it. Never decremented (would invalidate registry idx).
     class_cur: [u16; SIZE_CLASSES.len()],
+    /// Per-class count of currently live (`Some`) entries. Used by
+    /// `mapped_bytes()` for an O(1) tally instead of scanning the
+    /// whole class array on every call.
+    class_live: [u16; SIZE_CLASSES.len()],
 }
 
 impl Default for Allocator {
@@ -76,6 +100,7 @@ impl Allocator {
         Allocator {
             classes: [EMPTY_CLASS_ARRAY; SIZE_CLASSES.len()],
             class_cur: [0; SIZE_CLASSES.len()],
+            class_live: [0; SIZE_CLASSES.len()],
         }
     }
 
@@ -89,105 +114,151 @@ impl Allocator {
     }
 
     /// Allocate `size` bytes from the appropriate size-class pool.
-    /// Returns `None` on OOM (per-class cap exceeded or kernel
-    /// mmap failure). `size` past the largest class returns
-    /// `None` — caller routes to `super::large`.
+    /// Returns `None` on OOM. Backwards-compatible wrapper around
+    /// `alloc_with_idx` for callers that don't need the span-index
+    /// info (= tests + Layer 0 paths).
     pub fn alloc(&mut self, size: usize) -> Option<*mut u8> {
+        self.alloc_with_idx(size).map(|o| o.ptr)
+    }
+
+    /// Allocate + report the owning span's index. Used by `super::core`
+    /// to register `(span_base, class_idx, idx_in_class)` in the
+    /// `SpanRegistry` so subsequent O(1) `dealloc_hinted` works.
+    ///
+    /// `grew_span` is `true` iff this alloc grew a new span (either
+    /// appending past `class_cur` or filling a tombstone slot). In
+    /// both cases the caller registers the (just-grown) span.
+    pub fn alloc_with_idx(&mut self, size: usize) -> Option<AllocOutcome> {
         let bucket = Self::bucket_for(size)?;
         let class_size = SIZE_CLASSES[bucket];
-
-        // 1. LIFO span scan — try most-recently-grown spans first.
-        //    Recent spans are likely the same span the immediately-
-        //    prior alloc came from (TLAB-ish locality even before
-        //    Phase 2b TLAB ships).
         let cur = self.class_cur[bucket] as usize;
+
+        // 1. LIFO span scan — try most-recently-grown live spans first.
+        //    Skips tombstones (Nones) along the way; bounded by cur.
         for i in (0..cur).rev() {
-            if let Some(span) = self.classes[bucket][i].as_mut() {
-                if let Some(p) = span.alloc_slot() {
-                    return Some(p);
-                }
+            if let Some(span) = self.classes[bucket][i].as_mut()
+                && let Some(p) = span.alloc_slot()
+            {
+                return Some(AllocOutcome {
+                    ptr: p,
+                    idx_in_class: i as u16,
+                    grew_span: false,
+                });
             }
         }
 
-        // 2. All current spans full — grow.
-        if cur >= PER_CLASS_CAP {
+        // 2. All current spans full or tombstoned — need a fresh span.
+        //    First look for a tombstone hole in [0..cur) to reuse the
+        //    lower idx (keeps cur tight); else append at cur.
+        let mut insert_at = cur;
+        for i in 0..cur {
+            if self.classes[bucket][i].is_none() {
+                insert_at = i;
+                break;
+            }
+        }
+        if insert_at == cur && cur >= PER_CLASS_CAP {
             return None;
         }
         let mut new_span = Span::new_for_class(class_size, bucket as u8).ok()?;
         let p = new_span.alloc_slot()?;
-        self.classes[bucket][cur] = Some(new_span);
-        self.class_cur[bucket] += 1;
-        Some(p)
+        self.classes[bucket][insert_at] = Some(new_span);
+        if insert_at == cur {
+            self.class_cur[bucket] += 1;
+        }
+        self.class_live[bucket] += 1;
+        Some(AllocOutcome {
+            ptr: p,
+            idx_in_class: insert_at as u16,
+            grew_span: true,
+        })
     }
 
-    /// Release a previously-allocated block. `size` must be the
-    /// SAME value passed to `alloc` (size-class allocator has no
-    /// per-block size metadata in this API; caller bookkeeping
-    /// required — `super::extern_api` Layer 2 shim handles this
-    /// via SHIM_HEADER for libc-compat consumers).
+    /// O(1) dealloc using the registry-provided `(class_idx,
+    /// idx_in_class)` hint. Jumps straight to the owning `Span` without
+    /// scanning. If the free empties the span, the span is dropped
+    /// (Drop fires munmap) and the slot becomes a `None` tombstone —
+    /// `class_cur` does NOT decrement, so the idx for OTHER live spans
+    /// remains stable.
     ///
-    /// Returns `Some(span_base)` if this free emptied the span,
-    /// in which case the span has been removed from `classes` and
-    /// dropped (which fires `Span::drop` → `munmap`, returning the
-    /// region to the OS). The caller is expected to deregister
-    /// `span_base` from any external ptr→span lookup table
-    /// (e.g. `super::core::CORE_REGISTRY`) to prevent stale entries
-    /// pointing into the now-unmapped region.
-    /// Returns `None` otherwise (slot recycled into the span's
-    /// freelist; span remains mapped).
+    /// Returns `Some(span_base)` if the span was dropped; the caller
+    /// (Layer 1 / Layer 0 free) must deregister the entry from the
+    /// external `SpanRegistry`. Returns `None` if the span survived or
+    /// if the hint was stale (no live span at that idx).
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be a slot pointer that was returned by an `alloc`
+    /// call on the span currently at `classes[class_idx][idx_in_class]`,
+    /// not already freed. Caller MUST have just looked up `(class_idx,
+    /// idx_in_class)` from the registry for `ptr`'s span_base — using
+    /// a stale hint after the span was dropped is a no-op (returns
+    /// `None`), not UB.
+    pub unsafe fn dealloc_hinted(
+        &mut self,
+        ptr: *mut u8,
+        class_idx: usize,
+        idx_in_class: u16,
+    ) -> Option<usize> {
+        if class_idx >= SIZE_CLASSES.len() {
+            return None;
+        }
+        let idx = idx_in_class as usize;
+        let cell = self.classes[class_idx].get_mut(idx)?;
+        let emptied_base = {
+            let span = cell.as_mut()?;
+            debug_assert!(
+                span.contains(ptr),
+                "dealloc_hinted: hint ({class_idx},{idx}) doesn't own ptr"
+            );
+            // SAFETY: caller's outer Safety invariant — ptr came from
+            // a matching alloc on this exact span.
+            unsafe { span.free_slot(ptr) };
+            span.is_empty().then(|| span.base() as usize)
+        };
+        if let Some(base) = emptied_base {
+            let _ = cell.take();
+            self.class_live[class_idx] -= 1;
+            return Some(base);
+        }
+        None
+    }
+
+    /// Legacy O(n_spans_in_class) dealloc — scans the per-class array
+    /// for the owning span. Used by callers that don't have a registry
+    /// hint (Layer 0 free routes that hit a registry miss; tests that
+    /// don't use the registry). Returns `Some(span_base)` on shrink.
     ///
     /// # Safety
     ///
     /// `ptr` must be a pointer returned by `alloc(size)`, and not
-    /// already freed (double-free is UB and will corrupt the
-    /// owning span's freelist).
+    /// already freed.
     pub unsafe fn dealloc(&mut self, ptr: *mut u8, size: usize) -> Option<usize> {
         let bucket = Self::bucket_for(size)?;
-        // Dispatch ptr to its owning span: same-class scan.
-        // Phase 2a item 3 replaces this with O(1) registry lookup.
         let cur = self.class_cur[bucket] as usize;
         for i in 0..cur {
-            // Borrow the span only long enough to free the slot and
-            // observe `is_empty`; drop the borrow before `take()` so
-            // the `classes[bucket][i]` slot can be mutated.
-            let emptied_base = match self.classes[bucket][i].as_mut() {
-                Some(span) if span.contains(ptr) => {
-                    // SAFETY: ptr is contained in this span; caller's
-                    // outer Safety invariant says ptr was from a
-                    // matching `alloc(size)`, which placed it in
-                    // exactly this size class.
-                    unsafe { span.free_slot(ptr) };
-                    span.is_empty().then(|| span.base() as usize)
-                }
-                _ => continue,
-            };
-            let base = emptied_base?;
-            // Span is now fully empty — take it out (Drop fires
-            // munmap), then compact `classes[bucket]` by moving the
-            // last live entry into the hole so the LIFO scan in
-            // `alloc` stays dense.
-            let _dropped = self.classes[bucket][i].take();
-            let last = cur - 1;
-            if i != last {
-                self.classes[bucket][i] = self.classes[bucket][last].take();
+            let owns = matches!(
+                self.classes[bucket][i].as_ref(),
+                Some(s) if s.contains(ptr)
+            );
+            if !owns {
+                continue;
             }
-            self.class_cur[bucket] -= 1;
-            return Some(base);
+            // SAFETY: caller's outer invariant + we just verified
+            // containment, so this hint is sound.
+            return unsafe { self.dealloc_hinted(ptr, bucket, i as u16) };
         }
-        // ptr not in any span — silently drop (matches legacy
-        // behavior: mis-sized free is leak, not UB).
         None
     }
 
     /// Total bytes addressable from the kernel via this allocator.
-    /// = `sum over classes of (active_spans × SPAN_LEN)`.
-    /// Diagnostic, not a runtime hot-path.
+    /// = `sum over classes of (live_spans × SPAN_LEN)`. O(SIZE_CLASSES)
+    /// (= 9 today, 32 after M5) — diagnostic, not a runtime hot path.
     pub fn mapped_bytes(&self) -> usize {
-        let mut sum = 0usize;
-        for cur in self.class_cur.iter() {
-            sum += (*cur as usize) * SPAN_LEN;
-        }
-        sum
+        self.class_live
+            .iter()
+            .map(|live| (*live as usize) * SPAN_LEN)
+            .sum()
     }
 }
 
