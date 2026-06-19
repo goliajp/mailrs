@@ -27,11 +27,11 @@
 //! O(log n) — already orders better than the size_class fallback
 //! O(n) scan path and adequate for Phase 2a/2b workloads.
 
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use crate::central::CentralQueue;
 use crate::large::{large_alloc, large_free};
-use crate::size_class::{Allocator, PER_CLASS_CAP, SIZE_CLASSES};
+use crate::size_class::{Allocator, PER_CLASS_CAP, PerClassStats, SIZE_CLASSES};
 use crate::span::SPAN_LEN;
 use crate::thread_cache;
 use crate::tlab::{TLAB_CACHE_DEPTH, TlabCache};
@@ -314,6 +314,22 @@ impl SpanRegistry {
 static CORE_LOCK: AtomicBool = AtomicBool::new(false);
 static mut CORE_ALLOC: Allocator = Allocator::new();
 static mut CORE_REGISTRY: SpanRegistry = SpanRegistry::new();
+
+// ---- M6 observability counters ---------------------------------
+//
+// Lifetime cumulative counters bumped on every successful alloc/free.
+// `Relaxed` ordering is fine — these counters are monotonic, never
+// read for synchronisation; consumers just want eventual visibility.
+// One atomic add per alloc/free is ~5 cycles — measurable but small
+// relative to the lock + Span work on the cold path.
+
+static SMALL_ALLOC_COUNT: AtomicU64 = AtomicU64::new(0);
+static SMALL_FREE_COUNT: AtomicU64 = AtomicU64::new(0);
+static LARGE_ALLOC_COUNT: AtomicU64 = AtomicU64::new(0);
+static LARGE_FREE_COUNT: AtomicU64 = AtomicU64::new(0);
+/// Live (currently-mapped) large-alloc bytes — incremented in
+/// `alloc_sized`'s large path, decremented in `free_sized`'s.
+static LARGE_OUTSTANDING_BYTES: AtomicUsize = AtomicUsize::new(0);
 // Step 16-c-2 (2026-05-29): downgraded from `#[thread_local]` to a
 // plain `static mut` to drop the last `__tlv_bootstrap` undefined
 // symbol from user binaries (A5 zero-libc-undef goal). On macOS
@@ -587,12 +603,15 @@ pub fn alloc_sized(size: usize) -> *mut u8 {
         lock();
         unsafe { (*&raw mut CORE_REGISTRY).insert(p as usize, LARGE_CLASS_IDX, rounded) };
         unlock();
+        LARGE_ALLOC_COUNT.fetch_add(1, Ordering::Relaxed);
+        LARGE_OUTSTANDING_BYTES.fetch_add(rounded, Ordering::Relaxed);
         return p;
     }
     let class_idx = match Allocator::bucket_for(size) {
         Some(i) => i,
         None => return core::ptr::null_mut(),
     };
+    SMALL_ALLOC_COUNT.fetch_add(1, Ordering::Relaxed);
     let tid = gettid();
     if let Some(tlab) = thread_cache::try_claim(tid) {
         // Fast path — owned slot, no atomics inside the TLAB.
@@ -633,16 +652,20 @@ pub unsafe fn free_sized(ptr: *mut u8, size: usize) {
     }
     if size > SIZE_CLASSES[SIZE_CLASSES.len() - 1] {
         // Large path — deregister from registry then munmap.
+        let rounded = (size.max(1) + 4095) & !4095;
         lock();
         unsafe { (*&raw mut CORE_REGISTRY).remove(ptr as usize) };
         unlock();
         let _ = unsafe { large_free(ptr, size) };
+        LARGE_FREE_COUNT.fetch_add(1, Ordering::Relaxed);
+        LARGE_OUTSTANDING_BYTES.fetch_sub(rounded, Ordering::Relaxed);
         return;
     }
     let class_idx = match Allocator::bucket_for(size) {
         Some(i) => i,
         None => return,
     };
+    SMALL_FREE_COUNT.fetch_add(1, Ordering::Relaxed);
     let tid = gettid();
     if let Some(tlab) = thread_cache::try_claim(tid) {
         if unsafe { (*tlab).push(class_idx, ptr) } {
@@ -656,6 +679,72 @@ pub unsafe fn free_sized(ptr: *mut u8, size: usize) {
     lock();
     unsafe { free_one_under_lock(ptr, size) };
     unlock();
+}
+
+// ============================================================
+// M6 — observability
+// ============================================================
+
+/// Aggregate allocator stats — snapshot of internal state for
+/// diagnostics. NOT cheap (walks `Allocator::classes` to build
+/// `per_class`), so don't call from a hot path; intended for an
+/// admin endpoint or a periodic dump.
+#[derive(Clone, Copy, Debug)]
+pub struct AllocatorStats {
+    /// Total VMA bytes from small spans (includes decommitted spans
+    /// — their VMA is still mapped, just not resident).
+    pub small_mapped_bytes: usize,
+    /// VMA bytes from small spans currently backed by resident pages
+    /// (`Span::dirty == true`).
+    pub small_resident_bytes: usize,
+    /// Bytes currently in user code's hands across all size classes
+    /// (= sum over spans of `(slot_count - free_count) * slot_size`).
+    /// `mapped - in_use` is the "free but reserved" overhead.
+    pub small_in_use_bytes: usize,
+    /// Lifetime cumulative count of successful small allocs.
+    pub small_alloc_count: u64,
+    /// Lifetime cumulative count of successful small frees.
+    pub small_free_count: u64,
+    /// Currently-live (page-rounded) bytes from the large-path
+    /// (`size > SIZE_CLASSES.last()`) allocs.
+    pub large_outstanding_bytes: usize,
+    /// Lifetime cumulative count of large allocs.
+    pub large_alloc_count: u64,
+    /// Lifetime cumulative count of large frees.
+    pub large_free_count: u64,
+    /// Per-class breakdown for the 32 small-allocator classes.
+    pub per_class: [PerClassStats; SIZE_CLASSES.len()],
+    /// Number of per-thread cache slots currently claimed by live
+    /// threads (out of `thread_cache::THREAD_SLOTS = 64`).
+    pub claimed_thread_cache_slots: usize,
+}
+
+/// Snapshot the allocator's current state. Walks the per-class
+/// arrays — O(SIZE_CLASSES × class_cur). Cheap enough to call from
+/// a `/api/alloc-stats` endpoint at human cadence; do NOT call per
+/// alloc/free.
+pub fn stats() -> AllocatorStats {
+    lock();
+    let per_class = unsafe { (*&raw const CORE_ALLOC).stats() };
+    let small_mapped_bytes = unsafe { (*&raw const CORE_ALLOC).mapped_bytes() };
+    let small_resident_bytes = unsafe { (*&raw const CORE_ALLOC).resident_bytes() };
+    unlock();
+    let small_in_use_bytes = per_class
+        .iter()
+        .map(|c| c.class_size * c.slots_in_use as usize)
+        .sum();
+    AllocatorStats {
+        small_mapped_bytes,
+        small_resident_bytes,
+        small_in_use_bytes,
+        small_alloc_count: SMALL_ALLOC_COUNT.load(Ordering::Relaxed),
+        small_free_count: SMALL_FREE_COUNT.load(Ordering::Relaxed),
+        large_outstanding_bytes: LARGE_OUTSTANDING_BYTES.load(Ordering::Relaxed),
+        large_alloc_count: LARGE_ALLOC_COUNT.load(Ordering::Relaxed),
+        large_free_count: LARGE_FREE_COUNT.load(Ordering::Relaxed),
+        per_class,
+        claimed_thread_cache_slots: thread_cache::claimed_count(),
+    }
 }
 
 // ============================================================

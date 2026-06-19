@@ -255,6 +255,20 @@ impl Span {
     pub fn slot_size(&self) -> usize {
         self.slot_size as usize
     }
+
+    /// Total slot capacity (never changes after construction).
+    #[inline]
+    pub fn slot_count(&self) -> u16 {
+        self.slot_count
+    }
+
+    /// Slots currently free (= on freelist + still virgin from the
+    /// bump cursor). `slot_count - free_count` = slots currently in
+    /// user's hands.
+    #[inline]
+    pub fn free_count(&self) -> u16 {
+        self.free_count
+    }
 }
 
 impl Drop for Span {

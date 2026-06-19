@@ -308,6 +308,61 @@ impl Allocator {
         }
         sum
     }
+
+    /// Full per-class breakdown for observability. O(SIZE_CLASSES ×
+    /// class_cur) — call from a diagnostic endpoint, not a hot path.
+    pub fn stats(&self) -> [PerClassStats; SIZE_CLASSES.len()] {
+        let mut out = [PerClassStats::ZERO; SIZE_CLASSES.len()];
+        for (bucket, cur) in self.class_cur.iter().enumerate() {
+            let class_size = SIZE_CLASSES[bucket];
+            let mut span_count = 0u16;
+            let mut dirty_count = 0u16;
+            let mut slots_in_use = 0u32;
+            let mut slots_free = 0u32;
+            for cell in &self.classes[bucket][..*cur as usize] {
+                if let Some(span) = cell.as_ref() {
+                    span_count += 1;
+                    if span.dirty {
+                        dirty_count += 1;
+                    }
+                    let in_use = (span.slot_count() - span.free_count()) as u32;
+                    slots_in_use += in_use;
+                    slots_free += span.free_count() as u32;
+                }
+            }
+            out[bucket] = PerClassStats {
+                class_size,
+                span_count,
+                dirty_span_count: dirty_count,
+                slots_in_use,
+                slots_free,
+            };
+        }
+        out
+    }
+}
+
+/// Per-class statistics — counts of live spans, dirty (resident) span
+/// subset, and slot occupancy. Bytes are not pre-multiplied because the
+/// `class_size` is right there; callers can compute
+/// `class_size * slots_in_use` etc. as they need.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PerClassStats {
+    pub class_size: usize,
+    pub span_count: u16,
+    pub dirty_span_count: u16,
+    pub slots_in_use: u32,
+    pub slots_free: u32,
+}
+
+impl PerClassStats {
+    const ZERO: Self = Self {
+        class_size: 0,
+        span_count: 0,
+        dirty_span_count: 0,
+        slots_in_use: 0,
+        slots_free: 0,
+    };
 }
 
 // Suppress unused — the `NonNull` import is needed for the
