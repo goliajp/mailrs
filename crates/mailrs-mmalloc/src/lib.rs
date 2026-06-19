@@ -83,6 +83,8 @@ pub mod size_class;
 #[cfg(target_os = "linux")]
 pub mod span;
 #[cfg(target_os = "linux")]
+pub mod thread_cache;
+#[cfg(target_os = "linux")]
 pub mod tlab;
 
 #[cfg(target_os = "linux")]

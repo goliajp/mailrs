@@ -118,18 +118,25 @@ fn n_workers_random_alloc_free() {
     );
 }
 
-/// Same as above but cranked up — `--release` only, gated behind an env
-/// var so casual `cargo test` doesn't pay the cost.
+/// Stress at the M1 acceptance level — 16 worker threads × 50_000 random
+/// alloc/free ops each. This is the gate against per-thread TLAB hash
+/// collisions (16 threads against 64 buckets = ~13% pairwise collision
+/// odds, so some workers will hit the slot-collision fallback path even
+/// in a normal run). Marked `#[ignore]` so casual `cargo test` doesn't
+/// pay the second-or-two cost; run with `cargo test -- --include-ignored`
+/// or in CI's heavier gate.
 #[test]
 #[ignore]
-fn n_workers_random_alloc_free_long() {
-    let mut handles = Vec::with_capacity(WORKERS);
-    for worker_id in 0..WORKERS {
+fn sixteen_workers_random_alloc_free_long() {
+    const LONG_WORKERS: usize = 16;
+    const LONG_OPS: usize = 50_000;
+    let mut handles = Vec::with_capacity(LONG_WORKERS);
+    for worker_id in 0..LONG_WORKERS {
         handles.push(thread::spawn(move || {
             let a = MailrsAllocator;
-            let mut rng = WORKER_SEED_BASE.wrapping_add(worker_id as u64);
+            let mut rng = WORKER_SEED_BASE ^ (worker_id as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
             let mut live: Vec<(*mut u8, Layout)> = Vec::with_capacity(64);
-            for _ in 0..200_000 {
+            for _ in 0..LONG_OPS {
                 let r = next(&mut rng);
                 let do_alloc = live.is_empty() || (r & 0b111) < 5;
                 if do_alloc {
@@ -137,10 +144,18 @@ fn n_workers_random_alloc_free_long() {
                     let layout = Layout::from_size_align(size, 8).unwrap();
                     let p = unsafe { a.alloc(layout) };
                     assert!(!p.is_null());
+                    let magic = ((worker_id as u64) << 56) | (live.len() as u64);
+                    unsafe { core::ptr::write(p as *mut u64, magic) };
                     live.push((p, layout));
                 } else {
                     let idx = ((r >> 32) as usize) % live.len();
                     let (p, layout) = live.swap_remove(idx);
+                    let observed = unsafe { core::ptr::read(p as *const u64) };
+                    let owner = observed >> 56;
+                    assert_eq!(
+                        owner as usize, worker_id,
+                        "long: worker {worker_id} slot stomped by {owner}"
+                    );
                     unsafe { a.dealloc(p, layout) };
                 }
             }

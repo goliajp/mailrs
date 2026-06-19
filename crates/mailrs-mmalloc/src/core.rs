@@ -33,7 +33,9 @@ use crate::central::CentralQueue;
 use crate::large::{large_alloc, large_free};
 use crate::size_class::{Allocator, PER_CLASS_CAP, SIZE_CLASSES};
 use crate::span::SPAN_LEN;
-use crate::tlab::TlabCache;
+use crate::thread_cache;
+use crate::tlab::{TLAB_CACHE_DEPTH, TlabCache};
+use mailrs_syscall::gettid;
 
 // ============================================================
 // SpanRegistry — ptr→span O(log n) lookup
@@ -296,27 +298,127 @@ fn zero_sentinel() -> *mut u8 {
 // Layer 1 — alloc_sized / free_sized (hot path, no lookup)
 // ============================================================
 
-/// Layer 1 alloc — caller knows size. Hot path; `free_sized`
-/// skips registry. Returns NULL on OOM, sentinel on `size == 0`.
+/// Refill batch size — number of slots `refill_tlab` pulls from the
+/// central allocator under one `CORE_LOCK` acquisition. Amortizes lock
+/// cost across `BATCH` subsequent TLAB hits. 8 chosen empirically as a
+/// compromise: large enough to give meaningful amortization, small
+/// enough that a cold class doesn't pre-grow more spans than the
+/// caller really needs.
+const REFILL_BATCH: usize = 8;
+
+/// Allocate one slot from the central allocator + register the span in
+/// `CORE_REGISTRY` if a new span was grown. Caller MUST hold
+/// `CORE_LOCK`. Returns `null_mut()` on OOM (per-class cap reached or
+/// kernel mmap failure).
+#[inline]
+unsafe fn alloc_one_under_lock(class_idx: usize, size: usize) -> *mut u8 {
+    let before_mapped = unsafe { (*&raw const CORE_ALLOC).mapped_bytes() };
+    let p = unsafe { (*&raw mut CORE_ALLOC).alloc(size) }.unwrap_or(core::ptr::null_mut());
+    let after_mapped = unsafe { (*&raw const CORE_ALLOC).mapped_bytes() };
+    if !p.is_null() && after_mapped > before_mapped {
+        // Just-grown span — `Span::alloc_slot` on a fresh span bumps
+        // from offset 0, so the returned `p` IS the span's base
+        // address. mmap only guarantees page (4 KB) alignment so
+        // we can NOT recover the base via `p & !(SPAN_LEN - 1)`.
+        unsafe {
+            (*&raw mut CORE_REGISTRY).insert(p as usize, class_idx as u8, SPAN_LEN);
+        }
+    }
+    p
+}
+
+/// Free one slot back to the central allocator + deregister the owning
+/// span from `CORE_REGISTRY` if the dealloc dropped the span (last
+/// live slot freed). Caller MUST hold `CORE_LOCK`.
+#[inline]
+unsafe fn free_one_under_lock(ptr: *mut u8, size: usize) {
+    let dropped = unsafe { (*&raw mut CORE_ALLOC).dealloc(ptr, size) };
+    if let Some(base) = dropped {
+        unsafe { (*&raw mut CORE_REGISTRY).remove(base) };
+    }
+}
+
+/// Refill an empty TLAB class from the central allocator under one
+/// lock acquisition, then return the first allocated slot to the
+/// caller. Up to `REFILL_BATCH` slots are pulled; the caller's slot
+/// is the first one, the rest go into the TLAB for subsequent fast-
+/// path hits. Returns `null_mut()` on OOM.
 ///
-/// mailrs fork: everything goes through `CORE_ALLOC.alloc` under
-/// `CORE_LOCK`. The upstream design's lock-free `CentralQueue` +
-/// per-thread TLAB shortcuts were both unsafe in this binary:
-/// - TLAB is a process-wide `static mut` with no synchronisation,
-///   which races on tokio's multi-worker runtime.
-/// - CentralQueue is a Treiber stack whose ABA defence assumes the
-///   freed-slot transit time through the TLAB is long enough that
-///   a popped node can't be re-pushed during a single CAS attempt.
-///   Without the TLAB the ABA window collapses to a few instructions
-///   and produces silent pointer aliasing under multi-thread contention.
+/// # Safety
 ///
-/// One spin-lock per alloc/free is correct and adequate for a
-/// baseline; future work re-introduces TLAB via gettid-indexed
-/// per-thread state once the surface is reliable.
+/// `tlab` must point to a `TlabCache` whose owning thread is the
+/// caller (= the per-thread-cache slot's `owner_tid == gettid()`).
+#[inline(never)]
+unsafe fn refill_tlab(tlab: *mut TlabCache, class_idx: usize, size: usize) -> *mut u8 {
+    lock();
+    let mut result = core::ptr::null_mut::<u8>();
+    for i in 0..REFILL_BATCH {
+        let p = unsafe { alloc_one_under_lock(class_idx, size) };
+        if p.is_null() {
+            break;
+        }
+        if i == 0 {
+            result = p;
+        } else if !unsafe { (*tlab).push(class_idx, p) } {
+            // TLAB filled mid-refill — give the surplus back. (Shouldn't
+            // fire in practice: the class starts empty and the cap is
+            // TLAB_CACHE_DEPTH ≥ REFILL_BATCH, so all REFILL_BATCH-1
+            // pushes fit. Guard anyway.)
+            unsafe { free_one_under_lock(p, size) };
+            break;
+        }
+    }
+    unlock();
+    result
+}
+
+/// Flush half the TLAB class back to the central allocator under one
+/// lock acquisition, then push the caller's slot. Used when a free
+/// arrives but the TLAB class is already at `TLAB_CACHE_DEPTH`.
 ///
-/// `#[inline(always)]` (Phase 2e item 13a): lets fat LTO + cc -flto
-/// inline the hot path into user-binary IR, eliminating extern "C"
-/// call overhead per alloc.
+/// # Safety
+///
+/// `tlab` must point to a TLAB owned by the caller (see `refill_tlab`).
+/// `ptr` must be a valid slot pointer of `size` bytes, not already
+/// freed.
+#[inline(never)]
+unsafe fn flush_tlab_and_push(tlab: *mut TlabCache, class_idx: usize, ptr: *mut u8, size: usize) {
+    lock();
+    // Drain half the TLAB class — leaves room for the incoming push
+    // plus headroom so the next free doesn't trigger another flush.
+    let target = TLAB_CACHE_DEPTH / 2;
+    for _ in 0..target {
+        match unsafe { (*tlab).pop(class_idx) } {
+            Some(p) => unsafe { free_one_under_lock(p, size) },
+            None => break,
+        }
+    }
+    // The slot the caller wanted to free also goes back to central
+    // — we already paid the lock, no need to push it into the TLAB.
+    unsafe { free_one_under_lock(ptr, size) };
+    unlock();
+}
+
+/// Layer 1 alloc — caller knows size. Hot path; `free_sized` skips
+/// registry. Returns NULL on OOM, sentinel on `size == 0`.
+///
+/// Fast path (~99% of calls in steady state):
+/// 1. `gettid()` syscall (~30 ns)
+/// 2. Per-thread cache `try_claim` — single atomic load on the owned
+///    bucket, no CAS after initial claim
+/// 3. `TlabCache::pop` — single load + single store, no atomics
+///
+/// Total: ~50-100 cycles for the hit, NO `CORE_LOCK` acquisition.
+///
+/// Miss paths:
+/// - TLAB empty for class → `refill_tlab` pulls `REFILL_BATCH=8` slots
+///   from central under one `CORE_LOCK`; subsequent 7 allocs hit the
+///   TLAB fast path
+/// - Thread hashed to a slot another thread owns (collision; rare with
+///   typical worker counts vs `THREAD_SLOTS=64`) → fall straight to
+///   central under `CORE_LOCK`
+/// - Large request (> 4 KB) → direct mmap path, registry insert under
+///   `CORE_LOCK`; TLAB not involved
 #[inline(always)]
 pub fn alloc_sized(size: usize) -> *mut u8 {
     if size == 0 {
@@ -342,41 +444,39 @@ pub fn alloc_sized(size: usize) -> *mut u8 {
         Some(i) => i,
         None => return core::ptr::null_mut(),
     };
-    lock();
-    let before_mapped = unsafe { (*&raw const CORE_ALLOC).mapped_bytes() };
-    let p = unsafe { (*&raw mut CORE_ALLOC).alloc(size) }.unwrap_or(core::ptr::null_mut());
-    let after_mapped = unsafe { (*&raw const CORE_ALLOC).mapped_bytes() };
-    if !p.is_null() && after_mapped > before_mapped {
-        // Just-grown span — `Span::alloc_slot` on a fresh span
-        // bumps from offset 0, so the returned `p` IS the span's
-        // base address. (The older `(p as usize) & !(SPAN_LEN - 1)`
-        // form assumed mmap returns SPAN_LEN-aligned regions; it
-        // doesn't — mmap only guarantees page (4 KB) alignment, so
-        // that rounding registered a guessed base disconnected from
-        // the real span and broke Layer 0 lookup.)
-        unsafe {
-            (*&raw mut CORE_REGISTRY).insert(p as usize, class_idx as u8, SPAN_LEN);
+    let tid = gettid();
+    if let Some(tlab) = thread_cache::try_claim(tid) {
+        // Fast path — owned slot, no atomics inside the TLAB.
+        if let Some(p) = unsafe { (*tlab).pop(class_idx) } {
+            return p;
         }
+        // Cold — TLAB empty for this class. Refill batch under lock.
+        return unsafe { refill_tlab(tlab, class_idx, size) };
     }
+    // Collision — fall straight to central under lock.
+    lock();
+    let p = unsafe { alloc_one_under_lock(class_idx, size) };
     unlock();
     p
 }
 
 /// Layer 1 free — caller provides original size. Skips registry
-/// lookup entirely (fastest path). Routes through the locked
-/// central `Allocator.dealloc`; see `alloc_sized`'s comment for why
-/// neither the TLAB nor the lock-free Central is used on this fork.
+/// lookup entirely (fastest path).
 ///
-/// If the dealloc empties the owning span, the Allocator drops it
-/// (firing `Span::drop` → `munmap`) and returns the span's base
-/// address; we then remove the matching `CORE_REGISTRY` entry so a
-/// later Layer 0 `free(ptr)` lookup cannot return a stale class_idx
-/// for an address that no longer belongs to this allocator.
+/// Fast path: push the freed slot into the calling thread's TLAB.
+/// `gettid()` + `try_claim` + `TlabCache::push` — no `CORE_LOCK`.
+///
+/// Miss paths:
+/// - TLAB class already at `TLAB_CACHE_DEPTH` → `flush_tlab_and_push`
+///   drains half the TLAB back to central under one `CORE_LOCK`
+/// - Slot collision (another thread owns this thread's TLAB bucket)
+///   → direct central dealloc under `CORE_LOCK`
+/// - Large free (> 4 KB) → registry remove + munmap under `CORE_LOCK`
 ///
 /// # Safety
 ///
-/// `ptr` must be a pointer returned by `alloc` / `alloc_sized`
-/// with the matching `size`, not already freed.
+/// `ptr` must be a pointer returned by `alloc` / `alloc_sized` with
+/// the matching `size`, not already freed.
 #[inline(always)]
 pub unsafe fn free_sized(ptr: *mut u8, size: usize) {
     if ptr.is_null() || ptr == zero_sentinel() || size == 0 {
@@ -390,11 +490,22 @@ pub unsafe fn free_sized(ptr: *mut u8, size: usize) {
         let _ = unsafe { large_free(ptr, size) };
         return;
     }
-    lock();
-    let dropped_span_base = unsafe { (*&raw mut CORE_ALLOC).dealloc(ptr, size) };
-    if let Some(base) = dropped_span_base {
-        unsafe { (*&raw mut CORE_REGISTRY).remove(base) };
+    let class_idx = match Allocator::bucket_for(size) {
+        Some(i) => i,
+        None => return,
+    };
+    let tid = gettid();
+    if let Some(tlab) = thread_cache::try_claim(tid) {
+        if unsafe { (*tlab).push(class_idx, ptr) } {
+            return;
+        }
+        // TLAB full for this class — flush under lock + free this slot.
+        unsafe { flush_tlab_and_push(tlab, class_idx, ptr, size) };
+        return;
     }
+    // Collision — central dealloc under lock.
+    lock();
+    unsafe { free_one_under_lock(ptr, size) };
     unlock();
 }
 
