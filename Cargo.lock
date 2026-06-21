@@ -935,6 +935,30 @@ dependencies = [
 
 [[package]]
 name = "criterion"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2b12d017a929603d80db1831cd3a24082f8137ce19c69e6447f54f5fc8d692f"
+dependencies = [
+ "anes",
+ "cast",
+ "ciborium",
+ "clap",
+ "criterion-plot 0.5.0",
+ "is-terminal",
+ "itertools 0.10.5",
+ "num-traits",
+ "once_cell",
+ "oorandom",
+ "regex",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tinytemplate",
+ "walkdir",
+]
+
+[[package]]
+name = "criterion"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "950046b2aa2492f9a536f5f4f9a3de7b9e2476e575e05bd6c333371add4d98f3"
@@ -944,7 +968,7 @@ dependencies = [
  "cast",
  "ciborium",
  "clap",
- "criterion-plot",
+ "criterion-plot 0.8.2",
  "itertools 0.13.0",
  "num-traits",
  "oorandom",
@@ -954,6 +978,16 @@ dependencies = [
  "serde_json",
  "tinytemplate",
  "walkdir",
+]
+
+[[package]]
+name = "criterion-plot"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
+dependencies = [
+ "cast",
+ "itertools 0.10.5",
 ]
 
 [[package]]
@@ -1782,6 +1816,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
+name = "hermit-abi"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c"
+
+[[package]]
 name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2389,12 +2429,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "is-terminal"
+version = "0.4.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
+dependencies = [
+ "hermit-abi",
+ "libc",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "iso8601"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1082f0c48f143442a1ac6122f67e360ceee130b967af4d50996e5154a45df46"
 dependencies = [
  "nom 8.0.0",
+]
+
+[[package]]
+name = "itertools"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
+dependencies = [
+ "either",
 ]
 
 [[package]]
@@ -2821,7 +2881,7 @@ version = "1.0.1"
 dependencies = [
  "axum",
  "chrono",
- "criterion",
+ "criterion 0.8.2",
  "futures-util",
  "instant-acme",
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2859,7 +2919,7 @@ dependencies = [
  "async-trait",
  "base64",
  "compact_str",
- "criterion",
+ "criterion 0.8.2",
  "ed25519-dalek",
  "mailrs-dkim",
  "memchr",
@@ -2873,7 +2933,7 @@ dependencies = [
 name = "mailrs-arf"
 version = "1.0.0"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "memchr",
 ]
 
@@ -2887,7 +2947,7 @@ checksum = "a611a6c2231f6d297bc5e19059ce9618eebd9a368e21064a1dc7e2483c7e7b90"
 name = "mailrs-attachment-extract"
 version = "1.0.0"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "image",
  "pdf-extract",
  "serde",
@@ -2912,7 +2972,7 @@ name = "mailrs-auth-guard"
 version = "2.1.0"
 dependencies = [
  "async-trait",
- "criterion",
+ "criterion 0.8.2",
  "dashmap",
  "mailrs-backoff 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio",
@@ -2923,7 +2983,7 @@ dependencies = [
 name = "mailrs-backoff"
 version = "1.0.1"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "exponential-backoff",
 ]
 
@@ -2937,7 +2997,7 @@ checksum = "1f6575a9a4575e42d772d6934674d5b77c810a86288489a2bdfa2b6ebb185084"
 name = "mailrs-clamav"
 version = "1.0.0"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "tokio",
 ]
 
@@ -2954,7 +3014,7 @@ dependencies = [
 name = "mailrs-clean"
 version = "1.0.3"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "html2text",
  "memchr",
 ]
@@ -2990,7 +3050,7 @@ version = "1.1.1"
 dependencies = [
  "async-trait",
  "chrono",
- "criterion",
+ "criterion 0.8.2",
  "hex",
  "sha2 0.11.0",
  "tokio",
@@ -3012,7 +3072,7 @@ dependencies = [
 name = "mailrs-delivery-executor"
 version = "1.2.0"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "mailrs-maildir",
  "tempfile",
  "tokio",
@@ -3026,7 +3086,7 @@ dependencies = [
  "aws-lc-rs",
  "base64",
  "compact_str",
- "criterion",
+ "criterion 0.8.2",
  "ed25519-dalek",
  "hickory-resolver",
  "mail-auth",
@@ -3047,7 +3107,7 @@ dependencies = [
  "base64",
  "chrono",
  "compact_str",
- "criterion",
+ "criterion 0.8.2",
  "flate2",
  "mailrs-mail-builder 1.0.0",
  "psl",
@@ -3062,7 +3122,7 @@ name = "mailrs-dns"
 version = "1.0.0"
 dependencies = [
  "async-trait",
- "criterion",
+ "criterion 0.8.2",
  "hickory-resolver",
  "tokio",
 ]
@@ -3071,7 +3131,7 @@ dependencies = [
 name = "mailrs-dnsbl"
 version = "1.0.0"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "hickory-resolver",
  "tokio",
 ]
@@ -3092,7 +3152,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "compact_str",
- "criterion",
+ "criterion 0.8.2",
  "icalendar",
  "rrule",
  "serde",
@@ -3103,7 +3163,7 @@ name = "mailrs-imap-codec"
 version = "1.0.0"
 dependencies = [
  "bytes",
- "criterion",
+ "criterion 0.8.2",
  "memchr",
  "tokio-util",
 ]
@@ -3123,7 +3183,7 @@ name = "mailrs-imap-format"
 version = "1.0.0"
 dependencies = [
  "chrono",
- "criterion",
+ "criterion 0.8.2",
  "memchr",
 ]
 
@@ -3140,7 +3200,7 @@ dependencies = [
 name = "mailrs-imap-proto"
 version = "1.0.5"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "imap-codec",
 ]
 
@@ -3155,7 +3215,7 @@ name = "mailrs-inbound"
 version = "1.1.0"
 dependencies = [
  "async-trait",
- "criterion",
+ "criterion 0.8.2",
  "metrics",
  "tokio",
  "tracing",
@@ -3176,7 +3236,7 @@ name = "mailrs-intelligence"
 version = "3.0.0"
 dependencies = [
  "async-trait",
- "criterion",
+ "criterion 0.8.2",
  "kevy-embedded",
  "reqwest 0.13.4",
  "serde",
@@ -3192,7 +3252,7 @@ version = "1.1.2"
 dependencies = [
  "async-trait",
  "chrono",
- "criterion",
+ "criterion 0.8.2",
  "serde",
  "serde_json",
  "tokio",
@@ -3216,7 +3276,7 @@ version = "1.0.0"
 dependencies = [
  "base64",
  "chrono",
- "criterion",
+ "criterion 0.8.2",
  "mail-parser",
  "mailrs-mime",
  "mailrs-rfc2047 1.1.2",
@@ -3246,7 +3306,7 @@ version = "1.0.3"
 dependencies = [
  "async-trait",
  "chrono",
- "criterion",
+ "criterion 0.8.2",
  "mailrs-maildir",
  "memchr",
  "serde",
@@ -3262,7 +3322,7 @@ dependencies = [
 name = "mailrs-maildir"
 version = "1.2.1"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "dashmap",
  "filetime",
  "hostname",
@@ -3285,7 +3345,7 @@ version = "2.0.1"
 dependencies = [
  "base64",
  "compact_str",
- "criterion",
+ "criterion 0.8.2",
  "dhat",
  "encoding_rs",
  "mail-parser",
@@ -3300,6 +3360,7 @@ dependencies = [
 name = "mailrs-mmalloc"
 version = "0.1.0"
 dependencies = [
+ "criterion 0.5.1",
  "mailrs-syscall",
 ]
 
@@ -3309,7 +3370,7 @@ version = "2.0.1"
 dependencies = [
  "async-trait",
  "compact_str",
- "criterion",
+ "criterion 0.8.2",
  "tokio",
 ]
 
@@ -3319,7 +3380,7 @@ version = "4.0.0"
 dependencies = [
  "async-trait",
  "chrono",
- "criterion",
+ "criterion 0.8.2",
  "futures-util",
  "hickory-resolver",
  "kevy-embedded",
@@ -3349,7 +3410,7 @@ version = "1.0.1"
 dependencies = [
  "async-trait",
  "chrono",
- "criterion",
+ "criterion 0.8.2",
  "hickory-resolver",
  "reqwest 0.13.4",
  "serde",
@@ -3363,7 +3424,7 @@ name = "mailrs-rate-limit"
 version = "1.0.4"
 dependencies = [
  "async-trait",
- "criterion",
+ "criterion 0.8.2",
  "dashmap",
  "governor",
  "quanta",
@@ -3436,7 +3497,7 @@ name = "mailrs-rfc2047"
 version = "1.1.2"
 dependencies = [
  "base64",
- "criterion",
+ "criterion 0.8.2",
  "encoding_rs",
  "mail-parser",
  "memchr",
@@ -3457,7 +3518,7 @@ dependencies = [
 name = "mailrs-rfc2231"
 version = "1.0.0"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "encoding_rs",
  "proptest",
 ]
@@ -3475,7 +3536,7 @@ dependencies = [
 name = "mailrs-rfc5322"
 version = "1.0.1"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "mail-parser",
  "memchr",
  "proptest",
@@ -3598,7 +3659,7 @@ name = "mailrs-shield"
 version = "3.1.0"
 dependencies = [
  "async-trait",
- "criterion",
+ "criterion 0.8.2",
  "hickory-resolver",
  "kevy-embedded",
  "mailrs-dnsbl 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3611,7 +3672,7 @@ dependencies = [
 name = "mailrs-sieve"
 version = "2.0.0"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "mailrs-sieve-core",
 ]
 
@@ -3619,7 +3680,7 @@ dependencies = [
 name = "mailrs-sieve-core"
 version = "0.2.0"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "mailrs-rfc5322 1.0.1",
  "memchr",
  "thiserror",
@@ -3630,7 +3691,7 @@ name = "mailrs-smtp-client"
 version = "2.0.1"
 dependencies = [
  "compact_str",
- "criterion",
+ "criterion 0.8.2",
  "hickory-resolver",
  "rcgen 0.14.8",
  "rustls",
@@ -3645,7 +3706,7 @@ name = "mailrs-smtp-codec"
 version = "1.0.1"
 dependencies = [
  "bytes",
- "criterion",
+ "criterion 0.8.2",
  "memchr",
  "tokio-util",
 ]
@@ -3665,7 +3726,7 @@ name = "mailrs-smtp-proto"
 version = "1.0.5"
 dependencies = [
  "base64",
- "criterion",
+ "criterion 0.8.2",
  "memchr",
  "smtp-codec",
 ]
@@ -3685,7 +3746,7 @@ version = "2.0.0"
 dependencies = [
  "async-trait",
  "compact_str",
- "criterion",
+ "criterion 0.8.2",
  "dhat",
  "hickory-resolver",
  "mail-auth",
@@ -3698,7 +3759,7 @@ name = "mailrs-srs"
 version = "1.0.1"
 dependencies = [
  "chrono",
- "criterion",
+ "criterion 0.8.2",
  "hex",
  "hmac 0.13.0",
  "proptest",
@@ -3726,7 +3787,7 @@ name = "mailrs-tls-reload"
 version = "1.0.1"
 dependencies = [
  "arc-swap",
- "criterion",
+ "criterion 0.8.2",
  "rcgen 0.13.2",
  "rustls",
  "rustls-pki-types",
@@ -3751,7 +3812,7 @@ version = "1.2.0"
 dependencies = [
  "async-trait",
  "base64",
- "criterion",
+ "criterion 0.8.2",
  "flate2",
  "serde",
  "serde_json",
@@ -3775,7 +3836,7 @@ dependencies = [
 name = "mailrs-webhook-signature"
 version = "1.0.0"
 dependencies = [
- "criterion",
+ "criterion 0.8.2",
  "hex",
  "hmac 0.13.0",
  "sha2 0.11.0",
@@ -5590,15 +5651,15 @@ dependencies = [
 
 [[package]]
 name = "spg-crypto"
-version = "7.37.3"
+version = "7.37.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f3669fde45686f733fc16dff50ba01e2e57e140eebc7d8a605fe9d0323583fa"
+checksum = "4edff2e7fd9fb41c1f24cb4f15928ce16fc2dabb361f3317330ff87bc7a0b727"
 
 [[package]]
 name = "spg-embedded"
-version = "7.37.3"
+version = "7.37.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5adb2b7762bee957373429c3447d164f4a5e622035f8fcf130f2f28e6339d8b7"
+checksum = "f7f0f1497b99a954d6763d5b4d97d147097914cf796c67d25aa3cf245b6bf488"
 dependencies = [
  "spg-crypto",
  "spg-engine",
@@ -5608,9 +5669,9 @@ dependencies = [
 
 [[package]]
 name = "spg-embedded-tokio"
-version = "7.37.3"
+version = "7.37.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e613670c247f86237b9d8945a722395655cf46266a89a09650f0167c89981cc6"
+checksum = "446d7b2e12caa392fac6e523cc31b8f414c1f488ea0268cf3e18ab109121c9f0"
 dependencies = [
  "spg-embedded",
  "spg-engine",
@@ -5619,10 +5680,11 @@ dependencies = [
 
 [[package]]
 name = "spg-engine"
-version = "7.37.3"
+version = "7.37.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bb2c9aba6a65bee04e53467a94026ba9ce81c316b565e8e8e56a184d7c701fc"
+checksum = "cc4fdc470d5df037c9f334928bd0a2b5d584ce77bbf79371ed2ff4ca8f2801ac"
 dependencies = [
+ "bumpalo",
  "hashbrown 0.15.5",
  "sha1",
  "sha2 0.10.9",
@@ -5633,24 +5695,24 @@ dependencies = [
 
 [[package]]
 name = "spg-manifest"
-version = "7.37.3"
+version = "7.37.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c06558878963522ae03ff09c5dc2955b484f3cfcc46d373a9af191e4fdc8b10e"
+checksum = "11fe0e571e1fed810230758166d9bed493cf823dd4c6927c40c561d10719fce0"
 dependencies = [
  "spg-crypto",
 ]
 
 [[package]]
 name = "spg-sql"
-version = "7.37.3"
+version = "7.37.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d687e5ad345950278602967589a4785f14bb622ad6857f3e72c480534612bc90"
+checksum = "5e40d5f00d9175b24a32baf2c194f09507acf2427944f4d48e8ea550e538493f"
 
 [[package]]
 name = "spg-sqlx"
-version = "7.37.3"
+version = "7.37.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1892c3fecbff8c41a5601be8f557c85ba8bb79ec741a530ec26e3d35461903d"
+checksum = "ed1129fe7aecc7c6a51003f2ff43209391a27b8cb3abc32565a962f56aedddfb"
 dependencies = [
  "bigdecimal",
  "chrono",
@@ -5671,10 +5733,11 @@ dependencies = [
 
 [[package]]
 name = "spg-storage"
-version = "7.37.3"
+version = "7.37.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afaa3bccdcbfe9de2753692f652f83b06ae0f7fb4a7755c6c47ad2d726918649"
+checksum = "a0bbdca20886b0b70f9296dd5c8eb688fca2d851c136822ca45d13efdb9df3d4"
 dependencies = [
+ "bumpalo",
  "spg-crypto",
 ]
 
