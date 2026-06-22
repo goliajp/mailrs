@@ -210,9 +210,82 @@ jobs:
         run: |
           docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker.outputs.version }}
 
+  # Staging self-soak verdict gate. t01 runs the 30-min soak the moment
+  # deploy-staging.yml finishes pushing a new develop image; the verdict
+  # for *this* tag's commit lives at /var/run/staging-gate.json on t01.
+  # We poll up to 60 min (covers the slowest case where a v* tag is
+  # cut moments after a develop push and we must wait for the soak +
+  # multi-arch build to overlap). Once the json's sha matches the tag's
+  # commit AND pass=true AND the verdict is fresh, we proceed.
+  #
+  # First-use bootstrap: if STAGING_GATE_GRACE is set to a comma-list of
+  # version numbers (e.g. "1.7.177"), the gate is skipped for those.
+  # Use sparingly — every skip is technical debt against the rule.
+  staging-gate-check:
+    name: staging-stricter-than-prod self-soak verdict
+    needs: manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - name: extract version from tag
+        id: ver
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "tag_sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: bootstrap grace check
+        id: grace
+        run: |
+          GRACE="${{ vars.STAGING_GATE_GRACE }}"
+          if echo ",$GRACE," | grep -q ",${{ steps.ver.outputs.version }},"; then
+            echo "::warning::version ${{ steps.ver.outputs.version }} is in STAGING_GATE_GRACE — staging-stricter-than-prod gate skipped"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: setup ssh to t01
+        if: steps.grace.outputs.skip != 'true'
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.STAGING_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: poll staging-gate.json until verdict matches tag
+        if: steps.grace.outputs.skip != 'true'
+        run: |
+          TAG_SHA="${{ steps.ver.outputs.tag_sha }}"
+          MAX_AGE_SECS=3600
+          DEADLINE=$(( $(date -u +%s) + 3600 ))
+          while [ "$(date -u +%s)" -lt "$DEADLINE" ]; do
+            JSON="$(ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+              "${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}" \
+              'cat /var/run/staging-gate.json 2>/dev/null || echo {}')"
+            STAGING_SHA="$(echo "$JSON" | jq -r '.sha // ""')"
+            STAGING_PASS="$(echo "$JSON" | jq -r '.pass // false')"
+            STAGING_GATE_TS="$(echo "$JSON" | jq -r '.gate_ts // 0')"
+            NOW=$(date -u +%s)
+            AGE=$(( NOW - STAGING_GATE_TS ))
+            echo "[$(date -u +%FT%TZ)] staging-gate sha=${STAGING_SHA:0:8} pass=$STAGING_PASS age=${AGE}s (want sha=${TAG_SHA:0:8})"
+            if [ "$STAGING_SHA" = "$TAG_SHA" ] && [ "$STAGING_PASS" = "true" ] && [ "$AGE" -lt "$MAX_AGE_SECS" ]; then
+              echo "::notice::staging-stricter-than-prod gate PASS — proceeding to prod deploy"
+              echo "$JSON" | jq .
+              exit 0
+            fi
+            if [ "$STAGING_SHA" = "$TAG_SHA" ] && [ "$STAGING_PASS" = "false" ]; then
+              echo "::error::staging-stricter-than-prod gate FAIL — verdict pass=false for this tag's commit"
+              echo "$JSON" | jq .
+              exit 1
+            fi
+            sleep 60
+          done
+          echo "::error::staging-stricter-than-prod gate TIMEOUT — no matching verdict within 60 min"
+          exit 1
+
   deploy:
     name: deploy to prod
-    needs: manifest
+    needs: [manifest, staging-gate-check]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

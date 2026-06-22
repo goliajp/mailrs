@@ -90,6 +90,24 @@ jobs:
             deploy/docker-compose.staging.split.yml \
             "${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}:/apps/mailrs-staging/docker-compose.staging.split.yml"
 
+      # Sync the staging-stricter-than-prod self-soak harness: keep
+      # /usr/local/bin/{check-staging-gate.sh,staging-soak-gate.sh}
+      # and /etc/systemd/system/staging-soak-gate.service in lockstep
+      # with the repo so changes to the gate land without manual scp.
+      - name: scp staging-soak-gate harness
+        run: |
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+            scripts/check-staging-gate.sh scripts/staging-soak-gate.sh \
+            "${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}:/usr/local/bin/"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+            deploy/staging-soak-gate.service \
+            "${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}:/etc/systemd/system/staging-soak-gate.service"
+          ssh -i ~/.ssh/id_ed25519 \
+            "${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}" \
+            'chmod +x /usr/local/bin/check-staging-gate.sh /usr/local/bin/staging-soak-gate.sh
+             systemctl daemon-reload
+             systemctl enable staging-soak-gate.service 2>/dev/null || true'
+
       - name: pull + redeploy split (receiver + kevy + core) + health gate
         run: |
           ssh -i ~/.ssh/id_ed25519 \
@@ -122,3 +140,17 @@ jobs:
              docker logs --tail 50 mailrs-staging || true
              docker logs --tail 30 mailrs-staging-receiver || true
              exit 1'
+
+      # Stamp the commit SHA + kick the 30-min self-soak gate. The
+      # service writes a verdict to /var/run/staging-gate.json which
+      # release.yml reads before allowing a prod tag through. We
+      # don't `--wait` — the service runs detached for 30 min while
+      # this job exits cleanly.
+      - name: kick staging-soak-gate self-check
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+            "${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}" \
+            "echo '${{ github.sha }}' > /etc/staging-deploy-sha
+             systemctl reset-failed staging-soak-gate.service 2>/dev/null || true
+             systemctl start --no-block staging-soak-gate.service
+             echo 'staging-soak-gate.service started for sha=${{ github.sha }}'"
