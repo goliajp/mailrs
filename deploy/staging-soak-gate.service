@@ -1,0 +1,24 @@
+[Unit]
+Description=Staging post-deploy soak gate (30min soak + ship verdict to /var/run/staging-gate.json)
+Documentation=https://github.com/goliajp/mailrs/blob/develop/scripts/staging-soak-gate.sh
+After=network-online.target staging-traffic-gen.service
+Wants=staging-traffic-gen.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/local/bin/staging-soak-gate.sh
+TimeoutStartSec=3600
+StandardOutput=journal
+StandardError=journal
+# Knobs (override via /etc/systemd/system/staging-soak-gate.service.d/override.conf)
+Environment=SOAK_SECS=1800
+Environment=WINDOW_MIN=15
+Environment=STATUS_FILE=/var/run/staging-gate.json
+Environment=DEPLOY_SHA_FILE=/etc/staging-deploy-sha
+Environment=MAX_SLOW_PCT=3.0
+Environment=MAX_LATENCY_SECS=15.0
+Environment=MIN_SAMPLES=5000
+
+[Install]
+WantedBy=multi-user.target
