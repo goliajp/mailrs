@@ -45,10 +45,12 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release --bin mailrs-receiver \
     && cargo build --release --bin mailrs-webapi \
     && cargo build --release --bin mailrs-sender \
+    && cargo build --release --bin mailrs-fastcore \
     && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
     && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
-    && cp /build/target/release/mailrs-sender /usr/local/bin/mailrs-sender
+    && cp /build/target/release/mailrs-sender /usr/local/bin/mailrs-sender \
+    && cp /build/target/release/mailrs-fastcore /usr/local/bin/mailrs-fastcore
 
 # stage 2: build frontend
 FROM oven/bun:1-debian AS web-builder
