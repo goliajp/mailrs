@@ -117,18 +117,26 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/mail/stats", get(handlers::mail::get_mail_stats))
         .route("/api/queue", get(handlers::mail::get_queue_stats));
 
-    let auth_routes = axum::Router::new().route("/api/auth/me", get(handlers::auth::auth_me));
+    let auth_routes = axum::Router::new()
+        .route("/api/auth/me", get(handlers::auth::auth_me))
+        .route("/api/auth/logout", post(handlers::auth::logout));
+
+    let admin_routes = axum::Router::new()
+        .route("/api/admin/accounts", get(handlers::admin::list_accounts))
+        .route("/api/admin/aliases", get(handlers::admin::list_aliases))
+        .route("/api/admin/domains", get(handlers::admin::list_domains))
+        .route("/api/admin/audit-log", get(handlers::admin::list_audit_log));
 
     // Phase 3.9 — real session auth via kevy when MAILRS_KEVY_URL is set;
     // falls back to the X-Mailrs-User header in dev (no kevy) mode.
-    let authenticated =
-        convo
-            .merge(mail)
-            .merge(auth_routes)
-            .route_layer(axum::middleware::from_fn_with_state(
-                state.clone(),
-                session::session_auth_middleware,
-            ));
+    let authenticated = convo
+        .merge(mail)
+        .merge(auth_routes)
+        .merge(admin_routes)
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            session::session_auth_middleware,
+        ));
 
     // Unauthenticated routes — login + health. login intentionally
     // sits outside session_auth_middleware so a freshly-arrived client

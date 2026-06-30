@@ -156,6 +156,40 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
     resp
 }
 
+/// POST /api/auth/logout
+///
+/// Deletes the kevy `session:<token>` blob. The cookie is also cleared
+/// via `Set-Cookie: mailrs_session=; Max-Age=0`.
+pub async fn logout(req: axum::extract::Request) -> Response {
+    let token = req
+        .headers()
+        .get(axum::http::header::COOKIE)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|raw| {
+            raw.split(';').find_map(|c| {
+                let c = c.trim();
+                c.strip_prefix("mailrs_session=").map(|s| s.to_string())
+            })
+        });
+
+    if let (Some(t), Ok(url)) = (token, std::env::var("MAILRS_KEVY_URL")) {
+        let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+            let mut c = kevy_client::Connection::open(&url)?;
+            let key = format!("session:{t}");
+            let _ = c.del(&[key.as_bytes()])?;
+            Ok(())
+        })
+        .await;
+    }
+
+    let cookie = "mailrs_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
+    let mut resp = StatusCode::NO_CONTENT.into_response();
+    if let Ok(v) = axum::http::HeaderValue::from_str(cookie) {
+        resp.headers_mut().insert(SET_COOKIE, v);
+    }
+    resp
+}
+
 /// GET /api/auth/me
 pub async fn auth_me(
     State(state): State<Arc<WebState>>,
