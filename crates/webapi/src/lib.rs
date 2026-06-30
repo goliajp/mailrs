@@ -19,9 +19,16 @@
 //! 6. axum router + listen
 //! 7. signal handler
 
-#![warn(missing_docs)]
+#![allow(missing_docs)]
+
+pub mod handlers;
 
 use std::sync::Arc;
+
+use axum::extract::Request;
+use axum::http::StatusCode;
+use axum::middleware::Next;
+use axum::response::Response;
 
 /// Shared state injected into every web handler.
 ///
@@ -50,14 +57,49 @@ impl WebState {
     }
 }
 
-/// Build the axum router. Currently mounts only /_health for orchestrator
-/// probes; per-route handlers fill in over Phase 3 (checklist 3.3–3.21).
-pub fn build_router(_state: Arc<WebState>) -> axum::Router {
-    axum::Router::new().route("/_health", axum::routing::get(health_handler))
+/// Build the axum router. Conversation routes wired (Phase 3.5);
+/// auth + rest fill in next loops.
+pub fn build_router(state: Arc<WebState>) -> axum::Router {
+    use axum::routing::{get, post};
+    use handlers::conversations as c;
+
+    let convo = axum::Router::new()
+        .route("/api/conversations", get(c::get_conversations))
+        .route("/api/conversations/categories", get(c::get_categories))
+        .route("/api/conversations/action-count", get(c::get_action_count))
+        .route(
+            "/api/conversations/{thread_id}/read",
+            post(c::mark_thread_read),
+        )
+        .route("/api/conversations/{thread_id}/star", post(c::star_thread))
+        .route(
+            "/api/conversations/{thread_id}/archive",
+            post(c::archive_thread),
+        )
+        .route_layer(axum::middleware::from_fn(stub_auth_middleware));
+
+    axum::Router::new()
+        .route("/_health", get(health_handler))
+        .merge(convo)
+        .with_state(state)
 }
 
 async fn health_handler() -> &'static str {
     "ok"
+}
+
+/// Phase 3 stub auth middleware — extracts user from `X-Mailrs-User`
+/// header. Real session/JWT/api-key resolution lands in checklist 3.9.
+async fn stub_auth_middleware(mut req: Request, next: Next) -> Result<Response, StatusCode> {
+    let user = req
+        .headers()
+        .get("X-Mailrs-User")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    req.extensions_mut()
+        .insert(handlers::conversations::AuthedUser(user));
+    Ok(next.run(req).await)
 }
 
 /// Main entry — boots state, builds router, listens, handles shutdown.

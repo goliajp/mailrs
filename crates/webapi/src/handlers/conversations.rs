@@ -1,0 +1,144 @@
+//! `/api/conversations*` REST handlers — thin shims that delegate to the
+//! core RPC client.
+//!
+//! Phase 3.5 — replaces the monolith's direct `state.mailbox_store.X()`
+//! calls (REST agent inventory in `docs/CURRENT_STATE_FROZEN.md` §0.2)
+//! with `state.core_client.X()` RPC calls.
+
+use std::sync::Arc;
+
+use axum::{
+    Json,
+    extract::{Extension, Path, Query, State},
+    http::StatusCode,
+};
+use mailrs_core_api::method::conversation as wire;
+use mailrs_core_api::types::ConversationFilter;
+use serde::Deserialize;
+
+use crate::WebState;
+
+/// Resolved user identity carried via axum Extension by the auth layer
+/// (added in checklist 3.9). For the Phase 3 scaffold we accept a
+/// `X-Mailrs-User` header as a stand-in so the handlers can be exercised
+/// end-to-end without the full session machinery being wired yet.
+#[derive(Debug, Clone)]
+pub struct AuthedUser(pub String);
+
+/// GET /api/conversations  — query-string filter, returns the list.
+#[derive(Debug, Deserialize, Default)]
+pub struct ListQuery {
+    #[serde(default = "default_limit")]
+    pub limit: u32,
+    pub before_ts: Option<i64>,
+    pub category: Option<String>,
+    pub folder: Option<String>,
+    #[serde(default)]
+    pub archived: bool,
+    pub unread: Option<bool>,
+    pub starred: Option<bool>,
+    pub section: Option<String>,
+}
+
+fn default_limit() -> u32 {
+    50
+}
+
+pub async fn get_conversations(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Query(q): Query<ListQuery>,
+) -> Result<Json<wire::ListConversationsResponse>, StatusCode> {
+    let req = wire::ListConversationsRequest {
+        filter: ConversationFilter {
+            limit: q.limit,
+            before_ts: q.before_ts,
+            category: q.category,
+            domains: None,
+            archived: q.archived,
+            folder: q.folder,
+            unread: q.unread,
+            starred: q.starred,
+            section: q.section,
+        },
+    };
+    state
+        .core_client
+        .list_conversations(&user, &req)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// GET /api/conversations/categories
+pub async fn get_categories(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<wire::ConversationCategoriesResponse>, StatusCode> {
+    state
+        .core_client
+        .conversation_categories(&user)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// GET /api/conversations/action-count
+pub async fn get_action_count(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<wire::ActionCountResponse>, StatusCode> {
+    state
+        .core_client
+        .action_count(&user)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/read
+pub async fn mark_thread_read(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .mark_thread_read(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/star
+pub async fn star_thread(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .star_thread(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/archive
+pub async fn archive_thread(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .archive_thread(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+fn map_err(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
+    let code = e.status_code();
+    StatusCode::from_u16(code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+}

@@ -1,16 +1,13 @@
 //! Async HTTP client for the mailrs-core-api wire surface.
 //!
-//! Built on `reqwest`. webapi / sender import this with the
-//! `client` feature on Cargo.toml.
-//!
-//! Stub — wraps `reqwest::Client` + base URL + shared auth bearer.
-//! Per-method calls fill in over Phase 1 (checklist 1.12).
+//! Built on `reqwest`. webapi / sender import this with the `client`
+//! feature on Cargo.toml. One instance per process, clonable via Arc.
 
 use crate::error::{ApiResult, CoreApiError};
+use crate::method;
+use crate::types;
 
 /// HTTP client wrapping a single `mailrs-core` target.
-///
-/// One instance per process. Clonable via `Arc<Client>` (cheap).
 #[derive(Clone)]
 pub struct Client {
     inner: reqwest::Client,
@@ -20,13 +17,10 @@ pub struct Client {
 
 impl Client {
     /// Build a new client.
-    ///
-    /// - `base_url` — `http://core:3300` (no trailing slash). For staging
-    ///   set `MAILRS_CORE_RPC_BASE` env. Local dev uses `http://127.0.0.1:3300`.
-    /// - `auth_bearer` — shared secret from `MAILRS_CORE_API_SECRET` env.
     pub fn new(base_url: impl Into<String>, auth_bearer: impl Into<String>) -> Self {
         let inner = reqwest::Client::builder()
             .user_agent(concat!("mailrs-core-api/", env!("CARGO_PKG_VERSION")))
+            .timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("reqwest client build");
         Self {
@@ -36,52 +30,401 @@ impl Client {
         }
     }
 
-    /// Healthz probe — does NOT include auth bearer (so LB can hit it).
-    pub async fn healthz(&self) -> ApiResult<crate::types::HealthResponse> {
-        let url = format!("{}{}", self.base_url, crate::method::health::PATH_HEALTHZ);
-        let resp = self
-            .inner
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| CoreApiError::Internal(format!("transport: {e}")))?;
-        if !resp.status().is_success() {
-            return Err(CoreApiError::Internal(format!(
-                "healthz returned {}",
-                resp.status()
-            )));
-        }
-        resp.json::<crate::types::HealthResponse>()
-            .await
-            .map_err(|e| CoreApiError::Internal(format!("decode: {e}")))
+    // ── plumbing ────────────────────────────────────────────────────
+
+    fn url(&self, path: &str) -> String {
+        format!("{}{}", self.base_url, path)
     }
 
-    /// Internal helper for authenticated GET. Stub — used by per-method
-    /// wrappers (checklist 1.12).
-    #[allow(dead_code)]
-    pub(crate) async fn get_authed<T: serde::de::DeserializeOwned>(
-        &self,
-        path: &str,
+    async fn map_status<T: serde::de::DeserializeOwned>(
+        resp: reqwest::Response,
+        context: &'static str,
     ) -> ApiResult<T> {
-        let url = format!("{}{}", self.base_url, path);
+        let status = resp.status().as_u16();
+        match status {
+            200..=299 => resp
+                .json::<T>()
+                .await
+                .map_err(|e| CoreApiError::Internal(format!("{context} decode: {e}"))),
+            401 => Err(CoreApiError::Unauthorized),
+            403 => Err(CoreApiError::Forbidden),
+            404 => Err(CoreApiError::NotFound(context.into())),
+            409 => Err(CoreApiError::Conflict(context.into())),
+            501 => Err(CoreApiError::BackendUnsupported),
+            503 => Err(CoreApiError::PoolExhausted),
+            504 => Err(CoreApiError::Timeout),
+            other => Err(CoreApiError::Internal(format!(
+                "{context} returned {other}"
+            ))),
+        }
+    }
+
+    async fn map_status_unit(resp: reqwest::Response, context: &'static str) -> ApiResult<()> {
+        let status = resp.status().as_u16();
+        match status {
+            200..=299 => Ok(()),
+            401 => Err(CoreApiError::Unauthorized),
+            403 => Err(CoreApiError::Forbidden),
+            404 => Err(CoreApiError::NotFound(context.into())),
+            409 => Err(CoreApiError::Conflict(context.into())),
+            501 => Err(CoreApiError::BackendUnsupported),
+            503 => Err(CoreApiError::PoolExhausted),
+            504 => Err(CoreApiError::Timeout),
+            other => Err(CoreApiError::Internal(format!(
+                "{context} returned {other}"
+            ))),
+        }
+    }
+
+    async fn get_authed<T: serde::de::DeserializeOwned>(
+        &self,
+        path: String,
+        context: &'static str,
+    ) -> ApiResult<T> {
         let resp = self
             .inner
-            .get(&url)
+            .get(self.url(&path))
             .bearer_auth(&self.auth_bearer)
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("transport: {e}")))?;
-        if resp.status().as_u16() == 401 {
-            return Err(CoreApiError::Unauthorized);
-        }
-        if resp.status().as_u16() == 503 {
-            return Err(CoreApiError::PoolExhausted);
-        }
-        if resp.status().as_u16() == 501 {
-            return Err(CoreApiError::BackendUnsupported);
-        }
-        resp.json::<T>()
+            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+        Self::map_status(resp, context).await
+    }
+
+    async fn post_authed_json<R: serde::Serialize, T: serde::de::DeserializeOwned>(
+        &self,
+        path: String,
+        body: &R,
+        context: &'static str,
+    ) -> ApiResult<T> {
+        let resp = self
+            .inner
+            .post(self.url(&path))
+            .bearer_auth(&self.auth_bearer)
+            .json(body)
+            .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("decode: {e}")))
+            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+        Self::map_status(resp, context).await
+    }
+
+    async fn post_authed_no_body<T: serde::de::DeserializeOwned>(
+        &self,
+        path: String,
+        context: &'static str,
+    ) -> ApiResult<T> {
+        let resp = self
+            .inner
+            .post(self.url(&path))
+            .bearer_auth(&self.auth_bearer)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+        Self::map_status(resp, context).await
+    }
+
+    async fn put_authed_json<R: serde::Serialize>(
+        &self,
+        path: String,
+        body: &R,
+        context: &'static str,
+    ) -> ApiResult<()> {
+        let resp = self
+            .inner
+            .put(self.url(&path))
+            .bearer_auth(&self.auth_bearer)
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+        Self::map_status_unit(resp, context).await
+    }
+
+    async fn delete_authed(&self, path: String, context: &'static str) -> ApiResult<()> {
+        let resp = self
+            .inner
+            .delete(self.url(&path))
+            .bearer_auth(&self.auth_bearer)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+        Self::map_status_unit(resp, context).await
+    }
+
+    fn enc(part: &str) -> String {
+        // axum's matchit accepts most strings unescaped, but addresses
+        // contain `@` and threads contain `:` etc. Percent-encode anything
+        // not in the unreserved set.
+        const RESERVED: &percent_encoding::AsciiSet = &percent_encoding::CONTROLS
+            .add(b' ')
+            .add(b'@')
+            .add(b'/')
+            .add(b':')
+            .add(b'#')
+            .add(b'?')
+            .add(b'+')
+            .add(b'%');
+        percent_encoding::utf8_percent_encode(part, RESERVED).to_string()
+    }
+
+    // ── health ──────────────────────────────────────────────────────
+
+    /// Healthz probe — NO auth (LB-reachable).
+    pub async fn healthz(&self) -> ApiResult<types::HealthResponse> {
+        let resp = self
+            .inner
+            .get(self.url(method::health::PATH_HEALTHZ))
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("healthz transport: {e}")))?;
+        Self::map_status(resp, "healthz").await
+    }
+
+    /// Readyz — NO auth.
+    pub async fn readyz(&self) -> ApiResult<types::HealthResponse> {
+        let resp = self
+            .inner
+            .get(self.url(method::health::PATH_READYZ))
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("readyz transport: {e}")))?;
+        Self::map_status(resp, "readyz").await
+    }
+
+    // ── conversation (Rock 1 + Rock 2) ──────────────────────────────
+
+    /// POST /v1/users/{user}/conversations:list  (Rock 1)
+    pub async fn list_conversations(
+        &self,
+        user: &str,
+        req: &method::conversation::ListConversationsRequest,
+    ) -> ApiResult<method::conversation::ListConversationsResponse> {
+        let path = format!("/v1/users/{}/conversations:list", Self::enc(user));
+        self.post_authed_json(path, req, "list_conversations").await
+    }
+
+    /// POST /v1/users/{user}/conversations:by-thread-ids
+    pub async fn conversations_by_thread_ids(
+        &self,
+        user: &str,
+        req: &method::conversation::ConversationsByIdsRequest,
+    ) -> ApiResult<method::conversation::ConversationsByIdsResponse> {
+        let path = format!("/v1/users/{}/conversations:by-thread-ids", Self::enc(user));
+        self.post_authed_json(path, req, "conversations_by_thread_ids")
+            .await
+    }
+
+    /// GET /v1/users/{user}/conversations/categories
+    pub async fn conversation_categories(
+        &self,
+        user: &str,
+    ) -> ApiResult<method::conversation::ConversationCategoriesResponse> {
+        let path = format!("/v1/users/{}/conversations/categories", Self::enc(user));
+        self.get_authed(path, "conversation_categories").await
+    }
+
+    /// GET /v1/users/{user}/conversations/action-count  (Rock 2)
+    pub async fn action_count(
+        &self,
+        user: &str,
+    ) -> ApiResult<method::conversation::ActionCountResponse> {
+        let path = format!("/v1/users/{}/conversations/action-count", Self::enc(user));
+        self.get_authed(path, "action_count").await
+    }
+
+    /// GET /v1/users/{user}/conversations/unseen-count  (Rock 2)
+    pub async fn unseen_count(
+        &self,
+        user: &str,
+    ) -> ApiResult<method::conversation::UnseenCountResponse> {
+        let path = format!("/v1/users/{}/conversations/unseen-count", Self::enc(user));
+        self.get_authed(path, "unseen_count").await
+    }
+
+    // ── thread mutate ───────────────────────────────────────────────
+
+    /// POST /v1/users/{user}/threads/{thread_id}/{action}
+    /// — generic helper for mark_read/unread/star/unstar/pin/unpin/etc.
+    async fn thread_action(
+        &self,
+        user: &str,
+        thread_id: &str,
+        action: &str,
+        context: &'static str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        let path = format!(
+            "/v1/users/{}/threads/{}/{}",
+            Self::enc(user),
+            Self::enc(thread_id),
+            action
+        );
+        self.post_authed_no_body(path, context).await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/read
+    pub async fn mark_thread_read(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "read", "mark_thread_read")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/unread
+    pub async fn mark_thread_unread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "unread", "mark_thread_unread")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/star
+    pub async fn star_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "star", "star_thread")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/unstar
+    pub async fn unstar_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "unstar", "unstar_thread")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/pin
+    pub async fn pin_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "pin", "pin_thread")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/unpin
+    pub async fn unpin_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "unpin", "unpin_thread")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/archive
+    pub async fn archive_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "archive", "archive_thread")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/unarchive
+    pub async fn unarchive_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "unarchive", "unarchive_thread")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/dismiss-action
+    pub async fn dismiss_thread_action(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "dismiss-action", "dismiss_action")
+            .await
+    }
+
+    /// PUT /v1/users/{user}/threads/{thread_id}/snooze
+    pub async fn snooze_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+        req: &method::thread::SnoozeRequest,
+    ) -> ApiResult<()> {
+        let path = format!(
+            "/v1/users/{}/threads/{}/snooze",
+            Self::enc(user),
+            Self::enc(thread_id)
+        );
+        self.put_authed_json(path, req, "snooze_thread").await
+    }
+
+    /// DELETE /v1/users/{user}/threads/{thread_id}/snooze
+    pub async fn unsnooze_thread(&self, user: &str, thread_id: &str) -> ApiResult<()> {
+        let path = format!(
+            "/v1/users/{}/threads/{}/snooze",
+            Self::enc(user),
+            Self::enc(thread_id)
+        );
+        self.delete_authed(path, "unsnooze_thread").await
+    }
+
+    /// DELETE /v1/users/{user}/threads/{thread_id}
+    pub async fn delete_thread(&self, user: &str, thread_id: &str) -> ApiResult<()> {
+        let path = format!(
+            "/v1/users/{}/threads/{}",
+            Self::enc(user),
+            Self::enc(thread_id)
+        );
+        self.delete_authed(path, "delete_thread").await
+    }
+
+    // ── admin auth hot path ─────────────────────────────────────────
+
+    /// GET /v1/admin/accounts/{address}/effective-permissions
+    pub async fn effective_permissions(
+        &self,
+        address: &str,
+    ) -> ApiResult<method::admin::EffectivePermissionsResponse> {
+        let path = format!(
+            "/v1/admin/accounts/{}/effective-permissions",
+            Self::enc(address)
+        );
+        self.get_authed(path, "effective_permissions").await
+    }
+
+    /// GET /v1/admin/api-keys/by-prefix/{prefix}
+    pub async fn api_key_by_prefix(&self, prefix: &str) -> ApiResult<method::admin::ApiKeyWire> {
+        let path = format!("/v1/admin/api-keys/by-prefix/{}", Self::enc(prefix));
+        self.get_authed(path, "api_key_by_prefix").await
+    }
+
+    /// POST /v1/admin/api-keys/{id}/touch
+    pub async fn touch_api_key(&self, id: i64) -> ApiResult<()> {
+        let path = format!("/v1/admin/api-keys/{id}/touch");
+        let resp = self
+            .inner
+            .post(self.url(&path))
+            .bearer_auth(&self.auth_bearer)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("touch_api_key transport: {e}")))?;
+        Self::map_status_unit(resp, "touch_api_key").await
+    }
+
+    /// GET /v1/admin/accounts/{address}/credentials
+    pub async fn get_account_with_hash(
+        &self,
+        address: &str,
+    ) -> ApiResult<method::admin::AccountWithHashWire> {
+        let path = format!("/v1/admin/accounts/{}/credentials", Self::enc(address));
+        self.get_authed(path, "get_account_with_hash").await
     }
 }
