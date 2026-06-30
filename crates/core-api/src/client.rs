@@ -575,6 +575,21 @@ impl Client {
         self.get_authed(path, "list_audit_log").await
     }
 
+    /// GET /v1/users/{user}/contacts:search?q=&limit=
+    pub async fn search_contacts(
+        &self,
+        user: &str,
+        q: &str,
+        limit: u32,
+    ) -> ApiResult<method::contact::SearchContactsResponse> {
+        let path = format!(
+            "/v1/users/{}/contacts:search?q={}&limit={limit}",
+            Self::enc(user),
+            Self::enc(q),
+        );
+        self.get_authed(path, "search_contacts").await
+    }
+
     /// GET /v1/admin/accounts/{address}/credentials
     pub async fn get_account_with_hash(
         &self,
