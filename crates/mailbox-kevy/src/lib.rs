@@ -65,6 +65,7 @@ use kevy_embedded::Store;
 
 pub mod keys;
 mod list_threads;
+mod mark_seen;
 mod message_arrival;
 mod thread_row;
 pub use list_threads::ListThreadsFilter;
