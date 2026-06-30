@@ -42,6 +42,11 @@ pub fn user_threads_has_action(user: &str) -> String {
     format!("mailrs:user:{user}:threads:has_action")
 }
 
+/// Per-user starred (flagged) subset. Score = latest_date for recency sort.
+pub fn user_threads_starred(user: &str) -> String {
+    format!("mailrs:user:{user}:threads:starred")
+}
+
 /// Mailbox hash. Fields: name, user, uidvalidity, uidnext, highest_modseq.
 pub fn mailbox(mailbox_id: i64) -> String {
     format!("mailrs:mailbox:{mailbox_id}")

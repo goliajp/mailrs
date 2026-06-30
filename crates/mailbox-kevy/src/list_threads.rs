@@ -31,6 +31,8 @@ pub struct ListThreadsFilter<'a> {
     pub has_unread: bool,
     /// Only threads with `has_action = true`. Uses the has_action index.
     pub has_action: bool,
+    /// Only threads with `starred = true`. Uses the starred index.
+    pub starred: bool,
 }
 
 impl<'a> ListThreadsFilter<'a> {
@@ -49,6 +51,8 @@ impl<'a> ListThreadsFilter<'a> {
             keys::user_threads_has_unread(user)
         } else if self.has_action {
             keys::user_threads_has_action(user)
+        } else if self.starred {
+            keys::user_threads_starred(user)
         } else {
             keys::user_threads_by_activity(user)
         }
@@ -126,6 +130,7 @@ mod tests {
             archived: false,
             has_action: false,
             sent_count: 0,
+            starred: false,
         }
     }
 

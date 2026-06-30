@@ -32,6 +32,7 @@ pub struct ThreadRow {
     pub archived: bool,
     pub has_action: bool,
     pub sent_count: i64,
+    pub starred: bool,
 }
 
 impl ThreadRow {
@@ -56,6 +57,7 @@ impl ThreadRow {
             kv!("archived", (self.archived as u8).to_string()),
             kv!("has_action", (self.has_action as u8).to_string()),
             kv!("sent_count", self.sent_count.to_string()),
+            kv!("starred", (self.starred as u8).to_string()),
         ]
     }
 
@@ -77,6 +79,7 @@ impl ThreadRow {
         let mut archived = false;
         let mut has_action = false;
         let mut sent_count = 0;
+        let mut starred = false;
         for (k, v) in pairs {
             let kk = std::str::from_utf8(k).ok()?;
             let vv = std::str::from_utf8(v).ok()?;
@@ -95,6 +98,7 @@ impl ThreadRow {
                 "archived" => archived = vv == "1",
                 "has_action" => has_action = vv == "1",
                 "sent_count" => sent_count = vv.parse().unwrap_or(0),
+                "starred" => starred = vv == "1",
                 _ => {}
             }
         }
@@ -114,6 +118,7 @@ impl ThreadRow {
             archived,
             has_action,
             sent_count,
+            starred,
         })
     }
 }
@@ -191,6 +196,17 @@ impl KevyMailboxStore {
                 .zrem(has_action.as_bytes(), &[row.thread_id.as_bytes()])?;
         }
 
+        let starred = keys::user_threads_starred(user);
+        if row.starred {
+            self.store().zadd(
+                starred.as_bytes(),
+                &[(row.latest_date as f64, row.thread_id.as_bytes())],
+            )?;
+        } else {
+            self.store()
+                .zrem(starred.as_bytes(), &[row.thread_id.as_bytes()])?;
+        }
+
         Ok(())
     }
 
@@ -231,6 +247,7 @@ mod tests {
             archived: false,
             has_action: true,
             sent_count: 1,
+            starred: false,
         }
     }
 
