@@ -55,6 +55,7 @@ members = [
     "crates/server",
     "crates/core-api",
     "crates/webapi",
+    "crates/sender",
 ]
 
 [workspace.dependencies]
