@@ -386,6 +386,66 @@ impl Client {
         self.delete_authed(path, "delete_thread").await
     }
 
+    // ── mailbox CRUD ────────────────────────────────────────────────
+
+    /// GET /v1/users/{user}/mailboxes
+    pub async fn list_mailboxes(
+        &self,
+        user: &str,
+    ) -> ApiResult<method::mailbox::ListMailboxesResponse> {
+        let path = format!("/v1/users/{}/mailboxes", Self::enc(user));
+        self.get_authed(path, "list_mailboxes").await
+    }
+
+    /// GET /v1/mailboxes/{id}
+    pub async fn get_mailbox_by_id(&self, id: i64) -> ApiResult<method::mailbox::MailboxWire> {
+        let path = format!("/v1/mailboxes/{id}");
+        self.get_authed(path, "get_mailbox_by_id").await
+    }
+
+    /// GET /v1/mailboxes/{id}/status
+    pub async fn mailbox_status(
+        &self,
+        id: i64,
+    ) -> ApiResult<method::mailbox::MailboxStatusResponse> {
+        let path = format!("/v1/mailboxes/{id}/status");
+        self.get_authed(path, "mailbox_status").await
+    }
+
+    // ── message read ────────────────────────────────────────────────
+
+    /// GET /v1/mailboxes/{id}/messages/uid/{uid}
+    pub async fn get_message_by_uid(
+        &self,
+        mailbox_id: i64,
+        uid: u32,
+    ) -> ApiResult<method::message::MessageWire> {
+        let path = format!("/v1/mailboxes/{mailbox_id}/messages/uid/{uid}");
+        self.get_authed(path, "get_message_by_uid").await
+    }
+
+    /// GET /v1/mailboxes/{id}/messages?offset=&limit=
+    pub async fn list_messages(
+        &self,
+        mailbox_id: i64,
+        offset: u32,
+        limit: u32,
+    ) -> ApiResult<method::message::ListMessagesResponse> {
+        let path = format!("/v1/mailboxes/{mailbox_id}/messages?offset={offset}&limit={limit}");
+        self.get_authed(path, "list_messages").await
+    }
+
+    // ── analysis ────────────────────────────────────────────────────
+
+    /// GET /v1/analysis/{message_id}
+    pub async fn get_analysis(
+        &self,
+        message_id: i64,
+    ) -> ApiResult<method::analysis::GetAnalysisResponse> {
+        let path = format!("/v1/analysis/{message_id}");
+        self.get_authed(path, "get_analysis").await
+    }
+
     // ── admin auth hot path ─────────────────────────────────────────
 
     /// GET /v1/admin/accounts/{address}/effective-permissions

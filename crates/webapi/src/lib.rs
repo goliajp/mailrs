@@ -75,12 +75,20 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route(
             "/api/conversations/{thread_id}/archive",
             post(c::archive_thread),
-        )
+        );
+
+    let mail = axum::Router::new()
+        .route("/api/mail/folders", get(handlers::mail::get_folders))
+        .route("/api/mail/messages/{uid}", get(handlers::mail::get_message))
+        .route("/api/mail/stats", get(handlers::mail::get_mail_stats));
+
+    let authenticated = convo
+        .merge(mail)
         .route_layer(axum::middleware::from_fn(stub_auth_middleware));
 
     axum::Router::new()
         .route("/_health", get(health_handler))
-        .merge(convo)
+        .merge(authenticated)
         .with_state(state)
 }
 

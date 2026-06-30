@@ -3064,6 +3064,7 @@ version = "0.0.1"
 dependencies = [
  "axum",
  "mailrs-mailbox",
+ "percent-encoding",
  "reqwest 0.13.4",
  "serde",
  "serde_json",
