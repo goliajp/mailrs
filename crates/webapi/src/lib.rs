@@ -22,6 +22,7 @@
 #![allow(missing_docs)]
 
 pub mod handlers;
+pub mod session;
 
 use std::sync::Arc;
 
@@ -62,6 +63,7 @@ impl WebState {
 pub fn build_router(state: Arc<WebState>) -> axum::Router {
     use axum::routing::{get, post};
     use handlers::conversations as c;
+    let _ = stub_auth_middleware; // kept for tests / dev mode reference
 
     let convo = axum::Router::new()
         .route("/api/conversations", get(c::get_conversations))
@@ -82,9 +84,14 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/mail/messages/{uid}", get(handlers::mail::get_message))
         .route("/api/mail/stats", get(handlers::mail::get_mail_stats));
 
+    // Phase 3.9 — real session auth via kevy when MAILRS_KEVY_URL is set;
+    // falls back to the X-Mailrs-User header in dev (no kevy) mode.
     let authenticated = convo
         .merge(mail)
-        .route_layer(axum::middleware::from_fn(stub_auth_middleware));
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            session::session_auth_middleware,
+        ));
 
     axum::Router::new()
         .route("/_health", get(health_handler))
