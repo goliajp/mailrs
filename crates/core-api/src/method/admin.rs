@@ -195,6 +195,30 @@ pub const PATH_LIST_SIGNATURES: &str = "/v1/users/{user}/signatures";
 pub const PATH_SAVE_SIGNATURE: &str = "/v1/users/{user}/signatures";
 pub const PATH_DELETE_SIGNATURE: &str = "/v1/users/{user}/signatures/{id}";
 
+// ── reactions ───────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReactionAggregateRow {
+    pub message_uid: i64,
+    pub emoji: String,
+    pub count: i64,
+    pub me: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReactionsResponse {
+    pub reactions: Vec<ReactionAggregateRow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToggleReactionRequest {
+    pub emoji: String,
+}
+
+pub const PATH_GET_THREAD_REACTIONS: &str = "/v1/users/{user}/threads/{thread_id}/reactions";
+pub const PATH_TOGGLE_REACTION: &str =
+    "/v1/users/{user}/threads/{thread_id}/messages/{uid}/reactions";
+
 // ── webhook subscriptions ────────────────────────────────────────────
 pub const PATH_CREATE_WEBHOOK: &str = "/v1/admin/webhook-subscriptions";
 pub const PATH_LIST_WEBHOOKS: &str = "/v1/admin/accounts/{address}/webhook-subscriptions";

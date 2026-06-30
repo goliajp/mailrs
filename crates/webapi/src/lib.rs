@@ -108,6 +108,14 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route(
             "/api/conversations/{thread_id}",
             get(c::get_thread_messages).delete(c::delete_thread),
+        )
+        .route(
+            "/api/conversations/{thread_id}/reactions",
+            get(handlers::mail::get_thread_reactions),
+        )
+        .route(
+            "/api/conversations/{thread_id}/messages/{uid}/reactions",
+            put(handlers::mail::toggle_reaction),
         );
 
     let mail = axum::Router::new()
