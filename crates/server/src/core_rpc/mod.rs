@@ -49,6 +49,9 @@ pub struct CoreRpcState {
     /// Direct pool handle — used by `api_key_store` free functions and
     /// other admin paths that don't go through DomainStore.
     pub pool: crate::pg::BackendPool,
+    /// Maildir root — handlers that serve raw bytes look up the file
+    /// under `{maildir_root}/{user}/cur|new/{maildir_id}`.
+    pub maildir_root: String,
 }
 
 impl Handler for CoreRpcState {
@@ -255,6 +258,10 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         .route(
             msg_paths::PATH_FIND_BY_MESSAGE_ID,
             get(handlers::message::find_message_by_message_id),
+        )
+        .route(
+            "/v1/mailboxes/{id}/messages/uid/{uid}/raw",
+            get(handlers::message::get_message_raw),
         )
         .route(
             msg_paths::PATH_SET_FLAGS,

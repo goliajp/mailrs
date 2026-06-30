@@ -440,6 +440,31 @@ impl Client {
         self.get_authed(path, "get_message_by_uid").await
     }
 
+    /// GET /v1/mailboxes/{id}/messages/uid/{uid}/raw  → raw RFC 5322 bytes.
+    pub async fn get_message_raw(&self, mailbox_id: i64, uid: u32) -> ApiResult<Vec<u8>> {
+        let path = format!("/v1/mailboxes/{mailbox_id}/messages/uid/{uid}/raw");
+        let resp = self
+            .inner
+            .get(self.url(&path))
+            .bearer_auth(&self.auth_bearer)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("get_message_raw transport: {e}")))?;
+        let status = resp.status().as_u16();
+        match status {
+            200..=299 => resp
+                .bytes()
+                .await
+                .map(|b| b.to_vec())
+                .map_err(|e| CoreApiError::Internal(format!("get_message_raw read: {e}"))),
+            401 => Err(CoreApiError::Unauthorized),
+            404 => Err(CoreApiError::NotFound("get_message_raw".into())),
+            other => Err(CoreApiError::Internal(format!(
+                "get_message_raw returned {other}"
+            ))),
+        }
+    }
+
     /// GET /v1/mailboxes/{id}/messages?offset=&limit=
     pub async fn list_messages(
         &self,

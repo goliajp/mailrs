@@ -8,6 +8,7 @@ use axum::{
     Json,
     extract::{Extension, Path, State},
     http::StatusCode,
+    response::IntoResponse,
 };
 
 use mailrs_core_api::method::{mailbox as mb_wire, message as msg_wire};
@@ -40,6 +41,25 @@ pub async fn get_folders(
 #[derive(Debug, serde::Deserialize)]
 pub struct UidQuery {
     pub mailbox_id: i64,
+}
+
+pub async fn get_message_raw(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(uid): Path<u32>,
+    axum::extract::Query(q): axum::extract::Query<UidQuery>,
+) -> Result<axum::response::Response, StatusCode> {
+    let bytes = state
+        .core_client
+        .get_message_raw(q.mailbox_id, uid)
+        .await
+        .map_err(map_err)?;
+    let mut resp = bytes.into_response();
+    resp.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("message/rfc822"),
+    );
+    Ok(resp)
 }
 
 pub async fn get_message(
