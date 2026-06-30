@@ -487,4 +487,40 @@ impl Client {
         let path = format!("/v1/admin/accounts/{}/credentials", Self::enc(address));
         self.get_authed(path, "get_account_with_hash").await
     }
+
+    // ── outbound queue (sender ↔ core) ──────────────────────────────
+
+    /// POST /v1/outbound/claim — sender atomically claims up to N pending rows.
+    pub async fn outbound_claim(
+        &self,
+        batch_size: u32,
+    ) -> ApiResult<method::outbound::ClaimResponse> {
+        let req = method::outbound::ClaimRequest { batch_size };
+        self.post_authed_json(
+            method::outbound::PATH_CLAIM.to_string(),
+            &req,
+            "outbound_claim",
+        )
+        .await
+    }
+
+    /// GET /v1/outbound/stats
+    pub async fn outbound_stats(&self) -> ApiResult<method::outbound::QueueStatsResponse> {
+        self.get_authed(method::outbound::PATH_STATS.to_string(), "outbound_stats")
+            .await
+    }
+
+    /// POST /v1/outbound/recover-stale
+    pub async fn outbound_recover_stale(
+        &self,
+        older_than_secs: u64,
+    ) -> ApiResult<method::outbound::RecoverStaleResponse> {
+        let req = method::outbound::RecoverStaleRequest { older_than_secs };
+        self.post_authed_json(
+            method::outbound::PATH_RECOVER_STALE.to_string(),
+            &req,
+            "outbound_recover_stale",
+        )
+        .await
+    }
 }

@@ -65,19 +65,47 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     use handlers::conversations as c;
     let _ = stub_auth_middleware; // kept for tests / dev mode reference
 
+    use axum::routing::{delete, put};
     let convo = axum::Router::new()
         .route("/api/conversations", get(c::get_conversations))
         .route("/api/conversations/categories", get(c::get_categories))
         .route("/api/conversations/action-count", get(c::get_action_count))
+        .route("/api/conversations/unseen-count", get(c::get_unseen_count))
         .route(
             "/api/conversations/{thread_id}/read",
             post(c::mark_thread_read),
         )
+        .route(
+            "/api/conversations/{thread_id}/unread",
+            post(c::mark_thread_unread),
+        )
         .route("/api/conversations/{thread_id}/star", post(c::star_thread))
+        .route(
+            "/api/conversations/{thread_id}/unstar",
+            post(c::unstar_thread),
+        )
+        .route("/api/conversations/{thread_id}/pin", post(c::pin_thread))
+        .route(
+            "/api/conversations/{thread_id}/unpin",
+            post(c::unpin_thread),
+        )
         .route(
             "/api/conversations/{thread_id}/archive",
             post(c::archive_thread),
-        );
+        )
+        .route(
+            "/api/conversations/{thread_id}/unarchive",
+            post(c::unarchive_thread),
+        )
+        .route(
+            "/api/conversations/{thread_id}/dismiss-action",
+            post(c::dismiss_action),
+        )
+        .route(
+            "/api/conversations/{thread_id}/snooze",
+            put(c::snooze_thread).delete(c::unsnooze_thread),
+        )
+        .route("/api/conversations/{thread_id}", delete(c::delete_thread));
 
     let mail = axum::Router::new()
         .route("/api/mail/folders", get(handlers::mail::get_folders))

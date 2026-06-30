@@ -72,6 +72,13 @@ pub async fn run() {
         }
     }
 
+    // Phase 4.3 — claim-loop scaffold. Periodically polls
+    // /v1/outbound/claim. SMTP delivery + mark_delivered land in a
+    // subsequent loop; today this just exercises the RPC + logs depth so
+    // staging operators see the channel working.
+    let claim_client = Arc::clone(&state.core_client);
+    tokio::spawn(claim_loop(claim_client));
+
     // Idle until SIGTERM / Ctrl-C. Worker loops mount onto this state
     // over checklist 4.3–4.9.
     #[cfg(unix)]
@@ -87,4 +94,43 @@ pub async fn run() {
     tokio::signal::ctrl_c().await.expect("ctrl_c");
 
     tracing::info!("mailrs-sender shutting down");
+}
+
+/// Periodic claim loop — polls core's outbound_claim every CLAIM_TICK
+/// seconds. Phase 4.3 scaffold: logs claim count + queue depth, does
+/// NOT yet emit SMTP or mark deliveries (lands in 4.4–4.9 once the
+/// mailrs-smtp-client integration is wired through state).
+async fn claim_loop(core_client: Arc<mailrs_core_api::client::Client>) {
+    const CLAIM_TICK_SECS: u64 = 5;
+    const BATCH_SIZE: u32 = 16;
+    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(CLAIM_TICK_SECS));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        ticker.tick().await;
+        match core_client.outbound_claim(BATCH_SIZE).await {
+            Ok(resp) if !resp.items.is_empty() => {
+                tracing::info!(
+                    claimed = resp.items.len(),
+                    "outbound claim got messages (delivery NYI — Phase 4.4)"
+                );
+                // TODO(checklist 4.4): for each item:
+                //   1. relay via mailrs_smtp_client with DKIM sign
+                //   2. on success: core_client.mark_delivered(item.id)
+                //   3. on failure: core_client.mark_failed(item.id, ...)
+                //   4. on hard bounce: core_client.add_suppression(...)
+            }
+            Ok(_) => {
+                tracing::debug!("outbound claim — queue empty");
+            }
+            Err(mailrs_core_api::error::CoreApiError::Unauthorized) => {
+                tracing::error!(
+                    "outbound claim 401 — MAILRS_CORE_API_SECRET mismatch; \
+                     loop continues to allow secret rotation"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "outbound claim failed");
+            }
+        }
+    }
 }
