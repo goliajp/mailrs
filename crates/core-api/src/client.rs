@@ -495,6 +495,62 @@ impl Client {
         Self::map_status_unit(resp, "touch_api_key").await
     }
 
+    /// POST /v1/admin/accounts — create account
+    pub async fn add_account(&self, req: &method::admin::AddAccountRequest) -> ApiResult<()> {
+        let resp = self
+            .inner
+            .post(self.url("/v1/admin/accounts"))
+            .bearer_auth(&self.auth_bearer)
+            .json(req)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("add_account transport: {e}")))?;
+        Self::map_status_unit(resp, "add_account").await
+    }
+
+    /// DELETE /v1/admin/accounts/{address}
+    pub async fn remove_account(&self, address: &str) -> ApiResult<()> {
+        let path = format!("/v1/admin/accounts/{}", Self::enc(address));
+        self.delete_authed(path, "remove_account").await
+    }
+
+    /// POST /v1/admin/aliases
+    pub async fn add_alias(
+        &self,
+        req: &method::admin::AddAliasRequest,
+    ) -> ApiResult<method::admin::AddAliasResponse> {
+        self.post_authed_json("/v1/admin/aliases".to_string(), req, "add_alias")
+            .await
+    }
+
+    /// DELETE /v1/admin/aliases/{id}
+    pub async fn remove_alias(&self, id: i64) -> ApiResult<()> {
+        let path = format!("/v1/admin/aliases/{id}");
+        self.delete_authed(path, "remove_alias").await
+    }
+
+    /// POST /v1/admin/domains
+    pub async fn add_domain(&self, name: &str) -> ApiResult<()> {
+        let req = method::admin::AddDomainRequest {
+            name: name.to_string(),
+        };
+        let resp = self
+            .inner
+            .post(self.url("/v1/admin/domains"))
+            .bearer_auth(&self.auth_bearer)
+            .json(&req)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("add_domain transport: {e}")))?;
+        Self::map_status_unit(resp, "add_domain").await
+    }
+
+    /// DELETE /v1/admin/domains/{name}
+    pub async fn remove_domain(&self, name: &str) -> ApiResult<()> {
+        let path = format!("/v1/admin/domains/{}", Self::enc(name));
+        self.delete_authed(path, "remove_domain").await
+    }
+
     /// GET /v1/admin/accounts — list all
     pub async fn list_accounts(&self) -> ApiResult<method::admin::AccountListResponse> {
         self.get_authed("/v1/admin/accounts".to_string(), "list_accounts")

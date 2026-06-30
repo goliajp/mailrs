@@ -121,10 +121,32 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/auth/me", get(handlers::auth::auth_me))
         .route("/api/auth/logout", post(handlers::auth::logout));
 
+    use axum::routing::delete;
     let admin_routes = axum::Router::new()
-        .route("/api/admin/accounts", get(handlers::admin::list_accounts))
-        .route("/api/admin/aliases", get(handlers::admin::list_aliases))
-        .route("/api/admin/domains", get(handlers::admin::list_domains))
+        .route(
+            "/api/admin/accounts",
+            get(handlers::admin::list_accounts).post(handlers::admin::add_account),
+        )
+        .route(
+            "/api/admin/accounts/{address}",
+            delete(handlers::admin::remove_account),
+        )
+        .route(
+            "/api/admin/aliases",
+            get(handlers::admin::list_aliases).post(handlers::admin::add_alias),
+        )
+        .route(
+            "/api/admin/aliases/{id}",
+            delete(handlers::admin::remove_alias),
+        )
+        .route(
+            "/api/admin/domains",
+            get(handlers::admin::list_domains).post(handlers::admin::add_domain),
+        )
+        .route(
+            "/api/admin/domains/{name}",
+            delete(handlers::admin::remove_domain),
+        )
         .route("/api/admin/audit-log", get(handlers::admin::list_audit_log));
 
     // Phase 3.9 — real session auth via kevy when MAILRS_KEVY_URL is set;
