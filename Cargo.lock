@@ -3612,6 +3612,7 @@ dependencies = [
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-core",
+ "mailrs-core-api",
  "mailrs-dav 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-delivery-executor",
  "mailrs-dkim",
@@ -3858,6 +3859,21 @@ dependencies = [
  "flate2",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mailrs-webapi"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "mailrs-core-api",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
