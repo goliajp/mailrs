@@ -185,6 +185,18 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "/api/admin/domains/{name}",
             delete(handlers::admin::remove_domain),
         )
+        .route(
+            "/api/admin/webhook-subscriptions",
+            post(handlers::admin::create_webhook),
+        )
+        .route(
+            "/api/admin/webhook-subscriptions/{id}",
+            delete(handlers::admin::delete_webhook),
+        )
+        .route(
+            "/api/admin/accounts/{address}/webhook-subscriptions",
+            get(handlers::admin::list_webhooks),
+        )
         .route("/api/admin/audit-log", get(handlers::admin::list_audit_log));
 
     // Phase 3.9 — real session auth via kevy when MAILRS_KEVY_URL is set;
