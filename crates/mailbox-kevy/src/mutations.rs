@@ -47,6 +47,18 @@ impl KevyMailboxStore {
         )
     }
 
+    /// Flip `starred` on or off. Same shape — toggles `starred` field
+    /// + per-user `starred` zset membership.
+    pub fn set_starred(&self, user: &str, thread_id: &str, starred: bool) -> io::Result<bool> {
+        self.toggle_flag(
+            user,
+            thread_id,
+            "starred",
+            starred,
+            keys::user_threads_starred,
+        )
+    }
+
     /// Common path: read latest_date (for the zadd score), hset the
     /// boolean field, and add or remove from the matching index zset.
     fn toggle_flag<F>(
@@ -123,6 +135,7 @@ impl KevyMailboxStore {
             b"archived",
             b"has_action",
             b"sent_count",
+            b"starred",
         ];
         self.store().hdel(thread_key.as_bytes(), fields)?;
         // drop from every index zset the row could appear in.
@@ -133,6 +146,7 @@ impl KevyMailboxStore {
             keys::user_threads_archived(user),
             keys::user_threads_has_unread(user),
             keys::user_threads_has_action(user),
+            keys::user_threads_starred(user),
         ];
         for idx in &indexes {
             self.store().zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;

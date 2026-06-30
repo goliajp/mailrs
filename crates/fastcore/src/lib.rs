@@ -97,6 +97,8 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(th::PATH_MARK_READ, post(mark_read))
         .route(th::PATH_PIN, post(pin_thread))
         .route(th::PATH_UNPIN, post(unpin_thread))
+        .route(th::PATH_STAR, post(star_thread))
+        .route(th::PATH_UNSTAR, post(unstar_thread))
         .route(th::PATH_ARCHIVE, post(archive_thread))
         .route(th::PATH_UNARCHIVE, post(unarchive_thread))
         .route(th::PATH_DISMISS_ACTION, post(dismiss_action))
@@ -139,6 +141,7 @@ async fn list_conversations(
         archived: f.archived,
         has_unread: f.unread.unwrap_or(false),
         has_action: false,
+        starred: f.starred.unwrap_or(false),
     };
     let limit = if f.limit == 0 { 50 } else { f.limit as usize };
     let (rows, _total) = state
@@ -225,6 +228,30 @@ async fn pin_thread(
         state
             .mailbox
             .set_pinned(&user, &thread_id, true)
+            .unwrap_or(false),
+    )
+}
+
+async fn star_thread(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> StatusCode {
+    status_for(
+        state
+            .mailbox
+            .set_starred(&user, &thread_id, true)
+            .unwrap_or(false),
+    )
+}
+
+async fn unstar_thread(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> StatusCode {
+    status_for(
+        state
+            .mailbox
+            .set_starred(&user, &thread_id, false)
             .unwrap_or(false),
     )
 }
