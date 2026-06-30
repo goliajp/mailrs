@@ -138,6 +138,154 @@ pub async fn archive_thread(
         .map_err(map_err)
 }
 
+/// POST /api/conversations/{thread_id}/unread
+pub async fn mark_thread_unread(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .mark_thread_unread(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/unstar
+pub async fn unstar_thread(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .unstar_thread(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/pin
+pub async fn pin_thread(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .pin_thread(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/unpin
+pub async fn unpin_thread(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .unpin_thread(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/unarchive
+pub async fn unarchive_thread(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .unarchive_thread(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/dismiss-action
+pub async fn dismiss_action(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .dismiss_thread_action(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// DELETE /api/conversations/{thread_id}
+pub async fn delete_thread(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .delete_thread(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SnoozeBody {
+    pub snoozed_until: i64,
+}
+
+/// PUT /api/conversations/{thread_id}/snooze
+pub async fn snooze_thread(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+    Json(req): Json<SnoozeBody>,
+) -> Result<StatusCode, StatusCode> {
+    let wire_req = mailrs_core_api::method::thread::SnoozeRequest {
+        snoozed_until: req.snoozed_until,
+    };
+    state
+        .core_client
+        .snooze_thread(&user, &thread_id, &wire_req)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// DELETE /api/conversations/{thread_id}/snooze
+pub async fn unsnooze_thread(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .unsnooze_thread(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// GET /api/conversations/unseen-count
+pub async fn get_unseen_count(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<wire::UnseenCountResponse>, StatusCode> {
+    state
+        .core_client
+        .unseen_count(&user)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
 fn map_err(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
     let code = e.status_code();
     StatusCode::from_u16(code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
