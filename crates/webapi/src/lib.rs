@@ -112,14 +112,18 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/mail/messages/{uid}", get(handlers::mail::get_message))
         .route("/api/mail/stats", get(handlers::mail::get_mail_stats));
 
+    let auth_routes = axum::Router::new().route("/api/auth/me", get(handlers::auth::auth_me));
+
     // Phase 3.9 — real session auth via kevy when MAILRS_KEVY_URL is set;
     // falls back to the X-Mailrs-User header in dev (no kevy) mode.
-    let authenticated = convo
-        .merge(mail)
-        .route_layer(axum::middleware::from_fn_with_state(
-            state.clone(),
-            session::session_auth_middleware,
-        ));
+    let authenticated =
+        convo
+            .merge(mail)
+            .merge(auth_routes)
+            .route_layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                session::session_auth_middleware,
+            ));
 
     axum::Router::new()
         .route("/_health", get(health_handler))
@@ -140,6 +144,8 @@ async fn stub_auth_middleware(mut req: Request, next: Next) -> Result<Response, 
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string())
         .ok_or(StatusCode::UNAUTHORIZED)?;
+    req.extensions_mut()
+        .insert(handlers::conversations::AuthedDisplayName::default());
     req.extensions_mut()
         .insert(handlers::conversations::AuthedUser(user));
     Ok(next.run(req).await)
