@@ -14,6 +14,7 @@ pub mod admin;
 pub mod analysis;
 pub mod contact;
 pub mod conversation;
+pub mod drafts;
 pub mod mailbox;
 pub mod message;
 pub mod outbound;

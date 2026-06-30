@@ -413,6 +413,18 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         )
         .with_state(state.clone());
 
+    // ── drafts ──────────────────────────────────────────────────────
+    let drafts = Router::new()
+        .route(
+            adm_paths::PATH_LIST_DRAFTS,
+            get(handlers::drafts::list_drafts).post(handlers::drafts::save_draft),
+        )
+        .route(
+            adm_paths::PATH_DELETE_DRAFT,
+            delete(handlers::drafts::delete_draft),
+        )
+        .with_state(state.clone());
+
     // ── outbound (sender ↔ core) ─────────────────────────────────────
     let ob = Router::new()
         .route(ob_paths::PATH_ENQUEUE, post(handlers::outbound::enqueue))
@@ -444,6 +456,7 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         .merge(adm)
         .merge(anal)
         .merge(ct)
+        .merge(drafts)
         .merge(ob);
     drop(state);
 
