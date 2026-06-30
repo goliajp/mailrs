@@ -26,3 +26,4 @@ thiserror = "2"
 # Phase 3.9 — session resolution from kevy-server. Sync client wrapped
 # via tokio::task::spawn_blocking on the auth hot path.
 kevy-client = { workspace = true }
+base64 = "0.22"

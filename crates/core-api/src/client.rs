@@ -506,6 +506,19 @@ impl Client {
 
     // ── outbound queue (sender ↔ core) ──────────────────────────────
 
+    /// POST /v1/outbound/enqueue — webapi /api/mail/send write path.
+    pub async fn outbound_enqueue(
+        &self,
+        req: &method::outbound::EnqueueRequest,
+    ) -> ApiResult<method::outbound::EnqueueResponse> {
+        self.post_authed_json(
+            method::outbound::PATH_ENQUEUE.to_string(),
+            req,
+            "outbound_enqueue",
+        )
+        .await
+    }
+
     /// POST /v1/outbound/claim — sender atomically claims up to N pending rows.
     pub async fn outbound_claim(
         &self,

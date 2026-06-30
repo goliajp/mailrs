@@ -3893,6 +3893,7 @@ name = "mailrs-webapi"
 version = "0.0.1"
 dependencies = [
  "axum",
+ "base64",
  "kevy-client",
  "mailrs-core-api",
  "serde",
