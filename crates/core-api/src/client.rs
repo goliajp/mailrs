@@ -575,6 +575,28 @@ impl Client {
         self.get_authed(path, "list_audit_log").await
     }
 
+    /// POST /v1/users/{user}/contacts/{email}/feedback
+    pub async fn sender_feedback(&self, user: &str, email: &str, action: &str) -> ApiResult<()> {
+        let path = format!(
+            "/v1/users/{}/contacts/{}/feedback",
+            Self::enc(user),
+            Self::enc(email),
+        );
+        let req = method::contact::SenderFeedbackRequest {
+            action: action.to_string(),
+            bias_delta: None,
+        };
+        let resp = self
+            .inner
+            .post(self.url(&path))
+            .bearer_auth(&self.auth_bearer)
+            .json(&req)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("sender_feedback transport: {e}")))?;
+        Self::map_status_unit(resp, "sender_feedback").await
+    }
+
     /// GET /v1/users/{user}/contacts:search?q=&limit=
     pub async fn search_contacts(
         &self,

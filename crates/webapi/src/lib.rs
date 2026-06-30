@@ -116,7 +116,8 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/mail/send", post(handlers::mail::send_message))
         .route("/api/mail/stats", get(handlers::mail::get_mail_stats))
         .route("/api/queue", get(handlers::mail::get_queue_stats))
-        .route("/api/contacts", get(handlers::mail::get_contacts));
+        .route("/api/contacts", get(handlers::mail::get_contacts))
+        .route("/api/mail/feedback", post(handlers::mail::submit_feedback));
 
     let auth_routes = axum::Router::new()
         .route("/api/auth/me", get(handlers::auth::auth_me))
