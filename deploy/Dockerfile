@@ -5,6 +5,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY bin/mailrs-server /usr/local/bin/mailrs-server
+# Phase 3 — additional binaries from the same image. Optional copies
+# (the receiver-split flow + the upcoming webapi front). Both fall back
+# gracefully if the binary is absent (entrypoint override required).
+COPY --chmod=0755 bin/mailrs-webapi* /usr/local/bin/
 COPY web /opt/mailrs/web
 
 ENV MAILRS_HOSTNAME=mx.mailrs.local \

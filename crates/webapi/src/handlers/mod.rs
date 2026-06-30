@@ -2,3 +2,4 @@
 //! delegates to `state.core_client.X()` RPC calls.
 
 pub mod conversations;
+pub mod mail;
