@@ -99,6 +99,20 @@ pub async fn get_action_count(
         .map_err(map_err)
 }
 
+/// GET /api/conversations/{thread_id}
+pub async fn get_thread_messages(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<Json<mailrs_core_api::method::thread::ListThreadMessagesResponse>, StatusCode> {
+    state
+        .core_client
+        .list_thread_messages(&user, &thread_id)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
 /// POST /api/conversations/{thread_id}/read
 pub async fn mark_thread_read(
     State(state): State<Arc<WebState>>,

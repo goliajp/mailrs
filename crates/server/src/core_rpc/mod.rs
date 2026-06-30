@@ -214,6 +214,10 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
 
     // ── thread mutate ────────────────────────────────────────────────
     let th = Router::new()
+        .route(
+            th_paths::PATH_LIST_THREAD_MESSAGES,
+            get(handlers::thread::list_thread_messages),
+        )
         .route(th_paths::PATH_MARK_READ, post(handlers::thread::mark_read))
         .route(
             th_paths::PATH_MARK_UNREAD,
