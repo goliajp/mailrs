@@ -22,7 +22,7 @@ default = []
 server = ["dep:axum", "dep:tower-http"]
 # client-side dependencies (reqwest). Pulled in by webapi/sender to call
 # core.
-client = ["dep:reqwest"]
+client = ["dep:reqwest", "dep:percent-encoding"]
 
 [dependencies]
 serde = { workspace = true }
@@ -41,3 +41,4 @@ tower-http = { version = "0.6", optional = true, features = ["trace"] }
 
 # Client-only deps (gated by `client` feature)
 reqwest = { version = "0.13", optional = true, default-features = false, features = ["json", "rustls"] }
+percent-encoding = { version = "2", optional = true }
