@@ -1,0 +1,25 @@
+[package]
+name = "mailrs-fastcore"
+version = "0.0.1"
+edition = "2024"
+description = "Kevy-backed `mailrs-core-api` server. Drop-in for the PG/spg core when the workload fits the cascade-killer KV layout."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mailrs-fastcore"
+path = "src/main.rs"
+
+[dependencies]
+mailrs-core-api = { path = "../core-api", features = ["server"] }
+mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
+kevy-embedded = { workspace = true }
+axum = { version = "0.8" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
