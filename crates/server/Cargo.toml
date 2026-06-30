@@ -30,6 +30,12 @@ spg = [
     "mailrs-shield/spg",
     "mailrs-dmarc/spg",
 ]
+# Experimental: expose the mailrs-core-api wire surface from this monolith
+# so webapi/sender clients can talk to it as if it were the eventual
+# `mailrs-core` binary. Default OFF — production builds (without this
+# feature) are byte-identical to the pre-Phase-2 monolith. See
+# .claude/notes/arch-split-plus-fastcore-checklist-2026-06-30.md §2.
+core-rpc = ["dep:mailrs-core-api"]
 
 [dependencies]
 mailrs-smtp-proto = "1"
@@ -67,6 +73,8 @@ mailrs-imap-proto = "1"
 mailrs-ical = { path = "../ical", version = "2" }
 mailrs-intelligence = { path = "../intelligence", version = "3" }
 mailrs-mailbox = { path = "../mailbox", version = "1" }
+# Optional — pulled in by the `core-rpc` feature only.
+mailrs-core-api = { path = "../core-api", optional = true, features = ["server"] }
 mailrs-jmap = "1"
 mailrs-dav = "1"
 async-trait = "0.1"
