@@ -41,7 +41,7 @@ pass "/v1/readyz"
 step "3. POST /v1/users/{user}/conversations:list"
 RESP=$(curl -sf -X POST "$BASE/v1/users/$USER/conversations:list" \
     -H "Content-Type: application/json" \
-    -d '{"filter":{"limit":50}}')
+    -d '{"limit":50}')
 echo "  $RESP"
 N=$(echo "$RESP" | jq '.items | length')
 [[ "$N" =~ ^[0-9]+$ ]] || fail "items is not an array"
