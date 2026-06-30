@@ -29,7 +29,7 @@ pub async fn search_contacts(
     Ok(Json(wire::SearchContactsResponse { items }))
 }
 
-/// POST /v1/users/{user}/contacts/{email}:inbound
+/// POST /v1/users/{user}/contacts/{email}/inbound
 pub async fn upsert_inbound(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, email)): Path<(String, String)>,
