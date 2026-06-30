@@ -302,7 +302,7 @@ pub async fn run() {
     tracing::info!(
         bind = %state.bind_addr,
         version = env!("CARGO_PKG_VERSION"),
-        "mailrs-webapi starting (Phase 3 scaffold — routes pending)"
+        "mailrs-webapi starting"
     );
 
     // Quick core liveness probe so we fail-fast on bad MAILRS_CORE_RPC_BASE.
