@@ -495,6 +495,30 @@ impl Client {
         Self::map_status_unit(resp, "touch_api_key").await
     }
 
+    /// GET /v1/admin/accounts — list all
+    pub async fn list_accounts(&self) -> ApiResult<method::admin::AccountListResponse> {
+        self.get_authed("/v1/admin/accounts".to_string(), "list_accounts")
+            .await
+    }
+
+    /// GET /v1/admin/aliases — list all
+    pub async fn list_aliases(&self) -> ApiResult<method::admin::AliasListResponse> {
+        self.get_authed("/v1/admin/aliases".to_string(), "list_aliases")
+            .await
+    }
+
+    /// GET /v1/admin/domains — list all
+    pub async fn list_domains(&self) -> ApiResult<method::admin::DomainListResponse> {
+        self.get_authed("/v1/admin/domains".to_string(), "list_domains")
+            .await
+    }
+
+    /// GET /v1/admin/audit-log
+    pub async fn list_audit_log(&self, limit: u32) -> ApiResult<method::admin::AuditListResponse> {
+        let path = format!("/v1/admin/audit-log?limit={limit}");
+        self.get_authed(path, "list_audit_log").await
+    }
+
     /// GET /v1/admin/accounts/{address}/credentials
     pub async fn get_account_with_hash(
         &self,
