@@ -46,6 +46,9 @@ use mailrs_core_api::types::{BackendKind, HealthResponse};
 pub struct CoreRpcState {
     pub mailbox: Arc<mailrs_mailbox::PgMailboxStore>,
     pub domain: Arc<crate::domain_store::DomainStore>,
+    /// Direct pool handle — used by `api_key_store` free functions and
+    /// other admin paths that don't go through DomainStore.
+    pub pool: crate::pg::BackendPool,
 }
 
 impl Handler for CoreRpcState {
@@ -127,6 +130,7 @@ pub fn spawn_core_rpc(state: Arc<CoreRpcState>, shutdown_rx: tokio::sync::watch:
 /// Path constants come from `mailrs_core_api::method::*` so any future
 /// rename in the wire crate ripples through automatically.
 fn build_full_router(state: Arc<CoreRpcState>) -> Router {
+    use mailrs_core_api::method::admin as adm_paths;
     use mailrs_core_api::method::conversation as conv_paths;
     use mailrs_core_api::method::mailbox as mb_paths;
     use mailrs_core_api::method::message as msg_paths;
@@ -229,7 +233,35 @@ fn build_full_router(state: Arc<CoreRpcState>) -> Router {
             msg_paths::PATH_FIND_BY_MESSAGE_ID,
             get(handlers::message::find_message_by_message_id),
         )
+        .with_state(state.clone());
+
+    // ── admin (auth hot path) ─────────────────────────────────────────
+    let adm = Router::new()
+        .route(
+            adm_paths::PATH_GET_API_KEY_BY_PREFIX,
+            get(handlers::admin::get_api_key_by_prefix),
+        )
+        .route(
+            adm_paths::PATH_TOUCH_API_KEY,
+            post(handlers::admin::touch_api_key),
+        )
+        .route(
+            adm_paths::PATH_EFFECTIVE_PERMISSIONS,
+            get(handlers::admin::effective_permissions),
+        )
+        .route(
+            adm_paths::PATH_GET_ACCOUNT_HASH,
+            get(handlers::admin::get_account_with_hash),
+        )
+        .route(
+            adm_paths::PATH_LIST_ACCOUNTS,
+            get(handlers::admin::list_accounts),
+        )
+        .route(
+            adm_paths::PATH_GET_ACCOUNT,
+            get(handlers::admin::get_account),
+        )
         .with_state(state);
 
-    base.merge(convo).merge(mb).merge(th).merge(msg)
+    base.merge(convo).merge(mb).merge(th).merge(msg).merge(adm)
 }

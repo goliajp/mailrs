@@ -10,6 +10,7 @@
 //! axum router can map errors to wire status codes (404 / 409 / 500 / etc.).
 //! Phase 2 stub — full error mapping (CoreApiError → status) in 2.5.
 
+pub mod admin;
 pub mod conversation;
 pub mod mailbox;
 pub mod message;

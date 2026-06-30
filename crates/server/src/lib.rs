@@ -698,10 +698,15 @@ pub async fn run() {
     // Phase 2 — optional core RPC server (only compiled with --features core-rpc).
     // Default build excludes this entirely; production artifact is byte-identical.
     #[cfg(feature = "core-rpc")]
-    if let (Some(mb), Some(ds)) = (mailbox_store.as_ref(), domain_store.as_ref()) {
+    if let (Some(mb), Some(ds), Some(pool)) = (
+        mailbox_store.as_ref(),
+        domain_store.as_ref(),
+        pg_pool.as_ref(),
+    ) {
         let core_rpc_state = std::sync::Arc::new(core_rpc::CoreRpcState {
             mailbox: mb.clone(),
             domain: ds.clone(),
+            pool: pool.clone(),
         });
         core_rpc::spawn_core_rpc(core_rpc_state, shutdown_rx.clone());
     }
