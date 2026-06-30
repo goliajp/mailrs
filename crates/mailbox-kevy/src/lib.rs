@@ -64,7 +64,9 @@ use std::sync::Arc;
 use kevy_embedded::Store;
 
 pub mod keys;
+mod list_threads;
 mod thread_row;
+pub use list_threads::ListThreadsFilter;
 pub use thread_row::ThreadRow;
 
 /// Experimental kevy-backed implementation of `MailboxStore`.
