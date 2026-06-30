@@ -3199,6 +3199,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-fastcore"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "kevy-embedded",
+ "mailrs-core-api",
+ "mailrs-mailbox-kevy",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "mailrs-ical"
 version = "2.0.0"
 dependencies = [
