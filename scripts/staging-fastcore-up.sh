@@ -76,7 +76,8 @@ docker run -d \
     --name mailrs-staging-webapi-fc \
     --network mailrs-staging_default \
     -p 127.0.0.1:3103:3100 \
-    -e MAILRS_CORE_RPC_BASE=http://fastcore:3301 \
+    -e MAILRS_CORE_RPC_BASE=http://mailrs:3300 \
+    -e MAILRS_FASTCORE_RPC_BASE=http://fastcore:3301 \
     -e MAILRS_CORE_API_SECRET="\$(grep ^MAILRS_CORE_API_SECRET .env | cut -d= -f2)" \
     -e MAILRS_KEVY_URL=kevy://kevy-server:6379 \
     -e MAILRS_WEB_BIND=0.0.0.0:3100 \
