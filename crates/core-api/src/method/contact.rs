@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 // ── paths ───────────────────────────────────────────────────────────
 
 pub const PATH_SEARCH_CONTACTS: &str = "/v1/users/{user}/contacts:search";
-pub const PATH_UPSERT_INBOUND: &str = "/v1/users/{user}/contacts/{email}:inbound";
+pub const PATH_UPSERT_INBOUND: &str = "/v1/users/{user}/contacts/{email}/inbound";
 pub const PATH_UPSERT_OUTBOUND: &str = "/v1/users/{user}/contacts/{email}:outbound";
 pub const PATH_MARK_MUTUAL: &str = "/v1/users/{user}/contacts/{email}/mutual";
 pub const PATH_CONTACT_SCORING: &str = "/v1/users/{user}/contacts/{email}/scoring";
@@ -39,7 +39,7 @@ pub struct SearchContactsResponse {
     pub items: Vec<String>,
 }
 
-/// Request body for `POST /v1/users/{user}/contacts/{email}:inbound`.
+/// Request body for `POST /v1/users/{user}/contacts/{email}/inbound`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpsertInboundContactRequest {
     /// Display name from From: header.
