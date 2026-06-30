@@ -73,6 +73,95 @@ fn default_audit_limit() -> u32 {
     100
 }
 
+/// POST /api/admin/accounts
+pub async fn add_account(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Json(req): Json<wire::AddAccountRequest>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .add_account(&req)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// DELETE /api/admin/accounts/{address}
+pub async fn remove_account(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    axum::extract::Path(address): axum::extract::Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .remove_account(&address)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/admin/aliases
+pub async fn add_alias(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Json(req): Json<wire::AddAliasRequest>,
+) -> Result<Json<wire::AddAliasResponse>, StatusCode> {
+    state
+        .core_client
+        .add_alias(&req)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// DELETE /api/admin/aliases/{id}
+pub async fn remove_alias(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .remove_alias(id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AddDomainBody {
+    pub name: String,
+}
+
+/// POST /api/admin/domains
+pub async fn add_domain(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Json(req): Json<AddDomainBody>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .add_domain(&req.name)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// DELETE /api/admin/domains/{name}
+pub async fn remove_domain(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .remove_domain(&name)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
 /// GET /api/admin/audit-log
 pub async fn list_audit_log(
     State(state): State<Arc<WebState>>,
