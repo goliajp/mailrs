@@ -63,8 +63,35 @@ pub struct MessageWire {
     pub thread_id: ThreadId,
     /// CONDSTORE per-message MODSEQ.
     pub modseq: u64,
-    /// Owner email address.
+    /// Owner email address. Optional because some inherent methods return
+    /// `MessageMeta` which doesn't carry it (cement handlers fill it from
+    /// the request path when known, else leave blank).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub user_address: UserAddress,
+}
+
+impl From<&mailrs_mailbox::types::MessageMeta> for MessageWire {
+    fn from(m: &mailrs_mailbox::types::MessageMeta) -> Self {
+        Self {
+            id: m.id,
+            mailbox_id: m.mailbox_id,
+            uid: m.uid,
+            blob_ref: m.maildir_id.clone(),
+            sender: m.sender.clone(),
+            recipients: m.recipients.clone(),
+            subject: m.subject.clone(),
+            date: m.date,
+            internal_date: m.internal_date,
+            size: m.size,
+            flags: m.flags,
+            message_id: m.message_id.clone(),
+            in_reply_to: m.in_reply_to.clone(),
+            thread_id: m.thread_id.clone(),
+            modseq: m.modseq,
+            // MessageMeta has no user_address — caller fills if needed.
+            user_address: String::new(),
+        }
+    }
 }
 
 impl From<&mailrs_mailbox::types::Message> for MessageWire {

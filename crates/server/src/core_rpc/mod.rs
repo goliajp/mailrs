@@ -129,6 +129,7 @@ pub fn spawn_core_rpc(state: Arc<CoreRpcState>, shutdown_rx: tokio::sync::watch:
 fn build_full_router(state: Arc<CoreRpcState>) -> Router {
     use mailrs_core_api::method::conversation as conv_paths;
     use mailrs_core_api::method::mailbox as mb_paths;
+    use mailrs_core_api::method::message as msg_paths;
     use mailrs_core_api::method::thread as th_paths;
 
     let base = mailrs_core_api::server::base_router(state.clone());
@@ -212,7 +213,23 @@ fn build_full_router(state: Arc<CoreRpcState>) -> Router {
             th_paths::PATH_DELETE_THREAD,
             delete(handlers::thread::delete_thread),
         )
+        .with_state(state.clone());
+
+    // ── message read ─────────────────────────────────────────────────
+    let msg = Router::new()
+        .route(
+            msg_paths::PATH_GET_MESSAGE_BY_UID,
+            get(handlers::message::get_message_by_uid),
+        )
+        .route(
+            msg_paths::PATH_LIST_MESSAGES,
+            get(handlers::message::list_messages),
+        )
+        .route(
+            msg_paths::PATH_FIND_BY_MESSAGE_ID,
+            get(handlers::message::find_message_by_message_id),
+        )
         .with_state(state);
 
-    base.merge(convo).merge(mb).merge(th)
+    base.merge(convo).merge(mb).merge(th).merge(msg)
 }
