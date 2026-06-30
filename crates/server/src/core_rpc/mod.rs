@@ -437,6 +437,18 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         )
         .with_state(state.clone());
 
+    // ── reactions ────────────────────────────────────────────────────
+    let rx = Router::new()
+        .route(
+            adm_paths::PATH_GET_THREAD_REACTIONS,
+            get(handlers::reactions::get_thread_reactions),
+        )
+        .route(
+            adm_paths::PATH_TOGGLE_REACTION,
+            put(handlers::reactions::toggle_reaction),
+        )
+        .with_state(state.clone());
+
     // ── outbound (sender ↔ core) ─────────────────────────────────────
     let ob = Router::new()
         .route(ob_paths::PATH_ENQUEUE, post(handlers::outbound::enqueue))
@@ -470,6 +482,7 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         .merge(ct)
         .merge(drafts)
         .merge(signatures)
+        .merge(rx)
         .merge(ob);
     drop(state);
 

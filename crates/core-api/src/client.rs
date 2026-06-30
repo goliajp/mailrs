@@ -140,6 +140,23 @@ impl Client {
         Self::map_status_unit(resp, context).await
     }
 
+    async fn put_authed_json_returning<R: serde::Serialize, T: serde::de::DeserializeOwned>(
+        &self,
+        path: String,
+        body: &R,
+        context: &'static str,
+    ) -> ApiResult<T> {
+        let resp = self
+            .inner
+            .put(self.url(&path))
+            .bearer_auth(&self.auth_bearer)
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+        Self::map_status(resp, context).await
+    }
+
     async fn delete_authed(&self, path: String, context: &'static str) -> ApiResult<()> {
         let resp = self
             .inner
@@ -667,6 +684,37 @@ impl Client {
     pub async fn delete_signature(&self, user: &str, id: i64) -> ApiResult<()> {
         let path = format!("/v1/users/{}/signatures/{id}", Self::enc(user));
         self.delete_authed(path, "delete_signature").await
+    }
+
+    /// GET /v1/users/{user}/threads/{thread_id}/reactions
+    pub async fn get_thread_reactions(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::admin::ReactionsResponse> {
+        let path = format!(
+            "/v1/users/{}/threads/{}/reactions",
+            Self::enc(user),
+            Self::enc(thread_id),
+        );
+        self.get_authed(path, "get_thread_reactions").await
+    }
+
+    /// PUT /v1/users/{user}/threads/{thread_id}/messages/{uid}/reactions
+    pub async fn toggle_reaction(
+        &self,
+        user: &str,
+        thread_id: &str,
+        uid: i64,
+        req: &method::admin::ToggleReactionRequest,
+    ) -> ApiResult<method::admin::ReactionsResponse> {
+        let path = format!(
+            "/v1/users/{}/threads/{}/messages/{uid}/reactions",
+            Self::enc(user),
+            Self::enc(thread_id),
+        );
+        self.put_authed_json_returning(path, req, "toggle_reaction")
+            .await
     }
 
     /// GET /v1/users/{user}/contacts:search?q=&limit=

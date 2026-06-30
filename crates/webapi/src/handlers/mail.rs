@@ -266,6 +266,35 @@ pub async fn delete_signature(
         .map_err(map_err)
 }
 
+/// GET /api/conversations/{thread_id}/reactions
+pub async fn get_thread_reactions(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<Json<mailrs_core_api::method::admin::ReactionsResponse>, StatusCode> {
+    state
+        .core_client
+        .get_thread_reactions(&user, &thread_id)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// PUT /api/conversations/{thread_id}/messages/{uid}/reactions
+pub async fn toggle_reaction(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path((thread_id, uid)): Path<(String, i64)>,
+    Json(req): Json<mailrs_core_api::method::admin::ToggleReactionRequest>,
+) -> Result<Json<mailrs_core_api::method::admin::ReactionsResponse>, StatusCode> {
+    state
+        .core_client
+        .toggle_reaction(&user, &thread_id, uid, &req)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
 /// GET /api/queue  — outbound queue depths for ops dashboards.
 pub async fn get_queue_stats(
     State(state): State<Arc<WebState>>,
