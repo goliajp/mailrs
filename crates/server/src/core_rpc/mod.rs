@@ -300,6 +300,36 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
             adm_paths::PATH_GET_ACCOUNT,
             get(handlers::admin::get_account),
         )
+        // aliases
+        .route(
+            adm_paths::PATH_LIST_ALIASES,
+            get(handlers::admin::list_aliases).post(handlers::admin::add_alias),
+        )
+        .route(
+            adm_paths::PATH_REMOVE_ALIAS,
+            delete(handlers::admin::remove_alias),
+        )
+        // domains
+        .route(
+            adm_paths::PATH_LIST_DOMAINS,
+            get(handlers::admin::list_domains).post(handlers::admin::add_domain),
+        )
+        .route(
+            adm_paths::PATH_REMOVE_DOMAIN,
+            delete(handlers::admin::remove_domain),
+        )
+        // sieve
+        .route(
+            adm_paths::PATH_GET_SIEVE,
+            get(handlers::admin::get_sieve)
+                .post(handlers::admin::set_sieve)
+                .delete(handlers::admin::delete_sieve),
+        )
+        // audit log
+        .route(
+            adm_paths::PATH_LIST_AUDIT_LOG,
+            get(handlers::admin::list_audit_log).post(handlers::admin::log_audit),
+        )
         .with_state(state.clone());
 
     // ── analysis ─────────────────────────────────────────────────────
