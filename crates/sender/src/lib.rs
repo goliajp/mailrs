@@ -31,6 +31,9 @@ pub struct SenderState {
     pub core_client: Arc<mailrs_core_api::client::Client>,
     pub resolver: Arc<hickory_resolver::TokioResolver>,
     pub hostname: String,
+    /// Optional DKIM signer. None when MAILRS_DKIM_* env vars are unset
+    /// (dev mode); messages still ship unsigned.
+    pub dkim: Option<Arc<mailrs_outbound_queue::dkim_sign::DkimSignConfig>>,
 }
 
 impl SenderState {
@@ -48,10 +51,42 @@ impl SenderState {
         );
         let hostname =
             std::env::var("MAILRS_HOSTNAME").unwrap_or_else(|_| "mailrs-sender.local".into());
+
+        // Phase 4.7 DKIM signing config from env. Wires through the
+        // existing outbound-queue::dkim_sign::DkimSignConfig (no source
+        // change — ironrule).
+        let dkim = match (
+            std::env::var("MAILRS_DKIM_SELECTOR").ok(),
+            std::env::var("MAILRS_DKIM_DOMAIN").ok(),
+            std::env::var("MAILRS_DKIM_PRIVATE_KEY").ok(),
+        ) {
+            (Some(selector), Some(domain), Some(key_path)) => {
+                match std::fs::read_to_string(&key_path) {
+                    Ok(pem) => Some(Arc::new(mailrs_outbound_queue::dkim_sign::DkimSignConfig {
+                        selector,
+                        domain,
+                        private_key_pem: pem,
+                        ..Default::default()
+                    })),
+                    Err(e) => {
+                        tracing::warn!(error = %e, path = %key_path, "MAILRS_DKIM_PRIVATE_KEY read failed; sending unsigned");
+                        None
+                    }
+                }
+            }
+            _ => {
+                tracing::info!(
+                    "DKIM disabled (MAILRS_DKIM_SELECTOR / _DOMAIN / _PRIVATE_KEY unset); sending unsigned"
+                );
+                None
+            }
+        };
+
         Self {
             core_client,
             resolver,
             hostname,
+            dkim,
         }
     }
 }
@@ -153,11 +188,23 @@ async fn claim_loop(state: Arc<SenderState>) {
                     continue;
                 }
             };
+            // Phase 4.7 — DKIM sign before SMTP DATA, when configured.
+            let signed_body = match &state.dkim {
+                Some(cfg) => match cfg.sign(&body) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::warn!(error = %e, id = item.id, "DKIM sign failed; sending unsigned");
+                        body
+                    }
+                },
+                None => body,
+            };
+
             match deliver::deliver_envelope(
                 &state.resolver,
                 &item.sender,
                 &item.recipient,
-                &body,
+                &signed_body,
                 &state.hostname,
             )
             .await
