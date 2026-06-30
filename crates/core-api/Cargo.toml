@@ -1,0 +1,43 @@
+[package]
+name = "mailrs-core-api"
+version = "0.0.1"
+edition = "2024"
+description = "Wire contract between mailrs core/fastcore and its edge processes (webapi / sender / receiver). Defines RPC types, HTTP endpoints, client + server stubs."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+authors = ["GOLIA K.K."]
+keywords = ["email", "rpc", "wire-contract"]
+categories = ["email", "web-programming"]
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# server-side dependencies (axum + tower). Pulled in by `core` and
+# `fastcore` binaries which expose the RPC. webapi/sender just want the
+# `client` feature.
+server = ["dep:axum", "dep:tower-http"]
+# client-side dependencies (reqwest). Pulled in by webapi/sender to call
+# core.
+client = ["dep:reqwest"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = "2"
+tracing = "0.1"
+
+# Re-exported types from mailrs-mailbox — Message, Mailbox, QueryFilter, ...
+# We keep these typed instead of stringly so the client + server agree at
+# compile time. Adds a heavy dep but it's already in the build graph.
+mailrs-mailbox = { path = "../mailbox" }
+
+# Server-only deps (gated by `server` feature)
+axum = { version = "0.8", optional = true }
+tower-http = { version = "0.6", optional = true, features = ["trace"] }
+
+# Client-only deps (gated by `client` feature)
+reqwest = { version = "0.13", optional = true, default-features = false, features = ["json", "rustls"] }
