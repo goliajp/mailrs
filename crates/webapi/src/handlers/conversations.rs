@@ -19,11 +19,14 @@ use serde::Deserialize;
 use crate::WebState;
 
 /// Resolved user identity carried via axum Extension by the auth layer
-/// (added in checklist 3.9). For the Phase 3 scaffold we accept a
-/// `X-Mailrs-User` header as a stand-in so the handlers can be exercised
-/// end-to-end without the full session machinery being wired yet.
+/// (set by `session::session_auth_middleware`).
 #[derive(Debug, Clone)]
 pub struct AuthedUser(pub String);
+
+/// Optional display name from the session blob — set by the auth layer
+/// when available, blank when the dev fallback header path is used.
+#[derive(Debug, Clone, Default)]
+pub struct AuthedDisplayName(pub String);
 
 /// GET /api/conversations  — query-string filter, returns the list.
 #[derive(Debug, Deserialize, Default)]

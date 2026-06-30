@@ -28,10 +28,14 @@ use serde::Deserialize;
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 
-/// `session:<token>` blob — only the fields webapi needs.
+/// `session:<token>` blob — fields webapi reads. `permissions` is
+/// already serialized by the monolith but we only need the address +
+/// display_name here; permissions are re-fetched via core_client.
 #[derive(Debug, Deserialize)]
 struct SessionBlob {
     address: String,
+    #[serde(default)]
+    display_name: String,
 }
 
 /// kevy connection URL env var (matches the monolith's
@@ -89,6 +93,8 @@ pub async fn session_auth_middleware(
             .map(|s| s.to_string());
         match user_opt {
             Some(user) => {
+                req.extensions_mut()
+                    .insert(crate::handlers::conversations::AuthedDisplayName::default());
                 req.extensions_mut().insert(AuthedUser(user));
                 return Ok(next.run(req).await);
             }
@@ -111,6 +117,10 @@ pub async fn session_auth_middleware(
         None => return Err(StatusCode::UNAUTHORIZED),
     };
 
+    req.extensions_mut()
+        .insert(crate::handlers::conversations::AuthedDisplayName(
+            session.display_name.clone(),
+        ));
     req.extensions_mut().insert(AuthedUser(session.address));
     Ok(next.run(req).await)
 }
