@@ -437,6 +437,22 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         )
         .with_state(state.clone());
 
+    // ── webhooks ─────────────────────────────────────────────────────
+    let webhooks = Router::new()
+        .route(
+            adm_paths::PATH_CREATE_WEBHOOK,
+            post(handlers::webhooks::create_webhook),
+        )
+        .route(
+            adm_paths::PATH_LIST_WEBHOOKS,
+            get(handlers::webhooks::list_webhooks),
+        )
+        .route(
+            adm_paths::PATH_DELETE_WEBHOOK,
+            delete(handlers::webhooks::delete_webhook),
+        )
+        .with_state(state.clone());
+
     // ── templates ────────────────────────────────────────────────────
     let templates = Router::new()
         .route(
@@ -495,6 +511,7 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         .merge(drafts)
         .merge(signatures)
         .merge(templates)
+        .merge(webhooks)
         .merge(rx)
         .merge(ob);
     drop(state);

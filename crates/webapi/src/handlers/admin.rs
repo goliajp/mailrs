@@ -162,6 +162,48 @@ pub async fn remove_domain(
         .map_err(map_err)
 }
 
+/// POST /api/admin/webhook-subscriptions
+pub async fn create_webhook(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Json(req): Json<wire::CreateWebhookRequest>,
+) -> Result<Json<wire::CreateWebhookResponse>, StatusCode> {
+    state
+        .core_client
+        .create_webhook(&req)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// GET /api/admin/accounts/{address}/webhook-subscriptions
+pub async fn list_webhooks(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    axum::extract::Path(address): axum::extract::Path<String>,
+) -> Result<Json<wire::WebhookListResponse>, StatusCode> {
+    state
+        .core_client
+        .list_webhooks(&address)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// DELETE /api/admin/webhook-subscriptions/{id}
+pub async fn delete_webhook(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .delete_webhook(id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
 /// GET /api/admin/audit-log
 pub async fn list_audit_log(
     State(state): State<Arc<WebState>>,

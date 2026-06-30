@@ -686,6 +686,37 @@ impl Client {
         self.delete_authed(path, "delete_signature").await
     }
 
+    /// POST /v1/admin/webhook-subscriptions
+    pub async fn create_webhook(
+        &self,
+        req: &method::admin::CreateWebhookRequest,
+    ) -> ApiResult<method::admin::CreateWebhookResponse> {
+        self.post_authed_json(
+            "/v1/admin/webhook-subscriptions".to_string(),
+            req,
+            "create_webhook",
+        )
+        .await
+    }
+
+    /// GET /v1/admin/accounts/{address}/webhook-subscriptions
+    pub async fn list_webhooks(
+        &self,
+        address: &str,
+    ) -> ApiResult<method::admin::WebhookListResponse> {
+        let path = format!(
+            "/v1/admin/accounts/{}/webhook-subscriptions",
+            Self::enc(address)
+        );
+        self.get_authed(path, "list_webhooks").await
+    }
+
+    /// DELETE /v1/admin/webhook-subscriptions/{id}
+    pub async fn delete_webhook(&self, id: i64) -> ApiResult<()> {
+        let path = format!("/v1/admin/webhook-subscriptions/{id}");
+        self.delete_authed(path, "delete_webhook").await
+    }
+
     /// GET /v1/users/{user}/templates
     pub async fn list_templates(
         &self,
