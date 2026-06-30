@@ -215,6 +215,9 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     // (no session yet) can establish one.
     let unauth = axum::Router::new()
         .route("/_health", get(health_handler))
+        .route("/api/health", get(health_handler))
+        .route("/api/readiness", get(readiness_handler))
+        .route("/api/status", get(status_handler))
         .route("/api/auth/login", post(handlers::auth::login));
 
     let mut app = unauth.merge(authenticated).with_state(state);
@@ -242,8 +245,30 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     app
 }
 
-async fn health_handler() -> &'static str {
-    "ok"
+async fn health_handler() -> axum::Json<serde_json::Value> {
+    axum::Json(serde_json::json!({"status": "healthy"}))
+}
+
+/// /api/readiness — deep probe: does core RPC answer?
+async fn readiness_handler(
+    axum::extract::State(state): axum::extract::State<Arc<WebState>>,
+) -> Result<axum::Json<serde_json::Value>, axum::http::StatusCode> {
+    match state.core_client.readyz().await {
+        Ok(h) if h.ready => Ok(axum::Json(serde_json::json!({
+            "status": "ready",
+            "core_version": h.version,
+        }))),
+        Ok(_) => Err(axum::http::StatusCode::SERVICE_UNAVAILABLE),
+        Err(_) => Err(axum::http::StatusCode::SERVICE_UNAVAILABLE),
+    }
+}
+
+/// /api/status — version + build info. No auth required.
+async fn status_handler() -> axum::Json<serde_json::Value> {
+    axum::Json(serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "service": "mailrs-webapi",
+    }))
 }
 
 /// Phase 3 stub auth middleware — extracts user from `X-Mailrs-User`
