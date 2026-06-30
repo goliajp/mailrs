@@ -94,6 +94,7 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count));
 
     let thread = Router::new()
+        .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
         .route(th::PATH_MARK_READ, post(mark_read))
         .route(th::PATH_PIN, post(pin_thread))
         .route(th::PATH_UNPIN, post(unpin_thread))
@@ -198,6 +199,20 @@ async fn get_unseen_count(
     let key = mailrs_mailbox_kevy::keys::user_threads_has_unread(&user);
     let count = state.mailbox.store_ref().zcard(key.as_bytes()).unwrap_or(0) as i64;
     Json(conv::UnseenCountResponse { count })
+}
+
+/// `GET /v1/users/{user}/threads/{thread_id}/messages` — returns the
+/// thread's messages. mailbox-kevy doesn't store per-message rows yet
+/// (only the aggregate row), so this returns the empty list until
+/// Phase 7.11 lands a per-message layout. Webapi treats empty as
+/// "thread exists but currently rendering, retry shortly" — graceful
+/// fallback that keeps the UI from 404-ing the whole conversation
+/// view while the kevy data shape grows.
+async fn thread_messages(
+    State(_state): State<Arc<FastcoreState>>,
+    Path((_user, _thread_id)): Path<(String, String)>,
+) -> Json<mailrs_core_api::method::thread::ListThreadMessagesResponse> {
+    Json(mailrs_core_api::method::thread::ListThreadMessagesResponse { items: Vec::new() })
 }
 
 // ── Thread mutations ───────────────────────────────────────────────
