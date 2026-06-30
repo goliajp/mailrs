@@ -65,8 +65,10 @@ use kevy_embedded::Store;
 
 pub mod keys;
 mod list_threads;
+mod message_arrival;
 mod thread_row;
 pub use list_threads::ListThreadsFilter;
+pub use message_arrival::MessageArrival;
 pub use thread_row::ThreadRow;
 
 /// Experimental kevy-backed implementation of `MailboxStore`.
