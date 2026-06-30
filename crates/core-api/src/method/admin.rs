@@ -158,6 +158,43 @@ pub const PATH_LIST_DRAFTS: &str = "/v1/users/{user}/drafts";
 pub const PATH_SAVE_DRAFT: &str = "/v1/users/{user}/drafts";
 pub const PATH_DELETE_DRAFT: &str = "/v1/users/{user}/drafts/{id}";
 
+// ── signatures ──────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignatureWire {
+    pub id: i64,
+    pub name: String,
+    pub html: String,
+    pub text_content: String,
+    pub is_default: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SaveSignatureRequest {
+    pub name: String,
+    #[serde(default)]
+    pub html: String,
+    #[serde(default)]
+    pub text_content: String,
+    #[serde(default)]
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct SaveSignatureResponse {
+    pub id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignatureListResponse {
+    pub items: Vec<SignatureWire>,
+}
+
+pub const PATH_LIST_SIGNATURES: &str = "/v1/users/{user}/signatures";
+pub const PATH_SAVE_SIGNATURE: &str = "/v1/users/{user}/signatures";
+pub const PATH_DELETE_SIGNATURE: &str = "/v1/users/{user}/signatures/{id}";
+
 // ── webhook subscriptions ────────────────────────────────────────────
 pub const PATH_CREATE_WEBHOOK: &str = "/v1/admin/webhook-subscriptions";
 pub const PATH_LIST_WEBHOOKS: &str = "/v1/admin/accounts/{address}/webhook-subscriptions";

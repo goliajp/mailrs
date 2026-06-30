@@ -18,4 +18,5 @@ pub mod drafts;
 pub mod mailbox;
 pub mod message;
 pub mod outbound;
+pub mod signatures;
 pub mod thread;
