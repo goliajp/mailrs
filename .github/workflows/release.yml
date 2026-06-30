@@ -14,6 +14,10 @@ on:
   push:
     tags:
       - 'v*.*.*'
+      # Phase 2/3/4 split topology, ships to staging only. Tag examples:
+      # split-v0.1.0 → builds same multi-arch image, but the deploy step
+      # at the end (which targets prod) is gated to v*.*.*.
+      - 'split-v*'
 
 env:
   REGISTRY: ghcr.io
@@ -224,6 +228,9 @@ jobs:
   staging-gate-check:
     name: staging-stricter-than-prod self-soak verdict
     needs: manifest
+    # Gate only enforces for prod-bound `v*.*.*` tags. `split-v*` skips
+    # the gate (image goes to staging only, never prod).
+    if: startsWith(github.ref_name, 'v')
     runs-on: ubuntu-latest
     timeout-minutes: 65
     steps:
@@ -286,6 +293,11 @@ jobs:
   deploy:
     name: deploy to prod
     needs: [manifest, staging-gate-check]
+    # Prod-deploy step only runs for `v*.*.*` tags. `split-v*` tags
+    # build + push the multi-arch image so staging can pull it, but
+    # never touch prod. See deploy/SPLIT_STAGING_SMOKE.md for the
+    # operator runbook.
+    if: startsWith(github.ref_name, 'v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
