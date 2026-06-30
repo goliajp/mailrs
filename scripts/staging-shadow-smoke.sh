@@ -13,14 +13,20 @@
 
 set -euo pipefail
 
-if [[ $# -lt 2 ]]; then
-    echo "usage: $0 <email> <password> [webapi-base=http://127.0.0.1:3102]" >&2
+if [[ $# -lt 1 ]]; then
+    echo "usage: $0 <email> [webapi-base=http://127.0.0.1:3102]" >&2
+    echo "       password read from \$SMOKE_PWD or prompt (no shell history)" >&2
     exit 2
 fi
 
 EMAIL="$1"
-PASSWORD="$2"
-BASE="${3:-http://127.0.0.1:3102}"
+BASE="${2:-http://127.0.0.1:3102}"
+if [[ -n "${SMOKE_PWD:-}" ]]; then
+    PASSWORD="$SMOKE_PWD"
+else
+    read -rsp "password for $EMAIL: " PASSWORD
+    echo
+fi
 COOKIE_JAR="$(mktemp)"
 trap 'rm -f "$COOKIE_JAR"' EXIT
 
