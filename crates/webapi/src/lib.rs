@@ -130,10 +130,14 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
                 session::session_auth_middleware,
             ));
 
-    axum::Router::new()
+    // Unauthenticated routes — login + health. login intentionally
+    // sits outside session_auth_middleware so a freshly-arrived client
+    // (no session yet) can establish one.
+    let unauth = axum::Router::new()
         .route("/_health", get(health_handler))
-        .merge(authenticated)
-        .with_state(state)
+        .route("/api/auth/login", post(handlers::auth::login));
+
+    unauth.merge(authenticated).with_state(state)
 }
 
 async fn health_handler() -> &'static str {

@@ -3896,10 +3896,13 @@ dependencies = [
 name = "mailrs-webapi"
 version = "0.0.1"
 dependencies = [
+ "argon2",
  "axum",
  "base64",
  "kevy-client",
  "mailrs-core-api",
+ "password-hash",
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "thiserror",
