@@ -500,4 +500,140 @@ mod tests {
         // reverse chronological → t2 first
         assert!(body.contains(r#""thread_id":"t2""#));
     }
+
+    /// Smoke every business route — verifies no 404 from a router-
+    /// resolution bug. Each route is hit with a request that should
+    /// land on the handler; expected statuses are documented inline
+    /// (the handler's own 204/404 logic is what we then assert).
+    #[tokio::test]
+    async fn every_route_resolves_no_404() {
+        let state = fresh_state();
+        // Seed one thread + one message so the routes have a real
+        // target to flip / read.
+        state
+            .mailbox
+            .deliver_message(&arr("t1", "u@x.com", true), "m1", b"{}")
+            .unwrap();
+
+        struct Probe {
+            method: Method,
+            uri: &'static str,
+            allowed: &'static [u16],
+        }
+        let probes: &[Probe] = &[
+            // Conversations
+            Probe {
+                method: Method::POST,
+                uri: "/v1/users/u@x.com/conversations:list",
+                allowed: &[200, 415, 422],
+            }, // 415/422 if empty body, 200 with body
+            Probe {
+                method: Method::GET,
+                uri: "/v1/users/u@x.com/conversations/categories",
+                allowed: &[200],
+            },
+            Probe {
+                method: Method::GET,
+                uri: "/v1/users/u@x.com/conversations/action-count",
+                allowed: &[200],
+            },
+            Probe {
+                method: Method::GET,
+                uri: "/v1/users/u@x.com/conversations/unseen-count",
+                allowed: &[200],
+            },
+            // Thread read
+            Probe {
+                method: Method::GET,
+                uri: "/v1/users/u@x.com/threads/t1/messages",
+                allowed: &[200],
+            },
+            // Thread mutations (return 204 on existing tid, 404 on missing)
+            Probe {
+                method: Method::POST,
+                uri: "/v1/users/u@x.com/threads/t1/read",
+                allowed: &[204],
+            },
+            Probe {
+                method: Method::POST,
+                uri: "/v1/users/u@x.com/threads/t1/pin",
+                allowed: &[204],
+            },
+            Probe {
+                method: Method::POST,
+                uri: "/v1/users/u@x.com/threads/t1/unpin",
+                allowed: &[204],
+            },
+            Probe {
+                method: Method::POST,
+                uri: "/v1/users/u@x.com/threads/t1/star",
+                allowed: &[204],
+            },
+            Probe {
+                method: Method::POST,
+                uri: "/v1/users/u@x.com/threads/t1/unstar",
+                allowed: &[204],
+            },
+            Probe {
+                method: Method::POST,
+                uri: "/v1/users/u@x.com/threads/t1/archive",
+                allowed: &[204],
+            },
+            Probe {
+                method: Method::POST,
+                uri: "/v1/users/u@x.com/threads/t1/unarchive",
+                allowed: &[204],
+            },
+            Probe {
+                method: Method::POST,
+                uri: "/v1/users/u@x.com/threads/t1/dismiss-action",
+                allowed: &[204],
+            },
+            Probe {
+                method: Method::DELETE,
+                uri: "/v1/users/u@x.com/threads/t1",
+                allowed: &[204, 404],
+            }, // delete after archive may already be gone
+            // Probes
+            Probe {
+                method: Method::GET,
+                uri: "/v1/healthz",
+                allowed: &[200],
+            },
+            Probe {
+                method: Method::GET,
+                uri: "/v1/readyz",
+                allowed: &[200],
+            },
+        ];
+
+        for p in probes {
+            let app = build_router(state.clone());
+            let body = if p.method == Method::POST && p.uri.ends_with(":list") {
+                Body::from(r#"{"limit":10}"#)
+            } else {
+                Body::empty()
+            };
+            let resp = app
+                .oneshot(
+                    Request::builder()
+                        .method(p.method.clone())
+                        .uri(p.uri)
+                        .header("Content-Type", "application/json")
+                        .body(body)
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let code = resp.status().as_u16();
+            assert!(
+                p.allowed.contains(&code),
+                "{} {} returned {code}, expected {:?}",
+                p.method,
+                p.uri,
+                p.allowed
+            );
+            assert_ne!(code, 404, "router did not match: {} {}", p.method, p.uri);
+        }
+    }
 }
