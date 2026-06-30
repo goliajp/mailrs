@@ -107,6 +107,7 @@ jobs:
           cargo build --release -p mailrs-sender
           cargo build --release -p mailrs-mailbox-kevy  # Phase 7 fastcore
           cargo build --release -p mailrs-fastcore       # Phase 8 fastcore binary
+          cargo build --release -p mailrs-fastcore --bin mailrs-fastcore-migrate  # Phase 10 import bin
 
       - name: cargo check (default mailrs-server — ironrule guard)
         # Asserts the prod-default build still produces the same artifact
