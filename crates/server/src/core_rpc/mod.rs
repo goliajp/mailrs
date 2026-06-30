@@ -400,6 +400,10 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
             contact_paths::PATH_HAS_SENT_TO,
             get(handlers::contact::has_sent_to),
         )
+        .route(
+            contact_paths::PATH_SENDER_FEEDBACK,
+            post(handlers::contact::sender_feedback),
+        )
         .with_state(state.clone());
 
     // ── outbound (sender ↔ core) ─────────────────────────────────────

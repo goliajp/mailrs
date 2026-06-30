@@ -143,6 +143,27 @@ pub async fn get_contacts(
         .map_err(map_err)
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct FeedbackRequest {
+    pub sender: String,
+    pub action: String,
+}
+
+/// POST /api/mail/feedback  — sender reputation feedback (block /
+/// mark_vip / mark_important / etc — same vocabulary the monolith uses).
+pub async fn submit_feedback(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Json(req): Json<FeedbackRequest>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .sender_feedback(&user, &req.sender, &req.action)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
 /// GET /api/queue  — outbound queue depths for ops dashboards.
 pub async fn get_queue_stats(
     State(state): State<Arc<WebState>>,
