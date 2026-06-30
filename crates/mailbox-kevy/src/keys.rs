@@ -47,6 +47,19 @@ pub fn user_threads_starred(user: &str) -> String {
     format!("mailrs:user:{user}:threads:starred")
 }
 
+/// Per-thread message index — zset member = message_id (RFC string),
+/// score = internal_date (epoch seconds). One ZRANGE returns the
+/// full message timeline in order.
+pub fn thread_messages(thread_id: &str) -> String {
+    format!("mailrs:thread:{thread_id}:messages")
+}
+
+/// Per-message JSON blob — value is a serialized MessageWire.
+/// HGET on the `wire` field returns the message; HSET on it overwrites.
+pub fn message_blob(message_id: &str) -> String {
+    format!("mailrs:msg:{message_id}")
+}
+
 /// Mailbox hash. Fields: name, user, uidvalidity, uidnext, highest_modseq.
 pub fn mailbox(mailbox_id: i64) -> String {
     format!("mailrs:mailbox:{mailbox_id}")
