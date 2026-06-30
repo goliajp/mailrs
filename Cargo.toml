@@ -56,6 +56,7 @@ members = [
     "crates/core-api",
     "crates/webapi",
     "crates/sender",
+    "crates/mailbox-kevy",
 ]
 
 [workspace.dependencies]
