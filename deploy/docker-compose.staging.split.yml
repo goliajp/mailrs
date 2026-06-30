@@ -188,6 +188,10 @@ services:
     pull_policy: always
     profiles: ["fastcore"]
     mem_limit: 1g
+    # fastcore listens on :3301 not :3100; image's default healthcheck
+    # hits :3100/api/health which doesn't exist here. Disable.
+    healthcheck:
+      disable: true
     ports:
       - "127.0.0.1:3201:3301"
     environment:
