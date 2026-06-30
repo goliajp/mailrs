@@ -168,7 +168,7 @@ fn main() {
             }
         }
         let n = threads + messages;
-        if n % 1000 == 0 && n > 0 {
+        if n > 0 && n.is_multiple_of(1000) {
             eprintln!("progress: {threads} threads, {messages} messages, {errors} errors");
         }
     }
