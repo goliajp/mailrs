@@ -21,6 +21,53 @@ use mailrs_core_api::method::message as wire;
 
 use crate::core_rpc::CoreRpcState;
 
+/// GET /v1/mailboxes/{id}/messages/uid/{uid}/raw
+///
+/// Streams the raw RFC 5322 bytes from disk. Resolves mailbox owner
+/// via mailbox_id → mailbox.user_address, then opens
+/// `{maildir_root}/{user}/cur|new/{maildir_id}`.
+pub async fn get_message_raw(
+    State(state): State<Arc<CoreRpcState>>,
+    Path((mailbox_id, uid)): Path<(i64, u32)>,
+) -> Result<Vec<u8>, StatusCode> {
+    let meta = state
+        .mailbox
+        .get_message(mailbox_id, uid)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, mailbox_id, uid, "get_message_raw lookup failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Need user_address to construct the maildir path — meta only has
+    // mailbox_id, so resolve through mailbox row.
+    let mbox = state
+        .mailbox
+        .get_mailbox_by_id(mailbox_id)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, mailbox_id, "mailbox lookup failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // maildir layout: {root}/{user}/{cur|new}/{maildir_id}
+    let cur = std::path::Path::new(&state.maildir_root)
+        .join(&mbox.user)
+        .join("cur")
+        .join(&meta.maildir_id);
+    let new_path = std::path::Path::new(&state.maildir_root)
+        .join(&mbox.user)
+        .join("new")
+        .join(&meta.maildir_id);
+    let path = if cur.exists() { cur } else { new_path };
+    tokio::fs::read(&path).await.map_err(|e| {
+        tracing::warn!(error = %e, path = %path.display(), "raw read failed");
+        StatusCode::NOT_FOUND
+    })
+}
+
 /// GET /v1/mailboxes/{id}/messages/uid/{uid}
 pub async fn get_message_by_uid(
     State(state): State<Arc<CoreRpcState>>,

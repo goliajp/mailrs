@@ -113,6 +113,10 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     let mail = axum::Router::new()
         .route("/api/mail/folders", get(handlers::mail::get_folders))
         .route("/api/mail/messages/{uid}", get(handlers::mail::get_message))
+        .route(
+            "/api/mail/messages/{uid}/raw",
+            get(handlers::mail::get_message_raw),
+        )
         .route("/api/mail/send", post(handlers::mail::send_message))
         .route("/api/mail/stats", get(handlers::mail::get_mail_stats))
         .route("/api/queue", get(handlers::mail::get_queue_stats))

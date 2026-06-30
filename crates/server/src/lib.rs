@@ -707,6 +707,7 @@ pub async fn run() {
             mailbox: mb.clone(),
             domain: ds.clone(),
             pool: pool.clone(),
+            maildir_root: cfg.maildir_root.clone(),
         });
         core_rpc::spawn_core_rpc(core_rpc_state, shutdown_rx.clone());
     }
