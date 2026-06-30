@@ -97,6 +97,12 @@ COPY --from=rust-builder /usr/local/bin/mailrs-webapi /usr/local/bin/mailrs-weba
 # worker. Idle until entrypoint is overridden to `mailrs-sender`. Talks
 # to core via mailrs-core-api.
 COPY --from=rust-builder /usr/local/bin/mailrs-sender /usr/local/bin/mailrs-sender
+# Phase 8 (fastcore): kevy-backed core RPC. Idle until entrypoint is
+# overridden to `mailrs-fastcore`. Listens on :3301 when started.
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore /usr/local/bin/mailrs-fastcore
+# Phase 10 (fastcore migration): NDJSON → kevy importer.
+# Run via `docker exec -i mailrs-fastcore-migrate`.
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate
 COPY --from=web-builder /build/dist /opt/mailrs/web
 
 # Grant the binary capability to bind privileged ports (< 1024) so it
