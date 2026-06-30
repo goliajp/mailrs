@@ -34,10 +34,10 @@ impl KevyMailboxStore {
     /// Apply a single message arrival to its thread row + per-user
     /// indexes, all in one atomic block.
     ///
-    /// Replaces the 4-statement SQL fanout
-    /// (INSERT messages; UPDATE thread set count = count + 1; ...; UPDATE
-    /// thread set unread_count = unread_count + 1) with one HSET-overwrite
-    /// + 2 HINCRBYs + 3 ZADDs. Conditional has_unread zset toggle uses
+    /// Replaces the 4-statement SQL fanout (INSERT messages; UPDATE
+    /// thread set count = count + 1; UPDATE thread set
+    /// unread_count = unread_count + 1) with one HSET-overwrite +
+    /// 2 HINCRBYs + 3 ZADDs. Conditional has_unread zset toggle uses
     /// the post-increment unread_count read inside the block — no extra
     /// round trip.
     pub fn record_message_arrival(&self, m: &MessageArrival<'_>) -> io::Result<()> {
