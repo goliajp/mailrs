@@ -404,6 +404,7 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
 
     // ── outbound (sender ↔ core) ─────────────────────────────────────
     let ob = Router::new()
+        .route(ob_paths::PATH_ENQUEUE, post(handlers::outbound::enqueue))
         .route(ob_paths::PATH_CLAIM, post(handlers::outbound::claim))
         .route(ob_paths::PATH_STATS, get(handlers::outbound::stats))
         .route(

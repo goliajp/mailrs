@@ -54,6 +54,39 @@ fn to_wire(m: queue::QueuedMessage) -> wire::OutboundMessageWire {
     }
 }
 
+/// POST /v1/outbound/enqueue
+pub async fn enqueue(
+    State(state): State<Arc<CoreRpcState>>,
+    Json(req): Json<wire::EnqueueRequest>,
+) -> Result<Json<wire::EnqueueResponse>, StatusCode> {
+    let body = B64
+        .decode(req.message_data_base64.as_bytes())
+        .map_err(|e| {
+            tracing::warn!(error = %e, "outbound enqueue: base64 decode failed");
+            StatusCode::BAD_REQUEST
+        })?;
+    let domain = req
+        .recipient
+        .rsplit_once('@')
+        .map(|(_, d)| d.to_string())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+    let id = queue::enqueue(
+        &state.pool,
+        &req.sender,
+        &req.recipient,
+        &domain,
+        &body,
+        None,
+        now_secs(),
+    )
+    .await
+    .map_err(|e| {
+        tracing::warn!(error = %e, "outbound enqueue failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(Json(wire::EnqueueResponse { id }))
+}
+
 /// POST /v1/outbound/claim
 pub async fn claim(
     State(state): State<Arc<CoreRpcState>>,

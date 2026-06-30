@@ -67,6 +67,56 @@ pub struct MailStatsResponse {
     pub action: i64,
 }
 
+/// POST /api/mail/send  — minimal v1: webapi packages a tiny RFC 5322
+/// envelope and enqueues via core RPC. Frontend MUST already build the
+/// final body (headers + body); webapi does not currently re-sign DKIM
+/// (that happens at the sender end on actual SMTP). For the cutover this
+/// matches the existing monolith behavior of treating /api/mail/send as
+/// a thin enqueue wrapper.
+#[derive(Debug, serde::Deserialize)]
+pub struct SendRequest {
+    pub to: String,
+    #[serde(default)]
+    pub subject: String,
+    #[serde(default)]
+    pub body: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct SendResponse {
+    pub queue_id: i64,
+}
+
+pub async fn send_message(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Json(req): Json<SendRequest>,
+) -> Result<Json<SendResponse>, StatusCode> {
+    use base64::Engine as _;
+    use base64::engine::general_purpose::STANDARD as B64;
+    let message = format!(
+        "From: {from}\r\nTo: {to}\r\nSubject: {subject}\r\n\r\n{body}",
+        from = user,
+        to = req.to,
+        subject = req.subject,
+        body = req.body,
+    );
+    let body_b64 = B64.encode(message.as_bytes());
+    let enq = mailrs_core_api::method::outbound::EnqueueRequest {
+        sender: user.clone(),
+        recipient: req.to.clone(),
+        original_sender: None,
+        message_data_base64: body_b64,
+        scheduled_at: None,
+    };
+    let resp = state
+        .core_client
+        .outbound_enqueue(&enq)
+        .await
+        .map_err(map_err)?;
+    Ok(Json(SendResponse { queue_id: resp.id }))
+}
+
 pub async fn get_mail_stats(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
