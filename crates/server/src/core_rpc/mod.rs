@@ -25,7 +25,12 @@
 
 #![cfg(feature = "core-rpc")]
 
+mod handlers;
+
 use std::sync::Arc;
+
+use axum::Router;
+use axum::routing::{delete, get, post, put};
 
 use mailrs_core_api::server::Handler;
 use mailrs_core_api::types::{BackendKind, HealthResponse};
@@ -89,9 +94,9 @@ pub fn spawn_core_rpc(state: Arc<CoreRpcState>, shutdown_rx: tokio::sync::watch:
         );
     }
 
-    let router = mailrs_core_api::server::base_router(state);
-    // Per-method routes mount here in checklist 2.2.
+    let router = build_full_router(state);
 
+    let _ = secret; // checklist 2.5 wraps auth middleware around the inner subtree
     tokio::spawn(async move {
         let listener = match tokio::net::TcpListener::bind(&addr).await {
             Ok(l) => l,
@@ -115,4 +120,99 @@ pub fn spawn_core_rpc(state: Arc<CoreRpcState>, shutdown_rx: tokio::sync::watch:
             tracing::error!(error = %e, "core RPC server exited with error");
         }
     });
+}
+
+/// Build the full router with all per-method routes mounted (checklist 2.2).
+///
+/// Path constants come from `mailrs_core_api::method::*` so any future
+/// rename in the wire crate ripples through automatically.
+fn build_full_router(state: Arc<CoreRpcState>) -> Router {
+    use mailrs_core_api::method::conversation as conv_paths;
+    use mailrs_core_api::method::mailbox as mb_paths;
+    use mailrs_core_api::method::thread as th_paths;
+
+    let base = mailrs_core_api::server::base_router(state.clone());
+
+    // ── conversations (Rock 1 + categories + counts) ─────────────────
+    let convo = Router::new()
+        .route(
+            conv_paths::PATH_LIST_CONVERSATIONS,
+            post(handlers::conversation::list_conversations),
+        )
+        .route(
+            conv_paths::PATH_CONVERSATIONS_BY_THREAD_IDS,
+            post(handlers::conversation::conversations_by_thread_ids),
+        )
+        .route(
+            conv_paths::PATH_CONVERSATION_CATEGORIES,
+            get(handlers::conversation::conversation_categories),
+        )
+        .route(
+            conv_paths::PATH_ACTION_COUNT,
+            get(handlers::conversation::action_count),
+        )
+        .route(
+            conv_paths::PATH_UNSEEN_COUNT,
+            get(handlers::conversation::unseen_count),
+        )
+        .with_state(state.clone());
+
+    // ── mailbox CRUD ────────────────────────────────────────────────
+    let mb = Router::new()
+        .route(
+            mb_paths::PATH_LIST_MAILBOXES,
+            get(handlers::mailbox::list_mailboxes),
+        )
+        .route(
+            mb_paths::PATH_GET_MAILBOX,
+            get(handlers::mailbox::get_mailbox),
+        )
+        .route(
+            mb_paths::PATH_GET_MAILBOX_BY_ID,
+            get(handlers::mailbox::get_mailbox_by_id),
+        )
+        .route(
+            mb_paths::PATH_CREATE_MAILBOX,
+            post(handlers::mailbox::create_mailbox),
+        )
+        .route(
+            mb_paths::PATH_DELETE_MAILBOX,
+            delete(handlers::mailbox::delete_mailbox),
+        )
+        .route(
+            mb_paths::PATH_RENAME_MAILBOX,
+            post(handlers::mailbox::rename_mailbox),
+        )
+        .route(
+            mb_paths::PATH_MAILBOX_STATUS,
+            get(handlers::mailbox::mailbox_status),
+        )
+        .with_state(state.clone());
+
+    // ── thread mutate ────────────────────────────────────────────────
+    let th = Router::new()
+        .route(th_paths::PATH_MARK_READ, post(handlers::thread::mark_read))
+        .route(
+            th_paths::PATH_MARK_UNREAD,
+            post(handlers::thread::mark_unread),
+        )
+        .route(th_paths::PATH_STAR, post(handlers::thread::star))
+        .route(th_paths::PATH_UNSTAR, post(handlers::thread::unstar))
+        .route(th_paths::PATH_PIN, post(handlers::thread::pin))
+        .route(th_paths::PATH_UNPIN, post(handlers::thread::unpin))
+        .route(th_paths::PATH_ARCHIVE, post(handlers::thread::archive))
+        .route(th_paths::PATH_UNARCHIVE, post(handlers::thread::unarchive))
+        .route(
+            th_paths::PATH_DISMISS_ACTION,
+            post(handlers::thread::dismiss_action),
+        )
+        .route(th_paths::PATH_SNOOZE, put(handlers::thread::snooze))
+        .route(th_paths::PATH_UNSNOOZE, delete(handlers::thread::unsnooze))
+        .route(
+            th_paths::PATH_DELETE_THREAD,
+            delete(handlers::thread::delete_thread),
+        )
+        .with_state(state);
+
+    base.merge(convo).merge(mb).merge(th)
 }
