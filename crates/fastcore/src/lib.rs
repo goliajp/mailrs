@@ -209,10 +209,19 @@ async fn get_unseen_count(
 /// fallback that keeps the UI from 404-ing the whole conversation
 /// view while the kevy data shape grows.
 async fn thread_messages(
-    State(_state): State<Arc<FastcoreState>>,
-    Path((_user, _thread_id)): Path<(String, String)>,
+    State(state): State<Arc<FastcoreState>>,
+    Path((_user, thread_id)): Path<(String, String)>,
 ) -> Json<mailrs_core_api::method::thread::ListThreadMessagesResponse> {
-    Json(mailrs_core_api::method::thread::ListThreadMessagesResponse { items: Vec::new() })
+    use mailrs_core_api::method::message::MessageWire;
+    let blobs = state
+        .mailbox
+        .list_thread_messages(&thread_id)
+        .unwrap_or_default();
+    let items = blobs
+        .into_iter()
+        .filter_map(|b| serde_json::from_slice::<MessageWire>(&b).ok())
+        .collect();
+    Json(mailrs_core_api::method::thread::ListThreadMessagesResponse { items })
 }
 
 // ── Thread mutations ───────────────────────────────────────────────
