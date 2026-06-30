@@ -67,6 +67,7 @@ pub mod keys;
 mod list_threads;
 mod mark_seen;
 mod message_arrival;
+mod mutations;
 mod thread_row;
 pub use list_threads::ListThreadsFilter;
 pub use message_arrival::MessageArrival;
