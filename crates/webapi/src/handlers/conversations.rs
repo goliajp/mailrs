@@ -66,7 +66,7 @@ pub async fn get_conversations(
         },
     };
     state
-        .core_client
+        .fast()
         .list_conversations(&user, &req)
         .await
         .map(Json)
@@ -79,7 +79,7 @@ pub async fn get_categories(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<wire::ConversationCategoriesResponse>, StatusCode> {
     state
-        .core_client
+        .fast()
         .conversation_categories(&user)
         .await
         .map(Json)
@@ -92,7 +92,7 @@ pub async fn get_action_count(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<wire::ActionCountResponse>, StatusCode> {
     state
-        .core_client
+        .fast()
         .action_count(&user)
         .await
         .map(Json)
@@ -106,7 +106,7 @@ pub async fn get_thread_messages(
     Path(thread_id): Path<String>,
 ) -> Result<Json<mailrs_core_api::method::thread::ListThreadMessagesResponse>, StatusCode> {
     state
-        .core_client
+        .fast()
         .list_thread_messages(&user, &thread_id)
         .await
         .map(Json)
@@ -120,7 +120,7 @@ pub async fn mark_thread_read(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .core_client
+        .fast()
         .mark_thread_read(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -134,7 +134,7 @@ pub async fn star_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .core_client
+        .fast()
         .star_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -148,7 +148,7 @@ pub async fn archive_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .core_client
+        .fast()
         .archive_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -162,7 +162,7 @@ pub async fn mark_thread_unread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .core_client
+        .fast()
         .mark_thread_unread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -176,7 +176,7 @@ pub async fn unstar_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .core_client
+        .fast()
         .unstar_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -190,7 +190,7 @@ pub async fn pin_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .core_client
+        .fast()
         .pin_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -204,7 +204,7 @@ pub async fn unpin_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .core_client
+        .fast()
         .unpin_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -218,7 +218,7 @@ pub async fn unarchive_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .core_client
+        .fast()
         .unarchive_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -232,7 +232,7 @@ pub async fn dismiss_action(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .core_client
+        .fast()
         .dismiss_thread_action(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -246,7 +246,7 @@ pub async fn delete_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .core_client
+        .fast()
         .delete_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -269,7 +269,7 @@ pub async fn snooze_thread(
         snoozed_until: req.snoozed_until,
     };
     state
-        .core_client
+        .fast()
         .snooze_thread(&user, &thread_id, &wire_req)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -283,7 +283,7 @@ pub async fn unsnooze_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .core_client
+        .fast()
         .unsnooze_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -296,7 +296,7 @@ pub async fn get_unseen_count(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<wire::UnseenCountResponse>, StatusCode> {
     state
-        .core_client
+        .fast()
         .unseen_count(&user)
         .await
         .map(Json)
