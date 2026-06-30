@@ -23,10 +23,14 @@
 
 #![allow(missing_docs)]
 
+mod deliver;
+
 use std::sync::Arc;
 
 pub struct SenderState {
     pub core_client: Arc<mailrs_core_api::client::Client>,
+    pub resolver: Arc<hickory_resolver::TokioResolver>,
+    pub hostname: String,
 }
 
 impl SenderState {
@@ -36,7 +40,19 @@ impl SenderState {
         let secret = std::env::var(mailrs_core_api::AUTH_SECRET_ENV)
             .expect("MAILRS_CORE_API_SECRET required for sender");
         let core_client = Arc::new(mailrs_core_api::client::Client::new(base, secret));
-        Self { core_client }
+        let resolver = Arc::new(
+            hickory_resolver::TokioResolver::builder_tokio()
+                .expect("TokioResolver builder")
+                .build()
+                .expect("TokioResolver build"),
+        );
+        let hostname =
+            std::env::var("MAILRS_HOSTNAME").unwrap_or_else(|_| "mailrs-sender.local".into());
+        Self {
+            core_client,
+            resolver,
+            hostname,
+        }
     }
 }
 
@@ -76,8 +92,7 @@ pub async fn run() {
     // /v1/outbound/claim. SMTP delivery + mark_delivered land in a
     // subsequent loop; today this just exercises the RPC + logs depth so
     // staging operators see the channel working.
-    let claim_client = Arc::clone(&state.core_client);
-    tokio::spawn(claim_loop(claim_client));
+    tokio::spawn(claim_loop(Arc::clone(&state)));
 
     // Idle until SIGTERM / Ctrl-C. Worker loops mount onto this state
     // over checklist 4.3–4.9.
@@ -100,49 +115,74 @@ pub async fn run() {
 /// seconds. Phase 4.3 scaffold: logs claim count + queue depth, does
 /// NOT yet emit SMTP or mark deliveries (lands in 4.4–4.9 once the
 /// mailrs-smtp-client integration is wired through state).
-async fn claim_loop(core_client: Arc<mailrs_core_api::client::Client>) {
+async fn claim_loop(state: Arc<SenderState>) {
+    use base64::Engine as _;
+    use base64::engine::general_purpose::STANDARD as B64;
     const CLAIM_TICK_SECS: u64 = 5;
     const BATCH_SIZE: u32 = 16;
     let mut ticker = tokio::time::interval(std::time::Duration::from_secs(CLAIM_TICK_SECS));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
         ticker.tick().await;
-        match core_client.outbound_claim(BATCH_SIZE).await {
-            Ok(resp) if !resp.items.is_empty() => {
-                tracing::info!(
-                    claimed = resp.items.len(),
-                    "outbound claim got messages — Phase 4.4: marking failed (SMTP NYI)"
-                );
-                // Phase 4.4 minimal close-the-loop: SMTP delivery is not
-                // wired yet (lands in 4.5 with mailrs-smtp-client + MX
-                // resolve + DKIM sign). For now, mark each claimed row
-                // as `failed` so it goes back to pending after the
-                // retry window — prevents the queue from accumulating
-                // `inflight` rows in staging probes.
-                for item in &resp.items {
-                    let err = "sender 4.4: SMTP delivery NYI; row will retry".to_string();
-                    if let Err(e) = core_client.outbound_mark_failed(item.id, err.clone()).await {
-                        tracing::warn!(
-                            error = %e,
-                            id = item.id,
-                            "outbound_mark_failed RPC failed; row stays inflight"
-                        );
-                    } else {
-                        tracing::debug!(id = item.id, recipient = %item.recipient, "marked failed");
-                    }
-                }
-            }
-            Ok(_) => {
-                tracing::debug!("outbound claim — queue empty");
-            }
+        let resp = match state.core_client.outbound_claim(BATCH_SIZE).await {
+            Ok(r) => r,
             Err(mailrs_core_api::error::CoreApiError::Unauthorized) => {
-                tracing::error!(
-                    "outbound claim 401 — MAILRS_CORE_API_SECRET mismatch; \
-                     loop continues to allow secret rotation"
-                );
+                tracing::error!("outbound claim 401 — secret mismatch (loop continues)");
+                continue;
             }
             Err(e) => {
                 tracing::warn!(error = %e, "outbound claim failed");
+                continue;
+            }
+        };
+        if resp.items.is_empty() {
+            tracing::debug!("outbound claim — queue empty");
+            continue;
+        }
+        tracing::info!(claimed = resp.items.len(), "delivering outbound batch");
+
+        for item in &resp.items {
+            let body = match B64.decode(item.message_data_base64.as_bytes()) {
+                Ok(b) => b,
+                Err(e) => {
+                    tracing::warn!(error = %e, id = item.id, "base64 decode failed; bouncing");
+                    let _ = state
+                        .core_client
+                        .outbound_mark_failed(item.id, format!("base64: {e}"))
+                        .await;
+                    continue;
+                }
+            };
+            match deliver::deliver_envelope(
+                &state.resolver,
+                &item.sender,
+                &item.recipient,
+                &body,
+                &state.hostname,
+            )
+            .await
+            {
+                Ok(deliver::Outcome::Accepted) => {
+                    tracing::info!(id = item.id, recipient = %item.recipient, "delivered");
+                    if let Err(e) = state.core_client.outbound_mark_delivered(item.id).await {
+                        tracing::warn!(error = %e, id = item.id, "mark_delivered RPC failed");
+                    }
+                }
+                Ok(deliver::Outcome::Transient(msg)) => {
+                    tracing::info!(id = item.id, recipient = %item.recipient, %msg, "transient");
+                    let _ = state.core_client.outbound_mark_failed(item.id, msg).await;
+                }
+                Ok(deliver::Outcome::Permanent(msg)) => {
+                    tracing::warn!(id = item.id, recipient = %item.recipient, %msg, "permanent");
+                    let _ = state.core_client.outbound_mark_failed(item.id, msg).await;
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, id = item.id, "deliver transport failed");
+                    let _ = state
+                        .core_client
+                        .outbound_mark_failed(item.id, format!("transport: {e}"))
+                        .await;
+                }
             }
         }
     }
