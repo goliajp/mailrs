@@ -217,7 +217,29 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/_health", get(health_handler))
         .route("/api/auth/login", post(handlers::auth::login));
 
-    unauth.merge(authenticated).with_state(state)
+    let mut app = unauth.merge(authenticated).with_state(state);
+
+    // Serve the React UI from `MAILRS_WEB_STATIC_DIR` (defaults to
+    // `/opt/mailrs/web` to match the monolith's bind-mount layout).
+    // SPA fallback: any non-API path serves index.html so client-side
+    // routing works.
+    let static_dir =
+        std::env::var("MAILRS_WEB_STATIC_DIR").unwrap_or_else(|_| "/opt/mailrs/web".to_string());
+    if std::path::Path::new(&static_dir)
+        .join("index.html")
+        .exists()
+    {
+        use tower_http::services::{ServeDir, ServeFile};
+        let index = format!("{static_dir}/index.html");
+        app = app.fallback_service(ServeDir::new(&static_dir).fallback(ServeFile::new(index)));
+        tracing::info!(dir = %static_dir, "webapi serving static UI");
+    } else {
+        tracing::info!(
+            dir = %static_dir,
+            "MAILRS_WEB_STATIC_DIR missing index.html — webapi will 404 non-API paths"
+        );
+    }
+    app
 }
 
 async fn health_handler() -> &'static str {
