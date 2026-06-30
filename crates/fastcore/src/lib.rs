@@ -22,7 +22,7 @@ use std::sync::Arc;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, State};
-use axum::routing::post;
+use axum::routing::{get, post};
 use kevy_embedded::{Config, Store};
 use mailrs_core_api::method::conversation as conv;
 use mailrs_core_api::server::{Handler, base_router};
@@ -87,6 +87,9 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
     let base = base_router(state.clone());
     let convo = Router::new()
         .route(conv::PATH_LIST_CONVERSATIONS, post(list_conversations))
+        .route(conv::PATH_CONVERSATION_CATEGORIES, get(get_categories))
+        .route(conv::PATH_ACTION_COUNT, get(get_action_count))
+        .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
         .with_state(state);
     base.merge(convo)
 }
@@ -134,4 +137,51 @@ async fn list_conversations(
 
     let items = rows.into_iter().map(row_to_wire).collect();
     Json(conv::ListConversationsResponse { items })
+}
+
+/// `GET /v1/users/{user}/conversations/categories` — histogram of
+/// category → distinct thread_id count, read straight off the per-
+/// category zsets.
+async fn get_categories(
+    State(state): State<Arc<FastcoreState>>,
+    Path(_user): Path<String>,
+) -> Json<conv::ConversationCategoriesResponse> {
+    // Hardcoded set for now — mailbox-kevy doesn't have a "list all
+    // categories for user" iterator yet. The 5 below match the UI tab
+    // set; missing ones return 0.
+    let categories: Vec<conv::CategoryCount> = ["personal", "bulk", "spam", "scam", "inbox"]
+        .into_iter()
+        .map(|cat| {
+            let key = mailrs_mailbox_kevy::keys::user_threads_by_category(&_user, cat);
+            let count = state.mailbox.store_ref().zcard(key.as_bytes()).unwrap_or(0) as i64;
+            conv::CategoryCount {
+                category: cat.to_string(),
+                count,
+            }
+        })
+        .filter(|c| c.count > 0)
+        .collect();
+    Json(conv::ConversationCategoriesResponse { categories })
+}
+
+/// `GET /v1/users/{user}/conversations/action-count` — single ZCARD on
+/// the has_action zset.
+async fn get_action_count(
+    State(state): State<Arc<FastcoreState>>,
+    Path(user): Path<String>,
+) -> Json<conv::ActionCountResponse> {
+    let key = mailrs_mailbox_kevy::keys::user_threads_has_action(&user);
+    let count = state.mailbox.store_ref().zcard(key.as_bytes()).unwrap_or(0) as i64;
+    Json(conv::ActionCountResponse { count })
+}
+
+/// `GET /v1/users/{user}/conversations/unseen-count` — single ZCARD on
+/// the has_unread zset.
+async fn get_unseen_count(
+    State(state): State<Arc<FastcoreState>>,
+    Path(user): Path<String>,
+) -> Json<conv::UnseenCountResponse> {
+    let key = mailrs_mailbox_kevy::keys::user_threads_has_unread(&user);
+    let count = state.mailbox.store_ref().zcard(key.as_bytes()).unwrap_or(0) as i64;
+    Json(conv::UnseenCountResponse { count })
 }

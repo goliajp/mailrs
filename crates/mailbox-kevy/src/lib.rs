@@ -95,6 +95,14 @@ impl KevyMailboxStore {
     pub(crate) fn store(&self) -> &Store {
         &self.store
     }
+
+    /// Public reference to the inner store — for callers (like the
+    /// fastcore binary) that need to run ad-hoc ZCARD / HGETALL outside
+    /// the typed `mailbox-kevy` method surface. Stable: this returns
+    /// the same store the typed methods use.
+    pub fn store_ref(&self) -> &Store {
+        &self.store
+    }
 }
 
 // MailboxStore trait impl + per-method bodies land in subsequent loops.
