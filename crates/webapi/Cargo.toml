@@ -1,0 +1,25 @@
+[package]
+name = "mailrs-webapi"
+version = "0.0.1"
+edition = "2024"
+description = "REST + MCP + JMAP + CalDAV/CardDAV web frontend for mailrs. Talks to core via mailrs-core-api over HTTP."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mailrs-webapi"
+path = "src/main.rs"
+
+[dependencies]
+mailrs-core-api = { path = "../core-api", features = ["client"] }
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.8", features = ["ws"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = "2"

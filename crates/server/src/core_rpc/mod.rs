@@ -330,6 +330,27 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
             adm_paths::PATH_LIST_AUDIT_LOG,
             get(handlers::admin::list_audit_log).post(handlers::admin::log_audit),
         )
+        // groups + permissions
+        .route(
+            adm_paths::PATH_LIST_GROUPS,
+            get(handlers::admin::list_groups),
+        )
+        .route(
+            adm_paths::PATH_GET_GROUP_PERMISSIONS,
+            get(handlers::admin::get_group_permissions).put(handlers::admin::set_group_permissions),
+        )
+        .route(
+            adm_paths::PATH_LIST_GROUP_MEMBERS,
+            get(handlers::admin::list_group_members).post(handlers::admin::add_account_to_group),
+        )
+        .route(
+            adm_paths::PATH_REMOVE_ACCOUNT_FROM_GROUP,
+            delete(handlers::admin::remove_account_from_group),
+        )
+        .route(
+            adm_paths::PATH_GET_ACCOUNT_GROUPS,
+            get(handlers::admin::get_account_groups),
+        )
         .with_state(state.clone());
 
     // ── analysis ─────────────────────────────────────────────────────

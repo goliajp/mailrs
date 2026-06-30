@@ -384,6 +384,126 @@ pub async fn log_audit(
     StatusCode::NO_CONTENT
 }
 
+// ── groups + permissions ────────────────────────────────────────────
+
+fn group_info_to_wire(g: crate::permission::GroupInfo) -> wire::GroupWire {
+    wire::GroupWire {
+        id: g.id,
+        name: g.name,
+        domain: g.domain,
+        description: g.description,
+        is_builtin: g.is_builtin,
+        created_at: g.created_at,
+    }
+}
+
+/// GET /v1/admin/groups
+pub async fn list_groups(
+    State(state): State<Arc<CoreRpcState>>,
+) -> Result<Json<wire::GroupListResponse>, StatusCode> {
+    let rows = state.domain.list_groups(None).await.map_err(|e| {
+        tracing::warn!(error = %e, "list_groups failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let items = rows.into_iter().map(group_info_to_wire).collect();
+    Ok(Json(wire::GroupListResponse { items }))
+}
+
+/// GET /v1/admin/groups/{id}/permissions
+pub async fn get_group_permissions(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(id): Path<i64>,
+) -> Result<Json<wire::GroupPermissionsResponse>, StatusCode> {
+    let perms = state.domain.get_group_permissions(id).await.map_err(|e| {
+        tracing::warn!(error = %e, id, "get_group_permissions failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(Json(wire::GroupPermissionsResponse { permissions: perms }))
+}
+
+/// PUT /v1/admin/groups/{id}/permissions
+pub async fn set_group_permissions(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(id): Path<i64>,
+    Json(req): Json<wire::SetGroupPermissionsRequest>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .domain
+        .set_group_permissions(id, &req.permissions)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, id, "set_group_permissions failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /v1/admin/groups/{id}/members
+pub async fn list_group_members(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(id): Path<i64>,
+) -> Result<Json<wire::GroupMembersResponse>, StatusCode> {
+    let members = state.domain.list_group_members(id).await.map_err(|e| {
+        tracing::warn!(error = %e, id, "list_group_members failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(Json(wire::GroupMembersResponse { members }))
+}
+
+/// POST /v1/admin/groups/{id}/members
+pub async fn add_account_to_group(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(id): Path<i64>,
+    Json(req): Json<wire::AddGroupMemberRequest>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .domain
+        .add_account_to_group(&req.account_address, id)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, id, "add_account_to_group failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// DELETE /v1/admin/groups/{id}/members/{address}
+pub async fn remove_account_from_group(
+    State(state): State<Arc<CoreRpcState>>,
+    Path((id, address)): Path<(i64, String)>,
+) -> Result<StatusCode, StatusCode> {
+    let removed = state
+        .domain
+        .remove_account_from_group(&address, id)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, id, address = %address, "remove failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    if removed {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+/// GET /v1/admin/accounts/{address}/groups
+pub async fn get_account_groups(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(address): Path<String>,
+) -> Result<Json<wire::GroupListResponse>, StatusCode> {
+    let rows = state
+        .domain
+        .get_account_groups(&address)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, address = %address, "get_account_groups failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    let items = rows.into_iter().map(group_info_to_wire).collect();
+    Ok(Json(wire::GroupListResponse { items }))
+}
+
 /// GET /v1/admin/audit-log?limit=
 pub async fn list_audit_log(
     State(state): State<Arc<CoreRpcState>>,
