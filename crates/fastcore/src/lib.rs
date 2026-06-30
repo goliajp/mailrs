@@ -288,3 +288,159 @@ async fn delete_thread(
             .unwrap_or(false),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Method, Request};
+    use http_body_util::BodyExt;
+    use mailrs_mailbox_kevy::MessageArrival;
+    use tower::ServiceExt;
+
+    fn fresh_state() -> Arc<FastcoreState> {
+        let store = Arc::new(
+            kevy_embedded::Store::open(kevy_embedded::Config::default()).expect("in-memory kevy"),
+        );
+        let mailbox = KevyMailboxStore::new(store);
+        Arc::new(FastcoreState { mailbox })
+    }
+
+    fn arr<'a>(tid: &'a str, user: &'a str, unread: bool) -> MessageArrival<'a> {
+        MessageArrival {
+            thread_id: tid,
+            user,
+            subject: "Subj",
+            senders_csv: "x@y.z",
+            latest_date: 100,
+            latest_preview: "preview",
+            category: "inbox",
+            unread,
+        }
+    }
+
+    async fn body_string(resp: axum::response::Response) -> String {
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn healthz_reports_kevy_backend() {
+        let app = build_router(fresh_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/healthz")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = body_string(resp).await;
+        assert!(body.contains("\"backend\":\"kevy\""), "{body}");
+    }
+
+    #[tokio::test]
+    async fn unseen_count_after_arrival_is_one() {
+        let state = fresh_state();
+        state
+            .mailbox
+            .record_message_arrival(&arr("t1", "u@x.com", true))
+            .unwrap();
+        let app = build_router(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/users/u@x.com/conversations/unseen-count")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        assert!(body_string(resp).await.contains("\"count\":1"));
+    }
+
+    #[tokio::test]
+    async fn mark_read_drops_from_unseen() {
+        let state = fresh_state();
+        state
+            .mailbox
+            .record_message_arrival(&arr("t1", "u@x.com", true))
+            .unwrap();
+        let app = build_router(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/users/u@x.com/threads/t1/read")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 204);
+        assert_eq!(
+            state
+                .mailbox
+                .get_thread("t1")
+                .unwrap()
+                .unwrap()
+                .unread_count,
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn mark_read_on_missing_returns_404() {
+        let app = build_router(fresh_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/users/u@x.com/threads/nope/read")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 404);
+    }
+
+    #[tokio::test]
+    async fn list_conversations_returns_arrivals() {
+        let state = fresh_state();
+        for i in 0..3 {
+            state
+                .mailbox
+                .record_message_arrival(&MessageArrival {
+                    thread_id: &format!("t{i}"),
+                    user: "u@x.com",
+                    subject: "Subj",
+                    senders_csv: "x@y.z",
+                    latest_date: i as i64 * 100,
+                    latest_preview: "preview",
+                    category: "inbox",
+                    unread: true,
+                })
+                .unwrap();
+        }
+        let app = build_router(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/users/u@x.com/conversations:list")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(r#"{"limit":10}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = body_string(resp).await;
+        // reverse chronological → t2 first
+        assert!(body.contains(r#""thread_id":"t2""#));
+    }
+}

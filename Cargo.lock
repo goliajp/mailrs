@@ -3203,12 +3203,14 @@ name = "mailrs-fastcore"
 version = "0.0.1"
 dependencies = [
  "axum",
+ "http-body-util",
  "kevy-embedded",
  "mailrs-core-api",
  "mailrs-mailbox-kevy",
  "serde",
  "serde_json",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]
