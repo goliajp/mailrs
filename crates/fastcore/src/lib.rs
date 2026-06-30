@@ -22,9 +22,11 @@ use std::sync::Arc;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, State};
-use axum::routing::{get, post};
+use axum::http::StatusCode;
+use axum::routing::{delete, get, post};
 use kevy_embedded::{Config, Store};
 use mailrs_core_api::method::conversation as conv;
+use mailrs_core_api::method::thread as th;
 use mailrs_core_api::server::{Handler, base_router};
 use mailrs_core_api::types::{BackendKind, ConversationSummaryWire, HealthResponse};
 use mailrs_mailbox_kevy::{KevyMailboxStore, ListThreadsFilter, ThreadRow};
@@ -89,9 +91,18 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(conv::PATH_LIST_CONVERSATIONS, post(list_conversations))
         .route(conv::PATH_CONVERSATION_CATEGORIES, get(get_categories))
         .route(conv::PATH_ACTION_COUNT, get(get_action_count))
-        .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
-        .with_state(state);
-    base.merge(convo)
+        .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count));
+
+    let thread = Router::new()
+        .route(th::PATH_MARK_READ, post(mark_read))
+        .route(th::PATH_PIN, post(pin_thread))
+        .route(th::PATH_UNPIN, post(unpin_thread))
+        .route(th::PATH_ARCHIVE, post(archive_thread))
+        .route(th::PATH_UNARCHIVE, post(unarchive_thread))
+        .route(th::PATH_DISMISS_ACTION, post(dismiss_action))
+        .route(th::PATH_DELETE_THREAD, delete(delete_thread));
+
+    base.merge(convo.merge(thread).with_state(state))
 }
 
 fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
@@ -184,4 +195,96 @@ async fn get_unseen_count(
     let key = mailrs_mailbox_kevy::keys::user_threads_has_unread(&user);
     let count = state.mailbox.store_ref().zcard(key.as_bytes()).unwrap_or(0) as i64;
     Json(conv::UnseenCountResponse { count })
+}
+
+// ── Thread mutations ───────────────────────────────────────────────
+
+/// 204 if mailbox-kevy reports the row existed + was mutated; 404 if
+/// the thread row is missing. Most mutations are idempotent so a
+/// 2nd call lands the same status.
+fn status_for(found: bool) -> StatusCode {
+    if found {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+async fn mark_read(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> StatusCode {
+    status_for(state.mailbox.mark_seen(&user, &thread_id).unwrap_or(false))
+}
+
+async fn pin_thread(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> StatusCode {
+    status_for(
+        state
+            .mailbox
+            .set_pinned(&user, &thread_id, true)
+            .unwrap_or(false),
+    )
+}
+
+async fn unpin_thread(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> StatusCode {
+    status_for(
+        state
+            .mailbox
+            .set_pinned(&user, &thread_id, false)
+            .unwrap_or(false),
+    )
+}
+
+async fn archive_thread(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> StatusCode {
+    status_for(
+        state
+            .mailbox
+            .set_archived(&user, &thread_id, true)
+            .unwrap_or(false),
+    )
+}
+
+async fn unarchive_thread(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> StatusCode {
+    status_for(
+        state
+            .mailbox
+            .set_archived(&user, &thread_id, false)
+            .unwrap_or(false),
+    )
+}
+
+async fn dismiss_action(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> StatusCode {
+    status_for(
+        state
+            .mailbox
+            .set_has_action(&user, &thread_id, false)
+            .unwrap_or(false),
+    )
+}
+
+async fn delete_thread(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> StatusCode {
+    status_for(
+        state
+            .mailbox
+            .delete_thread(&user, &thread_id)
+            .unwrap_or(false),
+    )
 }
