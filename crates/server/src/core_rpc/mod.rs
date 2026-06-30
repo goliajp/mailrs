@@ -64,15 +64,31 @@ impl Handler for CoreRpcState {
     }
 
     async fn readyz(&self) -> HealthResponse {
-        // Conservative implementation — full readiness check exercises
-        // every backend (filled in checklist 2.6). For now we assume
-        // readiness mirrors process liveness; the monolith's existing
-        // `/api/readiness` endpoint covers the deeper check via
-        // `crate::health::HealthState`.
+        // Phase 2.6 deep probe: acquire a backend pool connection with a
+        // tight 1s timeout + run `SELECT 1`. Failure (timeout / acquire
+        // error) flips `ready` to false so the orchestrator routes traffic
+        // away. This matches the semantics expected by /api/readiness in
+        // the existing webapi.
+        let ready = match tokio::time::timeout(
+            std::time::Duration::from_millis(1000),
+            sqlx::query("SELECT 1").execute(&self.pool),
+        )
+        .await
+        {
+            Ok(Ok(_)) => true,
+            Ok(Err(e)) => {
+                tracing::debug!(error = %e, "readyz: backend ping returned error");
+                false
+            }
+            Err(_) => {
+                tracing::debug!("readyz: backend ping timed out (>1s)");
+                false
+            }
+        };
         HealthResponse {
             version: mailrs_core_api::API_VERSION.into(),
             backend: BackendKind::Pg,
-            ready: true,
+            ready,
         }
     }
 }
@@ -131,6 +147,8 @@ pub fn spawn_core_rpc(state: Arc<CoreRpcState>, shutdown_rx: tokio::sync::watch:
 /// Empty `secret` disables auth entirely — dev-only mode.
 fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     use mailrs_core_api::method::admin as adm_paths;
+    use mailrs_core_api::method::analysis as analysis_paths;
+    use mailrs_core_api::method::contact as contact_paths;
     use mailrs_core_api::method::conversation as conv_paths;
     use mailrs_core_api::method::mailbox as mb_paths;
     use mailrs_core_api::method::message as msg_paths;
@@ -282,10 +300,61 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
             adm_paths::PATH_GET_ACCOUNT,
             get(handlers::admin::get_account),
         )
-        .with_state(state);
+        .with_state(state.clone());
+
+    // ── analysis ─────────────────────────────────────────────────────
+    let anal = Router::new()
+        .route(
+            analysis_paths::PATH_GET_ANALYSIS,
+            get(handlers::analysis::get_analysis),
+        )
+        .route(
+            analysis_paths::PATH_COUNT_UNANALYZED,
+            get(handlers::analysis::count_unanalyzed),
+        )
+        .route(
+            analysis_paths::PATH_BOOST_IMPORTANCE,
+            post(handlers::analysis::boost_importance),
+        )
+        .route(
+            analysis_paths::PATH_ATTACHMENT_TEXTS,
+            get(handlers::analysis::attachment_texts),
+        )
+        .route(
+            analysis_paths::PATH_SEMANTIC_SEARCH,
+            post(handlers::analysis::semantic_search),
+        )
+        .with_state(state.clone());
+
+    // ── contacts ─────────────────────────────────────────────────────
+    let ct = Router::new()
+        .route(
+            contact_paths::PATH_SEARCH_CONTACTS,
+            get(handlers::contact::search_contacts),
+        )
+        .route(
+            contact_paths::PATH_UPSERT_INBOUND,
+            post(handlers::contact::upsert_inbound),
+        )
+        .route(
+            contact_paths::PATH_CONTACT_SCORING,
+            get(handlers::contact::contact_scoring),
+        )
+        .route(
+            contact_paths::PATH_HAS_SENT_TO,
+            get(handlers::contact::has_sent_to),
+        )
+        .with_state(state.clone());
 
     // Authenticated subtree = everything except /v1/healthz + /v1/readyz.
-    let authenticated = convo.merge(mb).merge(th).merge(msg).merge(adm);
+    let authenticated = convo
+        .merge(mb)
+        .merge(th)
+        .merge(msg)
+        .merge(adm)
+        .merge(anal)
+        .merge(ct);
+    drop(state);
 
     // Auth middleware applies only when a secret was configured. Empty
     // secret = dev/local mode, no auth.

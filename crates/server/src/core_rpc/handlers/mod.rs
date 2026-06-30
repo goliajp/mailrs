@@ -11,6 +11,8 @@
 //! Phase 2 stub — full error mapping (CoreApiError → status) in 2.5.
 
 pub mod admin;
+pub mod analysis;
+pub mod contact;
 pub mod conversation;
 pub mod mailbox;
 pub mod message;
