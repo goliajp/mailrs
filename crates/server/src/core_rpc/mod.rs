@@ -152,6 +152,7 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     use mailrs_core_api::method::conversation as conv_paths;
     use mailrs_core_api::method::mailbox as mb_paths;
     use mailrs_core_api::method::message as msg_paths;
+    use mailrs_core_api::method::outbound as ob_paths;
     use mailrs_core_api::method::thread as th_paths;
 
     let base = mailrs_core_api::server::base_router(state.clone());
@@ -401,6 +402,28 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         )
         .with_state(state.clone());
 
+    // ── outbound (sender ↔ core) ─────────────────────────────────────
+    let ob = Router::new()
+        .route(ob_paths::PATH_CLAIM, post(handlers::outbound::claim))
+        .route(ob_paths::PATH_STATS, get(handlers::outbound::stats))
+        .route(
+            ob_paths::PATH_RECOVER_STALE,
+            post(handlers::outbound::recover_stale),
+        )
+        .route(
+            ob_paths::PATH_MARK_DELIVERED,
+            post(handlers::outbound::mark_delivered),
+        )
+        .route(
+            ob_paths::PATH_MARK_FAILED,
+            post(handlers::outbound::mark_failed),
+        )
+        .route(
+            ob_paths::PATH_MARK_BOUNCED,
+            post(handlers::outbound::mark_bounced),
+        )
+        .with_state(state.clone());
+
     // Authenticated subtree = everything except /v1/healthz + /v1/readyz.
     let authenticated = convo
         .merge(mb)
@@ -408,7 +431,8 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         .merge(msg)
         .merge(adm)
         .merge(anal)
-        .merge(ct);
+        .merge(ct)
+        .merge(ob);
     drop(state);
 
     // Auth middleware applies only when a secret was configured. Empty
