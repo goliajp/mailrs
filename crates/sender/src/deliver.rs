@@ -16,7 +16,7 @@ use std::io;
 use std::sync::Arc;
 
 use hickory_resolver::TokioResolver;
-use mailrs_smtp_client::{SmtpConnection, resolve_mx, sort_mx_records};
+use mailrs_smtp_client::{SmtpConnection, StarttlsResult, resolve_mx, sort_mx_records};
 
 /// Final SMTP outcome.
 #[derive(Debug)]
@@ -59,6 +59,32 @@ pub async fn deliver_envelope(
     let ehlo = conn.ehlo(hostname).await?;
     if !ehlo.is_positive() {
         return Ok(Outcome::Transient(format!("EHLO: {}", ehlo.message())));
+    }
+
+    // Phase 4.6 — opportunistic STARTTLS via standard PKIX. DANE +
+    // MTA-STS policy hardening lands with checklist 4.6.1 once the
+    // sender carries a TLS-RPT observer reference.
+    if ehlo.has_extension("STARTTLS") {
+        match conn.try_starttls(&top.exchange).await {
+            StarttlsResult::Success(tls_conn) => {
+                conn = tls_conn;
+                let _ = conn.ehlo(hostname).await?;
+                tracing::debug!(host = %top.exchange, "STARTTLS established (PKIX)");
+            }
+            StarttlsResult::Rejected {
+                conn: plain,
+                code,
+                message,
+            } => {
+                tracing::debug!(host = %top.exchange, code, msg = %message, "STARTTLS rejected — falling back to plain");
+                conn = plain;
+            }
+            _other => {
+                tracing::debug!(host = %top.exchange, "STARTTLS handshake error — reconnecting plain");
+                conn = SmtpConnection::connect(&top.exchange, 25).await?;
+                let _ = conn.ehlo(hostname).await?;
+            }
+        }
     }
 
     let resp = conn.deliver(from, &[recipient], message).await?;
