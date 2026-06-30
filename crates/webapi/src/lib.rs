@@ -36,10 +36,29 @@ use axum::response::Response;
 /// Distinct from the old `crate::server::web::WebState` — fewer fields
 /// because PG/mailbox/domain backings now sit behind `core_client`.
 pub struct WebState {
-    /// HTTP client for the core/fastcore RPC.
+    /// HTTP client for the core/fastcore RPC. Used for everything
+    /// EXCEPT the routes `fastcore_client` covers (when set).
     pub core_client: Arc<mailrs_core_api::client::Client>,
+    /// Optional second client pointing at a kevy-backed fastcore.
+    /// When `Some`, conversation list / thread mutations / counts /
+    /// categories / per-thread messages are served via this client.
+    /// Everything else (auth, admin, mail send, drafts, signatures,
+    /// templates, queue) stays on `core_client`.
+    ///
+    /// Set via `MAILRS_FASTCORE_RPC_BASE` env var. When unset, all
+    /// requests go to `core_client` and webapi behaves identically
+    /// to the pre-fastcore build.
+    pub fastcore_client: Option<Arc<mailrs_core_api::client::Client>>,
     /// Process bind address for the public REST/MCP listener.
     pub bind_addr: String,
+}
+
+impl WebState {
+    /// Pick which client handles a "fastcore-eligible" route.
+    /// Used by conversation list / thread mutation handlers.
+    pub fn fast(&self) -> &Arc<mailrs_core_api::client::Client> {
+        self.fastcore_client.as_ref().unwrap_or(&self.core_client)
+    }
 }
 
 impl WebState {
@@ -49,10 +68,23 @@ impl WebState {
             .unwrap_or_else(|_| "http://localhost:3300".into());
         let secret = std::env::var(mailrs_core_api::AUTH_SECRET_ENV)
             .expect("MAILRS_CORE_API_SECRET required for webapi");
-        let core_client = Arc::new(mailrs_core_api::client::Client::new(base, secret));
+        let core_client = Arc::new(mailrs_core_api::client::Client::new(base, secret.clone()));
+        let fastcore_client = match std::env::var("MAILRS_FASTCORE_RPC_BASE") {
+            Ok(fbase) if !fbase.is_empty() => {
+                tracing::info!(
+                    fastcore_base = %fbase,
+                    "fastcore RPC enabled — conversation/thread reads go to fastcore"
+                );
+                Some(Arc::new(mailrs_core_api::client::Client::new(
+                    fbase, secret,
+                )))
+            }
+            _ => None,
+        };
         let bind_addr = std::env::var("MAILRS_WEB_BIND").unwrap_or_else(|_| "0.0.0.0:3100".into());
         Self {
             core_client,
+            fastcore_client,
             bind_addr,
         }
     }
