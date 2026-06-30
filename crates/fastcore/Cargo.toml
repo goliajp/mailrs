@@ -13,6 +13,10 @@ workspace = true
 name = "mailrs-fastcore"
 path = "src/main.rs"
 
+[[bin]]
+name = "mailrs-fastcore-migrate"
+path = "src/bin/migrate.rs"
+
 [dependencies]
 mailrs-core-api = { path = "../core-api", features = ["server"] }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
