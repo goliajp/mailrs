@@ -644,6 +644,31 @@ impl Client {
         self.delete_authed(path, "delete_draft").await
     }
 
+    /// GET /v1/users/{user}/signatures
+    pub async fn list_signatures(
+        &self,
+        user: &str,
+    ) -> ApiResult<method::admin::SignatureListResponse> {
+        let path = format!("/v1/users/{}/signatures", Self::enc(user));
+        self.get_authed(path, "list_signatures").await
+    }
+
+    /// POST /v1/users/{user}/signatures
+    pub async fn save_signature(
+        &self,
+        user: &str,
+        req: &method::admin::SaveSignatureRequest,
+    ) -> ApiResult<method::admin::SaveSignatureResponse> {
+        let path = format!("/v1/users/{}/signatures", Self::enc(user));
+        self.post_authed_json(path, req, "save_signature").await
+    }
+
+    /// DELETE /v1/users/{user}/signatures/{id}
+    pub async fn delete_signature(&self, user: &str, id: i64) -> ApiResult<()> {
+        let path = format!("/v1/users/{}/signatures/{id}", Self::enc(user));
+        self.delete_authed(path, "delete_signature").await
+    }
+
     /// GET /v1/users/{user}/contacts:search?q=&limit=
     pub async fn search_contacts(
         &self,

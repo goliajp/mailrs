@@ -425,6 +425,18 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         )
         .with_state(state.clone());
 
+    // ── signatures ──────────────────────────────────────────────────
+    let signatures = Router::new()
+        .route(
+            adm_paths::PATH_LIST_SIGNATURES,
+            get(handlers::signatures::list_signatures).post(handlers::signatures::save_signature),
+        )
+        .route(
+            adm_paths::PATH_DELETE_SIGNATURE,
+            delete(handlers::signatures::delete_signature),
+        )
+        .with_state(state.clone());
+
     // ── outbound (sender ↔ core) ─────────────────────────────────────
     let ob = Router::new()
         .route(ob_paths::PATH_ENQUEUE, post(handlers::outbound::enqueue))
@@ -457,6 +469,7 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         .merge(anal)
         .merge(ct)
         .merge(drafts)
+        .merge(signatures)
         .merge(ob);
     drop(state);
 

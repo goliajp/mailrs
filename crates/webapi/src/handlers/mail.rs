@@ -225,6 +225,47 @@ pub async fn delete_draft(
         .map_err(map_err)
 }
 
+/// GET /api/mail/signatures
+pub async fn list_signatures(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<mailrs_core_api::method::admin::SignatureListResponse>, StatusCode> {
+    state
+        .core_client
+        .list_signatures(&user)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// POST /api/mail/signatures
+pub async fn save_signature(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Json(req): Json<mailrs_core_api::method::admin::SaveSignatureRequest>,
+) -> Result<Json<mailrs_core_api::method::admin::SaveSignatureResponse>, StatusCode> {
+    state
+        .core_client
+        .save_signature(&user, &req)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// DELETE /api/mail/signatures/{id}
+pub async fn delete_signature(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .delete_signature(&user, id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
 /// GET /api/queue  — outbound queue depths for ops dashboards.
 pub async fn get_queue_stats(
     State(state): State<Arc<WebState>>,
