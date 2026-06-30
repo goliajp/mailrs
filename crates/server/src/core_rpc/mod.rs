@@ -97,9 +97,8 @@ pub fn spawn_core_rpc(state: Arc<CoreRpcState>, shutdown_rx: tokio::sync::watch:
         );
     }
 
-    let router = build_full_router(state);
+    let router = build_full_router(state, secret);
 
-    let _ = secret; // checklist 2.5 wraps auth middleware around the inner subtree
     tokio::spawn(async move {
         let listener = match tokio::net::TcpListener::bind(&addr).await {
             Ok(l) => l,
@@ -125,11 +124,12 @@ pub fn spawn_core_rpc(state: Arc<CoreRpcState>, shutdown_rx: tokio::sync::watch:
     });
 }
 
-/// Build the full router with all per-method routes mounted (checklist 2.2).
+/// Build the full router with all per-method routes mounted (checklist 2.2)
+/// + bearer auth middleware on the authenticated subtree (checklist 2.5).
 ///
-/// Path constants come from `mailrs_core_api::method::*` so any future
-/// rename in the wire crate ripples through automatically.
-fn build_full_router(state: Arc<CoreRpcState>) -> Router {
+/// Healthz/readyz remain unauthenticated (LB/orchestrator probes).
+/// Empty `secret` disables auth entirely — dev-only mode.
+fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     use mailrs_core_api::method::admin as adm_paths;
     use mailrs_core_api::method::conversation as conv_paths;
     use mailrs_core_api::method::mailbox as mb_paths;
@@ -233,6 +233,27 @@ fn build_full_router(state: Arc<CoreRpcState>) -> Router {
             msg_paths::PATH_FIND_BY_MESSAGE_ID,
             get(handlers::message::find_message_by_message_id),
         )
+        .route(
+            msg_paths::PATH_SET_FLAGS,
+            put(handlers::message::flag_mutation),
+        )
+        .route(
+            msg_paths::PATH_FLAGS_IF_UNCHANGED,
+            post(handlers::message::condstore),
+        )
+        .route(
+            msg_paths::PATH_CHANGED_SINCE,
+            get(handlers::message::changed_since),
+        )
+        .route(msg_paths::PATH_EXPUNGE, post(handlers::message::expunge))
+        .route(
+            msg_paths::PATH_COPY_MESSAGE,
+            post(handlers::message::copy_message),
+        )
+        .route(
+            msg_paths::PATH_MOVE_MESSAGE,
+            post(handlers::message::move_message),
+        )
         .with_state(state.clone());
 
     // ── admin (auth hot path) ─────────────────────────────────────────
@@ -263,5 +284,19 @@ fn build_full_router(state: Arc<CoreRpcState>) -> Router {
         )
         .with_state(state);
 
-    base.merge(convo).merge(mb).merge(th).merge(msg).merge(adm)
+    // Authenticated subtree = everything except /v1/healthz + /v1/readyz.
+    let authenticated = convo.merge(mb).merge(th).merge(msg).merge(adm);
+
+    // Auth middleware applies only when a secret was configured. Empty
+    // secret = dev/local mode, no auth.
+    if secret.is_empty() {
+        base.merge(authenticated)
+    } else {
+        let expected = Arc::new(secret);
+        let authenticated = authenticated.layer(axum::middleware::from_fn_with_state(
+            expected,
+            mailrs_core_api::server::auth_middleware,
+        ));
+        base.merge(authenticated)
+    }
 }

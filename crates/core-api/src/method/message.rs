@@ -20,8 +20,8 @@ pub const PATH_FIND_BY_MESSAGE_ID: &str = "/v1/users/{user}/messages/by-message-
 pub const PATH_QUERY_MESSAGES: &str = "/v1/users/{user}/messages:query";
 pub const PATH_INSERT_MESSAGE: &str = "/v1/mailboxes/{id}/messages";
 pub const PATH_EXPUNGE: &str = "/v1/mailboxes/{id}/expunge";
-pub const PATH_COPY_MESSAGE: &str = "/v1/mailboxes/{src_id}/messages/{uid}/copy-to/{dst_id}";
-pub const PATH_MOVE_MESSAGE: &str = "/v1/mailboxes/{src_id}/messages/{uid}/move-to/{dst_id}";
+pub const PATH_COPY_MESSAGE: &str = "/v1/users/{user}/mailboxes/{src_id}/messages/{uid}/copy";
+pub const PATH_MOVE_MESSAGE: &str = "/v1/users/{user}/mailboxes/{src_id}/messages/{uid}/move";
 pub const PATH_SET_FLAGS: &str = "/v1/mailboxes/{id}/messages/{uid}/flags";
 pub const PATH_FLAGS_IF_UNCHANGED: &str = "/v1/mailboxes/{id}/messages/{uid}/condstore";
 pub const PATH_CHANGED_SINCE: &str = "/v1/mailboxes/{id}/changed-since/{modseq}";
@@ -272,6 +272,27 @@ pub struct FlagMutationRequest {
 pub struct FlagMutationResponse {
     /// New `highest_modseq` of the affected mailbox.
     pub new_modseq: u64,
+}
+
+/// Request body for copy/move — destination mailbox name in the same user.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CopyMoveRequest {
+    /// Destination mailbox name (e.g. `Archive`).
+    pub dst_mailbox_name: String,
+}
+
+/// Response body for copy/move — new UID in the destination mailbox.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CopyMoveResponse {
+    /// Allocated UID in the destination mailbox.
+    pub new_uid: u32,
+}
+
+/// Response body for expunge.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExpungeResponse {
+    /// UIDs that were expunged (i.e. flagged `\Deleted` and removed).
+    pub expunged_uids: Vec<u32>,
 }
 
 /// CONDSTORE compare-and-set request.
