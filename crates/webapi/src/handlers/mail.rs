@@ -117,6 +117,32 @@ pub async fn send_message(
     Ok(Json(SendResponse { queue_id: resp.id }))
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct ContactsQuery {
+    #[serde(default)]
+    pub q: String,
+    #[serde(default = "default_contacts_limit")]
+    pub limit: u32,
+}
+
+fn default_contacts_limit() -> u32 {
+    5
+}
+
+/// GET /api/contacts?q=&limit=  — sender autocomplete.
+pub async fn get_contacts(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    axum::extract::Query(q): axum::extract::Query<ContactsQuery>,
+) -> Result<Json<mailrs_core_api::method::contact::SearchContactsResponse>, StatusCode> {
+    state
+        .core_client
+        .search_contacts(&user, &q.q, q.limit)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
 /// GET /api/queue  — outbound queue depths for ops dashboards.
 pub async fn get_queue_stats(
     State(state): State<Arc<WebState>>,
